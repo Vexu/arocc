@@ -1,4 +1,12 @@
-const Builder = @import("std").build.Builder;
+const std = @import("std");
+const Builder = std.build.Builder;
+
+const version = std.SemanticVersion{
+    .major = 0,
+    .minor = 0,
+    .patch = 0,
+    .pre = "dev",
+};
 
 pub fn build(b: *Builder) void {
     // Standard target options allows the person running `zig build` to choose
@@ -12,6 +20,8 @@ pub fn build(b: *Builder) void {
     const mode = b.standardReleaseOptions();
 
     const exe = b.addExecutable("sfcc", "src/main.zig");
+    exe.addBuildOption(std.SemanticVersion, "version", version);
+    exe.addBuildOption([]const u8, "version_str", std.fmt.allocPrint(b.allocator, "{}", .{version}) catch unreachable);
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
