@@ -1,16 +1,19 @@
 const std = @import("std");
-const mem = std.mem;
+const assert = std.debug.assert;
+const Source = @import("Source.zig");
 
 const Tokenizer = @This();
 
 pub const Token = struct {
     id: Id,
-    loc: struct {
-        start: u32,
-        end: u32,
-    },
+    source: Source.Id,
+    loc: Source.Location,
 
-    pub const Id = enum {
+    comptime {
+        assert(@sizeOf(Token) == 12);
+    }
+
+    pub const Id = enum(u8) {
         invalid,
         nl,
         eof,
@@ -145,13 +148,17 @@ pub const Token = struct {
         keyword_define,
         keyword_ifdef,
         keyword_ifndef,
+        keyword_undef,
+        keyword_endif,
         keyword_error,
         keyword_pragma,
+
         pub fn isIdentifier(id: Id) bool {
             return switch (id) {
                 .keyword_include,
                 .keyword_define,
                 .keyword_ifdef,
+                .keyword_undef,
                 .keyword_ifndef,
                 .keyword_error,
                 .keyword_pragma,
@@ -160,185 +167,73 @@ pub const Token = struct {
                 else => false,
             };
         }
-
-        // pub fn symbol(id: Id) []const u8 {
-        //     return switch (id) {
-        //         .Invalid => "Invalid",
-        //         .Eof => "Eof",
-        //         .Nl => "NewLine",
-        //         .Identifier => "Identifier",
-        //         .MacroString => "MacroString",
-        //         .StringLiteral => "StringLiteral",
-        //         .CharLiteral => "CharLiteral",
-        //         .IntegerLiteral => "IntegerLiteral",
-        //         .FloatLiteral => "FloatLiteral",
-        //         .LineComment => "LineComment",
-        //         .MultiLineComment => "MultiLineComment",
-
-        //         .Bang => "!",
-        //         .BangEqual => "!=",
-        //         .Pipe => "|",
-        //         .PipePipe => "||",
-        //         .PipeEqual => "|=",
-        //         .Equal => "=",
-        //         .EqualEqual => "==",
-        //         .LParen => "(",
-        //         .RParen => ")",
-        //         .LBrace => "{",
-        //         .RBrace => "}",
-        //         .LBracket => "[",
-        //         .RBracket => "]",
-        //         .Period => ".",
-        //         .Ellipsis => "...",
-        //         .Caret => "^",
-        //         .CaretEqual => "^=",
-        //         .Plus => "+",
-        //         .PlusPlus => "++",
-        //         .PlusEqual => "+=",
-        //         .Minus => "-",
-        //         .MinusMinus => "--",
-        //         .MinusEqual => "-=",
-        //         .Asterisk => "*",
-        //         .AsteriskEqual => "*=",
-        //         .Percent => "%",
-        //         .PercentEqual => "%=",
-        //         .Arrow => "->",
-        //         .Colon => ":",
-        //         .Semicolon => ";",
-        //         .Slash => "/",
-        //         .SlashEqual => "/=",
-        //         .Comma => ",",
-        //         .Ampersand => "&",
-        //         .AmpersandAmpersand => "&&",
-        //         .AmpersandEqual => "&=",
-        //         .QuestionMark => "?",
-        //         .AngleBracketLeft => "<",
-        //         .AngleBracketLeftEqual => "<=",
-        //         .AngleBracketAngleBracketLeft => "<<",
-        //         .AngleBracketAngleBracketLeftEqual => "<<=",
-        //         .AngleBracketRight => ">",
-        //         .AngleBracketRightEqual => ">=",
-        //         .AngleBracketAngleBracketRight => ">>",
-        //         .AngleBracketAngleBracketRightEqual => ">>=",
-        //         .Tilde => "~",
-        //         .Hash => "#",
-        //         .HashHash => "##",
-        //         .Keyword_auto => "auto",
-        //         .Keyword_break => "break",
-        //         .Keyword_case => "case",
-        //         .Keyword_char => "char",
-        //         .Keyword_const => "const",
-        //         .Keyword_continue => "continue",
-        //         .Keyword_default => "default",
-        //         .Keyword_do => "do",
-        //         .Keyword_double => "double",
-        //         .Keyword_else => "else",
-        //         .Keyword_enum => "enum",
-        //         .Keyword_extern => "extern",
-        //         .Keyword_float => "float",
-        //         .Keyword_for => "for",
-        //         .Keyword_goto => "goto",
-        //         .Keyword_if => "if",
-        //         .Keyword_int => "int",
-        //         .Keyword_long => "long",
-        //         .Keyword_register => "register",
-        //         .Keyword_return => "return",
-        //         .Keyword_short => "short",
-        //         .Keyword_signed => "signed",
-        //         .Keyword_sizeof => "sizeof",
-        //         .Keyword_static => "static",
-        //         .Keyword_struct => "struct",
-        //         .Keyword_switch => "switch",
-        //         .Keyword_typedef => "typedef",
-        //         .Keyword_union => "union",
-        //         .Keyword_unsigned => "unsigned",
-        //         .Keyword_void => "void",
-        //         .Keyword_volatile => "volatile",
-        //         .Keyword_while => "while",
-        //         .Keyword_bool => "_Bool",
-        //         .Keyword_complex => "_Complex",
-        //         .Keyword_imaginary => "_Imaginary",
-        //         .Keyword_inline => "inline",
-        //         .Keyword_restrict => "restrict",
-        //         .Keyword_alignas => "_Alignas",
-        //         .Keyword_alignof => "_Alignof",
-        //         .Keyword_atomic => "_Atomic",
-        //         .Keyword_generic => "_Generic",
-        //         .Keyword_noreturn => "_Noreturn",
-        //         .Keyword_static_assert => "_Static_assert",
-        //         .Keyword_thread_local => "_Thread_local",
-        //         .Keyword_include => "include",
-        //         .Keyword_define => "define",
-        //         .Keyword_ifdef => "ifdef",
-        //         .Keyword_ifndef => "ifndef",
-        //         .Keyword_error => "error",
-        //         .Keyword_pragma => "pragma",
-        //     };
-        // }
     };
 
     pub const keywords = std.ComptimeStringMap(Id, .{
-            .{ "auto", .keyword_auto },
-            .{ "break", .keyword_break },
-            .{ "case", .keyword_case },
-            .{ "char", .keyword_char },
-            .{ "const", .keyword_const },
-            .{ "continue", .keyword_continue },
-            .{ "default", .keyword_default },
-            .{ "do", .keyword_do },
-            .{ "double", .keyword_double },
-            .{ "else", .keyword_else },
-            .{ "enum", .keyword_enum },
-            .{ "extern", .keyword_extern },
-            .{ "float", .keyword_float },
-            .{ "for", .keyword_for },
-            .{ "goto", .keyword_goto },
-            .{ "if", .keyword_if },
-            .{ "int", .keyword_int },
-            .{ "long", .keyword_long },
-            .{ "register", .keyword_register },
-            .{ "return", .keyword_return },
-            .{ "short", .keyword_short },
-            .{ "signed", .keyword_signed },
-            .{ "sizeof", .keyword_sizeof },
-            .{ "static", .keyword_static },
-            .{ "struct", .keyword_struct },
-            .{ "switch", .keyword_switch },
-            .{ "typedef", .keyword_typedef },
-            .{ "union", .keyword_union },
-            .{ "unsigned", .keyword_unsigned },
-            .{ "void", .keyword_void },
-            .{ "volatile", .keyword_volatile },
-            .{ "while", .keyword_while },
+        .{ "auto", .keyword_auto },
+        .{ "break", .keyword_break },
+        .{ "case", .keyword_case },
+        .{ "char", .keyword_char },
+        .{ "const", .keyword_const },
+        .{ "continue", .keyword_continue },
+        .{ "default", .keyword_default },
+        .{ "do", .keyword_do },
+        .{ "double", .keyword_double },
+        .{ "else", .keyword_else },
+        .{ "enum", .keyword_enum },
+        .{ "extern", .keyword_extern },
+        .{ "float", .keyword_float },
+        .{ "for", .keyword_for },
+        .{ "goto", .keyword_goto },
+        .{ "if", .keyword_if },
+        .{ "int", .keyword_int },
+        .{ "long", .keyword_long },
+        .{ "register", .keyword_register },
+        .{ "return", .keyword_return },
+        .{ "short", .keyword_short },
+        .{ "signed", .keyword_signed },
+        .{ "sizeof", .keyword_sizeof },
+        .{ "static", .keyword_static },
+        .{ "struct", .keyword_struct },
+        .{ "switch", .keyword_switch },
+        .{ "typedef", .keyword_typedef },
+        .{ "union", .keyword_union },
+        .{ "unsigned", .keyword_unsigned },
+        .{ "void", .keyword_void },
+        .{ "volatile", .keyword_volatile },
+        .{ "while", .keyword_while },
 
-            // ISO C99
-            .{ "_Bool", .keyword_bool },
-            .{ "_Complex", .keyword_complex },
-            .{ "_Imaginary", .keyword_imaginary },
-            .{ "inline", .keyword_inline },
-            .{ "restrict", .keyword_restrict },
+        // ISO C99
+        .{ "_Bool", .keyword_bool },
+        .{ "_Complex", .keyword_complex },
+        .{ "_Imaginary", .keyword_imaginary },
+        .{ "inline", .keyword_inline },
+        .{ "restrict", .keyword_restrict },
 
-            // ISO C11
-            .{ "_Alignas", .keyword_alignas },
-            .{ "_Alignof", .keyword_alignof },
-            .{ "_Atomic", .keyword_atomic },
-            .{ "_Generic", .keyword_generic },
-            .{ "_Noreturn", .keyword_noreturn },
-            .{ "_Static_assert", .keyword_static_assert },
-            .{ "_Thread_local", .keyword_thread_local },
+        // ISO C11
+        .{ "_Alignas", .keyword_alignas },
+        .{ "_Alignof", .keyword_alignof },
+        .{ "_Atomic", .keyword_atomic },
+        .{ "_Generic", .keyword_generic },
+        .{ "_Noreturn", .keyword_noreturn },
+        .{ "_Static_assert", .keyword_static_assert },
+        .{ "_Thread_local", .keyword_thread_local },
 
-            // Preprocessor directives
-            .{ "include", .keyword_include },
-            .{ "define", .keyword_define },
-            .{ "ifdef", .keyword_ifdef },
-            .{ "ifndef", .keyword_ifndef },
-            .{ "error", .keyword_error },
-            .{ "pragma", .keyword_pragma },
-        });
+        // Preprocessor directives
+        .{ "include", .keyword_include },
+        .{ "define", .keyword_define },
+        .{ "ifdef", .keyword_ifdef },
+        .{ "ifndef", .keyword_ifndef },
+        .{ "undef", .keyword_undef },
+        .{ "endif", .keyword_endif },
+        .{ "error", .keyword_error },
+        .{ "pragma", .keyword_pragma },
+    });
 };
 
-buffer: []const u8,
+buf: []const u8,
 index: u32 = 0,
+source: u16,
 
 pub fn next(self: *Tokenizer) Token {
     const start_index = self.index;
@@ -402,8 +297,8 @@ pub fn next(self: *Tokenizer) Token {
 
     var string = false;
     var counter: u32 = 0;
-    while (self.index < self.buffer.len) : (self.index += 1) {
-        const c = self.buffer[self.index];
+    while (self.index < self.buf.len) : (self.index += 1) {
+        const c = self.buf[self.index];
         switch (state) {
             .start => switch (c) {
                 '\n' => {
@@ -707,7 +602,7 @@ pub fn next(self: *Tokenizer) Token {
             .identifier => switch (c) {
                 'a'...'z', 'A'...'Z', '_', '0'...'9', '$' => {},
                 else => {
-                    id = Token.keywords.get(self.buffer[start..self.index]) orelse .identifier;
+                    id = Token.keywords.get(self.buf[start..self.index]) orelse .identifier;
                     break;
                 },
             },
@@ -1094,11 +989,11 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
         }
-    } else if (self.index == self.buffer.len) {
+    } else if (self.index == self.buf.len) {
         switch (state) {
             .start, .line_comment => {},
             .u, .u8, .U, .L, .identifier => {
-                id = Token.keywords.get(self.buffer[start..self.index]) orelse .identifier;
+                id = Token.keywords.get(self.buf[start..self.index]) orelse .identifier;
             },
             .cr,
             .back_slash,
@@ -1159,6 +1054,7 @@ pub fn next(self: *Tokenizer) Token {
             .start = start,
             .end = self.index,
         },
+        .source = self.source,
     };
 }
 
@@ -1171,64 +1067,64 @@ test "operators" {
         \\ , & && &= ? < <= <<
         \\  <<= > >= >> >>= ~ # ##
         \\
-        , &.{
-            .bang,
-            .bang_equal,
-            .pipe,
-            .pipe_pipe,
-            .pipe_equal,
-            .equal,
-            .equal_equal,
-            .nl,
-            .l_paren,
-            .r_paren,
-            .l_brace,
-            .r_brace,
-            .l_bracket,
-            .r_bracket,
-            .period,
-            .period,
-            .period,
-            .ellipsis,
-            .nl,
-            .caret,
-            .caret_equal,
-            .plus,
-            .plus_plus,
-            .plus_equal,
-            .minus,
-            .minus_minus,
-            .minus_equal,
-            .nl,
-            .asterisk,
-            .asterisk_equal,
-            .percent,
-            .percent_equal,
-            .arrow,
-            .colon,
-            .semicolon,
-            .slash,
-            .slash_equal,
-            .nl,
-            .comma,
-            .ampersand,
-            .ampersand_ampersand,
-            .ampersand_equal,
-            .question_mark,
-            .angle_bracket_left,
-            .angle_bracket_left_equal,
-            .angle_bracket_angle_bracket_left,
-            .nl,
-            .angle_bracket_angle_bracket_left_equal,
-            .angle_bracket_right,
-            .angle_bracket_right_equal,
-            .angle_bracket_angle_bracket_right,
-            .angle_bracket_angle_bracket_right_equal,
-            .tilde,
-            .hash,
-            .hash_hash,
-            .nl,
-        });
+    , &.{
+        .bang,
+        .bang_equal,
+        .pipe,
+        .pipe_pipe,
+        .pipe_equal,
+        .equal,
+        .equal_equal,
+        .nl,
+        .l_paren,
+        .r_paren,
+        .l_brace,
+        .r_brace,
+        .l_bracket,
+        .r_bracket,
+        .period,
+        .period,
+        .period,
+        .ellipsis,
+        .nl,
+        .caret,
+        .caret_equal,
+        .plus,
+        .plus_plus,
+        .plus_equal,
+        .minus,
+        .minus_minus,
+        .minus_equal,
+        .nl,
+        .asterisk,
+        .asterisk_equal,
+        .percent,
+        .percent_equal,
+        .arrow,
+        .colon,
+        .semicolon,
+        .slash,
+        .slash_equal,
+        .nl,
+        .comma,
+        .ampersand,
+        .ampersand_ampersand,
+        .ampersand_equal,
+        .question_mark,
+        .angle_bracket_left,
+        .angle_bracket_left_equal,
+        .angle_bracket_angle_bracket_left,
+        .nl,
+        .angle_bracket_angle_bracket_left_equal,
+        .angle_bracket_right,
+        .angle_bracket_right_equal,
+        .angle_bracket_angle_bracket_right,
+        .angle_bracket_angle_bracket_right_equal,
+        .tilde,
+        .hash,
+        .hash_hash,
+        .nl,
+    });
 }
 
 test "keywords" {
@@ -1240,58 +1136,58 @@ test "keywords" {
         \\while _Bool _Complex _Imaginary inline restrict _Alignas 
         \\_Alignof _Atomic _Generic _Noreturn _Static_assert _Thread_local 
         \\
-        , &.{
-            .keyword_auto,
-            .keyword_break,
-            .keyword_case,
-            .keyword_char,
-            .keyword_const,
-            .keyword_continue,
-            .keyword_default,
-            .keyword_do,
-            .nl,
-            .keyword_double,
-            .keyword_else,
-            .keyword_enum,
-            .keyword_extern,
-            .keyword_float,
-            .keyword_for,
-            .keyword_goto,
-            .keyword_if,
-            .keyword_int,
-            .nl,
-            .keyword_long,
-            .keyword_register,
-            .keyword_return,
-            .keyword_short,
-            .keyword_signed,
-            .keyword_sizeof,
-            .keyword_static,
-            .nl,
-            .keyword_struct,
-            .keyword_switch,
-            .keyword_typedef,
-            .keyword_union,
-            .keyword_unsigned,
-            .keyword_void,
-            .keyword_volatile,
-            .nl,
-            .keyword_while,
-            .keyword_bool,
-            .keyword_complex,
-            .keyword_imaginary,
-            .keyword_inline,
-            .keyword_restrict,
-            .keyword_alignas,
-            .nl,
-            .keyword_alignof,
-            .keyword_atomic,
-            .keyword_generic,
-            .keyword_noreturn,
-            .keyword_static_assert,
-            .keyword_thread_local,
-            .nl,
-        });
+    , &.{
+        .keyword_auto,
+        .keyword_break,
+        .keyword_case,
+        .keyword_char,
+        .keyword_const,
+        .keyword_continue,
+        .keyword_default,
+        .keyword_do,
+        .nl,
+        .keyword_double,
+        .keyword_else,
+        .keyword_enum,
+        .keyword_extern,
+        .keyword_float,
+        .keyword_for,
+        .keyword_goto,
+        .keyword_if,
+        .keyword_int,
+        .nl,
+        .keyword_long,
+        .keyword_register,
+        .keyword_return,
+        .keyword_short,
+        .keyword_signed,
+        .keyword_sizeof,
+        .keyword_static,
+        .nl,
+        .keyword_struct,
+        .keyword_switch,
+        .keyword_typedef,
+        .keyword_union,
+        .keyword_unsigned,
+        .keyword_void,
+        .keyword_volatile,
+        .nl,
+        .keyword_while,
+        .keyword_bool,
+        .keyword_complex,
+        .keyword_imaginary,
+        .keyword_inline,
+        .keyword_restrict,
+        .keyword_alignas,
+        .nl,
+        .keyword_alignof,
+        .keyword_atomic,
+        .keyword_generic,
+        .keyword_noreturn,
+        .keyword_static_assert,
+        .keyword_thread_local,
+        .nl,
+    });
 }
 
 test "preprocessor keywords" {
@@ -1303,26 +1199,26 @@ test "preprocessor keywords" {
         \\#error
         \\#pragma
         \\
-        , &.{
-            .hash,
-            .keyword_include,
-            .nl,
-            .hash,
-            .keyword_define,
-            .nl,
-            .hash,
-            .keyword_ifdef,
-            .nl,
-            .hash,
-            .keyword_ifndef,
-            .nl,
-            .hash,
-            .keyword_error,
-            .nl,
-            .hash,
-            .keyword_pragma,
-            .nl,
-        });
+    , &.{
+        .hash,
+        .keyword_include,
+        .nl,
+        .hash,
+        .keyword_define,
+        .nl,
+        .hash,
+        .keyword_ifdef,
+        .nl,
+        .hash,
+        .keyword_ifndef,
+        .nl,
+        .hash,
+        .keyword_error,
+        .nl,
+        .hash,
+        .keyword_pragma,
+        .nl,
+    });
 }
 
 test "line continuation" {
@@ -1335,25 +1231,25 @@ test "line continuation" {
         \\ "bar"
         \\#define "foo" \
         \\ "bar"
-        , &.{
-            .hash,
-            .keyword_define,
-            .identifier,
-            .identifier,
-            .nl,
-            .string_literal,
-            .nl,
-            .hash,
-            .keyword_define,
-            .string_literal,
-            .nl,
-            .string_literal,
-            .nl,
-            .hash,
-            .keyword_define,
-            .string_literal,
-            .string_literal,
-        });
+    , &.{
+        .hash,
+        .keyword_define,
+        .identifier,
+        .identifier,
+        .nl,
+        .string_literal,
+        .nl,
+        .hash,
+        .keyword_define,
+        .string_literal,
+        .nl,
+        .string_literal,
+        .nl,
+        .hash,
+        .keyword_define,
+        .string_literal,
+        .string_literal,
+    });
 }
 
 test "string prefix" {
@@ -1368,26 +1264,26 @@ test "string prefix" {
         \\U'foo'
         \\L'foo'
         \\
-        , &.{
-            .string_literal,
-            .nl,
-            .string_literal_utf_16,
-            .nl,
-            .string_literal_utf_8,
-            .nl,
-            .string_literal_utf_32,
-            .nl,
-            .string_literal_wide,
-            .nl,
-            .char_literal,
-            .nl,
-            .char_literal_utf_16,
-            .nl,
-            .char_literal_utf_32,
-            .nl,
-            .char_literal_wide,
-            .nl,
-        });
+    , &.{
+        .string_literal,
+        .nl,
+        .string_literal_utf_16,
+        .nl,
+        .string_literal_utf_8,
+        .nl,
+        .string_literal_utf_32,
+        .nl,
+        .string_literal_wide,
+        .nl,
+        .char_literal,
+        .nl,
+        .char_literal_utf_16,
+        .nl,
+        .char_literal_utf_32,
+        .nl,
+        .char_literal_wide,
+        .nl,
+    });
 }
 
 test "num suffixes" {
@@ -1396,30 +1292,42 @@ test "num suffixes" {
         \\ 0l 0lu 0ll 0llu 0
         \\ 1u 1ul 1ull 1
         \\
-        , &.{
-            .float_literal_f,
-            .float_literal_l,
-            .float_literal,
-            .float_literal,
-            .float_literal,
-            .nl,
-            .integer_literal_l,
-            .integer_literal_lu,
-            .integer_literal_ll,
-            .integer_literal_llu,
-            .integer_literal,
-            .nl,
-            .integer_literal_u,
-            .integer_literal_lu,
-            .integer_literal_llu,
-            .integer_literal,
-            .nl,
-        });
+    , &.{
+        .float_literal_f,
+        .float_literal_l,
+        .float_literal,
+        .float_literal,
+        .float_literal,
+        .nl,
+        .integer_literal_l,
+        .integer_literal_lu,
+        .integer_literal_ll,
+        .integer_literal_llu,
+        .integer_literal,
+        .nl,
+        .integer_literal_u,
+        .integer_literal_lu,
+        .integer_literal_llu,
+        .integer_literal,
+        .nl,
+    });
+}
+
+test "comments" {
+    expectTokens(
+        \\//foo
+        \\#foo
+    , &.{
+        .nl,
+        .hash,
+        .identifier,
+    });
 }
 
 fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) void {
     var tokenizer = Tokenizer{
-        .buffer = source,
+        .buf = source,
+        .source = 0,
     };
     for (expected_tokens) |expected_token_id| {
         const token = tokenizer.next();
