@@ -143,6 +143,7 @@ fn preprocessInternal(
             else => {
                 start_of_line = false;
                 if (tok.id.isMacroIdentifier()) {
+                    tok.id.simplifyMacroKeyword();
                     try pp.expandMacro(tokenizer, tok, &pp.tokens);
                 } else {
                     try pp.tokens.append(tok);
@@ -159,7 +160,7 @@ fn fail(pp: *Preprocessor, source: Source, msg: []const u8, loc: Source.Location
 }
 
 fn expectMacroName(pp: *Preprocessor, tokenizer: *Tokenizer) Error![]const u8 {
-    var macro_name = tokenizer.next();
+    const macro_name = tokenizer.next();
     if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name missing", macro_name.loc);
     return tokenizer.source.slice(macro_name.loc);
 }
@@ -260,24 +261,38 @@ fn skip(
 }
 
 /// Try to expand a macro.
-fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, name: Token, tokens: *TokenList) Error!void {
-    if (pp.defines.get(tokenizer.source.slice(name.loc))) |some| switch (some) {
+fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, tok: Token, tokens: *TokenList) Error!void {
+    const name = tokenizer.source.slice(tok.loc);
+    return pp.expandExtra(tokenizer, name, tok, tokens);
+}
+
+fn expandExtra(pp: *Preprocessor, tokenizer: *Tokenizer, orig_name: []const u8, arg: Token, tokens: *TokenList) Error!void {
+    if (pp.defines.get(tokenizer.source.slice(arg.loc))) |some| switch (some) {
         .empty => {},
-        .simple => |macro_tokens| try tokens.appendSlice(macro_tokens),
-        .func => return pp.fail(tokenizer.source, "TODO func macro expansion", name.loc),
+        .simple => |macro_tokens| {
+            for (macro_tokens) |tok| {
+                if (tok.id.isMacroIdentifier() and !std.mem.eql(u8, tokenizer.source.slice(tok.loc), orig_name)) {
+                    try pp.expandExtra(tokenizer, orig_name, tok, tokens);
+                } else {
+                    try tokens.append(tok);
+                }
+            }
+        },
+        .func => return pp.fail(tokenizer.source, "TODO func macro expansion", arg.loc),
     } else {
-        try tokens.append(name);
+        try tokens.append(arg);
     }
 }
 
 /// Handle a #define directive.
 fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
-    var macro_name = tokenizer.next();
+    const macro_name = tokenizer.next();
     if (macro_name.id == .keyword_defined) return pp.fail(tokenizer.source, "'defined' cannot be used as a macro name", macro_name.loc);
     if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name must be an identifier", macro_name.loc);
     const name_str = tokenizer.source.slice(macro_name.loc);
 
-    const first = tokenizer.next();
+    var first = tokenizer.next();
+    first.id.simplifyMacroKeyword();
     if (first.id == .nl or first.id == .eof) {
         _ = try pp.defines.put(name_str, .empty);
         return;
@@ -294,13 +309,11 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
 
     while (true) {
         var tok = tokenizer.next();
+        tok.id.simplifyMacroKeyword();
         switch (tok.id) {
             .hash_hash => return pp.fail(tokenizer.source, "TODO token pasting", tok.loc),
             .nl, .eof => break,
-            else => if (tok.id.isMacroIdentifier())
-                try pp.expandMacro(tokenizer, tok, &tokens)
-            else
-                try tokens.append(tok),
+            else => try tokens.append(tok),
         }
     }
 
@@ -314,7 +327,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
     defer params.deinit();
 
     while (true) {
-        var tok = tokenizer.next();
+        const tok = tokenizer.next();
         if (tok.id == .r_paren) break;
         if (tok.id.isMacroIdentifier())
             try params.append(tokenizer.source.slice(tok.loc))
@@ -326,8 +339,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
     var tokens = TokenList.init(pp.comp.gpa);
     defer tokens.deinit();
 
-    while (true) {
+    tok_loop: while (true) {
         var tok = tokenizer.next();
+        tok.id.simplifyMacroKeyword();
         switch (tok.id) {
             .nl, .eof => break,
             .ellipsis => {
@@ -337,7 +351,35 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
                     return pp.fail(tokenizer.source, "missing ')' in macro parameter list", r_paren.loc);
                 break;
             },
-            else => try tokens.append(tok),
+            .hash => {
+                const param = tokenizer.next();
+                blk: {
+                    if (!param.id.isMacroIdentifier()) break :blk;
+                    const s = tokenizer.source.slice(param.loc);
+                    for (params.items) |p, i| {
+                        if (mem.eql(u8, p, s)) {
+                            tok.id = .stringify_param;
+                            tok.loc.end = @intCast(u32, i);
+                            try tokens.append(tok);
+                            continue :tok_loop;
+                        }
+                    }
+                }
+                return pp.fail(tokenizer.source, "'#' is not followed by a macro parameter", param.loc);
+            },
+            else => {
+                if (tok.id.isMacroIdentifier()) {
+                    const s = tokenizer.source.slice(tok.loc);
+                    for (params.items) |param, i| {
+                        if (mem.eql(u8, param, s)) {
+                            tok.id = .macro_param;
+                            tok.loc.end = @intCast(u32, i);
+                            break;
+                        }
+                    }
+                }
+                try tokens.append(tok);
+            },
         }
     }
 

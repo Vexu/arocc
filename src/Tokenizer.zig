@@ -94,6 +94,11 @@ pub const Token = struct {
         hash,
         hash_hash,
 
+        /// Special token to speed up preprocessing, `loc.end` will be an index to the param list.
+        macro_param,
+        /// Special token to speed up preprocessing, `loc.end` will be an index to the param list.
+        stringify_param,
+
         keyword_auto,
         keyword_break,
         keyword_case,
@@ -156,8 +161,9 @@ pub const Token = struct {
         keyword_pragma,
         keyword_line,
 
-        pub fn isMacroIdentifier(id: *Id) bool {
-            switch (id.*) {
+        /// Return true if token is identifier or keyword.
+        pub fn isMacroIdentifier(id: Id) bool {
+            switch (id) {
                 .keyword_include,
                 .keyword_define,
                 .keyword_defined,
@@ -169,11 +175,6 @@ pub const Token = struct {
                 .keyword_error,
                 .keyword_pragma,
                 .keyword_line,
-                .identifier,
-                => {
-                    id.* = .identifier;
-                    return true;
-                },
                 .keyword_auto,
                 .keyword_break,
                 .keyword_case,
@@ -218,8 +219,28 @@ pub const Token = struct {
                 .keyword_noreturn,
                 .keyword_static_assert,
                 .keyword_thread_local,
+                .identifier,
                 => return true,
                 else => return false,
+            }
+        }
+
+        /// Turn macro keywords into identifiers.
+        pub fn simplifyMacroKeyword(id: *Id) void {
+            switch (id.*) {
+                .keyword_include,
+                .keyword_define,
+                .keyword_defined,
+                .keyword_undef,
+                .keyword_ifdef,
+                .keyword_ifndef,
+                .keyword_elif,
+                .keyword_endif,
+                .keyword_error,
+                .keyword_pragma,
+                .keyword_line,
+                => id.* = .identifier,
+                else => {},
             }
         }
     };

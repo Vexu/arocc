@@ -1,3 +1,28 @@
+test "recursive object macro" {
+    expectTokens(
+        \\#define y x
+        \\#define x y
+        \\x
+    , &.{.identifier});
+    expectTokens(
+        \\#define x x
+        \\x
+    , &.{.identifier});
+}
+
+test "object macro expansion" {
+    expectTokens(
+        \\#define x a
+        \\x
+        \\#define a 1
+        \\x
+    , &.{ .identifier, .integer_literal });
+    expectTokens(
+        \\#define x define
+        \\x
+    , &.{.identifier});
+}
+
 test "ifdef" {
     expectTokens(
         \\#define FOO
