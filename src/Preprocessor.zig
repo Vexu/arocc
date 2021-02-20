@@ -16,6 +16,7 @@ const Macro = union(enum) {
     func: struct {
         params: []const []const u8,
         tokens: []const Token,
+        var_args: bool,
     },
     simple: []const Token,
 };
@@ -113,6 +114,14 @@ fn preprocessInternal(
                     .keyword_endif => {
                         if (cont == .until_eof) return pp.fail(tokenizer.source, "#endif without #if", directive.loc);
                         return directive.id;
+                    },
+                    .keyword_line => {
+                        const digits = tokenizer.next();
+                        if (digits.id != .integer_literal) return pp.fail(tokenizer.source, "#line directive requires a simple digit sequence", digits.loc);
+                        const name = tokenizer.next();
+                        if (name.id == .eof or name.id == .nl) continue;
+                        if (name.id != .string_literal) return pp.fail(tokenizer.source, "invalid filename for #line directive", name.loc);
+                        try pp.expectNl(tokenizer, true);
                     },
                     .nl => {},
                     .eof => {
@@ -245,6 +254,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, name: Token, tokens: *T
 /// Handle a #define directive.
 fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     var macro_name = tokenizer.next();
+    if (macro_name.id == .keyword_defined) return pp.fail(tokenizer.source, "'defined' cannot be used as a macro name", macro_name.loc);
     if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name must be an identifier", macro_name.loc);
     const name_str = tokenizer.source.slice(macro_name.loc);
 
@@ -293,6 +303,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
             return pp.fail(tokenizer.source, "invalid token in macro paramter list", tok.loc);
     }
 
+    var var_args = false;
     var tokens = TokenList.init(pp.comp.gpa);
     defer tokens.deinit();
 
@@ -300,6 +311,13 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
         var tok = tokenizer.next();
         switch (tok.id) {
             .nl, .eof => break,
+            .ellipsis => {
+                var_args = true;
+                const r_paren = tokenizer.next();
+                if (r_paren.id != .r_paren)
+                    return pp.fail(tokenizer.source, "missing ')' in macro parameter list", r_paren.loc);
+                break;
+            },
             else => try tokens.append(tok),
         }
     }
@@ -307,5 +325,5 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
     const param_list = try pp.arena.allocator.dupe([]const u8, params.items);
     const token_list = try pp.arena.allocator.dupe(Token, tokens.items);
     const name_str = tokenizer.source.slice(macro_name.loc);
-    _ = try pp.defines.put(name_str, .{ .func = .{ .params = param_list, .tokens = token_list} });
+    _ = try pp.defines.put(name_str, .{ .func = .{ .params = param_list, .var_args = var_args, .tokens = token_list} });
 }

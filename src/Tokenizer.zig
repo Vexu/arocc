@@ -146,6 +146,7 @@ pub const Token = struct {
         // Preprocessor directives
         keyword_include,
         keyword_define,
+        keyword_defined,
         keyword_undef,
         keyword_ifdef,
         keyword_ifndef,
@@ -153,11 +154,13 @@ pub const Token = struct {
         keyword_endif,
         keyword_error,
         keyword_pragma,
+        keyword_line,
 
         pub fn isMacroIdentifier(id: *Id) bool {
             switch (id.*) {
                 .keyword_include,
                 .keyword_define,
+                .keyword_defined,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -165,6 +168,7 @@ pub const Token = struct {
                 .keyword_endif,
                 .keyword_error,
                 .keyword_pragma,
+                .keyword_line,
                 .identifier,
                 => {
                     id.* = .identifier;
@@ -273,6 +277,7 @@ pub const Token = struct {
         // Preprocessor directives
         .{ "include", .keyword_include },
         .{ "define", .keyword_define },
+        .{ "defined", .keyword_defined },
         .{ "undef", .keyword_undef },
         .{ "ifdef", .keyword_ifdef },
         .{ "ifndef", .keyword_ifndef },
@@ -280,6 +285,7 @@ pub const Token = struct {
         .{ "endif", .keyword_endif },
         .{ "error", .keyword_error },
         .{ "pragma", .keyword_pragma },
+        .{ "line", .keyword_line },
     });
 };
 
