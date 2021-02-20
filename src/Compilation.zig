@@ -33,7 +33,7 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
 
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
-    
+
     const duped_path = try comp.gpa.dupe(u8, path);
     errdefer comp.gpa.free(duped_path);
 
@@ -50,4 +50,3 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
 
     return source;
 }
-

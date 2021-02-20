@@ -35,7 +35,17 @@ pub fn build(b: *Builder) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
+    addTests(b, .{
+        "src/main.zig",
+        "test/preprocessor.zig",
+    });
+}
+
+fn addTests(b: *Builder, tests: anytype) void {
     const tests_step = b.step("test", "Run all tests");
-    var test_step = b.addTest("src/main.zig");
-    tests_step.dependOn(&test_step.step);
+    inline for (tests) |t| {
+        var test_step = b.addTest(t);
+        test_step.addPackagePath("sfcc", "src/lib.zig");
+        tests_step.dependOn(&test_step.step);
+    }
 }

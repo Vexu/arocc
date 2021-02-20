@@ -14,19 +14,14 @@ pub fn slice(source: Source, loc: Location) []const u8 {
 pub fn lineCol(source: Source, loc: Location) struct { line: u32, col: u32 } {
     var line: u32 = 1;
     var col: u32 = 1;
-    var i: u32 = loc.start + 1;
-    while (i > 0) {
-        i -= 1;
-        col += 1;
+    var i: u32 = 0;
+    while (i < loc.start) : (i += 1) {
         if (source.buf[i] == '\n') {
+            line += 1;
+            col = 1;
+        } else {
             col += 1;
-            break;
         }
-    }
-
-    while (i > 0) {
-        i -= 1;
-        if (source.buf[i] == '\n') line += 1;
     }
     return .{ .line = line, .col = col };
 }
