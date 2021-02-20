@@ -25,6 +25,7 @@ comp: *Compilation,
 arena: std.heap.ArenaAllocator,
 defines: DefineMap,
 tokens: TokenList,
+generated: std.ArrayList(u8),
 
 pub fn init(comp: *Compilation) Preprocessor {
     return .{
@@ -32,6 +33,7 @@ pub fn init(comp: *Compilation) Preprocessor {
         .arena = std.heap.ArenaAllocator.init(comp.gpa),
         .defines = DefineMap.init(comp.gpa),
         .tokens = TokenList.init(comp.gpa),
+        .generated = std.ArrayList(u8).init(comp.gpa),
     };
 }
 
@@ -39,6 +41,7 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.defines.deinit();
     pp.tokens.deinit();
     pp.arena.deinit();
+    pp.generated.deinit();
 }
 
 const Error = Allocator.Error || error{PreprocessingFailed};
@@ -56,6 +59,24 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !void {
 
     const last = try pp.preprocessInternal(&tokenizer, .until_eof);
     assert(last == .eof);
+}
+
+fn tokSliceSafe(pp: *Preprocessor, token: Token) []const u8 {
+    if (token.id.lexeme()) |some| return some;
+    assert(!token.source.isGenerated());
+    const source_buf = pp.comp.sources.items()[token.source.index()].value.buf;
+    return source_buf[token.loc.start..token.loc.end];
+}
+
+// Returned slice is invalidated when generated is updated.
+pub fn tokSlice(pp: *Preprocessor, token: Token) []const u8 {
+    if (token.id.lexeme()) |some| return some;
+    if (token.source.isGenerated()) {
+        return pp.generated.items[token.loc.start..token.loc.end];
+    } else {
+        const source_buf = pp.comp.sources.items()[token.source.index()].value.buf;
+        return source_buf[token.loc.start..token.loc.end];
+    }
 }
 
 /// Preprocess the source until `cont` condition is met.
@@ -77,9 +98,9 @@ fn preprocessInternal(
                             if (tokenizer.buf[tokenizer.index] == '\n') break;
                         }
                         const loc = Source.Location{ .start = start, .end = tokenizer.index };
-                        var slice = tokenizer.source.slice(loc);
+                        var slice = tokenizer.source.buf[loc.start..loc.end];
                         slice = mem.trim(u8, slice, " \t\x0B\x0C");
-                        return pp.fail(tokenizer.source, slice, directive.loc);
+                        return pp.fail(tokenizer.source, slice, directive);
                     },
                     .keyword_if => try pp.expandConditional(tokenizer, try pp.expandBoolExpr(tokenizer)),
                     .keyword_ifdef => {
@@ -93,8 +114,8 @@ fn preprocessInternal(
                         try pp.expandConditional(tokenizer, pp.defines.get(macro_name) == null);
                     },
                     .keyword_define => try pp.define(tokenizer),
-                    .keyword_include => return pp.fail(tokenizer.source, "TODO include directive", directive.loc),
-                    .keyword_pragma => return pp.fail(tokenizer.source, "TODO pragma directive", directive.loc),
+                    .keyword_include => return pp.fail(tokenizer.source, "TODO include directive", directive),
+                    .keyword_pragma => return pp.fail(tokenizer.source, "TODO pragma directive", directive),
                     .keyword_undef => {
                         const macro_name = try pp.expectMacroName(tokenizer);
 
@@ -102,41 +123,41 @@ fn preprocessInternal(
                         try pp.expectNl(tokenizer, true);
                     },
                     .keyword_elif => {
-                        if (cont == .until_eof) return pp.fail(tokenizer.source, "#elif without #if", directive.loc);
-                        if (cont == .until_endif) return pp.fail(tokenizer.source, "#elif after #else", directive.loc);
+                        if (cont == .until_eof) return pp.fail(tokenizer.source, "#elif without #if", directive);
+                        if (cont == .until_endif) return pp.fail(tokenizer.source, "#elif after #else", directive);
                         return directive.id;
                     },
                     .keyword_else => {
-                        if (cont == .until_eof) return pp.fail(tokenizer.source, "#else without #if", directive.loc);
-                        if (cont == .until_endif) return pp.fail(tokenizer.source, "#else after #else", directive.loc);
+                        if (cont == .until_eof) return pp.fail(tokenizer.source, "#else without #if", directive);
+                        if (cont == .until_endif) return pp.fail(tokenizer.source, "#else after #else", directive);
                         try pp.expectNl(tokenizer, false);
                         return directive.id;
                     },
                     .keyword_endif => {
-                        if (cont == .until_eof) return pp.fail(tokenizer.source, "#endif without #if", directive.loc);
+                        if (cont == .until_eof) return pp.fail(tokenizer.source, "#endif without #if", directive);
                         try pp.expectNl(tokenizer, true);
                         return directive.id;
                     },
                     .keyword_line => {
                         const digits = tokenizer.next();
-                        if (digits.id != .integer_literal) return pp.fail(tokenizer.source, "#line directive requires a simple digit sequence", digits.loc);
+                        if (digits.id != .integer_literal) return pp.fail(tokenizer.source, "#line directive requires a simple digit sequence", digits);
                         const name = tokenizer.next();
                         if (name.id == .eof or name.id == .nl) continue;
-                        if (name.id != .string_literal) return pp.fail(tokenizer.source, "invalid filename for #line directive", name.loc);
+                        if (name.id != .string_literal) return pp.fail(tokenizer.source, "invalid filename for #line directive", name);
                         try pp.expectNl(tokenizer, true);
                     },
                     .nl => {},
                     .eof => {
-                        if (cont != .until_eof) return pp.fail(tokenizer.source, "unterminated conditional directive", directive.loc);
+                        if (cont != .until_eof) return pp.fail(tokenizer.source, "unterminated conditional directive", directive);
                         try pp.tokens.append(directive);
                         return directive.id;
                     },
-                    else => return pp.fail(tokenizer.source, "invalid preprocessing directive", directive.loc),
+                    else => return pp.fail(tokenizer.source, "invalid preprocessing directive", directive),
                 }
             },
             .nl => start_of_line = true,
             .eof => {
-                if (cont != .until_eof) return pp.fail(tokenizer.source, "unterminated conditional directive", tok.loc);
+                if (cont != .until_eof) return pp.fail(tokenizer.source, "unterminated conditional directive", tok);
                 try pp.tokens.append(tok);
                 return tok.id;
             },
@@ -153,30 +174,37 @@ fn preprocessInternal(
     }
 }
 
-fn fail(pp: *Preprocessor, source: Source, msg: []const u8, loc: Source.Location) Error {
-    const lcs = source.lineColString(loc);
-    pp.comp.printErr(source.path, lcs, msg);
+fn failFmt(pp: *Preprocessor, source: Source, tok: Token, comptime fmt: []const u8, args: anytype) Error {
+    assert(source.id == tok.source);
+    const lcs = source.lineColString(tok.loc);
+    pp.comp.printErrStart(source.path, lcs);
+    std.debug.print(fmt, args);
+    pp.comp.printErrEnd(lcs);
     return error.PreprocessingFailed;
+}
+
+fn fail(pp: *Preprocessor, source: Source, msg: []const u8, tok: Token) Error {
+    return pp.failFmt(source, tok, "{s}", .{msg});
 }
 
 fn expectMacroName(pp: *Preprocessor, tokenizer: *Tokenizer) Error![]const u8 {
     const macro_name = tokenizer.next();
-    if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name missing", macro_name.loc);
-    return tokenizer.source.slice(macro_name.loc);
+    if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name missing", macro_name);
+    return pp.tokSliceSafe(macro_name);
 }
 
 fn expectNl(pp: *Preprocessor, tokenizer: *Tokenizer, allow_eof: bool) Error!void {
     const tok = tokenizer.next();
     if (tok.id == .eof) {
-        if (!allow_eof) return fail(pp, tokenizer.source, "unterminated conditional directive", tok.loc);
+        if (!allow_eof) return pp.fail(tokenizer.source, "unterminated conditional directive", tok);
         return;
     }
-    if (tok.id != .nl) return fail(pp, tokenizer.source, "extra tokens at end of macro directive", tok.loc);
+    if (tok.id != .nl) return pp.fail(tokenizer.source, "extra tokens at end of macro directive", tok);
 }
 
 fn expandBoolExpr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
     const next = tokenizer.next();
-    return fail(pp, tokenizer.source, "TODO macro bool condition", next.loc);
+    return pp.fail(tokenizer.source, "TODO macro bool condition", next);
 }
 
 /// Handles one level of #if ... #endif.
@@ -229,13 +257,13 @@ fn skip(
             switch (directive.id) {
                 .keyword_else => {
                     if (ifs_seen != 0) continue;
-                    if (cont == .until_endif) return pp.fail(tokenizer.source, "#else after #else", directive.loc);
+                    if (cont == .until_endif) return pp.fail(tokenizer.source, "#else after #else", directive);
                     try pp.expectNl(tokenizer, false);
                     return directive.id;
                 },
                 .keyword_elif => {
                     if (ifs_seen != 0) continue;
-                    if (cont == .until_endif) return pp.fail(tokenizer.source, "#elif after #else", directive.loc);
+                    if (cont == .until_endif) return pp.fail(tokenizer.source, "#elif after #else", directive);
                     return directive.id;
                 },
                 .keyword_endif => {
@@ -256,29 +284,30 @@ fn skip(
             tokenizer.index += 1;
         }
     } else {
-        return pp.fail(tokenizer.source, "unterminated conditional directive", .{ .start = tokenizer.index - 1, .end = tokenizer.index });
+        const eof = tokenizer.next();
+        return pp.fail(tokenizer.source, "unterminated conditional directive", eof);
     }
 }
 
 /// Try to expand a macro.
 fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, tok: Token, tokens: *TokenList) Error!void {
-    const name = tokenizer.source.slice(tok.loc);
+    const name = pp.tokSliceSafe(tok); // TODO is this safe?
     return pp.expandExtra(tokenizer, name, tok, tokens);
 }
 
 fn expandExtra(pp: *Preprocessor, tokenizer: *Tokenizer, orig_name: []const u8, arg: Token, tokens: *TokenList) Error!void {
-    if (pp.defines.get(tokenizer.source.slice(arg.loc))) |some| switch (some) {
+    if (pp.defines.get(pp.tokSlice(arg))) |some| switch (some) {
         .empty => {},
         .simple => |macro_tokens| {
             for (macro_tokens) |tok| {
-                if (tok.id.isMacroIdentifier() and !std.mem.eql(u8, tokenizer.source.slice(tok.loc), orig_name)) {
+                if (tok.id.isMacroIdentifier() and !std.mem.eql(u8, pp.tokSlice(tok), orig_name)) {
                     try pp.expandExtra(tokenizer, orig_name, tok, tokens);
                 } else {
                     try tokens.append(tok);
                 }
             }
         },
-        .func => return pp.fail(tokenizer.source, "TODO func macro expansion", arg.loc),
+        .func => return pp.fail(tokenizer.source, "TODO func macro expansion", arg),
     } else {
         try tokens.append(arg);
     }
@@ -287,9 +316,9 @@ fn expandExtra(pp: *Preprocessor, tokenizer: *Tokenizer, orig_name: []const u8, 
 /// Handle a #define directive.
 fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     const macro_name = tokenizer.next();
-    if (macro_name.id == .keyword_defined) return pp.fail(tokenizer.source, "'defined' cannot be used as a macro name", macro_name.loc);
-    if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name must be an identifier", macro_name.loc);
-    const name_str = tokenizer.source.slice(macro_name.loc);
+    if (macro_name.id == .keyword_defined) return pp.fail(tokenizer.source, "'defined' cannot be used as a macro name", macro_name);
+    if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name must be an identifier", macro_name);
+    const name_str = pp.tokSliceSafe(macro_name);
 
     var first = tokenizer.next();
     first.id.simplifyMacroKeyword();
@@ -298,9 +327,9 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         return;
     } else if (first.loc.start == macro_name.loc.end) {
         if (first.id == .l_paren) return pp.defineFn(tokenizer, macro_name);
-        return pp.fail(tokenizer.source, "ISO C99 requires whitespace after the macro name", first.loc);
+        return pp.fail(tokenizer.source, "ISO C99 requires whitespace after the macro name", first);
     } else if (first.id == .hash_hash) {
-        return pp.fail(tokenizer.source, "'##' cannot appear at start of macro expansion", first.loc);
+        return pp.fail(tokenizer.source, "'##' cannot appear at start of macro expansion", first);
     }
 
     var tokens = TokenList.init(pp.comp.gpa);
@@ -311,7 +340,31 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         var tok = tokenizer.next();
         tok.id.simplifyMacroKeyword();
         switch (tok.id) {
-            .hash_hash => return pp.fail(tokenizer.source, "TODO token pasting", tok.loc),
+            .hash_hash => {
+                const prev = tokens.pop();
+                const next = tokenizer.next();
+                if (next.id == .nl or next.id == .eof) return pp.fail(tokenizer.source, "'##' cannot appear at end of macro expansion", next);
+                const next_slice = pp.tokSliceSafe(next);
+
+                const start = pp.generated.items.len;
+                const end = start + pp.tokSlice(prev).len + next_slice.len;
+                try pp.generated.ensureCapacity(end);
+                pp.generated.appendSliceAssumeCapacity(pp.tokSlice(prev));
+                pp.generated.appendSliceAssumeCapacity(next_slice);
+
+                var tmp_source = tokenizer.source;
+                tmp_source.id.markGenerated();
+                var tmp_tokenizer = Tokenizer{
+                    .buf = pp.generated.items,
+                    .index = @intCast(u32, start),
+                    .source = tmp_source,
+                };
+                const pasted_token = tmp_tokenizer.next();
+                if (tmp_tokenizer.next().id != .eof) {
+                    return pp.failFmt(tokenizer.source, tok, "pasting formed '{s}', an invalid preprocessing token", .{pp.generated.items[start..end]});
+                }
+                try tokens.append(pasted_token);
+            },
             .nl, .eof => break,
             else => try tokens.append(tok),
         }
@@ -330,9 +383,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
         const tok = tokenizer.next();
         if (tok.id == .r_paren) break;
         if (tok.id.isMacroIdentifier())
-            try params.append(tokenizer.source.slice(tok.loc))
+            try params.append(pp.tokSliceSafe(tok))
         else
-            return pp.fail(tokenizer.source, "invalid token in macro paramter list", tok.loc);
+            return pp.fail(tokenizer.source, "invalid token in macro paramter list", tok);
     }
 
     var var_args = false;
@@ -348,14 +401,14 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
                 var_args = true;
                 const r_paren = tokenizer.next();
                 if (r_paren.id != .r_paren)
-                    return pp.fail(tokenizer.source, "missing ')' in macro parameter list", r_paren.loc);
+                    return pp.fail(tokenizer.source, "missing ')' in macro parameter list", r_paren);
                 break;
             },
             .hash => {
                 const param = tokenizer.next();
                 blk: {
                     if (!param.id.isMacroIdentifier()) break :blk;
-                    const s = tokenizer.source.slice(param.loc);
+                    const s = pp.tokSliceSafe(param);
                     for (params.items) |p, i| {
                         if (mem.eql(u8, p, s)) {
                             tok.id = .stringify_param;
@@ -365,11 +418,11 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
                         }
                     }
                 }
-                return pp.fail(tokenizer.source, "'#' is not followed by a macro parameter", param.loc);
+                return pp.fail(tokenizer.source, "'#' is not followed by a macro parameter", param);
             },
             else => {
                 if (tok.id.isMacroIdentifier()) {
-                    const s = tokenizer.source.slice(tok.loc);
+                    const s = pp.tokSliceSafe(tok);
                     for (params.items) |param, i| {
                         if (mem.eql(u8, param, s)) {
                             tok.id = .macro_param;
@@ -385,6 +438,6 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
 
     const param_list = try pp.arena.allocator.dupe([]const u8, params.items);
     const token_list = try pp.arena.allocator.dupe(Token, tokens.items);
-    const name_str = tokenizer.source.slice(macro_name.loc);
+    const name_str = pp.tokSliceSafe(macro_name);
     _ = try pp.defines.put(name_str, .{ .func = .{ .params = param_list, .var_args = var_args, .tokens = token_list } });
 }

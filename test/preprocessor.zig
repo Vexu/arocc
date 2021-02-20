@@ -1,13 +1,22 @@
+test "object macro token pasting" {
+    expectStr(
+        \\#define x a##1
+        \\x
+        \\#define a 1
+        \\x
+    , "a1 a1");
+}
+
 test "recursive object macro" {
-    expectTokens(
+    expectStr(
         \\#define y x
         \\#define x y
         \\x
-    , &.{.identifier});
-    expectTokens(
+    , "x");
+    expectStr(
         \\#define x x
         \\x
-    , &.{.identifier});
+    , "x");
 }
 
 test "object macro expansion" {
@@ -52,22 +61,27 @@ test "define undefin" {
 
 const std = @import("std");
 const sfcc = @import("sfcc");
+const Source = sfcc.Source;
 const Token = sfcc.Tokenizer.Token;
 const Preprocessor = sfcc.Preprocessor;
 const Compilation = sfcc.Compilation;
 
-fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) void {
+fn expectTokens(buf: []const u8, expected_tokens: []const Token.Id) void {
     var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
+
+    const source = Source{
+        .buf = buf,
+        .id = @intToEnum(Source.Id, 0),
+        .path = "<test-buf>",
+    };
+    comp.sources.putNoClobber(source.path, source) catch unreachable;
+    defer comp.sources.clearAndFree();
 
     var pp = Preprocessor.init(&comp);
     defer pp.deinit();
 
-    pp.preprocess(.{
-        .buf = source,
-        .id = 0,
-        .path = "<test-buf>",
-    }) catch unreachable;
+    pp.preprocess(source) catch unreachable;
 
     for (expected_tokens) |expected_token_id, i| {
         const token = pp.tokens.items[i];
@@ -77,4 +91,33 @@ fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) void {
     }
     const last_token = pp.tokens.items[expected_tokens.len];
     std.testing.expect(last_token.id == .eof);
+}
+
+fn expectStr(buf: []const u8, expected: []const u8) void {
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+
+    const source = Source{
+        .buf = buf,
+        .id = @intToEnum(Source.Id, 0),
+        .path = "<test-buf>",
+    };
+    comp.sources.putNoClobber(source.path, source) catch unreachable;
+    defer comp.sources.clearAndFree();
+
+    var pp = Preprocessor.init(&comp);
+    defer pp.deinit();
+
+    pp.preprocess(source) catch unreachable;
+
+    var actual = std.ArrayList(u8).init(std.testing.allocator);
+    defer actual.deinit();
+
+    for (pp.tokens.items) |tok, i| {
+        if (tok.id == .eof) break;
+        if (i != 0) actual.append(' ') catch unreachable;
+        actual.appendSlice(pp.tokSlice(tok)) catch unreachable;
+    }
+
+    std.testing.expectEqualStrings(expected, actual.items);
 }

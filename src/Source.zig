@@ -1,15 +1,29 @@
 const Source = @This();
 
-pub const Id = u16;
+pub const Id = enum(u16) {
+    _,
+
+    const generated_bit: u16 = 1 << 15;
+    const generated_mask: u16 = generated_bit - 1;
+
+    pub fn index(id: Id) u16 {
+        return @enumToInt(id) & generated_mask; 
+    }
+
+    pub fn isGenerated(id: Id) bool {
+        return (@enumToInt(id) & generated_bit) != 0; 
+    }
+
+    pub fn markGenerated(id: *Id) void {
+        id.* = @intToEnum(Id, (@enumToInt(id.*) | Id.generated_bit));
+    }
+};
+
 pub const Location = struct { start: u32, end: u32 };
 
 path: []const u8,
 buf: []const u8,
 id: Id,
-
-pub fn slice(source: Source, loc: Location) []const u8 {
-    return source.buf[loc.start..loc.end];
-}
 
 pub const LCS = struct { line: u32, col: u32, str: []const u8 };
 
