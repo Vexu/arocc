@@ -39,9 +39,13 @@ fn fail(comptime msg: []const u8, args: anytype) void {
 const usage =
     \\Usage {s}: [options] file..
     \\
-    \\Options:
+    \\General options:
     \\  -h, --help      Print this message.
     \\  -v, --version   Print sfcc version.
+    \\
+    \\Feature options:
+    \\  -fcolor-diagnostics     Enable colors in diagnostics
+    \\  -fno-color-diagnostics  Disable colors in diagnostics
     \\
     \\
 ;
@@ -61,6 +65,10 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
                 const std_out = std.io.getStdOut().writer();
                 return std_out.writeAll(build_options.version_str ++ "\n");
+            } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
+                comp.color = true;
+            } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
+                comp.color = false;
             } else {
                 const std_out = std.io.getStdErr().writer();
                 try std_out.print(usage, .{args[0]});

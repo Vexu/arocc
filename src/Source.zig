@@ -11,7 +11,9 @@ pub fn slice(source: Source, loc: Location) []const u8 {
     return source.buf[loc.start..loc.end];
 }
 
-pub fn lineCol(source: Source, loc: Location) struct { line: u32, col: u32 } {
+pub const LCS = struct { line: u32, col: u32, str: []const u8 };
+
+pub fn lineColString(source: Source, loc: Location) LCS {
     var line: u32 = 1;
     var col: u32 = 1;
     var i: u32 = 0;
@@ -23,5 +25,9 @@ pub fn lineCol(source: Source, loc: Location) struct { line: u32, col: u32 } {
             col += 1;
         }
     }
-    return .{ .line = line, .col = col };
+    const start = i - (col - 1);
+    while (i < source.buf.len) : (i += 1) {
+        if (source.buf[i] == '\n') break;
+    }
+    return .{ .line = line, .col = col, .str = source.buf[start..i] };
 }

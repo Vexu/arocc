@@ -79,7 +79,7 @@ fn preprocessInternal(
                         const loc = Source.Location{ .start = start, .end = tokenizer.index };
                         var slice = tokenizer.source.slice(loc);
                         slice = mem.trim(u8, slice, " \t\x0B\x0C");
-                        return pp.fail(tokenizer.source, slice, loc);
+                        return pp.fail(tokenizer.source, slice, directive.loc);
                     },
                     .keyword_if => try pp.expandConditional(tokenizer, try pp.expandBoolExpr(tokenizer)),
                     .keyword_ifdef => {
@@ -153,8 +153,8 @@ fn preprocessInternal(
 }
 
 fn fail(pp: *Preprocessor, source: Source, msg: []const u8, loc: Source.Location) Error {
-    const line_col = source.lineCol(loc);
-    std.debug.print("{s}:{d}:{d}: error: {s}\n", .{ source.path, line_col.line, line_col.col, msg });
+    const lcs = source.lineColString(loc);
+    pp.comp.printErr(source.path, lcs, msg);
     return error.PreprocessingFailed;
 }
 
