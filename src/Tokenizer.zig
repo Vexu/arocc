@@ -146,9 +146,10 @@ pub const Token = struct {
         // Preprocessor directives
         keyword_include,
         keyword_define,
+        keyword_undef,
         keyword_ifdef,
         keyword_ifndef,
-        keyword_undef,
+        keyword_elif,
         keyword_endif,
         keyword_error,
         keyword_pragma,
@@ -157,9 +158,11 @@ pub const Token = struct {
             return switch (id) {
                 .keyword_include,
                 .keyword_define,
-                .keyword_ifdef,
                 .keyword_undef,
+                .keyword_ifdef,
                 .keyword_ifndef,
+                .keyword_elif,
+                .keyword_endif,
                 .keyword_error,
                 .keyword_pragma,
                 .identifier,
@@ -222,9 +225,10 @@ pub const Token = struct {
         // Preprocessor directives
         .{ "include", .keyword_include },
         .{ "define", .keyword_define },
+        .{ "undef", .keyword_undef },
         .{ "ifdef", .keyword_ifdef },
         .{ "ifndef", .keyword_ifndef },
-        .{ "undef", .keyword_undef },
+        .{ "elif", .keyword_elif },
         .{ "endif", .keyword_endif },
         .{ "error", .keyword_error },
         .{ "pragma", .keyword_pragma },
@@ -233,7 +237,7 @@ pub const Token = struct {
 
 buf: []const u8,
 index: u32 = 0,
-source: u16,
+source: Source,
 
 pub fn next(self: *Tokenizer) Token {
     const start_index = self.index;
@@ -1054,7 +1058,7 @@ pub fn next(self: *Tokenizer) Token {
             .start = start,
             .end = self.index,
         },
-        .source = self.source,
+        .source = self.source.id,
     };
 }
 
@@ -1327,7 +1331,7 @@ test "comments" {
 fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) void {
     var tokenizer = Tokenizer{
         .buf = source,
-        .source = 0,
+        .source = undefined,
     };
     for (expected_tokens) |expected_token_id| {
         const token = tokenizer.next();
