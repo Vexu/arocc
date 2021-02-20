@@ -9,11 +9,12 @@ const Token = Tokenizer.Token;
 
 const Preprocessor = @This();
 const DefineMap = std.StringHashMap(Macro);
+const TokenList = std.ArrayList(Token);
 
 const Macro = union(enum) {
     empty,
     func: struct {
-        args: []const []const u8,
+        params: []const []const u8,
         tokens: []const Token,
     },
     simple: []const Token,
@@ -22,14 +23,14 @@ const Macro = union(enum) {
 comp: *Compilation,
 arena: std.heap.ArenaAllocator,
 defines: DefineMap,
-tokens: std.ArrayList(Token),
+tokens: TokenList,
 
 pub fn init(comp: *Compilation) Preprocessor {
     return .{
         .comp = comp,
         .arena = std.heap.ArenaAllocator.init(comp.gpa),
         .defines = DefineMap.init(comp.gpa),
-        .tokens = std.ArrayList(Token).init(comp.gpa),
+        .tokens = TokenList.init(comp.gpa),
     };
 }
 
@@ -90,7 +91,7 @@ fn preprocessInternal(
                         try pp.expectNl(tokenizer, false);
                         try pp.expandConditional(tokenizer, pp.defines.get(macro_name) == null);
                     },
-                    .keyword_define => return pp.fail(tokenizer.source, "TODO define directive", directive.loc),
+                    .keyword_define => try pp.define(tokenizer),
                     .keyword_include => return pp.fail(tokenizer.source, "TODO include directive", directive.loc),
                     .keyword_pragma => return pp.fail(tokenizer.source, "TODO pragma directive", directive.loc),
                     .keyword_undef => {
@@ -121,7 +122,6 @@ fn preprocessInternal(
                     },
                     else => return pp.fail(tokenizer.source, "invalid preprocessing directive", directive.loc),
                 }
-                start_of_line = true;
             },
             .nl => start_of_line = true,
             .eof => {
@@ -131,15 +131,8 @@ fn preprocessInternal(
             },
             else => {
                 start_of_line = false;
-                if (tok.id.isIdentifier()) {
-                    if (pp.defines.get(tokenizer.source.slice(tok.loc))) |some| switch (some) {
-                        .empty => continue,
-                        .simple => |toks| {
-                            try pp.tokens.appendSlice(toks);
-                            continue;
-                        },
-                        .func => return pp.fail(tokenizer.source, "TODO func macro expansion", tok.loc),
-                    };
+                if (tok.id.isMacroIdentifier()) {
+                    try pp.expandMacro(tokenizer, tok, &pp.tokens);
                     tok.id = .identifier;
                 }
                 try pp.tokens.append(tok);
@@ -155,8 +148,8 @@ fn fail(pp: *Preprocessor, source: Source, msg: []const u8, loc: Source.Location
 }
 
 fn expectMacroName(pp: *Preprocessor, tokenizer: *Tokenizer) Error![]const u8 {
-    const macro_name = tokenizer.next();
-    if (!macro_name.id.isIdentifier()) return pp.fail(tokenizer.source, "macro name missing", macro_name.loc);
+    var macro_name = tokenizer.next();
+    if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name missing", macro_name.loc);
     return tokenizer.source.slice(macro_name.loc);
 }
 
@@ -173,7 +166,6 @@ fn expandBoolExpr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
     const next = tokenizer.next();
     return fail(pp, tokenizer.source, "TODO macro bool condition", next.loc);
 }
-
 
 /// Handles one level of #if ... #endif.
 fn expandConditional(pp: *Preprocessor, tokenizer: *Tokenizer, first_cond: bool) Error!void {
@@ -237,4 +229,83 @@ fn skip(pp: *Preprocessor, tokenizer: *Tokenizer) Error!Token.Id {
     } else {
         return pp.fail(tokenizer.source, "unterminated conditional directive", .{ .start = tokenizer.index - 1, .end = tokenizer.index });
     }
+}
+
+/// Try to expand a macro.
+fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, name: Token, tokens: *TokenList) Error!void {
+    if (pp.defines.get(tokenizer.source.slice(name.loc))) |some| switch (some) {
+        .empty => {},
+        .simple => |macro_tokens|  try tokens.appendSlice(macro_tokens),
+        .func => return pp.fail(tokenizer.source, "TODO func macro expansion", name.loc),
+    } else {
+        try tokens.append(name);
+    }
+}
+
+/// Handle a #define directive.
+fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
+    var macro_name = tokenizer.next();
+    if (!macro_name.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name must be an identifier", macro_name.loc);
+    const name_str = tokenizer.source.slice(macro_name.loc);
+
+    const first = tokenizer.next();
+    if (first.id == .nl or first.id == .eof) {
+        _ = try pp.defines.put(name_str, .empty);
+        return;
+    } else if (first.loc.start == macro_name.loc.end) {
+        if (first.id == .l_paren) return pp.defineFn(tokenizer, macro_name);
+        return pp.fail(tokenizer.source, "ISO C99 requires whitespace after the macro name", first.loc);
+    } else if (first.id == .hash_hash) {
+        return pp.fail(tokenizer.source, "'##' cannot appear at start of macro expansion", first.loc);
+    }
+
+    var tokens = TokenList.init(pp.comp.gpa);
+    defer tokens.deinit();
+    try tokens.append(first);
+
+    while (true) {
+        var tok = tokenizer.next();
+        switch (tok.id) {
+            .hash_hash => return pp.fail(tokenizer.source, "TODO token pasting", tok.loc),
+            .nl, .eof => break,
+            else => if (tok.id.isMacroIdentifier())
+                try pp.expandMacro(tokenizer, tok, &tokens)
+            else
+                try tokens.append(tok),
+        }
+    }
+
+    const list = try pp.arena.allocator.dupe(Token, tokens.items);
+    _ = try pp.defines.put(name_str, .{ .simple = list });
+}
+
+/// Handle a function like #define directive.
+fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!void {
+    var params = std.ArrayList([]const u8).init(pp.comp.gpa);
+    defer params.deinit();
+
+    while (true) {
+        var tok = tokenizer.next();
+        if (tok.id == .r_paren) break;
+        if (tok.id.isMacroIdentifier())
+            try params.append(tokenizer.source.slice(tok.loc))
+        else
+            return pp.fail(tokenizer.source, "invalid token in macro paramter list", tok.loc);
+    }
+
+    var tokens = TokenList.init(pp.comp.gpa);
+    defer tokens.deinit();
+
+    while (true) {
+        var tok = tokenizer.next();
+        switch (tok.id) {
+            .nl, .eof => break,
+            else => try tokens.append(tok),
+        }
+    }
+
+    const param_list = try pp.arena.allocator.dupe([]const u8, params.items);
+    const token_list = try pp.arena.allocator.dupe(Token, tokens.items);
+    const name_str = tokenizer.source.slice(macro_name.loc);
+    _ = try pp.defines.put(name_str, .{ .func = .{ .params = param_list, .tokens = token_list} });
 }

@@ -154,8 +154,8 @@ pub const Token = struct {
         keyword_error,
         keyword_pragma,
 
-        pub fn isIdentifier(id: Id) bool {
-            return switch (id) {
+        pub fn isMacroIdentifier(id: *Id) bool {
+            switch (id.*) {
                 .keyword_include,
                 .keyword_define,
                 .keyword_undef,
@@ -166,9 +166,57 @@ pub const Token = struct {
                 .keyword_error,
                 .keyword_pragma,
                 .identifier,
-                => true,
-                else => false,
-            };
+                => {
+                    id.* = .identifier;
+                    return true;
+                },
+                .keyword_auto,
+                .keyword_break,
+                .keyword_case,
+                .keyword_char,
+                .keyword_const,
+                .keyword_continue,
+                .keyword_default,
+                .keyword_do,
+                .keyword_double,
+                .keyword_else,
+                .keyword_enum,
+                .keyword_extern,
+                .keyword_float,
+                .keyword_for,
+                .keyword_goto,
+                .keyword_if,
+                .keyword_int,
+                .keyword_long,
+                .keyword_register,
+                .keyword_return,
+                .keyword_short,
+                .keyword_signed,
+                .keyword_sizeof,
+                .keyword_static,
+                .keyword_struct,
+                .keyword_switch,
+                .keyword_typedef,
+                .keyword_union,
+                .keyword_unsigned,
+                .keyword_void,
+                .keyword_volatile,
+                .keyword_while,
+                .keyword_bool,
+                .keyword_complex,
+                .keyword_imaginary,
+                .keyword_inline,
+                .keyword_restrict,
+                .keyword_alignas,
+                .keyword_alignof,
+                .keyword_atomic,
+                .keyword_generic,
+                .keyword_noreturn,
+                .keyword_static_assert,
+                .keyword_thread_local,
+                => return true,
+                else => return false,
+            }
         }
     };
 
