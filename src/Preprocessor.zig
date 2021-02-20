@@ -69,7 +69,16 @@ fn preprocessInternal(
             .hash => if (start_of_line) {
                 const directive = tokenizer.next();
                 switch (directive.id) {
-                    .keyword_error => return pp.fail(tokenizer.source, "TODO error directive", directive.loc),
+                    .keyword_error => {
+                        const start = tokenizer.index;
+                        while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
+                            if (tokenizer.buf[tokenizer.index] == '\n') break;
+                        }
+                        const loc = Source.Location{ .start = start, .end = tokenizer.index };
+                        var slice = tokenizer.source.slice(loc);
+                        slice = mem.trim(u8, slice, " \t\x0B\x0C");
+                        return pp.fail(tokenizer.source, slice, loc);
+                    },
                     .keyword_if => try pp.expandConditional(tokenizer, try pp.expandBoolExpr(tokenizer)),
                     .keyword_ifdef => {
                         const macro_name = try pp.expectMacroName(tokenizer);
