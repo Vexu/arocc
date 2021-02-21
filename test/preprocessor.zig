@@ -1,3 +1,13 @@
+test "#if constant expression" {
+    expectStr(
+        \\#if defined FOO
+        \\void
+        \\#elif !defined(BAR)
+        \\long
+        \\#endif
+    , "long");
+}
+
 test "nested #ifs" {
     expectStr(
         \\#define FOO

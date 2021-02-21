@@ -6,6 +6,7 @@ const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
+const Parser = @import("Parser.zig");
 
 const Preprocessor = @This();
 const DefineMap = std.StringHashMap(Macro);
@@ -20,6 +21,8 @@ const Macro = union(enum) {
     },
     simple: []const Token,
 };
+
+const Error = Allocator.Error || error{PreprocessingFailed};
 
 comp: *Compilation,
 arena: std.heap.ArenaAllocator,
@@ -53,8 +56,6 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.pragma_once.deinit();
 }
 
-const Error = Allocator.Error || error{PreprocessingFailed};
-
 /// Preprocess a source file.
 pub fn preprocess(pp: *Preprocessor, source: Source) !void {
     var tokenizer = Tokenizer{
@@ -73,7 +74,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !void {
     const until_endif_seen_else = 2;
     var seen_pragma_once = false;
 
-    var start_of_line = true; 
+    var start_of_line = true;
     while (true) {
         var tok = tokenizer.next();
         switch (tok.id) {
@@ -129,7 +130,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !void {
                     .keyword_elif => {
                         if (if_level == 0) return pp.fail(tokenizer.source, "#elif without #if", directive);
                         switch (if_kind.get(if_level)) {
-                            until_else =>  if (try pp.expandBoolExpr(&tokenizer)) {
+                            until_else => if (try pp.expandBoolExpr(&tokenizer)) {
                                 if_kind.set(if_level, until_endif);
                             } else {
                                 try pp.skip(&tokenizer, .until_else);
@@ -229,10 +230,10 @@ pub fn tokSlice(pp: *Preprocessor, token: Token) []const u8 {
     if (token.source.isGenerated()) {
         return pp.generated.items[token.loc.start..token.loc.end];
     } else {
-        const source_buf = pp.comp.sources.items()[token.source.index()].value.buf;
-        return source_buf[token.loc.start..token.loc.end];
+        const source = pp.comp.getSource(token.source);
+        return source.buf[token.loc.start..token.loc.end];
     }
-}  
+}
 
 fn failFmt(pp: *Preprocessor, source: Source, tok: Token, comptime fmt: []const u8, args: anytype) Error {
     assert(source.id == tok.source);
@@ -263,12 +264,13 @@ fn expectNl(pp: *Preprocessor, tokenizer: *Tokenizer, allow_eof: bool) Error!voi
 }
 
 fn expandBoolExpr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
-    var tokens = TokenList.init(pp.comp.gpa);
-    defer tokens.deinit();
+    pp.include_tok_buf.items.len = 0; // cannot be in a #include and a #if simultaneously.
     while (true) {
         var tok = tokenizer.next();
         if (tok.id == .nl or tok.id == .eof) {
-            if (tokens.items.len == 0) return pp.fail(tokenizer.source, "expected value in expression", tok);
+            if (pp.include_tok_buf.items.len == 0) return pp.fail(tokenizer.source, "expected value in expression", tok);
+            tok.id = .eof;
+            try pp.include_tok_buf.append(tok);
             break;
         } else if (tok.id == .keyword_defined) {
             const first = tokenizer.next();
@@ -286,11 +288,38 @@ fn expandBoolExpr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
             } else {
                 tok.id = .zero;
             }
+        } else if (tok.id.isMacroIdentifier()) {
+            try pp.expandMacro(tokenizer, tok, &pp.include_tok_buf);
         }
         tok.id.simplifyMacroKeyword();
-        try tokens.append(tok);
+        try pp.include_tok_buf.append(tok);
     }
-    return pp.fail(tokenizer.source, "TODO macro bool condition", tokens.items[0]);
+
+    for (pp.include_tok_buf.items) |tok| {
+        switch (tok.id) {
+            .string_literal,
+            .string_literal_utf_16,
+            .string_literal_utf_8,
+            .string_literal_utf_32,
+            .string_literal_wide,
+            => return pp.fail(tokenizer.source, "string literal in preprocessor expression", tok),
+            .float_literal,
+            .float_literal_f,
+            .float_literal_l,
+            => return pp.fail(tokenizer.source, "floating point literal in preprocessor expression", tok),
+            else => {},
+        }
+    }
+
+    var parser = Parser{
+        .pp = pp,
+        .tokens = pp.include_tok_buf.items,
+    };
+    const res = parser.constExpr() catch |err| switch (err) {
+        error.OutOfMemory => unreachable, // TODO verify this
+        error.ParsingFailed => return error.PreprocessingFailed,
+    };
+    return res.getBool();
 }
 
 /// Skip until #else #elif #endif, return last directive token id.
@@ -441,7 +470,6 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
         if (tok.id == .r_paren) break;
         if (!tok.id.isMacroIdentifier())
             return pp.fail(tokenizer.source, "invalid token in macro paramter list", tok);
-        
 
         try params.append(pp.tokSliceSafe(tok));
         const next = tokenizer.next();
@@ -514,7 +542,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         const tok = tokenizer.next();
         if (first == null) first = tok;
         if (tok.id == .nl or tok.id == .eof) break;
-        if (tok.id.isMacroIdentifier()) 
+        if (tok.id.isMacroIdentifier())
             try pp.expandMacro(tokenizer, tok, &pp.include_tok_buf)
         else
             try pp.include_tok_buf.append(tok);
@@ -530,8 +558,8 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         if (start != '"' and start != '<') break :fail;
         const end = pp.include_char_buf.items[pp.include_char_buf.items.len - 1];
         if ((start == '"' and end != '"') or (start == '<' and end != '>')) break :fail;
-        
-        const filename = pp.include_char_buf.items[1..pp.include_char_buf.items.len - 1];
+
+        const filename = pp.include_char_buf.items[1 .. pp.include_char_buf.items.len - 1];
         const new_source = pp.comp.findInclude(filename, start == '"') catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             else => return pp.failFmt(tokenizer.source, first.?, "'{s}' not found", .{filename}),
