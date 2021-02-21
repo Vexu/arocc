@@ -28,6 +28,7 @@ tokens: TokenList,
 generated: std.ArrayList(u8),
 include_tok_buf: TokenList,
 include_char_buf: std.ArrayList(u8),
+pragma_once: std.AutoHashMap(Source.Id, void),
 
 pub fn init(comp: *Compilation) Preprocessor {
     return .{
@@ -38,6 +39,7 @@ pub fn init(comp: *Compilation) Preprocessor {
         .generated = std.ArrayList(u8).init(comp.gpa),
         .include_tok_buf = TokenList.init(comp.gpa),
         .include_char_buf = std.ArrayList(u8).init(comp.gpa),
+        .pragma_once = std.AutoHashMap(Source.Id, void).init(comp.gpa),
     };
 }
 
@@ -48,6 +50,7 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.generated.deinit();
     pp.include_tok_buf.deinit();
     pp.include_char_buf.deinit();
+    pp.pragma_once.deinit();
 }
 
 const Error = Allocator.Error || error{PreprocessingFailed};
@@ -68,6 +71,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !void {
     const until_else = 0;
     const until_endif = 1;
     const until_endif_seen_else = 2;
+    var seen_pragma_once = false;
 
     var start_of_line = true; 
     while (true) {
@@ -81,8 +85,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !void {
                         while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
                             if (tokenizer.buf[tokenizer.index] == '\n') break;
                         }
-                        const loc = Source.Location{ .start = start, .end = tokenizer.index };
-                        var slice = tokenizer.source.buf[loc.start..loc.end];
+                        var slice = tokenizer.source.buf[start..tokenizer.index];
                         slice = mem.trim(u8, slice, " \t\x0B\x0C");
                         return pp.fail(tokenizer.source, slice, directive);
                     },
@@ -159,7 +162,24 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !void {
                         try pp.expectNl(&tokenizer, true);
                     },
                     .keyword_include => try pp.include(&tokenizer),
-                    .keyword_pragma => return pp.fail(tokenizer.source, "TODO pragma directive", directive),
+                    .keyword_pragma => {
+                        const start = tokenizer.index;
+                        while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
+                            if (tokenizer.buf[tokenizer.index] == '\n') break;
+                        }
+                        var slice = tokenizer.source.buf[start..tokenizer.index];
+                        slice = mem.trim(u8, slice, " \t\x0B\x0C");
+                        if (mem.eql(u8, slice, "once")) {
+                            const prev = try pp.pragma_once.fetchPut(tokenizer.source.id, {});
+                            if (prev != null and !seen_pragma_once) {
+                                return;
+                            } else {
+                                seen_pragma_once = true;
+                            }
+                        } else {
+                            // unknown pragma, TODO erro/warn??
+                        }
+                    },
                     .keyword_line => {
                         const digits = tokenizer.next();
                         if (digits.id != .integer_literal) return pp.fail(tokenizer.source, "#line directive requires a simple digit sequence", digits);
@@ -251,8 +271,17 @@ fn expandBoolExpr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
             if (tokens.items.len == 0) return pp.fail(tokenizer.source, "expected value in expression", tok);
             break;
         } else if (tok.id == .keyword_defined) {
-            const macro_name = try pp.expectMacroName(tokenizer);
-            if (pp.defines.get(macro_name)) |_| {
+            const first = tokenizer.next();
+            const macro_tok = if (first.id == .l_paren)
+                tokenizer.next()
+            else
+                first;
+            if (!macro_tok.id.isMacroIdentifier()) return pp.fail(tokenizer.source, "macro name missing", macro_tok);
+            if (first.id == .l_paren) {
+                const r_paren = tokenizer.next();
+                if (r_paren.id != .r_paren) return pp.fail(tokenizer.source, "expected closing ')'", r_paren);
+            }
+            if (pp.defines.get(pp.tokSliceSafe(macro_tok))) |_| {
                 tok.id = .one;
             } else {
                 tok.id = .zero;
