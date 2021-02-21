@@ -1,3 +1,14 @@
+test "nested #ifs" {
+    expectStr(
+        \\#define FOO
+        \\#ifdef FOO
+        \\#ifdef FOO
+        \\#else
+        \\#endif
+        \\#endif
+    , "");
+}
+
 test "object macro token pasting" {
     expectStr(
         \\#define x a##1

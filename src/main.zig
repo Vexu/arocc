@@ -89,8 +89,8 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
 
         try pp.preprocess(source);
 
-        for (pp.tokens.items) |tok| {
-            std.debug.print("id: {s} source: {d} loc: {d}:{d}\n", .{ @tagName(tok.id), tok.source, tok.loc.start, tok.loc.end });
+        for (pp.tokens.items) |tok, i| {
+            std.debug.print("id: {s} |{s}|\n", .{@tagName(tok.id), pp.tokSlice(tok)});
         }
     }
 }
