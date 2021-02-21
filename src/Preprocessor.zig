@@ -26,6 +26,8 @@ arena: std.heap.ArenaAllocator,
 defines: DefineMap,
 tokens: TokenList,
 generated: std.ArrayList(u8),
+include_tok_buf: TokenList,
+include_char_buf: std.ArrayList(u8),
 
 pub fn init(comp: *Compilation) Preprocessor {
     return .{
@@ -34,6 +36,8 @@ pub fn init(comp: *Compilation) Preprocessor {
         .defines = DefineMap.init(comp.gpa),
         .tokens = TokenList.init(comp.gpa),
         .generated = std.ArrayList(u8).init(comp.gpa),
+        .include_tok_buf = TokenList.init(comp.gpa),
+        .include_char_buf = std.ArrayList(u8).init(comp.gpa),
     };
 }
 
@@ -42,6 +46,8 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.tokens.deinit();
     pp.arena.deinit();
     pp.generated.deinit();
+    pp.include_tok_buf.deinit();
+    pp.include_char_buf.deinit();
 }
 
 const Error = Allocator.Error || error{PreprocessingFailed};
@@ -146,14 +152,14 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !void {
                         if_level -= 1;
                     },
                     .keyword_define => try pp.define(&tokenizer),
-                    .keyword_include => return pp.fail(tokenizer.source, "TODO include directive", directive),
-                    .keyword_pragma => return pp.fail(tokenizer.source, "TODO pragma directive", directive),
                     .keyword_undef => {
                         const macro_name = try pp.expectMacroName(&tokenizer);
 
                         _ = pp.defines.remove(macro_name);
                         try pp.expectNl(&tokenizer, true);
                     },
+                    .keyword_include => try pp.include(&tokenizer),
+                    .keyword_pragma => return pp.fail(tokenizer.source, "TODO pragma directive", directive),
                     .keyword_line => {
                         const digits = tokenizer.next();
                         if (digits.id != .integer_literal) return pp.fail(tokenizer.source, "#line directive requires a simple digit sequence", digits);
@@ -467,4 +473,41 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
     const token_list = try pp.arena.allocator.dupe(Token, tokens.items);
     const name_str = pp.tokSliceSafe(macro_name);
     _ = try pp.defines.put(name_str, .{ .func = .{ .params = param_list, .var_args = var_args, .tokens = token_list } });
+}
+
+// Handle a #include directive.
+fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
+    pp.include_tok_buf.items.len = 0;
+    pp.include_char_buf.items.len = 0;
+
+    var first: ?Token = null;
+    while (true) {
+        const tok = tokenizer.next();
+        if (first == null) first = tok;
+        if (tok.id == .nl or tok.id == .eof) break;
+        if (tok.id.isMacroIdentifier()) 
+            try pp.expandMacro(tokenizer, tok, &pp.include_tok_buf)
+        else
+            try pp.include_tok_buf.append(tok);
+    }
+
+    for (pp.include_tok_buf.items) |tok| {
+        try pp.include_char_buf.appendSlice(pp.tokSlice(tok));
+    }
+
+    fail: {
+        if (pp.include_char_buf.items.len == 0) break :fail;
+        const start = pp.include_char_buf.items[0];
+        if (start != '"' and start != '<') break :fail;
+        const end = pp.include_char_buf.items[pp.include_char_buf.items.len - 1];
+        if ((start == '"' and end != '"') or (start == '<' and end != '>')) break :fail;
+        
+        const filename = pp.include_char_buf.items[1..pp.include_char_buf.items.len - 1];
+        const new_source = pp.comp.findInclude(filename, start == '"') catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            else => return pp.failFmt(tokenizer.source, first.?, "'{s}' not found", .{filename}),
+        };
+        return pp.preprocess(new_source);
+    }
+    return pp.fail(tokenizer.source, "expected \"FILENAME\" or <FILENAME>", first.?);
 }
