@@ -350,10 +350,6 @@ fn primaryExpr(p: *Parser) Error!Result {
     }
     switch (p.tokens[p.tok_i].id) {
         .identifier => {
-            if (p.want_const) {
-                // TODO Clang seems to do this??
-                return Result{ .bool = false };
-            }
             return p.fail("TODO ast");
         },
         .string_literal,

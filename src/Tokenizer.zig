@@ -456,7 +456,7 @@ pub const Token = struct {
 
 buf: []const u8,
 index: u32 = 0,
-source: Source,
+source: Source.Id,
 
 pub fn next(self: *Tokenizer) Token {
     const start_index = self.index;
@@ -1277,7 +1277,7 @@ pub fn next(self: *Tokenizer) Token {
             .start = start,
             .end = self.index,
         },
-        .source = self.source.id,
+        .source = self.source,
     };
 }
 
