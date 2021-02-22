@@ -35,7 +35,6 @@ defines: DefineMap,
 tokens: TokenList,
 generated: std.ArrayList(u8),
 token_buf: TokenList,
-char_buf: std.ArrayList(u8),
 pragma_once: std.AutoHashMap(Source.Id, void),
 
 pub fn init(comp: *Compilation) Preprocessor {
@@ -46,7 +45,6 @@ pub fn init(comp: *Compilation) Preprocessor {
         .tokens = TokenList.init(comp.gpa),
         .generated = std.ArrayList(u8).init(comp.gpa),
         .token_buf = TokenList.init(comp.gpa),
-        .char_buf = std.ArrayList(u8).init(comp.gpa),
         .pragma_once = std.AutoHashMap(Source.Id, void).init(comp.gpa),
     };
 }
@@ -57,7 +55,6 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.arena.deinit();
     pp.generated.deinit();
     pp.token_buf.deinit();
-    pp.char_buf.deinit();
     pp.pragma_once.deinit();
 }
 
@@ -562,36 +559,38 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: Token) Error!v
 // Handle a #include directive.
 fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
-    pp.char_buf.items.len = 0;
-
-    var first: ?Token = null;
-    while (true) {
-        const tok = tokenizer.next();
-        if (first == null) first = tok;
-        if (tok.id == .nl or tok.id == .eof) break;
-        if (tok.id.isMacroIdentifier())
-            try pp.expandMacro(tokenizer, tok, &pp.token_buf)
-        else
-            try pp.token_buf.append(tok);
+    var first = tokenizer.next();
+    if (first.id == .angle_bracket_left) to_end: {
+        while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
+            switch (tokenizer.buf[tokenizer.index]) {
+                '>' => {
+                    tokenizer.index += 1;
+                    first.loc.end = tokenizer.index;
+                    first.id = .macro_string;
+                    break :to_end;
+                },
+                '\n' => break,
+                else => {},
+            }
+        }
+        return pp.fail("expected '>'", first);
     }
+    try pp.expandMacro(tokenizer, first, &pp.token_buf);
 
-    for (pp.token_buf.items) |tok| {
-        try pp.char_buf.appendSlice(pp.tokSlice(tok));
+    const filename_tok = if (pp.token_buf.items.len == 0) first else pp.token_buf.items[0];
+    switch (filename_tok.id) {
+        .string_literal, .macro_string => {},
+        else => return pp.fail("expected \"FILENAME\" or <FILENAME>", first),
     }
+    const nl = tokenizer.next();
+    if ((nl.id != .nl and nl.id != .eof) or pp.token_buf.items.len > 1) return pp.fail("extra tokens at end of macro directive", first);
 
-    fail: {
-        if (pp.char_buf.items.len == 0) break :fail;
-        const start = pp.char_buf.items[0];
-        if (start != '"' and start != '<') break :fail;
-        const end = pp.char_buf.items[pp.char_buf.items.len - 1];
-        if ((start == '"' and end != '"') or (start == '<' and end != '>')) break :fail;
-
-        const filename = pp.char_buf.items[1 .. pp.char_buf.items.len - 1];
-        const new_source = pp.comp.findInclude(filename, start == '"') catch |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => return pp.failFmt(first.?, "'{s}' not found", .{filename}),
-        };
-        return pp.preprocess(new_source);
-    }
-    return pp.fail("expected \"FILENAME\" or <FILENAME>", first.?);
+    const tok_slice = pp.tokSlice(filename_tok);
+    if (tok_slice.len < 3) return pp.fail("empty filename", first);
+    const filename = tok_slice[1 .. tok_slice.len - 1];
+    const new_source = pp.comp.findInclude(filename, filename_tok.id == .string_literal) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return pp.failFmt(first, "'{s}' not found", .{filename}),
+    };
+    return pp.preprocess(new_source);
 }
