@@ -100,4 +100,6 @@ test {
     _ = @import("Preprocessor.zig");
     _ = @import("Source.zig");
     _ = @import("Tokenizer.zig");
+    _ = @import("Tree.zig");
+    _ = @import("Type.zig");
 }

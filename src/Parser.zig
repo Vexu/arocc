@@ -7,6 +7,9 @@ const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const Preprocessor = @import("Preprocessor.zig");
+const Tree = @import("Tree.zig");
+const TagIndex = Tree.TagIndex;
+const Type = @import("Type.zig");
 
 const Parser = @This();
 
@@ -21,7 +24,7 @@ pub const Result = union(enum) {
     i32: i32,
     u64: u64,
     i64: i64,
-    node: void, // TODO
+    expr: TagIndex,
 
     pub fn getBool(res: Result) bool {
         return switch (res) {
@@ -78,6 +81,153 @@ fn fail(p: *Parser, msg: []const u8) Error {
     return p.failFmt("{s}", .{msg});
 }
 
+pub fn parse(p: *Parser) Error!Tree {
+
+}
+
+// ====== declarations ======
+
+/// decl 
+///  : declSpec+ (initDeclarator ( ',' initDeclarator)*)? ';'
+///  | declSpec+ declarator declarator* compoundStmt
+///  | staticAssert
+
+/// staticAssert : keyword_static_assert '(' constExpr ',' STRING_LITERAL ')' ';'
+
+/// declSpec: storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec
+
+/// initDeclarator : declarator ('=' initializer)?
+
+/// storageClassSpec:
+///  : keyword_typedef
+///  | keyword_extern
+///  | keyword_static
+///  | keyword_threadlocal
+///  | keyword_auto
+///  | keyword_register
+
+/// typeSpec
+///  : keyword_void
+///  | keyword_char
+///  | keyword_short
+///  | keyword_int
+///  | keyword_long
+///  | keyword_float
+///  | keyword_double
+///  | keyword_signed
+///  | keyword_unsigned
+///  | keyword_bool
+///  | keyword_complex
+///  | atomic-type-specifier
+///  | recordSpec
+///  | enumSpec
+///  | typedef  // IDENTIFIER
+
+/// recordSpec
+///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
+///  | (keyword_struct | keyword_union) IDENTIFIER
+
+/// recordDecl
+///  : specQual+ (recordDeclarator (',' recordDeclarator)*)? ;
+///  | staticAssert
+
+/// recordDeclarator : declarator (':' constExpr)?
+
+// specQual : typeSpec | typeQual | alignSpec
+
+/// enumSpec
+///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
+///  | keyword_enum IDENTIFIER
+
+/// enumerator : IDENTIFIER ('=' constExpr)
+
+/// atomicTypeSpec : keyword_atomic '(' typeName ')'
+
+/// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
+
+/// funcSpec : keyword_inline | keyword_noreturn
+
+/// alignSpec : keyword_alignas '(' typeName ')'
+
+/// declarator: pointer? directDeclarator
+
+/// directDeclarator
+///  : IDENTIFIER
+///  | '(' declarator ')'
+///  | directDeclarator '[' typeQual* assignExpr? ']'
+///  | directDeclarator '[' keyword_static typeQual* assignExpr ']'
+///  | directDeclarator '[' typeQual* keyword_static assignExpr ']'
+///  | directDeclarator '[' typeQual* '*' ']'
+///  | directDeclarator '(' paramDecls ')'
+///  | directDeclarator '(' (IDENTIFIER (',' IDENTIFIER))? ')'
+
+/// pointer : '*' typeQual* pointer?
+
+/// paramDecls : paramDecl (',' paramDecl)* (',' '...')
+
+/// paramDecl : declSpec+ (declarator | abstractDeclarator?)
+
+/// typeName : specQual+ abstractDeclarator?
+
+/// abstractDeclarator
+/// : pointer
+/// | pointer? directAbstractDeclarator
+
+/// directAbstractDeclarator
+///  : '(' abstractDeclarator ')'
+///  | directAbstractDeclarator? '[' typeQual* assignExpr? ']'
+///  | directAbstractDeclarator? '[' keyword_static typeQual* assignExpr ']'
+///  | directAbstractDeclarator? '[' typeQual+ keyword_static assignExpr ']'
+///  | directAbstractDeclarator? '[' '*' ']'
+///  | directAbstractDeclarator? '(' paramDecls? ')'
+
+/// initializer
+///  : assignExpr
+///  | '{' initializerItems '}'
+
+/// initializerItems : designation? initializer  (',' designation? initializer)? ','?
+
+/// designation : designator+ '='
+
+/// designator
+///  : '[' constExpr ']'
+///  | '.' identifier
+
+
+// ====== statements ======
+
+/// stmt
+///  : labeledStmt
+///  | compoundStmt
+///  | keyword_if '(' expr ')' stmt (keyword_else stmt)?
+///  | keyword_switch '(' expr ')' stmt
+///  | keyword_while '(' expr ')' stmt
+///  | keyword_do stmt while '(' expr ')' ';'
+///  | keyword_for '(' (decl | expr? ';') expr? ';' expr? ')' stmt
+///  | keyword_goto IDENTIFIER ';'
+///  | keyword_continue ';'
+///  | keyword_break ';'
+///  | keyword_return expr? ';'
+///  | expr? ';'
+fn stmt(p: *Parser) Error!TagIndex {
+    return p.fail("TODO stmt");
+}
+
+/// labeledStmt
+/// : IDENTIFIER ':' stmt
+/// | keyword_case constExpr ':' stmt
+/// | keyword_default ':' stmt
+fn labeledStmt(p: *Parser) Error!TagIndex {
+    return p.fail("TODO labeledStmt");
+}
+
+/// compoundStmt : '{' ( decl | stmt)* '}'
+fn compoundStmt(p: *Parser) Error!TagIndex {
+    return p.fail("TODO compoundStmt");
+}
+
+// ====== expressions ======
+
 /// expr : assignExpr (',' assignExpr)*
 fn expr(p: *Parser) Error!Result {
     return p.fail("TODO expr");
@@ -96,7 +246,7 @@ pub fn constExpr(p: *Parser) Error!Result {
     return p.condExpr();
 }
 
-/// condExpr : lorExpr ('?' expression ':' condExpr)?
+/// condExpr : lorExpr ('?' expression? ':' condExpr)?
 fn condExpr(p: *Parser) Error!Result {
     const cond = try p.lorExpr();
     if (!p.eatToken(.question_mark)) return cond;
@@ -262,7 +412,7 @@ fn mulExpr(p: *Parser) Error!Result {
     return lhs;
 }
 
-/// castExpr :  ( '(' type_name ')' )* unExpr
+/// castExpr :  ( '(' typeName ')' )* unExpr
 fn castExpr(p: *Parser) Error!Result {
     if (!p.eatToken(.l_paren)) {
         return p.unExpr();
@@ -270,20 +420,12 @@ fn castExpr(p: *Parser) Error!Result {
     return p.fail("TODO cast");
 }
 
-/// unary_operator
-///  : '&'
-///  | '*'
-///  | '+'
-///  | '-'
-///  | '~'
-///  | '!'
 /// unExpr
 ///  : primaryExpr suffixExpr*
-///  | '++' unExpr
-///  | '--' unExpr
-///  | unary_operator castExpr
+///  | ('&' | '*' | '+' | '-' | '~' | '!' | '++' | '--') castExpr
 ///  | keyword_sizeof unExpr
-///  | keyword_sizeof '(' type_name ')'
+///  | keyword_sizeof '(' typeName ')'
+///  | keyword_alignof '(' typeName ')'
 fn unExpr(p: *Parser) Error!Result {
     switch (p.tokens[p.tok_i].id) {
         .ampersand => return p.fail("TODO unExpr ampersand"),
@@ -335,13 +477,19 @@ fn suffixExpr(p: *Parser, lhs: *Result) Error!Result {
 /// argumentExprList : assignExpr (',' assignExpr)*
 fn argumentExprList(p: *Parser) Error!Result {}
 
-//// primaryExpr
-////  : IDENTIFIER
-////  | INTEGER_LITERAL
-////  | FLOAT_LITERAL
-////  | CHAR_LITERAL
-////  | STRING_LITERAL
-////  | '(' expr ')'
+/// primaryExpr
+///  : IDENTIFIER
+///  | INTEGER_LITERAL
+///  | FLOAT_LITERAL
+///  | CHAR_LITERAL
+///  | STRING_LITERAL
+///  | '(' expr ')'
+///  | '(' typeName ')' '{' initializerItems '}'
+///  | keyword_generic '(' assignExpr ',' genericAssoc (',' genericAssoc)* ')'
+///
+/// genericAssoc
+///  : typeName ':' assignExpr
+///  | keyword_default ':' assignExpr
 fn primaryExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) {
         const e = try p.expr();
@@ -401,6 +549,9 @@ fn primaryExpr(p: *Parser) Error!Result {
                 return p.fail("TODO integer literals");
             }
             return p.fail("TODO ast");
+        },
+        .keyword_generic => {
+            return p.fail("TODO generic");
         },
         else => return p.failFmt("expected literal, identifier or grouped expression, found '{s}'", .{@tagName(p.tokens[p.tok_i].id)}),
     }
