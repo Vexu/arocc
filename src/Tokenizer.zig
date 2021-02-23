@@ -391,6 +391,36 @@ pub const Token = struct {
                 .keyword_line => "line",
             };
         }
+
+        pub fn symbol(id: Id) []const u8 {
+            return id.lexeme() orelse switch (id) {
+                .macro_string, .invalid => unreachable,
+                .identifier => "an identifier",
+                .string_literal,
+                .string_literal_utf_16,
+                .string_literal_utf_8,
+                .string_literal_utf_32,
+                .string_literal_wide,
+                => "a string literal",
+                .char_literal,
+                .char_literal_utf_16,
+                .char_literal_utf_32,
+                .char_literal_wide,
+                => "a character literal",
+                .float_literal,
+                .float_literal_f,
+                .float_literal_l,
+                => "a float literal",
+                .integer_literal,
+                .integer_literal_u,
+                .integer_literal_l,
+                .integer_literal_lu,
+                .integer_literal_ll,
+                .integer_literal_llu,
+                => "an integer literal",
+                else => unreachable, // handled in lexeme
+            };
+        }
     };
 
     pub const keywords = std.ComptimeStringMap(Id, .{

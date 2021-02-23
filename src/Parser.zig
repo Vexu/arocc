@@ -10,6 +10,7 @@ const Preprocessor = @import("Preprocessor.zig");
 const Tree = @import("Tree.zig");
 const TagIndex = Tree.TagIndex;
 const Type = @import("Type.zig");
+const Diagnostics = @import("Diagnostics.zig");
 
 const Parser = @This();
 
@@ -43,7 +44,7 @@ pub const Result = union(enum) {
     }
 };
 
-const Error = Compilation.Error;
+const Error = Compilation.Error || error{ParsingFailed};
 
 pp: *Preprocessor,
 tokens: []const Token,
@@ -58,25 +59,46 @@ fn eatToken(p: *Parser, id: Token.Id) bool {
 }
 
 fn expectToken(p: *Parser, id: Token.Id) Error!void {
-    const cur_id = p.tokens[p.tok_i].id;
-    if (cur_id != id) {
-        switch (cur_id) {
-            .invalid => return p.failFmt("expected '{s}', found invalid bytes", .{@tagName(id)}),
-            else => return p.failFmt("expected '{s}', found '{s}'", .{ @tagName(id), @tagName(cur_id) }),
-        }
+    const tok = p.tokens[p.tok_i];
+    if (tok.id != id) {
+        try p.pp.comp.diag.list.append(.{
+            .tag = switch (tok.id) {
+                .invalid => .expected_invalid,
+                else => .expected_token,
+            },
+            .source_id = tok.source,
+            .loc_start = tok.loc.start,
+            .extra = .{
+                .tok_id = .{
+                    .expected = id,
+                    .actual = tok.id,
+                },
+            },
+        });
+        return error.ParsingFailed;
     }
     p.tok_i += 1;
 }
 
-fn failFmt(p: *Parser, comptime fmt: []const u8, args: anytype) Error {
+fn err(p: *Parser, tag: Diagnostics.Tag) Error {
     const tok = p.tokens[p.tok_i];
-    const source = p.pp.comp.getSource(tok.source);
-    const lcs = source.lineColString(tok.loc.start);
-    return error.FatalError; // TODO
+    try p.pp.comp.diag.list.append(.{
+        .tag = tag,
+        .source_id = tok.source,
+        .loc_start = tok.loc.start,
+    });
+    return error.ParsingFailed;
 }
 
-fn fail(p: *Parser, msg: []const u8) Error {
-    return p.failFmt("{s}", .{msg});
+fn todo(p: *Parser, msg: []const u8) Error {
+    const tok = p.tokens[p.tok_i];
+    try p.pp.comp.diag.list.append(.{
+        .tag = .todo,
+        .source_id = tok.source,
+        .loc_start = tok.loc.start,
+        .extra = .{ .str = msg },
+    });
+    return error.ParsingFailed;
 }
 
 pub fn parse(p: *Parser) Error!Tree {
@@ -208,7 +230,7 @@ pub fn parse(p: *Parser) Error!Tree {
 ///  | keyword_return expr? ';'
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!TagIndex {
-    return p.fail("TODO stmt");
+    return p.todo("stmt");
 }
 
 /// labeledStmt
@@ -216,19 +238,19 @@ fn stmt(p: *Parser) Error!TagIndex {
 /// | keyword_case constExpr ':' stmt
 /// | keyword_default ':' stmt
 fn labeledStmt(p: *Parser) Error!TagIndex {
-    return p.fail("TODO labeledStmt");
+    return p.todo("labeledStmt");
 }
 
 /// compoundStmt : '{' ( decl | stmt)* '}'
 fn compoundStmt(p: *Parser) Error!TagIndex {
-    return p.fail("TODO compoundStmt");
+    return p.todo("compoundStmt");
 }
 
 // ====== expressions ======
 
 /// expr : assignExpr (',' assignExpr)*
 fn expr(p: *Parser) Error!Result {
-    return p.fail("TODO expr");
+    return p.todo("expr");
 }
 
 /// assignExpr
@@ -255,7 +277,7 @@ fn condExpr(p: *Parser) Error!Result {
     if (p.want_const or cond != .node) {
         return if (cond.getBool()) then_expr else else_expr;
     }
-    return p.fail("TODO ast");
+    return p.todo("ast");
 }
 
 /// lorExpr : landExpr ('||' landExpr)*
@@ -266,7 +288,7 @@ fn lorExpr(p: *Parser) Error!Result {
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
             lhs = Result{ .bool = lhs.getBool() or rhs.getBool() };
-        } else return p.fail("TODO ast");
+        } else return p.todo("ast");
     }
     return lhs;
 }
@@ -279,7 +301,7 @@ fn landExpr(p: *Parser) Error!Result {
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
             lhs = Result{ .bool = lhs.getBool() and rhs.getBool() };
-        } else return p.fail("TODO ast");
+        } else return p.todo("ast");
     }
     return lhs;
 }
@@ -291,8 +313,8 @@ fn orExpr(p: *Parser) Error!Result {
         const rhs = try p.xorExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
-            return p.fail("TODO or constExpr");
-        } else return p.fail("TODO ast");
+            return p.todo("or constExpr");
+        } else return p.todo("ast");
     }
     return lhs;
 }
@@ -304,8 +326,8 @@ fn xorExpr(p: *Parser) Error!Result {
         const rhs = try p.andExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
-            return p.fail("TODO xor constExpr");
-        } else return p.fail("TODO ast");
+            return p.todo("xor constExpr");
+        } else return p.todo("ast");
     }
     return lhs;
 }
@@ -317,8 +339,8 @@ fn andExpr(p: *Parser) Error!Result {
         const rhs = try p.eqExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
-            return p.fail("TODO and constExpr");
-        } else return p.fail("TODO ast");
+            return p.todo("and constExpr");
+        } else return p.todo("ast");
     }
     return lhs;
 }
@@ -332,9 +354,9 @@ fn eqExpr(p: *Parser) Error!Result {
         const rhs = try p.compExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
-            return p.fail("TODO equality constExpr");
+            return p.todo("equality constExpr");
         }
-        return p.fail("TODO ast");
+        return p.todo("ast");
     }
     return lhs;
 }
@@ -351,9 +373,9 @@ fn compExpr(p: *Parser) Error!Result {
         const rhs = try p.shiftExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
-            return p.fail("TODO comp constExpr");
+            return p.todo("comp constExpr");
         }
-        return p.fail("TODO ast");
+        return p.todo("ast");
     }
     return lhs;
 }
@@ -368,9 +390,9 @@ fn shiftExpr(p: *Parser) Error!Result {
         const rhs = try p.addExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
-            return p.fail("TODO shift constExpr");
+            return p.todo("shift constExpr");
         }
-        return p.fail("TODO ast");
+        return p.todo("ast");
     }
     return lhs;
 }
@@ -385,9 +407,9 @@ fn addExpr(p: *Parser) Error!Result {
         const rhs = try p.mulExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
-            return p.fail("TODO shift constExpr");
+            return p.todo("shift constExpr");
         }
-        return p.fail("TODO ast");
+        return p.todo("ast");
     }
     return lhs;
 }
@@ -403,9 +425,9 @@ fn mulExpr(p: *Parser) Error!Result {
         const rhs = try p.castExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
-            return p.fail("TODO mul constExpr");
+            return p.todo("mul constExpr");
         }
-        return p.fail("TODO ast");
+        return p.todo("ast");
     }
     return lhs;
 }
@@ -415,7 +437,7 @@ fn castExpr(p: *Parser) Error!Result {
     if (!p.eatToken(.l_paren)) {
         return p.unExpr();
     }
-    return p.fail("TODO cast");
+    return p.todo("cast");
 }
 
 /// unExpr
@@ -426,22 +448,22 @@ fn castExpr(p: *Parser) Error!Result {
 ///  | keyword_alignof '(' typeName ')'
 fn unExpr(p: *Parser) Error!Result {
     switch (p.tokens[p.tok_i].id) {
-        .ampersand => return p.fail("TODO unExpr ampersand"),
-        .asterisk => return p.fail("TODO unExpr asterisk"),
-        .plus => return p.fail("TODO unExpr plus"),
-        .minus => return p.fail("TODO unExpr minus"),
-        .plus_plus => return p.fail("TODO unary inc"),
-        .minus_minus => return p.fail("TODO unary dec"),
-        .tilde => return p.fail("TODO unExpr tilde"),
+        .ampersand => return p.todo("unExpr ampersand"),
+        .asterisk => return p.todo("unExpr asterisk"),
+        .plus => return p.todo("unExpr plus"),
+        .minus => return p.todo("unExpr minus"),
+        .plus_plus => return p.todo("unary inc"),
+        .minus_minus => return p.todo("unary dec"),
+        .tilde => return p.todo("unExpr tilde"),
         .bang => {
             p.tok_i += 1;
             const lhs = try p.unExpr();
             if (p.want_const or lhs != .node) {
                 return Result{ .bool = !lhs.getBool() };
             }
-            return p.fail("TODO ast");
+            return p.todo("ast");
         },
-        .keyword_sizeof => return p.fail("TODO unExpr sizeof"),
+        .keyword_sizeof => return p.todo("unExpr sizeof"),
         else => {
             var lhs = try p.primaryExpr();
             while (true) {
@@ -462,12 +484,12 @@ fn unExpr(p: *Parser) Error!Result {
 ///  | '--'
 fn suffixExpr(p: *Parser, lhs: *Result) Error!Result {
     switch (p.tokens[p.tok_i].id) {
-        .l_bracket => return p.fail("TODO array access"),
-        .l_paren => return p.fail("TODO call"),
-        .period => return p.fail("TODO member access"),
-        .arrow => return p.fail("TODO member access pointer"),
-        .plus_plus => return p.fail("TODO post inc"),
-        .minus_minus => return p.fail("TODO post dec"),
+        .l_bracket => return p.todo("array access"),
+        .l_paren => return p.todo("call"),
+        .period => return p.todo("member access"),
+        .arrow => return p.todo("member access pointer"),
+        .plus_plus => return p.todo("post inc"),
+        .minus_minus => return p.todo("post dec"),
         else => return Result{ .none = {} },
     }
 }
@@ -496,7 +518,7 @@ fn primaryExpr(p: *Parser) Error!Result {
     }
     switch (p.tokens[p.tok_i].id) {
         .identifier => {
-            return p.fail("TODO ast");
+            return p.todo("ast");
         },
         .string_literal,
         .string_literal_utf_16,
@@ -505,9 +527,9 @@ fn primaryExpr(p: *Parser) Error!Result {
         .string_literal_wide,
         => {
             if (p.want_const) {
-                return p.fail("expression is not an integer constant expression");
+                return p.err(.expected_integer_constant_expr);
             }
-            return p.fail("TODO ast");
+            return p.todo("ast");
         },
         .char_literal,
         .char_literal_utf_16,
@@ -515,18 +537,18 @@ fn primaryExpr(p: *Parser) Error!Result {
         .char_literal_wide,
         => {
             if (p.want_const) {
-                return p.fail("TODO char literals");
+                return p.todo("char literals");
             }
-            return p.fail("TODO ast");
+            return p.todo("ast");
         },
         .float_literal,
         .float_literal_f,
         .float_literal_l,
         => {
             if (p.want_const) {
-                return p.fail("expression is not an integer constant expression");
+                return p.err(.expected_integer_constant_expr);
             }
-            return p.fail("TODO ast");
+            return p.todo("ast");
         },
         .zero => {
             p.tok_i += 1;
@@ -544,13 +566,13 @@ fn primaryExpr(p: *Parser) Error!Result {
         .integer_literal_llu,
         => {
             if (p.want_const) {
-                return p.fail("TODO integer literals");
+                return p.todo("integer literals");
             }
-            return p.fail("TODO ast");
+            return p.todo("ast");
         },
         .keyword_generic => {
-            return p.fail("TODO generic");
+            return p.todo("generic");
         },
-        else => return p.failFmt("expected literal, identifier or grouped expression, found '{s}'", .{@tagName(p.tokens[p.tok_i].id)}),
+        else => return p.err(.expected_expr),
     }
 }

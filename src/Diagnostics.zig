@@ -3,6 +3,7 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
+const Token = @import("Tokenizer.zig").Token;
 
 const Diagnostics = @This();
 
@@ -12,11 +13,17 @@ const Message = struct {
     loc_start: u32,
     extra: union {
         str: []const u8,
+        tok_id: struct {
+            expected: Token.Id,
+            actual: Token.Id,
+        },
         none: void,
     } = .{ .none = {} },
 };
 
 pub const Tag = enum {
+    // Maybe someday this will no longer be needed.
+    todo,
     error_directive,
     elif_without_if,
     elif_after_else,
@@ -49,6 +56,10 @@ pub const Tag = enum {
     hash_not_followed_param,
     expected_filename,
     empty_filename,
+    expected_invalid,
+    expected_token,
+    expected_expr,
+    expected_integer_constant_expr,
 };
 
 list: std.ArrayList(Message),
@@ -66,9 +77,12 @@ pub fn deinit(diag: *Diagnostics) void {
 }
 
 pub fn fatal(diag: *Diagnostics, path: []const u8, lcs: Source.LCS, comptime fmt: []const u8, args: anytype) Compilation.Error {
-    msgStart(diag.color, .@"fatal error", path, lcs);
+    var m = MsgWriter.init(diag.color);
+    defer m.deinit();
+
+    m.start(.@"fatal error", path, lcs);
     std.debug.print(fmt, args);
-    msgEnd(diag.color, lcs);
+    m.end(lcs);
     return error.FatalError;
 }
 
@@ -87,6 +101,9 @@ pub fn fatalNoSrc(comp: *Compilation, comptime fmt: []const u8, args: anytype) C
 
 pub fn render(comp: *Compilation) void {
     if (comp.diag.list.items.len == 0) return;
+    var m = MsgWriter.init(comp.diag.color);
+    defer m.deinit();
+
     var errors: u32 = 0;
     var warnings: u32 = 0;
     for (comp.diag.list.items) |msg| {
@@ -99,42 +116,50 @@ pub fn render(comp: *Compilation) void {
             .note => {},
             .@"fatal error" => unreachable,
         }
-        msgStart(comp.diag.color, kind, source.path, lcs);
+        m.start(kind, source.path, lcs);
         switch (msg.tag) {
-            .error_directive => std.debug.print("{s}", .{msg.extra.str}),
-            .elif_without_if => std.debug.print("#elif without #if", .{}),
-            .elif_after_else => std.debug.print("#elif after #else", .{}),
-            .else_without_if => std.debug.print("#else without #if", .{}),
-            .else_after_else => std.debug.print("#else after #else", .{}),
-            .endif_without_if => std.debug.print("#endif without #if", .{}),
-            .unsupported_pragma => std.debug.print("unsupported #pragma directive '{s}'", .{msg.extra.str}),
-            .line_simple_digit => std.debug.print("#line directive requires a simple digit sequence", .{}),
-            .line_invalid_filename => std.debug.print("invalid filename for #line directive", .{}),
-            .unterminated_conditional_directive => std.debug.print("unterminated conditional directive", .{}),
-            .invalid_preprocessing_directive => std.debug.print("invalid preprocessing directive", .{}),
-            .macro_name_missing => std.debug.print("macro name missing", .{}),
-            .extra_tokens_directive_end => std.debug.print("extra tokens at end of macro directive", .{}),
-            .expected_value_in_expr => std.debug.print("expected value in expression", .{}),
-            .closing_paren => std.debug.print("expected closing ')'", .{}),
-            .to_match_paren => std.debug.print("to match this '('", .{}),
-            .header_str_closing => std.debug.print("expected closing '>'", .{}),
-            .header_str_match => std.debug.print("to match this '<'", .{}),
-            .string_literal_in_pp_expr => std.debug.print("string literal in preprocessor expression", .{}),
-            .float_literal_in_pp_expr => std.debug.print("floating point literal in preprocessor expression", .{}),
-            .defined_as_macro_name => std.debug.print("'defined' cannot be used as a macro name", .{}),
-            .macro_name_must_be_identifier => std.debug.print("macro name must be an identifier", .{}),
-            .whitespace_after_macro_name => std.debug.print("ISO C99 requires whitespace after the macro name", .{}),
-            .hash_hash_at_start => std.debug.print("'##' cannot appear at the start of a macro expansion", .{}),
-            .hash_hash_at_end => std.debug.print("'##' cannot appear at the end of a macro expansion", .{}),
-            .pasting_formed_invalid => std.debug.print("pasting formed '{s}', an invalid preprocessing token", .{msg.extra.str}),
-            .missing_paren_param_list => std.debug.print("missing ')' in macro parameter list", .{}),
-            .unterminated_macro_param_list => std.debug.print("unterminated macro param list", .{}),
-            .invalid_token_param_list => std.debug.print("invalid token in macro parameter list", .{}),
-            .hash_not_followed_param => std.debug.print("'#' is not followed by a macro parameter", .{}),
-            .expected_filename => std.debug.print("expected \"FILENAME\" or <FILENAME>", .{}),
-            .empty_filename => std.debug.print("empty filename", .{}),
+            .todo => m.print("TODO: {s}", .{msg.extra.str}),
+            .error_directive => m.print("{s}", .{msg.extra.str}),
+            .elif_without_if => m.write("#elif without #if"),
+            .elif_after_else => m.write("#elif after #else"),
+            .else_without_if => m.write("#else without #if"),
+            .else_after_else => m.write("#else after #else"),
+            .endif_without_if => m.write("#endif without #if"),
+            .unsupported_pragma => m.print("unsupported #pragma directive '{s}'", .{msg.extra.str}),
+            .line_simple_digit => m.write("#line directive requires a simple digit sequence"),
+            .line_invalid_filename => m.write("invalid filename for #line directive"),
+            .unterminated_conditional_directive => m.write("unterminated conditional directive"),
+            .invalid_preprocessing_directive => m.write("invalid preprocessing directive"),
+            .macro_name_missing => m.write("macro name missing"),
+            .extra_tokens_directive_end => m.write("extra tokens at end of macro directive"),
+            .expected_value_in_expr => m.write("expected value in expression"),
+            .closing_paren => m.write("expected closing ')'"),
+            .to_match_paren => m.write("to match this '('"),
+            .header_str_closing => m.write("expected closing '>'"),
+            .header_str_match => m.write("to match this '<'"),
+            .string_literal_in_pp_expr => m.write("string literal in preprocessor expression"),
+            .float_literal_in_pp_expr => m.write("floating point literal in preprocessor expression"),
+            .defined_as_macro_name => m.write("'defined' cannot be used as a macro name"),
+            .macro_name_must_be_identifier => m.write("macro name must be an identifier"),
+            .whitespace_after_macro_name => m.write("ISO C99 requires whitespace after the macro name"),
+            .hash_hash_at_start => m.write("'##' cannot appear at the start of a macro expansion"),
+            .hash_hash_at_end => m.write("'##' cannot appear at the end of a macro expansion"),
+            .pasting_formed_invalid => m.print("pasting formed '{s}', an invalid preprocessing token", .{msg.extra.str}),
+            .missing_paren_param_list => m.write("missing ')' in macro parameter list"),
+            .unterminated_macro_param_list => m.write("unterminated macro param list"),
+            .invalid_token_param_list => m.write("invalid token in macro parameter list"),
+            .hash_not_followed_param => m.write("'#' is not followed by a macro parameter"),
+            .expected_filename => m.write("expected \"FILENAME\" or <FILENAME>"),
+            .empty_filename => m.write("empty filename"),
+            .expected_invalid => m.print("expected '{s}', found invalid bytes", .{msg.extra.tok_id.expected.symbol()}),
+            .expected_token => m.print("expected '{s}', found '{s}'", .{
+                msg.extra.tok_id.expected.symbol(),
+                msg.extra.tok_id.actual.symbol(),
+            }),
+            .expected_expr => m.write("expected expression"),
+            .expected_integer_constant_expr => m.write("expression is not an integer constant expression")
         }
-        msgEnd(comp.diag.color, lcs);
+        m.end(lcs);
     }
     if (errors != 0 and warnings != 0) {}
 }
@@ -143,6 +168,7 @@ const Kind = enum { @"fatal error", @"error", note, warning };
 
 fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
     return switch (tag) {
+        .todo,
         .error_directive,
         .elif_without_if,
         .elif_after_else,
@@ -172,6 +198,10 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .hash_not_followed_param,
         .expected_filename,
         .empty_filename,
+        .expected_invalid,
+        .expected_token,
+        .expected_expr,
+        .expected_integer_constant_expr,
         => .@"error",
         .unsupported_pragma => .warning,
         .to_match_paren,
@@ -180,47 +210,74 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
     };
 }
 
-fn msgStart(color: bool, kind: Kind, path: []const u8, lcs: Source.LCS) void {
-    if (std.builtin.os.tag == .windows or !color) {
-        if (lcs.col == 0)
-            std.debug.print("{s}:??:??: {s}: ", .{ path, @tagName(kind) })
-        else
-            std.debug.print("{s}:{d}:{d}: {s}: ", .{ path, lcs.line, lcs.col, @tagName(kind) });
-    } else {
-        const PURPLE = "\x1b[35;1m";
-        const CYAN = "\x1b[36;1m";
-        const RED = "\x1b[31;1m";
-        const WHITE = "\x1b[37;1m";
+const MsgWriter = struct {
+    // TODO Impl is private
+    held: @typeInfo(@TypeOf(std.Thread.Mutex.acquire)).Fn.return_type.?,
+    w: std.fs.File.Writer,
+    color: bool,
 
-        const msg_kind_str = switch (kind) {
-            .@"fatal error" => RED ++ "fatal error: " ++ WHITE,
-            .@"error" => RED ++ "error: " ++ WHITE,
-            .note => CYAN ++ "note: " ++ WHITE,
-            .warning => PURPLE ++ "warning: " ++ WHITE,
+    fn init(color: bool) MsgWriter {
+        return .{
+            .held = std.debug.getStderrMutex().acquire(),
+            .w = std.io.getStdErr().writer(),
+            .color = color,
         };
-
-        if (lcs.col == 0)
-            std.debug.print(WHITE ++ "{s}:??:??: {s}", .{ path, msg_kind_str })
-        else
-            std.debug.print(WHITE ++ "{s}:{d}:{d}: {s}", .{ path, lcs.line, lcs.col, msg_kind_str });
     }
-}
 
-fn msgEnd(color: bool, lcs: Source.LCS) void {
-    if (std.builtin.os.tag == .windows or !color) {
-        if (lcs.col == 0) return;
-        std.debug.print("\n{s}\n", .{lcs.str});
-        std.debug.print("{s: >[1]}^\n", .{ "", lcs.col - 1 });
-    } else {
-        const GREEN = "\x1b[32;1m";
-        const WHITE = "\x1b[37;1m";
-        const RESET = "\x1b[0m";
-        if (lcs.col == 0) {
-            std.debug.print("\n" ++ RESET, .{});
-            return;
+    fn deinit(m: *MsgWriter) void {
+        m.held.release();
+    }
+
+    fn print(m: *MsgWriter, comptime fmt: []const u8, args: anytype) void {
+        m.w.print(fmt, args) catch {};
+    }
+
+    fn write(m: *MsgWriter, msg: []const u8) void {
+        m.w.writeAll(msg) catch {};
+    }
+
+    fn start(m: *MsgWriter, kind: Kind, path: []const u8, lcs: Source.LCS) void {
+        if (std.builtin.os.tag == .windows or !m.color) {
+            if (lcs.col == 0)
+                m.print("{s}:??:??: {s}: ", .{ path, @tagName(kind) })
+            else
+                m.print("{s}:{d}:{d}: {s}: ", .{ path, lcs.line, lcs.col, @tagName(kind) });
+        } else {
+            const PURPLE = "\x1b[35;1m";
+            const CYAN = "\x1b[36;1m";
+            const RED = "\x1b[31;1m";
+            const WHITE = "\x1b[37;1m";
+
+            const msg_kind_str = switch (kind) {
+                .@"fatal error" => RED ++ "fatal error: " ++ WHITE,
+                .@"error" => RED ++ "error: " ++ WHITE,
+                .note => CYAN ++ "note: " ++ WHITE,
+                .warning => PURPLE ++ "warning: " ++ WHITE,
+            };
+
+            if (lcs.col == 0)
+                m.print(WHITE ++ "{s}:??:??: {s}", .{ path, msg_kind_str })
+            else
+                m.print(WHITE ++ "{s}:{d}:{d}: {s}", .{ path, lcs.line, lcs.col, msg_kind_str });
         }
-
-        std.debug.print("\n" ++ RESET ++ "{s}\n", .{lcs.str});
-        std.debug.print("{s: >[1]}" ++ GREEN ++ "^" ++ RESET ++ "\n", .{ "", lcs.col - 1 });
     }
-}
+
+    fn end(m: *MsgWriter, lcs: Source.LCS) void {
+        if (std.builtin.os.tag == .windows or !m.color) {
+            if (lcs.col == 0) return;
+            m.print("\n{s}\n", .{lcs.str});
+            m.print("{s: >[1]}^\n", .{ "", lcs.col - 1 });
+        } else {
+            const GREEN = "\x1b[32;1m";
+            const WHITE = "\x1b[37;1m";
+            const RESET = "\x1b[0m";
+            if (lcs.col == 0) {
+                m.write("\n" ++ RESET);
+                return;
+            }
+
+            m.print("\n" ++ RESET ++ "{s}\n", .{lcs.str});
+            m.print("{s: >[1]}" ++ GREEN ++ "^" ++ RESET ++ "\n", .{ "", lcs.col - 1 });
+        }
+    }
+};

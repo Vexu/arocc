@@ -362,7 +362,11 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         .pp = pp,
         .tokens = pp.token_buf.items,
     };
-    const res = try parser.constExpr();
+    const res = parser.constExpr() catch |e| switch (e) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.FatalError => return error.FatalError,
+        error.ParsingFailed => return false,
+    };
     return res.getBool();
 }
 

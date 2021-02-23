@@ -12,9 +12,8 @@ stmts: []const Stmt,
 exprs: []const Expr,
 root_decls: []const Tag,
 
-
 pub const Tag = enum(u8) {
-    
+
     // ====== Stmt ======
 
     labeled_stmt,
@@ -30,7 +29,7 @@ pub const Tag = enum(u8) {
     break_stmt,
     return_stmt,
     expr_stmt,
-    
+
     // ====== Expr ======
 
     /// lhs , rhs

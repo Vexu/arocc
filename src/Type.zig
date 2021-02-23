@@ -9,7 +9,7 @@ pub const Qualifiers = struct {
 
 pub const Specifier = union(enum) {
     bool,
-    
+
     // integers
     char,
     schar,
@@ -22,7 +22,7 @@ pub const Specifier = union(enum) {
     ulong,
     long_long,
     ulong_long,
-    
+
     // floating point numbers
     float,
     double,
