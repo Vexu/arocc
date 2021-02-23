@@ -47,6 +47,11 @@ const usage =
     \\Feature options:
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
+    \\  -Wall                   Enable all warnings
+    \\  -Werror                 Treat all warnings as errors
+    \\  -Werror=<warning>       Treat warning as error
+    \\  -W<warning>             Enable the specified warning
+    \\  -Wno-<warning>          Disable the specified warning
     \\
     \\
 ;
@@ -63,32 +68,45 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
                 const std_out = std.io.getStdOut().writer();
                 std_out.print(usage, .{args[0]}) catch |err| {
-                    return comp.fatalNoSrc("{s} when trying to print usage", .{@errorName(err)});
+                    return comp.diag.fatalNoSrc("{s} when trying to print usage", .{@errorName(err)});
                 };
                 return;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
                 const std_out = std.io.getStdOut().writer();
                 std_out.writeAll(build_options.version_str ++ "\n") catch |err| {
-                    return comp.fatalNoSrc("{s} when trying to print version", .{@errorName(err)});
+                    return comp.diag.fatalNoSrc("{s} when trying to print version", .{@errorName(err)});
                 };
                 return;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
                 comp.diag.color = true;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
                 comp.diag.color = false;
+            } else if (mem.eql(u8, arg, "-Wall")) {
+                comp.diag.setAll(.warning);
+            } else if (mem.eql(u8, arg, "-Werror")) {
+                comp.diag.setAll(.@"error");
+            } else if (mem.startsWith(u8, arg, "-Werror=")) {
+                const option = arg["-Werror=".len..];
+                try comp.diag.set(option, .@"error");
+            } else if (mem.startsWith(u8, arg, "-Wno-")) {
+                const option = arg["-Wno-".len..];
+                try comp.diag.set(option, .off);
+            } else if (mem.startsWith(u8, arg, "-W")) {
+                const option = arg["-W".len..];
+                try comp.diag.set(option, .warning);
             } else {
                 const std_out = std.io.getStdErr().writer();
                 std_out.print(usage, .{args[0]}) catch {};
-                return comp.fatalNoSrc("unknown command: {s}", .{arg});
+                return comp.diag.fatalNoSrc("unknown command: {s}", .{arg});
             }
         } else {
-            const file = comp.addSource(arg) catch |err| return comp.fatalNoSrc("{s}", .{@errorName(err)});
+            const file = comp.addSource(arg) catch |err| return comp.diag.fatalNoSrc("{s}", .{@errorName(err)});
             try source_files.append(file);
         }
     }
 
     if (source_files.items.len == 0) {
-        return comp.fatalNoSrc("no input files", .{});
+        return comp.diag.fatalNoSrc("no input files", .{});
     }
 
     for (source_files.items) |source| {

@@ -62,8 +62,29 @@ pub const Tag = enum {
     expected_integer_constant_expr,
 };
 
+const Options = struct {
+    @"c99-extensions": Kind = .warning,
+};
+
 list: std.ArrayList(Message),
 color: bool = true,
+options: Options = .{},
+
+pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
+    inline for (std.meta.fields(Options)) |f| {
+        if (mem.eql(u8, f.name, name)) {
+            @field(diag.options, f.name) = to;
+            return;
+        }
+    }
+    return diag.fatalNoSrc("unknown warning option '{s}'", .{name});
+}
+
+pub fn setAll(diag: *Diagnostics, to: Kind) void {
+    inline for (std.meta.fields(Options)) |f| {
+        @field(diag.options, f.name) = to;
+    }
+}
 
 pub fn init(gpa: *Allocator) Diagnostics {
     return .{
@@ -86,8 +107,8 @@ pub fn fatal(diag: *Diagnostics, path: []const u8, lcs: Source.LCS, comptime fmt
     return error.FatalError;
 }
 
-pub fn fatalNoSrc(comp: *Compilation, comptime fmt: []const u8, args: anytype) Compilation.Error {
-    if (std.builtin.os.tag == .windows or !comp.diag.color) {
+pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) Compilation.Error {
+    if (std.builtin.os.tag == .windows or !diag.color) {
         std.debug.print("fatal error: " ++ fmt ++ "\n", args);
     } else {
         const RED = "\x1b[31;1m";
@@ -107,15 +128,16 @@ pub fn render(comp: *Compilation) void {
     var errors: u32 = 0;
     var warnings: u32 = 0;
     for (comp.diag.list.items) |msg| {
-        const source = comp.getSource(msg.source_id);
-        const lcs = source.lineColString(msg.loc_start);
         const kind = comp.diag.tagKind(msg.tag);
         switch (kind) {
             .@"error" => errors += 1,
             .warning => warnings += 1,
             .note => {},
             .@"fatal error" => unreachable,
+            .off => continue,
         }
+        const source = comp.getSource(msg.source_id);
+        const lcs = source.lineColString(msg.loc_start);
         m.start(kind, source.path, lcs);
         switch (msg.tag) {
             .todo => m.print("TODO: {s}", .{msg.extra.str}),
@@ -157,14 +179,22 @@ pub fn render(comp: *Compilation) void {
                 msg.extra.tok_id.actual.symbol(),
             }),
             .expected_expr => m.write("expected expression"),
-            .expected_integer_constant_expr => m.write("expression is not an integer constant expression")
+            .expected_integer_constant_expr => m.write("expression is not an integer constant expression"),
         }
         m.end(lcs);
     }
-    if (errors != 0 and warnings != 0) {}
+    const w_s: []const u8 = if (warnings == 1) "" else "s";
+    const e_s: []const u8 = if (errors == 1) "" else "s";
+    if (errors != 0 and warnings != 0) {
+        m.print("{d} warning{s} and {d} error{s} generated.\n", .{ warnings, w_s, errors, e_s });
+    } else if (warnings != 0) {
+        m.print("{d} warning{s} generated.\n", .{ warnings, w_s });
+    } else if (errors != 0) {
+        m.print("{d} error{s} generated.\n", .{ errors, e_s });
+    }
 }
 
-const Kind = enum { @"fatal error", @"error", note, warning };
+const Kind = enum { @"fatal error", @"error", note, warning, off };
 
 fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
     return switch (tag) {
@@ -188,7 +218,6 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .float_literal_in_pp_expr,
         .defined_as_macro_name,
         .macro_name_must_be_identifier,
-        .whitespace_after_macro_name,
         .hash_hash_at_start,
         .hash_hash_at_end,
         .pasting_formed_invalid,
@@ -207,6 +236,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .to_match_paren,
         .header_str_match,
         => .note,
+        .whitespace_after_macro_name => return diag.options.@"c99-extensions",
     };
 }
 
@@ -253,6 +283,7 @@ const MsgWriter = struct {
                 .@"error" => RED ++ "error: " ++ WHITE,
                 .note => CYAN ++ "note: " ++ WHITE,
                 .warning => PURPLE ++ "warning: " ++ WHITE,
+                .off => unreachable,
             };
 
             if (lcs.col == 0)
