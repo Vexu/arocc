@@ -24,7 +24,8 @@ pub const Result = union(enum) {
     i32: i32,
     u64: u64,
     i64: i64,
-    expr: TagIndex,
+    // expr: TagIndex, TODO
+    node,
 
     pub fn getBool(res: Result) bool {
         return switch (res) {
@@ -42,7 +43,7 @@ pub const Result = union(enum) {
     }
 };
 
-const Error = Allocator.Error || error{ParsingFailed};
+const Error = Compilation.Error;
 
 pp: *Preprocessor,
 tokens: []const Token,
@@ -70,11 +71,8 @@ fn expectToken(p: *Parser, id: Token.Id) Error!void {
 fn failFmt(p: *Parser, comptime fmt: []const u8, args: anytype) Error {
     const tok = p.tokens[p.tok_i];
     const source = p.pp.comp.getSource(tok.source);
-    const lcs = source.lineColString(tok.loc);
-    p.pp.comp.printErrStart(source.path, lcs);
-    std.debug.print(fmt, args);
-    p.pp.comp.printErrEnd(lcs);
-    return error.ParsingFailed;
+    const lcs = source.lineColString(tok.loc.start);
+    return error.FatalError; // TODO
 }
 
 fn fail(p: *Parser, msg: []const u8) Error {

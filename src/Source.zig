@@ -7,11 +7,11 @@ pub const Id = enum(u16) {
     const generated_mask: u16 = generated_bit - 1;
 
     pub fn index(id: Id) u16 {
-        return @enumToInt(id) & generated_mask; 
+        return @enumToInt(id) & generated_mask;
     }
 
     pub fn isGenerated(id: Id) bool {
-        return (@enumToInt(id) & generated_bit) != 0; 
+        return (@enumToInt(id) & generated_bit) != 0;
     }
 
     pub fn markGenerated(id: *Id) void {
@@ -27,12 +27,12 @@ id: Id,
 
 pub const LCS = struct { line: u32, col: u32, str: []const u8 };
 
-pub fn lineColString(source: Source, loc: Location) LCS {
+pub fn lineColString(source: Source, loc_start: u32) LCS {
     if (source.id.isGenerated()) return .{ .line = 0, .col = 0, .str = "" };
     var line: u32 = 1;
     var col: u32 = 1;
     var i: u32 = 0;
-    while (i < loc.start) : (i += 1) {
+    while (i < loc_start) : (i += 1) {
         if (source.buf[i] == '\n') {
             line += 1;
             col = 1;

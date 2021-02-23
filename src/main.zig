@@ -9,7 +9,7 @@ const build_options = @import("build_options");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub fn main() void {
+pub fn main() u8 {
     const gpa = if (std.builtin.link_libc)
         std.heap.raw_c_allocator
     else
@@ -23,17 +23,18 @@ pub fn main() void {
     const arena = &arena_instance.allocator;
 
     const args = process.argsAlloc(arena) catch {
-        fail("out of memory", .{});
+        std.debug.print("out of memory\n", .{});
         process.exit(1);
     };
-    handleArgs(gpa, args) catch |err| {
-        fail("{s}", .{@errorName(err)});
-        process.exit(1);
-    };
-}
 
-fn fail(comptime msg: []const u8, args: anytype) void {
-    std.debug.print("error: " ++ msg ++ "\n", args);
+    handleArgs(gpa, args) catch |err| switch (err) {
+        error.OutOfMemory => {
+            std.debug.print("out of memory\n", .{});
+            return 1;
+        },
+        error.FatalError => return 1,
+    };
+    return 0;
 }
 
 const usage =
@@ -61,26 +62,33 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
         if (mem.startsWith(u8, arg, "-")) {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
                 const std_out = std.io.getStdOut().writer();
-                return std_out.print(usage, .{args[0]});
+                std_out.print(usage, .{args[0]}) catch |err| {
+                    return comp.fatalNoSrc("{s} when trying to print usage", .{@errorName(err)});
+                };
+                return;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
                 const std_out = std.io.getStdOut().writer();
-                return std_out.writeAll(build_options.version_str ++ "\n");
+                std_out.writeAll(build_options.version_str ++ "\n") catch |err| {
+                    return comp.fatalNoSrc("{s} when trying to print version", .{@errorName(err)});
+                };
+                return;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
-                comp.color = true;
+                comp.diag.color = true;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
-                comp.color = false;
+                comp.diag.color = false;
             } else {
                 const std_out = std.io.getStdErr().writer();
-                try std_out.print(usage, .{args[0]});
-                return fail("unknown command: {s}", .{arg});
+                std_out.print(usage, .{args[0]}) catch {};
+                return comp.fatalNoSrc("unknown command: {s}", .{arg});
             }
         } else {
-            try source_files.append(try comp.addSource(arg));
+            const file = comp.addSource(arg) catch |err| return comp.fatalNoSrc("{s}", .{@errorName(err)});
+            try source_files.append(file);
         }
     }
 
     if (source_files.items.len == 0) {
-        return fail("no input files", .{});
+        return comp.fatalNoSrc("no input files", .{});
     }
 
     for (source_files.items) |source| {
@@ -89,8 +97,11 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
 
         try pp.preprocess(source);
 
+        comp.renderErrors();
+        comp.diag.list.items.len = 0;
+
         for (pp.tokens.items) |tok, i| {
-            std.debug.print("id: {s} |{s}|\n", .{@tagName(tok.id), pp.tokSlice(tok)});
+            std.debug.print("id: {s} |{s}|\n", .{ @tagName(tok.id), pp.tokSlice(tok) });
         }
     }
 }
