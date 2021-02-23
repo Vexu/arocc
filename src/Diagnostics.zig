@@ -74,9 +74,14 @@ const Options = struct {
 
 list: std.ArrayList(Message),
 color: bool = true,
+fatal_errors: bool = false,
 options: Options = .{},
 
 pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
+    if (std.mem.eql(u8, name, "fatal-errors")) {
+        diag.fatal_errors = to != .off;
+        return;
+    }
     inline for (std.meta.fields(Options)) |f| {
         if (mem.eql(u8, f.name, name)) {
             @field(diag.options, f.name) = to;
@@ -107,7 +112,8 @@ pub fn add(diag: *Diagnostics, msg: Message) Compilation.Error!void {
     const kind = diag.tagKind(msg.tag);
     if (kind == .off) return;
     try diag.list.append(msg);
-    if (kind == .@"fatal error") return error.FatalError;
+    if (kind == .@"fatal error" or (kind == .@"error" and diag.fatal_errors))
+        return error.FatalError;
 }
 
 pub fn fatal(diag: *Diagnostics, path: []const u8, lcs: Source.LCS, comptime fmt: []const u8, args: anytype) Compilation.Error {
@@ -143,10 +149,10 @@ pub fn render(comp: *Compilation) void {
     for (comp.diag.list.items) |msg| {
         const kind = comp.diag.tagKind(msg.tag);
         switch (kind) {
-            .@"error" => errors += 1,
+            .@"fatal error", .@"error" => errors += 1,
             .warning => warnings += 1,
             .note => {},
-            .@"fatal error", .off => unreachable,
+            .off => unreachable,
         }
         const source = comp.getSource(msg.source_id);
         const lcs = source.lineColString(msg.loc_start);
@@ -194,7 +200,7 @@ pub fn render(comp: *Compilation) void {
             .expected_integer_constant_expr => m.write("expression is not an integer constant expression"),
             .missing_type_specifier => m.write("type specifier missing, defaults to 'int'"),
             .multiple_storage_class => m.print("cannot combine with previous '{s}' declaration specifier", .{msg.extra.str}),
-            .static_assert_failure => m.print("static_assert failed due to requirement {s}", .{msg.extra.str})
+            .static_assert_failure => m.print("static_assert failed due to requirement {s}", .{msg.extra.str}),
         }
         m.end(lcs);
     }
@@ -212,7 +218,7 @@ pub fn render(comp: *Compilation) void {
 const Kind = enum { @"fatal error", @"error", note, warning, off };
 
 fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
-    return switch (tag) {
+    var kind: Kind = switch (tag) {
         .todo,
         .error_directive,
         .elif_without_if,
@@ -256,6 +262,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .whitespace_after_macro_name => return diag.options.@"c99-extensions",
         .missing_type_specifier => return diag.options.@"implicit-int",
     };
+    if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
+    return kind;
 }
 
 const MsgWriter = struct {

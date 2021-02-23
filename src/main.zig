@@ -115,17 +115,22 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
         var pp = Preprocessor.init(&comp);
         defer pp.deinit();
 
-        try pp.preprocess(source);
-        
+        pp.preprocess(source) catch |e| switch (e) {
+            error.OutOfMemory => return error.OutOfMemory,
+            error.FatalError => {
+                comp.renderErrors();
+                comp.diag.list.items.len = 0;
+                continue;
+            },
+        };
 
         var parser = Parser{
             .pp = &pp,
             .tokens = pp.tokens.items,
         };
         parser.parse() catch |e| switch (e) {
-            error.FatalError => return error.FatalError,
             error.OutOfMemory => return error.OutOfMemory,
-            error.ParsingFailed => {},
+            error.ParsingFailed, error.FatalError => {},
         };
 
         comp.renderErrors();
