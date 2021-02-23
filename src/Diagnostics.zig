@@ -60,10 +60,16 @@ pub const Tag = enum {
     expected_token,
     expected_expr,
     expected_integer_constant_expr,
+    missing_type_specifier,
+    multiple_storage_class,
+    static_assert_failure,
 };
 
 const Options = struct {
+    @"unsupported-pragma": Kind = .warning,
     @"c99-extensions": Kind = .warning,
+    @"implicit-int": Kind = .warning,
+    @"duplicate-decl-specifier": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -95,6 +101,13 @@ pub fn init(gpa: *Allocator) Diagnostics {
 
 pub fn deinit(diag: *Diagnostics) void {
     diag.list.deinit();
+}
+
+pub fn add(diag: *Diagnostics, msg: Message) Compilation.Error!void {
+    const kind = diag.tagKind(msg.tag);
+    if (kind == .off) return;
+    try diag.list.append(msg);
+    if (kind == .@"fatal error") return error.FatalError;
 }
 
 pub fn fatal(diag: *Diagnostics, path: []const u8, lcs: Source.LCS, comptime fmt: []const u8, args: anytype) Compilation.Error {
@@ -133,8 +146,7 @@ pub fn render(comp: *Compilation) void {
             .@"error" => errors += 1,
             .warning => warnings += 1,
             .note => {},
-            .@"fatal error" => unreachable,
-            .off => continue,
+            .@"fatal error", .off => unreachable,
         }
         const source = comp.getSource(msg.source_id);
         const lcs = source.lineColString(msg.loc_start);
@@ -180,6 +192,9 @@ pub fn render(comp: *Compilation) void {
             }),
             .expected_expr => m.write("expected expression"),
             .expected_integer_constant_expr => m.write("expression is not an integer constant expression"),
+            .missing_type_specifier => m.write("type specifier missing, defaults to 'int'"),
+            .multiple_storage_class => m.print("cannot combine with previous '{s}' declaration specifier", .{msg.extra.str}),
+            .static_assert_failure => m.print("static_assert failed due to requirement {s}", .{msg.extra.str})
         }
         m.end(lcs);
     }
@@ -231,12 +246,15 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .expected_token,
         .expected_expr,
         .expected_integer_constant_expr,
+        .multiple_storage_class,
+        .static_assert_failure,
         => .@"error",
-        .unsupported_pragma => .warning,
         .to_match_paren,
         .header_str_match,
         => .note,
+        .unsupported_pragma => return diag.options.@"unsupported-pragma",
         .whitespace_after_macro_name => return diag.options.@"c99-extensions",
+        .missing_type_specifier => return diag.options.@"implicit-int",
     };
 }
 

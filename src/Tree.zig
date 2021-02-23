@@ -1,5 +1,6 @@
 const std = @import("std");
 const Type = @import("Type.zig");
+const Token = @import("Tokenizer.zig").Token;
 
 const Tree = @This();
 
@@ -208,6 +209,6 @@ pub const Stmt = struct {
 
 pub const Expr = struct {
     type: Type,
-    lhs: ExprIndex,
-    lhs: ExprIndex,
+    // lhs: ExprIndex,
+    // lhs: ExprIndex,
 };

@@ -4,12 +4,13 @@ const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
-const Tokenizer = @import("Tokenizer.zig");
-const Token = Tokenizer.Token;
+const Token = @import("Tokenizer.zig").Token;
 const Preprocessor = @import("Preprocessor.zig");
 const Tree = @import("Tree.zig");
+const TokenIndex = Tree.TokenIndex;
 const TagIndex = Tree.TagIndex;
 const Type = @import("Type.zig");
+const Qualifiers = Type.Qualifiers;
 const Diagnostics = @import("Diagnostics.zig");
 
 const Parser = @This();
@@ -48,7 +49,7 @@ const Error = Compilation.Error || error{ParsingFailed};
 
 pp: *Preprocessor,
 tokens: []const Token,
-tok_i: u32 = 0,
+tok_i: TokenIndex = 0,
 want_const: bool = false,
 
 fn eatToken(p: *Parser, id: Token.Id) bool {
@@ -61,7 +62,7 @@ fn eatToken(p: *Parser, id: Token.Id) bool {
 fn expectToken(p: *Parser, id: Token.Id) Error!void {
     const tok = p.tokens[p.tok_i];
     if (tok.id != id) {
-        try p.pp.comp.diag.list.append(.{
+        try p.pp.comp.diag.add(.{
             .tag = switch (tok.id) {
                 .invalid => .expected_invalid,
                 else => .expected_token,
@@ -82,7 +83,7 @@ fn expectToken(p: *Parser, id: Token.Id) Error!void {
 
 fn err(p: *Parser, tag: Diagnostics.Tag) Error {
     const tok = p.tokens[p.tok_i];
-    try p.pp.comp.diag.list.append(.{
+    try p.pp.comp.diag.add(.{
         .tag = tag,
         .source_id = tok.source,
         .loc_start = tok.loc.start,
@@ -92,7 +93,7 @@ fn err(p: *Parser, tag: Diagnostics.Tag) Error {
 
 fn todo(p: *Parser, msg: []const u8) Error {
     const tok = p.tokens[p.tok_i];
-    try p.pp.comp.diag.list.append(.{
+    try p.pp.comp.diag.add(.{
         .tag = .todo,
         .source_id = tok.source,
         .loc_start = tok.loc.start,
@@ -107,17 +108,61 @@ pub fn parse(p: *Parser) Error!Tree {
 
 // ====== declarations ======
 
-/// decl 
-///  : declSpec+ (initDeclarator ( ',' initDeclarator)*)? ';'
-///  | declSpec+ declarator declarator* compoundStmt
+/// decl
+///  : declSpec (initDeclarator ( ',' initDeclarator)*)? ';'
+///  | declSpec declarator declarator* compoundStmt
 ///  | staticAssert
 
 /// staticAssert : keyword_static_assert '(' constExpr ',' STRING_LITERAL ')' ';'
+fn staticAssert(p: *Parser) Error!bool {
+    const static_assert = p.tokens[p.tok_i];
+    if (!p.eatToken(.keyword_static_assert)) return false;
+    try p.expectToken(.l_paren);
+    const start = p.tok_i;
+    const res = try p.constExpr();
+    const end = p.tok_i;
+    try p.expectToken(.comma);
+    const str = p.tokens[p.tok_i]; // TODO resolve string literal
+    try p.expectToken(.string_literal);
+    try p.expectToken(.r_paren);
 
-/// declSpec: storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec
+    if (!res.getBool()) {
+        var msg = std.ArrayList(u8).init(p.pp.comp.gpa);
+        defer msg.deinit();
 
-/// initDeclarator : declarator ('=' initializer)?
+        try msg.append('\'');
+        for (p.tokens[start..end]) |tok, i| {
+            if (i != 0) try msg.append(' ');
+            try msg.appendSlice(p.pp.tokSlice(tok));
+        }
+        try msg.appendSlice("' ");
+        try msg.appendSlice(p.pp.tokSlice(str));
+        try p.pp.comp.diag.add(.{
+            .tag = .static_assert_failure,
+            .source_id = static_assert.source,
+            .loc_start = static_assert.loc.start,
+            .extra = .{ .str = try p.pp.arena.allocator.dupe(u8, msg.items) },
+        });
+    }
+    return true;
+}
 
+pub const DeclSpec = struct {
+    storage_class: union(enum) {
+        auto,
+        @"extern",
+        register,
+        static,
+        typedef,
+        none,
+    } = .none,
+    thread_local: bool = false,
+    @"inline": bool = false,
+    @"noreturn": bool = false,
+    type: Type = .{},
+};
+
+/// declSpec: (storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec)+
 /// storageClassSpec:
 ///  : keyword_typedef
 ///  | keyword_extern
@@ -125,6 +170,80 @@ pub fn parse(p: *Parser) Error!Tree {
 ///  | keyword_threadlocal
 ///  | keyword_auto
 ///  | keyword_register
+/// funcSpec : keyword_inline | keyword_noreturn
+fn declSpec(p: *Parser) Error!?DeclSpec {
+    var d = DeclSpec{};
+
+    var any: bool = false;
+    while (true) {
+        const tok = p.tokens[p.tok_i];
+        switch (tok.id) {
+            .keyword_typedef,
+            .keyword_extern,
+            .keyword_static,
+            .keyword_auto,
+            .keyword_register,
+            => {
+                if (d.storage_class != .none) {
+                    try pp.comp.diag.add(.{
+                        .tag = .multiple_storage_class,
+                        .source_id = tok.source,
+                        .loc_start = tok.loc.start,
+                        .extra = .{ .str = @tagName(d.storage_class) },
+                    });
+                    return error.ParsingFailed;
+                }
+                switch (tok.id) {
+                    .keyword_typedef => d.storage_class = .typedef,
+                    .keyword_extern => d.storage_class = .@"extern",
+                    .keyword_static => d.storage_class = .static,
+                    .keyword_auto => d.storage_class = .auto,
+                    .keyword_register => d.storage_class = .register,
+                    else => unreachable,
+                }
+                any = true;
+                continue;
+            },
+            .keyword_thread_local => {
+                if (d.thread_local) {
+                    try p.err(.duplicate_decl_spec);
+                }
+                d.thread_local = true;
+                any = true;
+                continue;
+            },
+            .keyword_inline => {
+                if (d.@"inline") {
+                    try p.err(.duplicate_decl_spec);
+                }
+                d.@"inline" = true;
+                any = true;
+                continue;
+            },
+            .keyword_noreturn => {
+                if (d.@"noreturn") {
+                    try p.err(.duplicate_decl_spec);
+                }
+                d.@"noreturn" = true;
+                any = true;
+                continue;
+            },
+        }
+        if (try p.typeSpec(&d.type)) {
+            any = true;
+            continue;
+        }
+
+        if (!any) return null;
+        if (d.type.specifier == .none) {
+            d.type.specifier = .int;
+            try p.err(.missing_type_specifier);
+        }
+        return d;
+    }
+}
+
+/// initDeclarator : declarator ('=' initializer)?
 
 /// typeSpec
 ///  : keyword_void
@@ -142,7 +261,10 @@ pub fn parse(p: *Parser) Error!Tree {
 ///  | recordSpec
 ///  | enumSpec
 ///  | typedef  // IDENTIFIER
-
+/// alignSpec : keyword_alignas '(' typeName ')'
+fn typeSpec(p: *Parser, ty: *Type) Error!bool {
+    return p.todo("typeSpec");
+}
 /// recordSpec
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
@@ -154,6 +276,9 @@ pub fn parse(p: *Parser) Error!Tree {
 /// recordDeclarator : declarator (':' constExpr)?
 
 // specQual : typeSpec | typeQual | alignSpec
+fn specQual(p: *Parser) Error!Type {
+    return p.todo("specQual");
+}
 
 /// enumSpec
 ///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
@@ -164,10 +289,9 @@ pub fn parse(p: *Parser) Error!Tree {
 /// atomicTypeSpec : keyword_atomic '(' typeName ')'
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
-
-/// funcSpec : keyword_inline | keyword_noreturn
-
-/// alignSpec : keyword_alignas '(' typeName ')'
+fn typeQual(p: *Parser, quals: *Qualifiers) Error!bool {
+    return p.todo("typeQual");
+}
 
 /// declarator: pointer? directDeclarator
 
@@ -185,7 +309,7 @@ pub fn parse(p: *Parser) Error!Tree {
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
 
-/// paramDecl : declSpec+ (declarator | abstractDeclarator?)
+/// paramDecl : declSpec (declarator | abstractDeclarator?)
 
 /// typeName : specQual+ abstractDeclarator?
 
@@ -212,7 +336,6 @@ pub fn parse(p: *Parser) Error!Tree {
 /// designator
 ///  : '[' constExpr ']'
 ///  | '.' identifier
-
 
 // ====== statements ======
 

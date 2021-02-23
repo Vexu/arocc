@@ -8,6 +8,8 @@ pub const Qualifiers = struct {
 };
 
 pub const Specifier = union(enum) {
+    none, // Will always be defaulted to int
+
     bool,
 
     // integers
@@ -53,43 +55,20 @@ pub const Specifier = union(enum) {
     @"struct": Record,
     @"union": Record,
     @"enum": struct {
-        decl: TagIndex,
+        // decl: TagIndex,
     },
 
     pub const Record = struct {
-        decl: TagIndex,
+        // decl: TagIndex,
         fields: []Field,
 
         pub const Field = struct {
-            type: QualType,
+            type: Type,
             name: []const u8,
         };
     };
 };
 
-pub const QualType = packed struct {
-    type: Type,
-    qual: Qualifiers,
-};
-
-pub const DeclSpec = struct {
-    storage_class: union(enum) {
-        auto,
-        @"extern",
-        register,
-        static,
-        typedef,
-        none,
-    } = .None,
-    thread_local: bool,
-    type_spec: TypeSpec = .{},
-    fn_spec: union(enum) {
-        @"inline",
-        @"noreturn",
-        none,
-    } = .None,
-    alignment: u32,
-};
-
-specifier: Specifier,
+qual: Qualifiers = .{},
+specifier: Specifier = .none,
 alignment: u32 = 0,

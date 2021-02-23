@@ -90,7 +90,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                         }
                         var slice = tokenizer.buf[start..tokenizer.index];
                         slice = mem.trim(u8, slice, " \t\x0B\x0C");
-                        try pp.comp.diag.list.append(.{
+                        try pp.comp.diag.add(.{
                             .tag = .error_directive,
                             .source_id = tok.source,
                             .loc_start = tok.loc.start,
@@ -201,7 +201,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                                 seen_pragma_once = true;
                             }
                         } else {
-                            try pp.comp.diag.list.append(.{
+                            try pp.comp.diag.add(.{
                                 .tag = .unsupported_pragma,
                                 .source_id = tok.source,
                                 .loc_start = tok.loc.start,
@@ -266,7 +266,7 @@ pub fn tokSlice(pp: *Preprocessor, token: Token) []const u8 {
 }
 
 fn err(pp: *Preprocessor, tok: Token, tag: Diagnostics.Tag) !void {
-    try pp.comp.diag.list.append(.{
+    try pp.comp.diag.add(.{
         .tag = tag,
         .source_id = tok.source,
         .loc_start = tok.loc.start,
@@ -530,7 +530,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                 };
                 const pasted_token = tmp_tokenizer.next();
                 if (tmp_tokenizer.next().id != .eof) {
-                    try pp.comp.diag.list.append(.{
+                    try pp.comp.diag.add(.{
                         .tag = .pasting_formed_invalid,
                         .source_id = tok.source,
                         .loc_start = tok.loc.start,
@@ -653,7 +653,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                 else => {},
             }
         }
-        try pp.comp.diag.list.append(.{
+        try pp.comp.diag.add(.{
             .tag = .header_str_closing,
             .source_id = first.source,
             .loc_start = tokenizer.index,

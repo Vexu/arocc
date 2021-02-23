@@ -5,6 +5,7 @@ const process = std.process;
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Preprocessor = @import("Preprocessor.zig");
+const Parser = @import("Parser.zig");
 const build_options = @import("build_options");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
@@ -45,6 +46,7 @@ const usage =
     \\  -v, --version   Print sfcc version.
     \\
     \\Feature options:
+    \\  -E                      Only run the preprocessor
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
     \\  -Wall                   Enable all warnings
@@ -114,6 +116,17 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
         defer pp.deinit();
 
         try pp.preprocess(source);
+        
+
+        var parser = Parser{
+            .pp = &pp,
+            .tokens = pp.tokens.items,
+        };
+        parser.parse() catch |e| switch (e) {
+            error.FatalError => return error.FatalError,
+            error.OutOfMemory => return error.OutOfMemory,
+            error.ParsingFailed => {},
+        };
 
         comp.renderErrors();
         comp.diag.list.items.len = 0;
