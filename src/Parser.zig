@@ -51,15 +51,17 @@ pp: *Preprocessor,
 tokens: []const Token,
 tok_i: TokenIndex = 0,
 want_const: bool = false,
+in_function: bool = false,
 
-fn eatToken(p: *Parser, id: Token.Id) bool {
-    if (p.tokens[p.tok_i].id == id) {
+fn eatToken(p: *Parser, id: Token.Id) ?Token {
+    const tok = p.tokens[p.tok_i];
+    if (tok.id == id) {
         p.tok_i += 1;
-        return true;
-    } else return false;
+        return tok;
+    } else return null;
 }
 
-fn expectToken(p: *Parser, id: Token.Id) Error!void {
+fn expectToken(p: *Parser, id: Token.Id) Error!Token {
     const tok = p.tokens[p.tok_i];
     if (tok.id != id) {
         try p.pp.comp.diag.add(.{
@@ -79,9 +81,28 @@ fn expectToken(p: *Parser, id: Token.Id) Error!void {
         return error.ParsingFailed;
     }
     p.tok_i += 1;
+    return tok;
 }
 
-fn err(p: *Parser, tag: Diagnostics.Tag) Error!void {
+fn expectClosing(p: *Parser, opening: Token, id: Token.Id) Error!void {
+    _ = p.expectToken(id) catch |e| {
+        if (e == error.ParsingFailed) {
+            try p.pp.comp.diag.add(.{
+                .tag = switch (id) {
+                    .r_paren => .to_match_paren,
+                    .r_brace => .to_match_brace,
+                    .r_bracket => .to_match_brace,
+                    else => unreachable,
+                },
+                .source_id = opening.source,
+                .loc_start = opening.loc.start,
+            });
+        }
+        return e;
+    };
+}
+
+fn err(p: *Parser, tag: Diagnostics.Tag) Compilation.Error!void {
     const tok = p.tokens[p.tok_i];
     try p.pp.comp.diag.add(.{
         .tag = tag,
@@ -101,8 +122,67 @@ fn todo(p: *Parser, msg: []const u8) Error {
     return error.ParsingFailed;
 }
 
-pub fn parse(p: *Parser) Error!void {
-    _ = try p.declSpec();
+/// root : (decl | staticAssert)*
+pub fn parse(p: *Parser) Compilation.Error!void {
+    while (p.eatToken(.eof) == null) {
+        if (p.staticAssert() catch |er| switch (er) {
+            error.ParsingFailed => {
+                p.nextExternDecl();
+                continue;
+            },
+            else => |e| return e,
+        }) continue;
+        if (p.decl() catch |er| switch (er) {
+            error.ParsingFailed => {
+                p.nextExternDecl();
+                continue;
+            },
+            else => |e| return e,
+        }) continue;
+
+        try p.err(.expected_external_decl);
+        p.tok_i += 1;
+    }
+}
+
+fn nextExternDecl(p: *Parser) void {
+    var parens: u32 = 0;
+    while (p.tok_i < p.tokens.len) : (p.tok_i += 1) {
+        switch (p.tokens[p.tok_i].id) {
+            .l_paren, .l_brace, .l_bracket => parens += 1,
+            .r_paren, .r_brace, .r_bracket => if (parens != 0) {
+                parens -= 1;
+            },
+            .keyword_typedef,
+            .keyword_extern,
+            .keyword_static,
+            .keyword_auto,
+            .keyword_register,
+            .keyword_thread_local,
+            .keyword_inline,
+            .keyword_noreturn,
+            .keyword_void,
+            .keyword_bool,
+            .keyword_char,
+            .keyword_short,
+            .keyword_int,
+            .keyword_long,
+            .keyword_signed,
+            .keyword_unsigned,
+            .keyword_float,
+            .keyword_double,
+            .keyword_complex,
+            .keyword_atomic,
+            .keyword_enum,
+            .keyword_struct,
+            .keyword_union,
+            .keyword_alignas,
+            .identifier,
+            => if (parens == 0) return,
+            else => {},
+        }
+    }
+    p.tok_i -= 1; // so that we can consume the eof token elsewhere
 }
 
 // ====== declarations ======
@@ -110,23 +190,68 @@ pub fn parse(p: *Parser) Error!void {
 /// decl
 ///  : declSpec (initDeclarator ( ',' initDeclarator)*)? ';'
 ///  | declSpec declarator declarator* compoundStmt
-///  | staticAssert
-fn decl(p: *Parser) Error!TagIndex {
-    return p.todo("decl");
+fn decl(p: *Parser) Error!bool {
+    const first_tok = p.tokens[p.tok_i];
+    const decl_spec_raw = try p.declSpec();
+    if (decl_spec_raw == null) {
+        if (p.in_function) return false;
+        switch (first_tok.id) {
+            .asterisk, .l_paren, .identifier => {},
+            else => return false,
+        }
+    }
+    const decl_spec = decl_spec_raw orelse  blk: {
+        var d = DeclSpec{};
+        try p.defaultTypeSpec(&d.type);
+        break :blk d;
+    };
+    const first = (try p.initDeclarator(decl_spec.type)) orelse {
+        // TODO return if enum struct or union
+        try p.pp.comp.diag.add(.{
+            .tag = .missing_declaration,
+            .source_id = first_tok.source,
+            .loc_start = first_tok.loc.start,
+        });
+        _ = try p.expectToken(.semicolon);
+        return true;
+    };
+
+    // Check for function definition.
+    if (first.d.ty.specifier == .function and first.initializer == null and
+        (p.tokens[p.tok_i].id == .l_brace or first.k_r_function))
+    {
+        if (!p.in_function) {
+            try p.err(.func_not_in_root);
+        }
+        const in_function = p.in_function;
+        p.in_function = true;
+        defer p.in_function = in_function;
+
+        const body = try p.compoundStmt();
+        // TODO
+        return true;
+    }
+
+    while (p.eatToken(.comma)) |_| {
+        _ = (try p.initDeclarator(decl_spec.type)) orelse {
+            try p.err(.expected_ident_or_l_paren);
+        };
+    }
+    _ = try p.expectToken(.semicolon);
+    return true;
 }
 
 /// staticAssert : keyword_static_assert '(' constExpr ',' STRING_LITERAL ')' ';'
 fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.tokens[p.tok_i];
-    if (!p.eatToken(.keyword_static_assert)) return false;
-    try p.expectToken(.l_paren);
+    if (p.eatToken(.keyword_static_assert) == null) return false;
+    const l_paren = try p.expectToken(.l_paren);
     const start = p.tok_i;
     const res = try p.constExpr();
     const end = p.tok_i;
-    try p.expectToken(.comma);
-    const str = p.tokens[p.tok_i]; // TODO resolve string literal
-    try p.expectToken(.string_literal);
-    try p.expectToken(.r_paren);
+    _ = try p.expectToken(.comma);
+    const str = try p.expectToken(.string_literal); // TODO resolve string literal
+    try p.expectClosing(l_paren, .r_paren);
 
     if (!res.getBool()) {
         var msg = std.ArrayList(u8).init(p.pp.comp.gpa);
@@ -237,9 +362,16 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
     return d;
 }
 
+const InitDeclarator = struct { d: Declarator, initializer: ?TagIndex, k_r_function: bool = false };
+
 /// initDeclarator : declarator ('=' initializer)?
-fn initDeclarator(p: *Parser) Error!TagIndex {
-    return p.todo("initDeclarator");
+fn initDeclarator(p: *Parser, base_type: Type) Error!?InitDeclarator {
+    // var res: InitDeclarator
+    const d = (try p.declarator(base_type)) orelse return null;
+    if (p.eatToken(.equal)) |_| {
+        return p.todo("initializer");
+    }
+    return InitDeclarator{ .d = d, .initializer = null };
 }
 
 /// typeSpec
@@ -383,9 +515,9 @@ fn typeSpec(p: *Parser, ty: *Type) Error!bool {
             .keyword_union => return p.todo("union types"),
             .keyword_alignas => {
                 if (ty.alignment != 0) try p.duplicateSpecifier("alignment");
-                try p.expectToken(.l_paren);
+                const l_paren = try p.expectToken(.l_paren);
                 const other_type = try p.typeName();
-                try p.expectToken(.r_paren);
+                try p.expectClosing(l_paren, .r_paren);
                 ty.alignment = other_type.alignment;
             },
             else => break,
@@ -517,57 +649,78 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
     return any;
 }
 
-/// declarator: pointer? directDeclarator
-fn declarator(p: *Parser) Error!TagIndex {
-    return p.todo("declarator");
+const Declarator = struct { name: []const u8, ty: Type };
+
+/// declarator : pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
+fn declarator(p: *Parser, base_type: Type) Error!?Declarator {
+    var ty = base_type;
+    const saw_ptr = try p.pointer(&ty);
+
+    if (p.eatToken(.identifier)) |some| {
+        const name = p.pp.tokSlice(some);
+        try p.directDeclarator(&ty, false);
+        return Declarator{ .name = name, .ty = ty };
+    } else if (p.eatToken(.l_paren)) |l_paren| {
+        const res = try p.declarator(ty);
+        try p.expectClosing(l_paren, .r_paren);
+        var unwrapped = res orelse return null;
+        try p.directDeclarator(&unwrapped.ty, false);
+        return unwrapped;
+    }
+
+    if (!saw_ptr) {
+        return null;
+    } else {
+        try p.err(.expected_ident_or_l_paren);
+        return null;
+    }
 }
 
 /// directDeclarator
-///  : IDENTIFIER
-///  | '(' declarator ')'
-///  | directDeclarator '[' typeQual* assignExpr? ']'
-///  | directDeclarator '[' keyword_static typeQual* assignExpr ']'
-///  | directDeclarator '[' typeQual* keyword_static assignExpr ']'
-///  | directDeclarator '[' typeQual* '*' ']'
-///  | directDeclarator '(' paramDecls ')'
-///  | directDeclarator '(' (IDENTIFIER (',' IDENTIFIER))? ')'
-fn directDeclarator(p: *Parser) Error!TagIndex {
-    return p.todo("directDeclarator");
+///  : '[' typeQual* assignExpr? ']'
+///  | '[' keyword_static typeQual* assignExpr ']'
+///  | '[' typeQual+ keyword_static assignExpr ']'
+///  | '[' typeQual* '*' ']'
+///  | '(' paramDecls ')'
+///  | '(' (IDENTIFIER (',' IDENTIFIER))? ')'
+/// directAbstractDeclarator
+///  : '[' typeQual* assignExpr? ']'
+///  | '[' keyword_static typeQual* assignExpr ']'
+///  | '[' typeQual+ keyword_static assignExpr ']'
+///  | '[' '*' ']'
+///  | '(' paramDecls? ')'
+fn directDeclarator(p: *Parser, ty: *Type, is_abstract: bool) Error!void {
+    while (true) {
+        if (p.eatToken(.l_bracket)) |l_bracket| {
+            return p.todo("array type");
+        } else if (p.eatToken(.l_paren)) |l_paren| {
+            return p.todo("function type");
+        } else return;
+    }
 }
 
 /// pointer : '*' typeQual* pointer?
-fn pointer(p: *Parser) Error!TagIndex {
+fn pointer(p: *Parser, ty: *Type) Error!bool {
+    if (p.eatToken(.asterisk) == null) return false;
     return p.todo("pointer");
 }
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
-/// paramDecl : declSpec (declarator | abstractDeclarator?)
+/// paramDecl : declSpec (declarator | abstractDeclarator)
 fn paramDecls(p: *Parser) Error!TagIndex {
     return p.todo("paramDecls");
 }
 
-/// typeName : specQual abstractDeclarator?
+/// typeName : specQual abstractDeclarator
 fn typeName(p: *Parser) Error!Type {
     const ty = try p.specQual();
     return p.todo("typeName");
 }
 
 /// abstractDeclarator
-/// : pointer
-/// | pointer? directAbstractDeclarator
+/// : pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
 fn abstractDeclarator(p: *Parser) Error!TagIndex {
     return p.todo("abstractDeclarator");
-}
-
-/// directAbstractDeclarator
-///  : '(' abstractDeclarator ')'
-///  | directAbstractDeclarator? '[' typeQual* assignExpr? ']'
-///  | directAbstractDeclarator? '[' keyword_static typeQual* assignExpr ']'
-///  | directAbstractDeclarator? '[' typeQual+ keyword_static assignExpr ']'
-///  | directAbstractDeclarator? '[' '*' ']'
-///  | directAbstractDeclarator? '(' paramDecls? ')'
-fn directAbstractDeclarator(p: *Parser) Error!TagIndex {
-    return p.todo("directAbstractDeclarator");
 }
 
 /// initializer
@@ -620,7 +773,7 @@ fn labeledStmt(p: *Parser) Error!TagIndex {
     return p.todo("labeledStmt");
 }
 
-/// compoundStmt : '{' ( decl | stmt)* '}'
+/// compoundStmt : '{' ( decl| staticAssert | stmt)* '}'
 fn compoundStmt(p: *Parser) Error!TagIndex {
     return p.todo("compoundStmt");
 }
@@ -648,9 +801,9 @@ pub fn constExpr(p: *Parser) Error!Result {
 /// condExpr : lorExpr ('?' expression? ':' condExpr)?
 fn condExpr(p: *Parser) Error!Result {
     const cond = try p.lorExpr();
-    if (!p.eatToken(.question_mark)) return cond;
+    if (p.eatToken(.question_mark) == null) return cond;
     const then_expr = try p.expr();
-    try p.expectToken(.colon);
+    _ = try p.expectToken(.colon);
     const else_expr = try p.condExpr();
 
     if (p.want_const or cond != .node) {
@@ -662,7 +815,7 @@ fn condExpr(p: *Parser) Error!Result {
 /// lorExpr : landExpr ('||' landExpr)*
 fn lorExpr(p: *Parser) Error!Result {
     var lhs = try p.landExpr();
-    while (p.eatToken(.pipe_pipe)) {
+    while (p.eatToken(.pipe_pipe)) |_| {
         const rhs = try p.landExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -675,7 +828,7 @@ fn lorExpr(p: *Parser) Error!Result {
 /// landExpr : orExpr ('&&' orExpr)*
 fn landExpr(p: *Parser) Error!Result {
     var lhs = try p.orExpr();
-    while (p.eatToken(.ampersand_ampersand)) {
+    while (p.eatToken(.ampersand_ampersand)) |_| {
         const rhs = try p.orExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -688,7 +841,7 @@ fn landExpr(p: *Parser) Error!Result {
 /// orExpr : xorExpr ('|' xorExpr)*
 fn orExpr(p: *Parser) Error!Result {
     var lhs = try p.xorExpr();
-    while (p.eatToken(.pipe)) {
+    while (p.eatToken(.pipe)) |_| {
         const rhs = try p.xorExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -701,7 +854,7 @@ fn orExpr(p: *Parser) Error!Result {
 /// xorExpr : andExpr ('^' andExpr)*
 fn xorExpr(p: *Parser) Error!Result {
     var lhs = try p.andExpr();
-    while (p.eatToken(.caret)) {
+    while (p.eatToken(.caret)) |_| {
         const rhs = try p.andExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -714,7 +867,7 @@ fn xorExpr(p: *Parser) Error!Result {
 /// andExpr : eqExpr ('&' eqExpr)*
 fn andExpr(p: *Parser) Error!Result {
     var lhs = try p.eqExpr();
-    while (p.eatToken(.ampersand)) {
+    while (p.eatToken(.ampersand)) |_| {
         const rhs = try p.eqExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -729,7 +882,8 @@ fn eqExpr(p: *Parser) Error!Result {
     var lhs = try p.compExpr();
     while (true) {
         const eq = p.eatToken(.equal_equal);
-        if (!eq and !p.eatToken(.bang_equal)) break;
+        const ne = eq orelse p.eatToken(.bang_equal);
+        if (ne == null) break;
         const rhs = try p.compExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -745,10 +899,10 @@ fn compExpr(p: *Parser) Error!Result {
     const lhs = try p.shiftExpr();
     while (true) {
         const lt = p.eatToken(.angle_bracket_left);
-        const le = lt or p.eatToken(.angle_bracket_left_equal);
-        const gt = le or p.eatToken(.angle_bracket_right);
-        const ge = gt or p.eatToken(.angle_bracket_right_equal);
-        if (!ge) break;
+        const le = lt orelse p.eatToken(.angle_bracket_left_equal);
+        const gt = le orelse p.eatToken(.angle_bracket_right);
+        const ge = gt orelse p.eatToken(.angle_bracket_right_equal);
+        if (ge == null) break;
         const rhs = try p.shiftExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -764,8 +918,8 @@ fn shiftExpr(p: *Parser) Error!Result {
     const lhs = try p.addExpr();
     while (true) {
         const shl = p.eatToken(.angle_bracket_angle_bracket_left);
-        const shr = shl or p.eatToken(.angle_bracket_angle_bracket_right);
-        if (!shr) break;
+        const shr = shl orelse p.eatToken(.angle_bracket_angle_bracket_right);
+        if (shr == null) break;
         const rhs = try p.addExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -781,8 +935,8 @@ fn addExpr(p: *Parser) Error!Result {
     const lhs = try p.mulExpr();
     while (true) {
         const plus = p.eatToken(.plus);
-        const minus = plus or p.eatToken(.minus);
-        if (!minus) break;
+        const minus = plus orelse p.eatToken(.minus);
+        if (minus == null) break;
         const rhs = try p.mulExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -798,9 +952,9 @@ fn mulExpr(p: *Parser) Error!Result {
     const lhs = try p.castExpr();
     while (true) {
         const mul = p.eatToken(.plus);
-        const div = mul or p.eatToken(.slash);
-        const percent = div or p.eatToken(.percent);
-        if (!percent) break;
+        const div = mul orelse p.eatToken(.slash);
+        const percent = div orelse p.eatToken(.percent);
+        if (percent == null) break;
         const rhs = try p.castExpr();
 
         if (p.want_const or (lhs != .node and rhs != .node)) {
@@ -813,10 +967,12 @@ fn mulExpr(p: *Parser) Error!Result {
 
 /// castExpr :  ( '(' typeName ')' )* unExpr
 fn castExpr(p: *Parser) Error!Result {
-    if (!p.eatToken(.l_paren)) {
-        return p.unExpr();
+    while (p.eatToken(.l_paren)) |l_paren| {
+        const ty = try p.typeName();
+        try p.expectClosing(l_paren, .r_paren);
+        return p.todo("cast");
     }
-    return p.todo("cast");
+    return p.unExpr();
 }
 
 /// unExpr
@@ -890,9 +1046,9 @@ fn argumentExprList(p: *Parser) Error!Result {}
 ///  : typeName ':' assignExpr
 ///  | keyword_default ':' assignExpr
 fn primaryExpr(p: *Parser) Error!Result {
-    if (p.eatToken(.l_paren)) {
+    if (p.eatToken(.l_paren)) |l_paren| {
         const e = try p.expr();
-        try p.expectToken(.r_paren);
+        try p.expectClosing(l_paren, .r_paren);
         return e;
     }
     switch (p.tokens[p.tok_i].id) {

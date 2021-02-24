@@ -130,15 +130,11 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
         };
         parser.parse() catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
-            error.ParsingFailed, error.FatalError => {},
+            error.FatalError => {},
         };
 
         comp.renderErrors();
         comp.diag.list.items.len = 0;
-
-        for (pp.tokens.items) |tok, i| {
-            std.debug.print("id: {s} |{s}|\n", .{ @tagName(tok.id), pp.tokSlice(tok) });
-        }
     }
 }
 
