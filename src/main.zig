@@ -49,6 +49,8 @@ const usage =
     \\  -E                      Only run the preprocessor
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
+    \\  -I <dir>                Add directory to include search path
+    \\  -isystem                Add directory to SYSTEM include search path
     \\  -Wall                   Enable all warnings
     \\  -Werror                 Treat all warnings as errors
     \\  -Werror=<warning>       Treat warning as error
@@ -62,10 +64,14 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
     var comp = Compilation.init(gpa);
     defer comp.deinit();
 
+    try comp.system_include_dirs.append("/usr/include");
+
     var source_files = std.ArrayList(Source).init(gpa);
     defer source_files.deinit();
 
-    for (args[1..]) |arg| {
+    var i: usize = 1;
+    while (i < args.len) : (i+=1) {
+        const arg = args[i];
         if (mem.startsWith(u8, arg, "-")) {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
                 const std_out = std.io.getStdOut().writer();
@@ -83,6 +89,22 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
                 comp.diag.color = true;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
                 comp.diag.color = false;
+            } else if (mem.startsWith(u8, arg, "-I")) {
+                var path = arg["-I".len..];
+                if (path.len == 0) {
+                    i += 1;
+                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -I", .{});
+                    path = args[i];
+                }
+                try comp.include_dirs.append(path);
+            } else if (mem.startsWith(u8, arg, "-isystem")) {
+                var path = arg["-isystem".len..];
+                if (path.len == 0) {
+                    i += 1;
+                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -isystem", .{});
+                    path = args[i];
+                }
+                try comp.system_include_dirs.append(path);
             } else if (mem.eql(u8, arg, "-Wall")) {
                 comp.diag.setAll(.warning);
             } else if (mem.eql(u8, arg, "-Werror")) {

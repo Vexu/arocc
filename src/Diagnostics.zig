@@ -132,7 +132,7 @@ pub fn fatal(diag: *Diagnostics, path: []const u8, lcs: Source.LCS, comptime fmt
     defer m.deinit();
 
     m.start(.@"fatal error", path, lcs);
-    std.debug.print(fmt, args);
+    m.print(fmt, args);
     m.end(lcs);
     return error.FatalError;
 }
