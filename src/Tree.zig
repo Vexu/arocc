@@ -15,8 +15,8 @@ nodes: []const Node,
 root_decls: []const NodeIndex,
 
 pub fn deinit(tree: Tree) void {
-    tree.comp.gpa.free(nodes);
-    tree.comp.gpa.free(root_decls);
+    tree.comp.gpa.free(tree.nodes);
+    tree.comp.gpa.free(tree.root_decls);
 }
 
 /// A generic struct capable of represening all Decl, Stmt and Expr.

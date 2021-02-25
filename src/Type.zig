@@ -66,7 +66,7 @@ data: union {
     array: *Array,
     node: NodeIndex,
     none: void,
-} = .none,
+} = .{ .none = {} },
 alignment: u32 = 0,
 specifier: Specifier,
 qual: Qualifiers = .{},
@@ -195,7 +195,7 @@ pub const Builder = union(enum) {
             .long, .slong, .long_int, .slong_int => .long,
             .ulong, .ulong_int => .ulong,
             .long_long, .slong_long, .long_long_int, .slong_long_int => .long_long,
-            .ulong_long, .u_long_long_int => .ulong_long,
+            .ulong_long, .ulong_long_int => .ulong_long,
 
             .float => .float,
             .double => .double,
@@ -264,7 +264,7 @@ pub const Builder = union(enum) {
         return error.ParsingFailed;
     }
 
-    pub fn combine(spec: *Builder, p: *parser, new: Builder) Parser.Error!void {
+    pub fn combine(spec: *Builder, p: *Parser, new: Builder) Parser.Error!void {
         spec.* = switch (new) {
             .void, .bool, .@"enum", .@"struct", .@"union", .pointer, .array, .static_array, .func => switch (spec.*) {
                 .none => new,
@@ -396,6 +396,39 @@ pub const Builder = union(enum) {
                 else => return spec.cannotCombine(p),
             },
             else => unreachable,
+        };
+    }
+
+    pub fn fromType(ty: Type) Builder {
+        return switch (ty.specifier) {
+            .void => .void,
+            .bool => .bool,
+            .char => .char,
+            .schar => .schar,
+            .uchar => .uchar,
+            .short => .short,
+            .ushort => .ushort,
+            .int => .int,
+            .uint => .uint,
+            .long => .long,
+            .ulong => .ulong,
+            .long_long => .long_long,
+            .ulong_long => .ulong_long,
+            .float => .float,
+            .double => .double,
+            .long_double => .long_double,
+            .complex_float => .complex_float,
+            .complex_double => .complex_double,
+            .complex_long_double => .complex_long_double,
+
+            .pointer => .{ .pointer = ty.data.sub_type },
+            .atomic => .{ .atomic = ty.data.sub_type },
+            .func => .{ .func = ty.data.func },
+            .array => .{ .array = ty.data.array },
+            .static_array => .{ .static_array = ty.data.array },
+            .@"struct" => .{ .@"struct" = ty.data.node },
+            .@"union" => .{ .@"union" = ty.data.node },
+            .@"enum" => .{ .@"enum" = ty.data.node },
         };
     }
 };
