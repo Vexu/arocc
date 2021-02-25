@@ -70,7 +70,7 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
     defer source_files.deinit();
 
     var i: usize = 1;
-    while (i < args.len) : (i+=1) {
+    while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-")) {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
@@ -146,14 +146,15 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
             },
         };
 
-        var parser = Parser{
-            .pp = &pp,
-            .tokens = pp.tokens.items,
-        };
-        parser.parse() catch |e| switch (e) {
+        var tree = Parser.parse(&pp) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
-            error.FatalError => {},
+            error.FatalError => {
+                comp.renderErrors();
+                comp.diag.list.items.len = 0;
+                continue;
+            },
         };
+        defer tree.deinit();
 
         comp.renderErrors();
         comp.diag.list.items.len = 0;

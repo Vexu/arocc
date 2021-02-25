@@ -1,3 +1,4 @@
+const NodeIndex = @import("Tree.zig").NodeIndex;
 const Type = @This();
 
 pub const Qualifiers = struct {
@@ -10,14 +11,6 @@ pub const Qualifiers = struct {
 pub const Specifier = union(enum) {
     /// Will always be defaulted to int
     none,
-    /// Will default to uint
-    unsigned,
-    /// Will default to int
-    signed,
-    /// Will default to complex_long_double
-    complex_long,
-    /// Will default to complex_double
-    complex,
 
     void,
     bool,
@@ -51,41 +44,22 @@ pub const Specifier = union(enum) {
         return_type: *Type,
         param_types: []Type,
     },
+
     /// Decays to pointer
     array: struct {
+        qual: Qualifiers,
         len: u64,
         static: bool,
         elem: *Type,
     },
-    incomplete_enum,
-    incomplete_struct,
-    incomplete_union,
-
-    typedef: *Type,
-    @"struct": Record,
-    @"union": Record,
-    @"enum": struct {
-        // decl: TagIndex,
-    },
-
-    pub const Record = struct {
-        // decl: TagIndex,
-        fields: []Field,
-
-        pub const Field = struct {
-            type: Type,
-            name: []const u8,
-        };
-    };
+    @"struct": NodeIndex,
+    @"union": NodeIndex,
+    @"enum": NodeIndex,
 
     pub fn str(spec: Specifier) []const u8 {
         return switch (spec) {
             .none => unreachable,
 
-            .unsigned => "unsigned",
-            .signed => "signed",
-            .complex_long => "_Complex long",
-            .complex => "_Complex",
             .void => "void",
             .bool => "_Bool",
             .char => "char",

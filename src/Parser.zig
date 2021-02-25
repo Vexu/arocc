@@ -8,7 +8,7 @@ const Token = @import("Tokenizer.zig").Token;
 const Preprocessor = @import("Preprocessor.zig");
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
-const TagIndex = Tree.TagIndex;
+const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
 const Qualifiers = Type.Qualifiers;
 const Diagnostics = @import("Diagnostics.zig");
@@ -26,8 +26,7 @@ pub const Result = union(enum) {
     i32: i32,
     u64: u64,
     i64: i64,
-    // expr: TagIndex, TODO
-    node,
+    node: NodeIndex,
 
     pub fn getBool(res: Result) bool {
         return switch (res) {
@@ -53,15 +52,15 @@ tok_i: TokenIndex = 0,
 want_const: bool = false,
 in_function: bool = false,
 
-fn eatToken(p: *Parser, id: Token.Id) ?Token {
+fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
     const tok = p.tokens[p.tok_i];
     if (tok.id == id) {
         p.tok_i += 1;
-        return tok;
+        return p.tok_i;
     } else return null;
 }
 
-fn expectToken(p: *Parser, id: Token.Id) Error!Token {
+fn expectToken(p: *Parser, id: Token.Id) Error!TokenIndex {
     const tok = p.tokens[p.tok_i];
     if (tok.id != id) {
         try p.pp.comp.diag.add(.{
@@ -80,13 +79,14 @@ fn expectToken(p: *Parser, id: Token.Id) Error!Token {
         });
         return error.ParsingFailed;
     }
-    p.tok_i += 1;
-    return tok;
+    defer p.tok_i += 1;
+    return p.tok_i;
 }
 
-fn expectClosing(p: *Parser, opening: Token, id: Token.Id) Error!void {
+fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
     _ = p.expectToken(id) catch |e| {
         if (e == error.ParsingFailed) {
+            const o_tok = p.tokens[opening];
             try p.pp.comp.diag.add(.{
                 .tag = switch (id) {
                     .r_paren => .to_match_paren,
@@ -94,8 +94,8 @@ fn expectClosing(p: *Parser, opening: Token, id: Token.Id) Error!void {
                     .r_bracket => .to_match_brace,
                     else => unreachable,
                 },
-                .source_id = opening.source,
-                .loc_start = opening.loc.start,
+                .source_id = o_tok.source,
+                .loc_start = o_tok.loc.start,
             });
         }
         return e;
@@ -123,7 +123,16 @@ fn todo(p: *Parser, msg: []const u8) Error {
 }
 
 /// root : (decl | staticAssert)*
-pub fn parse(p: *Parser) Compilation.Error!void {
+pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
+    var p = Parser{
+        .pp = pp,
+        .tokens = pp.tokens.items,
+    };
+    var nodes = std.ArrayList(Tree.Node).init(pp.comp.gpa);
+    errdefer nodes.deinit();
+    var root_decls = std.ArrayList(NodeIndex).init(pp.comp.gpa);
+    errdefer root_decls.deinit();
+
     while (p.eatToken(.eof) == null) {
         if (p.staticAssert() catch |er| switch (er) {
             error.ParsingFailed => {
@@ -132,7 +141,7 @@ pub fn parse(p: *Parser) Compilation.Error!void {
             },
             else => |e| return e,
         }) continue;
-        if (p.decl() catch |er| switch (er) {
+        if (p.decl(&root_decls) catch |er| switch (er) {
             error.ParsingFailed => {
                 p.nextExternDecl();
                 continue;
@@ -143,6 +152,13 @@ pub fn parse(p: *Parser) Compilation.Error!void {
         try p.err(.expected_external_decl);
         p.tok_i += 1;
     }
+    return Tree{
+        .comp = pp.comp,
+        .tokens = pp.tokens.items,
+        .generated = pp.generated.items,
+        .nodes = nodes.toOwnedSlice(),
+        .root_decls = root_decls.toOwnedSlice(),
+    };
 }
 
 fn nextExternDecl(p: *Parser) void {
@@ -190,7 +206,7 @@ fn nextExternDecl(p: *Parser) void {
 /// decl
 ///  : declSpec (initDeclarator ( ',' initDeclarator)*)? ';'
 ///  | declSpec declarator declarator* compoundStmt
-fn decl(p: *Parser) Error!bool {
+fn decl(p: *Parser, dest: *std.ArrayList(NodeIndex)) Error!bool {
     const first_tok = p.tokens[p.tok_i];
     const decl_spec_raw = try p.declSpec();
     if (decl_spec_raw == null) {
@@ -200,7 +216,7 @@ fn decl(p: *Parser) Error!bool {
             else => return false,
         }
     }
-    const decl_spec = decl_spec_raw orelse  blk: {
+    const decl_spec = decl_spec_raw orelse blk: {
         var d = DeclSpec{};
         try p.defaultTypeSpec(&d.type);
         break :blk d;
@@ -217,7 +233,7 @@ fn decl(p: *Parser) Error!bool {
     };
 
     // Check for function definition.
-    if (first.d.ty.specifier == .function and first.initializer == null and
+    if (first.d.ty.specifier == .function and
         (p.tokens[p.tok_i].id == .l_brace or first.k_r_function))
     {
         if (!p.in_function) {
@@ -263,7 +279,7 @@ fn staticAssert(p: *Parser) Error!bool {
             try msg.appendSlice(p.pp.tokSlice(tok));
         }
         try msg.appendSlice("' ");
-        try msg.appendSlice(p.pp.tokSlice(str));
+        try msg.appendSlice(p.pp.tokSlice(p.tokens[str]));
         try p.pp.comp.diag.add(.{
             .tag = .static_assert_failure,
             .source_id = static_assert.source,
@@ -362,7 +378,7 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
     return d;
 }
 
-const InitDeclarator = struct { d: Declarator, initializer: ?TagIndex, k_r_function: bool = false };
+const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = 0, k_r_function: bool = false };
 
 /// initDeclarator : declarator ('=' initializer)?
 fn initDeclarator(p: *Parser, base_type: Type) Error!?InitDeclarator {
@@ -371,7 +387,7 @@ fn initDeclarator(p: *Parser, base_type: Type) Error!?InitDeclarator {
     if (p.eatToken(.equal)) |_| {
         return p.todo("initializer");
     }
-    return InitDeclarator{ .d = d, .initializer = null };
+    return InitDeclarator{ .d = d };
 }
 
 /// typeSpec
@@ -415,21 +431,21 @@ fn typeSpec(p: *Parser, ty: *Type) Error!bool {
             },
             .keyword_char => switch (ty.specifier) {
                 .none => ty.specifier = .char,
-                .unsigned => ty.specifier = .uchar,
-                .signed => ty.specifier = .schar,
+                // .unsigned => ty.specifier = .uchar,
+                // .signed => ty.specifier = .schar,
                 else => return p.cannotCombineSpec(ty.specifier),
             },
             .keyword_short => switch (ty.specifier) {
                 .none => ty.specifier = .short,
-                .signed => ty.specifier = .short,
-                .unsigned => ty.specifier = .ushort,
+                // .signed => ty.specifier = .short,
+                // .unsigned => ty.specifier = .ushort,
                 .ushort, .short => try p.duplicateSpecifier("short"),
                 else => return p.cannotCombineSpec(ty.specifier),
             },
             .keyword_int => switch (ty.specifier) {
                 .none => ty.specifier = .int,
-                .signed => ty.specifier = .int,
-                .unsigned => ty.specifier = .uint,
+                // .signed => ty.specifier = .int,
+                // .unsigned => ty.specifier = .uint,
                 .ushort,
                 .long,
                 .ulong,
@@ -442,51 +458,51 @@ fn typeSpec(p: *Parser, ty: *Type) Error!bool {
             .keyword_long => switch (ty.specifier) {
                 .none => ty.specifier = .long,
                 .long => ty.specifier = .long_long,
-                .unsigned => ty.specifier = .ulong,
-                .signed => ty.specifier = .long,
+                // .unsigned => ty.specifier = .ulong,
+                // .signed => ty.specifier = .long,
                 .ulong => ty.specifier = .ulong_long,
                 .long_long, .ulong_long => try p.duplicateSpecifier("long"),
                 else => return p.cannotCombineSpec(ty.specifier),
             },
             .keyword_signed => switch (ty.specifier) {
-                .none => ty.specifier = .signed,
+                // .none => ty.specifier = .signed,
                 .char => ty.specifier = .schar,
                 .int,
                 .short,
                 .long,
                 .long_long,
                 => {}, // TODO warn duplicate signed specifier
-                .schar, .signed => try p.duplicateSpecifier("signed"),
+                // .schar, .signed => try p.duplicateSpecifier("signed"),
                 else => return p.cannotCombineSpec(ty.specifier),
             },
             .keyword_unsigned => switch (ty.specifier) {
-                .none => ty.specifier = .unsigned,
+                // .none => ty.specifier = .unsigned,
                 .char => ty.specifier = .uchar,
                 .uint,
                 .ushort,
                 .ulong,
                 .ulong_long,
                 => {}, // TODO warn duplicate unsigned specifier
-                .uchar, .unsigned => try p.duplicateSpecifier("unsigned"),
+                // .uchar, .unsigned => try p.duplicateSpecifier("unsigned"),
                 else => return p.cannotCombineSpec(ty.specifier),
             },
             .keyword_float => switch (ty.specifier) {
                 .long_double,
                 .complex_long_double,
-                .complex_long,
+                // .complex_long,
                 .complex_double,
                 .double,
                 => {}, // TODO warn duplicate float
                 .long => ty.specifier = .long_double, // TODO long float is invalid
                 .none => ty.specifier = .float,
-                .complex => ty.specifier = .complex_float,
+                // .complex => ty.specifier = .complex_float,
                 .complex_float, .float => try p.duplicateSpecifier("float"),
                 else => return p.cannotCombineSpec(ty.specifier),
             },
             .keyword_double => switch (ty.specifier) {
                 .long => ty.specifier = .long_double,
-                .complex_long => ty.specifier = .complex_long_double,
-                .complex_float, .complex => ty.specifier = .complex_double,
+                // .complex_long => ty.specifier = .complex_long_double,
+                // .complex_float, .complex => ty.specifier = .complex_double,
                 .float, .none => ty.specifier = .double,
                 .long_double,
                 .complex_long_double,
@@ -496,13 +512,13 @@ fn typeSpec(p: *Parser, ty: *Type) Error!bool {
                 else => return p.cannotCombineSpec(ty.specifier),
             },
             .keyword_complex => switch (ty.specifier) {
-                .long => ty.specifier = .complex_long,
+                // .long => ty.specifier = .complex_long,
                 .float => ty.specifier = .complex_float,
                 .double => ty.specifier = .complex_double,
                 .long_double => ty.specifier = .complex_long_double,
-                .none => ty.specifier = .complex,
-                .complex_long,
-                .complex,
+                // .none => ty.specifier = .complex,
+                // .complex_long,
+                // .complex,
                 .complex_float,
                 .complex_double,
                 .complex_long_double,
@@ -516,7 +532,10 @@ fn typeSpec(p: *Parser, ty: *Type) Error!bool {
             .keyword_alignas => {
                 if (ty.alignment != 0) try p.duplicateSpecifier("alignment");
                 const l_paren = try p.expectToken(.l_paren);
-                const other_type = try p.typeName();
+                const other_type = (try p.typeName()) orelse {
+                    try p.err(.expected_type);
+                    return error.ParsingFailed;
+                };
                 try p.expectClosing(l_paren, .r_paren);
                 ty.alignment = other_type.alignment;
             },
@@ -555,52 +574,51 @@ fn defaultTypeSpec(p: *Parser, ty: *Type) Error!void {
             ty.specifier = .int;
             try p.err(.missing_type_specifier);
         },
-        .unsigned => ty.specifier = .uint,
-        .signed => ty.specifier = .int,
-        .complex_long => ty.specifier = .complex_long_double,
-        .complex => ty.specifier = .complex_double,
+        // .unsigned => ty.specifier = .uint,
+        // .signed => ty.specifier = .int,
+        // .complex_long => ty.specifier = .complex_long_double,
+        // .complex => ty.specifier = .complex_double,
         else => {},
     }
 }
 /// recordSpec
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
-fn recordSpec(p: *Parser) Error!TagIndex {
+fn recordSpec(p: *Parser) Error!NodeIndex {
     return p.todo("recordSpec");
 }
 
 /// recordDecl
 ///  : specQual (recordDeclarator (',' recordDeclarator)*)? ;
 ///  | staticAssert
-fn recordDecl(p: *Parser) Error!TagIndex {
+fn recordDecl(p: *Parser) Error!NodeIndex {
     return p.todo("recordDecl");
 }
 
 /// recordDeclarator : declarator (':' constExpr)?
-fn recordDeclarator(p: *Parser) Error!TagIndex {
+fn recordDeclarator(p: *Parser) Error!NodeIndex {
     return p.todo("recordDeclarator");
 }
 
 /// specQual : (typeSpec | typeQual | alignSpec)+
-fn specQual(p: *Parser) Error!Type {
+fn specQual(p: *Parser) Error!?Type {
     var ty = Type{};
     if (try p.typeSpec(&ty)) {
         try p.defaultTypeSpec(&ty);
         return ty;
     }
-    try p.err(.expected_a_type);
-    return error.ParsingFailed;
+    return null;
 }
 
 /// enumSpec
 ///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
 ///  | keyword_enum IDENTIFIER
-fn enumSpec(p: *Parser) Error!TagIndex {
+fn enumSpec(p: *Parser) Error!NodeIndex {
     return p.todo("enumSpec");
 }
 
 /// enumerator : IDENTIFIER ('=' constExpr)
-fn enumerator(p: *Parser) Error!TagIndex {
+fn enumerator(p: *Parser) Error!NodeIndex {
     return p.todo("enumerator");
 }
 
@@ -616,7 +634,7 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
                         .tag = .restrict_non_pointer,
                         .source_id = tok.source,
                         .loc_start = tok.loc.start,
-                        .extra = .{ .str = ty.specifier.str() },
+                        // .extra = .{ .str = ty.specifier.str() },
                     })
                 else if (ty.qual.restrict)
                     try p.duplicateSpecifier("restrict")
@@ -649,15 +667,14 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
     return any;
 }
 
-const Declarator = struct { name: []const u8, ty: Type };
+const Declarator = struct { name: TokenIndex, ty: Type };
 
 /// declarator : pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
 fn declarator(p: *Parser, base_type: Type) Error!?Declarator {
     var ty = base_type;
     const saw_ptr = try p.pointer(&ty);
 
-    if (p.eatToken(.identifier)) |some| {
-        const name = p.pp.tokSlice(some);
+    if (p.eatToken(.identifier)) |name| {
         try p.directDeclarator(&ty, false);
         return Declarator{ .name = name, .ty = ty };
     } else if (p.eatToken(.l_paren)) |l_paren| {
@@ -707,42 +724,53 @@ fn pointer(p: *Parser, ty: *Type) Error!bool {
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
 /// paramDecl : declSpec (declarator | abstractDeclarator)
-fn paramDecls(p: *Parser) Error!TagIndex {
+fn paramDecls(p: *Parser) Error!NodeIndex {
     return p.todo("paramDecls");
 }
 
 /// typeName : specQual abstractDeclarator
-fn typeName(p: *Parser) Error!Type {
-    const ty = try p.specQual();
-    return p.todo("typeName");
+fn typeName(p: *Parser) Error!?Type {
+    var ty = (try p.specQual()) orelse return null;
+    return try p.abstractDeclarator(ty);
 }
 
 /// abstractDeclarator
 /// : pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
-fn abstractDeclarator(p: *Parser) Error!TagIndex {
-    return p.todo("abstractDeclarator");
+fn abstractDeclarator(p: *Parser, base_type: Type) Error!Type {
+    var ty = base_type;
+    _ = try p.pointer(&ty);
+
+    if (p.eatToken(.l_paren)) |l_paren| {
+        const res = try p.abstractDeclarator(ty);
+        try p.expectClosing(l_paren, .r_paren);
+        try p.directDeclarator(&ty, true);
+        return p.todo("combine ty and res.ty");
+    }
+
+    try p.directDeclarator(&ty, true);
+    return ty;
 }
 
 /// initializer
 ///  : assignExpr
 ///  | '{' initializerItems '}'
-fn initializer(p: *Parser) Error!TagIndex {
+fn initializer(p: *Parser) Error!NodeIndex {
     return p.todo("initializer");
 }
 
 /// initializerItems : designation? initializer  (',' designation? initializer)? ','?
-fn initializerItems(p: *Parser) Error!TagIndex {
+fn initializerItems(p: *Parser) Error!NodeIndex {
     return p.todo("initializerItems");
 }
 /// designation : designator+ '='
-fn designation(p: *Parser) Error!TagIndex {
+fn designation(p: *Parser) Error!NodeIndex {
     return p.todo("designation");
 }
 
 /// designator
 ///  : '[' constExpr ']'
 ///  | '.' identifier
-fn designator(p: *Parser) Error!TagIndex {
+fn designator(p: *Parser) Error!NodeIndex {
     return p.todo("designator");
 }
 
@@ -761,7 +789,7 @@ fn designator(p: *Parser) Error!TagIndex {
 ///  | keyword_break ';'
 ///  | keyword_return expr? ';'
 ///  | expr? ';'
-fn stmt(p: *Parser) Error!TagIndex {
+fn stmt(p: *Parser) Error!NodeIndex {
     return p.todo("stmt");
 }
 
@@ -769,12 +797,12 @@ fn stmt(p: *Parser) Error!TagIndex {
 /// : IDENTIFIER ':' stmt
 /// | keyword_case constExpr ':' stmt
 /// | keyword_default ':' stmt
-fn labeledStmt(p: *Parser) Error!TagIndex {
+fn labeledStmt(p: *Parser) Error!NodeIndex {
     return p.todo("labeledStmt");
 }
 
 /// compoundStmt : '{' ( decl| staticAssert | stmt)* '}'
-fn compoundStmt(p: *Parser) Error!TagIndex {
+fn compoundStmt(p: *Parser) Error!NodeIndex {
     return p.todo("compoundStmt");
 }
 
@@ -968,7 +996,10 @@ fn mulExpr(p: *Parser) Error!Result {
 /// castExpr :  ( '(' typeName ')' )* unExpr
 fn castExpr(p: *Parser) Error!Result {
     while (p.eatToken(.l_paren)) |l_paren| {
-        const ty = try p.typeName();
+        const ty = (try p.typeName()) orelse {
+            p.tok_i -= 1;
+            break;
+        };
         try p.expectClosing(l_paren, .r_paren);
         return p.todo("cast");
     }
