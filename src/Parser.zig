@@ -10,8 +10,8 @@ const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
-const Qualifiers = Type.Qualifiers;
 const Diagnostics = @import("Diagnostics.zig");
+const NodeList = std.ArrayList(NodeIndex);
 
 const Parser = @This();
 
@@ -44,13 +44,14 @@ pub const Result = union(enum) {
     }
 };
 
-const Error = Compilation.Error || error{ParsingFailed};
+pub const Error = Compilation.Error || error{ParsingFailed};
 
 pp: *Preprocessor,
 tokens: []const Token,
 tok_i: TokenIndex = 0,
 want_const: bool = false,
 in_function: bool = false,
+cur_decl_list: *NodeList,
 
 fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
     const tok = p.tokens[p.tok_i];
@@ -111,7 +112,7 @@ fn err(p: *Parser, tag: Diagnostics.Tag) Compilation.Error!void {
     });
 }
 
-fn todo(p: *Parser, msg: []const u8) Error {
+pub fn todo(p: *Parser, msg: []const u8) Error {
     const tok = p.tokens[p.tok_i];
     try p.pp.comp.diag.add(.{
         .tag = .todo,
@@ -124,14 +125,15 @@ fn todo(p: *Parser, msg: []const u8) Error {
 
 /// root : (decl | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
+    var nodes = std.ArrayList(Tree.Node).init(pp.comp.gpa);
+    errdefer nodes.deinit();
+    var root_decls = NodeList.init(pp.comp.gpa);
+    errdefer root_decls.deinit();
     var p = Parser{
         .pp = pp,
         .tokens = pp.tokens.items,
+        .cur_decl_list = &root_decls,
     };
-    var nodes = std.ArrayList(Tree.Node).init(pp.comp.gpa);
-    errdefer nodes.deinit();
-    var root_decls = std.ArrayList(NodeIndex).init(pp.comp.gpa);
-    errdefer root_decls.deinit();
 
     while (p.eatToken(.eof) == null) {
         if (p.staticAssert() catch |er| switch (er) {
@@ -206,7 +208,7 @@ fn nextExternDecl(p: *Parser) void {
 /// decl
 ///  : declSpec (initDeclarator ( ',' initDeclarator)*)? ';'
 ///  | declSpec declarator declarator* compoundStmt
-fn decl(p: *Parser, dest: *std.ArrayList(NodeIndex)) Error!bool {
+fn decl(p: *Parser) Error!bool {
     const first_tok = p.tokens[p.tok_i];
     const decl_spec_raw = try p.declSpec();
     if (decl_spec_raw == null) {
@@ -221,7 +223,7 @@ fn decl(p: *Parser, dest: *std.ArrayList(NodeIndex)) Error!bool {
         try p.defaultTypeSpec(&d.type);
         break :blk d;
     };
-    const first = (try p.initDeclarator(decl_spec.type)) orelse {
+    const first = (try p.initDeclarator(&decl_spec)) orelse {
         // TODO return if enum struct or union
         try p.pp.comp.diag.add(.{
             .tag = .missing_declaration,
@@ -233,7 +235,7 @@ fn decl(p: *Parser, dest: *std.ArrayList(NodeIndex)) Error!bool {
     };
 
     // Check for function definition.
-    if (first.d.ty.specifier == .function and
+    if (first.d.ty.specifier == .function and first.initializer == 0 and
         (p.tokens[p.tok_i].id == .l_brace or first.k_r_function))
     {
         if (!p.in_function) {
@@ -249,7 +251,7 @@ fn decl(p: *Parser, dest: *std.ArrayList(NodeIndex)) Error!bool {
     }
 
     while (p.eatToken(.comma)) |_| {
-        _ = (try p.initDeclarator(decl_spec.type)) orelse {
+        _ = (try p.initDeclarator(&decl_spec)) orelse {
             try p.err(.expected_ident_or_l_paren);
         };
     }
@@ -302,7 +304,7 @@ pub const DeclSpec = struct {
     thread_local: bool = false,
     @"inline": bool = false,
     @"noreturn": bool = false,
-    type: Type = .{},
+    ty: Type = .{ .specifier = undefined },
 };
 
 /// declSpec: (storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec)+
@@ -316,13 +318,11 @@ pub const DeclSpec = struct {
 /// funcSpec : keyword_inline | keyword_noreturn
 fn declSpec(p: *Parser) Error!?DeclSpec {
     var d = DeclSpec{};
+    var spec = Type.Builder{};
 
-    var any: bool = false;
+    const start = p.tok_i;
     while (true) {
-        if (try p.typeSpec(&d.type)) {
-            any = true;
-            continue;
-        }
+        if (try p.typeSpec(&spec, &d.ty)) continue;
         const tok = p.tokens[p.tok_i];
         switch (tok.id) {
             .keyword_typedef,
@@ -370,24 +370,30 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
             else => break,
         }
         p.tok_i += 1;
-        any = true;
     }
 
-    if (!any) return null;
-    try p.defaultTypeSpec(&d.type);
+    if (p.tok_i == start) return null;
+    try spec.finish(p, &d.ty);
     return d;
 }
 
 const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = 0, k_r_function: bool = false };
 
 /// initDeclarator : declarator ('=' initializer)?
-fn initDeclarator(p: *Parser, base_type: Type) Error!?InitDeclarator {
-    // var res: InitDeclarator
-    const d = (try p.declarator(base_type)) orelse return null;
-    if (p.eatToken(.equal)) |_| {
-        return p.todo("initializer");
+fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
+    var init = InitDeclarator{
+        .d = (try p.declarator(decl_spec.type)) orelse return null,
+    };
+    if (p.eatToken(.equal)) |eq| {
+        if (decl_spec.storage_class == .typedef or
+            decl_spec.type == .function) try p.err(.illegal_initializer);
+        if (decl_spec.storage_class == .@"extern") {
+            try p.err(.extern_initializer);
+            decl_spec.storage_class = .none;
+        }
+        init.initializer = try p.initializer();
     }
-    return InitDeclarator{ .d = d };
+    return init;
 }
 
 /// typeSpec
@@ -408,154 +414,102 @@ fn initDeclarator(p: *Parser, base_type: Type) Error!?InitDeclarator {
 ///  | typedef  // IDENTIFIER
 /// atomicTypeSpec : keyword_atomic '(' typeName ')'
 /// alignSpec : keyword_alignas '(' typeName ')'
-fn typeSpec(p: *Parser, ty: *Type) Error!bool {
-    var any = false;
+fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
+    const start = p.tok_i;
     while (true) {
-        if (try p.typeQual(ty)) {
-            any = true;
-            continue;
-        }
+        if (try p.typeQual(&complete_type)) continue;
         const tok = p.tokens[p.tok_i];
         switch (tok.id) {
-            .keyword_void => {
-                if (ty.specifier != .none) {
-                    return p.cannotCombineSpec(ty.specifier);
-                }
-                ty.specifier = .void;
-            },
-            .keyword_bool => {
-                if (ty.specifier != .none) {
-                    return p.cannotCombineSpec(ty.specifier);
-                }
-                ty.specifier = .bool;
-            },
-            .keyword_char => switch (ty.specifier) {
-                .none => ty.specifier = .char,
-                // .unsigned => ty.specifier = .uchar,
-                // .signed => ty.specifier = .schar,
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
-            .keyword_short => switch (ty.specifier) {
-                .none => ty.specifier = .short,
-                // .signed => ty.specifier = .short,
-                // .unsigned => ty.specifier = .ushort,
-                .ushort, .short => try p.duplicateSpecifier("short"),
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
-            .keyword_int => switch (ty.specifier) {
-                .none => ty.specifier = .int,
-                // .signed => ty.specifier = .int,
-                // .unsigned => ty.specifier = .uint,
-                .ushort,
-                .long,
-                .ulong,
-                .long_long,
-                .ulong_long,
-                => {}, // TODO warn duplicate int specifier
-                .int, .uint => try p.duplicateSpecifier("int"),
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
-            .keyword_long => switch (ty.specifier) {
-                .none => ty.specifier = .long,
-                .long => ty.specifier = .long_long,
-                // .unsigned => ty.specifier = .ulong,
-                // .signed => ty.specifier = .long,
-                .ulong => ty.specifier = .ulong_long,
-                .long_long, .ulong_long => try p.duplicateSpecifier("long"),
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
-            .keyword_signed => switch (ty.specifier) {
-                // .none => ty.specifier = .signed,
-                .char => ty.specifier = .schar,
-                .int,
-                .short,
-                .long,
-                .long_long,
-                => {}, // TODO warn duplicate signed specifier
-                // .schar, .signed => try p.duplicateSpecifier("signed"),
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
-            .keyword_unsigned => switch (ty.specifier) {
-                // .none => ty.specifier = .unsigned,
-                .char => ty.specifier = .uchar,
-                .uint,
-                .ushort,
-                .ulong,
-                .ulong_long,
-                => {}, // TODO warn duplicate unsigned specifier
-                // .uchar, .unsigned => try p.duplicateSpecifier("unsigned"),
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
-            .keyword_float => switch (ty.specifier) {
-                .long_double,
-                .complex_long_double,
-                // .complex_long,
-                .complex_double,
-                .double,
-                => {}, // TODO warn duplicate float
-                .long => ty.specifier = .long_double, // TODO long float is invalid
-                .none => ty.specifier = .float,
-                // .complex => ty.specifier = .complex_float,
-                .complex_float, .float => try p.duplicateSpecifier("float"),
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
-            .keyword_double => switch (ty.specifier) {
-                .long => ty.specifier = .long_double,
-                // .complex_long => ty.specifier = .complex_long_double,
-                // .complex_float, .complex => ty.specifier = .complex_double,
-                .float, .none => ty.specifier = .double,
-                .long_double,
-                .complex_long_double,
-                .complex_double,
-                .double,
-                => try p.duplicateSpecifier("double"),
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
-            .keyword_complex => switch (ty.specifier) {
-                // .long => ty.specifier = .complex_long,
-                .float => ty.specifier = .complex_float,
-                .double => ty.specifier = .complex_double,
-                .long_double => ty.specifier = .complex_long_double,
-                // .none => ty.specifier = .complex,
-                // .complex_long,
-                // .complex,
-                .complex_float,
-                .complex_double,
-                .complex_long_double,
-                => try p.duplicateSpecifier("_Complex"),
-                else => return p.cannotCombineSpec(ty.specifier),
-            },
+            .keyword_void => try ty.combine(.void),
+            .keyword_bool => try ty.combine(.bool),
+            .keyword_char => try ty.combine(.char),
+            .keyword_short => try ty.combine(.short),
+            .keyword_int => try ty.combine(.int),
+            .keyword_long => try ty.combine(.long),
+            .keyword_signed => try ty.combine(.signed),
+            .keyword_unsigned => try ty.combine(.unsigned),
+            .keyword_float => try ty.combine(.float),
+            .keyword_double => try ty.combine(.double),
+            .keyword_complex => try ty.combine(.complex),
             .keyword_atomic => return p.todo("atomic types"),
-            .keyword_enum => return p.todo("enum types"),
-            .keyword_struct => return p.todo("struct types"),
-            .keyword_union => return p.todo("union types"),
+            .keyword_enum => {
+                try ty.combine(.{ .@"enum" = 0 });
+                ty.@"enum" = try p.enumSpec();
+                continue;
+            },
+            .keyword_struct => {
+                try ty.combine(.{ .@"struct" = 0 });
+                ty.@"struct" = try p.recordSpec();
+                continue;
+            },
+            .keyword_union => {
+                try ty.combine(.{ .@"union" = 0 });
+                ty.@"union" = try p.recordSpec();
+                continue;
+            },
             .keyword_alignas => {
-                if (ty.alignment != 0) try p.duplicateSpecifier("alignment");
+                if (complete_type.alignment != 0) try p.duplicateSpecifier("alignment");
                 const l_paren = try p.expectToken(.l_paren);
                 const other_type = (try p.typeName()) orelse {
                     try p.err(.expected_type);
                     return error.ParsingFailed;
                 };
                 try p.expectClosing(l_paren, .r_paren);
-                ty.alignment = other_type.alignment;
+                complete_type.alignment = other_type.alignment;
+            },
+            .identifier => {
+                if (true) break; // TODO check for typdef identifier
+                const typedef_type: Type = undefined;
+                const new_spec = switch (typedef_type.specifier) {
+                    .void => .void,
+                    .bool => .bool,
+                    .char => .char,
+                    .schar => .schar,
+                    .uchar => .uchar,
+                    .short => .short,
+                    .ushort => .ushort,
+                    .int => .int,
+                    .uint => .uint,
+                    .long => .long,
+                    .ulong => .ulong,
+                    .long_long => .long_long,
+                    .ulong_long => .ulong_long,
+                    .float => .float,
+                    .double => .double,
+                    .long_double => .long_double,
+                    .complex_float => .complex_float,
+                    .complex_double => .complex_double,
+                    .complex_long_double => .complex_long_double,
+
+                    .pointer => .{ .pointer = typedef_type.data.sub_type },
+                    .atomic => .{ .atomic = typedef_type.data.sub_type },
+                    .func => .{ .func = typedef_type.data.func },
+                    .array => .{ .array = typedef_type.data.array },
+                    .static_array => .{ .static_array = typedef_type.data.array },
+                    .@"struct" => .{ .@"struct" = typedef_type.data.node },
+                    .@"union" => .{ .@"union" = typedef_type.data.node },
+                    .@"enum" => .{ .@"enum" = typedef_type.data.node },
+                };
+                ty.combine(new_spec) catch |e| switch (e) {
+                    error.OutOfMemory => return e,
+                    error.ParsingFailed, error.FatalError => {
+                        // TODO use typedef decl token
+                        const tok = p.tokens[p.tok_i];
+                        try p.pp.comp.diag.add(.{
+                            .tag = .typedef_is,
+                            .source_id = tok.source,
+                            .loc_start = tok.loc.start,
+                            .extra = .{ .str = new_spec.str() },
+                        });
+                        return e;
+                    },
+                };
             },
             else => break,
         }
         p.tok_i += 1;
-        any = true;
     }
-    return any;
-}
-
-fn cannotCombineSpec(p: *Parser, spec: Type.Specifier) Error {
-    const tok = p.tokens[p.tok_i];
-    try p.pp.comp.diag.add(.{
-        .tag = .cannot_combine_spec,
-        .source_id = tok.source,
-        .loc_start = tok.loc.start,
-        .extra = .{ .str = spec.str() },
-    });
-    return error.ParsingFailed;
+    return p.tok_i != start;
 }
 
 fn duplicateSpecifier(p: *Parser, spec: []const u8) Error!void {
@@ -568,23 +522,12 @@ fn duplicateSpecifier(p: *Parser, spec: []const u8) Error!void {
     });
 }
 
-fn defaultTypeSpec(p: *Parser, ty: *Type) Error!void {
-    switch (ty.specifier) {
-        .none => {
-            ty.specifier = .int;
-            try p.err(.missing_type_specifier);
-        },
-        // .unsigned => ty.specifier = .uint,
-        // .signed => ty.specifier = .int,
-        // .complex_long => ty.specifier = .complex_long_double,
-        // .complex => ty.specifier = .complex_double,
-        else => {},
-    }
-}
 /// recordSpec
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
 fn recordSpec(p: *Parser) Error!NodeIndex {
+    const kind_tok = p.tokens[p.tok_i];
+    p.tok_i += 1;
     return p.todo("recordSpec");
 }
 
@@ -602,9 +545,10 @@ fn recordDeclarator(p: *Parser) Error!NodeIndex {
 
 /// specQual : (typeSpec | typeQual | alignSpec)+
 fn specQual(p: *Parser) Error!?Type {
+    var spec = Type.Builder{};
     var ty = Type{};
-    if (try p.typeSpec(&ty)) {
-        try p.defaultTypeSpec(&ty);
+    if (try p.typeSpec(&spec, &ty)) {
+        try spec.finish(p, &ty);
         return ty;
     }
     return null;
@@ -614,6 +558,8 @@ fn specQual(p: *Parser) Error!?Type {
 ///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
 ///  | keyword_enum IDENTIFIER
 fn enumSpec(p: *Parser) Error!NodeIndex {
+    const enum_tok = p.tokens[p.tok_i];
+    p.tok_i += 1;
     return p.todo("enumSpec");
 }
 
@@ -634,7 +580,7 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
                         .tag = .restrict_non_pointer,
                         .source_id = tok.source,
                         .loc_start = tok.loc.start,
-                        // .extra = .{ .str = ty.specifier.str() },
+                        .extra = .{ .str = ty.specifier.str() },
                     })
                 else if (ty.qual.restrict)
                     try p.duplicateSpecifier("restrict")

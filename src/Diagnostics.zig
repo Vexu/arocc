@@ -73,6 +73,10 @@ pub const Tag = enum {
     expected_ident_or_l_paren,
     missing_declaration,
     func_not_in_root,
+    illegal_initializer,
+    extern_initializer,
+    typedef_is,
+    type_is_invalid,
 };
 
 const Options = struct {
@@ -81,6 +85,7 @@ const Options = struct {
     @"implicit-int": Kind = .warning,
     @"duplicate-decl-specifier": Kind = .warning,
     @"missing-declaration": Kind = .warning,
+    @"extern-initializer": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -222,6 +227,10 @@ pub fn render(comp: *Compilation) void {
             .expected_ident_or_l_paren => m.write("expected identifier or ')'"),
             .missing_declaration => m.write("declaration does not declare anything"),
             .func_not_in_root => m.write("function definition is not allowed here"),
+            .illegal_initializer => m.write("illegal initializer (only variables can be initialized)"),
+            .extern_initializer => m.write("extern variable has initializer"),
+            .typedef_is => m.print("typedef is '{s}'", .{msg.extra.str}),
+            .type_is_invalid => m.print("'{s}' is invalid", .{msg.extra.str}),
         }
         m.end(lcs);
     }
@@ -281,17 +290,21 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .expected_external_decl,
         .expected_ident_or_l_paren,
         .func_not_in_root,
+        .illegal_initializer,
+        .type_is_invalid,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
         .to_match_bracket,
         .header_str_match,
+        .typedef_is,
         => .note,
         .unsupported_pragma => diag.options.@"unsupported-pragma",
         .whitespace_after_macro_name => diag.options.@"c99-extensions",
         .missing_type_specifier => diag.options.@"implicit-int",
         .duplicate_decl_spec => diag.options.@"duplicate-decl-specifier",
         .missing_declaration => diag.options.@"missing-declaration",
+        .extern_initializer => diag.options.@"extern-initializer",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;
