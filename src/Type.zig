@@ -1,4 +1,6 @@
-const NodeIndex = @import("Tree.zig").NodeIndex;
+const print = @import("std").debug.print;
+const Tree = @import("Tree.zig");
+const NodeIndex = Tree.NodeIndex;
 const Parser = @import("Parser.zig");
 
 const Type = @This();
@@ -8,11 +10,22 @@ pub const Qualifiers = packed struct {
     atomic: bool = false,
     @"volatile": bool = false,
     restrict: bool = false,
+
+    pub fn any(quals: Qualifiers) bool {
+        return quals.@"const" or quals.restrict or quals.@"volatile" or quals.atomic;
+    }
+
+    pub fn dump(quals: Qualifiers) void {
+        if (quals.@"const") print(" const", .{});
+        if (quals.atomic) print(" _Atomic", .{});
+        if (quals.@"volatile") print(" volatile", .{});
+        if (quals.restrict) print(" restrict", .{});
+    }
 };
 
 pub const Func = struct {
     return_type: Type,
-    param_types: []Type,
+    param_types: []NodeIndex,
 };
 
 pub const Array = struct {
@@ -50,6 +63,7 @@ pub const Specifier = enum {
     atomic,
     // data.func
     func,
+    var_args_func,
 
     // data.array
     array,
@@ -116,6 +130,7 @@ pub const Builder = union(enum) {
     pointer: *Type,
     atomic: *Type,
     func: *Func,
+    var_args_func: *Func,
     array: *Array,
     static_array: *Array,
     @"struct": NodeIndex,
@@ -166,7 +181,7 @@ pub const Builder = union(enum) {
             // TODO make these more specific?
             .pointer => "pointer",
             .atomic => "atomic",
-            .func => "function",
+            .func, .var_args_func => "function",
             .array, .static_array => "array",
             .@"struct" => "struct",
             .@"union" => "union",
@@ -214,14 +229,23 @@ pub const Builder = union(enum) {
                 return error.ParsingFailed;
             },
 
-            .atomic => return p.todo("atomic types"),
+            .atomic => |data| {
+                ty.specifier = .atomic;
+                ty.data = .{ .sub_type = data };
+                return;
+            },
             .pointer => |data| {
                 ty.specifier = .pointer;
-                ty.data = .{ .pointer = data };
+                ty.data = .{ .sub_type = data };
                 return;
             },
             .func => |data| {
                 ty.specifier = .func;
+                ty.data = .{ .func = data };
+                return;
+            },
+            .var_args_func => |data| {
+                ty.specifier = .var_args_func;
                 ty.data = .{ .func = data };
                 return;
             },
@@ -265,13 +289,13 @@ pub const Builder = union(enum) {
     }
 
     pub fn combine(spec: *Builder, p: *Parser, new: Builder) Parser.Error!void {
-        spec.* = switch (new) {
-            .void, .bool, .@"enum", .@"struct", .@"union", .pointer, .array, .static_array, .func => switch (spec.*) {
-                .none => new,
+        switch (new) {
+            .void, .bool, .@"enum", .@"struct", .@"union", .pointer, .array, .static_array, .func, .var_args_func => switch (spec.*) {
+                .none => spec.* = new,
                 else => return spec.cannotCombine(p),
             },
             .atomic => return p.todo("atomic types"),
-            .signed => switch (spec.*) {
+            .signed => spec.* = switch (spec.*) {
                 .none => .signed,
                 .char => .schar,
                 .short => .sshort,
@@ -288,10 +312,10 @@ pub const Builder = union(enum) {
                 .slong_int,
                 .slong_long,
                 .slong_long_int,
-                => return p.duplicateSpecifier("signed"),
+                => return p.errStr(.duplicate_decl_spec, p.tok_i, "signed"),
                 else => return spec.cannotCombine(p),
             },
-            .unsigned => switch (spec.*) {
+            .unsigned => spec.* = switch (spec.*) {
                 .none => .unsigned,
                 .char => .uchar,
                 .short => .ushort,
@@ -308,23 +332,23 @@ pub const Builder = union(enum) {
                 .ulong_int,
                 .ulong_long,
                 .ulong_long_int,
-                => return p.duplicateSpecifier("unsigned"),
+                => return p.errStr(.duplicate_decl_spec, p.tok_i, "unsigned"),
                 else => return spec.cannotCombine(p),
             },
-            .char => switch (spec.*) {
+            .char => spec.* = switch (spec.*) {
                 .none => .char,
                 .unsigned => .uchar,
                 .signed => .schar,
-                .char, .schar, .uchar => return p.duplicateSpecifier("float"),
+                .char, .schar, .uchar => return p.errStr(.duplicate_decl_spec, p.tok_i, "float"),
                 else => return spec.cannotCombine(p),
             },
-            .short => switch (spec.*) {
+            .short => spec.* = switch (spec.*) {
                 .none => .short,
                 .unsigned => .ushort,
                 .signed => .sshort,
                 else => return spec.cannotCombine(p),
             },
-            .int => switch (spec.*) {
+            .int => spec.* = switch (spec.*) {
                 .none => .int,
                 .signed => .sint,
                 .unsigned => .uint,
@@ -349,10 +373,10 @@ pub const Builder = union(enum) {
                 .long_long_int,
                 .slong_long_int,
                 .ulong_long_int,
-                => return p.duplicateSpecifier("int"),
+                => return p.errStr(.duplicate_decl_spec, p.tok_i, "int"),
                 else => return spec.cannotCombine(p),
             },
-            .long => switch (spec.*) {
+            .long => spec.* = switch (spec.*) {
                 .none => .long,
                 .long => .long_long,
                 .unsigned => .ulong,
@@ -360,16 +384,16 @@ pub const Builder = union(enum) {
                 .int => .long_int,
                 .sint => .slong_int,
                 .ulong => .ulong_long,
-                .long_long, .ulong_long => return p.duplicateSpecifier("long"),
+                .long_long, .ulong_long => return p.errStr(.duplicate_decl_spec, p.tok_i, "long"),
                 else => return spec.cannotCombine(p),
             },
-            .float => switch (spec.*) {
+            .float => spec.* = switch (spec.*) {
                 .none => .float,
                 .complex => .complex_float,
-                .complex_float, .float => return p.duplicateSpecifier("float"),
+                .complex_float, .float => return p.errStr(.duplicate_decl_spec, p.tok_i, "float"),
                 else => return spec.cannotCombine(p),
             },
-            .double => switch (spec.*) {
+            .double => spec.* = switch (spec.*) {
                 .none => .double,
                 .long => .long_double,
                 .complex_long => .complex_long_double,
@@ -378,10 +402,10 @@ pub const Builder = union(enum) {
                 .complex_long_double,
                 .complex_double,
                 .double,
-                => return p.duplicateSpecifier("double"),
+                => return p.errStr(.duplicate_decl_spec, p.tok_i, "double"),
                 else => return spec.cannotCombine(p),
             },
-            .complex => switch (spec.*) {
+            .complex => spec.* = switch (spec.*) {
                 .none => .complex,
                 .long => .complex_long,
                 .float => .complex_float,
@@ -392,11 +416,11 @@ pub const Builder = union(enum) {
                 .complex_float,
                 .complex_double,
                 .complex_long_double,
-                => return p.duplicateSpecifier("_Complex"),
+                => return p.errStr(.duplicate_decl_spec, p.tok_i, "_Complex"),
                 else => return spec.cannotCombine(p),
             },
             else => unreachable,
-        };
+        }
     }
 
     pub fn fromType(ty: Type) Builder {
@@ -424,6 +448,7 @@ pub const Builder = union(enum) {
             .pointer => .{ .pointer = ty.data.sub_type },
             .atomic => .{ .atomic = ty.data.sub_type },
             .func => .{ .func = ty.data.func },
+            .var_args_func => .{ .var_args_func = ty.data.func },
             .array => .{ .array = ty.data.array },
             .static_array => .{ .static_array = ty.data.array },
             .@"struct" => .{ .@"struct" = ty.data.node },
@@ -432,3 +457,48 @@ pub const Builder = union(enum) {
         };
     }
 };
+
+pub fn dump(ty: Type, tree: Tree) void {
+    switch (ty.specifier) {
+        .pointer => {
+            ty.data.sub_type.dump(tree);
+            print("*", .{});
+            ty.qual.dump();
+        },
+        .atomic => {
+            print("_Atomic", .{});
+            ty.data.sub_type.dump(tree);
+            print(")", .{});
+            ty.qual.dump();
+        },
+        .func, .var_args_func => {
+            ty.data.func.return_type.dump(tree);
+            print(" (", .{});
+            for (ty.data.func.param_types) |param, i| {
+                if (i != 0) print(", ", .{});
+                tree.nodes.items(.ty)[param].dump(tree);
+                const name_tok = tree.nodes.items(.first)[param];
+                if (tree.tokens[name_tok].id == .identifier) {
+                    print(" {s}", .{tree.tokSlice(name_tok)});
+                }
+            }
+            if (ty.specifier == .var_args_func) {
+                if (ty.data.func.param_types.len != 0) print(", ", .{});
+                print("...", .{});
+            }
+            print(")", .{});
+            ty.qual.dump();
+        },
+        .array, .static_array => {
+            ty.data.array.elem.dump(tree);
+            print("[{d}", .{ty.data.array.len});
+            ty.qual.dump();
+            if (ty.specifier == .static_array) print(" static", .{});
+            print(")", .{});
+        },
+        else => {
+            print("{s}", .{Builder.fromType(ty).str()});
+            ty.qual.dump();
+        },
+    }
+}

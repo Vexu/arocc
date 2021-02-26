@@ -77,6 +77,13 @@ pub const Tag = enum {
     extern_initializer,
     typedef_is,
     type_is_invalid,
+    param_before_var_args,
+    void_only_param,
+    void_param_qualified,
+    void_must_be_first_param,
+    invalid_storage_on_param,
+    threadlocal_non_var,
+    func_spec_non_func,
 };
 
 const Options = struct {
@@ -231,6 +238,13 @@ pub fn render(comp: *Compilation) void {
             .extern_initializer => m.write("extern variable has initializer"),
             .typedef_is => m.print("typedef is '{s}'", .{msg.extra.str}),
             .type_is_invalid => m.print("'{s}' is invalid", .{msg.extra.str}),
+            .param_before_var_args => m.write("ISO C requires a named parameter before '...'"),
+            .void_only_param => m.write("'void' must be the only parameter if specified"),
+            .void_param_qualified => m.write("'void' parameter cannot be qualified"),
+            .void_must_be_first_param => m.write("'void' must be the first parameter if specified"),
+            .invalid_storage_on_param => m.write("invalid storage class on function parameter"),
+            .threadlocal_non_var => m.write("_Thread_local only allowed on variables"),
+            .func_spec_non_func => m.print("'{s}' can only appear on functions", .{msg.extra.str}),
         }
         m.end(lcs);
     }
@@ -292,6 +306,13 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .func_not_in_root,
         .illegal_initializer,
         .type_is_invalid,
+        .param_before_var_args,
+        .void_only_param,
+        .void_param_qualified,
+        .void_must_be_first_param,
+        .invalid_storage_on_param,
+        .threadlocal_non_var,
+        .func_spec_non_func,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

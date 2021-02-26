@@ -1,4 +1,5 @@
 const std = @import("std");
+const print = std.debug.print;
 const Type = @import("Type.zig");
 const Token = @import("Tokenizer.zig").Token;
 const Compilation = @import("Compilation.zig");
@@ -9,23 +10,25 @@ pub const TokenIndex = u32;
 pub const NodeIndex = u32;
 
 comp: *Compilation,
+arena: std.heap.ArenaAllocator,
 generated: []const u8,
 tokens: []const Token,
-nodes: []const Node,
+nodes: Node.List.Slice,
 root_decls: []const NodeIndex,
 
-pub fn deinit(tree: Tree) void {
-    tree.comp.gpa.free(tree.nodes);
+pub fn deinit(tree: *Tree) void {
     tree.comp.gpa.free(tree.root_decls);
+    tree.nodes.deinit(tree.comp.gpa);
+    tree.arena.deinit();
 }
 
 /// A generic struct capable of represening all Decl, Stmt and Expr.
 pub const Node = struct {
     tag: Tag,
     ty: Type,
-    first: NodeIndex,
-    second: NodeIndex,
-    third: NodeIndex,
+    first: NodeIndex = 0,
+    second: NodeIndex = 0,
+    third: NodeIndex = 0,
 };
 
 pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
@@ -72,6 +75,10 @@ pub const Tag = enum(u8) {
     noreturn_inline_fn_def,
     noreturn_inline_extern_fn_def,
     noreturn_inline_static_fn_def,
+
+    // a parameter
+    param_decl,
+    register_param_decl,
 
     // variable declaration
     @"var",
@@ -299,6 +306,8 @@ pub const Tag = enum(u8) {
             .inline_static_fn_def,
             => Decl.FnDef,
 
+            .param_decl, .register_param_decl => Decl.Param,
+
             .@"var",
             .auto_var,
             .extern_var,
@@ -395,6 +404,12 @@ pub const Decl = struct {
         },
         is_inline: bool,
         body: NodeIndex,
+    };
+
+    pub const Param = struct {
+        // identifier or first token after declSpec
+        name_tok,
+        ty: Type,
     };
 
     pub const Var = struct {
@@ -519,3 +534,15 @@ pub const Expr = struct {
         @"else": NodeIndex,
     };
 };
+
+pub fn dump(tree: Tree) void {
+    for (tree.root_decls) |i| {
+        tree.dumpDecl(i, 0);
+    }
+}
+
+fn dumpDecl(tree: Tree, node: NodeIndex, level: u32) void {
+    print("{s: >[1]} ", .{ @tagName(tree.nodes.items(.tag)[node]), level });
+    tree.nodes.items(.ty)[node].dump(tree);
+    print("\n", .{});
+}

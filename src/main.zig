@@ -158,6 +158,8 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
 
         comp.renderErrors();
         comp.diag.list.items.len = 0;
+
+        tree.dump();
     }
 }
 
