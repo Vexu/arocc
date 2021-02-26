@@ -29,6 +29,8 @@ pub const Node = struct {
     first: NodeIndex = 0,
     second: NodeIndex = 0,
     third: NodeIndex = 0,
+
+    pub const List = std.MultiArrayList(Node);
 };
 
 pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
@@ -50,30 +52,22 @@ pub const Tag = enum(u8) {
 
     // function prototype
     fn_proto,
-    extern_fn_proto,
     static_fn_proto,
     inline_fn_proto,
-    inline_extern_fn_proto,
     inline_static_fn_proto,
     noreturn_fn_proto,
-    noreturn_extern_fn_proto,
     noreturn_static_fn_proto,
     noreturn_inline_fn_proto,
-    noreturn_inline_extern_fn_proto,
     noreturn_inline_static_fn_proto,
 
     // function definition
     fn_def,
-    extern_fn_def,
     static_fn_def,
     inline_fn_def,
-    inline_extern_fn_def,
     inline_static_fn_def,
     noreturn_fn_def,
-    noreturn_extern_fn_def,
     noreturn_static_fn_def,
     noreturn_inline_fn_def,
-    noreturn_inline_extern_fn_def,
     noreturn_inline_static_fn_def,
 
     // a parameter
@@ -82,18 +76,15 @@ pub const Tag = enum(u8) {
 
     // variable declaration
     @"var",
-    auto_var,
     extern_var,
     static_var,
     register_var,
     threadlocal_var,
-    threadlocal_auto_var,
     threadlocal_extern_var,
     threadlocal_static_var,
-    threadlocal_register_var,
 
-    // typdef declaration
-    typdef,
+    // typedef declaration
+    typedef,
 
     // container type forward declarations
     struct_forward,
@@ -385,11 +376,7 @@ pub const Decl = struct {
     pub const FnProto = struct {
         name: []const u8,
         ty: Type,
-        storage_class: enum {
-            none,
-            static,
-            @"extern",
-        },
+        is_static: bool,
         is_inline: bool,
         definition: ?*FnDef,
     };
@@ -397,11 +384,7 @@ pub const Decl = struct {
     pub const FnDef = struct {
         name: []const u8,
         ty: Type,
-        storage_class: enum {
-            none,
-            static,
-            @"extern",
-        },
+        is_static: bool,
         is_inline: bool,
         body: NodeIndex,
     };
@@ -417,7 +400,6 @@ pub const Decl = struct {
         ty: Type,
         storage_class: enum {
             none,
-            auto,
             static,
             @"extern",
             register,

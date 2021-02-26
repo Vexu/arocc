@@ -145,7 +145,7 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
 /// root : (decl | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     var root_decls = NodeList.init(pp.comp.gpa);
-    errdefer root_decls.deinit();
+    defer root_decls.deinit();
     var arena = std.heap.ArenaAllocator.init(pp.comp.gpa);
     errdefer arena.deinit();
     var p = Parser{
@@ -248,7 +248,7 @@ fn decl(p: *Parser) Error!bool {
         try spec.finish(p, &d.ty);
         break :blk d;
     };
-    const first = (try p.initDeclarator(&decl_spec, true)) orelse {
+    var init_d = (try p.initDeclarator(&decl_spec, true)) orelse {
         // TODO return if enum struct or union
         try p.errTok(.missing_declaration, first_tok);
         _ = try p.expectToken(.semicolon);
@@ -256,31 +256,42 @@ fn decl(p: *Parser) Error!bool {
     };
 
     // Check for function definition.
-    if (first.d.func_declarator and first.initializer == 0 and
-        (p.tokens[p.tok_i].id == .l_brace or first.d.old_style_func))
+    if (init_d.d.func_declarator and init_d.initializer == 0 and
+        (p.tokens[p.tok_i].id == .l_brace or init_d.d.old_style_func))
     {
-        if (!p.in_function) try p.err(.func_not_in_root);
+        if (p.in_function) try p.err(.func_not_in_root);
 
         const in_function = p.in_function;
         p.in_function = true;
         defer p.in_function = in_function;
 
+        // we know foo() {} is not var args
+        if (init_d.d.ty.specifier == .var_args_func and init_d.d.ty.data.func.param_types.len == 0)
+            init_d.d.ty.specifier = .func;
+
         const body = try p.compoundStmt();
-        // TODO
+        const node = try p.addNode(.{
+            .ty = init_d.d.ty,
+            .tag = try decl_spec.validateFnDef(p),
+            .first = init_d.d.name,
+            .second = body.?,
+        });
+        try p.cur_decl_list.append(node);
         return true;
     }
 
-    // TODO correct
-    const node = try p.addNode(.{
-        .ty = first.d.ty,
-        .tag = .fn_proto,
-        .first = first.d.name,
-    });
-    try p.cur_decl_list.append(node);
+    while (true) {
+        const node = try p.addNode(.{
+            .ty = init_d.d.ty,
+            .tag = try decl_spec.validate(p, init_d.d.ty, init_d.initializer != 0),
+            .first = init_d.d.name,
+        });
+        try p.cur_decl_list.append(node);
+        if (p.eatToken(.comma) == null) break;
 
-    while (p.eatToken(.comma)) |_| {
-        _ = (try p.initDeclarator(&decl_spec, false)) orelse {
+        init_d = (try p.initDeclarator(&decl_spec, false)) orelse {
             try p.err(.expected_ident_or_l_paren);
+            continue;
         };
     }
     _ = try p.expectToken(.semicolon);
@@ -340,6 +351,74 @@ pub const DeclSpec = struct {
         }
         return if (d.storage_class == .register) .register_param_decl else .param_decl;
     }
+
+    fn validateFnDef(d: DeclSpec, p: *Parser) Error!Tree.Tag {
+        switch (d.storage_class) {
+            .none, .@"extern", .static => {},
+            .auto, .register, .typedef => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
+        }
+        if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
+
+        const is_static = d.storage_class == .static;
+        const is_inline = d.@"inline" != null;
+        const is_noreturn = d.@"noreturn" != null;
+        if (is_static) {
+            if (is_inline and is_noreturn) return .noreturn_inline_static_fn_def;
+            if (is_inline) return .inline_static_fn_def;
+            if (is_noreturn) return .noreturn_static_fn_def;
+            return .static_fn_def;
+        } else {
+            if (is_inline and is_noreturn) return .noreturn_inline_fn_def;
+            if (is_inline) return .inline_fn_def;
+            if (is_noreturn) return .noreturn_fn_def;
+            return .fn_def;
+        }
+    }
+
+    fn validate(d: DeclSpec, p: *Parser, ty: Type, has_init: bool) Error!Tree.Tag {
+        const is_static = d.storage_class == .static;
+        if ((ty.specifier == .func or ty.specifier == .var_args_func) and d.storage_class != .typedef) {
+            switch (d.storage_class) {
+                .none, .@"extern", .static => {},
+                .typedef => unreachable,
+                .auto, .register => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
+            }
+            if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
+
+            const is_inline = d.@"inline" != null;
+            const is_noreturn = d.@"noreturn" != null;
+            if (is_static) {
+                if (is_inline and is_noreturn) return .noreturn_inline_static_fn_proto;
+                if (is_inline) return .inline_static_fn_proto;
+                if (is_noreturn) return .noreturn_static_fn_proto;
+                return .static_fn_proto;
+            } else {
+                if (is_inline and is_noreturn) return .noreturn_inline_fn_proto;
+                if (is_inline) return .inline_fn_proto;
+                if (is_noreturn) return .noreturn_fn_proto;
+                return .fn_proto;
+            }
+        } else {
+            if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
+            if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
+            switch (d.storage_class) {
+                .auto, .register => if (!p.in_function) try p.err(.illegal_storage_on_global),
+                .typedef => return .typedef,
+                else => {},
+            }
+
+            const is_extern = d.storage_class == .@"extern" and !has_init;
+            if (d.thread_local != null) {
+                if (is_static) return .threadlocal_static_var;
+                if (is_extern) return .threadlocal_extern_var;
+                return .threadlocal_var;
+            } else {
+                if (is_static) return .static_var;
+                if (is_extern) return .extern_var;
+                return .@"var";
+            }
+        }
+    }
 };
 
 /// declSpec: (storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec)+
@@ -370,6 +449,15 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                     try p.errStr(.multiple_storage_class, p.tok_i, @tagName(d.storage_class));
                     return error.ParsingFailed;
                 }
+                if (d.thread_local != null) {
+                    switch (tok.id) {
+                        .keyword_typedef,
+                        .keyword_auto,
+                        .keyword_register,
+                        => try p.errStr(.cannot_combine_spec, p.tok_i, tok.id.lexeme().?),
+                        else => {},
+                    }
+                }
                 switch (tok.id) {
                     .keyword_typedef => d.storage_class = .{ .typedef = p.tok_i },
                     .keyword_extern => d.storage_class = .{ .@"extern" = p.tok_i },
@@ -382,6 +470,10 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
             .keyword_thread_local => {
                 if (d.thread_local != null) {
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "_Thread_local");
+                }
+                switch (d.storage_class) {
+                    .@"extern", .none, .static => {},
+                    else => try p.errStr(.cannot_combine_spec, p.tok_i, @tagName(d.storage_class)),
                 }
                 d.thread_local = p.tok_i;
             },
@@ -737,7 +829,7 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
             break :blk some.ty;
         } else param_decl_spec.ty;
 
-        if (param_ty.specifier == .func) {
+        if (param_ty.specifier == .func or param_ty.specifier == .var_args_func) {
             // params declared as functions are converted to function pointers
             const elem_ty = try p.arena.create(Type);
             elem_ty.* = param_ty;
@@ -841,7 +933,9 @@ fn designator(p: *Parser) Error!NodeIndex {
 ///  | keyword_return expr? ';'
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!NodeIndex {
-    return p.todo("stmt");
+    if (try p.compoundStmt()) |some| return some;
+    try p.err(.expected_stmt);
+    return error.ParsingFailed;
 }
 
 /// labeledStmt
@@ -853,8 +947,99 @@ fn labeledStmt(p: *Parser) Error!NodeIndex {
 }
 
 /// compoundStmt : '{' ( decl| staticAssert | stmt)* '}'
-fn compoundStmt(p: *Parser) Error!NodeIndex {
-    return p.todo("compoundStmt");
+fn compoundStmt(p: *Parser) Error!?NodeIndex {
+    _ = p.eatToken(.l_brace) orelse return null;
+    var statements = NodeList.init(p.pp.comp.gpa);
+    defer statements.deinit();
+
+    const saved_decls = p.cur_decl_list;
+    defer p.cur_decl_list = saved_decls;
+    p.cur_decl_list = &statements;
+
+    while (p.eatToken(.r_brace) == null) {
+        if (p.staticAssert() catch |er| switch (er) {
+            error.ParsingFailed => {
+                p.nextStmt();
+                continue;
+            },
+            else => |e| return e,
+        }) continue;
+        if (p.decl() catch |er| switch (er) {
+            error.ParsingFailed => {
+                p.nextStmt();
+                continue;
+            },
+            else => |e| return e,
+        }) continue;
+        const s = p.stmt() catch |er| switch (er) {
+            error.ParsingFailed => {
+                p.nextStmt();
+                continue;
+            },
+            else => |e| return e,
+        };
+        try statements.append(s);
+    }
+
+    return try p.addNode(.{
+        .tag = .compound_stmt,
+        .ty = .{ .specifier = .void },
+        // TODO list
+    });
+}
+
+fn nextStmt(p: *Parser) void {
+    var parens: u32 = 0;
+    while (p.tok_i < p.tokens.len) : (p.tok_i += 1) {
+        switch (p.tokens[p.tok_i].id) {
+            .l_paren, .l_brace, .l_bracket => parens += 1,
+            .r_paren, .r_bracket => if (parens != 0) {
+                parens -= 1;
+            },
+            .r_brace => if (parens == 0)
+                break
+            else {
+                parens -= 1;
+            },
+            .keyword_for,
+            .keyword_while,
+            .keyword_do,
+            .keyword_if,
+            .keyword_goto,
+            .keyword_switch,
+            .keyword_continue,
+            .keyword_break,
+            .keyword_return,
+            .keyword_typedef,
+            .keyword_extern,
+            .keyword_static,
+            .keyword_auto,
+            .keyword_register,
+            .keyword_thread_local,
+            .keyword_inline,
+            .keyword_noreturn,
+            .keyword_void,
+            .keyword_bool,
+            .keyword_char,
+            .keyword_short,
+            .keyword_int,
+            .keyword_long,
+            .keyword_signed,
+            .keyword_unsigned,
+            .keyword_float,
+            .keyword_double,
+            .keyword_complex,
+            .keyword_atomic,
+            .keyword_enum,
+            .keyword_struct,
+            .keyword_union,
+            .keyword_alignas,
+            .identifier,
+            => if (parens == 0) return,
+            else => {},
+        }
+    }
+    p.tok_i -= 1; // so that we can consume the eof token elsewhere
 }
 
 // ====== expressions ======

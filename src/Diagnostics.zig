@@ -84,6 +84,9 @@ pub const Tag = enum {
     invalid_storage_on_param,
     threadlocal_non_var,
     func_spec_non_func,
+    illegal_storage_on_func,
+    illegal_storage_on_global,
+    expected_stmt,
 };
 
 const Options = struct {
@@ -245,6 +248,9 @@ pub fn render(comp: *Compilation) void {
             .invalid_storage_on_param => m.write("invalid storage class on function parameter"),
             .threadlocal_non_var => m.write("_Thread_local only allowed on variables"),
             .func_spec_non_func => m.print("'{s}' can only appear on functions", .{msg.extra.str}),
+            .illegal_storage_on_func => m.write("illegal storage class on function"),
+            .illegal_storage_on_global => m.write("illegal storage class on global variable"),
+            .expected_stmt => m.write("expected statement"),
         }
         m.end(lcs);
     }
@@ -313,6 +319,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .invalid_storage_on_param,
         .threadlocal_non_var,
         .func_spec_non_func,
+        .illegal_storage_on_func,
+        .illegal_storage_on_global,
+        .expected_stmt,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
