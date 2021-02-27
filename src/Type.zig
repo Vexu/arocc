@@ -1,5 +1,6 @@
 const print = @import("std").debug.print;
 const Tree = @import("Tree.zig");
+const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
 const Parser = @import("Parser.zig");
 
@@ -85,112 +86,134 @@ alignment: u32 = 0,
 specifier: Specifier,
 qual: Qualifiers = .{},
 
-/// An unfinished Type
-pub const Builder = union(enum) {
-    none,
-    void,
-    bool,
-    char,
-    schar,
-    uchar,
-
-    unsigned,
-    signed,
-    short,
-    sshort,
-    ushort,
-    short_int,
-    sshort_int,
-    ushort_int,
-    int,
-    sint,
-    uint,
-    long,
-    slong,
-    ulong,
-    long_int,
-    slong_int,
-    ulong_int,
-    long_long,
-    slong_long,
-    ulong_long,
-    long_long_int,
-    slong_long_int,
-    ulong_long_int,
-
-    float,
-    double,
-    long_double,
-    complex,
-    complex_long,
-    complex_float,
-    complex_double,
-    complex_long_double,
-
-    pointer: *Type,
-    atomic: *Type,
-    func: *Func,
-    var_args_func: *Func,
-    array: *Array,
-    static_array: *Array,
-    @"struct": NodeIndex,
-    @"union": NodeIndex,
-    @"enum": NodeIndex,
-
-    pub fn str(spec: Builder) []const u8 {
-        return switch (spec) {
-            .none => unreachable,
-            .void => "void",
-            .bool => "_Bool",
-            .char => "char",
-            .schar => "signed char",
-            .uchar => "unsigned char",
-            .unsigned => "unsigned",
-            .signed => "signed",
-            .short => "short",
-            .ushort => "unsigned short",
-            .sshort => "signed short",
-            .short_int => "short int",
-            .sshort_int => "signed short int",
-            .ushort_int => "unsigned short int",
-            .int => "int",
-            .sint => "signed int",
-            .uint => "unsigned int",
-            .long => "long",
-            .slong => "signed long",
-            .ulong => "unsigned long",
-            .long_int => "long int",
-            .slong_int => "signed long int",
-            .ulong_int => "unsigned long int",
-            .long_long => "long long",
-            .slong_long => "signed long long",
-            .ulong_long => "unsigned long long",
-            .long_long_int => "long long int",
-            .slong_long_int => "signed long long int",
-            .ulong_long_int => "unsigned long long int",
-
-            .float => "float",
-            .double => "double",
-            .long_double => "long double",
-            .complex => "_Complex",
-            .complex_long => "_Complex long",
-            .complex_float => "_Complex float",
-            .complex_double => "_Complex double",
-            .complex_long_double => "_Complex long double",
-
-            // TODO make these more specific?
-            .pointer => "pointer",
-            .atomic => "atomic",
-            .func, .var_args_func => "function",
-            .array, .static_array => "array",
-            .@"struct" => "struct",
-            .@"union" => "union",
-            .@"enum" => "enum",
-        };
+pub fn combine(inner: Type, outer: Type, p: *Parser) !Type {
+    switch (inner.specifier) {
+        .pointer => {
+            // TODO only works for int (*)() to *int ()
+            var res = inner;
+            res.data.sub_type.* = outer;
+            return res;
+        },
+        .array, .static_array => return p.todo("combine array"),
+        .func, .var_args_func => return p.todo("combine func"),
+        else => return outer,
     }
+}
+
+/// An unfinished Type
+pub const Builder = struct {
+    typedef: ?struct {
+        tok: TokenIndex,
+        spec: []const u8,
+    } = null,
+    kind: Kind = .none,
+
+    pub const Kind = union(enum) {
+        none,
+        void,
+        bool,
+        char,
+        schar,
+        uchar,
+
+        unsigned,
+        signed,
+        short,
+        sshort,
+        ushort,
+        short_int,
+        sshort_int,
+        ushort_int,
+        int,
+        sint,
+        uint,
+        long,
+        slong,
+        ulong,
+        long_int,
+        slong_int,
+        ulong_int,
+        long_long,
+        slong_long,
+        ulong_long,
+        long_long_int,
+        slong_long_int,
+        ulong_long_int,
+
+        float,
+        double,
+        long_double,
+        complex,
+        complex_long,
+        complex_float,
+        complex_double,
+        complex_long_double,
+
+        pointer: *Type,
+        atomic: *Type,
+        func: *Func,
+        var_args_func: *Func,
+        array: *Array,
+        static_array: *Array,
+        @"struct": NodeIndex,
+        @"union": NodeIndex,
+        @"enum": NodeIndex,
+
+        pub fn str(spec: Kind) []const u8 {
+            return switch (spec) {
+                .none => unreachable,
+                .void => "void",
+                .bool => "_Bool",
+                .char => "char",
+                .schar => "signed char",
+                .uchar => "unsigned char",
+                .unsigned => "unsigned",
+                .signed => "signed",
+                .short => "short",
+                .ushort => "unsigned short",
+                .sshort => "signed short",
+                .short_int => "short int",
+                .sshort_int => "signed short int",
+                .ushort_int => "unsigned short int",
+                .int => "int",
+                .sint => "signed int",
+                .uint => "unsigned int",
+                .long => "long",
+                .slong => "signed long",
+                .ulong => "unsigned long",
+                .long_int => "long int",
+                .slong_int => "signed long int",
+                .ulong_int => "unsigned long int",
+                .long_long => "long long",
+                .slong_long => "signed long long",
+                .ulong_long => "unsigned long long",
+                .long_long_int => "long long int",
+                .slong_long_int => "signed long long int",
+                .ulong_long_int => "unsigned long long int",
+
+                .float => "float",
+                .double => "double",
+                .long_double => "long double",
+                .complex => "_Complex",
+                .complex_long => "_Complex long",
+                .complex_float => "_Complex float",
+                .complex_double => "_Complex double",
+                .complex_long_double => "_Complex long double",
+
+                // TODO make these more specific?
+                .pointer => "pointer",
+                .atomic => "atomic",
+                .func, .var_args_func => "function",
+                .array, .static_array => "array",
+                .@"struct" => "struct",
+                .@"union" => "union",
+                .@"enum" => "enum",
+            };
+        }
+    };
 
     pub fn finish(spec: Builder, p: *Parser, ty: *Type) Parser.Error!void {
-        ty.specifier = switch (spec) {
+        ty.specifier = switch (spec.kind) {
             .none => {
                 ty.specifier = .int;
                 return p.err(.missing_type_specifier);
@@ -224,7 +247,7 @@ pub const Builder = union(enum) {
                     .tag = .type_is_invalid,
                     .source_id = tok.source,
                     .loc_start = tok.loc.start,
-                    .extra = .{ .str = spec.str() },
+                    .extra = .{ .str = spec.kind.str() },
                 });
                 return error.ParsingFailed;
             },
@@ -277,25 +300,26 @@ pub const Builder = union(enum) {
         };
     }
 
-    pub fn cannotCombine(spec: *Builder, p: *Parser) Parser.Error {
+    pub fn cannotCombine(spec: Builder, p: *Parser) Parser.Error {
         const tok = p.tokens[p.tok_i];
         try p.pp.comp.diag.add(.{
             .tag = .cannot_combine_spec,
             .source_id = tok.source,
             .loc_start = tok.loc.start,
-            .extra = .{ .str = spec.str() },
+            .extra = .{ .str = spec.kind.str() },
         });
+        if (spec.typedef) |some| try p.errStr(.sepc_from_typedef, some.tok, some.spec);
         return error.ParsingFailed;
     }
 
-    pub fn combine(spec: *Builder, p: *Parser, new: Builder) Parser.Error!void {
+    pub fn combine(spec: *Builder, p: *Parser, new: Kind) Parser.Error!void {
         switch (new) {
-            .void, .bool, .@"enum", .@"struct", .@"union", .pointer, .array, .static_array, .func, .var_args_func => switch (spec.*) {
-                .none => spec.* = new,
+            .void, .bool, .@"enum", .@"struct", .@"union", .pointer, .array, .static_array, .func, .var_args_func => switch (spec.kind) {
+                .none => spec.kind = new,
                 else => return spec.cannotCombine(p),
             },
             .atomic => return p.todo("atomic types"),
-            .signed => spec.* = switch (spec.*) {
+            .signed => spec.kind = switch (spec.kind) {
                 .none => .signed,
                 .char => .schar,
                 .short => .sshort,
@@ -315,7 +339,7 @@ pub const Builder = union(enum) {
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "signed"),
                 else => return spec.cannotCombine(p),
             },
-            .unsigned => spec.* = switch (spec.*) {
+            .unsigned => spec.kind = switch (spec.kind) {
                 .none => .unsigned,
                 .char => .uchar,
                 .short => .ushort,
@@ -335,20 +359,20 @@ pub const Builder = union(enum) {
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "unsigned"),
                 else => return spec.cannotCombine(p),
             },
-            .char => spec.* = switch (spec.*) {
+            .char => spec.kind = switch (spec.kind) {
                 .none => .char,
                 .unsigned => .uchar,
                 .signed => .schar,
                 .char, .schar, .uchar => return p.errStr(.duplicate_decl_spec, p.tok_i, "float"),
                 else => return spec.cannotCombine(p),
             },
-            .short => spec.* = switch (spec.*) {
+            .short => spec.kind = switch (spec.kind) {
                 .none => .short,
                 .unsigned => .ushort,
                 .signed => .sshort,
                 else => return spec.cannotCombine(p),
             },
-            .int => spec.* = switch (spec.*) {
+            .int => spec.kind = switch (spec.kind) {
                 .none => .int,
                 .signed => .sint,
                 .unsigned => .uint,
@@ -376,7 +400,7 @@ pub const Builder = union(enum) {
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "int"),
                 else => return spec.cannotCombine(p),
             },
-            .long => spec.* = switch (spec.*) {
+            .long => spec.kind = switch (spec.kind) {
                 .none => .long,
                 .long => .long_long,
                 .unsigned => .ulong,
@@ -387,13 +411,13 @@ pub const Builder = union(enum) {
                 .long_long, .ulong_long => return p.errStr(.duplicate_decl_spec, p.tok_i, "long"),
                 else => return spec.cannotCombine(p),
             },
-            .float => spec.* = switch (spec.*) {
+            .float => spec.kind = switch (spec.kind) {
                 .none => .float,
                 .complex => .complex_float,
                 .complex_float, .float => return p.errStr(.duplicate_decl_spec, p.tok_i, "float"),
                 else => return spec.cannotCombine(p),
             },
-            .double => spec.* = switch (spec.*) {
+            .double => spec.kind = switch (spec.kind) {
                 .none => .double,
                 .long => .long_double,
                 .complex_long => .complex_long_double,
@@ -405,7 +429,7 @@ pub const Builder = union(enum) {
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "double"),
                 else => return spec.cannotCombine(p),
             },
-            .complex => spec.* = switch (spec.*) {
+            .complex => spec.kind = switch (spec.kind) {
                 .none => .complex,
                 .long => .complex_long,
                 .float => .complex_float,
@@ -423,7 +447,7 @@ pub const Builder = union(enum) {
         }
     }
 
-    pub fn fromType(ty: Type) Builder {
+    pub fn fromType(ty: Type) Kind {
         return switch (ty.specifier) {
             .void => .void,
             .bool => .bool,

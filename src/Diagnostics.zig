@@ -75,7 +75,7 @@ pub const Tag = enum {
     func_not_in_root,
     illegal_initializer,
     extern_initializer,
-    typedef_is,
+    sepc_from_typedef,
     type_is_invalid,
     param_before_var_args,
     void_only_param,
@@ -87,6 +87,8 @@ pub const Tag = enum {
     illegal_storage_on_func,
     illegal_storage_on_global,
     expected_stmt,
+    func_cannot_return_func,
+    func_cannot_return_array,
 };
 
 const Options = struct {
@@ -239,7 +241,7 @@ pub fn render(comp: *Compilation) void {
             .func_not_in_root => m.write("function definition is not allowed here"),
             .illegal_initializer => m.write("illegal initializer (only variables can be initialized)"),
             .extern_initializer => m.write("extern variable has initializer"),
-            .typedef_is => m.print("typedef is '{s}'", .{msg.extra.str}),
+            .sepc_from_typedef => m.print("'{s}' came from typedef", .{msg.extra.str}),
             .type_is_invalid => m.print("'{s}' is invalid", .{msg.extra.str}),
             .param_before_var_args => m.write("ISO C requires a named parameter before '...'"),
             .void_only_param => m.write("'void' must be the only parameter if specified"),
@@ -251,6 +253,8 @@ pub fn render(comp: *Compilation) void {
             .illegal_storage_on_func => m.write("illegal storage class on function"),
             .illegal_storage_on_global => m.write("illegal storage class on global variable"),
             .expected_stmt => m.write("expected statement"),
+            .func_cannot_return_func => m.write("function cannot return a function"),
+            .func_cannot_return_array => m.write("function cannot return an array"),
         }
         m.end(lcs);
     }
@@ -322,12 +326,14 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .illegal_storage_on_func,
         .illegal_storage_on_global,
         .expected_stmt,
+        .func_cannot_return_func,
+        .func_cannot_return_array,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
         .to_match_bracket,
         .header_str_match,
-        .typedef_is,
+        .sepc_from_typedef,
         => .note,
         .unsupported_pragma => diag.options.@"unsupported-pragma",
         .whitespace_after_macro_name => diag.options.@"c99-extensions",

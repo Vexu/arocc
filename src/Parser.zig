@@ -44,11 +44,28 @@ pub const Result = union(enum) {
     }
 };
 
+const Scope = union(enum) {
+    typedef: Symbol,
+    @"struct": Symbol,
+    @"union": Symbol,
+    @"enum": Symbol,
+    symbol: Symbol,
+    loop,
+    @"switch",
+
+    const Symbol = struct {
+        name: []const u8,
+        node: NodeIndex,
+        name_tok: TokenIndex,
+    };
+};
+
 pub const Error = Compilation.Error || error{ParsingFailed};
 
 pp: *Preprocessor,
 arena: *Allocator,
 nodes: Tree.Node.List = .{},
+scopes: std.ArrayList(Scope),
 tokens: []const Token,
 tok_i: TokenIndex = 0,
 want_const: bool = false,
@@ -142,6 +159,20 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     return @intCast(u32, res);
 }
 
+fn findTypedef(p: *Parser, name: []const u8) ?Scope.Symbol {
+    var i = p.scopes.items.len;
+    while (i > 0) {
+        i -= 1;
+        switch (p.scopes.items[i]) {
+            .typedef => |t| {
+                if (mem.eql(u8, t.name, name)) return t;
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+
 /// root : (decl | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     var root_decls = NodeList.init(pp.comp.gpa);
@@ -153,7 +184,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .arena = &arena.allocator,
         .tokens = pp.tokens.items,
         .cur_decl_list = &root_decls,
+        .scopes = std.ArrayList(Scope).init(pp.comp.gpa),
     };
+    defer p.scopes.deinit();
     errdefer p.nodes.deinit(pp.comp.gpa);
 
     // NodeIndex 0 must be invalid
@@ -244,7 +277,7 @@ fn decl(p: *Parser) Error!bool {
             else => return false,
         }
         var d: DeclSpec = .{};
-        var spec: Type.Builder = .none;
+        var spec: Type.Builder = .{};
         try spec.finish(p, &d.ty);
         break :blk d;
     };
@@ -269,13 +302,18 @@ fn decl(p: *Parser) Error!bool {
         if (init_d.d.ty.specifier == .var_args_func and init_d.d.ty.data.func.param_types.len == 0)
             init_d.d.ty.specifier = .func;
 
-        const body = try p.compoundStmt();
         const node = try p.addNode(.{
             .ty = init_d.d.ty,
             .tag = try decl_spec.validateFnDef(p),
             .first = init_d.d.name,
-            .second = body.?,
         });
+        try p.scopes.append(.{ .symbol = .{
+            .name = p.pp.tokSlice(p.tokens[init_d.d.name]),
+            .node = node,
+            .name_tok = init_d.d.name,
+        } });
+
+        p.nodes.items(.second)[node] = (try p.compoundStmt()).?;
         try p.cur_decl_list.append(node);
         return true;
     }
@@ -287,6 +325,20 @@ fn decl(p: *Parser) Error!bool {
             .first = init_d.d.name,
         });
         try p.cur_decl_list.append(node);
+        if (decl_spec.storage_class == .typedef) {
+            try p.scopes.append(.{ .typedef = .{
+                .name = p.pp.tokSlice(p.tokens[init_d.d.name]),
+                .node = node,
+                .name_tok = init_d.d.name,
+            } });
+        } else {
+            try p.scopes.append(.{ .symbol = .{
+                .name = p.pp.tokSlice(p.tokens[init_d.d.name]),
+                .node = node,
+                .name_tok = init_d.d.name,
+            } });
+        }
+
         if (p.eatToken(.comma) == null) break;
 
         init_d = (try p.initDeclarator(&decl_spec, false)) orelse {
@@ -432,7 +484,7 @@ pub const DeclSpec = struct {
 /// funcSpec : keyword_inline | keyword_noreturn
 fn declSpec(p: *Parser) Error!?DeclSpec {
     var d: DeclSpec = .{};
-    var spec: Type.Builder = .none;
+    var spec: Type.Builder = .{};
 
     const start = p.tok_i;
     while (true) {
@@ -556,17 +608,17 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
             .keyword_atomic => return p.todo("atomic types"),
             .keyword_enum => {
                 try ty.combine(p, .{ .@"enum" = 0 });
-                ty.@"enum" = try p.enumSpec();
+                ty.kind.@"enum" = try p.enumSpec();
                 continue;
             },
             .keyword_struct => {
                 try ty.combine(p, .{ .@"struct" = 0 });
-                ty.@"struct" = try p.recordSpec();
+                ty.kind.@"struct" = try p.recordSpec();
                 continue;
             },
             .keyword_union => {
                 try ty.combine(p, .{ .@"union" = 0 });
-                ty.@"union" = try p.recordSpec();
+                ty.kind.@"union" = try p.recordSpec();
                 continue;
             },
             .keyword_alignas => {
@@ -580,16 +632,19 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 complete_type.alignment = other_type.alignment;
             },
             .identifier => {
-                if (true) break; // TODO check for typdef identifier
-                const typedef_type: Type = undefined;
-                const new_spec = Type.Builder.fromType(typdef_type);
-                ty.combine(new_spec) catch |e| switch (e) {
-                    error.OutOfMemory => return e,
-                    error.ParsingFailed, error.FatalError => {
-                        // TODO use typedef decl token
-                        try p.errStr(.typedef_is, p.tok_i, new_spec.str());
-                        return e;
-                    },
+                const typedef = p.findTypedef(p.pp.tokSlice(tok)) orelse break;
+                const new_spec = Type.Builder.fromType(p.nodes.items(.ty)[typedef.node]);
+
+                const err_start = p.pp.comp.diag.list.items.len;
+                ty.combine(p, new_spec) catch {
+                    // Remove new error messages
+                    // TODO improve/make threadsafe?
+                    p.pp.comp.diag.list.items.len = err_start;
+                    break;
+                };
+                ty.typedef = .{
+                    .tok = typedef.name_tok,
+                    .spec = new_spec.str(),
                 };
             },
             else => break,
@@ -622,7 +677,7 @@ fn recordDeclarator(p: *Parser) Error!NodeIndex {
 
 /// specQual : (typeSpec | typeQual | alignSpec)+
 fn specQual(p: *Parser) Error!?Type {
-    var spec: Type.Builder = .none;
+    var spec: Type.Builder = .{};
     var ty: Type = .{ .specifier = undefined };
     if (try p.typeSpec(&spec, &ty)) {
         try spec.finish(p, &ty);
@@ -715,7 +770,8 @@ fn declarator(p: *Parser, base_type: Type, allow_old_style: bool) Error!?Declara
         };
         var d = Declarator{ .name = unwrapped.name, .ty = ty };
         try p.directDeclarator(&d, allow_old_style);
-        return p.todo("combine ty and res");
+        d.ty = try unwrapped.ty.combine(d.ty, p);
+        return d;
     }
 
     if (!saw_ptr) {
@@ -746,6 +802,11 @@ fn directDeclarator(p: *Parser, d: *Declarator, allow_old_style: bool) Error!voi
             try p.expectClosing(l_bracket, .r_bracket);
             return p.todo("array type");
         } else if (p.eatToken(.l_paren)) |l_paren| {
+            switch (d.ty.specifier) {
+                .func, .var_args_func => try p.err(.func_cannot_return_func),
+                .array, .static_array => try p.err(.func_cannot_return_array),
+                else => {},
+            }
             d.func_declarator = true;
             if (p.tokens[p.tok_i].id == .ellipsis) {
                 try p.err(.param_before_var_args);
@@ -815,7 +876,7 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
             return null
         else blk: {
             var d: DeclSpec = .{};
-            var spec: Type.Builder = .none;
+            var spec: Type.Builder = .{};
             try spec.finish(p, &d.ty);
             break :blk d;
         };
@@ -885,7 +946,7 @@ fn abstractDeclarator(p: *Parser, base_type: Type) Error!?Type {
         try p.expectClosing(l_paren, .r_paren);
         var d = Declarator{ .name = 0, .ty = ty };
         try p.directDeclarator(&d, false);
-        return p.todo("combine ty and res");
+        return try res.combine(d.ty, p);
     }
 
     var d = Declarator{ .name = 0, .ty = ty };
@@ -948,7 +1009,7 @@ fn labeledStmt(p: *Parser) Error!NodeIndex {
 
 /// compoundStmt : '{' ( decl| staticAssert | stmt)* '}'
 fn compoundStmt(p: *Parser) Error!?NodeIndex {
-    _ = p.eatToken(.l_brace) orelse return null;
+    const l_brace = p.eatToken(.l_brace) orelse return null;
     var statements = NodeList.init(p.pp.comp.gpa);
     defer statements.deinit();
 
@@ -959,21 +1020,21 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
     while (p.eatToken(.r_brace) == null) {
         if (p.staticAssert() catch |er| switch (er) {
             error.ParsingFailed => {
-                p.nextStmt();
+                try p.nextStmt(l_brace);
                 continue;
             },
             else => |e| return e,
         }) continue;
         if (p.decl() catch |er| switch (er) {
             error.ParsingFailed => {
-                p.nextStmt();
+                try p.nextStmt(l_brace);
                 continue;
             },
             else => |e| return e,
         }) continue;
         const s = p.stmt() catch |er| switch (er) {
             error.ParsingFailed => {
-                p.nextStmt();
+                try p.nextStmt(l_brace);
                 continue;
             },
             else => |e| return e,
@@ -988,7 +1049,7 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
     });
 }
 
-fn nextStmt(p: *Parser) void {
+fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
     var parens: u32 = 0;
     while (p.tok_i < p.tokens.len) : (p.tok_i += 1) {
         switch (p.tokens[p.tok_i].id) {
@@ -997,7 +1058,7 @@ fn nextStmt(p: *Parser) void {
                 parens -= 1;
             },
             .r_brace => if (parens == 0)
-                break
+                return
             else {
                 parens -= 1;
             },
@@ -1034,12 +1095,13 @@ fn nextStmt(p: *Parser) void {
             .keyword_struct,
             .keyword_union,
             .keyword_alignas,
-            .identifier,
             => if (parens == 0) return,
             else => {},
         }
     }
-    p.tok_i -= 1; // so that we can consume the eof token elsewhere
+    p.tok_i -= 1; // So we can consume EOF
+    try p.expectClosing(l_brace, .r_brace);
+    unreachable;
 }
 
 // ====== expressions ======
