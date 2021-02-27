@@ -364,6 +364,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         .arena = &pp.arena.allocator,
         .cur_decl_list = undefined,
         .scopes = undefined,
+        .data = undefined,
     };
     const res = parser.constExpr() catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,

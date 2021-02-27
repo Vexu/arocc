@@ -42,6 +42,33 @@ pub const Result = union(enum) {
             .none, .node => unreachable,
         };
     }
+
+    fn expect(res: Result, p: *Parser) Error!void {
+        if (res == .none) {
+            try p.errTok(.expected_expr, p.tok_i);
+            return error.ParsingFailed;
+        }
+    }
+
+    fn node(p: *Parser, n: Tree.Node) !Result {
+        return Result{ .node = try p.addNode(n) };
+    }
+
+    fn ty(res: Result, p: *Parser) Type {
+        return switch (res) {
+            .none => unreachable,
+            .node => |n| p.nodes.items(.ty)[n],
+            else => .{ .specifier = .int }, // TODO get actual type
+        };
+    }
+
+    fn toNode(res: Result, p: *Parser) !NodeIndex {
+        return switch (res) {
+            .none => 0,
+            .node => |n| n,
+            else => p.todo("number to ast"),
+        };
+    }
 };
 
 const Scope = union(enum) {
@@ -50,6 +77,7 @@ const Scope = union(enum) {
     @"union": Symbol,
     @"enum": Symbol,
     symbol: Symbol,
+    enumeration: Enumeration,
     loop,
     @"switch",
 
@@ -58,6 +86,11 @@ const Scope = union(enum) {
         node: NodeIndex,
         name_tok: TokenIndex,
     };
+
+    const Enumeration = struct {
+        name: []const u8,
+        value: Result,
+    };
 };
 
 pub const Error = Compilation.Error || error{ParsingFailed};
@@ -65,6 +98,7 @@ pub const Error = Compilation.Error || error{ParsingFailed};
 pp: *Preprocessor,
 arena: *Allocator,
 nodes: Tree.Node.List = .{},
+data: NodeList,
 scopes: std.ArrayList(Scope),
 tokens: []const Token,
 tok_i: TokenIndex = 0,
@@ -83,20 +117,17 @@ fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
 fn expectToken(p: *Parser, id: Token.Id) Error!TokenIndex {
     const tok = p.tokens[p.tok_i];
     if (tok.id != id) {
-        try p.pp.comp.diag.add(.{
-            .tag = switch (tok.id) {
+        try p.errExtra(
+            switch (tok.id) {
                 .invalid => .expected_invalid,
                 else => .expected_token,
             },
-            .source_id = tok.source,
-            .loc_start = tok.loc.start,
-            .extra = .{
-                .tok_id = .{
-                    .expected = id,
-                    .actual = tok.id,
-                },
-            },
-        });
+            p.tok_i,
+            .{ .tok_id = .{
+                .expected = id,
+                .actual = tok.id,
+            } },
+        );
         return error.ParsingFailed;
     }
     defer p.tok_i += 1;
@@ -125,11 +156,17 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
 pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, str: []const u8) Compilation.Error!void {
     @setCold(true);
     const tok = p.tokens[tok_i];
+    return p.errExtra(tag, tok_i, .{ .str = str });
+}
+
+pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diagnostics.Message.Extra) Compilation.Error!void {
+    @setCold(true);
+    const tok = p.tokens[tok_i];
     try p.pp.comp.diag.add(.{
         .tag = tag,
         .source_id = tok.source,
         .loc_start = tok.loc.start,
-        .extra = .{ .str = str },
+        .extra = extra,
     });
 }
 
@@ -159,18 +196,41 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     return @intCast(u32, res);
 }
 
+const Range = struct { start: u32, end: u32 };
+fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Range {
+    const start = @intCast(u32, p.data.items.len);
+    try p.data.appendSlice(nodes);
+    const end = @intCast(u32, p.data.items.len);
+    return Range{ .start = start, .end = end };
+}
+
 fn findTypedef(p: *Parser, name: []const u8) ?Scope.Symbol {
     var i = p.scopes.items.len;
     while (i > 0) {
         i -= 1;
         switch (p.scopes.items[i]) {
-            .typedef => |t| {
-                if (mem.eql(u8, t.name, name)) return t;
-            },
+            .typedef => |t| if (mem.eql(u8, t.name, name)) return t,
             else => {},
         }
     }
     return null;
+}
+
+fn findSymbol(p: *Parser, name_tok: TokenIndex) !Scope {
+    const name = p.pp.tokSlice(p.tokens[name_tok]);
+    var i = p.scopes.items.len;
+    while (i > 0) {
+        i -= 1;
+        const sym = p.scopes.items[i];
+        switch (sym) {
+            .symbol => |s| if (mem.eql(u8, s.name, name)) return sym,
+            .enumeration => |e| if (mem.eql(u8, e.name, name)) return sym,
+            else => {},
+        }
+    }
+
+    try p.errTok(.undeclared_identifier, name_tok);
+    return error.ParsingFailed;
 }
 
 /// root : (decl | staticAssert)*
@@ -185,8 +245,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .tokens = pp.tokens.items,
         .cur_decl_list = &root_decls,
         .scopes = std.ArrayList(Scope).init(pp.comp.gpa),
+        .data = NodeList.init(pp.comp.gpa),
     };
     defer p.scopes.deinit();
+    defer p.data.deinit();
     errdefer p.nodes.deinit(pp.comp.gpa);
 
     // NodeIndex 0 must be invalid
@@ -217,6 +279,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .arena = arena,
         .generated = pp.generated.items,
         .nodes = p.nodes.toOwnedSlice(),
+        .data = p.data.toOwnedSlice(),
         .root_decls = root_decls.toOwnedSlice(),
     };
 }
@@ -312,8 +375,8 @@ fn decl(p: *Parser) Error!bool {
             .node = node,
             .name_tok = init_d.d.name,
         } });
-
-        p.nodes.items(.second)[node] = (try p.compoundStmt()).?;
+        const body = try p.compoundStmt();
+        p.nodes.items(.second)[node] = body.?;
         try p.cur_decl_list.append(node);
         return true;
     }
@@ -323,6 +386,7 @@ fn decl(p: *Parser) Error!bool {
             .ty = init_d.d.ty,
             .tag = try decl_spec.validate(p, init_d.d.ty, init_d.initializer != 0),
             .first = init_d.d.name,
+            .second = init_d.initializer,
         });
         try p.cur_decl_list.append(node);
         if (decl_spec.storage_class == .typedef) {
@@ -959,7 +1023,12 @@ fn abstractDeclarator(p: *Parser, base_type: Type) Error!?Type {
 ///  : assignExpr
 ///  | '{' initializerItems '}'
 fn initializer(p: *Parser) Error!NodeIndex {
-    return p.todo("initializer");
+    if (p.eatToken(.l_brace)) |l_brace| {
+        return p.todo("compound initializer");
+    }
+    const res = try p.assignExpr();
+    try res.expect(p);
+    return res.node;
 }
 
 /// initializerItems : designation? initializer  (',' designation? initializer)? ','?
@@ -995,6 +1064,14 @@ fn designator(p: *Parser) Error!NodeIndex {
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.compoundStmt()) |some| return some;
+
+    const e = try p.expr();
+    if (e == .node) {
+        _ = try p.expectToken(.semicolon);
+        return e.node;
+    }
+    if (p.eatToken(.semicolon)) |_| return 0;
+
     try p.err(.expected_stmt);
     return error.ParsingFailed;
 }
@@ -1042,11 +1119,32 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
         try statements.append(s);
     }
 
-    return try p.addNode(.{
-        .tag = .compound_stmt,
-        .ty = .{ .specifier = .void },
-        // TODO list
-    });
+    switch (statements.items.len) {
+        0 => return try p.addNode(.{
+            .tag = .compound_stmt_two,
+            .ty = .{ .specifier = .void },
+        }),
+        1 => return try p.addNode(.{
+            .tag = .compound_stmt_two,
+            .ty = .{ .specifier = .void },
+            .first = statements.items[0],
+        }),
+        2 => return try p.addNode(.{
+            .tag = .compound_stmt_two,
+            .ty = .{ .specifier = .void },
+            .first = statements.items[0],
+            .second = statements.items[1],
+        }),
+        else => {
+            const range = try p.addList(statements.items);
+            return try p.addNode(.{
+                .tag = .compound_stmt,
+                .ty = .{ .specifier = .void },
+                .first = range.start,
+                .second = range.end,
+            });
+        },
+    }
 }
 
 fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
@@ -1108,13 +1206,20 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
 
 /// expr : assignExpr (',' assignExpr)*
 fn expr(p: *Parser) Error!Result {
-    return p.todo("expr");
+    var lhs = try p.assignExpr();
+    while (p.eatToken(.comma)) |op| {
+        return p.todo("comma operator");
+        
+    }
+    return lhs;
 }
 
 /// assignExpr
 ///  : condExpr
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
-fn assignExpr(p: *Parser) Error!Result {}
+fn assignExpr(p: *Parser) Error!Result {
+    return p.condExpr(); // TODO
+}
 
 /// constExpr : condExpr
 pub fn constExpr(p: *Parser) Error!Result {
@@ -1331,8 +1436,9 @@ fn unExpr(p: *Parser) Error!Result {
         else => {
             var lhs = try p.primaryExpr();
             while (true) {
-                const suffix = try p.suffixExpr(&lhs);
+                const suffix = try p.suffixExpr(lhs);
                 if (suffix == .none) break;
+                lhs = suffix;
             }
             return lhs;
         },
@@ -1346,20 +1452,70 @@ fn unExpr(p: *Parser) Error!Result {
 ///  | '->' IDENTIFIER
 ///  | '++'
 ///  | '--'
-fn suffixExpr(p: *Parser, lhs: *Result) Error!Result {
+/// argumentExprList : assignExpr (',' assignExpr)*
+fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
     switch (p.tokens[p.tok_i].id) {
+        .l_paren => {
+            const l_paren = p.tok_i;
+            p.tok_i += 1;
+            const lhs_ty = lhs.ty(p);
+            const ty = lhs_ty.isCallable() orelse {
+                try p.errStr(.not_callable, l_paren, Type.Builder.fromType(lhs_ty).str());
+                return error.ParsingFailed;
+            };
+            var args = NodeList.init(p.pp.comp.gpa);
+            defer args.deinit();
+
+            for (ty.data.func.param_types) |param_decl, i| {
+                if (i != 0) _ = try p.expectToken(.comma);
+                // TODO coerce type
+                // const param_ty = p.nodes.items(.ty)[param_decl];
+                const arg = try p.assignExpr();
+                try arg.expect(p);
+                try args.append(try arg.toNode(p));
+            }
+            if (ty.specifier == .var_args_func) {
+                while (p.eatToken(.comma)) |_| {
+                    // TODO coerce type
+                    const arg = try p.assignExpr();
+                    try arg.expect(p);
+                    try args.append(try arg.toNode(p));
+                }
+            }
+            try p.expectClosing(l_paren, .r_paren);
+
+            switch (args.items.len) {
+                0 => return try Result.node(p, .{
+                    .tag = .call_expr_one,
+                    .ty = ty.data.func.return_type,
+                    .first = lhs.node,
+                }),
+                1 => return try Result.node(p, .{
+                    .tag = .call_expr_one,
+                    .ty = ty.data.func.return_type,
+                    .first = lhs.node,
+                    .second = args.items[0],
+                }),
+                else => {
+                    try p.data.append(lhs.node);
+                    const range = try p.addList(args.items);
+                    return try Result.node(p, .{
+                        .tag = .call_expr,
+                        .ty = ty.data.func.return_type,
+                        .first = range.start - 1,
+                        .second = range.end,
+                    });
+                },
+            }
+        },
         .l_bracket => return p.todo("array access"),
-        .l_paren => return p.todo("call"),
         .period => return p.todo("member access"),
         .arrow => return p.todo("member access pointer"),
         .plus_plus => return p.todo("post inc"),
         .minus_minus => return p.todo("post dec"),
-        else => return Result{ .none = {} },
+        else => return Result.none,
     }
 }
-
-/// argumentExprList : assignExpr (',' assignExpr)*
-fn argumentExprList(p: *Parser) Error!Result {}
 
 /// primaryExpr
 ///  : IDENTIFIER
@@ -1380,11 +1536,51 @@ fn primaryExpr(p: *Parser) Error!Result {
         try p.expectClosing(l_paren, .r_paren);
         return e;
     }
-    switch (p.tokens[p.tok_i].id) {
+    const tok = p.tokens[p.tok_i];
+    switch (tok.id) {
         .identifier => {
-            return p.todo("ast");
+            const name_tok = p.tok_i;
+            const sym = try p.findSymbol(name_tok);
+            p.tok_i += 1;
+            switch (sym) {
+                .enumeration => |e| return e.value,
+                .symbol => |s| {
+                    // TODO actually check type
+                    if (p.want_const) {
+                        try p.err(.expected_integer_constant_expr);
+                        return error.ParsingFailed;
+                    }
+                    return try Result.node(p, .{
+                        .tag = .decl_ref_expr,
+                        .ty = p.nodes.items(.ty)[s.node],
+                        .first = name_tok,
+                        .second = s.node,
+                    });
+                },
+                else => unreachable,
+            }
         },
-        .string_literal,
+        .string_literal => {
+            if (p.want_const) {
+                try p.err(.expected_integer_constant_expr);
+                return error.ParsingFailed;
+            }
+            const lit_tok = p.tok_i;
+            p.tok_i += 1;
+            // TODO resolve
+            // TODO concat
+            const arr_ty = try p.arena.create(Type.Array);
+            arr_ty.elem = .{ .specifier = .char };
+            arr_ty.len = p.pp.tokSlice(tok).len - 1; // -2 for delimiting quotes + 1 for null terminator
+            return try Result.node(p, .{
+                .tag = .string_literal_expr,
+                .ty = .{
+                    .specifier = .array,
+                    .data = .{ .array = arr_ty },
+                },
+                .first = lit_tok,
+            });
+        },
         .string_literal_utf_16,
         .string_literal_utf_8,
         .string_literal_utf_32,
@@ -1439,9 +1635,6 @@ fn primaryExpr(p: *Parser) Error!Result {
         .keyword_generic => {
             return p.todo("generic");
         },
-        else => {
-            try p.err(.expected_expr);
-            return error.ParsingFailed;
-        },
+        else => return Result.none,
     }
 }

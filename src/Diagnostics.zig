@@ -7,18 +7,24 @@ const Token = @import("Tokenizer.zig").Token;
 
 const Diagnostics = @This();
 
-const Message = struct {
+pub const Message = struct {
     tag: Tag,
     source_id: Source.Id,
     loc_start: u32,
-    extra: union {
+    extra: Extra = .{ .none = {} },
+
+    pub const Extra = union {
         str: []const u8,
         tok_id: struct {
             expected: Token.Id,
             actual: Token.Id,
         },
+        arguments: struct {
+            expected: u32,
+            actual: u32,
+        },
         none: void,
-    } = .{ .none = {} },
+    };
 };
 
 pub const Tag = enum {
@@ -89,6 +95,8 @@ pub const Tag = enum {
     expected_stmt,
     func_cannot_return_func,
     func_cannot_return_array,
+    undeclared_identifier,
+    not_callable,
 };
 
 const Options = struct {
@@ -255,6 +263,8 @@ pub fn render(comp: *Compilation) void {
             .expected_stmt => m.write("expected statement"),
             .func_cannot_return_func => m.write("function cannot return a function"),
             .func_cannot_return_array => m.write("function cannot return an array"),
+            .undeclared_identifier => m.write("use of undeclared identifier"),
+            .not_callable => m.print("cannot call non function type '{s}'", .{msg.extra.str}),
         }
         m.end(lcs);
     }
@@ -328,6 +338,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .expected_stmt,
         .func_cannot_return_func,
         .func_cannot_return_array,
+        .undeclared_identifier,
+        .not_callable,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

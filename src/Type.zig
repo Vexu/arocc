@@ -1,4 +1,3 @@
-const print = @import("std").debug.print;
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
@@ -16,11 +15,11 @@ pub const Qualifiers = packed struct {
         return quals.@"const" or quals.restrict or quals.@"volatile" or quals.atomic;
     }
 
-    pub fn dump(quals: Qualifiers) void {
-        if (quals.@"const") print(" const", .{});
-        if (quals.atomic) print(" _Atomic", .{});
-        if (quals.@"volatile") print(" volatile", .{});
-        if (quals.restrict) print(" restrict", .{});
+    pub fn dump(quals: Qualifiers, w: anytype) !void {
+        if (quals.@"const") try w.writeAll(" const");
+        if (quals.atomic) try w.writeAll(" _Atomic");
+        if (quals.@"volatile") try w.writeAll(" volatile");
+        if (quals.restrict) try w.writeAll(" restrict");
     }
 };
 
@@ -85,6 +84,14 @@ data: union {
 alignment: u32 = 0,
 specifier: Specifier,
 qual: Qualifiers = .{},
+
+pub fn isCallable(ty: Type) ?Type {
+    return switch (ty.specifier) {
+        .func, .var_args_func => ty,
+        .pointer => ty.data.sub_type.isCallable(),
+        else => null,
+    };
+}
 
 pub fn combine(inner: Type, outer: Type, p: *Parser) !Type {
     switch (inner.specifier) {
@@ -482,47 +489,47 @@ pub const Builder = struct {
     }
 };
 
-pub fn dump(ty: Type, tree: Tree) void {
+pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
     switch (ty.specifier) {
         .pointer => {
-            ty.data.sub_type.dump(tree);
-            print("*", .{});
-            ty.qual.dump();
+            try ty.data.sub_type.dump(tree, w);
+            try w.writeAll("*");
+            try ty.qual.dump(w);
         },
         .atomic => {
-            print("_Atomic", .{});
-            ty.data.sub_type.dump(tree);
-            print(")", .{});
-            ty.qual.dump();
+            try w.writeAll("_Atomic");
+            try ty.data.sub_type.dump(tree, w);
+            try w.writeAll(")");
+            try ty.qual.dump(w);
         },
         .func, .var_args_func => {
-            ty.data.func.return_type.dump(tree);
-            print(" (", .{});
+            try ty.data.func.return_type.dump(tree, w);
+            try w.writeAll(" (");
             for (ty.data.func.param_types) |param, i| {
-                if (i != 0) print(", ", .{});
-                tree.nodes.items(.ty)[param].dump(tree);
+                if (i != 0) try w.writeAll(", ");
+                try tree.nodes.items(.ty)[param].dump(tree, w);
                 const name_tok = tree.nodes.items(.first)[param];
                 if (tree.tokens[name_tok].id == .identifier) {
-                    print(" {s}", .{tree.tokSlice(name_tok)});
+                    try w.print(" {s}", .{tree.tokSlice(name_tok)});
                 }
             }
             if (ty.specifier == .var_args_func) {
-                if (ty.data.func.param_types.len != 0) print(", ", .{});
-                print("...", .{});
+                if (ty.data.func.param_types.len != 0) try w.writeAll(", ");
+                try w.writeAll("...");
             }
-            print(")", .{});
-            ty.qual.dump();
+            try w.writeAll(")");
+            try ty.qual.dump(w);
         },
         .array, .static_array => {
-            ty.data.array.elem.dump(tree);
-            print("[{d}", .{ty.data.array.len});
-            ty.qual.dump();
-            if (ty.specifier == .static_array) print(" static", .{});
-            print(")", .{});
+            try ty.data.array.elem.dump(tree, w);
+            try w.print("[{d}", .{ty.data.array.len});
+            try ty.qual.dump(w);
+            if (ty.specifier == .static_array) try w.writeAll(" static");
+            try w.writeAll("]");
         },
         else => {
-            print("{s}", .{Builder.fromType(ty).str()});
-            ty.qual.dump();
+            try w.writeAll(Builder.fromType(ty).str());
+            try ty.qual.dump(w);
         },
     }
 }
