@@ -224,6 +224,11 @@ pub const Tag = enum(u8) {
     /// TODO
     compound_literal_expr,
 
+    // ====== Implicit casts ======
+
+    /// convert T[] to T *
+    array_to_pointer,
+
     /// Asserts that the tag is an expression.
     pub fn isLval(tag: Tag) bool {
         return switch (tag) {
@@ -271,6 +276,7 @@ pub const Tag = enum(u8) {
             .array_access_expr,
             .call_expr,
             .call_expr_one,
+            .array_to_pointer,
             => false,
             .decl_ref_expr,
             .string_literal_expr,
@@ -543,6 +549,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     try tree.nodes.items(.ty)[node].dump(tree, w);
     try w.writeAll("'\n" ++ RESET);
     switch (tag) {
+        .invalid => unreachable,
         .fn_proto,
         .static_fn_proto,
         .inline_fn_proto,
@@ -624,6 +631,66 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeAll("arg:\n");
                 try tree.dumpNode(arg, level + delta, w);
             }
+        },
+        .comma_expr,
+        .binary_cond_expr,
+        .assign_expr,
+        .mul_assign_expr,
+        .div_assign_expr,
+        .mod_assign_expr,
+        .add_assign_expr,
+        .sub_assign_expr,
+        .shl_assign_expr,
+        .shr_assign_expr,
+        .and_assign_expr,
+        .xor_assign_expr,
+        .or_assign_expr,
+        .bool_or_expr,
+        .bool_and_expr,
+        .bit_or_expr,
+        .bit_xor_expr,
+        .bit_and_expr,
+        .equal_expr,
+        .not_equal_expr,
+        .less_than_expr,
+        .less_than_equal_expr,
+        .greater_than_expr,
+        .greater_than_equal_expr,
+        .shl_expr,
+        .shr_expr,
+        .add_expr,
+        .sub_expr,
+        .mul_expr,
+        .div_expr,
+        .mod_expr,
+        => {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("lhs:\n");
+            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("rhs:\n");
+            try tree.dumpNode(tree.nodes.items(.second)[node], level + delta, w);
+        },
+        .cast_expr,
+        .addr_of_expr,
+        .deref_expr,
+        .plus_expr,
+        .negate_expr,
+        .bit_not_expr,
+        .bool_not_expr,
+        .pre_inc_expr,
+        .pre_dec_expr,
+        .post_inc_expr,
+        .post_dec_expr,
+        .array_to_pointer,
+        => {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("operand:\n");
+            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);
+        },
+        .decl_ref_expr => {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.print("name: " ++ GREEN ++ "\"{s}\"\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
         },
         else => {},
     }

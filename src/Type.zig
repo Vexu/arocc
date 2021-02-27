@@ -93,6 +93,20 @@ pub fn isCallable(ty: Type) ?Type {
     };
 }
 
+pub fn isFunc(ty: Type) bool {
+    return switch (ty.specifier) {
+        .func, .var_args_func => true,
+        else => false,
+    };
+}
+
+pub fn isArray(ty: Type) bool {
+    return switch (ty.specifier) {
+        .array, .static_array => true,
+        else => false,
+    };
+}
+
 pub fn combine(inner: Type, outer: Type, p: *Parser) !Type {
     switch (inner.specifier) {
         .pointer => {

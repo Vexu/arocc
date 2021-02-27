@@ -69,6 +69,19 @@ pub const Result = union(enum) {
             else => p.todo("number to ast"),
         };
     }
+
+    fn coerce(res: Result, p: *Parser, dest_ty: Type) !Result {
+        var casted = res;
+        var cur_ty = res.ty(p);
+        if (dest_ty.specifier == .pointer and cur_ty.isArray()) {
+            casted = try node(p, .{
+                .tag = .array_to_pointer,
+                .ty = dest_ty,
+                .first = try casted.toNode(p),
+            });
+        }
+        return casted;
+    }
 };
 
 const Scope = union(enum) {
@@ -493,7 +506,7 @@ pub const DeclSpec = struct {
 
     fn validate(d: DeclSpec, p: *Parser, ty: Type, has_init: bool) Error!Tree.Tag {
         const is_static = d.storage_class == .static;
-        if ((ty.specifier == .func or ty.specifier == .var_args_func) and d.storage_class != .typedef) {
+        if (ty.isFunc() and d.storage_class != .typedef) {
             switch (d.storage_class) {
                 .none, .@"extern", .static => {},
                 .typedef => unreachable,
@@ -619,19 +632,21 @@ const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = 0 };
 
 /// initDeclarator : declarator ('=' initializer)?
 fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, allow_old_style: bool) Error!?InitDeclarator {
-    var init = InitDeclarator{
+    var init_d = InitDeclarator{
         .d = (try p.declarator(decl_spec.ty, allow_old_style)) orelse return null,
     };
     if (p.eatToken(.equal)) |eq| {
         if (decl_spec.storage_class == .typedef or
-            decl_spec.ty.specifier == .func) try p.err(.illegal_initializer);
+            decl_spec.ty.isFunc()) try p.err(.illegal_initializer);
         if (decl_spec.storage_class == .@"extern") {
             try p.err(.extern_initializer);
             decl_spec.storage_class = .none;
         }
-        init.initializer = try p.initializer();
+        const init = try p.initializer();
+        const casted = try init.coerce(p, init_d.d.ty);
+        init_d.initializer = try casted.toNode(p);
     }
-    return init;
+    return init_d;
 }
 
 /// typeSpec
@@ -954,7 +969,7 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
             break :blk some.ty;
         } else param_decl_spec.ty;
 
-        if (param_ty.specifier == .func or param_ty.specifier == .var_args_func) {
+        if (param_ty.isFunc()) {
             // params declared as functions are converted to function pointers
             const elem_ty = try p.arena.create(Type);
             elem_ty.* = param_ty;
@@ -1022,13 +1037,13 @@ fn abstractDeclarator(p: *Parser, base_type: Type) Error!?Type {
 /// initializer
 ///  : assignExpr
 ///  | '{' initializerItems '}'
-fn initializer(p: *Parser) Error!NodeIndex {
+fn initializer(p: *Parser) Error!Result {
     if (p.eatToken(.l_brace)) |l_brace| {
         return p.todo("compound initializer");
     }
     const res = try p.assignExpr();
     try res.expect(p);
-    return res.node;
+    return res;
 }
 
 /// initializerItems : designation? initializer  (',' designation? initializer)? ','?
@@ -1209,7 +1224,6 @@ fn expr(p: *Parser) Error!Result {
     var lhs = try p.assignExpr();
     while (p.eatToken(.comma)) |op| {
         return p.todo("comma operator");
-        
     }
     return lhs;
 }
@@ -1468,11 +1482,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
 
             for (ty.data.func.param_types) |param_decl, i| {
                 if (i != 0) _ = try p.expectToken(.comma);
-                // TODO coerce type
-                // const param_ty = p.nodes.items(.ty)[param_decl];
+                const param_ty = p.nodes.items(.ty)[param_decl];
+
                 const arg = try p.assignExpr();
                 try arg.expect(p);
-                try args.append(try arg.toNode(p));
+                const casted = try arg.coerce(p, param_ty);
+                try args.append(try casted.toNode(p));
             }
             if (ty.specifier == .var_args_func) {
                 while (p.eatToken(.comma)) |_| {
