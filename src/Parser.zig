@@ -26,6 +26,7 @@ pub const Result = union(enum) {
     i32: i32,
     u64: u64,
     i64: i64,
+    lval: NodeIndex,
     node: NodeIndex,
 
     pub fn getBool(res: Result) bool {
@@ -39,7 +40,7 @@ pub const Result = union(enum) {
             .i32 => |v| v != 0,
             .u64 => |v| v != 0,
             .i64 => |v| v != 0,
-            .none, .node => unreachable,
+            .none, .node, .lval => unreachable,
         };
     }
 
@@ -54,10 +55,14 @@ pub const Result = union(enum) {
         return Result{ .node = try p.addNode(n) };
     }
 
+    fn lval(p: *Parser, n: Tree.Node) !Result {
+        return Result{ .lval = try p.addNode(n) };
+    }
+
     fn ty(res: Result, p: *Parser) Type {
         return switch (res) {
             .none => unreachable,
-            .node => |n| p.nodes.items(.ty)[n],
+            .node, .lval => |n| p.nodes.items(.ty)[n],
             else => .{ .specifier = .int }, // TODO get actual type
         };
     }
@@ -65,7 +70,7 @@ pub const Result = union(enum) {
     fn toNode(res: Result, p: *Parser) !NodeIndex {
         return switch (res) {
             .none => 0,
-            .node => |n| n,
+            .node, .lval => |n| n,
             else => p.todo("number to ast"),
         };
     }
@@ -73,10 +78,21 @@ pub const Result = union(enum) {
     fn coerce(res: Result, p: *Parser, dest_ty: Type) !Result {
         var casted = res;
         var cur_ty = res.ty(p);
+        if (casted == .lval) {
+            cur_ty.qual.@"const" = false;
+            casted = try node(p, .{
+                .tag = .lval_to_rval,
+                .ty = cur_ty,
+                .first = try casted.toNode(p),
+            });
+        }
         if (dest_ty.specifier == .pointer and cur_ty.isArray()) {
+            const elem_ty = &cur_ty.data.array.elem;
+            cur_ty.specifier = .pointer;
+            cur_ty.data = .{ .sub_type = elem_ty };
             casted = try node(p, .{
                 .tag = .array_to_pointer,
-                .ty = dest_ty,
+                .ty = cur_ty,
                 .first = try casted.toNode(p),
             });
         }
@@ -508,7 +524,8 @@ pub const DeclSpec = struct {
         const is_static = d.storage_class == .static;
         if (ty.isFunc() and d.storage_class != .typedef) {
             switch (d.storage_class) {
-                .none, .@"extern", .static => {},
+                .none, .@"extern" => {},
+                .static => |tok_i| if (p.in_function) try p.errTok(.static_func_not_global, tok_i),
                 .typedef => unreachable,
                 .auto, .register => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
             }
@@ -1175,15 +1192,16 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             else {
                 parens -= 1;
             },
-            .keyword_for,
-            .keyword_while,
-            .keyword_do,
-            .keyword_if,
-            .keyword_goto,
-            .keyword_switch,
-            .keyword_continue,
-            .keyword_break,
-            .keyword_return,
+            // TODO uncomment once implemented
+            // .keyword_for,
+            // .keyword_while,
+            // .keyword_do,
+            // .keyword_if,
+            // .keyword_goto,
+            // .keyword_switch,
+            // .keyword_continue,
+            // .keyword_break,
+            // .keyword_return,
             .keyword_typedef,
             .keyword_extern,
             .keyword_static,
@@ -1503,16 +1521,16 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 0 => return try Result.node(p, .{
                     .tag = .call_expr_one,
                     .ty = ty.data.func.return_type,
-                    .first = lhs.node,
+                    .first = try lhs.toNode(p),
                 }),
                 1 => return try Result.node(p, .{
                     .tag = .call_expr_one,
                     .ty = ty.data.func.return_type,
-                    .first = lhs.node,
+                    .first = try lhs.toNode(p),
                     .second = args.items[0],
                 }),
                 else => {
-                    try p.data.append(lhs.node);
+                    try p.data.append(try lhs.toNode(p));
                     const range = try p.addList(args.items);
                     return try Result.node(p, .{
                         .tag = .call_expr,
@@ -1551,8 +1569,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         try p.expectClosing(l_paren, .r_paren);
         return e;
     }
-    const tok = p.tokens[p.tok_i];
-    switch (tok.id) {
+    switch (p.tokens[p.tok_i].id) {
         .identifier => {
             const name_tok = p.tok_i;
             const sym = try p.findSymbol(name_tok);
@@ -1565,7 +1582,8 @@ fn primaryExpr(p: *Parser) Error!Result {
                         try p.err(.expected_integer_constant_expr);
                         return error.ParsingFailed;
                     }
-                    return try Result.node(p, .{
+
+                    return try Result.lval(p, .{
                         .tag = .decl_ref_expr,
                         .ty = p.nodes.items(.ty)[s.node],
                         .first = name_tok,
@@ -1575,27 +1593,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                 else => unreachable,
             }
         },
-        .string_literal => {
-            if (p.want_const) {
-                try p.err(.expected_integer_constant_expr);
-                return error.ParsingFailed;
-            }
-            const lit_tok = p.tok_i;
-            p.tok_i += 1;
-            // TODO resolve
-            // TODO concat
-            const arr_ty = try p.arena.create(Type.Array);
-            arr_ty.elem = .{ .specifier = .char };
-            arr_ty.len = p.pp.tokSlice(tok).len - 1; // -2 for delimiting quotes + 1 for null terminator
-            return try Result.node(p, .{
-                .tag = .string_literal_expr,
-                .ty = .{
-                    .specifier = .array,
-                    .data = .{ .array = arr_ty },
-                },
-                .first = lit_tok,
-            });
-        },
+        .string_literal,
         .string_literal_utf_16,
         .string_literal_utf_8,
         .string_literal_utf_32,
@@ -1605,7 +1603,88 @@ fn primaryExpr(p: *Parser) Error!Result {
                 try p.err(.expected_integer_constant_expr);
                 return error.ParsingFailed;
             }
-            return p.todo("ast");
+            const start = p.tok_i;
+            // use 1 for wchar_t
+            var width: ?u8 = null;
+            while (true) {
+                switch (p.tokens[p.tok_i].id) {
+                    .string_literal => {},
+                    .string_literal_utf_16 => if (width) |some| {
+                        if (some != 16) try p.err(.unsupported_str_cat);
+                    } else {
+                        width = 16;
+                    },
+                    .string_literal_utf_8 => if (width) |some| {
+                        if (some != 8) try p.err(.unsupported_str_cat);
+                    } else {
+                        width = 8;
+                    },
+                    .string_literal_utf_32 => if (width) |some| {
+                        if (some != 32) try p.err(.unsupported_str_cat);
+                    } else {
+                        width = 32;
+                    },
+                    .string_literal_wide => if (width) |some| {
+                        if (some != 1) try p.err(.unsupported_str_cat);
+                    } else {
+                        width = 1;
+                    },
+                    else => break,
+                }
+                p.tok_i += 1;
+            }
+            if (width == null) width = 8;
+            if (width.? != 8) return p.todo("non-utf8 strings");
+            var builder = std.ArrayList(u8).init(p.pp.comp.gpa);
+            defer builder.deinit();
+            for (p.tokens[start..p.tok_i]) |tok| {
+                var slice = p.pp.tokSlice(tok);
+                slice = slice[mem.indexOf(u8, slice, "\"").? .. slice.len - 1];
+                var i: u32 = 0;
+                try builder.ensureCapacity(slice.len);
+                while (i < slice.len) : (i += 1) {
+                    switch (slice[i]) {
+                        '\\' => {
+                            i += 1;
+                            switch (slice[i]) {
+                                '\n' => i += 1,
+                                '\r' => i += 2,
+                                '\'', '\"', '\\', '?' => |c| builder.appendAssumeCapacity(c),
+                                'n' => builder.appendAssumeCapacity('\n'),
+                                'r' => builder.appendAssumeCapacity('\r'),
+                                't' => builder.appendAssumeCapacity('\t'),
+                                'a' => builder.appendAssumeCapacity(0x07),
+                                'b' => builder.appendAssumeCapacity(0x08),
+                                'e' => builder.appendAssumeCapacity(0x1B),
+                                'f' => builder.appendAssumeCapacity(0x0C),
+                                'v' => builder.appendAssumeCapacity(0x0B),
+                                'x' => return p.todo("hex escape"),
+                                'u' => return p.todo("u escape"),
+                                'U' => return p.todo("U escape"),
+                                '0'...'7' => return p.todo("octal escape"),
+                                else => unreachable,
+                            }
+                        },
+                        else => |c| builder.appendAssumeCapacity(c),
+                    }
+                }
+            }
+            try builder.append(0);
+            const str = try p.arena.dupe(u8, builder.items);
+            const ptr_loc = @intCast(u32, p.data.items.len);
+            try p.data.appendSlice(&@bitCast([2]u32, @ptrToInt(str.ptr)));
+
+            const arr_ty = try p.arena.create(Type.Array);
+            arr_ty.* = .{ .elem = .{ .specifier = .char }, .len = str.len };
+            return try Result.node(p, .{
+                .tag = .string_literal_expr,
+                .ty = .{
+                    .specifier = .array,
+                    .data = .{ .array = arr_ty },
+                },
+                .first = ptr_loc,
+                .second = @intCast(u32, str.len),
+            });
         },
         .char_literal,
         .char_literal_utf_16,
@@ -1650,6 +1729,6 @@ fn primaryExpr(p: *Parser) Error!Result {
         .keyword_generic => {
             return p.todo("generic");
         },
-        else => return Result.none,
+        else => return Result{ .none = {} },
     }
 }

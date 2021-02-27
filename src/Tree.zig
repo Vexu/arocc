@@ -219,7 +219,7 @@ pub const Tag = enum(u8) {
     float_literal_expr,
     /// TODO
     char_literal_expr,
-    /// TODO
+    /// data[first][0..second]
     string_literal_expr,
     /// TODO
     compound_literal_expr,
@@ -228,67 +228,8 @@ pub const Tag = enum(u8) {
 
     /// convert T[] to T *
     array_to_pointer,
-
-    /// Asserts that the tag is an expression.
-    pub fn isLval(tag: Tag) bool {
-        return switch (tag) {
-            .comma_expr,
-            .binary_cond_expr,
-            .cond_expr,
-            .assign_expr,
-            .mul_assign_expr,
-            .div_assign_expr,
-            .mod_assign_expr,
-            .add_assign_expr,
-            .sub_assign_expr,
-            .shl_assign_expr,
-            .shr_assign_expr,
-            .and_assign_expr,
-            .xor_assign_expr,
-            .or_assign_expr,
-            .bool_or_expr,
-            .bool_and_expr,
-            .bit_or_expr,
-            .bit_xor_expr,
-            .bit_and_expr,
-            .equal_expr,
-            .not_equal_expr,
-            .less_than_expr,
-            .less_than_equal_expr,
-            .greater_than_expr,
-            .greater_than_equal_expr,
-            .shl_expr,
-            .shr_expr,
-            .add_expr,
-            .sub_expr,
-            .mul_expr,
-            .div_expr,
-            .mod_expr,
-            .cast_expr,
-            .addr_of_expr,
-            .deref_expr,
-            .plus_expr,
-            .negate_expr,
-            .bit_not_expr,
-            .bool_not_expr,
-            .pre_inc_expr,
-            .pre_dec_expr,
-            .array_access_expr,
-            .call_expr,
-            .call_expr_one,
-            .array_to_pointer,
-            => false,
-            .decl_ref_expr,
-            .string_literal_expr,
-            .compound_literal_expr,
-            // .member_access_expr, if lhs.isLval()
-            .member_access_ptr_expr,
-            .deref,
-            .array_access_expr,
-            => true,
-            else => unreachable,
-        };
-    }
+    /// same as deref
+    lval_to_rval,
 
     pub fn Type(comptime tag: Tag) ?type {
         return switch (tag) {
@@ -607,8 +548,11 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             }
         },
         .string_literal_expr => {
+            const start = tree.nodes.items(.first)[node];
+            const ptr = @intToPtr([*]const u8, @bitCast(usize, tree.data[start..][0..2].*));
+            const len = tree.nodes.items(.second)[node];
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("data: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+            try w.print("data: " ++ GREEN ++ "\"{s}\"\n" ++ RESET, .{ ptr[0..len-1] });
         },
         .call_expr => {
             const start = tree.nodes.items(.first)[node];
@@ -683,6 +627,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .post_inc_expr,
         .post_dec_expr,
         .array_to_pointer,
+        .lval_to_rval,
         => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("operand:\n");

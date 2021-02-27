@@ -97,6 +97,8 @@ pub const Tag = enum {
     func_cannot_return_array,
     undeclared_identifier,
     not_callable,
+    unsupported_str_cat,
+    static_func_not_global,
 };
 
 const Options = struct {
@@ -265,6 +267,8 @@ pub fn render(comp: *Compilation) void {
             .func_cannot_return_array => m.write("function cannot return an array"),
             .undeclared_identifier => m.write("use of undeclared identifier"),
             .not_callable => m.print("cannot call non function type '{s}'", .{msg.extra.str}),
+            .unsupported_str_cat => m.write("unsupported string literal concatenation"),
+            .static_func_not_global => m.write("static functions must be global"),
         }
         m.end(lcs);
     }
@@ -340,6 +344,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .func_cannot_return_array,
         .undeclared_identifier,
         .not_callable,
+        .unsupported_str_cat,
+        .static_func_not_global,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
