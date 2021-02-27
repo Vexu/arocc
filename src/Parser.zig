@@ -245,7 +245,7 @@ fn findTypedef(p: *Parser, name: []const u8) ?Scope.Symbol {
     return null;
 }
 
-fn findSymbol(p: *Parser, name_tok: TokenIndex) !Scope {
+fn findSymbol(p: *Parser, name_tok: TokenIndex) ?Scope {
     const name = p.pp.tokSlice(p.tokens[name_tok]);
     var i = p.scopes.items.len;
     while (i > 0) {
@@ -257,9 +257,7 @@ fn findSymbol(p: *Parser, name_tok: TokenIndex) !Scope {
             else => {},
         }
     }
-
-    try p.errTok(.undeclared_identifier, name_tok);
-    return error.ParsingFailed;
+    return null;
 }
 
 /// root : (decl | staticAssert)*
@@ -1507,12 +1505,15 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 const casted = try arg.coerce(p, param_ty);
                 try args.append(try casted.toNode(p));
             }
-            if (ty.specifier == .var_args_func) {
-                while (p.eatToken(.comma)) |_| {
+            if (ty.specifier == .var_args_func) blk: {
+                if (args.items.len != 0)
+                    _ = p.eatToken(.comma) orelse break :blk;
+                while (true) {
                     // TODO coerce type
                     const arg = try p.assignExpr();
                     try arg.expect(p);
                     try args.append(try arg.toNode(p));
+                    _ = p.eatToken(.comma) orelse break;
                 }
             }
             try p.expectClosing(l_paren, .r_paren);
@@ -1572,8 +1573,39 @@ fn primaryExpr(p: *Parser) Error!Result {
     switch (p.tokens[p.tok_i].id) {
         .identifier => {
             const name_tok = p.tok_i;
-            const sym = try p.findSymbol(name_tok);
             p.tok_i += 1;
+            const sym = p.findSymbol(name_tok) orelse {
+                if (p.tokens[p.tok_i].id == .l_paren) {
+                    // implicitly declare simple functions as like `puts("foo")`;
+                    const name = p.pp.tokSlice(p.tokens[name_tok]);
+                    try p.errStr(.implicit_func_decl, name_tok, name);
+
+                    const func_ty = try p.arena.create(Type.Func);
+                    func_ty.* = .{ .return_type = .{ .specifier = .int }, .param_types = &.{} };
+                    const ty: Type = .{ .specifier = .var_args_func, .data = .{ .func = func_ty } };
+                    const node = try p.addNode(.{
+                        .ty = ty,
+                        .tag = .fn_proto,
+                        .first = name_tok,
+                    });
+
+                    try p.cur_decl_list.append(node);
+                    try p.scopes.append(.{ .symbol = .{
+                        .name = name,
+                        .node = node,
+                        .name_tok = name_tok,
+                    } });
+
+                    return try Result.lval(p, .{
+                        .tag = .decl_ref_expr,
+                        .ty = ty,
+                        .first = name_tok,
+                        .second = node,
+                    });
+                }
+                try p.errTok(.undeclared_identifier, name_tok);
+                return error.ParsingFailed;
+            };
             switch (sym) {
                 .enumeration => |e| return e.value,
                 .symbol => |s| {

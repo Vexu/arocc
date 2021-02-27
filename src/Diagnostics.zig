@@ -99,6 +99,7 @@ pub const Tag = enum {
     not_callable,
     unsupported_str_cat,
     static_func_not_global,
+    implicit_func_decl,
 };
 
 const Options = struct {
@@ -108,6 +109,7 @@ const Options = struct {
     @"duplicate-decl-specifier": Kind = .warning,
     @"missing-declaration": Kind = .warning,
     @"extern-initializer": Kind = .warning,
+    @"implicit-function-declaration": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -269,6 +271,7 @@ pub fn render(comp: *Compilation) void {
             .not_callable => m.print("cannot call non function type '{s}'", .{msg.extra.str}),
             .unsupported_str_cat => m.write("unsupported string literal concatenation"),
             .static_func_not_global => m.write("static functions must be global"),
+            .implicit_func_decl => m.print("implicit declaration of function '{s}' is invalid in C99", .{msg.extra.str}),
         }
         m.end(lcs);
     }
@@ -359,6 +362,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .duplicate_decl_spec => diag.options.@"duplicate-decl-specifier",
         .missing_declaration => diag.options.@"missing-declaration",
         .extern_initializer => diag.options.@"extern-initializer",
+        .implicit_func_decl => diag.options.@"implicit-function-declaration",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;
