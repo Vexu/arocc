@@ -16,10 +16,10 @@ pub const Qualifiers = packed struct {
     }
 
     pub fn dump(quals: Qualifiers, w: anytype) !void {
-        if (quals.@"const") try w.writeAll(" const");
-        if (quals.atomic) try w.writeAll(" _Atomic");
-        if (quals.@"volatile") try w.writeAll(" volatile");
-        if (quals.restrict) try w.writeAll(" restrict");
+        if (quals.@"const") try w.writeAll("const ");
+        if (quals.atomic) try w.writeAll("_Atomic ");
+        if (quals.@"volatile") try w.writeAll("volatile ");
+        if (quals.restrict) try w.writeAll("restrict ");
     }
 };
 
@@ -107,17 +107,19 @@ pub fn isArray(ty: Type) bool {
     };
 }
 
-pub fn combine(inner: Type, outer: Type, p: *Parser) !Type {
+pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
     switch (inner.specifier) {
-        .pointer => {
-            // TODO only works for int (*)() to *int ()
-            var res = inner;
-            res.data.sub_type.* = outer;
-            return res;
+        .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
+        .array, .static_array => return p.errStr(.todo, source_tok, "combine array"),
+        .func, .var_args_func => {
+            try inner.data.func.return_type.combine(outer, p, source_tok);
+            switch (inner.data.func.return_type.specifier) {
+                .func, .var_args_func => return p.errTok(.func_cannot_return_func, source_tok),
+                .array, .static_array => return p.errTok(.func_cannot_return_array, source_tok),
+                else => {},
+            }
         },
-        .array, .static_array => return p.todo("combine array"),
-        .func, .var_args_func => return p.todo("combine func"),
-        else => return outer,
+        else => inner.* = outer,
     }
 }
 
@@ -503,47 +505,42 @@ pub const Builder = struct {
     }
 };
 
+// Print as Zig types since those are actually readable
 pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
+    try ty.qual.dump(w);
     switch (ty.specifier) {
         .pointer => {
-            try ty.data.sub_type.dump(tree, w);
             try w.writeAll("*");
-            try ty.qual.dump(w);
+            try ty.data.sub_type.dump(tree, w);
         },
         .atomic => {
             try w.writeAll("_Atomic");
             try ty.data.sub_type.dump(tree, w);
             try w.writeAll(")");
-            try ty.qual.dump(w);
         },
         .func, .var_args_func => {
-            try ty.data.func.return_type.dump(tree, w);
-            try w.writeAll(" (");
+            try w.writeAll("fn (");
             for (ty.data.func.param_types) |param, i| {
                 if (i != 0) try w.writeAll(", ");
-                try tree.nodes.items(.ty)[param].dump(tree, w);
                 const name_tok = tree.nodes.items(.first)[param];
                 if (tree.tokens[name_tok].id == .identifier) {
-                    try w.print(" {s}", .{tree.tokSlice(name_tok)});
+                    try w.print("{s}: ", .{tree.tokSlice(name_tok)});
                 }
+                try tree.nodes.items(.ty)[param].dump(tree, w);
             }
             if (ty.specifier == .var_args_func) {
                 if (ty.data.func.param_types.len != 0) try w.writeAll(", ");
                 try w.writeAll("...");
             }
-            try w.writeAll(")");
-            try ty.qual.dump(w);
+            try w.writeAll(") ");
+            try ty.data.func.return_type.dump(tree, w);
         },
         .array, .static_array => {
+            try w.print("[{d}]", .{ty.data.array.len});
+            try w.writeAll("] ");
+            if (ty.specifier == .static_array) try w.writeAll("static ");
             try ty.data.array.elem.dump(tree, w);
-            try w.print("[{d}", .{ty.data.array.len});
-            try ty.qual.dump(w);
-            if (ty.specifier == .static_array) try w.writeAll(" static");
-            try w.writeAll("]");
         },
-        else => {
-            try w.writeAll(Builder.fromType(ty).str());
-            try ty.qual.dump(w);
-        },
+        else => try w.writeAll(Builder.fromType(ty).str()),
     }
 }

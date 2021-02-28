@@ -20,6 +20,7 @@ sources: std.StringArrayHashMap(Source),
 diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
 system_include_dirs: std.ArrayList([]const u8),
+output_name: ?[]const u8 = null,
 
 pub fn init(gpa: *Allocator) Compilation {
     return .{

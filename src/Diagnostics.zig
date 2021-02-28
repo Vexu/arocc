@@ -248,7 +248,7 @@ pub fn render(comp: *Compilation) void {
             .duplicate_decl_spec => m.print("duplicate '{s}' declaration specifier", .{msg.extra.str}),
             .restrict_non_pointer => m.print("restrict requires a pointer or reference ('{s}' is invalid)", .{msg.extra.str}),
             .expected_external_decl => m.write("expected external declaration"),
-            .expected_ident_or_l_paren => m.write("expected identifier or ')'"),
+            .expected_ident_or_l_paren => m.write("expected identifier or '('"),
             .missing_declaration => m.write("declaration does not declare anything"),
             .func_not_in_root => m.write("function definition is not allowed here"),
             .illegal_initializer => m.write("illegal initializer (only variables can be initialized)"),

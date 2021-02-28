@@ -199,7 +199,7 @@ pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diag
     });
 }
 
-fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.Error!void {
+pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.Error!void {
     @setCold(true);
     const tok = p.tokens[tok_i];
     try p.pp.comp.diag.add(.{
@@ -371,7 +371,7 @@ fn decl(p: *Parser) Error!bool {
         try spec.finish(p, &d.ty);
         break :blk d;
     };
-    var init_d = (try p.initDeclarator(&decl_spec, true)) orelse {
+    var init_d = (try p.initDeclarator(&decl_spec)) orelse {
         // TODO return if enum struct or union
         try p.errTok(.missing_declaration, first_tok);
         _ = try p.expectToken(.semicolon);
@@ -379,8 +379,8 @@ fn decl(p: *Parser) Error!bool {
     };
 
     // Check for function definition.
-    if (init_d.d.func_declarator and init_d.initializer == 0 and
-        (p.tokens[p.tok_i].id == .l_brace or init_d.d.old_style_func))
+    if (init_d.d.func_declarator != null and init_d.initializer == 0 and
+        (p.tokens[p.tok_i].id == .l_brace or init_d.d.old_style_func != null))
     {
         if (p.in_function) try p.err(.func_not_in_root);
 
@@ -432,7 +432,7 @@ fn decl(p: *Parser) Error!bool {
 
         if (p.eatToken(.comma) == null) break;
 
-        init_d = (try p.initDeclarator(&decl_spec, false)) orelse {
+        init_d = (try p.initDeclarator(&decl_spec)) orelse {
             try p.err(.expected_ident_or_l_paren);
             continue;
         };
@@ -646,9 +646,9 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
 const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = 0 };
 
 /// initDeclarator : declarator ('=' initializer)?
-fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, allow_old_style: bool) Error!?InitDeclarator {
+fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
     var init_d = InitDeclarator{
-        .d = (try p.declarator(decl_spec.ty, allow_old_style)) orelse return null,
+        .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
     if (p.eatToken(.equal)) |eq| {
         if (decl_spec.storage_class == .typedef or
@@ -842,119 +842,107 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
 const Declarator = struct {
     name: TokenIndex,
     ty: Type,
-    func_declarator: bool = false,
-    old_style_func: bool = false,
+    func_declarator: ?TokenIndex = null,
+    old_style_func: ?TokenIndex = null,
 };
 
 /// declarator : pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
-fn declarator(p: *Parser, base_type: Type, allow_old_style: bool) Error!?Declarator {
-    var ty = base_type;
-    const saw_ptr = try p.pointer(&ty);
+/// abstractDeclarator
+/// : pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
+fn declarator(
+    p: *Parser,
+    base_type: Type,
+    kind: enum { normal, abstract, either },
+) Error!?Declarator {
+    const start = p.tok_i;
+    var d = Declarator{ .name = 0, .ty = try p.pointer(base_type) };
 
-    if (p.eatToken(.identifier)) |name| {
-        var d = Declarator{ .name = name, .ty = ty };
-        try p.directDeclarator(&d, allow_old_style);
+    if (kind != .abstract and p.tokens[p.tok_i].id == .identifier) {
+        d.name = p.tok_i;
+        p.tok_i += 1;
+        d.ty = try p.directDeclarator(d.ty, &d);
         return d;
-    } else if (p.eatToken(.l_paren)) |l_paren| {
-        const res = try p.declarator(ty, allow_old_style);
-        try p.expectClosing(l_paren, .r_paren);
-        const unwrapped = res orelse {
-            try p.err(.expected_ident_or_l_paren);
-            return null;
+    } else if (p.eatToken(.l_paren)) |l_paren| blk: {
+        var res = (try p.declarator(.{ .specifier = .void }, kind)) orelse {
+            p.tok_i -= 1;
+            break :blk;
         };
-        var d = Declarator{ .name = unwrapped.name, .ty = ty };
-        try p.directDeclarator(&d, allow_old_style);
-        d.ty = try unwrapped.ty.combine(d.ty, p);
-        return d;
+        try p.expectClosing(l_paren, .r_paren);
+        const suffix_start = p.tok_i;
+        const outer = try p.directDeclarator(d.ty, &d);
+        try res.ty.combine(outer, p, res.func_declarator orelse suffix_start);
+        return res;
     }
-
-    if (!saw_ptr) {
-        return null;
-    } else {
+    
+    if (kind == .normal) {
         try p.err(.expected_ident_or_l_paren);
-        return null;
     }
+    
+    d.ty = try p.directDeclarator(d.ty, &d);
+    if (start == p.tok_i) return null;
+    return d;
 }
 
 /// directDeclarator
-///  : '[' typeQual* assignExpr? ']'
-///  | '[' keyword_static typeQual* assignExpr ']'
-///  | '[' typeQual+ keyword_static assignExpr ']'
-///  | '[' typeQual* '*' ']'
-///  | '(' paramDecls ')'
-///  | '(' (IDENTIFIER (',' IDENTIFIER))? ')'
+///  : '[' typeQual* assignExpr? ']' directDeclarator?
+///  | '[' keyword_static typeQual* assignExpr ']' directDeclarator?
+///  | '[' typeQual+ keyword_static assignExpr ']' directDeclarator?
+///  | '[' typeQual* '*' ']' directDeclarator?
+///  | '(' paramDecls ')' directDeclarator?
+///  | '(' (IDENTIFIER (',' IDENTIFIER))? ')' directDeclarator?
 /// directAbstractDeclarator
 ///  : '[' typeQual* assignExpr? ']'
 ///  | '[' keyword_static typeQual* assignExpr ']'
 ///  | '[' typeQual+ keyword_static assignExpr ']'
 ///  | '[' '*' ']'
 ///  | '(' paramDecls? ')'
-// if declarator.name == 0 then the declarator is assumed to be abstract
-fn directDeclarator(p: *Parser, d: *Declarator, allow_old_style: bool) Error!void {
-    while (true) {
-        if (p.eatToken(.l_bracket)) |l_bracket| {
-            try p.expectClosing(l_bracket, .r_bracket);
-            return p.todo("array type");
-        } else if (p.eatToken(.l_paren)) |l_paren| {
-            switch (d.ty.specifier) {
-                .func, .var_args_func => try p.err(.func_cannot_return_func),
-                .array, .static_array => try p.err(.func_cannot_return_array),
-                else => {},
-            }
-            d.func_declarator = true;
-            if (p.tokens[p.tok_i].id == .ellipsis) {
-                try p.err(.param_before_var_args);
-                return error.ParsingFailed;
-            }
-            if (try p.paramDecls()) |params| {
-                var func = try p.arena.create(Type.Func);
-                func.* = .{
-                    .return_type = d.ty,
-                    .param_types = params,
-                };
-                var func_ty = Type{
-                    .specifier = .func,
-                    .data = .{ .func = func },
-                };
-                if (p.eatToken(.ellipsis)) |_| {
-                    func_ty.specifier = .var_args_func;
-                }
-                try p.expectClosing(l_paren, .r_paren);
-                d.ty = func_ty;
-                continue;
-            }
-            if (p.eatToken(.r_paren)) |_| {
-                var func = try p.arena.create(Type.Func);
-                func.* = .{
-                    .return_type = d.ty,
-                    .param_types = &.{},
-                };
-                var func_ty = Type{
-                    .specifier = .var_args_func,
-                    .data = .{ .func = func },
-                };
-                d.ty = func_ty;
-                continue;
-            }
+fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator) Error!Type {
+    if (p.eatToken(.l_bracket)) |l_bracket| {
+        try p.expectClosing(l_bracket, .r_bracket);
+        return p.todo("array type");
+    } else if (p.eatToken(.l_paren)) |l_paren| {
+        d.func_declarator = l_paren;
+        if (p.tokens[p.tok_i].id == .ellipsis) {
+            try p.err(.param_before_var_args);
+            return error.ParsingFailed;
+        }
+
+        var is_var_args = true;
+        var func_ty = try p.arena.create(Type.Func);
+        if (try p.paramDecls()) |params| {
+            func_ty.param_types = params;
+            if (p.eatToken(.ellipsis) == null) is_var_args = false;
+            try p.expectClosing(l_paren, .r_paren);
+        } else if (p.eatToken(.r_paren)) |_| {
+            func_ty.param_types = &.{};
+        } else {
             return p.todo("old style function type");
-        } else return;
-    }
+        }
+
+        var res_ty = Type{
+            .specifier = if (is_var_args) .var_args_func else .func,
+            .data = .{ .func = func_ty },
+        };
+
+        const outer = try p.directDeclarator(base_type, d);
+        try res_ty.combine(outer, p, l_paren);
+        return res_ty;
+    } else return base_type;
 }
 
 /// pointer : '*' typeQual* pointer?
-fn pointer(p: *Parser, ty: *Type) Error!bool {
-    const start = p.tok_i;
+fn pointer(p: *Parser, base_ty: Type) Error!Type {
+    var ty = base_ty;
     while (p.eatToken(.asterisk)) |_| {
         const elem_ty = try p.arena.create(Type);
-        elem_ty.* = ty.*;
-        var ptr_ty = Type{
+        elem_ty.* = ty;
+        ty = Type{
             .specifier = .pointer,
             .data = .{ .sub_type = elem_ty },
         };
-        _ = try p.typeQual(&ptr_ty);
-        ty.* = ptr_ty;
+        _ = try p.typeQual(&ty);
     }
-    return start != p.tok_i;
+    return ty;
 }
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
@@ -976,13 +964,12 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
         };
 
         var name_tok = p.tok_i;
-        var param_ty = (try p.abstractDeclarator(param_decl_spec.ty)) orelse
-            if (try p.declarator(param_decl_spec.ty, false)) |some|
-        blk: {
+        var param_ty = param_decl_spec.ty;
+        if (try p.declarator(param_decl_spec.ty, .either)) |some| {
+            // TODO declare();
             name_tok = some.name;
-            // TODO some.declare();
-            break :blk some.ty;
-        } else param_decl_spec.ty;
+            param_ty = some.ty;
+        }
 
         if (param_ty.isFunc()) {
             // params declared as functions are converted to function pointers
@@ -1022,31 +1009,10 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
 /// typeName : specQual abstractDeclarator
 fn typeName(p: *Parser) Error!?Type {
     var ty = (try p.specQual()) orelse return null;
-    return (try p.abstractDeclarator(ty)) orelse return ty;
-}
-
-/// abstractDeclarator
-/// : pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
-fn abstractDeclarator(p: *Parser, base_type: Type) Error!?Type {
-    const start = p.tok_i;
-    var ty = base_type;
-    _ = try p.pointer(&ty);
-
-    if (p.eatToken(.l_paren)) |l_paren| blk: {
-        const res = (try p.abstractDeclarator(ty)) orelse {
-            p.tok_i -= 1;
-            break :blk;
-        };
-        try p.expectClosing(l_paren, .r_paren);
-        var d = Declarator{ .name = 0, .ty = ty };
-        try p.directDeclarator(&d, false);
-        return try res.combine(d.ty, p);
-    }
-
-    var d = Declarator{ .name = 0, .ty = ty };
-    try p.directDeclarator(&d, false);
-    if (p.tok_i == start) return null;
-    return ty;
+    if (try p.declarator(ty, .abstract)) |some|
+        return some.ty
+    else
+        return ty;
 }
 
 /// initializer
