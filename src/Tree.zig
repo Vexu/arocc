@@ -553,7 +553,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             const ptr = @intToPtr([*]const u8, @bitCast(usize, tree.data[start..][0..2].*));
             const len = tree.nodes.items(.second)[node];
             try w.writeByteNTimes(' ', level + half);
-            try w.print("data: " ++ GREEN ++ "\"{s}\"\n" ++ RESET, .{ ptr[0..len-1] });
+            try w.print("data: " ++ GREEN ++ "\"{s}\"\n" ++ RESET, .{ptr[0 .. len - 1]});
         },
         .call_expr => {
             const start = tree.nodes.items(.first)[node];

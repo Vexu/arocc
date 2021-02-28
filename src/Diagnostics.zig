@@ -100,6 +100,10 @@ pub const Tag = enum {
     unsupported_str_cat,
     static_func_not_global,
     implicit_func_decl,
+    expected_param_decl,
+    invalid_old_style_params,
+    expected_fn_body,
+    invalid_void_param,
 };
 
 const Options = struct {
@@ -272,6 +276,10 @@ pub fn render(comp: *Compilation) void {
             .unsupported_str_cat => m.write("unsupported string literal concatenation"),
             .static_func_not_global => m.write("static functions must be global"),
             .implicit_func_decl => m.print("implicit declaration of function '{s}' is invalid in C99", .{msg.extra.str}),
+            .expected_param_decl => m.write("expected parameter declaration"),
+            .invalid_old_style_params => m.write("identifier parameter lists are only allowed in function definitions"),
+            .expected_fn_body => m.write("expected function body after function declaration"),
+            .invalid_void_param => m.write("parameter cannot have void type"),
         }
         m.end(lcs);
     }
@@ -349,6 +357,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .not_callable,
         .unsupported_str_cat,
         .static_func_not_global,
+        .expected_param_decl,
+        .expected_fn_body,
+        .invalid_void_param,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -356,6 +367,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .header_str_match,
         .sepc_from_typedef,
         => .note,
+        .invalid_old_style_params => .warning,
         .unsupported_pragma => diag.options.@"unsupported-pragma",
         .whitespace_after_macro_name => diag.options.@"c99-extensions",
         .missing_type_specifier => diag.options.@"implicit-int",

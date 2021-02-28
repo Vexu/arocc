@@ -355,7 +355,7 @@ fn nextExternDecl(p: *Parser) void {
 
 /// decl
 ///  : declSpec (initDeclarator ( ',' initDeclarator)*)? ';'
-///  | declSpec declarator declarator* compoundStmt
+///  | declSpec declarator decl* compoundStmt
 fn decl(p: *Parser) Error!bool {
     const first_tok = p.tok_i;
     var decl_spec = if (try p.declSpec()) |some|
@@ -379,18 +379,59 @@ fn decl(p: *Parser) Error!bool {
     };
 
     // Check for function definition.
-    if (init_d.d.func_declarator != null and init_d.initializer == 0 and
-        (p.tokens[p.tok_i].id == .l_brace or init_d.d.old_style_func != null))
-    {
+    if (init_d.d.func_declarator != null and init_d.initializer == 0) fn_def: {
+        assert(init_d.d.ty.isFunc());
+        switch (p.tokens[p.tok_i].id) {
+            .comma, .semicolon => break :fn_def,
+            .l_brace => {},
+            else => {
+                if (!p.in_function) try p.err(.expected_fn_body);
+                break :fn_def;
+            },
+        }
+
+        // TODO declare all parameters
+        // for (init_d.d.ty.data.func.param_types) |param| {}
+
+        // Collect old style parameter declarations.
+        if (init_d.d.old_style_func != null and !p.in_function) {
+            param_loop: while (true) {
+                const param_decl_spec = (try p.declSpec()) orelse break;
+                if (p.eatToken(.semicolon)) |semi| {
+                    try p.errTok(.missing_declaration, semi);
+                    continue :param_loop;
+                }
+
+                while (true) {
+                    var d = (try p.declarator(param_decl_spec.ty, .normal)) orelse {
+                        try p.errTok(.missing_declaration, first_tok);
+                        _ = try p.expectToken(.semicolon);
+                        continue :param_loop;
+                    };
+
+                    if (d.ty.isFunc()) {
+                        // Params declared as functions are converted to function pointers.
+                        const elem_ty = try p.arena.create(Type);
+                        elem_ty.* = d.ty;
+                        d.ty = Type{
+                            .specifier = .pointer,
+                            .data = .{ .sub_type = elem_ty },
+                        };
+                    } else if (d.ty.specifier == .void) {
+                        try p.errTok(.invalid_void_param, d.name);
+                    }
+
+                    // TODO declare and check that d.name is in init_d.d.ty.data.func.param_types
+                    if (p.eatToken(.comma) == null) break;
+                }
+                _ = try p.expectToken(.semicolon);
+            }
+        }
         if (p.in_function) try p.err(.func_not_in_root);
 
         const in_function = p.in_function;
         p.in_function = true;
         defer p.in_function = in_function;
-
-        // we know foo() {} is not var args
-        if (init_d.d.ty.specifier == .var_args_func and init_d.d.ty.data.func.param_types.len == 0)
-            init_d.d.ty.specifier = .func;
 
         const node = try p.addNode(.{
             .ty = init_d.d.ty,
@@ -408,7 +449,9 @@ fn decl(p: *Parser) Error!bool {
         return true;
     }
 
+    // Declare all variable/typedef declarators.
     while (true) {
+        if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         const node = try p.addNode(.{
             .ty = init_d.d.ty,
             .tag = try decl_spec.validate(p, init_d.d.ty, init_d.initializer != 0),
@@ -488,10 +531,8 @@ pub const DeclSpec = struct {
             .auto, .@"extern", .static, .typedef => |tok_i| try p.errTok(.invalid_storage_on_param, tok_i),
         }
         if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
-        if (ty.specifier != .func) {
-            if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
-            if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
-        }
+        if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
+        if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
         return if (d.storage_class == .register) .register_param_decl else .param_decl;
     }
 
@@ -864,20 +905,21 @@ fn declarator(
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
         var res = (try p.declarator(.{ .specifier = .void }, kind)) orelse {
-            p.tok_i -= 1;
+            p.tok_i = l_paren;
             break :blk;
         };
         try p.expectClosing(l_paren, .r_paren);
         const suffix_start = p.tok_i;
         const outer = try p.directDeclarator(d.ty, &d);
         try res.ty.combine(outer, p, res.func_declarator orelse suffix_start);
+        res.old_style_func = d.old_style_func;
         return res;
     }
-    
+
     if (kind == .normal) {
         try p.err(.expected_ident_or_l_paren);
     }
-    
+
     d.ty = try p.directDeclarator(d.ty, &d);
     if (start == p.tok_i) return null;
     return d;
@@ -904,23 +946,41 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator) Error!Type {
         d.func_declarator = l_paren;
         if (p.tokens[p.tok_i].id == .ellipsis) {
             try p.err(.param_before_var_args);
-            return error.ParsingFailed;
+            p.tok_i += 1;
         }
 
-        var is_var_args = true;
         var func_ty = try p.arena.create(Type.Func);
+        func_ty.param_types = &.{};
+        var specifier: Type.Specifier = .func;
+
         if (try p.paramDecls()) |params| {
             func_ty.param_types = params;
-            if (p.eatToken(.ellipsis) == null) is_var_args = false;
-            try p.expectClosing(l_paren, .r_paren);
-        } else if (p.eatToken(.r_paren)) |_| {
-            func_ty.param_types = &.{};
+            if (p.eatToken(.ellipsis) == null) specifier = .var_args_func;
+        } else if (p.tokens[p.tok_i].id == .r_paren) {
+            specifier = .old_style_func;
+        } else if (p.tokens[p.tok_i].id == .identifier) {
+            d.old_style_func = p.tok_i;
+            var params = NodeList.init(p.pp.comp.gpa);
+            defer params.deinit();
+
+            specifier = .old_style_func;
+            while (true) {
+                const param = try p.addNode(.{
+                    .tag = .param_decl,
+                    .ty = .{ .specifier = .int },
+                    .first = try p.expectToken(.identifier),
+                });
+                try params.append(param);
+                if (p.eatToken(.comma) == null) break;
+            }
+            func_ty.param_types = try p.arena.dupe(NodeIndex, params.items);
         } else {
-            return p.todo("old style function type");
+            try p.err(.expected_param_decl);
         }
 
+        try p.expectClosing(l_paren, .r_paren);
         var res_ty = Type{
-            .specifier = if (is_var_args) .var_args_func else .func,
+            .specifier = specifier,
             .data = .{ .func = func_ty },
         };
 
@@ -966,6 +1026,7 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
         var name_tok = p.tok_i;
         var param_ty = param_decl_spec.ty;
         if (try p.declarator(param_decl_spec.ty, .either)) |some| {
+            if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
             // TODO declare();
             name_tok = some.name;
             param_ty = some.ty;
@@ -1009,10 +1070,10 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
 /// typeName : specQual abstractDeclarator
 fn typeName(p: *Parser) Error!?Type {
     var ty = (try p.specQual()) orelse return null;
-    if (try p.declarator(ty, .abstract)) |some|
-        return some.ty
-    else
-        return ty;
+    if (try p.declarator(ty, .abstract)) |some| {
+        if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
+        return some.ty;
+    } else return ty;
 }
 
 /// initializer
@@ -1548,7 +1609,7 @@ fn primaryExpr(p: *Parser) Error!Result {
 
                     const func_ty = try p.arena.create(Type.Func);
                     func_ty.* = .{ .return_type = .{ .specifier = .int }, .param_types = &.{} };
-                    const ty: Type = .{ .specifier = .var_args_func, .data = .{ .func = func_ty } };
+                    const ty: Type = .{ .specifier = .old_style_func, .data = .{ .func = func_ty } };
                     const node = try p.addNode(.{
                         .ty = ty,
                         .tag = .fn_proto,

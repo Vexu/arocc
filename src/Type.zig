@@ -62,8 +62,13 @@ pub const Specifier = enum {
     pointer,
     atomic,
     // data.func
+    /// int foo(int bar, char baz) and int (void)
     func,
+    /// int foo(int bar, char baz, ...)
     var_args_func,
+    /// int foo(bar, baz) and int foo()
+    /// is also var args, but we can give warnings about incorrect amounts of parameters
+    old_style_func,
 
     // data.array
     array,
@@ -87,7 +92,7 @@ qual: Qualifiers = .{},
 
 pub fn isCallable(ty: Type) ?Type {
     return switch (ty.specifier) {
-        .func, .var_args_func => ty,
+        .func, .var_args_func, .old_style_func => ty,
         .pointer => ty.data.sub_type.isCallable(),
         else => null,
     };
@@ -95,7 +100,7 @@ pub fn isCallable(ty: Type) ?Type {
 
 pub fn isFunc(ty: Type) bool {
     return switch (ty.specifier) {
-        .func, .var_args_func => true,
+        .func, .var_args_func, .old_style_func => true,
         else => false,
     };
 }
@@ -111,10 +116,10 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
     switch (inner.specifier) {
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
         .array, .static_array => return p.errStr(.todo, source_tok, "combine array"),
-        .func, .var_args_func => {
+        .func, .var_args_func, .old_style_func => {
             try inner.data.func.return_type.combine(outer, p, source_tok);
             switch (inner.data.func.return_type.specifier) {
-                .func, .var_args_func => return p.errTok(.func_cannot_return_func, source_tok),
+                .func, .var_args_func, .old_style_func => return p.errTok(.func_cannot_return_func, source_tok),
                 .array, .static_array => return p.errTok(.func_cannot_return_array, source_tok),
                 else => {},
             }
@@ -176,6 +181,7 @@ pub const Builder = struct {
         atomic: *Type,
         func: *Func,
         var_args_func: *Func,
+        old_style_func: *Func,
         array: *Array,
         static_array: *Array,
         @"struct": NodeIndex,
@@ -226,7 +232,7 @@ pub const Builder = struct {
                 // TODO make these more specific?
                 .pointer => "pointer",
                 .atomic => "atomic",
-                .func, .var_args_func => "function",
+                .func, .var_args_func, .old_style_func => "function",
                 .array, .static_array => "array",
                 .@"struct" => "struct",
                 .@"union" => "union",
@@ -295,6 +301,11 @@ pub const Builder = struct {
                 ty.data = .{ .func = data };
                 return;
             },
+            .old_style_func => |data| {
+                ty.specifier = .old_style_func;
+                ty.data = .{ .func = data };
+                return;
+            },
             .array => |data| {
                 ty.specifier = .array;
                 ty.data = .{ .array = data };
@@ -337,7 +348,7 @@ pub const Builder = struct {
 
     pub fn combine(spec: *Builder, p: *Parser, new: Kind) Parser.Error!void {
         switch (new) {
-            .void, .bool, .@"enum", .@"struct", .@"union", .pointer, .array, .static_array, .func, .var_args_func => switch (spec.kind) {
+            .void, .bool, .@"enum", .@"struct", .@"union", .pointer, .array, .static_array, .func, .var_args_func, .old_style_func => switch (spec.kind) {
                 .none => spec.kind = new,
                 else => return spec.cannotCombine(p),
             },
@@ -496,6 +507,7 @@ pub const Builder = struct {
             .atomic => .{ .atomic = ty.data.sub_type },
             .func => .{ .func = ty.data.func },
             .var_args_func => .{ .var_args_func = ty.data.func },
+            .old_style_func => .{ .old_style_func = ty.data.func },
             .array => .{ .array = ty.data.array },
             .static_array => .{ .static_array = ty.data.array },
             .@"struct" => .{ .@"struct" = ty.data.node },
@@ -518,7 +530,7 @@ pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
             try ty.data.sub_type.dump(tree, w);
             try w.writeAll(")");
         },
-        .func, .var_args_func => {
+        .func, .var_args_func, .old_style_func => {
             try w.writeAll("fn (");
             for (ty.data.func.param_types) |param, i| {
                 if (i != 0) try w.writeAll(", ");
