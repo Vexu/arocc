@@ -26,7 +26,7 @@ pub fn deinit(tree: *Tree) void {
 /// A generic struct capable of represening all Decl, Stmt and Expr.
 pub const Node = struct {
     tag: Tag,
-    ty: Type,
+    ty: Type = .{ .specifier = .void },
     first: NodeIndex = 0,
     second: NodeIndex = 0,
 
@@ -103,14 +103,23 @@ pub const Tag = enum(u8) {
     compound_stmt_two,
     /// { data }
     compound_stmt,
-    if_stmt,
+    /// if (first) data[second] else data[second+1];
+    if_then_else_stmt,
+    /// if (first); else second;
+    if_else_stmt,
+    /// if (first) second; second may be null
+    if_then_stmt,
+    /// switch (first) second
     switch_stmt,
     while_stmt,
     do_while_stmt,
     for_stmt,
     goto_stmt,
+    // continue; first and second unused
     continue_stmt,
+    // break; first and second unused
     break_stmt,
+    /// return first; first may be null
     return_stmt,
 
     // ====== Expr ======
@@ -230,6 +239,26 @@ pub const Tag = enum(u8) {
     array_to_pointer,
     /// same as deref
     lval_to_rval,
+
+    /// Only valid for expressions.
+    pub fn shouldWarnUnused(tag: Tag) bool {
+        return switch (tag) {
+            .assign_expr,
+            .mul_assign_expr,
+            .div_assign_expr,
+            .mod_assign_expr,
+            .add_assign_expr,
+            .sub_assign_expr,
+            .shl_assign_expr,
+            .shr_assign_expr,
+            .and_assign_expr,
+            .xor_assign_expr,
+            .or_assign_expr,
+            .call_expr,
+            => false,
+            else => true,
+        };
+    }
 
     pub fn Type(comptime tag: Tag) ?type {
         return switch (tag) {
@@ -519,17 +548,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeAll("body:\n");
             try tree.dumpNode(tree.nodes.items(.second)[node], level + delta, w);
         },
-        .compound_stmt => {
-            const start = tree.nodes.items(.first)[node];
-            const end = tree.nodes.items(.second)[node];
-            for (tree.data[start..end]) |stmt| try tree.dumpNode(stmt, level + delta, w);
-        },
-        .compound_stmt_two => {
-            const first = tree.nodes.items(.first)[node];
-            if (first != 0) try tree.dumpNode(first, level + delta, w);
-            const second = tree.nodes.items(.second)[node];
-            if (second != 0) try tree.dumpNode(second, level + delta, w);
-        },
         .typedef,
         .@"var",
         .extern_var,
@@ -546,6 +564,71 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("init:\n");
                 try tree.dumpNode(init, level + delta, w);
+            }
+        },
+        .compound_stmt => {
+            const start = tree.nodes.items(.first)[node];
+            const end = tree.nodes.items(.second)[node];
+            for (tree.data[start..end]) |stmt| try tree.dumpNode(stmt, level + delta, w);
+        },
+        .compound_stmt_two => {
+            const first = tree.nodes.items(.first)[node];
+            if (first != 0) try tree.dumpNode(first, level + delta, w);
+            const second = tree.nodes.items(.second)[node];
+            if (second != 0) try tree.dumpNode(second, level + delta, w);
+        },
+        .labeled_stmt => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.print("label: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+            const stmt = tree.nodes.items(.second)[node];
+            if (stmt != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("stmt:\n");
+                try tree.dumpNode(stmt, level + delta, w);
+            }
+        },
+        .if_then_else_stmt => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("cond:\n");
+            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);
+
+            const second = tree.nodes.items(.second)[node];
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("then:\n");
+            try tree.dumpNode(tree.data[second], level + delta, w);
+
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("else:\n");
+            try tree.dumpNode(tree.data[second + 1], level + delta, w);
+        },
+        .if_else_stmt => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("cond:\n");
+            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w); 
+
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("else:\n");
+            try tree.dumpNode(tree.nodes.items(.second)[node], level + delta, w);
+        },
+        .if_then_stmt => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("cond:\n");
+            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);
+
+            const then = tree.nodes.items(.second)[node];
+            if (then != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("then:\n");
+                try tree.dumpNode(then, level + delta, w);
+            }
+        },
+        .continue_stmt, .break_stmt => {},
+        .return_stmt => {
+            const expr = tree.nodes.items(.first)[node];
+            if (expr != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("expr:\n");
+                try tree.dumpNode(expr, level + delta, w);
             }
         },
         .string_literal_expr => {

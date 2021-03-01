@@ -260,6 +260,30 @@ fn findSymbol(p: *Parser, name_tok: TokenIndex) ?Scope {
     return null;
 }
 
+fn inLoop(p: *Parser) bool {
+    var i = p.scopes.items.len;
+    while (i > 0) {
+        i -= 1;
+        switch (p.scopes.items[i]) {
+            .loop => return true,
+            else => {},
+        }
+    }
+    return false;
+}
+
+fn inLoopOrSwitch(p: *Parser) bool {
+    var i = p.scopes.items.len;
+    while (i > 0) {
+        i -= 1;
+        switch (p.scopes.items[i]) {
+            .loop, .@"switch" => return true,
+            else => {},
+        }
+    }
+    return false;
+}
+
 /// root : (decl | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     var root_decls = NodeList.init(pp.comp.gpa);
@@ -1120,14 +1144,68 @@ fn designator(p: *Parser) Error!NodeIndex {
 ///  | keyword_return expr? ';'
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!NodeIndex {
+    if (try p.labeledStmt()) |some| return some;
     if (try p.compoundStmt()) |some| return some;
+    if (p.eatToken(.keyword_if)) |_| {
+        const l_paren = try p.expectToken(.l_paren);
+        const cond = try p.expr();
+        // TODO validate type
+        try cond.expect(p);
+        const cond_node = try cond.toNode(p);
+        try p.expectClosing(l_paren, .r_paren);
 
-    const e = try p.expr();
-    if (e == .node) {
-        _ = try p.expectToken(.semicolon);
-        return e.node;
+        const then = try p.stmt();
+        const @"else" = if (p.eatToken(.keyword_else)) |_| try p.stmt() else 0;
+
+        if (then != 0 and @"else" != 0)
+            return try p.addNode(.{
+                .tag = .if_then_else_stmt,
+                .first = cond_node,
+                .second = (try p.addList(&.{ then, @"else" })).start,
+            })
+        else if (then == 0 and @"else" != 0)
+            return try p.addNode(.{
+                .tag = .if_else_stmt,
+                .first = cond_node,
+                .second = @"else",
+            })
+        else
+            return try p.addNode(.{
+                .tag = .if_then_stmt,
+                .first = cond_node,
+                .second = then,
+            });
     }
-    if (p.eatToken(.semicolon)) |_| return 0;
+    if (p.eatToken(.keyword_continue)) |cont| {
+        if (!p.inLoop()) try p.errTok(.continue_not_in_loop, cont);
+        _ = try p.expectToken(.semicolon);
+        return try p.addNode(.{ .tag = .continue_stmt });
+    }
+    if (p.eatToken(.keyword_break)) |br| {
+        if (!p.inLoopOrSwitch()) try p.errTok(.break_not_in_loop_or_switch, br);
+        _ = try p.expectToken(.semicolon);
+        return try p.addNode(.{ .tag = .break_stmt });
+    }
+    if (p.eatToken(.keyword_return)) |_| {
+        const e = try p.expr();
+        _ = try p.expectToken(.semicolon);
+        // TODO cast to return type
+        const first = if (e == .none) 0 else try e.toNode(p);
+        return try p.addNode(.{
+            .tag = .return_stmt,
+            .first = first,
+        });
+    }
+
+    const expr_start = p.tok_i;
+    const e = try p.expr();
+    if (e != .none) {
+        _ = try p.expectToken(.semicolon);
+        const expr_node = try e.toNode(p);
+        if (p.nodes.items(.tag)[expr_node].shouldWarnUnused()) try p.errTok(.unused_value, expr_start);
+        return expr_node;
+    }
+    if (p.eatToken(.semicolon)) |_| return @as(NodeIndex, 0);
 
     try p.err(.expected_stmt);
     return error.ParsingFailed;
@@ -1137,8 +1215,21 @@ fn stmt(p: *Parser) Error!NodeIndex {
 /// : IDENTIFIER ':' stmt
 /// | keyword_case constExpr ':' stmt
 /// | keyword_default ':' stmt
-fn labeledStmt(p: *Parser) Error!NodeIndex {
-    return p.todo("labeledStmt");
+fn labeledStmt(p: *Parser) Error!?NodeIndex {
+    if (p.tokens[p.tok_i].id == .identifier and p.tokens[p.tok_i + 1].id == .colon) {
+        // TODO check for redefinitions
+        const name_tok = p.tok_i;
+        p.tok_i += 2;
+        return try p.addNode(.{
+            .tag = .labeled_stmt,
+            .first = name_tok,
+            .second = try p.stmt(),
+        });
+    } else if (p.eatToken(.keyword_case)) |case| {
+        return p.todo("case");
+    } else if (p.eatToken(.keyword_default)) |default| {
+        return p.todo("default");
+    } else return null;
 }
 
 /// compoundStmt : '{' ( decl| staticAssert | stmt)* '}'
@@ -1173,22 +1264,18 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
             },
             else => |e| return e,
         };
+        if (s == 0) continue;
         try statements.append(s);
     }
 
     switch (statements.items.len) {
-        0 => return try p.addNode(.{
-            .tag = .compound_stmt_two,
-            .ty = .{ .specifier = .void },
-        }),
+        0 => return try p.addNode(.{ .tag = .compound_stmt_two }),
         1 => return try p.addNode(.{
             .tag = .compound_stmt_two,
-            .ty = .{ .specifier = .void },
             .first = statements.items[0],
         }),
         2 => return try p.addNode(.{
             .tag = .compound_stmt_two,
-            .ty = .{ .specifier = .void },
             .first = statements.items[0],
             .second = statements.items[1],
         }),
@@ -1196,7 +1283,6 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
             const range = try p.addList(statements.items);
             return try p.addNode(.{
                 .tag = .compound_stmt,
-                .ty = .{ .specifier = .void },
                 .first = range.start,
                 .second = range.end,
             });
@@ -1221,12 +1307,12 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             // .keyword_for,
             // .keyword_while,
             // .keyword_do,
-            // .keyword_if,
+            .keyword_if,
             // .keyword_goto,
             // .keyword_switch,
-            // .keyword_continue,
+            .keyword_continue,
             // .keyword_break,
-            // .keyword_return,
+            .keyword_return,
             .keyword_typedef,
             .keyword_extern,
             .keyword_static,

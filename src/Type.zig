@@ -548,9 +548,9 @@ pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
             try ty.data.func.return_type.dump(tree, w);
         },
         .array, .static_array => {
-            try w.print("[{d}]", .{ty.data.array.len});
-            try w.writeAll("] ");
+            try w.writeByte('[');
             if (ty.specifier == .static_array) try w.writeAll("static ");
+            try w.print("{d}]", .{ty.data.array.len});
             try ty.data.array.elem.dump(tree, w);
         },
         else => try w.writeAll(Builder.fromType(ty).str()),
