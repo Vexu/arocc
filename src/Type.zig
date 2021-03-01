@@ -578,7 +578,7 @@ pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
                 }
                 try tree.nodes.items(.ty)[param].dump(tree, w);
             }
-            if (ty.specifier == .var_args_func) {
+            if (ty.specifier != .func) {
                 if (ty.data.func.param_types.len != 0) try w.writeAll(", ");
                 try w.writeAll("...");
             }

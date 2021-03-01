@@ -1111,7 +1111,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator) Error!Type {
 
         if (try p.paramDecls()) |params| {
             func_ty.param_types = params;
-            if (p.eatToken(.ellipsis) == null) specifier = .var_args_func;
+            if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
         } else if (p.tokens[p.tok_i].id == .r_paren) {
             specifier = .old_style_func;
         } else if (p.tokens[p.tok_i].id == .identifier) {
@@ -1629,7 +1629,7 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
 
     if (noreturn_index) |some| {
         // if new labels were defined we cannot be certain that the code is unreachable
-        if (noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
+        if (some != p.tok_i - 1 and noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
     }
 
     switch (statements.items.len) {
@@ -1984,30 +1984,42 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.errStr(.not_callable, l_paren, Type.Builder.fromType(lhs_ty).str());
                 return error.ParsingFailed;
             };
+            const param_types = ty.data.func.param_types;
+
             var args = NodeList.init(p.pp.comp.gpa);
             defer args.deinit();
 
-            for (ty.data.func.param_types) |param_decl, i| {
-                if (i != 0) _ = try p.expectToken(.comma);
-                const param_ty = p.nodes.items(.ty)[param_decl];
-
-                const arg = try p.assignExpr();
-                try arg.expect(p);
-                const casted = try arg.coerce(p, param_ty);
-                try args.append(try casted.toNode(p));
-            }
-            if (ty.specifier == .var_args_func) blk: {
-                if (args.items.len != 0)
-                    _ = p.eatToken(.comma) orelse break :blk;
+            var first_after = l_paren;
+            if (p.eatToken(.r_paren) == null) {
                 while (true) {
-                    // TODO coerce type
+                    if (args.items.len == param_types.len) first_after = p.tok_i;
                     const arg = try p.assignExpr();
                     try arg.expect(p);
-                    try args.append(try arg.toNode(p));
+
+                    if (args.items.len < param_types.len) {
+                        const param_ty = p.nodes.items(.ty)[param_types[args.items.len]];
+                        const casted = try arg.coerce(p, param_ty);
+                        try args.append(try casted.toNode(p));
+                    } else {
+                        // TODO coerce to var args passable type
+                        try args.append(try arg.toNode(p));
+                    }
+
                     _ = p.eatToken(.comma) orelse break;
                 }
+                try p.expectClosing(l_paren, .r_paren);
             }
-            try p.expectClosing(l_paren, .r_paren);
+
+            const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, param_types.len), .actual = @intCast(u32, args.items.len) } };
+            if (ty.specifier == .func and param_types.len != args.items.len) {
+                try p.errExtra(.expected_arguments, first_after, extra);
+            }
+            if (ty.specifier == .old_style_func and param_types.len != args.items.len) {
+                try p.errExtra(.expected_arguments_old, first_after, extra);
+            }
+            if (ty.specifier == .var_args_func and args.items.len < param_types.len) {
+                try p.errExtra(.expected_at_least_arguments, first_after, extra);
+            }
 
             switch (args.items.len) {
                 0 => return try Result.node(p, .{
