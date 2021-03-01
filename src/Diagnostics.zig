@@ -107,6 +107,10 @@ pub const Tag = enum {
     unused_value,
     continue_not_in_loop,
     break_not_in_loop_or_switch,
+    unreachable_code,
+    duplicate_label,
+    previous_label,
+    undeclared_label,
 };
 
 const Options = struct {
@@ -118,6 +122,7 @@ const Options = struct {
     @"extern-initializer": Kind = .warning,
     @"implicit-function-declaration": Kind = .warning,
     @"unused-value": Kind = .warning,
+    @"unreachable-code": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -287,6 +292,10 @@ pub fn render(comp: *Compilation) void {
             .unused_value => m.write("expression result unused"),
             .continue_not_in_loop => m.write("'continue' statement not in a loop"),
             .break_not_in_loop_or_switch => m.write("'break' statement not in a loop or a switch"),
+            .unreachable_code => m.write("unreachable code"),
+            .duplicate_label => m.print("duplicate label '{s}'", .{msg.extra.str}),
+            .previous_label => m.print("previous definition of label '{s}' was here", .{msg.extra.str}),
+            .undeclared_label => m.print("use of undeclared label '{s}'", .{msg.extra.str}),
         }
         m.end(lcs);
     }
@@ -369,12 +378,15 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .invalid_void_param,
         .continue_not_in_loop,
         .break_not_in_loop_or_switch,
+        .duplicate_label,
+        .undeclared_label,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
         .to_match_bracket,
         .header_str_match,
         .sepc_from_typedef,
+        .previous_label,
         => .note,
         .invalid_old_style_params => .warning,
         .unsupported_pragma => diag.options.@"unsupported-pragma",
@@ -385,6 +397,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .extern_initializer => diag.options.@"extern-initializer",
         .implicit_func_decl => diag.options.@"implicit-function-declaration",
         .unused_value => diag.options.@"unused-value",
+        .unreachable_code => diag.options.@"unreachable-code",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

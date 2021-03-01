@@ -240,26 +240,6 @@ pub const Tag = enum(u8) {
     /// same as deref
     lval_to_rval,
 
-    /// Only valid for expressions.
-    pub fn shouldWarnUnused(tag: Tag) bool {
-        return switch (tag) {
-            .assign_expr,
-            .mul_assign_expr,
-            .div_assign_expr,
-            .mod_assign_expr,
-            .add_assign_expr,
-            .sub_assign_expr,
-            .shl_assign_expr,
-            .shr_assign_expr,
-            .and_assign_expr,
-            .xor_assign_expr,
-            .or_assign_expr,
-            .call_expr,
-            => false,
-            else => true,
-        };
-    }
-
     pub fn Type(comptime tag: Tag) ?type {
         return switch (tag) {
             .invalid => unreachable,
@@ -621,6 +601,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeAll("then:\n");
                 try tree.dumpNode(then, level + delta, w);
             }
+        },
+        .goto_stmt => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.print("label: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
         },
         .continue_stmt, .break_stmt => {},
         .return_stmt => {

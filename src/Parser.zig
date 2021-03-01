@@ -122,6 +122,11 @@ const Scope = union(enum) {
     };
 };
 
+const Label = union(enum) {
+    unresolved_goto: TokenIndex,
+    label: TokenIndex,
+};
+
 pub const Error = Compilation.Error || error{ParsingFailed};
 
 pp: *Preprocessor,
@@ -134,6 +139,8 @@ tok_i: TokenIndex = 0,
 want_const: bool = false,
 in_function: bool = false,
 cur_decl_list: *NodeList,
+labels: std.ArrayList(Label),
+label_count: u32 = 0,
 
 fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
     const tok = p.tokens[p.tok_i];
@@ -284,6 +291,16 @@ fn inLoopOrSwitch(p: *Parser) bool {
     return false;
 }
 
+fn getLabel(p: *Parser, name: []const u8) ?NodeIndex {
+    for (p.labels.items) |item| {
+        switch (item) {
+            .label => |l| if (mem.eql(u8, p.pp.tokSlice(p.tokens[l]), name)) return l,
+            .unresolved_goto => {},
+        }
+    }
+    return null;
+}
+
 /// root : (decl | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     var root_decls = NodeList.init(pp.comp.gpa);
@@ -297,9 +314,11 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .cur_decl_list = &root_decls,
         .scopes = std.ArrayList(Scope).init(pp.comp.gpa),
         .data = NodeList.init(pp.comp.gpa),
+        .labels = std.ArrayList(Label).init(pp.comp.gpa),
     };
     defer p.scopes.deinit();
     defer p.data.deinit();
+    defer p.labels.deinit();
     errdefer p.nodes.deinit(pp.comp.gpa);
 
     // NodeIndex 0 must be invalid
@@ -469,6 +488,17 @@ fn decl(p: *Parser) Error!bool {
         } });
         const body = try p.compoundStmt();
         p.nodes.items(.second)[node] = body.?;
+
+        // check gotos
+        if (!in_function) {
+            for (p.labels.items) |item| {
+                if (item == .unresolved_goto)
+                    try p.errStr(.undeclared_label, item.unresolved_goto, p.pp.tokSlice(p.tokens[item.unresolved_goto]));
+            }
+            p.labels.items.len = 0;
+            p.label_count = 0;
+        }
+
         try p.cur_decl_list.append(node);
         return true;
     }
@@ -1176,6 +1206,18 @@ fn stmt(p: *Parser) Error!NodeIndex {
                 .second = then,
             });
     }
+    if (p.eatToken(.keyword_goto)) |goto| {
+        const name_tok = try p.expectToken(.identifier);
+        const str = p.pp.tokSlice(p.tokens[name_tok]);
+        if (p.getLabel(str) == null) {
+            try p.labels.append(.{ .unresolved_goto = name_tok });
+        }
+        _ = try p.expectToken(.semicolon);
+        return try p.addNode(.{
+            .tag = .goto_stmt,
+            .first = name_tok,
+        });
+    }
     if (p.eatToken(.keyword_continue)) |cont| {
         if (!p.inLoop()) try p.errTok(.continue_not_in_loop, cont);
         _ = try p.expectToken(.semicolon);
@@ -1202,7 +1244,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
     if (e != .none) {
         _ = try p.expectToken(.semicolon);
         const expr_node = try e.toNode(p);
-        if (p.nodes.items(.tag)[expr_node].shouldWarnUnused()) try p.errTok(.unused_value, expr_start);
+        try p.maybeWarnUnused(expr_node, expr_start);
         return expr_node;
     }
     if (p.eatToken(.semicolon)) |_| return @as(NodeIndex, 0);
@@ -1211,14 +1253,49 @@ fn stmt(p: *Parser) Error!NodeIndex {
     return error.ParsingFailed;
 }
 
+fn maybeWarnUnused(p: *Parser, node: NodeIndex, expr_start: TokenIndex) Error!void {
+    switch (p.nodes.items(.tag)[node]) {
+        .assign_expr,
+        .mul_assign_expr,
+        .div_assign_expr,
+        .mod_assign_expr,
+        .add_assign_expr,
+        .sub_assign_expr,
+        .shl_assign_expr,
+        .shr_assign_expr,
+        .and_assign_expr,
+        .xor_assign_expr,
+        .or_assign_expr,
+        .call_expr,
+        => {},
+        else => try p.errTok(.unused_value, expr_start),
+    }
+}
+
 /// labeledStmt
 /// : IDENTIFIER ':' stmt
 /// | keyword_case constExpr ':' stmt
 /// | keyword_default ':' stmt
 fn labeledStmt(p: *Parser) Error!?NodeIndex {
     if (p.tokens[p.tok_i].id == .identifier and p.tokens[p.tok_i + 1].id == .colon) {
-        // TODO check for redefinitions
         const name_tok = p.tok_i;
+        const str = p.pp.tokSlice(p.tokens[name_tok]);
+        if (p.getLabel(str)) |some| {
+            try p.errStr(.duplicate_label, name_tok, str);
+            try p.errStr(.previous_label, some, str);
+        } else {
+            p.label_count += 1;
+            try p.labels.append(.{ .label = name_tok });
+            var i: usize = 0;
+            while (i < p.labels.items.len) : (i += 1) {
+                if (p.labels.items[i] == .unresolved_goto and
+                    mem.eql(u8, p.pp.tokSlice(p.tokens[p.labels.items[i].unresolved_goto]), str))
+                {
+                    _ = p.labels.swapRemove(i);
+                }
+            }
+        }
+
         p.tok_i += 2;
         return try p.addNode(.{
             .tag = .labeled_stmt,
@@ -1241,6 +1318,9 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
     const saved_decls = p.cur_decl_list;
     defer p.cur_decl_list = saved_decls;
     p.cur_decl_list = &statements;
+
+    var noreturn_index: ?TokenIndex = null;
+    var noreturn_label_count: u32 = 0;
 
     while (p.eatToken(.r_brace) == null) {
         if (p.staticAssert() catch |er| switch (er) {
@@ -1266,6 +1346,16 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
         };
         if (s == 0) continue;
         try statements.append(s);
+
+        if (noreturn_index == null and p.nodeIsNoreturn(s)) {
+            noreturn_index = p.tok_i;
+            noreturn_label_count = p.label_count;
+        }
+    }
+
+    if (noreturn_index) |some| {
+        // if new labels were defined we cannot be certain that the code is unreachable
+        if (noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
     }
 
     switch (statements.items.len) {
@@ -1287,6 +1377,17 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
                 .second = range.end,
             });
         },
+    }
+}
+
+fn nodeIsNoreturn(p: *Parser, node: NodeIndex) bool {
+    switch (p.nodes.items(.tag)[node]) {
+        .break_stmt, .continue_stmt, .return_stmt => return true,
+        .if_then_else_stmt => {
+            const data = p.data.items[p.nodes.items(.second)[node]..];
+            return p.nodeIsNoreturn(data[0]) and p.nodeIsNoreturn(data[1]);
+        },
+        else => return false,
     }
 }
 
@@ -1784,7 +1885,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             defer builder.deinit();
             for (p.tokens[start..p.tok_i]) |tok| {
                 var slice = p.pp.tokSlice(tok);
-                slice = slice[mem.indexOf(u8, slice, "\"").? .. slice.len - 1];
+                slice = slice[mem.indexOf(u8, slice, "\"").? + 1 .. slice.len - 1];
                 var i: u32 = 0;
                 try builder.ensureCapacity(slice.len);
                 while (i < slice.len) : (i += 1) {

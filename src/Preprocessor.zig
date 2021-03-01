@@ -365,6 +365,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         .cur_decl_list = undefined,
         .scopes = undefined,
         .data = undefined,
+        .labels = undefined,
     };
     const res = parser.constExpr() catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
