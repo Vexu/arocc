@@ -98,6 +98,58 @@ pub const Result = union(enum) {
         }
         return casted;
     }
+
+    fn hash(res: Result) u64 {
+        var val: i64 = undefined;
+        switch (res) {
+            .bool => |v| val = @boolToInt(v),
+            .u8 => |v| val = v,
+            .i8 => |v| val = v,
+            .u16 => |v| val = v,
+            .i16 => |v| val = v,
+            .u32 => |v| val = v,
+            .i32 => |v| val = v,
+            .u64 => |v| val = @bitCast(i64, v), // doesn't matter we only want a hash
+            .i64 => |v| val = v,
+            .none, .node, .lval => unreachable,
+        }
+        return std.hash.Wyhash.hash(0, mem.asBytes(&val));
+    }
+
+    fn eql(a: Result, b: Result) bool {
+        var a_val: i64 = undefined;
+        switch (a) {
+            .bool => |v| a_val = @boolToInt(v),
+            .u8 => |v| a_val = v,
+            .i8 => |v| a_val = v,
+            .u16 => |v| a_val = v,
+            .i16 => |v| a_val = v,
+            .u32 => |v| a_val = v,
+            .i32 => |v| a_val = v,
+            .u64 => |v| {
+                if (v == @truncate(u63, v)) a_val = @truncate(u63, v) else @panic("eql a_val u64");
+            },
+            .i64 => |v| a_val = v,
+            .none, .node, .lval => unreachable,
+        }
+
+        var b_val: i64 = undefined;
+        switch (b) {
+            .bool => |v| b_val = @boolToInt(v),
+            .u8 => |v| b_val = v,
+            .i8 => |v| b_val = v,
+            .u16 => |v| b_val = v,
+            .i16 => |v| b_val = v,
+            .u32 => |v| b_val = v,
+            .i32 => |v| b_val = v,
+            .u64 => |v| {
+                if (v == @truncate(u63, v)) b_val = @truncate(u63, v) else @panic("eql b_val u64");
+            },
+            .i64 => |v| b_val = v,
+            .none, .node, .lval => unreachable,
+        }
+        return a_val == b_val;
+    }
 };
 
 const Scope = union(enum) {
@@ -108,7 +160,7 @@ const Scope = union(enum) {
     symbol: Symbol,
     enumeration: Enumeration,
     loop,
-    @"switch",
+    @"switch": *Switch,
 
     const Symbol = struct {
         name: []const u8,
@@ -119,6 +171,17 @@ const Scope = union(enum) {
     const Enumeration = struct {
         name: []const u8,
         value: Result,
+    };
+
+    const Switch = struct {
+        cases: CaseMap,
+        default: ?Case = null,
+
+        const CaseMap = std.HashMap(Result, Case, Result.hash, Result.eql, std.hash_map.DefaultMaxLoadPercentage);
+        const Case = struct {
+            node: NodeIndex,
+            tok: TokenIndex,
+        };
     };
 };
 
@@ -291,11 +354,23 @@ fn inLoopOrSwitch(p: *Parser) bool {
     return false;
 }
 
-fn getLabel(p: *Parser, name: []const u8) ?NodeIndex {
+fn findLabel(p: *Parser, name: []const u8) ?NodeIndex {
     for (p.labels.items) |item| {
         switch (item) {
             .label => |l| if (mem.eql(u8, p.pp.tokSlice(p.tokens[l]), name)) return l,
             .unresolved_goto => {},
+        }
+    }
+    return null;
+}
+
+fn findSwitch(p: *Parser) ?*Scope.Switch {
+    var i = p.scopes.items.len;
+    while (i > 0) {
+        i -= 1;
+        switch (p.scopes.items[i]) {
+            .@"switch" => |s| return s,
+            else => {},
         }
     }
     return null;
@@ -1210,7 +1285,28 @@ fn stmt(p: *Parser) Error!NodeIndex {
             });
     }
     if (p.eatToken(.keyword_switch)) |_| {
-        return p.todo("switch");
+        const start_scopes_len = p.scopes.items.len;
+        defer p.scopes.items.len = start_scopes_len;
+
+        const l_paren = try p.expectToken(.l_paren);
+        const cond = try p.expr();
+        // TODO validate type
+        try cond.expect(p);
+        const cond_node = try cond.toNode(p);
+        try p.expectClosing(l_paren, .r_paren);
+
+        var switch_scope = Scope.Switch{
+            .cases = Scope.Switch.CaseMap.init(p.pp.comp.gpa),
+        };
+        defer switch_scope.cases.deinit();
+        try p.scopes.append(.{ .@"switch" = &switch_scope });
+        const body = try p.stmt();
+
+        return try p.addNode(.{
+            .tag = .switch_stmt,
+            .first = cond_node,
+            .second = body,
+        });
     }
     if (p.eatToken(.keyword_while)) |_| {
         const start_scopes_len = p.scopes.items.len;
@@ -1261,7 +1357,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
     if (p.eatToken(.keyword_goto)) |goto| {
         const name_tok = try p.expectToken(.identifier);
         const str = p.pp.tokSlice(p.tokens[name_tok]);
-        if (p.getLabel(str) == null) {
+        if (p.findLabel(str) == null) {
             try p.labels.append(.{ .unresolved_goto = name_tok });
         }
         _ = try p.expectToken(.semicolon);
@@ -1333,7 +1429,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
     if (p.tokens[p.tok_i].id == .identifier and p.tokens[p.tok_i + 1].id == .colon) {
         const name_tok = p.tok_i;
         const str = p.pp.tokSlice(p.tokens[name_tok]);
-        if (p.getLabel(str)) |some| {
+        if (p.findLabel(str)) |some| {
             try p.errStr(.duplicate_label, name_tok, str);
             try p.errStr(.previous_label, some, str);
         } else {
@@ -1356,9 +1452,50 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             .second = try p.stmt(),
         });
     } else if (p.eatToken(.keyword_case)) |case| {
-        return p.todo("case");
+        const val = try p.constExpr();
+        _ = try p.expectToken(.colon);
+        const s = try p.stmt();
+        const node = try p.addNode(.{
+            .tag = .case_stmt,
+            .first = try val.toNode(p),
+            .second = s,
+        });
+        if (p.findSwitch()) |some| {
+            const gop = try some.cases.getOrPut(val);
+            if (gop.found_existing) {
+                try p.errTok(.duplicate_switch_case, case);
+                try p.errTok(.previous_case, gop.entry.value.tok);
+            } else {
+                gop.entry.value = .{
+                    .tok = case,
+                    .node = node,
+                };
+            }
+        } else {
+            try p.errStr(.case_not_in_switch, case, "case");
+        }
+        return node;
     } else if (p.eatToken(.keyword_default)) |default| {
-        return p.todo("default");
+        _ = try p.expectToken(.colon);
+        const s = try p.stmt();
+        const node = try p.addNode(.{
+            .tag = .default_stmt,
+            .first = s,
+        });
+        if (p.findSwitch()) |some| {
+            if (some.default) |previous| {
+                try p.errTok(.multiple_default, default);
+                try p.errTok(.previous_case, previous.tok);
+            } else {
+                some.default = .{
+                    .tok = default,
+                    .node = node,
+                };
+            }
+        } else {
+            try p.errStr(.case_not_in_switch, default, "default");
+        }
+        return node;
     } else return null;
 }
 
@@ -1463,6 +1600,8 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_if,
             .keyword_goto,
             .keyword_switch,
+            .keyword_case,
+            .keyword_default,
             .keyword_continue,
             .keyword_break,
             .keyword_return,
@@ -1522,7 +1661,9 @@ pub fn constExpr(p: *Parser) Error!Result {
     const saved_const = p.want_const;
     defer p.want_const = saved_const;
     p.want_const = true;
-    return p.condExpr();
+    const res = try p.condExpr();
+    try res.expect(p);
+    return res;
 }
 
 /// condExpr : lorExpr ('?' expression? ':' condExpr)?

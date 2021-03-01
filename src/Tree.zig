@@ -111,6 +111,10 @@ pub const Tag = enum(u8) {
     if_then_stmt,
     /// switch (first) second
     switch_stmt,
+    /// case first: second
+    case_stmt,
+    /// default: first
+    default_stmt,
     /// while (first) second
     while_stmt,
     /// do second while(first);
@@ -573,6 +577,25 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(stmt, level + delta, w);
             }
         },
+        .case_stmt => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("value:\n");
+            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);
+            const stmt = tree.nodes.items(.second)[node];
+            if (stmt != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("stmt:\n");
+                try tree.dumpNode(stmt, level + delta, w);
+            }
+        },
+        .default_stmt => {
+            const stmt = tree.nodes.items(.first)[node];
+            if (stmt != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("stmt:\n");
+                try tree.dumpNode(stmt, level + delta, w);
+            }
+        },
         .if_then_else_stmt => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
@@ -608,7 +631,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(then, level + delta, w);
             }
         },
-        .while_stmt, .do_while_stmt => {
+        .switch_stmt, .while_stmt, .do_while_stmt => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
             try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);

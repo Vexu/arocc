@@ -111,6 +111,10 @@ pub const Tag = enum {
     duplicate_label,
     previous_label,
     undeclared_label,
+    case_not_in_switch,
+    duplicate_switch_case,
+    multiple_default,
+    previous_case,
 };
 
 const Options = struct {
@@ -296,6 +300,10 @@ pub fn render(comp: *Compilation) void {
             .duplicate_label => m.print("duplicate label '{s}'", .{msg.extra.str}),
             .previous_label => m.print("previous definition of label '{s}' was here", .{msg.extra.str}),
             .undeclared_label => m.print("use of undeclared label '{s}'", .{msg.extra.str}),
+            .case_not_in_switch => m.print("'{s}' statement not in a switch statement", .{msg.extra.str}),
+            .duplicate_switch_case => m.write("duplicate case value"),
+            .multiple_default => m.write("multiple default cases in the same switch"),
+            .previous_case => m.write("previous case defined here"),
         }
         m.end(lcs);
     }
@@ -380,6 +388,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .break_not_in_loop_or_switch,
         .duplicate_label,
         .undeclared_label,
+        .case_not_in_switch,
+        .duplicate_switch_case,
+        .multiple_default,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -387,6 +398,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .header_str_match,
         .sepc_from_typedef,
         .previous_label,
+        .previous_case,
         => .note,
         .invalid_old_style_params => .warning,
         .unsupported_pragma => diag.options.@"unsupported-pragma",
