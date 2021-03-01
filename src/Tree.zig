@@ -111,9 +111,12 @@ pub const Tag = enum(u8) {
     if_then_stmt,
     /// switch (first) second
     switch_stmt,
+    /// while (first) second
     while_stmt,
+    /// do second while(first);
     do_while_stmt,
     for_stmt,
+    /// goto first;
     goto_stmt,
     // continue; first and second unused
     continue_stmt,
@@ -549,7 +552,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .compound_stmt => {
             const start = tree.nodes.items(.first)[node];
             const end = tree.nodes.items(.second)[node];
-            for (tree.data[start..end]) |stmt| try tree.dumpNode(stmt, level + delta, w);
+            for (tree.data[start..end]) |stmt, i| {
+                if (i != 0) try w.writeByte('\n');
+                try tree.dumpNode(stmt, level + delta, w);
+            }
         },
         .compound_stmt_two => {
             const first = tree.nodes.items(.first)[node];
@@ -584,7 +590,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .if_else_stmt => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
-            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w); 
+            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("else:\n");
@@ -600,6 +606,18 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("then:\n");
                 try tree.dumpNode(then, level + delta, w);
+            }
+        },
+        .while_stmt, .do_while_stmt => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("cond:\n");
+            try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);
+
+            const body = tree.nodes.items(.second)[node];
+            if (body != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("body:\n");
+                try tree.dumpNode(body, level + delta, w);
             }
         },
         .goto_stmt => {

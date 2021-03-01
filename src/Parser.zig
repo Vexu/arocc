@@ -1177,6 +1177,9 @@ fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.labeledStmt()) |some| return some;
     if (try p.compoundStmt()) |some| return some;
     if (p.eatToken(.keyword_if)) |_| {
+        const start_scopes_len = p.scopes.items.len;
+        defer p.scopes.items.len = start_scopes_len;
+
         const l_paren = try p.expectToken(.l_paren);
         const cond = try p.expr();
         // TODO validate type
@@ -1205,6 +1208,55 @@ fn stmt(p: *Parser) Error!NodeIndex {
                 .first = cond_node,
                 .second = then,
             });
+    }
+    if (p.eatToken(.keyword_switch)) |_| {
+        return p.todo("switch");
+    }
+    if (p.eatToken(.keyword_while)) |_| {
+        const start_scopes_len = p.scopes.items.len;
+        defer p.scopes.items.len = start_scopes_len;
+
+        const l_paren = try p.expectToken(.l_paren);
+        const cond = try p.expr();
+        // TODO validate type
+        try cond.expect(p);
+        const cond_node = try cond.toNode(p);
+        try p.expectClosing(l_paren, .r_paren);
+
+        try p.scopes.append(.loop);
+        const body = try p.stmt();
+
+        return try p.addNode(.{
+            .tag = .while_stmt,
+            .first = cond_node,
+            .second = body,
+        });
+    }
+    if (p.eatToken(.keyword_do)) |_| {
+        const start_scopes_len = p.scopes.items.len;
+        defer p.scopes.items.len = start_scopes_len;
+
+        try p.scopes.append(.loop);
+        const body = try p.stmt();
+        p.scopes.items.len = start_scopes_len;
+
+        _ = try p.expectToken(.keyword_while);
+        const l_paren = try p.expectToken(.l_paren);
+        const cond = try p.expr();
+        // TODO validate type
+        try cond.expect(p);
+        const cond_node = try cond.toNode(p);
+        try p.expectClosing(l_paren, .r_paren);
+
+        _ = try p.expectToken(.semicolon);
+        return try p.addNode(.{
+            .tag = .do_while_stmt,
+            .first = cond_node,
+            .second = body,
+        });
+    }
+    if (p.eatToken(.keyword_for)) |_| {
+        return p.todo("for");
     }
     if (p.eatToken(.keyword_goto)) |goto| {
         const name_tok = try p.expectToken(.identifier);
@@ -1267,6 +1319,7 @@ fn maybeWarnUnused(p: *Parser, node: NodeIndex, expr_start: TokenIndex) Error!vo
         .xor_assign_expr,
         .or_assign_expr,
         .call_expr,
+        .call_expr_one,
         => {},
         else => try p.errTok(.unused_value, expr_start),
     }
@@ -1404,15 +1457,14 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             else {
                 parens -= 1;
             },
-            // TODO uncomment once implemented
-            // .keyword_for,
-            // .keyword_while,
-            // .keyword_do,
+            .keyword_for,
+            .keyword_while,
+            .keyword_do,
             .keyword_if,
-            // .keyword_goto,
-            // .keyword_switch,
+            .keyword_goto,
+            .keyword_switch,
             .keyword_continue,
-            // .keyword_break,
+            .keyword_break,
             .keyword_return,
             .keyword_typedef,
             .keyword_extern,
