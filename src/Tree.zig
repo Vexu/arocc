@@ -119,6 +119,11 @@ pub const Tag = enum(u8) {
     while_stmt,
     /// do second while(first);
     do_while_stmt,
+    /// for (data[..]; data[len-3]; data[len-2]) data[len-1]
+    for_decl_stmt,
+    /// for (;;;) first
+    forever_stmt,
+    /// for (data[first]; data[first+1]; data[first+2]) second
     for_stmt,
     /// goto first;
     goto_stmt,
@@ -639,6 +644,72 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeAll("cond:\n");
             try tree.dumpNode(tree.nodes.items(.first)[node], level + delta, w);
 
+            const body = tree.nodes.items(.second)[node];
+            if (body != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("body:\n");
+                try tree.dumpNode(body, level + delta, w);
+            }
+        },
+        .for_decl_stmt => {
+            const start = tree.nodes.items(.first)[node];
+            const end = tree.nodes.items(.second)[node];
+            const items = tree.data[start..end];
+            const decls = items[0 .. items.len - 3];
+
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("decl:\n");
+            for (decls) |decl| {
+                try tree.dumpNode(decl, level + delta, w);
+                try w.writeByte('\n');
+            }
+            const cond = items[items.len - 3];
+            if (cond != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("cond:\n");
+                try tree.dumpNode(cond, level + delta, w);
+            }
+            const incr = items[items.len - 2];
+            if (incr != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("incr:\n");
+                try tree.dumpNode(incr, level + delta, w);
+            }
+            const body = items[items.len - 1];
+            if (body != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("body:\n");
+                try tree.dumpNode(body, level + delta, w);
+            }
+        },
+        .forever_stmt => {
+            const body = tree.nodes.items(.first)[node];
+            if (body != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("body:\n");
+                try tree.dumpNode(body, level + delta, w);
+            }
+        },
+        .for_stmt => {
+            const start = tree.data[tree.nodes.items(.first)[node]..];
+            const init = start[0];
+            if (init != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("init:\n");
+                try tree.dumpNode(init, level + delta, w);
+            }
+            const cond = start[1];
+            if (cond != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("cond:\n");
+                try tree.dumpNode(cond, level + delta, w);
+            }
+            const incr = start[2];
+            if (incr != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("incr:\n");
+                try tree.dumpNode(incr, level + delta, w);
+            }
             const body = tree.nodes.items(.second)[node];
             if (body != 0) {
                 try w.writeByteNTimes(' ', level + half);

@@ -1379,7 +1379,63 @@ fn stmt(p: *Parser) Error!NodeIndex {
         });
     }
     if (p.eatToken(.keyword_for)) |_| {
-        return p.todo("for");
+        const start_scopes_len = p.scopes.items.len;
+        defer p.scopes.items.len = start_scopes_len;
+
+        var decls = NodeList.init(p.pp.comp.gpa);
+        defer decls.deinit();
+
+        const saved_decls = p.cur_decl_list;
+        defer p.cur_decl_list = saved_decls;
+        p.cur_decl_list = &decls;
+
+        const l_paren = try p.expectToken(.l_paren);
+        const got_decl = try p.decl();
+
+        // for (init
+        const init_start = p.tok_i;
+        const init = if (!got_decl) try p.expr() else Result{ .none = {} };
+        const init_node = try init.toNode(p);
+        try p.maybeWarnUnused(init_node, init_start);
+        if (!got_decl) _ = try p.expectToken(.semicolon);
+
+        // for (init; cond
+        const cond = try p.expr();
+        const cond_node = try cond.toNode(p);
+        _ = try p.expectToken(.semicolon);
+
+        // for (init; cond; incr
+        const incr_start = p.tok_i;
+        const incr = try p.expr();
+        const incr_node = try incr.toNode(p);
+        try p.maybeWarnUnused(incr_node, incr_start);
+        try p.expectClosing(l_paren, .r_paren);
+
+        try p.scopes.append(.loop);
+        const body = try p.stmt();
+
+        if (got_decl) {
+            const start = (try p.addList(decls.items)).start;
+            const end = (try p.addList(&.{ cond_node, incr_node, body })).end;
+
+            return try p.addNode(.{
+                .tag = .for_decl_stmt,
+                .first = start,
+                .second = end,
+            });
+        } else if (init == .none and cond == .none and incr == .none) {
+            return try p.addNode(.{
+                .tag = .forever_stmt,
+                .first = body,
+            });
+        } else {
+            const range = try p.addList(&.{ init_node, cond_node, incr_node });
+            return try p.addNode(.{
+                .tag = .for_stmt,
+                .first = range.start,
+                .second = body,
+            });
+        }
     }
     if (p.eatToken(.keyword_goto)) |goto| {
         const name_tok = try p.expectToken(.identifier);
@@ -1430,6 +1486,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
 fn maybeWarnUnused(p: *Parser, node: NodeIndex, expr_start: TokenIndex) Error!void {
     switch (p.nodes.items(.tag)[node]) {
+        .invalid, // So that we don't need to check for node == 0
         .assign_expr,
         .mul_assign_expr,
         .div_assign_expr,
@@ -2191,17 +2248,17 @@ fn primaryExpr(p: *Parser) Error!Result {
             var slice = p.pp.tokSlice(tok);
             p.tok_i += 1;
             var base: u8 = 10;
-            if (mem.startsWith(u8, "0x", slice)) {
+            if (mem.startsWith(u8, slice, "0x")) {
                 slice = slice[2..];
                 base = 10;
             } else if (slice[0] == '0') {
                 base = 8;
             }
             switch (tok.id) {
-            .integer_literal_u, .integer_literal_l => slice = slice[0..slice.len -1],
-            .integer_literal_lu, .integer_literal_ll => slice = slice[0..slice.len -2],
-            .integer_literal_llu => slice = slice[0..slice.len -3],
-            else => {},
+                .integer_literal_u, .integer_literal_l => slice = slice[0 .. slice.len - 1],
+                .integer_literal_lu, .integer_literal_ll => slice = slice[0 .. slice.len - 2],
+                .integer_literal_llu => slice = slice[0 .. slice.len - 3],
+                else => {},
             }
 
             if (base == 10) {
