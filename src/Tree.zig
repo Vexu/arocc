@@ -229,12 +229,14 @@ pub const Tag = enum(u8) {
     post_dec_expr,
     /// lhs is a TokenIndex of the identifier
     decl_ref_expr,
-    /// TODO
-    integer_literal_expr,
-    /// TODO
-    float_literal_expr,
-    /// TODO
-    char_literal_expr,
+    /// integer literal with 32 or fewer bits, stored in first, check node.ty for signedness and bit count
+    int_32_literal,
+    /// integer literal with 64 bits, split in first and second, check node.ty for signedness
+    int_64_literal,
+    /// f32 literal stored in first
+    float_literal,
+    /// f64 literal split in first and second
+    double_literal,
     /// data[first][0..second]
     string_literal_expr,
     /// TODO
@@ -496,14 +498,15 @@ pub fn dump(tree: Tree, writer: anytype) @TypeOf(writer).Error!void {
 fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Error!void {
     const delta = 2;
     const half = delta / 2;
-    const PURPLE = "\x1b[35;1m";
-    const CYAN = "\x1b[36;1m";
-    const GREEN = "\x1b[32;1m";
+    const TYPE = "\x1b[35;1m";
+    const TAG = "\x1b[36;1m";
+    const NAME = "\x1b[91;1m";
+    const LITERAL = "\x1b[32;1m";
     const RESET = "\x1b[0m";
 
     const tag = tree.nodes.items(.tag)[node];
     try w.writeByteNTimes(' ', level);
-    try w.print(CYAN ++ "{s}: " ++ PURPLE ++ "'", .{@tagName(tag)});
+    try w.print(TAG ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
     try tree.nodes.items(.ty)[node].dump(tree, w);
     try w.writeAll("'\n" ++ RESET);
     switch (tag) {
@@ -518,7 +521,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .noreturn_inline_static_fn_proto,
         => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
         },
         .fn_def,
         .static_fn_def,
@@ -530,7 +533,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .noreturn_inline_static_fn_def,
         => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("body:\n");
             try tree.dumpNode(tree.nodes.items(.second)[node], level + delta, w);
@@ -545,7 +548,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .threadlocal_static_var,
         => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
             const init = tree.nodes.items(.second)[node];
             if (init != 0) {
                 try w.writeByteNTimes(' ', level + half);
@@ -569,7 +572,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .labeled_stmt => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("label: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+            try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
             const stmt = tree.nodes.items(.second)[node];
             if (stmt != 0) {
                 try w.writeByteNTimes(' ', level + half);
@@ -645,7 +648,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .goto_stmt => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("label: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+            try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
         },
         .continue_stmt, .break_stmt => {},
         .return_stmt => {
@@ -661,7 +664,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             const ptr = @intToPtr([*]const u8, @bitCast(usize, tree.data[start..][0..2].*));
             const len = tree.nodes.items(.second)[node];
             try w.writeByteNTimes(' ', level + half);
-            try w.print("data: " ++ GREEN ++ "\"{s}\"\n" ++ RESET, .{ptr[0 .. len - 1]});
+            try w.print("data: " ++ LITERAL ++ "\"{s}\"\n" ++ RESET, .{ptr[0 .. len - 1]});
         },
         .call_expr => {
             const start = tree.nodes.items(.first)[node];
@@ -744,7 +747,33 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .decl_ref_expr => {
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("name: " ++ GREEN ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
+        },
+        .int_32_literal => {
+            try w.writeByteNTimes(' ', level + 1);
+            if (tree.nodes.items(.ty)[node].isUnsignedInt(tree.comp)) {
+                try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{tree.nodes.items(.first)});
+            } else {
+                try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{@bitCast(i32, tree.nodes.items(.first)[node])});
+            }
+        },
+        .int_64_literal => {
+            try w.writeByteNTimes(' ', level + 1);
+            const parts: [2]u32 = .{ tree.nodes.items(.first)[node], tree.nodes.items(.second)[node] };
+            if (tree.nodes.items(.ty)[node].isUnsignedInt(tree.comp)) {
+                try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{@bitCast(u64, parts)});
+            } else {
+                try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{@bitCast(i64, parts)});
+            }
+        },
+        .float_literal => {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{@bitCast(f32, tree.nodes.items(.first)[node])});
+        },
+        .double_literal => {
+            try w.writeByteNTimes(' ', level + 1);
+            const parts: [2]u32 = .{ tree.nodes.items(.first)[node], tree.nodes.items(.second)[node] };
+            try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{@bitCast(f64, parts)});
         },
         else => {},
     }
