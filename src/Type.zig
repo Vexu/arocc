@@ -34,6 +34,11 @@ pub const Array = struct {
     elem: Type,
 };
 
+pub const VLA = struct {
+    expr: NodeIndex,
+    elem: Type,
+};
+
 pub const Specifier = enum {
     void,
     bool,
@@ -62,6 +67,7 @@ pub const Specifier = enum {
     // data.sub_type
     pointer,
     atomic,
+    unspecified_variable_len_array,
     // data.func
     /// int foo(int bar, char baz) and int (void)
     func,
@@ -74,6 +80,10 @@ pub const Specifier = enum {
     // data.array
     array,
     static_array,
+    incomplete_array,
+    // data.vla
+    variable_len_array,
+
     // data.node
     @"struct",
     @"union",
@@ -84,6 +94,7 @@ data: union {
     sub_type: *Type,
     func: *Func,
     array: *Array,
+    vla: *VLA,
     node: NodeIndex,
     none: void,
 } = .{ .none = {} },
@@ -108,7 +119,7 @@ pub fn isFunc(ty: Type) bool {
 
 pub fn isArray(ty: Type) bool {
     return switch (ty.specifier) {
-        .array, .static_array => true,
+        .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => true,
         else => false,
     };
 }
@@ -126,10 +137,18 @@ pub fn wideChar(p: *Parser) Type {
     return .{ .specifier = .int };
 }
 
+pub fn hasIncompleteSize(ty: Type) bool {
+    return switch (ty.specifier) {
+        .void, .incomplete_array => true,
+        else => false,
+    };
+}
+
 /// Size of type as reported by sizeof
 pub fn sizeof(ty: Type, comp: *Compilation) u64 {
     // TODO get target from compilation
     return switch (ty.specifier) {
+        .variable_len_array, .unspecified_variable_len_array, .incomplete_array => unreachable, // TODO special case
         .func, .var_args_func, .old_style_func, .void, .bool => 1,
         .char, .schar, .uchar => 1,
         .short, .ushort => 2,
@@ -153,14 +172,19 @@ pub fn sizeof(ty: Type, comp: *Compilation) u64 {
 pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
     switch (inner.specifier) {
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
-        .array, .static_array => return p.errStr(.todo, source_tok, "combine array"),
+        .variable_len_array, .unspecified_variable_len_array => return p.todo("combine array"),
+        .array, .static_array, .incomplete_array  => {
+            try inner.data.array.elem.combine(outer, p, source_tok);
+
+            if (inner.data.array.elem.hasIncompleteSize()) return p.errTok(.array_incomplete_elem, source_tok);
+            if (inner.data.array.elem.isFunc()) return p.errTok(.array_func_elem, source_tok);
+            if (inner.data.array.elem.specifier == .static_array and inner.isArray()) return p.errTok(.static_non_outernmost_array, source_tok);
+            if (inner.data.array.elem.qual.any() and inner.isArray()) return p.errTok(.qualifier_non_outernmost_array, source_tok);
+        },
         .func, .var_args_func, .old_style_func => {
             try inner.data.func.return_type.combine(outer, p, source_tok);
-            switch (inner.data.func.return_type.specifier) {
-                .func, .var_args_func, .old_style_func => return p.errTok(.func_cannot_return_func, source_tok),
-                .array, .static_array => return p.errTok(.func_cannot_return_array, source_tok),
-                else => {},
-            }
+            if (inner.data.func.return_type.isArray()) return p.errTok(.func_cannot_return_array, source_tok);
+            if (inner.data.func.return_type.isFunc()) return p.errTok(.func_cannot_return_func, source_tok);
         },
         else => inner.* = outer,
     }
@@ -217,11 +241,14 @@ pub const Builder = struct {
 
         pointer: *Type,
         atomic: *Type,
+        unspecified_variable_len_array: *Type,
         func: *Func,
         var_args_func: *Func,
         old_style_func: *Func,
         array: *Array,
         static_array: *Array,
+        incomplete_array: *Array,
+        variable_len_array: *VLA,
         @"struct": NodeIndex,
         @"union": NodeIndex,
         @"enum": NodeIndex,
@@ -271,7 +298,7 @@ pub const Builder = struct {
                 .pointer => "pointer",
                 .atomic => "atomic",
                 .func, .var_args_func, .old_style_func => "function",
-                .array, .static_array => "array",
+                .array, .static_array, .unspecified_variable_len_array, .variable_len_array, .incomplete_array => "array",
                 .@"struct" => "struct",
                 .@"union" => "union",
                 .@"enum" => "enum",
@@ -329,6 +356,11 @@ pub const Builder = struct {
                 ty.data = .{ .sub_type = data };
                 return;
             },
+            .unspecified_variable_len_array => |data| {
+                ty.specifier = .unspecified_variable_len_array;
+                ty.data = .{ .sub_type = data };
+                return;
+            },
             .func => |data| {
                 ty.specifier = .func;
                 ty.data = .{ .func = data };
@@ -352,6 +384,16 @@ pub const Builder = struct {
             .static_array => |data| {
                 ty.specifier = .static_array;
                 ty.data = .{ .array = data };
+                return;
+            },
+            .incomplete_array => |data| {
+                ty.specifier = .incomplete_array;
+                ty.data = .{ .array = data };
+                return;
+            },
+            .variable_len_array => |data| {
+                ty.specifier = .variable_len_array;
+                ty.data = .{ .vla = data };
                 return;
             },
             .@"struct" => |data| {
@@ -543,11 +585,14 @@ pub const Builder = struct {
 
             .pointer => .{ .pointer = ty.data.sub_type },
             .atomic => .{ .atomic = ty.data.sub_type },
+            .unspecified_variable_len_array => .{ .unspecified_variable_len_array = ty.data.sub_type },
             .func => .{ .func = ty.data.func },
             .var_args_func => .{ .var_args_func = ty.data.func },
             .old_style_func => .{ .old_style_func = ty.data.func },
             .array => .{ .array = ty.data.array },
             .static_array => .{ .static_array = ty.data.array },
+            .incomplete_array => .{ .incomplete_array = ty.data.array },
+            .variable_len_array => .{ .variable_len_array = ty.data.vla },
             .@"struct" => .{ .@"struct" = ty.data.node },
             .@"union" => .{ .@"union" = ty.data.node },
             .@"enum" => .{ .@"enum" = ty.data.node },
@@ -589,6 +634,10 @@ pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
             try w.writeByte('[');
             if (ty.specifier == .static_array) try w.writeAll("static ");
             try w.print("{d}]", .{ty.data.array.len});
+            try ty.data.array.elem.dump(tree, w);
+        },
+        .incomplete_array => {
+            try w.writeAll("[]");
             try ty.data.array.elem.dump(tree, w);
         },
         else => try w.writeAll(Builder.fromType(ty).str()),
