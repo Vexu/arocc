@@ -212,8 +212,8 @@ pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) C
     return error.FatalError;
 }
 
-pub fn render(comp: *Compilation) void {
-    if (comp.diag.list.items.len == 0) return;
+pub fn render(comp: *Compilation) u32 {
+    if (comp.diag.list.items.len == 0) return 0;
     var m = MsgWriter.init(comp.diag.color);
     defer m.deinit();
 
@@ -366,6 +366,7 @@ pub fn render(comp: *Compilation) void {
     } else if (errors != 0) {
         m.print("{d} error{s} generated.\n", .{ errors, e_s });
     }
+    return errors;
 }
 
 const Kind = enum { @"fatal error", @"error", note, warning, off };

@@ -93,7 +93,7 @@ fn expectTokens(buf: []const u8, expected_tokens: []const Token.Id) void {
 
     const source = Source{
         .buf = buf,
-        .id = @intToEnum(Source.Id, 0),
+        .id = @intToEnum(Source.Id, 2),
         .path = "<test-buf>",
     };
     comp.sources.putNoClobber(source.path, source) catch unreachable;
@@ -103,15 +103,16 @@ fn expectTokens(buf: []const u8, expected_tokens: []const Token.Id) void {
     defer pp.deinit();
 
     pp.preprocess(source) catch unreachable;
+    std.testing.expect(comp.renderErrors() == 0);
 
     for (expected_tokens) |expected_token_id, i| {
-        const token = pp.tokens.items[i];
-        if (!std.meta.eql(token.id, expected_token_id)) {
-            std.debug.panic("expected {s}, found {s}\n", .{ @tagName(expected_token_id), @tagName(token.id) });
+        const actual = pp.tokens.items(.id)[i];
+        if (!std.meta.eql(actual, expected_token_id)) {
+            std.debug.panic("expected {s}, found {s}\n", .{ @tagName(expected_token_id), @tagName(actual) });
         }
     }
-    const last_token = pp.tokens.items[expected_tokens.len];
-    std.testing.expect(last_token.id == .eof);
+    const last_token = pp.tokens.items(.id)[expected_tokens.len];
+    std.testing.expect(last_token == .eof);
 }
 
 fn expectStr(buf: []const u8, expected: []const u8) void {
@@ -120,7 +121,7 @@ fn expectStr(buf: []const u8, expected: []const u8) void {
 
     const source = Source{
         .buf = buf,
-        .id = @intToEnum(Source.Id, 0),
+        .id = @intToEnum(Source.Id, 2),
         .path = "<test-buf>",
     };
     comp.sources.putNoClobber(source.path, source) catch unreachable;
@@ -130,14 +131,15 @@ fn expectStr(buf: []const u8, expected: []const u8) void {
     defer pp.deinit();
 
     pp.preprocess(source) catch unreachable;
+    std.testing.expect(comp.renderErrors() == 0);
 
     var actual = std.ArrayList(u8).init(std.testing.allocator);
     defer actual.deinit();
 
-    for (pp.tokens.items) |tok, i| {
-        if (tok.id == .eof) break;
+    for (pp.tokens.items(.id)) |id, i| {
+        if (id == .eof) break;
         if (i != 0) actual.append(' ') catch unreachable;
-        actual.appendSlice(pp.tokSlice(tok)) catch unreachable;
+        actual.appendSlice(pp.expandedSlice(pp.tokens.get(i))) catch unreachable;
     }
 
     std.testing.expectEqualStrings(expected, actual.items);

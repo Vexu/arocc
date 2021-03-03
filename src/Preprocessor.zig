@@ -617,7 +617,7 @@ fn markExpandedFrom(tok: *Token, loc: Source.Location) void {
 }
 
 // TODO there are like 5 tokSlice functions, can we combine them somehow.
-fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
+pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
     if (tok.id.lexeme()) |some| return some;
     const loc = tok.locs[0];
     var tmp_tokenizer = Tokenizer{
