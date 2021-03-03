@@ -43,7 +43,7 @@ const usage =
     \\
     \\General options:
     \\  -h, --help      Print this message.
-    \\  -v, --version   Print sfcc version.
+    \\  -v, --version   Print aro version.
     \\
     \\Feature options:
     \\  -E                      Only run the preprocessor

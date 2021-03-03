@@ -19,7 +19,7 @@ pub fn build(b: *Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("sfcc", "src/main.zig");
+    const exe = b.addExecutable("arocc", "src/main.zig");
     exe.addBuildOption(std.SemanticVersion, "version", version);
     exe.addBuildOption([]const u8, "version_str", std.fmt.allocPrint(b.allocator, "{}", .{version}) catch unreachable);
     exe.setTarget(target);
@@ -45,7 +45,7 @@ fn addTests(b: *Builder, tests: anytype) void {
     const tests_step = b.step("test", "Run all tests");
     inline for (tests) |t| {
         var test_step = b.addTest(t);
-        test_step.addPackagePath("sfcc", "src/lib.zig");
+        test_step.addPackagePath("aro", "src/lib.zig");
         tests_step.dependOn(&test_step.step);
     }
 }

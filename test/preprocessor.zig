@@ -81,11 +81,11 @@ test "define undefin" {
 }
 
 const std = @import("std");
-const sfcc = @import("sfcc");
-const Source = sfcc.Source;
-const Token = sfcc.Tokenizer.Token;
-const Preprocessor = sfcc.Preprocessor;
-const Compilation = sfcc.Compilation;
+const aro = @import("aro");
+const Source = aro.Source;
+const Token = aro.Tokenizer.Token;
+const Preprocessor = aro.Preprocessor;
+const Compilation = aro.Compilation;
 
 fn expectTokens(buf: []const u8, expected_tokens: []const Token.Id) void {
     var comp = Compilation.init(std.testing.allocator);

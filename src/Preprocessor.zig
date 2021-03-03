@@ -361,7 +361,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
     }
 
     // validate the tokens in the expression
-    for (pp.tokens.items(.id)) |*id, i| {
+    for (pp.tokens.items(.id)[start..]) |*id, i| {
         switch (id.*) {
             .string_literal,
             .string_literal_utf_16,
