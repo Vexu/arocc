@@ -8,12 +8,10 @@ const Tree = @This();
 
 pub const Token = struct {
     id: Id,
-    /// The first location contains the actual token slice which might be generated.
-    /// The second one marks its location in the actual source file.
-    locs: [token_location_count]Source.Location = [1]Source.Location{.{}} ** token_location_count,
-    /// How many source locations do we track for each token.
-    /// Must be at least 2.
-    pub const token_location_count = 4;
+    /// This location contains the actual token slice which might be generated.
+    /// If it is generated then the next location will be the location of the concatenation.
+    /// Any subsequent locations mark where the token was expanded from. 
+    loc: Source.Location,
 
     pub const List = std.MultiArrayList(Token);
     pub const Id = Tokenizer.Token.Id;
@@ -498,7 +496,7 @@ pub const Expr = struct {
 
 pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
-    const loc = tree.tokens.items(.locs)[tok_i][0];
+    const loc = tree.tokens.items(.loc)[tok_i];
     var tmp_tokenizer = Tokenizer{
         .buf = if (loc.id == .generated)
             tree.generated

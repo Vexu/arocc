@@ -68,6 +68,7 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
 
     var source_files = std.ArrayList(Source).init(gpa);
     defer source_files.deinit();
+    var only_preprocess = false;
 
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
@@ -85,6 +86,8 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
                     return comp.diag.fatalNoSrc("{s} when trying to print version", .{@errorName(err)});
                 };
                 return;
+            } else if (mem.eql(u8, arg, "-E")) {
+                only_preprocess = true;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
                 comp.diag.color = true;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
@@ -145,6 +148,18 @@ fn handleArgs(gpa: *Allocator, args: [][]const u8) !void {
                 continue;
             },
         };
+
+        if (only_preprocess) {
+            i = 0;
+            // TOOD pretty print these somehow
+            while (i < pp.tokens.len) : (i += 1) {
+                std.debug.print("{s}\n", .{pp.expandedSlice(pp.tokens.get(i))});
+            }
+
+            _ = comp.renderErrors();
+            comp.diag.list.items.len = 0;
+            continue;
+        }
 
         var tree = Parser.parse(&pp) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,

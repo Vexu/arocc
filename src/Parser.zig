@@ -262,7 +262,7 @@ fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
 
 fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
     if (p.tok_ids[tok].lexeme()) |some| return some;
-    const loc = p.pp.tokens.items(.locs)[tok][0];
+    const loc = p.pp.tokens.items(.loc)[tok];
     var tmp_tokenizer = Tokenizer{
         .buf = if (loc.id == .generated)
             p.pp.generated.items
@@ -285,7 +285,7 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
                     .r_bracket => .to_match_brace,
                     else => unreachable,
                 },
-                .locs = p.pp.tokens.items(.locs)[opening],
+                .loc = p.pp.tokens.items(.loc)[opening],
             });
         }
         return e;
@@ -301,7 +301,7 @@ pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diag
     @setCold(true);
     try p.pp.comp.diag.add(.{
         .tag = tag,
-        .locs = p.pp.tokens.items(.locs)[tok_i],
+        .loc = p.pp.tokens.items(.loc)[tok_i],
         .extra = extra,
     });
 }
@@ -310,7 +310,7 @@ pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.E
     @setCold(true);
     try p.pp.comp.diag.add(.{
         .tag = tag,
-        .locs = p.pp.tokens.items(.locs)[tok_i],
+        .loc = p.pp.tokens.items(.loc)[tok_i],
     });
 }
 

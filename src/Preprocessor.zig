@@ -100,12 +100,9 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                         }
                         var slice = tokenizer.buf[start..tokenizer.index];
                         slice = mem.trim(u8, slice, " \t\x0B\x0C");
-
-                        var error_tok = tokFromRaw(tok);
-                        error_tok.locs[0].byte_offset = start;
                         try pp.comp.diag.add(.{
                             .tag = .error_directive,
-                            .locs = error_tok.locs,
+                            .loc = .{ .id = tok.source, .byte_offset = tok.start },
                             .extra = .{ .str = slice },
                         });
                     },
@@ -214,10 +211,9 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                                 seen_pragma_once = true;
                             }
                         } else {
-                            const pragma_tok = tokFromRaw(tok);
                             try pp.comp.diag.add(.{
                                 .tag = .unsupported_pragma,
-                                .locs = pragma_tok.locs,
+                                .loc = .{ .id = tok.source, .byte_offset = tok.start },
                                 .extra = .{ .str = slice },
                             });
                         }
@@ -277,24 +273,22 @@ pub fn tokSlice(pp: *Preprocessor, token: RawToken) []const u8 {
 
 /// Convert a token from the Tokenizer into a token used by the parser.
 fn tokFromRaw(raw: RawToken) Token {
-    var tok = Token{
+    return .{
         .id = raw.id,
+        .loc = .{
+            .id = raw.source,
+            .byte_offset = raw.start,
+        },
     };
-    tok.locs[0] = .{ // location of token slice
-        .id = raw.source,
-        .byte_offset = raw.start,
-    };
-    tok.locs[1] = .{ // actual location on file, same as first for non generated/expanded
-        .id = raw.source,
-        .byte_offset = raw.start,
-    };
-    return tok;
 }
 
 fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
     try pp.comp.diag.add(.{
         .tag = tag,
-        .locs = tokFromRaw(raw).locs,
+        .loc = .{
+            .id = raw.source,
+            .byte_offset = raw.start,
+        },
     });
 }
 
@@ -375,7 +369,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
             => {
                 try pp.comp.diag.add(.{
                     .tag = .string_literal_in_pp_expr,
-                    .locs = pp.tokens.items(.locs)[i],
+                    .loc = pp.tokens.items(.loc)[i],
                 });
                 return false;
             },
@@ -385,7 +379,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
             => {
                 try pp.comp.diag.add(.{
                     .tag = .float_literal_in_pp_expr,
-                    .locs = pp.tokens.items(.locs)[i],
+                    .loc = pp.tokens.items(.loc)[i],
                 });
                 return false;
             },
@@ -503,7 +497,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
             try pp.tokens.ensureCapacity(pp.comp.gpa, pp.tokens.len + buf.items.len);
             const loc = Source.Location{ .id = raw.source, .byte_offset = raw.start };
             for (buf.items) |*r| {
-                markExpandedFrom(r, loc);
+                try pp.markExpandedFrom(r, loc);
                 pp.tokens.appendAssumeCapacity(r.*);
             }
             return;
@@ -545,7 +539,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
             try pp.tokens.ensureCapacity(pp.comp.gpa, pp.tokens.len + buf.items.len);
             const loc = Source.Location{ .id = raw.source, .byte_offset = raw.start };
             for (buf.items) |*r| {
-                markExpandedFrom(r, loc);
+                try pp.markExpandedFrom(r, loc);
                 pp.tokens.appendAssumeCapacity(r.*);
             }
             return;
@@ -601,7 +595,7 @@ fn expandExtra(pp: *Preprocessor, source_name: []const u8, source: *ExpandBuf, s
                     }
                 }
                 // Mark all the tokens before adding them to the source buffer.
-                for (buf.items) |*tok| markExpandedFrom(tok, macro.loc);
+                for (buf.items) |*tok| try pp.markExpandedFrom(tok, macro.loc);
                 try source.insertSlice(start_index.*, buf.items);
                 start_index.* += buf.items.len;
             },
@@ -611,23 +605,30 @@ fn expandExtra(pp: *Preprocessor, source_name: []const u8, source: *ExpandBuf, s
 }
 
 // mark that this token has been expanded from `loc`
-fn markExpandedFrom(tok: *Token, loc: Source.Location) void {
-    mem.copyBackwards(Source.Location, tok.locs[2..], tok.locs[1 .. tok.locs.len - 1]);
-    tok.locs[1] = loc;
+fn markExpandedFrom(pp: *Preprocessor, tok: *Token, loc: Source.Location) !void {
+    const new_loc = try pp.arena.allocator.create(Source.Location);
+    new_loc.* = loc;
+    new_loc.next = tok.loc.next;
+    tok.loc.next = new_loc;
 }
 
 // TODO there are like 5 tokSlice functions, can we combine them somehow.
 pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
     if (tok.id.lexeme()) |some| return some;
-    const loc = tok.locs[0];
     var tmp_tokenizer = Tokenizer{
-        .buf = if (loc.id == .generated)
+        .buf = if (tok.loc.id == .generated)
             pp.generated.items
         else
-            pp.comp.getSource(loc.id).buf,
-        .index = loc.byte_offset,
+            pp.comp.getSource(tok.loc.id).buf,
+        .index = tok.loc.byte_offset,
         .source = .generated,
     };
+    if (tok.id == .macro_string) {
+        while (true) : (tmp_tokenizer.index+=1) {
+            if (tmp_tokenizer.buf[tmp_tokenizer.index] == '>') break;
+        }
+        return tmp_tokenizer.buf[tok.loc.byte_offset..tmp_tokenizer.index + 1];
+    }
     const res = tmp_tokenizer.next();
     return tmp_tokenizer.buf[res.start..res.end];
 }
@@ -653,19 +654,18 @@ fn pasteTokens(pp: *Preprocessor, lhs: RawToken, rhs: RawToken) Error!Token {
     if (next != .nl and next != .eof) {
         try pp.comp.diag.add(.{
             .tag = .pasting_formed_invalid,
-            .locs = tokFromRaw(lhs).locs,
+            .loc = .{ .id = lhs.source, .byte_offset = lhs.start },
             .extra = .{ .str = try pp.arena.allocator.dupe(u8, pp.generated.items[start..end]) },
         });
     }
 
-    var tok = Token{
+    return Token{
         .id = pasted_token.id,
+        .loc = .{ // location of token slice in the generated buffer
+            .id = .generated,
+            .byte_offset = @intCast(u32, start),
+        },
     };
-    tok.locs[0] = .{ // location of token slice in the generated buffer
-        .id = .generated,
-        .byte_offset = @intCast(u32, start),
-    };
-    return tok;
 }
 
 /// Handle a #define directive.
@@ -834,7 +834,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 
 // Handle a #include directive.
 fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
-    pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
+    const start = pp.tokens.len;
+    defer pp.tokens.len = start;
+
     var first = tokenizer.next();
     if (first.id == .angle_bracket_left) to_end: {
         // The tokenizer does not handle <foo> include strings so do it here.
@@ -852,7 +854,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         }
         try pp.comp.diag.add(.{
             .tag = .header_str_closing,
-            .locs = tokFromRaw(first).locs,
+            .loc = .{ .id = first.source, .byte_offset = first.start },
         });
         try pp.err(first, .header_str_match);
     }
@@ -860,7 +862,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     try pp.expandMacro(tokenizer, first);
 
     // Check that we actually got a string.
-    const filename_tok = if (pp.token_buf.items.len == 0) first else pp.token_buf.items[0];
+    const filename_tok = pp.tokens.get(start);
     switch (filename_tok.id) {
         .string_literal, .macro_string => {},
         else => {
@@ -870,17 +872,17 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     }
     // Error on extra tokens.
     const nl = tokenizer.next();
-    if ((nl.id != .nl and nl.id != .eof) or pp.token_buf.items.len > 1) {
+    if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
         skipToNl(tokenizer);
         return pp.err(first, .extra_tokens_directive_end);
     }
 
     // Check for empty filename.
-    const tok_slice = pp.tokSlice(filename_tok);
+    const tok_slice = pp.expandedSlice(filename_tok);
     if (tok_slice.len < 3) return pp.err(first, .empty_filename);
 
     // Find the file and prerpocess it.
     const filename = tok_slice[1 .. tok_slice.len - 1];
-    const new_source = try pp.comp.findInclude(filename_tok, filename, filename_tok.id == .string_literal);
+    const new_source = try pp.comp.findInclude(first, filename, filename_tok.id == .string_literal);
     return pp.preprocess(new_source);
 }

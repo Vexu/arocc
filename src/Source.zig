@@ -6,7 +6,11 @@ pub const Id = enum(u32) {
     _,
 };
 
-pub const Location = struct { id: Id = .unused, byte_offset: u32 = 0 };
+pub const Location = struct {
+    id: Id = .unused,
+    byte_offset: u32 = 0,
+    next: ?*Location = null,
+};
 
 path: []const u8,
 buf: []const u8,

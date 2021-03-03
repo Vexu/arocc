@@ -4,13 +4,12 @@ const Allocator = mem.Allocator;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
 const Tree = @import("Tree.zig");
-const token_location_count = Tree.Token.token_location_count;
 
 const Diagnostics = @This();
 
 pub const Message = struct {
     tag: Tag,
-    locs: [token_location_count]Source.Location = [1]Source.Location{.{}} ** token_location_count,
+    loc: Source.Location = .{},
     extra: Extra = .{ .none = {} },
 
     pub const Extra = union {
@@ -229,8 +228,8 @@ pub fn render(comp: *Compilation) u32 {
         }
 
         var lcs: ?Source.LCS = null;
-        if (msg.locs[0].id != .unused) {
-            const loc = msg.locs[1];
+        if (msg.loc.id != .unused) {
+            const loc = if (msg.loc.id == .generated) msg.loc.next.?.* else msg.loc;
             const source = comp.getSource(loc.id);
             lcs = source.lineColString(loc.byte_offset);
             m.location(source.path, lcs.?);
@@ -344,16 +343,18 @@ pub fn render(comp: *Compilation) u32 {
         }
         m.end(lcs);
 
-        if (msg.locs[0].id != .unused) {
-            const locs = msg.locs[2..];
-            for (locs) |loc| {
-                if (loc.id == .unused) break;
+        if (msg.loc.id != .unused) {
+            var maybe_loc = msg.loc.next;
+            if (msg.loc.id == .generated) maybe_loc = maybe_loc.?.next;
+            
+            while (maybe_loc) |loc| {
                 const source = comp.getSource(loc.id);
                 const e_lcs = source.lineColString(loc.byte_offset);
                 m.location(source.path, e_lcs);
                 m.start(.note);
                 m.write("expanded from here");
                 m.end(e_lcs);
+                maybe_loc = loc.next;
             }
         }
     }
