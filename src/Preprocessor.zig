@@ -14,6 +14,7 @@ const Token = @import("Tree.zig").Token;
 const Preprocessor = @This();
 const DefineMap = std.StringHashMap(Macro);
 const RawTokenList = std.ArrayList(RawToken);
+const max_include_depth = 200;
 
 const Macro = union(enum) {
     /// #define FOO
@@ -44,6 +45,7 @@ pragma_once: std.AutoHashMap(Source.Id, void),
 // It is safe to have pointers to entries of defines since it
 // cannot be modified while we are expanding a macro.
 expansion_log: std.AutoHashMap(*DefineMap.Entry, void),
+include_depth: u8 = 0,
 
 pub fn init(comp: *Compilation) Preprocessor {
     return .{
@@ -624,10 +626,10 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
         .source = .generated,
     };
     if (tok.id == .macro_string) {
-        while (true) : (tmp_tokenizer.index+=1) {
+        while (true) : (tmp_tokenizer.index += 1) {
             if (tmp_tokenizer.buf[tmp_tokenizer.index] == '>') break;
         }
-        return tmp_tokenizer.buf[tok.loc.byte_offset..tmp_tokenizer.index + 1];
+        return tmp_tokenizer.buf[tok.loc.byte_offset .. tmp_tokenizer.index + 1];
     }
     const res = tmp_tokenizer.next();
     return tmp_tokenizer.buf[res.start..res.end];
@@ -834,6 +836,21 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 
 // Handle a #include directive.
 fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
+    const new_source = findIncludeSource(pp, tokenizer) catch |er| switch (er) {
+        error.InvalidInclude => return,
+        else => |e| return e,
+    };
+
+    // Prevent stack overflow
+    pp.include_depth += 1;
+    defer pp.include_depth -= 1;
+    if (pp.include_depth > max_include_depth) return;
+
+    try pp.preprocess(new_source);
+    pp.tokens.len -= 1; // remove eof
+}
+
+fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
     const start = pp.tokens.len;
     defer pp.tokens.len = start;
 
@@ -867,22 +884,25 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         .string_literal, .macro_string => {},
         else => {
             try pp.err(first, .expected_filename);
-            return pp.expectNl(tokenizer);
+            try pp.expectNl(tokenizer);
+            return error.InvalidInclude;
         },
     }
     // Error on extra tokens.
     const nl = tokenizer.next();
     if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
         skipToNl(tokenizer);
-        return pp.err(first, .extra_tokens_directive_end);
+        try pp.err(first, .extra_tokens_directive_end);
     }
 
     // Check for empty filename.
     const tok_slice = pp.expandedSlice(filename_tok);
-    if (tok_slice.len < 3) return pp.err(first, .empty_filename);
+    if (tok_slice.len < 3) {
+        try pp.err(first, .empty_filename);
+        return error.InvalidInclude;
+    }
 
     // Find the file and prerpocess it.
     const filename = tok_slice[1 .. tok_slice.len - 1];
-    const new_source = try pp.comp.findInclude(first, filename, filename_tok.id == .string_literal);
-    return pp.preprocess(new_source);
+    return pp.comp.findInclude(first, filename, filename_tok.id == .string_literal);
 }
