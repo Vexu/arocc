@@ -1,25 +1,12 @@
 const Source = @This();
 
-pub const Id = enum(u16) {
+pub const Id = enum(u32) {
+    unused = 0,
+    generated = 1,
     _,
-
-    const generated_bit: u16 = 1 << 15;
-    const generated_mask: u16 = generated_bit - 1;
-
-    pub fn index(id: Id) u16 {
-        return @enumToInt(id) & generated_mask;
-    }
-
-    pub fn isGenerated(id: Id) bool {
-        return (@enumToInt(id) & generated_bit) != 0;
-    }
-
-    pub fn markGenerated(id: *Id) void {
-        id.* = @intToEnum(Id, (@enumToInt(id.*) | Id.generated_bit));
-    }
 };
 
-pub const Location = struct { start: u32, end: u32 };
+pub const Location = struct { id: Id = .unused, byte_offset: u32 = 0 };
 
 path: []const u8,
 buf: []const u8,
@@ -27,12 +14,11 @@ id: Id,
 
 pub const LCS = struct { line: u32, col: u32, str: []const u8 };
 
-pub fn lineColString(source: Source, loc_start: u32) LCS {
-    if (source.id.isGenerated()) return .{ .line = 0, .col = 0, .str = "" };
+pub fn lineColString(source: Source, byte_offset: u32) LCS {
     var line: u32 = 1;
     var col: u32 = 1;
     var i: u32 = 0;
-    while (i < loc_start) : (i += 1) {
+    while (i < byte_offset) : (i += 1) {
         if (source.buf[i] == '\n') {
             line += 1;
             col = 1;

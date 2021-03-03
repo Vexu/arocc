@@ -4,9 +4,10 @@ const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
-const Token = @import("Tokenizer.zig").Token;
+const Tokenizer = @import("Tokenizer.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Tree = @import("Tree.zig");
+const Token = Tree.Token;
 const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
@@ -224,7 +225,7 @@ arena: *Allocator,
 nodes: Tree.Node.List = .{},
 data: NodeList,
 scopes: std.ArrayList(Scope),
-tokens: []const Token,
+tok_ids: []const Token.Id,
 tok_i: TokenIndex = 0,
 want_const: bool = false,
 in_function: bool = false,
@@ -233,25 +234,24 @@ labels: std.ArrayList(Label),
 label_count: u32 = 0,
 
 fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
-    const tok = p.tokens[p.tok_i];
-    if (tok.id == id) {
+    if (p.tok_ids[p.tok_i] == id) {
         defer p.tok_i += 1;
         return p.tok_i;
     } else return null;
 }
 
-fn expectToken(p: *Parser, id: Token.Id) Error!TokenIndex {
-    const tok = p.tokens[p.tok_i];
-    if (tok.id != id) {
+fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
+    const actual = p.tok_ids[p.tok_i];
+    if (actual != expected) {
         try p.errExtra(
-            switch (tok.id) {
+            switch (actual) {
                 .invalid => .expected_invalid,
                 else => .expected_token,
             },
             p.tok_i,
             .{ .tok_id = .{
-                .expected = id,
-                .actual = tok.id,
+                .expected = actual,
+                .actual = expected,
             } },
         );
         return error.ParsingFailed;
@@ -260,10 +260,24 @@ fn expectToken(p: *Parser, id: Token.Id) Error!TokenIndex {
     return p.tok_i;
 }
 
+fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
+    if (p.tok_ids[tok].lexeme()) |some| return some;
+    const loc = p.pp.tokens.items(.locs)[tok][0];
+    var tmp_tokenizer = Tokenizer{
+        .buf = if (loc.id == .generated)
+            p.pp.generated.items
+        else
+            p.pp.comp.getSource(loc.id).buf,
+        .index = loc.byte_offset,
+        .source = .generated,
+    };
+    const res = tmp_tokenizer.next();
+    return tmp_tokenizer.buf[res.start..res.end];
+}
+
 fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
     _ = p.expectToken(id) catch |e| {
         if (e == error.ParsingFailed) {
-            const o_tok = p.tokens[opening];
             try p.pp.comp.diag.add(.{
                 .tag = switch (id) {
                     .r_paren => .to_match_paren,
@@ -271,8 +285,7 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
                     .r_bracket => .to_match_brace,
                     else => unreachable,
                 },
-                .source_id = o_tok.source,
-                .loc_start = o_tok.loc.start,
+                .locs = p.pp.tokens.items(.locs)[opening],
             });
         }
         return e;
@@ -281,28 +294,23 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
 
 pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, str: []const u8) Compilation.Error!void {
     @setCold(true);
-    const tok = p.tokens[tok_i];
     return p.errExtra(tag, tok_i, .{ .str = str });
 }
 
 pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diagnostics.Message.Extra) Compilation.Error!void {
     @setCold(true);
-    const tok = p.tokens[tok_i];
     try p.pp.comp.diag.add(.{
         .tag = tag,
-        .source_id = tok.source,
-        .loc_start = tok.loc.start,
+        .locs = p.pp.tokens.items(.locs)[tok_i],
         .extra = extra,
     });
 }
 
 pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.Error!void {
     @setCold(true);
-    const tok = p.tokens[tok_i];
     try p.pp.comp.diag.add(.{
         .tag = tag,
-        .source_id = tok.source,
-        .loc_start = tok.loc.start,
+        .locs = p.pp.tokens.items(.locs)[tok_i],
     });
 }
 
@@ -343,7 +351,7 @@ fn findTypedef(p: *Parser, name: []const u8) ?Scope.Symbol {
 }
 
 fn findSymbol(p: *Parser, name_tok: TokenIndex) ?Scope {
-    const name = p.pp.tokSlice(p.tokens[name_tok]);
+    const name = p.tokSlice(name_tok);
     var i = p.scopes.items.len;
     while (i > 0) {
         i -= 1;
@@ -384,7 +392,7 @@ fn inLoopOrSwitch(p: *Parser) bool {
 fn findLabel(p: *Parser, name: []const u8) ?NodeIndex {
     for (p.labels.items) |item| {
         switch (item) {
-            .label => |l| if (mem.eql(u8, p.pp.tokSlice(p.tokens[l]), name)) return l,
+            .label => |l| if (mem.eql(u8, p.tokSlice(l), name)) return l,
             .unresolved_goto => {},
         }
     }
@@ -412,7 +420,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     var p = Parser{
         .pp = pp,
         .arena = &arena.allocator,
-        .tokens = pp.tokens.items,
+        .tok_ids = pp.tokens.items(.id),
         .cur_decl_list = &root_decls,
         .scopes = std.ArrayList(Scope).init(pp.comp.gpa),
         .data = NodeList.init(pp.comp.gpa),
@@ -447,7 +455,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     }
     return Tree{
         .comp = pp.comp,
-        .tokens = pp.tokens.items,
+        .tokens = pp.tokens.slice(),
         .arena = arena,
         .generated = pp.generated.items,
         .nodes = p.nodes.toOwnedSlice(),
@@ -458,8 +466,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
 fn nextExternDecl(p: *Parser) void {
     var parens: u32 = 0;
-    while (p.tok_i < p.tokens.len) : (p.tok_i += 1) {
-        switch (p.tokens[p.tok_i].id) {
+    while (p.tok_i < p.tok_ids.len) : (p.tok_i += 1) {
+        switch (p.tok_ids[p.tok_i]) {
             .l_paren, .l_brace, .l_bracket => parens += 1,
             .r_paren, .r_brace, .r_bracket => if (parens != 0) {
                 parens -= 1;
@@ -507,7 +515,7 @@ fn decl(p: *Parser) Error!bool {
         some
     else blk: {
         if (p.in_function) return false;
-        switch (p.tokens[first_tok].id) {
+        switch (p.tok_ids[first_tok]) {
             .asterisk, .l_paren, .identifier => {},
             else => return false,
         }
@@ -525,7 +533,7 @@ fn decl(p: *Parser) Error!bool {
 
     // Check for function definition.
     if (init_d.d.func_declarator != null and init_d.initializer == 0 and init_d.d.ty.isFunc()) fn_def: {
-        switch (p.tokens[p.tok_i].id) {
+        switch (p.tok_ids[p.tok_i]) {
             .comma, .semicolon => break :fn_def,
             .l_brace => {},
             else => {
@@ -583,7 +591,7 @@ fn decl(p: *Parser) Error!bool {
             .first = init_d.d.name,
         });
         try p.scopes.append(.{ .symbol = .{
-            .name = p.pp.tokSlice(p.tokens[init_d.d.name]),
+            .name = p.tokSlice(init_d.d.name),
             .node = node,
             .name_tok = init_d.d.name,
         } });
@@ -594,7 +602,7 @@ fn decl(p: *Parser) Error!bool {
         if (!in_function) {
             for (p.labels.items) |item| {
                 if (item == .unresolved_goto)
-                    try p.errStr(.undeclared_label, item.unresolved_goto, p.pp.tokSlice(p.tokens[item.unresolved_goto]));
+                    try p.errStr(.undeclared_label, item.unresolved_goto, p.tokSlice(item.unresolved_goto));
             }
             p.labels.items.len = 0;
             p.label_count = 0;
@@ -616,13 +624,13 @@ fn decl(p: *Parser) Error!bool {
         try p.cur_decl_list.append(node);
         if (decl_spec.storage_class == .typedef) {
             try p.scopes.append(.{ .typedef = .{
-                .name = p.pp.tokSlice(p.tokens[init_d.d.name]),
+                .name = p.tokSlice(init_d.d.name),
                 .node = node,
                 .name_tok = init_d.d.name,
             } });
         } else {
             try p.scopes.append(.{ .symbol = .{
-                .name = p.pp.tokSlice(p.tokens[init_d.d.name]),
+                .name = p.tokSlice(init_d.d.name),
                 .node = node,
                 .name_tok = init_d.d.name,
             } });
@@ -643,7 +651,7 @@ fn decl(p: *Parser) Error!bool {
 fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.eatToken(.keyword_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
-    const start = p.tok_i;
+    var start = p.tok_i;
     const res = try p.constExpr();
     const end = p.tok_i;
     _ = try p.expectToken(.comma);
@@ -655,12 +663,13 @@ fn staticAssert(p: *Parser) Error!bool {
         defer msg.deinit();
 
         try msg.append('\'');
-        for (p.tokens[start..end]) |tok, i| {
-            if (i != 0) try msg.append(' ');
-            try msg.appendSlice(p.pp.tokSlice(tok));
+        while (start < end) {
+            try msg.appendSlice(p.tokSlice(start));
+            start += 1;
+            if (start != end) try msg.append(' ');
         }
         try msg.appendSlice("' ");
-        try msg.appendSlice(p.pp.tokSlice(p.tokens[str]));
+        try msg.appendSlice(p.tokSlice(str));
         try p.errStr(.static_assert_failure, static_assert, try p.arena.dupe(u8, msg.items));
     }
     return true;
@@ -777,8 +786,8 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
     const start = p.tok_i;
     while (true) {
         if (try p.typeSpec(&spec, &d.ty)) continue;
-        const tok = p.tokens[p.tok_i];
-        switch (tok.id) {
+        const id = p.tok_ids[p.tok_i];
+        switch (id) {
             .keyword_typedef,
             .keyword_extern,
             .keyword_static,
@@ -790,15 +799,15 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                     return error.ParsingFailed;
                 }
                 if (d.thread_local != null) {
-                    switch (tok.id) {
+                    switch (id) {
                         .keyword_typedef,
                         .keyword_auto,
                         .keyword_register,
-                        => try p.errStr(.cannot_combine_spec, p.tok_i, tok.id.lexeme().?),
+                        => try p.errStr(.cannot_combine_spec, p.tok_i, id.lexeme().?),
                         else => {},
                     }
                 }
-                switch (tok.id) {
+                switch (id) {
                     .keyword_typedef => d.storage_class = .{ .typedef = p.tok_i },
                     .keyword_extern => d.storage_class = .{ .@"extern" = p.tok_i },
                     .keyword_static => d.storage_class = .{ .static = p.tok_i },
@@ -882,8 +891,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
     const start = p.tok_i;
     while (true) {
         if (try p.typeQual(complete_type)) continue;
-        const tok = p.tokens[p.tok_i];
-        switch (tok.id) {
+        switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try ty.combine(p, .void),
             .keyword_bool => try ty.combine(p, .bool),
             .keyword_char => try ty.combine(p, .char),
@@ -922,7 +930,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 complete_type.alignment = other_type.alignment;
             },
             .identifier => {
-                const typedef = p.findTypedef(p.pp.tokSlice(tok)) orelse break;
+                const typedef = p.findTypedef(p.tokSlice(p.tok_i)) orelse break;
                 const new_spec = Type.Builder.fromType(p.nodes.items(.ty)[typedef.node]);
 
                 const err_start = p.pp.comp.diag.list.items.len;
@@ -948,7 +956,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
 fn recordSpec(p: *Parser) Error!NodeIndex {
-    const kind_tok = p.tokens[p.tok_i];
+    const kind_tok = p.tok_ids[p.tok_i];
     p.tok_i += 1;
     return p.todo("recordSpec");
 }
@@ -980,7 +988,7 @@ fn specQual(p: *Parser) Error!?Type {
 ///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
 ///  | keyword_enum IDENTIFIER
 fn enumSpec(p: *Parser) Error!NodeIndex {
-    const enum_tok = p.tokens[p.tok_i];
+    const enum_tok = p.tok_ids[p.tok_i];
     p.tok_i += 1;
     return p.todo("enumSpec");
 }
@@ -994,16 +1002,10 @@ fn enumerator(p: *Parser) Error!NodeIndex {
 fn typeQual(p: *Parser, ty: *Type) Error!bool {
     var any = false;
     while (true) {
-        const tok = p.tokens[p.tok_i];
-        switch (tok.id) {
+        switch (p.tok_ids[p.tok_i]) {
             .keyword_restrict => {
                 if (ty.specifier != .pointer)
-                    try p.pp.comp.diag.add(.{
-                        .tag = .restrict_non_pointer,
-                        .source_id = tok.source,
-                        .loc_start = tok.loc.start,
-                        .extra = .{ .str = Type.Builder.fromType(ty.*).str() },
-                    })
+                    try p.errExtra(.restrict_non_pointer, p.tok_i, .{ .str = Type.Builder.fromType(ty.*).str() })
                 else if (ty.qual.restrict)
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "restrict")
                 else
@@ -1054,7 +1056,7 @@ fn declarator(
     const start = p.tok_i;
     var d = Declarator{ .name = 0, .ty = try p.pointer(base_type) };
 
-    if (kind != .abstract and p.tokens[p.tok_i].id == .identifier) {
+    if (kind != .abstract and p.tok_ids[p.tok_i] == .identifier) {
         d.name = p.tok_i;
         p.tok_i += 1;
         d.ty = try p.directDeclarator(d.ty, &d, kind);
@@ -1182,7 +1184,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         return res_ty;
     } else if (p.eatToken(.l_paren)) |l_paren| {
         d.func_declarator = l_paren;
-        if (p.tokens[p.tok_i].id == .ellipsis) {
+        if (p.tok_ids[p.tok_i] == .ellipsis) {
             try p.err(.param_before_var_args);
             p.tok_i += 1;
         }
@@ -1194,9 +1196,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         if (try p.paramDecls()) |params| {
             func_ty.param_types = params;
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
-        } else if (p.tokens[p.tok_i].id == .r_paren) {
+        } else if (p.tok_ids[p.tok_i] == .r_paren) {
             specifier = .old_style_func;
-        } else if (p.tokens[p.tok_i].id == .identifier) {
+        } else if (p.tok_ids[p.tok_i] == .identifier) {
             d.old_style_func = p.tok_i;
             var params = NodeList.init(p.pp.comp.gpa);
             defer params.deinit();
@@ -1281,7 +1283,7 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
         } else if (param_ty.specifier == .void) {
             // validate void parameters
             if (params.items.len == 0) {
-                if (p.tokens[p.tok_i].id != .r_paren) {
+                if (p.tok_ids[p.tok_i] != .r_paren) {
                     try p.err(.void_only_param);
                     if (param_ty.qual.any()) try p.err(.void_param_qualified);
                     return error.ParsingFailed;
@@ -1302,7 +1304,7 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
         try params.append(param);
 
         if (p.eatToken(.comma) == null) break;
-        if (p.tokens[p.tok_i].id == .ellipsis) break;
+        if (p.tok_ids[p.tok_i] == .ellipsis) break;
     }
     return try p.arena.dupe(NodeIndex, params.items);
 }
@@ -1523,7 +1525,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
     }
     if (p.eatToken(.keyword_goto)) |goto| {
         const name_tok = try p.expectToken(.identifier);
-        const str = p.pp.tokSlice(p.tokens[name_tok]);
+        const str = p.tokSlice(name_tok);
         if (p.findLabel(str) == null) {
             try p.labels.append(.{ .unresolved_goto = name_tok });
         }
@@ -1594,9 +1596,9 @@ fn maybeWarnUnused(p: *Parser, node: NodeIndex, expr_start: TokenIndex) Error!vo
 /// | keyword_case constExpr ':' stmt
 /// | keyword_default ':' stmt
 fn labeledStmt(p: *Parser) Error!?NodeIndex {
-    if (p.tokens[p.tok_i].id == .identifier and p.tokens[p.tok_i + 1].id == .colon) {
+    if (p.tok_ids[p.tok_i] == .identifier and p.tok_ids[p.tok_i + 1] == .colon) {
         const name_tok = p.tok_i;
-        const str = p.pp.tokSlice(p.tokens[name_tok]);
+        const str = p.tokSlice(name_tok);
         if (p.findLabel(str)) |some| {
             try p.errStr(.duplicate_label, name_tok, str);
             try p.errStr(.previous_label, some, str);
@@ -1606,7 +1608,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             var i: usize = 0;
             while (i < p.labels.items.len) : (i += 1) {
                 if (p.labels.items[i] == .unresolved_goto and
-                    mem.eql(u8, p.pp.tokSlice(p.tokens[p.labels.items[i].unresolved_goto]), str))
+                    mem.eql(u8, p.tokSlice(p.labels.items[i].unresolved_goto), str))
                 {
                     _ = p.labels.swapRemove(i);
                 }
@@ -1751,8 +1753,8 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) bool {
 
 fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
     var parens: u32 = 0;
-    while (p.tok_i < p.tokens.len) : (p.tok_i += 1) {
-        switch (p.tokens[p.tok_i].id) {
+    while (p.tok_i < p.tok_ids.len) : (p.tok_i += 1) {
+        switch (p.tok_ids[p.tok_i]) {
             .l_paren, .l_brace, .l_bracket => parens += 1,
             .r_paren, .r_bracket => if (parens != 0) {
                 parens -= 1;
@@ -2021,7 +2023,7 @@ fn castExpr(p: *Parser) Error!Result {
 ///  | keyword_sizeof '(' typeName ')'
 ///  | keyword_alignof '(' typeName ')'
 fn unExpr(p: *Parser) Error!Result {
-    switch (p.tokens[p.tok_i].id) {
+    switch (p.tok_ids[p.tok_i]) {
         .ampersand => return p.todo("unExpr ampersand"),
         .asterisk => return p.todo("unExpr asterisk"),
         .plus => return p.todo("unExpr plus"),
@@ -2059,7 +2061,7 @@ fn unExpr(p: *Parser) Error!Result {
 ///  | '--'
 /// argumentExprList : assignExpr (',' assignExpr)*
 fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
-    switch (p.tokens[p.tok_i].id) {
+    switch (p.tok_ids[p.tok_i]) {
         .l_paren => {
             const l_paren = p.tok_i;
             p.tok_i += 1;
@@ -2157,14 +2159,14 @@ fn primaryExpr(p: *Parser) Error!Result {
         try p.expectClosing(l_paren, .r_paren);
         return e;
     }
-    switch (p.tokens[p.tok_i].id) {
+    switch (p.tok_ids[p.tok_i]) {
         .identifier => {
             const name_tok = p.tok_i;
             p.tok_i += 1;
             const sym = p.findSymbol(name_tok) orelse {
-                if (p.tokens[p.tok_i].id == .l_paren) {
+                if (p.tok_ids[p.tok_i] == .l_paren) {
                     // implicitly declare simple functions as like `puts("foo")`;
-                    const name = p.pp.tokSlice(p.tokens[name_tok]);
+                    const name = p.tokSlice(name_tok);
                     try p.errStr(.implicit_func_decl, name_tok, name);
 
                     const func_ty = try p.arena.create(Type.Func);
@@ -2190,7 +2192,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                         .second = node,
                     });
                 }
-                try p.errTok(.undeclared_identifier, name_tok);
+                try p.errStr(.undeclared_identifier, name_tok, p.tokSlice(name_tok));
                 return error.ParsingFailed;
             };
             switch (sym) {
@@ -2222,11 +2224,11 @@ fn primaryExpr(p: *Parser) Error!Result {
                 try p.err(.expected_integer_constant_expr);
                 return error.ParsingFailed;
             }
-            const start = p.tok_i;
+            var start = p.tok_i;
             // use 1 for wchar_t
             var width: ?u8 = null;
             while (true) {
-                switch (p.tokens[p.tok_i].id) {
+                switch (p.tok_ids[p.tok_i]) {
                     .string_literal => {},
                     .string_literal_utf_16 => if (width) |some| {
                         if (some != 16) try p.err(.unsupported_str_cat);
@@ -2256,8 +2258,8 @@ fn primaryExpr(p: *Parser) Error!Result {
             if (width.? != 8) return p.todo("non-utf8 strings");
             var builder = std.ArrayList(u8).init(p.pp.comp.gpa);
             defer builder.deinit();
-            for (p.tokens[start..p.tok_i]) |tok| {
-                var slice = p.pp.tokSlice(tok);
+            while (start < p.tok_i) : (start += 1) {
+                var slice = p.tokSlice(start);
                 slice = slice[mem.indexOf(u8, slice, "\"").? + 1 .. slice.len - 1];
                 var i: u32 = 0;
                 try builder.ensureCapacity(slice.len);
@@ -2340,8 +2342,8 @@ fn primaryExpr(p: *Parser) Error!Result {
         .integer_literal_ll,
         .integer_literal_llu,
         => {
-            const tok = p.tokens[p.tok_i];
-            var slice = p.pp.tokSlice(tok);
+            const id = p.tok_ids[p.tok_i];
+            var slice = p.tokSlice(p.tok_i);
             p.tok_i += 1;
             var base: u8 = 10;
             if (mem.startsWith(u8, slice, "0x")) {
@@ -2350,7 +2352,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             } else if (slice[0] == '0') {
                 base = 8;
             }
-            switch (tok.id) {
+            switch (id) {
                 .integer_literal_u, .integer_literal_l => slice = slice[0 .. slice.len - 1],
                 .integer_literal_lu, .integer_literal_ll => slice = slice[0 .. slice.len - 2],
                 .integer_literal_llu => slice = slice[0 .. slice.len - 3],
@@ -2358,7 +2360,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             }
 
             if (base == 10) {
-                switch (tok.id) {
+                switch (id) {
                     .integer_literal => return p.parseInt(base, slice, &.{ .int, .long, .long_long }),
                     .integer_literal_u => return p.parseInt(base, slice, &.{ .uint, .ulong, .ulong_long }),
                     .integer_literal_l => return p.parseInt(base, slice, &.{ .long, .long_long }),
@@ -2368,7 +2370,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     else => unreachable,
                 }
             } else {
-                switch (tok.id) {
+                switch (id) {
                     .integer_literal => return p.parseInt(base, slice, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
                     .integer_literal_u => return p.parseInt(base, slice, &.{ .uint, .ulong, .ulong_long }),
                     .integer_literal_l => return p.parseInt(base, slice, &.{ .long, .ulong, .long_long, .ulong_long }),

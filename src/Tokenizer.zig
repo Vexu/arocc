@@ -7,11 +7,8 @@ const Tokenizer = @This();
 pub const Token = struct {
     id: Id,
     source: Source.Id,
-    loc: Source.Location,
-
-    comptime {
-        assert(@sizeOf(Token) == 12);
-    }
+    start: u32,
+    end: u32,
 
     pub const Id = enum(u8) {
         invalid,
@@ -535,7 +532,9 @@ pub fn next(self: *Tokenizer) Token {
         zero,
         integer_literal_oct,
         integer_literal_binary,
+        integer_literal_binary_first,
         integer_literal_hex,
+        integer_literal_hex_first,
         integer_literal,
         integer_suffix,
         integer_suffix_u,
@@ -1106,8 +1105,8 @@ pub fn next(self: *Tokenizer) Token {
             },
             .zero => switch (c) {
                 '0'...'9' => state = .integer_literal_oct,
-                'b', 'B' => state = .integer_literal_binary,
-                'x', 'X' => state = .integer_literal_hex,
+                'b', 'B' => state = .integer_literal_binary_first,
+                'x', 'X' => state = .integer_literal_hex_first,
                 '.' => state = .float_fraction,
                 else => {
                     state = .integer_suffix;
@@ -1121,11 +1120,27 @@ pub fn next(self: *Tokenizer) Token {
                     self.index -= 1;
                 },
             },
+            .integer_literal_binary_first => switch (c) {
+                '0', '1' => state = .integer_literal_binary,
+                else => {
+                    id = .invalid;
+                    break;
+                },
+            },
             .integer_literal_binary => switch (c) {
                 '0', '1' => {},
                 else => {
                     state = .integer_suffix;
                     self.index -= 1;
+                },
+            },
+            .integer_literal_hex_first => switch (c) {
+                '0'...'9', 'a'...'f', 'A'...'F' => state = .integer_literal_hex,
+                '.' => state = .float_fraction_hex,
+                'p', 'P' => state = .float_exponent,
+                else => {
+                    id = .invalid;
+                    break;
                 },
             },
             .integer_literal_hex => switch (c) {
@@ -1267,6 +1282,8 @@ pub fn next(self: *Tokenizer) Token {
             .multi_line_comment,
             .multi_line_comment_asterisk,
             .float_exponent,
+            .integer_literal_binary_first,
+            .integer_literal_hex_first,
             => id = .invalid,
 
             .float_exponent_digits => id = if (counter == 0) .invalid else .float_literal,
@@ -1307,10 +1324,8 @@ pub fn next(self: *Tokenizer) Token {
 
     return .{
         .id = id,
-        .loc = .{
-            .start = start,
-            .end = self.index,
-        },
+        .start = start,
+        .end = self.index,
         .source = self.source,
     };
 }
@@ -1584,7 +1599,7 @@ test "comments" {
 fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) void {
     var tokenizer = Tokenizer{
         .buf = source,
-        .source = undefined,
+        .source = .unused,
     };
     for (expected_tokens) |expected_token_id| {
         const token = tokenizer.next();

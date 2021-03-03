@@ -173,7 +173,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
     switch (inner.specifier) {
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
         .variable_len_array, .unspecified_variable_len_array => return p.todo("combine array"),
-        .array, .static_array, .incomplete_array  => {
+        .array, .static_array, .incomplete_array => {
             try inner.data.array.elem.combine(outer, p, source_tok);
 
             if (inner.data.array.elem.hasIncompleteSize()) return p.errTok(.array_incomplete_elem, source_tok);
@@ -336,13 +336,7 @@ pub const Builder = struct {
             .complex_double => .complex_double,
             .complex_long_double => .complex_long_double,
             .complex, .complex_long => {
-                const tok = p.tokens[p.tok_i];
-                try p.pp.comp.diag.add(.{
-                    .tag = .type_is_invalid,
-                    .source_id = tok.source,
-                    .loc_start = tok.loc.start,
-                    .extra = .{ .str = spec.kind.str() },
-                });
+                try p.errExtra(.type_is_invalid, p.tok_i, .{ .str = spec.kind.str() });
                 return error.ParsingFailed;
             },
 
@@ -415,13 +409,7 @@ pub const Builder = struct {
     }
 
     pub fn cannotCombine(spec: Builder, p: *Parser) Parser.Error {
-        const tok = p.tokens[p.tok_i];
-        try p.pp.comp.diag.add(.{
-            .tag = .cannot_combine_spec,
-            .source_id = tok.source,
-            .loc_start = tok.loc.start,
-            .extra = .{ .str = spec.kind.str() },
-        });
+        try p.errExtra(.cannot_combine_spec, p.tok_i, .{ .str = spec.kind.str() });
         if (spec.typedef) |some| try p.errStr(.sepc_from_typedef, some.tok, some.spec);
         return error.ParsingFailed;
     }
@@ -618,7 +606,7 @@ pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
             for (ty.data.func.param_types) |param, i| {
                 if (i != 0) try w.writeAll(", ");
                 const name_tok = tree.nodes.items(.first)[param];
-                if (tree.tokens[name_tok].id == .identifier) {
+                if (tree.tokens.items(.id)[name_tok] == .identifier) {
                     try w.print("{s}: ", .{tree.tokSlice(name_tok)});
                 }
                 try tree.nodes.items(.ty)[param].dump(tree, w);

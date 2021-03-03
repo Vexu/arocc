@@ -1,9 +1,23 @@
 const std = @import("std");
 const Type = @import("Type.zig");
-const Token = @import("Tokenizer.zig").Token;
+const Tokenizer = @import("Tokenizer.zig");
 const Compilation = @import("Compilation.zig");
+const Source = @import("Source.zig");
 
 const Tree = @This();
+
+pub const Token = struct {
+    id: Id,
+    /// The first location contains the actual token slice which might be generated.
+    /// The second one marks its location in the actual source file.
+    locs: [token_location_count]Source.Location = [1]Source.Location{.{}} ** token_location_count,
+    /// How many source locations do we track for each token.
+    /// Must be at least 2.
+    pub const token_location_count = 4;
+
+    pub const List = std.MultiArrayList(Token);
+    pub const Id = Tokenizer.Token.Id;
+};
 
 pub const TokenIndex = u32;
 pub const NodeIndex = u32;
@@ -11,7 +25,7 @@ pub const NodeIndex = u32;
 comp: *Compilation,
 arena: std.heap.ArenaAllocator,
 generated: []const u8,
-tokens: []const Token,
+tokens: Token.List.Slice,
 nodes: Node.List.Slice,
 data: []const NodeIndex,
 root_decls: []const NodeIndex,
@@ -32,17 +46,6 @@ pub const Node = struct {
 
     pub const List = std.MultiArrayList(Node);
 };
-
-pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
-    const token = tree.tokens[tok_i];
-    if (token.id.lexeme()) |some| return some;
-    if (token.source.isGenerated()) {
-        return tree.generated[token.loc.start..token.loc.end];
-    } else {
-        const source = tree.comp.getSource(token.source);
-        return source.buf[token.loc.start..token.loc.end];
-    }
-}
 
 pub const Tag = enum(u8) {
     /// Only appears at index 0 and reaching it is always a result of a bug.
@@ -492,6 +495,21 @@ pub const Expr = struct {
         @"else": NodeIndex,
     };
 };
+
+pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
+    if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
+    const loc = tree.tokens.items(.locs)[tok_i][0];
+    var tmp_tokenizer = Tokenizer{
+        .buf = if (loc.id == .generated)
+            tree.generated
+        else
+            tree.comp.getSource(loc.id).buf,
+        .index = loc.byte_offset,
+        .source = .generated,
+    };
+    const tok = tmp_tokenizer.next();
+    return tmp_tokenizer.buf[tok.start..tok.end];
+}
 
 pub fn dump(tree: Tree, writer: anytype) @TypeOf(writer).Error!void {
     for (tree.root_decls) |i| {

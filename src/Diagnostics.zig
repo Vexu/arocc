@@ -3,21 +3,21 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
-const Token = @import("Tokenizer.zig").Token;
+const Tree = @import("Tree.zig");
+const token_location_count = Tree.Token.token_location_count;
 
 const Diagnostics = @This();
 
 pub const Message = struct {
     tag: Tag,
-    source_id: Source.Id,
-    loc_start: u32,
+    locs: [token_location_count]Source.Location = [1]Source.Location{.{}} ** token_location_count,
     extra: Extra = .{ .none = {} },
 
     pub const Extra = union {
         str: []const u8,
         tok_id: struct {
-            expected: Token.Id,
-            actual: Token.Id,
+            expected: Tree.Token.Id,
+            actual: Tree.Token.Id,
         },
         arguments: struct {
             expected: u32,
@@ -129,6 +129,7 @@ pub const Tag = enum {
     array_func_elem,
     static_non_outernmost_array,
     qualifier_non_outernmost_array,
+    unterminated_macro_arg_list,
 };
 
 const Options = struct {
@@ -191,7 +192,8 @@ pub fn fatal(diag: *Diagnostics, path: []const u8, lcs: Source.LCS, comptime fmt
     var m = MsgWriter.init(diag.color);
     defer m.deinit();
 
-    m.start(.@"fatal error", path, lcs);
+    m.location(path, lcs);
+    m.start(.@"fatal error");
     m.print(fmt, args);
     m.end(lcs);
     return error.FatalError;
@@ -225,9 +227,16 @@ pub fn render(comp: *Compilation) void {
             .note => {},
             .off => unreachable,
         }
-        const source = comp.getSource(msg.source_id);
-        const lcs = source.lineColString(msg.loc_start);
-        m.start(kind, source.path, lcs);
+
+        var lcs: ?Source.LCS = null;
+        if (msg.locs[0].id != .unused) {
+            const loc = msg.locs[1];
+            const source = comp.getSource(loc.id);
+            lcs = source.lineColString(loc.byte_offset);
+            m.location(source.path, lcs.?);
+        }
+
+        m.start(kind);
         switch (msg.tag) {
             .todo => m.print("TODO: {s}", .{msg.extra.str}),
             .error_directive => m.print("{s}", .{msg.extra.str}),
@@ -298,7 +307,7 @@ pub fn render(comp: *Compilation) void {
             .expected_stmt => m.write("expected statement"),
             .func_cannot_return_func => m.write("function cannot return a function"),
             .func_cannot_return_array => m.write("function cannot return an array"),
-            .undeclared_identifier => m.write("use of undeclared identifier"),
+            .undeclared_identifier => m.print("use of undeclared identifier '{s}'", .{msg.extra.str}),
             .not_callable => m.print("cannot call non function type '{s}'", .{msg.extra.str}),
             .unsupported_str_cat => m.write("unsupported string literal concatenation"),
             .static_func_not_global => m.write("static functions must be global"),
@@ -322,7 +331,7 @@ pub fn render(comp: *Compilation) void {
             .expected_at_least_arguments => m.print("expected at least {d} argument(s) got {d}", .{ msg.extra.arguments.expected, msg.extra.arguments.actual }),
             .invalid_static_star => m.write("'static' may not be used with an unspecified variable length array size"),
             .static_non_param => m.write("'static' used outside of function parameters"),
-            .array_qualifiers =>  m.write("type qualifier in non parameter array type"),
+            .array_qualifiers => m.write("type qualifier in non parameter array type"),
             .star_non_param => m.write("star modifier used outside of function parameters"),
             .variable_len_array_file_scope => m.write("variable length arrays not allowed at file scope"),
             .useless_static => m.write("'static' useless without a constant size"),
@@ -331,8 +340,22 @@ pub fn render(comp: *Compilation) void {
             .array_func_elem => m.write("arrays cannot have functions as their element type"),
             .static_non_outernmost_array => m.write("'static' used in non-outernmost array type"),
             .qualifier_non_outernmost_array => m.write("type qualifier used in non-outernmost array type"),
+            .unterminated_macro_arg_list => m.write("unterminated function macro argument list"),
         }
         m.end(lcs);
+
+        if (msg.locs[0].id != .unused) {
+            const locs = msg.locs[2..];
+            for (locs) |loc| {
+                if (loc.id == .unused) break;
+                const source = comp.getSource(loc.id);
+                const e_lcs = source.lineColString(loc.byte_offset);
+                m.location(source.path, e_lcs);
+                m.start(.note);
+                m.write("expanded from here");
+                m.end(e_lcs);
+            }
+        }
     }
     const w_s: []const u8 = if (warnings == 1) "" else "s";
     const e_s: []const u8 = if (errors == 1) "" else "s";
@@ -430,6 +453,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .array_func_elem,
         .static_non_outernmost_array,
         .qualifier_non_outernmost_array,
+        .unterminated_macro_arg_list,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -483,12 +507,18 @@ const MsgWriter = struct {
         m.w.writeAll(msg) catch {};
     }
 
-    fn start(m: *MsgWriter, kind: Kind, path: []const u8, lcs: Source.LCS) void {
+    fn location(m: *MsgWriter, path: []const u8, lcs: Source.LCS) void {
         if (std.builtin.os.tag == .windows or !m.color) {
-            if (lcs.col == 0)
-                m.print("{s}:??:??: {s}: ", .{ path, @tagName(kind) })
-            else
-                m.print("{s}:{d}:{d}: {s}: ", .{ path, lcs.line, lcs.col, @tagName(kind) });
+            m.print("{s}:{d}:{d}: ", .{ path, lcs.line, lcs.col });
+        } else {
+            const WHITE = "\x1b[37;1m";
+            m.print(WHITE ++ "{s}:{d}:{d}: ", .{ path, lcs.line, lcs.col });
+        }
+    }
+
+    fn start(m: *MsgWriter, kind: Kind) void {
+        if (std.builtin.os.tag == .windows or !m.color) {
+            m.print("{s}: ", .{@tagName(kind)});
         } else {
             const PURPLE = "\x1b[35;1m";
             const CYAN = "\x1b[36;1m";
@@ -502,30 +532,29 @@ const MsgWriter = struct {
                 .warning => PURPLE ++ "warning: " ++ WHITE,
                 .off => unreachable,
             };
-
-            if (lcs.col == 0)
-                m.print(WHITE ++ "{s}:??:??: {s}", .{ path, msg_kind_str })
-            else
-                m.print(WHITE ++ "{s}:{d}:{d}: {s}", .{ path, lcs.line, lcs.col, msg_kind_str });
+            m.write(msg_kind_str);
         }
     }
 
-    fn end(m: *MsgWriter, lcs: Source.LCS) void {
+    fn end(m: *MsgWriter, lcs: ?Source.LCS) void {
         if (std.builtin.os.tag == .windows or !m.color) {
-            if (lcs.col == 0) return;
-            m.print("\n{s}\n", .{lcs.str});
-            m.print("{s: >[1]}^\n", .{ "", lcs.col - 1 });
+            if (lcs == null) {
+                m.write("\n");
+                return;
+            }
+            m.print("\n{s}\n", .{lcs.?.str});
+            m.print("{s: >[1]}^\n", .{ "", lcs.?.col - 1 });
         } else {
             const GREEN = "\x1b[32;1m";
             const WHITE = "\x1b[37;1m";
             const RESET = "\x1b[0m";
-            if (lcs.col == 0) {
+            if (lcs == null) {
                 m.write("\n" ++ RESET);
                 return;
             }
 
-            m.print("\n" ++ RESET ++ "{s}\n", .{lcs.str});
-            m.print("{s: >[1]}" ++ GREEN ++ "^" ++ RESET ++ "\n", .{ "", lcs.col - 1 });
+            m.print("\n" ++ RESET ++ "{s}\n", .{lcs.?.str});
+            m.print("{s: >[1]}" ++ GREEN ++ "^" ++ RESET ++ "\n", .{ "", lcs.?.col - 1 });
         }
     }
 };
