@@ -102,6 +102,8 @@ pub const Token = struct {
         macro_param,
         /// Special token to speed up preprocessing, `loc.end` will be an index to the param list.
         stringify_param,
+        /// Special token for when empty argument is passed to macro token.
+        empty_arg,
 
         keyword_auto,
         keyword_break,
@@ -280,6 +282,7 @@ pub const Token = struct {
                 .eof,
                 .macro_param,
                 .stringify_param,
+                .empty_arg,
                 => "",
 
                 .bang => "!",
