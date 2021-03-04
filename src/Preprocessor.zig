@@ -263,7 +263,7 @@ fn tokSliceSafe(pp: *Preprocessor, token: RawToken) []const u8 {
 }
 
 /// Returned slice is invalidated when generated is updated.
-pub fn tokSlice(pp: *Preprocessor, token: RawToken) []const u8 {
+fn tokSlice(pp: *Preprocessor, token: RawToken) []const u8 {
     if (token.id.lexeme()) |some| return some;
     if (token.source == .generated) {
         return pp.generated.items[token.start..token.end];
@@ -747,13 +747,13 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
     // Parse the paremeter list.
     var var_args = false;
     while (true) {
-        const tok = tokenizer.next();
+        var tok = tokenizer.next();
         if (tok.id == .r_paren) break;
         if (params.items.len != 0) {
             if (tok.id != .comma)
                 try pp.err(tok, .invalid_token_param_list)
             else
-                continue;
+                tok = tokenizer.next();
         }
         if (tok.id == .eof) return pp.err(tok, .unterminated_macro_param_list);
         if (tok.id == .ellipsis) {
@@ -902,7 +902,54 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
         return error.InvalidInclude;
     }
 
-    // Find the file and prerpocess it.
+    // Find the file.
     const filename = tok_slice[1 .. tok_slice.len - 1];
     return pp.comp.findInclude(first, filename, filename_tok.id == .string_literal);
+}
+
+/// Pretty print tokens and try to preserve whitespace.
+pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
+    var i: usize = 0;
+    var cur: Token = pp.tokens.get(i);
+    while (true) {
+        if (cur.id == .eof) break;
+
+        const slice = pp.expandedSlice(cur);
+        try w.writeAll(slice);
+
+        i += 1;
+        const next = pp.tokens.get(i);
+        if (next.id == .eof) {
+            try w.writeByte('\n');
+        } else if (next.loc.next != null or next.loc.id == .generated) {
+            // next was expanded from a macro
+            try w.writeByte(' ');
+        } else if (next.loc.id == cur.loc.id) {
+            const source = pp.comp.getSource(cur.loc.id).buf;
+            const cur_end = cur.loc.byte_offset + slice.len;
+            try pp.printInBetween(source[cur_end..next.loc.byte_offset], w);
+        } else {
+            // next was included from another file
+            try w.writeByte('\n');
+        }
+        cur = next;
+    }
+}
+
+fn printInBetween(pp: *Preprocessor, slice: []const u8, w: anytype) !void {
+    var in_between = slice;
+    while (true) {
+        if (mem.indexOfScalar(u8, in_between, '#') orelse mem.indexOf(u8, in_between, "//")) |some| {
+            try w.writeAll(in_between[0..some]);
+            in_between = in_between[some..];
+            const nl = mem.indexOfScalar(u8, in_between, '\n') orelse in_between.len;
+            in_between = in_between[nl..];
+        } else if (mem.indexOf(u8, in_between, "/*")) |some| {
+            try w.writeAll(in_between[0..some]);
+            in_between = in_between[some..];
+            const nl = mem.indexOf(u8, in_between, "*/") orelse in_between.len;
+            in_between = in_between[nl + 2 ..];
+        } else break;
+    }
+    try w.writeAll(in_between);
 }

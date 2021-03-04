@@ -136,11 +136,8 @@ fn expectStr(buf: []const u8, expected: []const u8) void {
     var actual = std.ArrayList(u8).init(std.testing.allocator);
     defer actual.deinit();
 
-    for (pp.tokens.items(.id)) |id, i| {
-        if (id == .eof) break;
-        if (i != 0) actual.append(' ') catch unreachable;
-        actual.appendSlice(pp.expandedSlice(pp.tokens.get(i))) catch unreachable;
-    }
+    pp.prettyPrintTokens(actual.writer()) catch unreachable;
+    _ = actual.popOrNull(); // pop newline
 
     std.testing.expectEqualStrings(expected, actual.items);
 }
