@@ -1,3 +1,16 @@
+test "X macro" {
+    expectStr(
+        \\#define X(a) Foo_ ## a = a,
+        \\enum Foo {
+        \\X(1)
+        \\X(2)
+        \\X(3)
+        \\X(4)
+        \\X(5)
+        \\};
+        , "enum Foo { Foo_1 = 1 , Foo_2 = 2 , Foo_3 = 3 , Foo_4 = 4 , Foo_5 = 5 , } ;");
+}
+
 test "function macro expansion" {
     expectStr(
         \\#define HE HI
@@ -7,9 +20,9 @@ test "function macro expansion" {
         \\#define XCAT(a,b) CAT(a,b)
         \\#define CALL(fn) fn(HE,LLO)
         \\CAT(HE, LLO)
-        \\//XCAT(HE, LLO) TODO HI_THERE
+        \\XCAT(HE, LLO)
         \\CALL(CAT)
-    , "\"HI THERE\" \"HI THERE\"");
+    , "\"HI THERE\" HI_THERE \"HI THERE\"");
 }
 
 test "#if constant expression" {

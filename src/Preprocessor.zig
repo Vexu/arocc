@@ -689,8 +689,14 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
                 if (target_arg.len == 0)
                     // This is needed so that we can properly do token pasting.
                     try buf.append(.{ .id = .empty_arg, .loc = .{ .id = raw.source, .byte_offset = raw.start } })
-                else
-                    try buf.appendSlice(target_arg);
+                else {
+                    try buf.ensureCapacity(buf.items.len + target_arg.len);
+                    for (target_arg) |arg| {
+                        var copy = arg;
+                        if (copy.id.isMacroIdentifier()) copy.id = .identifier_from_param else if (copy.id == .hash_hash) copy.id = .hash_hash_from_param;
+                        buf.appendAssumeCapacity(copy);
+                    }
+                }
             },
             else => try buf.append(tokFromRaw(raw)),
         }
@@ -700,13 +706,13 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
     tok_i = 0;
     while (tok_i < buf.items.len) : (tok_i += 1) {
         switch (buf.items[tok_i].id) {
+            .hash_hash_from_param => buf.items[tok_i].id = .hash_hash,
             .hash_hash => {
-                // TODO ## originating from args should not be concatenated
                 const prev = buf.items[tok_i - 1];
                 const next = buf.items[tok_i + 1];
 
                 buf.items[tok_i - 1] = try pp.pasteTokens(prev, next);
-                mem.copyBackwards(Token, buf.items[tok_i..], buf.items[tok_i + 2 ..]);
+                mem.copy(Token, buf.items[tok_i..], buf.items[tok_i + 2 ..]);
                 buf.items.len -= 2;
                 tok_i -= 1;
             },
@@ -714,39 +720,48 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
         }
     }
 
-    // TODO
     // 4. Expand tokens from parameters
-    // tok_i = 0;
-    // while (tok_i < expanded.items.len) : (tok_i += 1) {
-    // }
+    tok_i = 0;
+    while (tok_i < buf.items.len) {
+        const tok = &buf.items[tok_i];
+        switch (tok.id) {
+            .empty_arg => _ = buf.orderedRemove(tok_i),
+            .identifier_from_param => {
+                tok.id = Tokenizer.Token.keywords.get(pp.expandedSlice(tok.*)) orelse .identifier;
+                try pp.expandExtra(&buf, &tok_i);
+            },
+            else => tok_i += 1,
+        }
+    }
 
     // 5. Expand resulting tokens
     tok_i = 0;
     while (tok_i < buf.items.len) {
-        if (buf.items[tok_i].id == .empty_arg) {
-            _ = buf.orderedRemove(tok_i);
-            continue;
-        }
         if (buf.items[tok_i].id.isMacroIdentifier()) {
             try pp.expandExtra(&buf, &tok_i);
         } else {
             tok_i += 1;
         }
     }
+
     // Mark all the tokens before adding them to the source buffer.
     for (buf.items) |*tok| try pp.markExpandedFrom(tok, macro.loc);
 
     // Move tokens after the call out of the way.
     const input_len = args.len + 3; // +3 for identifier, ( and )
-    if (input_len >= buf.items.len) {
+    if (input_len == buf.items.len) {
+        // do nothing
+    } else if (input_len > buf.items.len) {
         mem.copy(Token, source.items[start_index.* + buf.items.len ..], source.items[start_index.* + input_len ..]);
         source.items.len -= input_len - buf.items.len;
     } else {
-        try source.ensureCapacity(source.items.len + buf.items.len - input_len);
+        const new_len = source.items.len - input_len + buf.items.len;
+        try source.ensureCapacity(new_len);
         const start_len = source.items.len;
-        source.items.len = source.capacity;
+        source.items.len = new_len;
         mem.copyBackwards(Token, source.items[start_index.* + buf.items.len ..], source.items[start_index.* + input_len .. start_len]);
     }
+
     // Insert resulting tokens to the source
     mem.copy(Token, source.items[start_index.*..], buf.items);
     start_index.* += buf.items.len;
@@ -1092,9 +1107,11 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
             // next was expanded from a macro
             try w.writeByte(' ');
         } else if (next.loc.id == cur.loc.id) {
-            const source = pp.comp.getSource(cur.loc.id).buf;
-            const cur_end = cur.loc.byte_offset + slice.len;
-            try pp.printInBetween(source[cur_end..next.loc.byte_offset], w);
+            // TODO fix this
+            // const source = pp.comp.getSource(cur.loc.id).buf;
+            // const cur_end = cur.loc.byte_offset + slice.len;
+            // try pp.printInBetween(source[cur_end..next.loc.byte_offset], w);
+            try w.writeByte(' ');
         } else {
             // next was included from another file
             try w.writeByte('\n');
