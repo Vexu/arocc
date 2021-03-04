@@ -622,10 +622,10 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
     // collect the arguments.
     // `args_count` starts with 1 since whitespace counts as an argument.
     var args_count: u32 = 1;
-    const args = for (source.items[l_paren_index..]) |tok, i| {
+    const args = for (source.items[l_paren_index + 1..]) |tok, i| {
         switch (tok.id) {
             .comma => args_count += 1,
-            .r_paren => break source.items[l_paren_index + 1 .. i + 1],
+            .r_paren => break source.items[l_paren_index + 1..][0 .. i],
             else => {},
         }
     } else {
@@ -640,7 +640,8 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
         try pp.comp.diag.add(.{ .tag = .expected_at_least_arguments, .loc = name_tok.loc, .extra = extra });
         start_index.* += 1;
         return;
-    } else if (args_count != macro.params.len) {
+    }
+    if (!macro.var_args and args_count != macro.params.len) {
         try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = name_tok.loc, .extra = extra });
         start_index.* += 1;
         return;
@@ -655,8 +656,11 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
     while (tok_i < macro.tokens.len) : (tok_i += 1) {
         const raw = macro.tokens[tok_i];
         switch (raw.id) {
-            .stringify_param => {
-                const target_arg = argSlice(args, raw.end);
+            .stringify_param, .stringify_va_args => {
+                const target_arg = if (raw.id == .stringify_va_args)
+                    vaArgSlice(args, macro.params.len)
+                else
+                    argSlice(args, raw.end);
                 pp.char_buf.items.len = 0; // Safe since we can only be stringifying one parameter at a time.
 
                 // TODO pretty print these
@@ -683,9 +687,12 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
                     },
                 });
             },
-            .macro_param => {
-                const target_arg = argSlice(args, raw.end);
-                // TODO mark originating from params
+            .macro_param, .keyword_va_args => {
+                const target_arg = if (raw.id == .keyword_va_args)
+                    vaArgSlice(args, macro.params.len)
+                else
+                    argSlice(args, raw.end);
+
                 if (target_arg.len == 0)
                     // This is needed so that we can properly do token pasting.
                     try buf.append(.{ .id = .empty_arg, .loc = .{ .id = raw.source, .byte_offset = raw.start } })
@@ -767,7 +774,20 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
     start_index.* += buf.items.len;
 }
 
-// get argument at index from a list of tokens.
+/// Get var args from after index.
+fn vaArgSlice(args: []const Token, index: usize) []const Token {
+    if (index == 0) return args;
+    // TODO this is a mess
+    var commas_seen: usize = 0;
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        if (args[i].id == .comma) commas_seen += 1;
+        if (commas_seen == index) return args[i + 1 ..];
+    }
+    return args[i..];
+}
+
+/// get argument at index from a list of tokens.
 fn argSlice(args: []const Token, index: u32) []const Token {
     // TODO this is a mess
     var commas_seen: usize = 0;
@@ -964,6 +984,11 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
             .hash => {
                 const param = tokenizer.next();
                 blk: {
+                    if (var_args and param.id == .keyword_va_args) {
+                        tok.id = .stringify_va_args;
+                        try pp.token_buf.append(tok);
+                        continue :tok_loop;
+                    }
                     if (!param.id.isMacroIdentifier()) break :blk;
                     const s = pp.tokSliceSafe(param);
                     for (params.items) |p, i| {
@@ -989,7 +1014,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.token_buf.append(tok);
             },
             else => {
-                if (tok.id.isMacroIdentifier()) {
+                if (var_args and tok.id == .keyword_va_args) {
+                    // do nothing
+                } else if (tok.id.isMacroIdentifier()) {
                     tok.id.simplifyMacroKeyword();
                     const s = pp.tokSliceSafe(tok);
                     for (params.items) |param, i| {

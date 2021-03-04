@@ -102,9 +102,13 @@ pub const Token = struct {
         macro_param,
         /// Special token to speed up preprocessing, `loc.end` will be an index to the param list.
         stringify_param,
+        /// Same as stringify_param, but for var args
+        stringify_va_args,
         /// Special token for when empty argument is passed to macro token.
         empty_arg,
+        /// Special token used to prevent ## passed as arguments from being concatenated
         hash_hash_from_param,
+        /// Special token used to expand arguments before other tokens.
         identifier_from_param,
 
         keyword_auto,
@@ -168,6 +172,7 @@ pub const Token = struct {
         keyword_error,
         keyword_pragma,
         keyword_line,
+        keyword_va_args,
 
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
@@ -183,6 +188,7 @@ pub const Token = struct {
                 .keyword_error,
                 .keyword_pragma,
                 .keyword_line,
+                .keyword_va_args,
                 .keyword_auto,
                 .keyword_break,
                 .keyword_case,
@@ -247,6 +253,7 @@ pub const Token = struct {
                 .keyword_error,
                 .keyword_pragma,
                 .keyword_line,
+                .keyword_va_args,
                 => id.* = .identifier,
                 else => {},
             }
@@ -285,6 +292,7 @@ pub const Token = struct {
                 .eof,
                 .macro_param,
                 .stringify_param,
+                .stringify_va_args,
                 .empty_arg,
                 => "",
 
@@ -392,6 +400,7 @@ pub const Token = struct {
                 .keyword_error => "error",
                 .keyword_pragma => "pragma",
                 .keyword_line => "line",
+                .keyword_va_args => "__VA_ARGS__",
             };
         }
 
@@ -488,6 +497,7 @@ pub const Token = struct {
         .{ "error", .keyword_error },
         .{ "pragma", .keyword_pragma },
         .{ "line", .keyword_line },
+        .{ "__VA_ARGS__", .keyword_va_args },
     });
 };
 
