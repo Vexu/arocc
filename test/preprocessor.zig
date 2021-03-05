@@ -6,7 +6,7 @@ test "var args macro functions" {
         \\#define bar(a,...) bar __VA_ARGS__
         \\#define baz(a,...) baz bar(__VA_ARGS__)
         \\baz(1,2,3,4)
-        , "\"2 , 3 , 4 , 5 , 6\" baz bar 3 , 4");
+    , "\"2 , 3 , 4 , 5 , 6\" baz bar 3 , 4\n");
 }
 
 test "X macro" {
@@ -19,7 +19,7 @@ test "X macro" {
         \\X(4)
         \\X(5)
         \\};
-        , "enum Foo { Foo_1 = 1 , Foo_2 = 2 , Foo_3 = 3 , Foo_4 = 4 , Foo_5 = 5 , } ;");
+    , "enum Foo { Foo_1 = 1 , Foo_2 = 2 , Foo_3 = 3 , Foo_4 = 4 , Foo_5 = 5 , } ;\n");
 }
 
 test "function macro expansion" {
@@ -141,7 +141,8 @@ fn expectTokens(buf: []const u8, expected_tokens: []const Token.Id) void {
     defer pp.deinit();
 
     pp.preprocess(source) catch unreachable;
-    std.testing.expect(comp.renderErrors() == 0);
+    comp.renderErrors();
+    std.testing.expect(comp.diag.errors == 0);
 
     for (expected_tokens) |expected_token_id, i| {
         const actual = pp.tokens.items(.id)[i];
@@ -149,8 +150,6 @@ fn expectTokens(buf: []const u8, expected_tokens: []const Token.Id) void {
             std.debug.panic("expected {s}, found {s}\n", .{ @tagName(expected_token_id), @tagName(actual) });
         }
     }
-    const last_token = pp.tokens.items(.id)[expected_tokens.len];
-    std.testing.expect(last_token == .eof);
 }
 
 fn expectStr(buf: []const u8, expected: []const u8) void {
@@ -169,13 +168,14 @@ fn expectStr(buf: []const u8, expected: []const u8) void {
     defer pp.deinit();
 
     pp.preprocess(source) catch unreachable;
-    std.testing.expect(comp.renderErrors() == 0);
+    pp.tokens.append(comp.gpa, .{ .id = .eof, .loc = undefined }) catch unreachable;
+    comp.renderErrors();
+    std.testing.expect(comp.diag.errors == 0);
 
     var actual = std.ArrayList(u8).init(std.testing.allocator);
     defer actual.deinit();
 
     pp.prettyPrintTokens(actual.writer()) catch unreachable;
-    _ = actual.popOrNull(); // pop newline
 
     std.testing.expectEqualStrings(expected, actual.items);
 }

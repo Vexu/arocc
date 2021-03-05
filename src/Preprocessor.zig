@@ -238,7 +238,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                     .nl => {},
                     .eof => {
                         if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
-                        return pp.tokens.append(pp.comp.gpa, tokFromRaw(directive));
+                        return;
                     },
                     else => {
                         try pp.err(tok, .invalid_preprocessing_directive);
@@ -249,7 +249,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
             .nl => start_of_line = true,
             .eof => {
                 if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
-                return pp.tokens.append(pp.comp.gpa, tokFromRaw(tok));
+                return;
             },
             else => {
                 // Add the token to the buffer doing any necessary expansions.
@@ -1082,7 +1082,6 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     if (pp.include_depth > max_include_depth) return;
 
     try pp.preprocess(new_source);
-    pp.tokens.len -= 1; // remove eof
 }
 
 fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {

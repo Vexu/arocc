@@ -21,6 +21,7 @@ diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
 system_include_dirs: std.ArrayList([]const u8),
 output_name: ?[]const u8 = null,
+target: std.Target = std.Target.current,
 only_preprocess: bool = false,
 
 pub fn init(gpa: *Allocator) Compilation {
@@ -42,6 +43,87 @@ pub fn deinit(comp: *Compilation) void {
     comp.diag.deinit();
     comp.include_dirs.deinit();
     comp.system_include_dirs.deinit();
+}
+
+/// Generate builtin macros that will be available to each source file.
+pub fn generateBuiltinMacros(comp: *Compilation) !Source {
+    var buf = std.ArrayList(u8).init(comp.gpa);
+    defer buf.deinit();
+
+    try buf.appendSlice(
+        \\#define __VERSION__ "Aro 
+    ++ @import("build_options").version_str ++ "\"\n" ++
+        \\#define __STDC__ 1
+        \\#define __STDC_HOSTED__ 1
+        \\#define __STDC_VERSION__ 201710L
+        \\#define __STDC_NO_ATOMICS__ 1
+        \\#define __STDC_NO_COMPLEX__ 1
+        \\#define __STDC_NO_THREADS__ 1
+        \\#define __STDC_NO_VLA__ 1
+        \\
+    );
+
+    switch (comp.target.os.tag) {
+        .linux => try buf.appendSlice(
+            \\#define unix 1
+            \\#define __unix 1
+            \\#define __unix__ 1
+            \\#define linux 1
+            \\#define __linux 1
+            \\#define __linux__ 1
+            \\
+        ),
+        .windows => if (comp.target.cpu.arch.ptrBitWidth() == 32)
+            try buf.appendSlice("#define _WIN32 1\n")
+        else
+            try buf.appendSlice(
+                \\#define _WIN32 1
+                \\#define _WIN64 1
+                \\
+            ),
+        else => {},
+    }
+
+    switch (comp.target.cpu.arch) {
+        .x86_64 => try buf.appendSlice(
+            \\#define __amd64__ 1
+            \\#define __amd64 1
+            \\#define __x86_64 1
+            \\#define __x86_64__ 1
+            \\
+        ),
+        else => {},
+    }
+
+    try buf.appendSlice(if (comp.target.cpu.arch.endian() == .Little)
+        \\#define __ORDER_LITTLE_ENDIAN__ 1234
+        \\#define __ORDER_BIG_ENDIAN__ 4321
+        \\#define __ORDER_PDP_ENDIAN__ 3412
+        \\#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
+        \\#define __LITTLE_ENDIAN__ 1
+        \\
+    else
+        \\#define __ORDER_LITTLE_ENDIAN__ 1234
+        \\#define __ORDER_BIG_ENDIAN__ 4321
+        \\#define __ORDER_PDP_ENDIAN__ 3412
+        \\#define __BYTE_ORDER__ __ORDER_BIG_ENDIAN__;
+        \\#define __BIG_ENDIAN__ 1
+        \\
+    );
+
+    const duped_path = try comp.gpa.dupe(u8, "<builtin>");
+    errdefer comp.gpa.free(duped_path);
+
+    const contents = buf.toOwnedSlice();
+    errdefer comp.gpa.free(contents);
+
+    const source = Source{
+        .id = @intToEnum(Source.Id, @intCast(u32, comp.sources.count() + 2)),
+        .path = duped_path,
+        .buf = contents,
+    };
+    try comp.sources.put(duped_path, source);
+    return source;
 }
 
 pub fn getSource(comp: *Compilation, id: Source.Id) Source {

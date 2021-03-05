@@ -153,16 +153,29 @@ pub fn sizeof(ty: Type, comp: *Compilation) u64 {
         .char, .schar, .uchar => 1,
         .short, .ushort => 2,
         .int, .uint => 4,
-        .long, .ulong, .long_long, .ulong_long => 8,
+        .long, .ulong => switch (comp.target.os.tag) {
+            .linux,
+            .macos,
+            .freebsd,
+            .netbsd,
+            .dragonfly,
+            .openbsd,
+            .wasi,
+            .emscripten,
+            => comp.target.cpu.arch.ptrBitWidth() >> 3,
+            .windows, .uefi => 32,
+            else => 32,
+        },
+        .long_long, .ulong_long => 8,
         .float => 4,
         .double => 8,
         .long_double => 16,
         .complex_float => 8,
         .complex_double => 16,
         .complex_long_double => 32,
-        .pointer => 8,
+        .pointer, .static_array => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .atomic => return ty.data.sub_type.sizeof(comp),
-        .array, .static_array => return ty.data.sub_type.sizeof(comp) * ty.data.array.len,
+        .array => return ty.data.sub_type.sizeof(comp) * ty.data.array.len,
         .@"struct" => @panic("TODO"),
         .@"union" => @panic("TODO"),
         .@"enum" => @panic("TODO"),
@@ -416,7 +429,7 @@ pub const Builder = struct {
 
     pub fn combine(spec: *Builder, p: *Parser, new: Kind) Parser.Error!void {
         switch (new) {
-            .void, .bool, .@"enum", .@"struct", .@"union", .pointer, .array, .static_array, .func, .var_args_func, .old_style_func => switch (spec.kind) {
+            else => switch (spec.kind) {
                 .none => spec.kind = new,
                 else => return spec.cannotCombine(p),
             },
@@ -465,7 +478,7 @@ pub const Builder = struct {
                 .none => .char,
                 .unsigned => .uchar,
                 .signed => .schar,
-                .char, .schar, .uchar => return p.errStr(.duplicate_decl_spec, p.tok_i, "float"),
+                .char, .schar, .uchar => return p.errStr(.duplicate_decl_spec, p.tok_i, "char"),
                 else => return spec.cannotCombine(p),
             },
             .short => spec.kind = switch (spec.kind) {
@@ -545,7 +558,6 @@ pub const Builder = struct {
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "_Complex"),
                 else => return spec.cannotCombine(p),
             },
-            else => unreachable,
         }
     }
 

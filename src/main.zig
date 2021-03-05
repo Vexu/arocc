@@ -50,6 +50,8 @@ const usage =
     \\
     \\Feature options:
     \\  -E                      Only run the preprocessor
+    \\  -D <macro>=<value>      Define <macro> to <value> (defaults to 1)
+    \\  -U <macro>              Undefine <macro>
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
     \\  -I <dir>                Add directory to include search path
@@ -70,6 +72,9 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
     var source_files = std.ArrayList(Source).init(comp.gpa);
     defer source_files.deinit();
 
+    var macro_buf = std.ArrayList(u8).init(comp.gpa);
+    defer macro_buf.deinit();
+
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -86,6 +91,27 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                     return comp.diag.fatalNoSrc("{s} when trying to print version", .{@errorName(err)});
                 };
                 return;
+            } else if (mem.startsWith(u8, arg, "-D")) {
+                var macro = arg["-D".len..];
+                if (macro.len == 0) {
+                    i += 1;
+                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -I", .{});
+                    macro = args[i];
+                }
+                var value: []const u8 = "1";
+                if (mem.indexOfScalar(u8, macro, '=')) |some| {
+                    value = macro[some + 1 ..];
+                    macro = macro[0..some];
+                }
+                try macro_buf.writer().print("#define {s} {s}\n", .{ macro, value });
+            } else if (mem.startsWith(u8, arg, "-U")) {
+                var macro = arg["-U".len..];
+                if (macro.len == 0) {
+                    i += 1;
+                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -I", .{});
+                    macro = args[i];
+                }
+                try macro_buf.writer().print("#undef {s}\n", .{macro});
             } else if (mem.eql(u8, arg, "-E")) {
                 comp.only_preprocess = true;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
@@ -146,27 +172,49 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
         return comp.diag.fatalNoSrc("cannot specify -o when generating multiple output files", .{});
     }
 
+    const builtin = try comp.generateBuiltinMacros();
+    const user_macros = blk: {
+        const duped_path = try comp.gpa.dupe(u8, "<command line>");
+        errdefer comp.gpa.free(duped_path);
+
+        const contents = macro_buf.toOwnedSlice();
+        errdefer comp.gpa.free(contents);
+
+        const source = Source{
+            .id = @intToEnum(Source.Id, @intCast(u32, comp.sources.count() + 2)),
+            .path = duped_path,
+            .buf = contents,
+        };
+        try comp.sources.put(duped_path, source);
+        break :blk source;
+    };
+
     for (source_files.items) |source| {
-        processSource(comp, source) catch |e| switch (e) {
+        processSource(comp, source, builtin, user_macros) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {},
         };
-        comp.renderErrors();
     }
 }
 
-fn processSource(comp: *Compilation, source: Source) !void {
+fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macros: Source) !void {
     var pp = Preprocessor.init(comp);
     defer pp.deinit();
 
+    try pp.preprocess(builtin);
+    try pp.preprocess(user_macros);
     try pp.preprocess(source);
+    try pp.tokens.append(pp.comp.gpa, .{
+        .id = .eof,
+        .loc = .{ .id = source.id, .byte_offset = @intCast(u32, source.buf.len) },
+    });
 
     if (comp.only_preprocess) {
         comp.renderErrors();
 
         const file = if (comp.output_name) |some|
             std.fs.cwd().createFile(some, .{}) catch |err|
-                return comp.diag.fatalNoSrc("{s} when trying to print tokens", .{@errorName(err)})
+                return comp.diag.fatalNoSrc("{s} when trying to create output file", .{@errorName(err)})
         else
             std.io.getStdOut();
         defer if (comp.output_name != null) file.close();
