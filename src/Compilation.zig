@@ -21,6 +21,7 @@ diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
 system_include_dirs: std.ArrayList([]const u8),
 output_name: ?[]const u8 = null,
+only_preprocess: bool = false,
 
 pub fn init(gpa: *Allocator) Compilation {
     return .{
