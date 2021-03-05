@@ -2458,7 +2458,6 @@ fn primaryExpr(p: *Parser) Error!Result {
         => {
             const id = p.tok_ids[p.tok_i];
             var slice = p.tokSlice(p.tok_i);
-            p.tok_i += 1;
             var base: u8 = 10;
             if (mem.startsWith(u8, slice, "0x") or mem.startsWith(u8, slice, "0X")) {
                 slice = slice[2..];
@@ -2476,24 +2475,43 @@ fn primaryExpr(p: *Parser) Error!Result {
                 else => {},
             }
 
+            var val: u64 = 0;
+            var overflow = false;
+            for (slice) |c| {
+                const digit: u64 = switch (c) {
+                    '0'...'9' => c - '0',
+                    'A'...'Z' => c - 'A' + 10,
+                    'a'...'z' => c - 'a' + 10,
+                    else => unreachable,
+                };
+
+                if (val != 0 and @mulWithOverflow(u64, val, base, &val)) overflow = true;
+                if (@addWithOverflow(u64, val, digit, &val)) overflow = true;
+            }
+            if (overflow) {
+                try p.err(.int_literal_too_big);
+                return Result{ .ty = .{ .specifier = .ulong_long }, .data = .{ .unsigned = val } };
+            }
+            p.tok_i += 1;
+
             if (base == 10) {
                 switch (id) {
-                    .integer_literal => return p.parseInt(base, slice, &.{ .int, .long, .long_long }),
-                    .integer_literal_u => return p.parseInt(base, slice, &.{ .uint, .ulong, .ulong_long }),
-                    .integer_literal_l => return p.parseInt(base, slice, &.{ .long, .long_long }),
-                    .integer_literal_lu => return p.parseInt(base, slice, &.{ .ulong, .ulong_long }),
-                    .integer_literal_ll => return p.parseInt(base, slice, &.{.long_long}),
-                    .integer_literal_llu => return p.parseInt(base, slice, &.{.ulong_long}),
+                    .integer_literal => return p.castInt(val, &.{ .int, .long, .long_long }),
+                    .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+                    .integer_literal_l => return p.castInt(val, &.{ .long, .long_long }),
+                    .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
+                    .integer_literal_ll => return p.castInt(val, &.{.long_long}),
+                    .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
                     else => unreachable,
                 }
             } else {
                 switch (id) {
-                    .integer_literal => return p.parseInt(base, slice, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
-                    .integer_literal_u => return p.parseInt(base, slice, &.{ .uint, .ulong, .ulong_long }),
-                    .integer_literal_l => return p.parseInt(base, slice, &.{ .long, .ulong, .long_long, .ulong_long }),
-                    .integer_literal_lu => return p.parseInt(base, slice, &.{ .ulong, .ulong_long }),
-                    .integer_literal_ll => return p.parseInt(base, slice, &.{ .long_long, .ulong_long }),
-                    .integer_literal_llu => return p.parseInt(base, slice, &.{.ulong_long}),
+                    .integer_literal => return p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
+                    .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+                    .integer_literal_l => return p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
+                    .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
+                    .integer_literal_ll => return p.castInt(val, &.{ .long_long, .ulong_long }),
+                    .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
                     else => unreachable,
                 }
             }
@@ -2505,13 +2523,7 @@ fn primaryExpr(p: *Parser) Error!Result {
     }
 }
 
-fn parseInt(p: *Parser, base: u8, slice: []const u8, specs: []const Type.Specifier) Error!Result {
-    const wrappedParse = struct {
-        fn func(comptime T: type, b: u8, s: []const u8) ?T {
-            return std.fmt.parseInt(T, s, b) catch return null;
-        }
-    }.func;
-
+fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
     for (specs) |spec| {
         const ty = Type{ .specifier = spec };
         const unsigned = ty.isUnsignedInt(p.pp.comp);
@@ -2519,19 +2531,19 @@ fn parseInt(p: *Parser, base: u8, slice: []const u8, specs: []const Type.Specifi
 
         if (unsigned) {
             switch (size) {
-                2 => if (wrappedParse(u16, base, slice)) |r| return Result{ .ty = ty, .data = .{ .unsigned = r } },
-                4 => if (wrappedParse(u32, base, slice)) |r| return Result{ .ty = ty, .data = .{ .unsigned = r } },
-                8 => if (wrappedParse(u64, base, slice)) |r| return Result{ .ty = ty, .data = .{ .unsigned = r } },
+                2 => if (val < std.math.maxInt(u16)) return Result{ .ty = ty, .data = .{ .unsigned = val } },
+                4 => if (val < std.math.maxInt(u32)) return Result{ .ty = ty, .data = .{ .unsigned = val } },
+                8 => if (val < std.math.maxInt(u64)) return Result{ .ty = ty, .data = .{ .unsigned = val } },
                 else => unreachable,
             }
         } else {
             switch (size) {
-                2 => if (wrappedParse(i16, base, slice)) |r| return Result{ .ty = ty, .data = .{ .signed = r } },
-                4 => if (wrappedParse(i32, base, slice)) |r| return Result{ .ty = ty, .data = .{ .signed = r } },
-                8 => if (wrappedParse(i64, base, slice)) |r| return Result{ .ty = ty, .data = .{ .signed = r } },
+                2 => if (val < std.math.maxInt(i16)) return Result{ .ty = ty, .data = .{ .signed = @intCast(i16, val) } },
+                4 => if (val < std.math.maxInt(i32)) return Result{ .ty = ty, .data = .{ .signed = @intCast(i32, val) } },
+                8 => if (val < std.math.maxInt(i64)) return Result{ .ty = ty, .data = .{ .signed = @intCast(i64, val) } },
                 else => unreachable,
             }
         }
     }
-    return p.todo("huge integer constants");
+    return Result{ .ty = .{ .specifier = .ulong_long }, .data = .{ .unsigned = val } };
 }
