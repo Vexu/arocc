@@ -520,6 +520,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
             // Collect the macro name and arguments into a new buffer.
             try buf.append(tokFromRaw(raw));
             try buf.append(tokFromRaw(l_paren));
+            var parens: u32 = 0;
             while (true) {
                 const tok = tokenizer.next();
                 switch (tok.id) {
@@ -528,12 +529,17 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
                         try pp.err(tok, .unterminated_macro_arg_list);
                         return;
                     },
+                    .l_paren => parens += 1,
                     .r_paren => {
-                        try buf.append(tokFromRaw(tok));
-                        break;
+                        if (parens == 0) {
+                            try buf.append(tokFromRaw(tok));
+                            break;
+                        }
+                        parens -= 1;
                     },
-                    else => try buf.append(tokFromRaw(tok)),
+                    else => {},
                 }
+                try buf.append(tokFromRaw(tok));
             }
             var start_index: usize = 0;
             // Mark that we have seen this macro.
@@ -621,11 +627,18 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
 
     // collect the arguments.
     // `args_count` starts with 1 since whitespace counts as an argument.
-    var args_count: u32 = 1;
-    const args = for (source.items[l_paren_index + 1..]) |tok, i| {
+    var args_count: u32 = 0;
+    var parens: u32 = 0;
+    const args = for (source.items[l_paren_index + 1 ..]) |tok, i| {
         switch (tok.id) {
-            .comma => args_count += 1,
-            .r_paren => break source.items[l_paren_index + 1..][0 .. i],
+            .comma => if (parens == 0) {
+                if (args_count == 0) args_count = 2 else args_count += 1;
+            },
+            .l_paren => parens += 1,
+            .r_paren => {
+                if (parens == 0) break source.items[l_paren_index + 1 ..][0..i];
+                parens -= 1;
+            },
             else => {},
         }
     } else {
@@ -633,6 +646,7 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
         start_index.* += 1;
         return;
     };
+    if (args_count == 0 and args.len != 0) args_count = 1;
 
     // Validate argument count.
     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, macro.params.len), .actual = args_count } };
@@ -780,7 +794,13 @@ fn vaArgSlice(args: []const Token, index: usize) []const Token {
     // TODO this is a mess
     var commas_seen: usize = 0;
     var i: usize = 0;
+    var parens: u32 = 0;
     while (i < args.len) : (i += 1) {
+        switch (args[i].id) {
+            .l_paren => parens += 1,
+            .r_paren => parens -= 1,
+            else => if (parens != 0) continue,
+        }
         if (args[i].id == .comma) commas_seen += 1;
         if (commas_seen == index) return args[i + 1 ..];
     }
@@ -792,7 +812,13 @@ fn argSlice(args: []const Token, index: u32) []const Token {
     // TODO this is a mess
     var commas_seen: usize = 0;
     var i: usize = 0;
+    var parens: u32 = 0;
     while (i < args.len) : (i += 1) {
+        switch (args[i].id) {
+            .l_paren => parens += 1,
+            .r_paren => parens -= 1,
+            else => if (parens != 0) continue,
+        }
         if (args[i].id == .comma) {
             if (index == 0) return args[0..i];
             commas_seen += 1;

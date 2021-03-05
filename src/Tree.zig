@@ -235,10 +235,8 @@ pub const Tag = enum(u8) {
     post_dec_expr,
     /// lhs is a TokenIndex of the identifier
     decl_ref_expr,
-    /// integer literal with 32 or fewer bits, stored in first, check node.ty for signedness and bit count
-    int_32_literal,
     /// integer literal with 64 bits, split in first and second, check node.ty for signedness
-    int_64_literal,
+    int_literal,
     /// f32 literal stored in first
     float_literal,
     /// f64 literal split in first and second
@@ -836,15 +834,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeByteNTimes(' ', level + 1);
             try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(tree.nodes.items(.first)[node])});
         },
-        .int_32_literal => {
-            try w.writeByteNTimes(' ', level + 1);
-            if (tree.nodes.items(.ty)[node].isUnsignedInt(tree.comp)) {
-                try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{tree.nodes.items(.first)});
-            } else {
-                try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{@bitCast(i32, tree.nodes.items(.first)[node])});
-            }
-        },
-        .int_64_literal => {
+        .int_literal => {
             try w.writeByteNTimes(' ', level + 1);
             const parts: [2]u32 = .{ tree.nodes.items(.first)[node], tree.nodes.items(.second)[node] };
             if (tree.nodes.items(.ty)[node].isUnsignedInt(tree.comp)) {
