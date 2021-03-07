@@ -198,5 +198,4 @@ pub fn fatal(comp: *Compilation, tok: Token, comptime fmt: []const u8, args: any
     return comp.diag.fatal(source.path, lcs, fmt, args);
 }
 
-pub const fatalNoSrc = Diagnostics.fatalNoSrc;
 pub const renderErrors = Diagnostics.render;

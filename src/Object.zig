@@ -16,7 +16,7 @@ kind: union(Kind) {
 pub fn init(comp: *Compilation, kind: Kind) Object {
     return .{
         .comp = comp,
-        .kind = .{ .elf = {}},
+        .kind = .{ .elf = .{}},
     };
 }
 

@@ -7,6 +7,7 @@ const Source = @import("Source.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const build_options = @import("build_options");
+const codegen = @import("codegen.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -198,6 +199,7 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
 }
 
 fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macros: Source) !void {
+    const errors_start = comp.diag.errors;
     var pp = Preprocessor.init(comp);
     defer pp.deinit();
 
@@ -229,6 +231,10 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     comp.renderErrors();
 
     tree.dump(std.io.getStdOut().writer()) catch {};
+
+    // Skip codegen if we generated errors.
+    if (errors_start != comp.diag.errors) return;
+    try codegen.gen(tree, comp);
 }
 
 test {

@@ -63,8 +63,7 @@ pub const Result = struct {
         return p.addNode(.{
             .tag = .int_literal,
             .ty = res.ty,
-            .first = parts[0],
-            .second = parts[1],
+            .data = .{ .first = parts[0], .second = parts[1] },
         });
     }
 
@@ -76,7 +75,7 @@ pub const Result = struct {
             casted = try node(p, .{
                 .tag = .lval_to_rval,
                 .ty = cur_ty,
-                .first = try casted.toNode(p),
+                .data = .{ .first = try casted.toNode(p) },
             });
         }
         if (dest_ty.specifier == .pointer and cur_ty.isArray()) {
@@ -86,7 +85,7 @@ pub const Result = struct {
             casted = try node(p, .{
                 .tag = .array_to_pointer,
                 .ty = cur_ty,
-                .first = try casted.toNode(p),
+                .data = .{ .first = try casted.toNode(p) },
             });
         }
         return casted;
@@ -641,7 +640,7 @@ fn decl(p: *Parser) Error!bool {
         const node = try p.addNode(.{
             .ty = init_d.d.ty,
             .tag = try decl_spec.validateFnDef(p),
-            .first = init_d.d.name,
+            .data = .{ .first = init_d.d.name },
         });
         try p.scopes.append(.{ .symbol = .{
             .name = p.tokSlice(init_d.d.name),
@@ -649,7 +648,7 @@ fn decl(p: *Parser) Error!bool {
             .name_tok = init_d.d.name,
         } });
         const body = try p.compoundStmt();
-        p.nodes.items(.second)[node] = body.?;
+        p.nodes.items(.data)[node].second = body.?;
 
         // check gotos
         if (!in_function) {
@@ -671,8 +670,7 @@ fn decl(p: *Parser) Error!bool {
         const node = try p.addNode(.{
             .ty = init_d.d.ty,
             .tag = try decl_spec.validate(p, init_d.d.ty, init_d.initializer != 0),
-            .first = init_d.d.name,
-            .second = init_d.initializer,
+            .data = .{ .first = init_d.d.name, .second = init_d.initializer },
         });
         try p.cur_decl_list.append(node);
         if (decl_spec.storage_class == .typedef) {
@@ -1243,7 +1241,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 const param = try p.addNode(.{
                     .tag = .param_decl,
                     .ty = .{ .specifier = .int },
-                    .first = try p.expectToken(.identifier),
+                    .data = .{ .first = try p.expectToken(.identifier) },
                 });
                 try params.append(param);
                 if (p.eatToken(.comma) == null) break;
@@ -1334,7 +1332,7 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
         const param = try p.addNode(.{
             .tag = try param_decl_spec.validateParam(p, param_ty),
             .ty = param_ty,
-            .first = name_tok,
+            .data = .{ .first = name_tok },
         });
         try params.append(param);
 
@@ -1416,20 +1414,17 @@ fn stmt(p: *Parser) Error!NodeIndex {
         if (then != 0 and @"else" != 0)
             return try p.addNode(.{
                 .tag = .if_then_else_stmt,
-                .first = cond_node,
-                .second = (try p.addList(&.{ then, @"else" })).start,
+                .data = .{ .first = cond_node, .second = (try p.addList(&.{ then, @"else" })).start },
             })
         else if (then == 0 and @"else" != 0)
             return try p.addNode(.{
                 .tag = .if_else_stmt,
-                .first = cond_node,
-                .second = @"else",
+                .data = .{ .first = cond_node, .second = @"else" },
             })
         else
             return try p.addNode(.{
                 .tag = .if_then_stmt,
-                .first = cond_node,
-                .second = then,
+                .data = .{ .first = cond_node, .second = then },
             });
     }
     if (p.eatToken(.keyword_switch)) |_| {
@@ -1452,8 +1447,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         return try p.addNode(.{
             .tag = .switch_stmt,
-            .first = cond_node,
-            .second = body,
+            .data = .{ .first = cond_node, .second = body },
         });
     }
     if (p.eatToken(.keyword_while)) |_| {
@@ -1472,8 +1466,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         return try p.addNode(.{
             .tag = .while_stmt,
-            .first = cond_node,
-            .second = body,
+            .data = .{ .first = cond_node, .second = body },
         });
     }
     if (p.eatToken(.keyword_do)) |_| {
@@ -1495,8 +1488,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         _ = try p.expectToken(.semicolon);
         return try p.addNode(.{
             .tag = .do_while_stmt,
-            .first = cond_node,
-            .second = body,
+            .data = .{ .first = cond_node, .second = body },
         });
     }
     if (p.eatToken(.keyword_for)) |_| {
@@ -1541,20 +1533,18 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
             return try p.addNode(.{
                 .tag = .for_decl_stmt,
-                .first = start,
-                .second = end,
+                .data = .{ .first = start, .second = end },
             });
         } else if (init.data == .none and cond.data == .none and incr.data == .none) {
             return try p.addNode(.{
                 .tag = .forever_stmt,
-                .first = body,
+                .data = .{ .first = body },
             });
         } else {
             const range = try p.addList(&.{ init_node, cond_node, incr_node });
             return try p.addNode(.{
                 .tag = .for_stmt,
-                .first = range.start,
-                .second = body,
+                .data = .{ .first = range.start, .second = body },
             });
         }
     }
@@ -1567,7 +1557,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         _ = try p.expectToken(.semicolon);
         return try p.addNode(.{
             .tag = .goto_stmt,
-            .first = name_tok,
+            .data = .{ .first = name_tok },
         });
     }
     if (p.eatToken(.keyword_continue)) |cont| {
@@ -1587,7 +1577,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         const result = try e.toNode(p);
         return try p.addNode(.{
             .tag = .return_stmt,
-            .first = result,
+            .data = .{ .first = result },
         });
     }
 
@@ -1653,8 +1643,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         p.tok_i += 2;
         return try p.addNode(.{
             .tag = .labeled_stmt,
-            .first = name_tok,
-            .second = try p.stmt(),
+            .data = .{ .first = name_tok, .second = try p.stmt() },
         });
     } else if (p.eatToken(.keyword_case)) |case| {
         const val = try p.constExpr();
@@ -1662,8 +1651,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         const s = try p.stmt();
         const node = try p.addNode(.{
             .tag = .case_stmt,
-            .first = try val.toNode(p),
-            .second = s,
+            .data = .{ .first = try val.toNode(p), .second = s },
         });
         if (p.findSwitch()) |some| {
             const gop = try some.cases.getOrPut(val);
@@ -1689,7 +1677,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         const s = try p.stmt();
         const node = try p.addNode(.{
             .tag = .default_stmt,
-            .first = s,
+            .data = .{ .first = s },
         });
         if (p.findSwitch()) |some| {
             if (some.default) |previous| {
@@ -1761,19 +1749,17 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
         0 => return try p.addNode(.{ .tag = .compound_stmt_two }),
         1 => return try p.addNode(.{
             .tag = .compound_stmt_two,
-            .first = statements.items[0],
+            .data = .{ .first = statements.items[0] },
         }),
         2 => return try p.addNode(.{
             .tag = .compound_stmt_two,
-            .first = statements.items[0],
-            .second = statements.items[1],
+            .data = .{ .first = statements.items[0], .second = statements.items[1] },
         }),
         else => {
             const range = try p.addList(statements.items);
             return try p.addNode(.{
                 .tag = .compound_stmt,
-                .first = range.start,
-                .second = range.end,
+                .data = .{ .first = range.start, .second = range.end },
             });
         },
     }
@@ -1783,7 +1769,7 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) bool {
     switch (p.nodes.items(.tag)[node]) {
         .break_stmt, .continue_stmt, .return_stmt => return true,
         .if_then_else_stmt => {
-            const data = p.data.items[p.nodes.items(.second)[node]..];
+            const data = p.data.items[p.nodes.items(.data)[node].second..];
             return p.nodeIsNoreturn(data[0]) and p.nodeIsNoreturn(data[1]);
         },
         else => return false,
@@ -2225,13 +2211,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 0 => return try Result.node(p, .{
                     .tag = .call_expr_one,
                     .ty = ty.data.func.return_type,
-                    .first = try lhs.toNode(p),
+                    .data = .{ .first = try lhs.toNode(p) },
                 }),
                 1 => return try Result.node(p, .{
                     .tag = .call_expr_one,
                     .ty = ty.data.func.return_type,
-                    .first = try lhs.toNode(p),
-                    .second = args.items[0],
+                    .data = .{ .first = try lhs.toNode(p), .second = args.items[0] },
                 }),
                 else => {
                     try p.data.append(try lhs.toNode(p));
@@ -2239,8 +2224,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                     return try Result.node(p, .{
                         .tag = .call_expr,
                         .ty = ty.data.func.return_type,
-                        .first = range.start - 1,
-                        .second = range.end,
+                        .data = .{ .first = range.start - 1, .second = range.end },
                     });
                 },
             }
@@ -2289,7 +2273,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     const node = try p.addNode(.{
                         .ty = ty,
                         .tag = .fn_proto,
-                        .first = name_tok,
+                        .data = .{ .first = name_tok },
                     });
 
                     try p.cur_decl_list.append(node);
@@ -2302,8 +2286,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     return try Result.lval(p, .{
                         .tag = .decl_ref_expr,
                         .ty = ty,
-                        .first = name_tok,
-                        .second = node,
+                        .data = .{ .first = name_tok, .second = node },
                     });
                 }
                 try p.errStr(.undeclared_identifier, name_tok, p.tokSlice(name_tok));
@@ -2321,8 +2304,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     return try Result.lval(p, .{
                         .tag = .decl_ref_expr,
                         .ty = p.nodes.items(.ty)[s.node],
-                        .first = name_tok,
-                        .second = s.node,
+                        .data = .{ .first = name_tok, .second = s.node },
                     });
                 },
                 else => unreachable,
@@ -2417,8 +2399,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     .specifier = .array,
                     .data = .{ .array = arr_ty },
                 },
-                .first = ptr_loc,
-                .second = @intCast(u32, str.len),
+                .data = .{ .first = ptr_loc, .second = @intCast(u32, str.len) },
             });
         },
         .char_literal,
