@@ -123,6 +123,114 @@ pub const Result = struct {
             .none, .node, .lval => unreachable,
         }
     }
+
+    fn mul(a: *Result, tok: TokenIndex, b: Result, p: *Parser) !void {
+        const size = a.ty.sizeof(p.pp.comp);
+        var overflow = false;
+        switch (a.data) {
+            .unsigned => |*v| {
+                switch (size) {
+                    1 => unreachable, // upcasted to int
+                    2 => unreachable, // upcasted to int
+                    4 => {
+                        var res: u32 = undefined;
+                        overflow = @mulWithOverflow(u32, @truncate(u32, v.*), @truncate(u32, b.data.unsigned), &res);
+                        v.* = res;
+                    },
+                    8 => overflow = @mulWithOverflow(u64, v.*, b.data.unsigned, v),
+                    else => unreachable,
+                }
+                if (overflow) try p.errExtra(.overflow_unsigned, tok, .{ .unsigned = v.* });
+            },
+            .signed => |*v| {
+                switch (size) {
+                    1 => unreachable, // upcasted to int
+                    2 => unreachable, // upcasted to int
+                    4 => {
+                        var res: i32 = undefined;
+                        overflow = @mulWithOverflow(i32, @truncate(i32, v.*), @truncate(i32, b.data.signed), &res);
+                        v.* = res;
+                    },
+                    8 => overflow = @mulWithOverflow(i64, v.*, b.data.signed, v),
+                    else => unreachable,
+                }
+                if (overflow) try p.errExtra(.overflow_signed, tok, .{ .signed = v.* });
+            },
+            .none, .node, .lval => unreachable,
+        }
+    }
+
+    fn add(a: *Result, tok: TokenIndex, b: Result, p: *Parser) !void {
+        const size = a.ty.sizeof(p.pp.comp);
+        var overflow = false;
+        switch (a.data) {
+            .unsigned => |*v| {
+                switch (size) {
+                    1 => unreachable, // upcasted to int
+                    2 => unreachable, // upcasted to int
+                    4 => {
+                        var res: u32 = undefined;
+                        overflow = @addWithOverflow(u32, @truncate(u32, v.*), @truncate(u32, b.data.unsigned), &res);
+                        v.* = res;
+                    },
+                    8 => overflow = @addWithOverflow(u64, v.*, b.data.unsigned, v),
+                    else => unreachable,
+                }
+                if (overflow) try p.errExtra(.overflow_unsigned, tok, .{ .unsigned = v.* });
+            },
+            .signed => |*v| {
+                switch (size) {
+                    1 => unreachable, // upcasted to int
+                    2 => unreachable, // upcasted to int
+                    4 => {
+                        var res: i32 = undefined;
+                        overflow = @addWithOverflow(i32, @truncate(i32, v.*), @truncate(i32, b.data.signed), &res);
+                        v.* = res;
+                    },
+                    8 => overflow = @addWithOverflow(i64, v.*, b.data.signed, v),
+                    else => unreachable,
+                }
+                if (overflow) try p.errExtra(.overflow_signed, tok, .{ .signed = v.* });
+            },
+            .none, .node, .lval => unreachable,
+        }
+    }
+
+    fn sub(a: *Result, tok: TokenIndex, b: Result, p: *Parser) !void {
+        const size = a.ty.sizeof(p.pp.comp);
+        var overflow = false;
+        switch (a.data) {
+            .unsigned => |*v| {
+                switch (size) {
+                    1 => unreachable, // upcasted to int
+                    2 => unreachable, // upcasted to int
+                    4 => {
+                        var res: u32 = undefined;
+                        overflow = @subWithOverflow(u32, @truncate(u32, v.*), @truncate(u32, b.data.unsigned), &res);
+                        v.* = res;
+                    },
+                    8 => overflow = @subWithOverflow(u64, v.*, b.data.unsigned, v),
+                    else => unreachable,
+                }
+                if (overflow) try p.errExtra(.overflow_unsigned, tok, .{ .unsigned = v.* });
+            },
+            .signed => |*v| {
+                switch (size) {
+                    1 => unreachable, // upcasted to int
+                    2 => unreachable, // upcasted to int
+                    4 => {
+                        var res: i32 = undefined;
+                        overflow = @subWithOverflow(i32, @truncate(i32, v.*), @truncate(i32, b.data.signed), &res);
+                        v.* = res;
+                    },
+                    8 => overflow = @subWithOverflow(i64, v.*, b.data.signed, v),
+                    else => unreachable,
+                }
+                if (overflow) try p.errExtra(.overflow_signed, tok, .{ .signed = v.* });
+            },
+            .none, .node, .lval => unreachable,
+        }
+    }
 };
 
 const Scope = union(enum) {
@@ -195,8 +303,8 @@ fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
             },
             p.tok_i,
             .{ .tok_id = .{
-                .expected = actual,
-                .actual = expected,
+                .expected = expected,
+                .actual = actual,
             } },
         );
         return error.ParsingFailed;
@@ -1560,7 +1668,11 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         if (p.findSwitch()) |some| {
             const gop = try some.cases.getOrPut(val);
             if (gop.found_existing) {
-                try p.errTok(.duplicate_switch_case, case);
+                switch (val.data) {
+                    .unsigned => |v| try p.errExtra(.duplicate_switch_case_unsigned, case, .{ .unsigned = v }),
+                    .signed => |v| try p.errExtra(.duplicate_switch_case_signed, case, .{ .signed = v }),
+                    else => unreachable,
+                }
                 try p.errTok(.previous_case, gop.entry.value.tok);
             } else {
                 gop.entry.value = .{
@@ -1941,19 +2053,10 @@ fn addExpr(p: *Parser) Error!Result {
         var rhs = try p.mulExpr();
 
         if (try lhs.adjustTypes(&rhs, p)) {
-            // TODO overflow
             if (plus != null) {
-                lhs.data = switch (lhs.data) {
-                    .unsigned => |v| .{ .unsigned = v - rhs.data.unsigned },
-                    .signed => |v| .{ .signed = v - rhs.data.signed },
-                    else => unreachable,
-                };
+                try lhs.add(plus.?, rhs, p);
             } else {
-                lhs.data = switch (lhs.data) {
-                    .unsigned => |v| .{ .unsigned = v - rhs.data.unsigned },
-                    .signed => |v| .{ .signed = v - rhs.data.signed },
-                    else => unreachable,
-                };
+                try lhs.sub(minus.?, rhs, p);
             }
         } else return p.todo("ast");
     }
@@ -1964,20 +2067,16 @@ fn addExpr(p: *Parser) Error!Result {
 fn mulExpr(p: *Parser) Error!Result {
     var lhs = try p.castExpr();
     while (true) {
-        const mul = p.eatToken(.plus);
+        const mul = p.eatToken(.asterisk);
         const div = mul orelse p.eatToken(.slash);
         const percent = div orelse p.eatToken(.percent);
         if (percent == null) break;
         var rhs = try p.castExpr();
 
         if (try lhs.adjustTypes(&rhs, p)) {
-            // TODO overflow
+            // TODO divide by zero
             if (mul != null) {
-                lhs.data = switch (lhs.data) {
-                    .unsigned => |v| .{ .unsigned = v * rhs.data.unsigned },
-                    .signed => |v| .{ .signed = v * rhs.data.signed },
-                    else => unreachable,
-                };
+                try lhs.mul(mul.?, rhs, p);
             } else if (div != null) {
                 lhs.data = switch (lhs.data) {
                     .unsigned => |v| .{ .unsigned = v / rhs.data.unsigned },
@@ -2019,8 +2118,31 @@ fn unExpr(p: *Parser) Error!Result {
     switch (p.tok_ids[p.tok_i]) {
         .ampersand => return p.todo("unExpr ampersand"),
         .asterisk => return p.todo("unExpr asterisk"),
-        .plus => return p.todo("unExpr plus"),
-        .minus => return p.todo("unExpr minus"),
+        .plus => {
+            p.tok_i += 1;
+            // TODO upcast to int / validate arithmetic type
+            return p.castExpr();
+        },
+        .minus => {
+            p.tok_i += 1;
+            var operand = try p.castExpr();
+            // TODO upcast to int / validate arithmetic type
+            const size = operand.ty.sizeof(p.pp.comp);
+            switch (operand.data) {
+                .unsigned => |*v| switch (size) {
+                    1, 2, 4 => v.* = @truncate(u32, 0 -% v.*),
+                    8 => v.* = 0 -% v.*,
+                    else => unreachable,
+                },
+                .signed => |*v| switch (size) {
+                    1, 2, 4 => v.* = @truncate(i32, 0 -% v.*),
+                    8 => v.* = 0 -% v.*,
+                    else => unreachable,
+                },
+                else => return p.todo("ast"),
+            }
+            return operand;
+        },
         .plus_plus => return p.todo("unary inc"),
         .minus_minus => return p.todo("unary dec"),
         .tilde => return p.todo("unExpr tilde"),
