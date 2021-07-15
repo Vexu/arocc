@@ -198,7 +198,6 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
 }
 
 fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macros: Source) !void {
-    const errors_start = comp.diag.errors;
     var pp = Preprocessor.init(comp);
     defer pp.deinit();
 

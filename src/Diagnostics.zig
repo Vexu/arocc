@@ -572,7 +572,6 @@ const MsgWriter = struct {
             m.print("{s: >[1]}^\n", .{ "", lcs.?.col - 1 });
         } else {
             const GREEN = "\x1b[32;1m";
-            const WHITE = "\x1b[37;1m";
             const RESET = "\x1b[0m";
             if (lcs == null) {
                 m.write("\n" ++ RESET);

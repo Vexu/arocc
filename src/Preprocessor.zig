@@ -47,7 +47,7 @@ char_buf: std.ArrayList(u8),
 pragma_once: std.AutoHashMap(Source.Id, void),
 // It is safe to have pointers to entries of defines since it
 // cannot be modified while we are expanding a macro.
-expansion_log: std.AutoHashMap(*DefineMap.Entry, void),
+expansion_log: std.AutoHashMap(*Macro, void),
 include_depth: u8 = 0,
 
 pub fn init(comp: *Compilation) Preprocessor {
@@ -59,7 +59,7 @@ pub fn init(comp: *Compilation) Preprocessor {
         .token_buf = RawTokenList.init(comp.gpa),
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .pragma_once = std.AutoHashMap(Source.Id, void).init(comp.gpa),
-        .expansion_log = std.AutoHashMap(*DefineMap.Entry, void).init(comp.gpa),
+        .expansion_log = std.AutoHashMap(*Macro, void).init(comp.gpa),
     };
 }
 
@@ -483,7 +483,7 @@ const ExpandBuf = std.ArrayList(Token);
 
 /// Try to expand a macro.
 fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!void {
-    if (pp.defines.getEntry(pp.tokSliceSafe(raw))) |some| switch (some.value) {
+    if (pp.defines.getPtr(pp.tokSliceSafe(raw))) |some| switch (some.*) {
         .empty => return,
         .self => {},
         .simple => {
@@ -562,7 +562,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
 
 /// Try to expand a macro in the `source` buffer at `start_index`.
 fn expandExtra(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize) Error!void {
-    if (pp.defines.getEntry(pp.expandedSlice(source.items[start_index.*]))) |some| {
+    if (pp.defines.getPtr(pp.expandedSlice(source.items[start_index.*]))) |some| {
         if (pp.expansion_log.get(some)) |_| {
             // If we have already expanded this macro, do not recursively expand it.
             start_index.* += 1;
@@ -571,7 +571,7 @@ fn expandExtra(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize) Error
         // Mark that we have seen this macro.
         try pp.expansion_log.putNoClobber(some, {});
 
-        switch (some.value) {
+        switch (some.*) {
             .empty => _ = source.orderedRemove(start_index.*), // Simply remove the token.
             .self => start_index.* += 1, // Just go over the token.
             .simple => |macro| {
@@ -1162,7 +1162,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
             // TODO fix this
             // const source = pp.comp.getSource(cur.loc.id).buf;
             // const cur_end = cur.loc.byte_offset + slice.len;
-            // try pp.printInBetween(source[cur_end..next.loc.byte_offset], w);
+            // try printInBetween(source[cur_end..next.loc.byte_offset], w);
             try w.writeByte(' ');
         } else {
             // next was included from another file
@@ -1172,7 +1172,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
     }
 }
 
-fn printInBetween(pp: *Preprocessor, slice: []const u8, w: anytype) !void {
+fn printInBetween(slice: []const u8, w: anytype) !void {
     var in_between = slice;
     while (true) {
         if (mem.indexOfScalar(u8, in_between, '#') orelse mem.indexOf(u8, in_between, "//")) |some| {

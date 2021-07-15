@@ -35,9 +35,9 @@ pub fn init(gpa: *Allocator) Compilation {
 }
 
 pub fn deinit(comp: *Compilation) void {
-    for (comp.sources.items()) |source| {
-        comp.gpa.free(source.value.path);
-        comp.gpa.free(source.value.buf);
+    for (comp.sources.values()) |source| {
+        comp.gpa.free(source.path);
+        comp.gpa.free(source.buf);
     }
     comp.sources.deinit();
     comp.diag.deinit();
@@ -127,7 +127,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
 }
 
 pub fn getSource(comp: *Compilation, id: Source.Id) Source {
-    return comp.sources.items()[@enumToInt(id) - 2].value;
+    return comp.sources.values()[@enumToInt(id) - 2];
 }
 
 pub fn addSource(comp: *Compilation, path: []const u8) !Source {

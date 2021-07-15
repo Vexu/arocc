@@ -506,7 +506,6 @@ index: u32 = 0,
 source: Source.Id,
 
 pub fn next(self: *Tokenizer) Token {
-    const start_index = self.index;
     var state: enum {
         start,
         cr,
@@ -1347,7 +1346,7 @@ pub fn next(self: *Tokenizer) Token {
 }
 
 test "operators" {
-    expectTokens(
+    try expectTokens(
         \\ ! != | || |= = ==
         \\ ( ) { } [ ] . .. ...
         \\ ^ ^= + ++ += - -- -=
@@ -1416,7 +1415,7 @@ test "operators" {
 }
 
 test "keywords" {
-    expectTokens(
+    try expectTokens(
         \\auto break case char const continue default do 
         \\double else enum extern float for goto if int 
         \\long register return short signed sizeof static 
@@ -1479,7 +1478,7 @@ test "keywords" {
 }
 
 test "preprocessor keywords" {
-    expectTokens(
+    try expectTokens(
         \\#include
         \\#define
         \\#ifdef
@@ -1510,7 +1509,7 @@ test "preprocessor keywords" {
 }
 
 test "line continuation" {
-    expectTokens(
+    try expectTokens(
         \\#define foo \
         \\  bar
         \\"foo\
@@ -1541,7 +1540,7 @@ test "line continuation" {
 }
 
 test "string prefix" {
-    expectTokens(
+    try expectTokens(
         \\"foo"
         \\u"foo"
         \\u8"foo"
@@ -1575,7 +1574,7 @@ test "string prefix" {
 }
 
 test "num suffixes" {
-    expectTokens(
+    try expectTokens(
         \\ 1.0f 1.0L 1.0 .0 1.
         \\ 0l 0lu 0ll 0llu 0
         \\ 1u 1ul 1ull 1
@@ -1602,7 +1601,7 @@ test "num suffixes" {
 }
 
 test "comments" {
-    expectTokens(
+    try expectTokens(
         \\//foo
         \\#foo
     , &.{
@@ -1612,7 +1611,7 @@ test "comments" {
     });
 }
 
-fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) void {
+fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) !void {
     var tokenizer = Tokenizer{
         .buf = source,
         .source = .unused,
@@ -1620,9 +1619,10 @@ fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) void {
     for (expected_tokens) |expected_token_id| {
         const token = tokenizer.next();
         if (!std.meta.eql(token.id, expected_token_id)) {
-            std.debug.panic("expected {s}, found {s}\n", .{ @tagName(expected_token_id), @tagName(token.id) });
+            std.debug.print("expected {s}, found {s}\n", .{ @tagName(expected_token_id), @tagName(token.id) });
+            return error.TokensDoNotEqual;
         }
     }
     const last_token = tokenizer.next();
-    std.testing.expect(last_token.id == .eof);
+    try std.testing.expect(last_token.id == .eof);
 }

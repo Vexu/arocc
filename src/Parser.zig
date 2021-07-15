@@ -257,7 +257,15 @@ const Scope = union(enum) {
         cases: CaseMap,
         default: ?Case = null,
 
-        const CaseMap = std.HashMap(Result, Case, Result.hash, Result.eql, std.hash_map.DefaultMaxLoadPercentage);
+        const ResultContext = struct {
+            pub fn eql(_: ResultContext, a: Result, b: Result) bool {
+                return a.eql(b);
+            }
+            pub fn hash(_: ResultContext, a: Result) u64 {
+                return a.hash();
+            }
+        };
+        const CaseMap = std.HashMap(Result, Case, ResultContext, std.hash_map.default_max_load_percentage);
         const Case = struct {
             node: NodeIndex,
             tok: TokenIndex,
@@ -741,6 +749,7 @@ pub const DeclSpec = struct {
     ty: Type = .{ .specifier = undefined },
 
     fn validateParam(d: DeclSpec, p: *Parser, ty: Type) Error!Tree.Tag {
+        _ = ty;
         switch (d.storage_class) {
             .none, .register => {},
             .auto, .@"extern", .static, .typedef => |tok_i| try p.errTok(.invalid_storage_on_param, tok_i),
@@ -906,7 +915,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
     var init_d = InitDeclarator{
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
-    if (p.eatToken(.equal)) |eq| {
+    if (p.eatToken(.equal)) |_| {
         if (decl_spec.storage_class == .typedef or
             decl_spec.ty.isFunc()) try p.err(.illegal_initializer);
         if (decl_spec.storage_class == .@"extern") {
@@ -1007,7 +1016,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
 fn recordSpec(p: *Parser) Error!NodeIndex {
-    const kind_tok = p.tok_ids[p.tok_i];
+    // const kind_tok = p.tok_ids[p.tok_i];
     p.tok_i += 1;
     return p.todo("recordSpec");
 }
@@ -1039,7 +1048,7 @@ fn specQual(p: *Parser) Error!?Type {
 ///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
 ///  | keyword_enum IDENTIFIER
 fn enumSpec(p: *Parser) Error!NodeIndex {
-    const enum_tok = p.tok_ids[p.tok_i];
+    // const enum_tok = p.tok_ids[p.tok_i];
     p.tok_i += 1;
     return p.todo("enumSpec");
 }
@@ -1355,7 +1364,7 @@ fn typeName(p: *Parser) Error!?Type {
 ///  : assignExpr
 ///  | '{' initializerItems '}'
 fn initializer(p: *Parser) Error!Result {
-    if (p.eatToken(.l_brace)) |l_brace| {
+    if (p.eatToken(.l_brace)) |_| {
         return p.todo("compound initializer");
     }
     const res = try p.assignExpr();
@@ -1548,7 +1557,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
             });
         }
     }
-    if (p.eatToken(.keyword_goto)) |goto| {
+    if (p.eatToken(.keyword_goto)) |_| {
         const name_tok = try p.expectToken(.identifier);
         const str = p.tokSlice(name_tok);
         if (p.findLabel(str) == null) {
@@ -1661,9 +1670,9 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
                     .signed => |v| try p.errExtra(.duplicate_switch_case_signed, case, .{ .signed = v }),
                     else => unreachable,
                 }
-                try p.errTok(.previous_case, gop.entry.value.tok);
+                try p.errTok(.previous_case, gop.value_ptr.tok);
             } else {
-                gop.entry.value = .{
+                gop.value_ptr.* = .{
                     .tok = case,
                     .node = node,
                 };
@@ -1838,7 +1847,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
 /// expr : assignExpr (',' assignExpr)*
 fn expr(p: *Parser) Error!Result {
     var lhs = try p.assignExpr();
-    while (p.eatToken(.comma)) |op| {
+    while (p.eatToken(.comma)) |_| {
         return p.todo("comma operator");
     }
     return lhs;
@@ -2089,6 +2098,7 @@ fn castExpr(p: *Parser) Error!Result {
             break;
         };
         try p.expectClosing(l_paren, .r_paren);
+        _ = ty;
         return p.todo("cast");
     }
     return p.unExpr();
@@ -2389,7 +2399,8 @@ fn primaryExpr(p: *Parser) Error!Result {
             try builder.append(0);
             const str = try p.arena.dupe(u8, builder.items);
             const ptr_loc = @intCast(u32, p.data.items.len);
-            try p.data.appendSlice(&@bitCast([2]u32, @ptrToInt(str.ptr)));
+            const ptr_val = @bitCast([2]u32, @ptrToInt(str.ptr));
+            try p.data.appendSlice(&ptr_val);
 
             const arr_ty = try p.arena.create(Type.Array);
             arr_ty.* = .{ .elem = .{ .specifier = .char }, .len = str.len };

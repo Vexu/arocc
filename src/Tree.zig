@@ -370,7 +370,7 @@ pub const Decl = struct {
 
     pub const Param = struct {
         // identifier or first token after declSpec
-        name_tok,
+        name_tok: TokenIndex,
         ty: Type,
     };
 

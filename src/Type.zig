@@ -125,6 +125,7 @@ pub fn isArray(ty: Type) bool {
 }
 
 pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
+    _ = comp;
     return switch (ty.specifier) {
         .char => return false, // TODO check comp for char signedness
         .uchar, .ushort, .uint, .ulong, .ulong_long => return true,
@@ -133,6 +134,7 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
 }
 
 pub fn wideChar(p: *Parser) Type {
+    _ = p;
     // TODO get target from compilation
     return .{ .specifier = .int };
 }
