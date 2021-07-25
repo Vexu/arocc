@@ -51,7 +51,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     defer buf.deinit();
 
     try buf.appendSlice(
-        \\#define __VERSION__ "Aro 
+        \\#define __VERSION__ "Aro
     ++ @import("build_options").version_str ++ "\"\n" ++
         \\#define __STDC__ 1
         \\#define __STDC_HOSTED__ 1
@@ -151,6 +151,10 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
     try comp.sources.put(duped_path, source);
 
     return source;
+}
+
+pub fn addIncludeDir(comp: *Compilation, path: []const u8) !void {
+    try comp.include_dirs.append(path);
 }
 
 pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_cwd: bool) !Source {
