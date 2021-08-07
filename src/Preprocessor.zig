@@ -404,6 +404,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         .data = undefined,
         .labels = undefined,
         .strings = undefined,
+        .value_map = undefined,
     };
     return parser.macroExpr();
 }

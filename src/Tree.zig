@@ -19,6 +19,7 @@ pub const Token = struct {
 
 pub const TokenIndex = u32;
 pub const NodeIndex = enum(u32) { none, _ };
+pub const ValueMap = std.AutoHashMap(NodeIndex, u64);
 
 comp: *Compilation,
 arena: std.heap.ArenaAllocator,
@@ -28,6 +29,7 @@ nodes: Node.List.Slice,
 data: []const NodeIndex,
 root_decls: []const NodeIndex,
 strings: []const u8,
+value_map: ValueMap,
 
 pub fn deinit(tree: *Tree) void {
     tree.comp.gpa.free(tree.root_decls);
@@ -35,6 +37,7 @@ pub fn deinit(tree: *Tree) void {
     tree.comp.gpa.free(tree.strings);
     tree.nodes.deinit(tree.comp.gpa);
     tree.arena.deinit();
+    tree.value_map.deinit();
 }
 
 pub const Node = struct {
@@ -353,7 +356,14 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     try w.writeByteNTimes(' ', level);
     try w.print(TAG ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
     try ty.dump(tree, w);
-    try w.writeAll("'\n" ++ RESET);
+    try w.writeAll("'");
+    if (tree.value_map.get(node)) |val| {
+        if (ty.isUnsignedInt(tree.comp))
+            try w.print(LITERAL ++ " (value: {d})" ++ RESET, .{val})
+        else
+            try w.print(LITERAL ++ " (value: {d})" ++ RESET, .{@bitCast(i64, val)});
+    }
+    try w.writeAll("\n" ++ RESET);
     switch (tag) {
         .invalid => unreachable,
         .fn_proto,
@@ -630,7 +640,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .decl_ref_expr => {
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
         },
         .int_literal => {
             try w.writeByteNTimes(' ', level + 1);

@@ -77,6 +77,7 @@ cur_decl_list: *NodeList,
 labels: std.ArrayList(Label),
 label_count: u32 = 0,
 strings: std.ArrayList(u8),
+value_map: Tree.ValueMap,
 
 fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
     if (p.tok_ids[p.tok_i] == id) {
@@ -272,12 +273,14 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .data = NodeList.init(pp.comp.gpa),
         .labels = std.ArrayList(Label).init(pp.comp.gpa),
         .strings = std.ArrayList(u8).init(pp.comp.gpa),
+        .value_map = Tree.ValueMap.init(pp.comp.gpa),
     };
     defer p.scopes.deinit();
     defer p.data.deinit();
     defer p.labels.deinit();
     errdefer p.nodes.deinit(pp.comp.gpa);
     errdefer p.strings.deinit();
+    errdefer p.value_map.deinit();
 
     // NodeIndex 0 must be invalid
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
@@ -310,6 +313,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .data = p.data.toOwnedSlice(),
         .root_decls = root_decls.toOwnedSlice(),
         .strings = p.strings.toOwnedSlice(),
+        .value_map = p.value_map,
     };
 }
 
@@ -1711,7 +1715,27 @@ pub const Result = struct {
 
         if (a_is_unsigned != b_is_unsigned) {}
 
-        return a.val != .unavailable and b.val != .unavailable;
+        if (a.val != .unavailable and b.val != .unavailable)
+            return true;
+
+        try a.saveValue(p);
+        try b.saveValue(p);
+        return false;
+    }
+
+    fn saveValue(res: Result, p: *Parser) !void {
+        assert(!p.want_const);
+        if (res.val == .unavailable) return;
+        switch (p.nodes.items(.tag)[@enumToInt(res.node)]) {
+            .int_literal => return,
+            else => {},
+        }
+
+        switch (res.val) {
+            .unsigned => |v| try p.value_map.put(res.node, v),
+            .signed => |v| try p.value_map.put(res.node, @bitCast(u64, v)),
+            .unavailable => {},
+        }
     }
 
     fn hash(res: Result) u64 {
