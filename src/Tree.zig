@@ -265,23 +265,23 @@ pub const Tag = enum(u8) {
     div_expr,
     /// lhs % rhs
     mod_expr,
-    /// Explicit (type)lhs
+    /// Explicit (type)un
     cast_expr,
-    /// &lhs
+    /// &un
     addr_of_expr,
-    /// *lhs
+    /// *un
     deref_expr,
-    /// +lhs
+    /// +un
     plus_expr,
-    /// -lhs
+    /// -un
     negate_expr,
-    /// ~lhs
+    /// ~un
     bit_not_expr,
-    /// !lhs
+    /// !un
     bool_not_expr,
-    /// ++lhs
+    /// ++un
     pre_inc_expr,
-    /// --lhs
+    /// --un
     pre_dec_expr,
     /// lhs[rhs]  lhs is pointer/array type, rhs is integer type
     array_access_expr,
@@ -293,10 +293,12 @@ pub const Tag = enum(u8) {
     member_access_expr,
     /// lhs->rhs rhs is a TokenIndex of the identifier
     member_access_ptr_expr,
-    /// lhs++
+    /// un++
     post_inc_expr,
-    /// lhs--
+    /// un--
     post_dec_expr,
+    /// (un)
+    paren_expr,
     /// lhs is a TokenIndex of the identifier
     decl_ref_expr,
     /// integer literal with 64 bits, split in first and second, check node.ty for signedness
@@ -317,6 +319,29 @@ pub const Tag = enum(u8) {
     /// same as deref
     lval_to_rval,
 };
+
+pub fn isLval(nodes: Node.List.Slice, node: NodeIndex) bool {
+    switch (nodes.items(.tag)[@enumToInt(node)]) {
+        .compound_literal_expr => return true,
+        .string_literal_expr => return true,
+        .member_access_ptr_expr => return true,
+        .array_access_expr => return true,
+        .decl_ref_expr => return true,
+        .deref_expr => {
+            const data = nodes.items(.data)[@enumToInt(node)];
+            return !nodes.items(.ty)[@enumToInt(data.un)].isFunc();
+        },
+        .member_access_expr => {
+            const data = nodes.items(.data)[@enumToInt(node)];
+            return isLval(nodes, data.bin.lhs);
+        },
+        .paren_expr => {
+            const data = nodes.items(.data)[@enumToInt(node)];
+            return isLval(nodes, data.un);
+        },
+        else => return false,
+    }
+}
 
 pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
@@ -347,6 +372,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     const TAG = "\x1b[36;1m";
     const NAME = "\x1b[91;1m";
     const LITERAL = "\x1b[32;1m";
+    const ATTRIBUTE = "\x1b[93;1m";
     const RESET = "\x1b[0m";
     std.debug.assert(node != .none);
 
@@ -357,6 +383,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     try w.print(TAG ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
     try ty.dump(tree, w);
     try w.writeAll("'");
+    if (isLval(tree.nodes, node)) {
+        try w.writeAll(ATTRIBUTE ++" lvalue");
+    }
     if (tree.value_map.get(node)) |val| {
         if (ty.isUnsignedInt(tree.comp))
             try w.print(LITERAL ++ " (value: {d})" ++ RESET, .{val})
@@ -631,6 +660,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .pre_dec_expr,
         .post_inc_expr,
         .post_dec_expr,
+        .paren_expr,
         .array_to_pointer,
         .lval_to_rval,
         => {

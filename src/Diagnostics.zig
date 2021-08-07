@@ -136,6 +136,8 @@ pub const Tag = enum {
     overflow_unsigned,
     overflow_signed,
     int_literal_too_big,
+    indirection_ptr,
+    addr_of_rvalue,
 };
 
 const Options = struct {
@@ -357,6 +359,8 @@ pub fn render(comp: *Compilation) void {
             .overflow_signed => m.print("overflow in expression; result is'{d}'", .{msg.extra.signed}),
             .overflow_unsigned => m.print("overflow in expression; result is '{d}'", .{msg.extra.unsigned}),
             .int_literal_too_big => m.write("integer literal is too large to be represented in any integer type"),
+            .indirection_ptr => m.write("indirection requires pointer operand"),
+            .addr_of_rvalue => m.write("cannot take the address of an rvalue"),
         }
         m.end(lcs);
 
@@ -477,6 +481,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .qualifier_non_outernmost_array,
         .unterminated_macro_arg_list,
         .int_literal_too_big,
+        .indirection_ptr,
+        .addr_of_rvalue,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

@@ -1584,6 +1584,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             else {
                 parens -= 1;
             },
+            .semicolon,
             .keyword_for,
             .keyword_while,
             .keyword_do,
@@ -1678,7 +1679,7 @@ pub const Result = struct {
 
     fn un(operand: *Result, p: *Parser, tag: Tree.Tag) Error!Result {
         operand.node = try p.addNode(.{
-            .tag = .cast_expr,
+            .tag = tag,
             .ty = operand.ty,
             .data = .{ .un = operand.node },
         });
@@ -1871,9 +1872,15 @@ pub const Result = struct {
 
 /// expr : assignExpr (',' assignExpr)*
 fn expr(p: *Parser) Error!Result {
+    var expr_start = p.tok_i;
     var lhs = try p.assignExpr();
     while (p.eatToken(.comma)) |_| {
-        return p.todo("comma operator");
+        try p.maybeWarnUnused(lhs.node, expr_start);
+        expr_start = p.tok_i;
+
+        const rhs = try p.assignExpr();
+        lhs.val = rhs.val;
+        try lhs.bin(p, .comma_expr, rhs);
     }
     return lhs;
 }
@@ -2184,8 +2191,44 @@ fn castExpr(p: *Parser) Error!Result {
 ///  | keyword_alignof '(' typeName ')'
 fn unExpr(p: *Parser) Error!Result {
     switch (p.tok_ids[p.tok_i]) {
-        .ampersand => return p.todo("unExpr ampersand"),
-        .asterisk => return p.todo("unExpr asterisk"),
+        .ampersand => {
+            const ampersand = p.tok_i;
+            p.tok_i += 1;
+            var operand = try p.castExpr();
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+                try p.errTok(.addr_of_rvalue, ampersand);
+                return error.ParsingFailed;
+            }
+
+            const elem_ty = try p.arena.create(Type);
+            elem_ty.* = operand.ty;
+            operand.ty = Type{
+                .specifier = .pointer,
+                .data = .{ .sub_type = elem_ty },
+            };
+            return operand.un(p, .addr_of_expr);
+        },
+        .asterisk => {
+            const asterisk = p.tok_i;
+            p.tok_i += 1;
+            var operand = try p.castExpr();
+
+            switch (operand.ty.specifier) {
+                .pointer => {
+                    operand.ty = operand.ty.data.sub_type.*;
+                },
+                .array, .static_array => {
+                    operand.ty = operand.ty.data.array.elem;
+                },
+                .func, .var_args_func, .old_style_func => {},
+                else => {
+                    try p.errTok(.indirection_ptr, asterisk);
+                    return error.ParsingFailed;
+                },
+            }
+            return operand.un(p, .deref_expr);
+        },
         .plus => {
             p.tok_i += 1;
             // TODO upcast to int / validate arithmetic type
@@ -2339,9 +2382,9 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
 ///  | keyword_default ':' assignExpr
 fn primaryExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
-        const e = try p.expr();
+        var e = try p.expr();
         try p.expectClosing(l_paren, .r_paren);
-        return e;
+        return e.un(p, .paren_expr);
     }
     switch (p.tok_ids[p.tok_i]) {
         .identifier => {
@@ -2381,11 +2424,6 @@ fn primaryExpr(p: *Parser) Error!Result {
                 .enumeration => |e| return e.value,
                 .symbol => |s| {
                     // TODO actually check type
-                    if (p.in_macro) {
-                        try p.err(.expected_integer_constant_expr);
-                        return error.ParsingFailed;
-                    }
-
                     const ty = p.nodes.items(.ty)[@enumToInt(s.node)];
                     return Result{
                         .ty = ty,
