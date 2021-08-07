@@ -71,7 +71,8 @@ data: NodeList,
 scopes: std.ArrayList(Scope),
 tok_ids: []const Token.Id,
 tok_i: TokenIndex = 0,
-want_const: bool = false,
+no_eval: bool = false,
+in_macro: bool = false,
 in_function: bool = false,
 cur_decl_list: *NodeList,
 labels: std.ArrayList(Label),
@@ -171,7 +172,7 @@ pub fn todo(p: *Parser, msg: []const u8) Error {
 }
 
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
-    if (p.want_const) return .none;
+    if (p.in_macro) return .none;
     const res = p.nodes.len;
     try p.nodes.append(p.pp.comp.gpa, node);
     return @intToEnum(NodeIndex, @intCast(u32, res));
@@ -1630,7 +1631,6 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
 // ====== expressions ======
 
 pub fn macroExpr(p: *Parser) Compilation.Error!bool {
-    p.want_const = true;
     const res = p.condExpr() catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
         error.FatalError => return error.FatalError,
@@ -1661,6 +1661,7 @@ pub const Result = struct {
     }
 
     fn expect(res: Result, p: *Parser) Error!void {
+        try res.saveValue(p);
         if (res.node == .none) {
             try p.errTok(.expected_expr, p.tok_i);
             return error.ParsingFailed;
@@ -1708,23 +1709,24 @@ pub const Result = struct {
         return casted;
     }
 
-    /// Return true if both are constants.
+    /// Adjust types for binary operation, returns true if the result can and should be evaluated.
     fn adjustTypes(a: *Result, b: *Result, p: *Parser) !bool {
         const a_is_unsigned = a.ty.isUnsignedInt(p.pp.comp);
         const b_is_unsigned = b.ty.isUnsignedInt(p.pp.comp);
 
         if (a_is_unsigned != b_is_unsigned) {}
 
+        if (p.no_eval) return false;
         if (a.val != .unavailable and b.val != .unavailable)
             return true;
 
         try a.saveValue(p);
         try b.saveValue(p);
-        return false;
+        return p.no_eval;
     }
 
     fn saveValue(res: Result, p: *Parser) !void {
-        assert(!p.want_const);
+        assert(!p.in_macro);
         if (res.val == .unavailable) return;
         switch (p.nodes.items(.tag)[@enumToInt(res.node)]) {
             .int_literal => return,
@@ -1885,9 +1887,6 @@ fn assignExpr(p: *Parser) Error!Result {
 
 /// constExpr : condExpr
 fn constExpr(p: *Parser) Error!Result {
-    const saved_const = p.want_const;
-    defer p.want_const = saved_const;
-    p.want_const = true;
     const res = try p.condExpr();
     try res.expect(p);
     return res;
@@ -1895,26 +1894,45 @@ fn constExpr(p: *Parser) Error!Result {
 
 /// condExpr : lorExpr ('?' expression? ':' condExpr)?
 fn condExpr(p: *Parser) Error!Result {
-    const cond = try p.lorExpr();
+    var cond = try p.lorExpr();
     if (p.eatToken(.question_mark) == null) return cond;
-    const then_expr = try p.expr();
+    const saved_eval = p.no_eval;
+
+    // Depending on the value of the condition, avoid evaluating unreachable branches.
+    const then_expr = blk: {
+        defer p.no_eval = saved_eval;
+        if (cond.val != .unavailable and !cond.getBool()) p.no_eval = true;
+        break :blk try p.expr();
+    };
     _ = try p.expectToken(.colon);
-    const else_expr = try p.condExpr();
+    const else_expr = blk: {
+        defer p.no_eval = saved_eval;
+        if (cond.val != .unavailable and cond.getBool()) p.no_eval = true;
+        break :blk try p.condExpr();
+    };
 
     if (cond.val != .unavailable) {
-        return if (cond.getBool()) then_expr else else_expr;
+        cond.val = if (cond.getBool()) then_expr.val else else_expr.val;
     }
-    return p.todo("ast");
+    cond.node = try p.addNode(.{
+        .tag = .cond_expr,
+        .ty = then_expr.ty, // TODO resolve type properly
+        .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ then_expr.node, else_expr.node })).start } },
+    });
+    return cond;
 }
 
 /// lorExpr : landExpr ('||' landExpr)*
 fn lorExpr(p: *Parser) Error!Result {
     var lhs = try p.landExpr();
+    const saved_eval = p.no_eval;
+    defer p.no_eval = saved_eval;
+
     while (p.eatToken(.pipe_pipe)) |_| {
+        if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
         const rhs = try p.landExpr();
 
         if (lhs.val != .unavailable and rhs.val != .unavailable) {
-            // TODO short circuit evaluation
             lhs.val = .{ .signed = @boolToInt(lhs.getBool() or rhs.getBool()) };
         }
         lhs.ty = .{ .specifier = .int };
@@ -1926,11 +1944,14 @@ fn lorExpr(p: *Parser) Error!Result {
 /// landExpr : orExpr ('&&' orExpr)*
 fn landExpr(p: *Parser) Error!Result {
     var lhs = try p.orExpr();
+    const saved_eval = p.no_eval;
+    defer p.no_eval = saved_eval;
+
     while (p.eatToken(.ampersand_ampersand)) |_| {
+        if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
         const rhs = try p.orExpr();
 
         if (lhs.val != .unavailable and rhs.val != .unavailable) {
-            // TODO short circuit evaluation
             lhs.val = .{ .signed = @boolToInt(lhs.getBool() and rhs.getBool()) };
         }
         lhs.ty = .{ .specifier = .int };
@@ -2360,7 +2381,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                 .enumeration => |e| return e.value,
                 .symbol => |s| {
                     // TODO actually check type
-                    if (p.want_const) {
+                    if (p.in_macro) {
                         try p.err(.expected_integer_constant_expr);
                         return error.ParsingFailed;
                     }
@@ -2384,10 +2405,6 @@ fn primaryExpr(p: *Parser) Error!Result {
         .string_literal_utf_32,
         .string_literal_wide,
         => {
-            if (p.want_const) {
-                try p.err(.expected_integer_constant_expr);
-                return error.ParsingFailed;
-            }
             var start = p.tok_i;
             // use 1 for wchar_t
             var width: ?u8 = null;
@@ -2476,20 +2493,13 @@ fn primaryExpr(p: *Parser) Error!Result {
         .char_literal_utf_32,
         .char_literal_wide,
         => {
-            if (p.want_const) {
-                return p.todo("char literals");
-            }
-            return p.todo("ast");
+            return p.todo("char literals");
         },
         .float_literal,
         .float_literal_f,
         .float_literal_l,
         => {
-            if (p.want_const) {
-                try p.err(.expected_integer_constant_expr);
-                return error.ParsingFailed;
-            }
-            return p.todo("ast");
+            return p.todo("float literals");
         },
         .zero => {
             p.tok_i += 1;
@@ -2590,17 +2600,17 @@ fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
         if (unsigned) {
             res.val = .{ .unsigned = val };
             switch (size) {
-                2 => if (val < std.math.maxInt(u16)) break,
-                4 => if (val < std.math.maxInt(u32)) break,
-                8 => if (val < std.math.maxInt(u64)) break,
+                2 => if (val <= std.math.maxInt(u16)) break,
+                4 => if (val <= std.math.maxInt(u32)) break,
+                8 => if (val <= std.math.maxInt(u64)) break,
                 else => unreachable,
             }
         } else {
             res.val = .{ .signed = @bitCast(i64, val) };
             switch (size) {
-                2 => if (val < std.math.maxInt(i16)) break,
-                4 => if (val < std.math.maxInt(i32)) break,
-                8 => if (val < std.math.maxInt(i64)) break,
+                2 => if (val <= std.math.maxInt(i16)) break,
+                4 => if (val <= std.math.maxInt(i32)) break,
+                8 => if (val <= std.math.maxInt(i64)) break,
                 else => unreachable,
             }
         }

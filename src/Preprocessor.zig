@@ -399,6 +399,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         .tok_ids = pp.tokens.items(.id),
         .tok_i = @intCast(u32, start),
         .arena = &pp.arena.allocator,
+        .in_macro = true,
         .cur_decl_list = undefined,
         .scopes = undefined,
         .data = undefined,

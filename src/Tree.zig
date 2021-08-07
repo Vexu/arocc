@@ -446,7 +446,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(data.un, level + delta, w);
             }
         },
-        .if_then_else_stmt => {
+        .cond_expr, .if_then_else_stmt => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
             try tree.dumpNode(data.if3.cond, level + delta, w);
