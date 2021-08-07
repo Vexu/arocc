@@ -139,6 +139,11 @@ pub const Tag = enum {
     indirection_ptr,
     addr_of_rvalue,
     not_assignable,
+    ident_or_l_brace,
+    empty_enum,
+    redefinition,
+    previous_definition,
+    expected_identifier,
 };
 
 const Options = struct {
@@ -363,6 +368,11 @@ pub fn render(comp: *Compilation) void {
             .indirection_ptr => m.write("indirection requires pointer operand"),
             .addr_of_rvalue => m.write("cannot take the address of an rvalue"),
             .not_assignable => m.write("expression is not assignable"),
+            .ident_or_l_brace => m.write("expected identifier or '{'"),
+            .empty_enum => m.write("empty enum is invalid"),
+            .redefinition => m.print("redefinition of '{s}'", .{msg.extra.str}),
+            .previous_definition => m.write("previous definition is here"),
+            .expected_identifier => m.write("expected identifier"),
         }
         m.end(lcs);
 
@@ -486,6 +496,10 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .indirection_ptr,
         .addr_of_rvalue,
         .not_assignable,
+        .ident_or_l_brace,
+        .empty_enum,
+        .redefinition,
+        .expected_identifier,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -494,6 +508,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .sepc_from_typedef,
         .previous_label,
         .previous_case,
+        .previous_definition,
         => .note,
         .invalid_old_style_params,
         .expected_arguments_old,

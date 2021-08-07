@@ -39,6 +39,17 @@ pub const VLA = struct {
     elem: Type,
 };
 
+pub const Enum = struct {
+    name: []const u8,
+    tag_ty: Type,
+    fields: []Field,
+
+    pub const Field = struct {
+        name: TokenIndex,
+        node: NodeIndex,
+    };
+};
+
 pub const Specifier = enum {
     void,
     bool,
@@ -84,9 +95,11 @@ pub const Specifier = enum {
     // data.vla
     variable_len_array,
 
-    // data.node
+    // data.record
     @"struct",
     @"union",
+
+    // data.enum
     @"enum",
 };
 
@@ -95,7 +108,7 @@ data: union {
     func: *Func,
     array: *Array,
     vla: *VLA,
-    node: NodeIndex,
+    @"enum": *Enum,
     none: void,
 } = .{ .none = {} },
 alignment: u32 = 0,
@@ -129,6 +142,13 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
     return switch (ty.specifier) {
         .char => return false, // TODO check comp for char signedness
         .uchar, .ushort, .uint, .ulong, .ulong_long => return true,
+        else => false,
+    };
+}
+
+pub fn isEnumOrRecord(ty: Type) bool {
+    return switch (ty.specifier) {
+        .@"enum", .@"struct", .@"union" => true,
         else => false,
     };
 }
@@ -264,9 +284,9 @@ pub const Builder = struct {
         static_array: *Array,
         incomplete_array: *Array,
         variable_len_array: *VLA,
-        @"struct": NodeIndex,
-        @"union": NodeIndex,
-        @"enum": NodeIndex,
+        @"struct",
+        @"union",
+        @"enum": *Enum,
 
         pub fn str(spec: Kind) []const u8 {
             return switch (spec) {
@@ -405,19 +425,17 @@ pub const Builder = struct {
                 ty.data = .{ .vla = data };
                 return;
             },
-            .@"struct" => |data| {
+            .@"struct" => |_| {
                 ty.specifier = .@"struct";
-                ty.data = .{ .node = data };
                 return;
             },
-            .@"union" => |data| {
+            .@"union" => |_| {
                 ty.specifier = .@"union";
-                ty.data = .{ .node = data };
                 return;
             },
             .@"enum" => |data| {
                 ty.specifier = .@"enum";
-                ty.data = .{ .node = data };
+                ty.data = .{ .@"enum" = data };
                 return;
             },
         };
@@ -595,9 +613,9 @@ pub const Builder = struct {
             .static_array => .{ .static_array = ty.data.array },
             .incomplete_array => .{ .incomplete_array = ty.data.array },
             .variable_len_array => .{ .variable_len_array = ty.data.vla },
-            .@"struct" => .{ .@"struct" = ty.data.node },
-            .@"union" => .{ .@"union" = ty.data.node },
-            .@"enum" => .{ .@"enum" = ty.data.node },
+            .@"struct" => .{ .@"struct" = {} },
+            .@"union" => .{ .@"union" = {} },
+            .@"enum" => .{ .@"enum" = ty.data.@"enum" },
         };
     }
 };
@@ -641,6 +659,9 @@ pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
         .incomplete_array => {
             try w.writeAll("[]");
             try ty.data.array.elem.dump(tree, w);
+        },
+        .@"enum" => {
+            try w.print("enum {s}", .{ty.data.@"enum".name});
         },
         else => try w.writeAll(Builder.fromType(ty).str()),
     }

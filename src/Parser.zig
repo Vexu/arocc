@@ -213,6 +213,20 @@ fn findSymbol(p: *Parser, name_tok: TokenIndex) ?Scope {
     return null;
 }
 
+fn findEnum(p: *Parser, name_tok: TokenIndex) ?Scope.Symbol {
+    const name = p.tokSlice(name_tok);
+    var i = p.scopes.items.len;
+    while (i > 0) {
+        i -= 1;
+        const sym = p.scopes.items[i];
+        switch (sym) {
+            .@"enum" => |e| if (mem.eql(u8, e.name, name)) return e,
+            else => {},
+        }
+    }
+    return null;
+}
+
 fn inLoop(p: *Parser) bool {
     var i = p.scopes.items.len;
     while (i > 0) {
@@ -379,7 +393,11 @@ fn decl(p: *Parser) Error!bool {
         break :blk d;
     };
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
-        // TODO return if enum struct or union
+        if (decl_spec.ty.specifier == .@"enum") return true;
+        if (decl_spec.ty.isEnumOrRecord()) {
+            // TODO check that there was a name token
+            return true;
+        }
         try p.errTok(.missing_declaration, first_tok);
         _ = try p.expectToken(.semicolon);
         return true;
@@ -759,18 +777,18 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
             .keyword_complex => try ty.combine(p, .complex),
             .keyword_atomic => return p.todo("atomic types"),
             .keyword_enum => {
-                try ty.combine(p, .{ .@"enum" = .none });
+                try ty.combine(p, .{ .@"enum" = undefined });
                 ty.kind.@"enum" = try p.enumSpec();
                 continue;
             },
             .keyword_struct => {
-                try ty.combine(p, .{ .@"struct" = .none });
-                ty.kind.@"struct" = try p.recordSpec();
+                try ty.combine(p, .{ .@"struct" = {} });
+                // ty.kind.@"struct" = try p.recordSpec();
                 continue;
             },
             .keyword_union => {
-                try ty.combine(p, .{ .@"union" = .none });
-                ty.kind.@"union" = try p.recordSpec();
+                try ty.combine(p, .{ .@"union" = {} });
+                // ty.kind.@"union" = try p.recordSpec();
                 continue;
             },
             .keyword_alignas => {
@@ -804,6 +822,18 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
         p.tok_i += 1;
     }
     return p.tok_i != start;
+}
+
+fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
+    const loc = p.pp.tokens.items(.loc)[kind_tok];
+    const source = p.pp.comp.getSource(loc.id);
+    const lcs = source.lineColString(loc.byte_offset);
+
+    return std.fmt.allocPrint(
+        p.arena,
+        "(anonymous {s} at {s}:{d}:{d})",
+        .{ p.tokSlice(kind_tok), source.path, lcs.line, lcs.col },
+    );
 }
 
 /// recordSpec
@@ -841,15 +871,91 @@ fn specQual(p: *Parser) Error!?Type {
 /// enumSpec
 ///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
 ///  | keyword_enum IDENTIFIER
-fn enumSpec(p: *Parser) Error!NodeIndex {
-    // const enum_tok = p.tok_ids[p.tok_i];
+fn enumSpec(p: *Parser) Error!*Type.Enum {
+    const enum_tok = p.tok_i;
     p.tok_i += 1;
-    return p.todo("enumSpec");
+    const maybe_ident = p.eatToken(.identifier);
+    const l_brace = p.eatToken(.l_brace) orelse {
+        const ident = maybe_ident orelse {
+            try p.err(.ident_or_l_brace);
+            return error.ParsingFailed;
+        };
+        if (p.findEnum(ident)) |prev| {
+            return p.nodes.items(.ty)[@enumToInt(prev.node)].data.@"enum";
+        }
+        return p.todo("enum forward declaration");
+    };
+    if (maybe_ident) |ident| {
+        if (p.findEnum(ident)) |prev| {
+            try p.errStr(.redefinition, ident, p.tokSlice(ident));
+            try p.errTok(.previous_definition, prev.name_tok);
+        }
+    }
+    var tag_ty: Type = .{ .specifier = .int };
+
+    var fields = std.ArrayList(Type.Enum.Field).init(p.pp.comp.gpa);
+    defer fields.deinit();
+
+    while (try p.enumerator()) |field| {
+        try fields.append(field);
+        if (p.eatToken(.comma) == null) break;
+    }
+
+    if (fields.items.len == 0) try p.err(.empty_enum);
+
+    try p.expectClosing(l_brace, .r_brace);
+    const enum_ty = try p.arena.create(Type.Enum);
+    enum_ty.* = .{
+        .name = if (maybe_ident) |ident| p.tokSlice(ident) else try p.getAnonymousName(enum_tok),
+        .tag_ty = tag_ty,
+        .fields = try p.arena.dupe(Type.Enum.Field, fields.items),
+    };
+
+    const node = try p.addNode(.{
+        .ty = .{
+            .specifier = .@"enum",
+            .data = .{ .@"enum" = enum_ty },
+        },
+        .tag = .enum_def,
+        .data = undefined,
+    });
+    try p.cur_decl_list.append(node);
+    if (maybe_ident) |ident| {
+        try p.scopes.append(.{ .@"enum" = .{
+            .name = enum_ty.name,
+            .node = node,
+            .name_tok = ident,
+        } });
+    }
+    return enum_ty;
 }
 
 /// enumerator : IDENTIFIER ('=' constExpr)
-fn enumerator(p: *Parser) Error!NodeIndex {
-    return p.todo("enumerator");
+fn enumerator(p: *Parser) Error!?Type.Enum.Field {
+    var field = Type.Enum.Field{
+        .name = p.eatToken(.identifier) orelse {
+            if (p.tok_ids[p.tok_i] == .r_brace) return null;
+            try p.err(.expected_identifier);
+            // TODO skip to }
+            return error.ParsingFailed;
+        },
+        .node = .none,
+    };
+    if (p.eatToken(.equal) != null) {
+        const res = try p.constExpr();
+        field.node = res.node;
+    }
+
+    try p.scopes.append(.{
+        .enumeration = .{
+            .name = p.tokSlice(field.name),
+            .value = .{ // TODO make this work
+                .node = field.node,
+                .val = .{ .signed = 0 },
+            },
+        },
+    });
+    return field;
 }
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
@@ -928,7 +1034,7 @@ fn declarator(
         return res;
     }
 
-    if (kind == .normal) {
+    if (kind == .normal and !base_type.isEnumOrRecord()) {
         try p.err(.expected_ident_or_l_paren);
     }
 
@@ -1688,6 +1794,8 @@ pub const Result = struct {
 
     fn coerce(res: Result, p: *Parser, dest_ty: Type) !Result {
         var casted = res;
+        _ = dest_ty;
+        _ = p;
         // var cur_ty = res.ty;
         // if (casted.data == .lval) {
         //     cur_ty.qual.@"const" = false;
@@ -2534,7 +2642,16 @@ fn primaryExpr(p: *Parser) Error!Result {
                 return error.ParsingFailed;
             };
             switch (sym) {
-                .enumeration => |e| return e.value,
+                .enumeration => |e| {
+                    // TODO actually check type
+                    var res = e.value;
+                    res.node = try p.addNode(.{
+                        .tag = .enumeration_ref,
+                        .ty = res.ty,
+                        .data = .{ .decl_ref = name_tok },
+                    });
+                    return res;
+                },
                 .symbol => |s| {
                     // TODO actually check type
                     const ty = p.nodes.items(.ty)[@enumToInt(s.node)];

@@ -82,7 +82,7 @@ pub const Node = struct {
             const decls = items[0 .. items.len - 3];
 
             return .{
-                .decls = items[0 .. items.len - 3],
+                .decls = decls,
                 .cond = items[items.len - 3],
                 .incr = items[items.len - 2],
                 .body = items[items.len - 1],
@@ -151,12 +151,7 @@ pub const Tag = enum(u8) {
     // typedef declaration
     typedef,
 
-    // container type forward declarations
-    struct_forward,
-    union_forward,
-    enum_forawrd,
-
-    // container type definitions
+    // container definitions
     struct_def,
     union_def,
     enum_def,
@@ -299,15 +294,17 @@ pub const Tag = enum(u8) {
     post_dec_expr,
     /// (un)
     paren_expr,
-    /// lhs is a TokenIndex of the identifier
+    /// decl
     decl_ref_expr,
-    /// integer literal with 64 bits, split in first and second, check node.ty for signedness
+    /// decl_ref
+    enumeration_ref,
+    /// integer literal, always unsigned
     int_literal,
-    /// f32 literal stored in first
+    /// f32 literal
     float_literal,
-    /// f64 literal split in first and second
+    /// f64 literal
     double_literal,
-    /// data[first][0..second]
+    /// tree.str[index..][0..len]
     string_literal_expr,
     /// TODO
     compound_literal_expr,
@@ -437,6 +434,13 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("init:\n");
                 try tree.dumpNode(data.decl.node, level + delta, w);
+            }
+        },
+        .enum_def => {
+            for (ty.data.@"enum".fields) |field| {
+                try w.writeByteNTimes(' ', level + half);
+                try w.print(NAME ++ "{s}:\n" ++ RESET, .{tree.tokSlice(field.name)});
+                if (field.node != .none) try tree.dumpNode(field.node, level + delta, w);
             }
         },
         .compound_stmt => {
@@ -671,6 +675,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .decl_ref_expr => {
             try w.writeByteNTimes(' ', level + 1);
             try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+        },
+        .enumeration_ref => {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
         },
         .int_literal => {
             try w.writeByteNTimes(' ', level + 1);
