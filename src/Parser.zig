@@ -2190,14 +2190,14 @@ fn castExpr(p: *Parser) Error!Result {
 ///  | keyword_sizeof '(' typeName ')'
 ///  | keyword_alignof '(' typeName ')'
 fn unExpr(p: *Parser) Error!Result {
-    switch (p.tok_ids[p.tok_i]) {
+    const tok = p.tok_i;
+    switch (p.tok_ids[tok]) {
         .ampersand => {
-            const ampersand = p.tok_i;
             p.tok_i += 1;
             var operand = try p.castExpr();
 
             if (!Tree.isLval(p.nodes.slice(), operand.node)) {
-                try p.errTok(.addr_of_rvalue, ampersand);
+                try p.errTok(.addr_of_rvalue, tok);
                 return error.ParsingFailed;
             }
 
@@ -2210,7 +2210,6 @@ fn unExpr(p: *Parser) Error!Result {
             return operand.un(p, .addr_of_expr);
         },
         .asterisk => {
-            const asterisk = p.tok_i;
             p.tok_i += 1;
             var operand = try p.castExpr();
 
@@ -2223,7 +2222,7 @@ fn unExpr(p: *Parser) Error!Result {
                 },
                 .func, .var_args_func, .old_style_func => {},
                 else => {
-                    try p.errTok(.indirection_ptr, asterisk);
+                    try p.errTok(.indirection_ptr, tok);
                     return error.ParsingFailed;
                 },
             }
@@ -2236,8 +2235,8 @@ fn unExpr(p: *Parser) Error!Result {
         },
         .minus => {
             p.tok_i += 1;
-            var operand = try p.castExpr();
             // TODO upcast to int / validate arithmetic type
+            var operand = try p.castExpr();
             const size = operand.ty.sizeof(p.pp.comp);
             switch (operand.val) {
                 .unsigned => |*v| switch (size) {
@@ -2250,13 +2249,59 @@ fn unExpr(p: *Parser) Error!Result {
                     8 => v.* = 0 -% v.*,
                     else => unreachable,
                 },
-                else => {},
+                .unavailable => {},
             }
             return operand.un(p, .negate_expr);
         },
-        .plus_plus => return p.todo("unary inc"),
-        .minus_minus => return p.todo("unary dec"),
-        .tilde => return p.todo("unExpr tilde"),
+        .plus_plus => {
+            p.tok_i += 1;
+            // TODO upcast to int / validate arithmetic type
+            var operand = try p.castExpr();
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+                try p.errTok(.not_assignable, tok);
+                return error.ParsingFailed;
+            }
+
+            switch (operand.val) {
+                .unsigned => |*v| v.* += 1,
+                .signed => |*v| v.* += 1,
+                .unavailable => {},
+            }
+            
+            return operand.un(p, .pre_inc_expr);
+        },
+        .minus_minus => {
+            p.tok_i += 1;
+            // TODO upcast to int / validate arithmetic type
+            var operand = try p.castExpr();
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+                try p.errTok(.not_assignable, tok);
+                return error.ParsingFailed;
+            }
+
+            switch (operand.val) {
+                .unsigned => |*v| v.* -= 1,
+                .signed => |*v| v.* -= 1,
+                .unavailable => {},
+            }
+            
+            return operand.un(p, .pre_dec_expr);
+        },
+        .tilde => {
+            p.tok_i += 1;
+            // TODO upcast to int / validate arithmetic type
+            var operand = try p.unExpr();
+
+            switch (operand.val) {
+                .unsigned => |*v| v.* = ~v.*,
+                .signed => |*v| v.* = ~v.*,
+                .unavailable => {},
+            }
+
+            return operand.un(p, .bool_not_expr);
+        },
         .bang => {
             p.tok_i += 1;
             var operand = try p.unExpr();
@@ -2358,11 +2403,33 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             }
             return res;
         },
+        .plus_plus => {
+            defer p.tok_i += 1;
+            // TODO upcast to int / validate arithmetic type
+            var operand = lhs;
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+                try p.err(.not_assignable);
+                return error.ParsingFailed;
+            }
+            
+            return operand.un(p, .post_dec_expr);
+        },
+        .minus_minus => {
+            defer p.tok_i += 1;
+            // TODO upcast to int / validate arithmetic type
+            var operand = lhs;
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+                try p.err(.not_assignable);
+                return error.ParsingFailed;
+            }
+            
+            return operand.un(p, .post_dec_expr);
+        },
         .l_bracket => return p.todo("array access"),
         .period => return p.todo("member access"),
         .arrow => return p.todo("member access pointer"),
-        .plus_plus => return p.todo("post inc"),
-        .minus_minus => return p.todo("post dec"),
         else => return Result{},
     }
 }

@@ -138,6 +138,7 @@ pub const Tag = enum {
     int_literal_too_big,
     indirection_ptr,
     addr_of_rvalue,
+    not_assignable,
 };
 
 const Options = struct {
@@ -361,6 +362,7 @@ pub fn render(comp: *Compilation) void {
             .int_literal_too_big => m.write("integer literal is too large to be represented in any integer type"),
             .indirection_ptr => m.write("indirection requires pointer operand"),
             .addr_of_rvalue => m.write("cannot take the address of an rvalue"),
+            .not_assignable => m.write("expression is not assignable"),
         }
         m.end(lcs);
 
@@ -483,6 +485,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .int_literal_too_big,
         .indirection_ptr,
         .addr_of_rvalue,
+        .not_assignable,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
