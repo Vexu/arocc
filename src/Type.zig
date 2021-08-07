@@ -619,11 +619,11 @@ pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
             try w.writeAll("fn (");
             for (ty.data.func.param_types) |param, i| {
                 if (i != 0) try w.writeAll(", ");
-                const name_tok = tree.nodes.items(.data)[param].first;
+                const name_tok = tree.nodes.items(.data)[@enumToInt(param)].decl.name;
                 if (tree.tokens.items(.id)[name_tok] == .identifier) {
                     try w.print("{s}: ", .{tree.tokSlice(name_tok)});
                 }
-                try tree.nodes.items(.ty)[param].dump(tree, w);
+                try tree.nodes.items(.ty)[@enumToInt(param)].dump(tree, w);
             }
             if (ty.specifier != .func) {
                 if (ty.data.func.param_types.len != 0) try w.writeAll(", ");

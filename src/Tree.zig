@@ -17,7 +17,7 @@ pub const Token = struct {
     pub const Id = Tokenizer.Token.Id;
 };
 
-pub const TokenIndex = enum(u32) { _ };
+pub const TokenIndex = u32;
 pub const NodeIndex = enum(u32) { none, _ };
 
 comp: *Compilation,
@@ -40,12 +40,12 @@ pub fn deinit(tree: *Tree) void {
 pub const Node = struct {
     tag: Tag,
     ty: Type = .{ .specifier = .void },
-    data: Data = .{},
+    data: Data,
 
     pub const Data = union {
         decl: struct {
             name: TokenIndex,
-            node: NodeIndex,
+            node: NodeIndex = .none,
         },
         decl_ref: TokenIndex,
         range: struct {
@@ -65,8 +65,7 @@ pub const Node = struct {
             lhs: NodeIndex,
             rhs: NodeIndex,
         },
-        int: i64,
-        uint: u64,
+        int: u64,
         float: f32,
         double: f64,
 
@@ -76,7 +75,7 @@ pub const Node = struct {
             incr: NodeIndex,
             body: NodeIndex,
         } {
-            const items = tree.data[data.range.first..data.range.second];
+            const items = tree.data[data.range.start..data.range.end];
             const decls = items[0 .. items.len - 3];
 
             return .{
@@ -87,7 +86,7 @@ pub const Node = struct {
             };
         }
 
-        pub fn forStmt(data: Data, tree: Tree)  struct {
+        pub fn forStmt(data: Data, tree: Tree) struct {
             init: NodeIndex,
             cond: NodeIndex,
             incr: NodeIndex,
@@ -96,7 +95,7 @@ pub const Node = struct {
             const items = tree.data[data.if3.body..];
 
             return .{
-                .decls = items[0],
+                .init = items[0],
                 .cond = items[1],
                 .incr = items[2],
                 .body = data.if3.cond,
@@ -317,8 +316,8 @@ pub const Tag = enum(u8) {
 };
 
 pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
-    if (tree.tokens.items(.id)[@enumToInt(tok_i)].lexeme()) |some| return some;
-    const loc = tree.tokens.items(.loc)[@enumToInt(tok_i)];
+    if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
+    const loc = tree.tokens.items(.loc)[tok_i];
     var tmp_tokenizer = Tokenizer{
         .buf = if (loc.id == .generated)
             tree.generated
@@ -378,8 +377,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .noreturn_inline_fn_def,
         .noreturn_inline_static_fn_def,
         => {
-            const data = data;
-
             try w.writeByteNTimes(' ', level + half);
             try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
             try w.writeByteNTimes(' ', level + half);
@@ -395,10 +392,8 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .threadlocal_extern_var,
         .threadlocal_static_var,
         => {
-            const data = data;
-
             try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.node)});
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("init:\n");
@@ -406,7 +401,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             }
         },
         .compound_stmt => {
-            for (tree.data[data.range.first..data.range.second]) |stmt, i| {
+            for (tree.data[data.range.start..data.range.end]) |stmt, i| {
                 if (i != 0) try w.writeByte('\n');
                 try tree.dumpNode(stmt, level + delta, w);
             }
@@ -504,7 +499,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeAll("incr:\n");
                 try tree.dumpNode(for_decl.incr, level + delta, w);
             }
-            if (for_decl.body != .none ) {
+            if (for_decl.body != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("body:\n");
                 try tree.dumpNode(for_decl.body, level + delta, w);
@@ -533,7 +528,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             if (for_stmt.incr != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("incr:\n");
-                try tree.dumpNode(incr, level + delta, w);
+                try tree.dumpNode(for_stmt.incr, level + delta, w);
             }
             if (for_stmt.body != .none) {
                 try w.writeByteNTimes(' ', level + half);
@@ -543,7 +538,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .goto_stmt => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.first)});
+            try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
         },
         .continue_stmt, .break_stmt => {},
         .return_stmt => {
@@ -560,11 +555,11 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .call_expr => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("lhs:\n");
-            try tree.dumpNode(tree.data[range.start], level + delta, w);
+            try tree.dumpNode(tree.data[data.range.start], level + delta, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("args:\n");
-            for (tree.data[range.start + 1 .. range.end]) |arg| try tree.dumpNode(arg, level + delta, w);
+            for (tree.data[data.range.start + 1 .. data.range.end]) |arg| try tree.dumpNode(arg, level + delta, w);
         },
         .call_expr_one => {
             try w.writeByteNTimes(' ', level + half);
@@ -639,11 +634,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .int_literal => {
             try w.writeByteNTimes(' ', level + 1);
-            if (ty.isUnsignedInt(tree.comp)) {
-                try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.uint});
-            } else {
-                try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.int});
-            }
+            try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.int});
         },
         .float_literal => {
             try w.writeByteNTimes(' ', level + 1);
