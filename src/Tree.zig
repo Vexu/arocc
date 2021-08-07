@@ -224,11 +224,11 @@ pub const Tag = enum(u8) {
     /// lhs >>= rhs
     shr_assign_expr,
     /// lhs &= rhs
-    and_assign_expr,
+    bit_and_assign_expr,
     /// lhs ^= rhs
-    xor_assign_expr,
+    bit_xor_assign_expr,
     /// lhs |= rhs
-    or_assign_expr,
+    bit_or_assign_expr,
     /// lhs || rhs
     bool_or_expr,
     /// lhs && rhs
@@ -620,9 +620,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .sub_assign_expr,
         .shl_assign_expr,
         .shr_assign_expr,
-        .and_assign_expr,
-        .xor_assign_expr,
-        .or_assign_expr,
+        .bit_and_assign_expr,
+        .bit_xor_assign_expr,
+        .bit_or_assign_expr,
         .bool_or_expr,
         .bool_and_expr,
         .bit_or_expr,

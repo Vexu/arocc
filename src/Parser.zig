@@ -1399,9 +1399,9 @@ fn maybeWarnUnused(p: *Parser, node: NodeIndex, expr_start: TokenIndex) Error!vo
         .sub_assign_expr,
         .shl_assign_expr,
         .shr_assign_expr,
-        .and_assign_expr,
-        .xor_assign_expr,
-        .or_assign_expr,
+        .bit_and_assign_expr,
+        .bit_xor_assign_expr,
+        .bit_or_assign_expr,
         .call_expr,
         .call_expr_one,
         => return,
@@ -1889,7 +1889,51 @@ fn expr(p: *Parser) Error!Result {
 ///  : condExpr
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
 fn assignExpr(p: *Parser) Error!Result {
-    return p.condExpr(); // TODO
+    var lhs = try p.condExpr();
+
+    const tok = p.tok_i;
+    const eq = p.eatToken(.equal);
+    const mul = eq orelse p.eatToken(.asterisk_equal);
+    const div = mul orelse p.eatToken(.slash_equal);
+    const mod = div orelse p.eatToken(.percent_equal);
+    const add = mod orelse p.eatToken(.plus_equal);
+    const sub = add orelse p.eatToken(.minus_equal);
+    const shl = sub orelse p.eatToken(.angle_bracket_angle_bracket_left_equal);
+    const shr = shl orelse p.eatToken(.angle_bracket_angle_bracket_right_equal);
+    const bit_and = shr orelse p.eatToken(.ampersand_equal);
+    const bit_xor = bit_and orelse p.eatToken(.caret_equal);
+    const bit_or = bit_xor orelse p.eatToken(.pipe_equal);
+
+    if (bit_or == null) return lhs;
+    if (!Tree.isLval(p.nodes.slice(), lhs.node)) {
+        try p.errTok(.not_assignable, tok);
+        return error.ParsingFailed;
+    }
+    var rhs = try p.assignExpr();
+
+    try lhs.bin(p, if (eq != null)
+        .assign_expr
+    else if (mul != null)
+        Tree.Tag.mul_assign_expr
+    else if (div != null)
+        Tree.Tag.div_assign_expr
+    else if (mod != null)
+        Tree.Tag.mod_assign_expr
+    else if (add != null)
+        Tree.Tag.add_assign_expr
+    else if (sub != null)
+        Tree.Tag.sub_assign_expr
+    else if (shl != null)
+        Tree.Tag.shl_assign_expr
+    else if (shr != null)
+        Tree.Tag.shr_assign_expr
+    else if (bit_and != null)
+        Tree.Tag.bit_and_assign_expr
+    else if (bit_xor != null)
+        Tree.Tag.bit_xor_assign_expr
+    else
+        Tree.Tag.bit_or_assign_expr, rhs);
+    return lhs;
 }
 
 /// constExpr : condExpr
@@ -2263,12 +2307,13 @@ fn unExpr(p: *Parser) Error!Result {
                 return error.ParsingFailed;
             }
 
+            // TODO overflow
             switch (operand.val) {
                 .unsigned => |*v| v.* += 1,
                 .signed => |*v| v.* += 1,
                 .unavailable => {},
             }
-            
+
             return operand.un(p, .pre_inc_expr);
         },
         .minus_minus => {
@@ -2281,12 +2326,13 @@ fn unExpr(p: *Parser) Error!Result {
                 return error.ParsingFailed;
             }
 
+            // TODO overflow
             switch (operand.val) {
                 .unsigned => |*v| v.* -= 1,
                 .signed => |*v| v.* -= 1,
                 .unavailable => {},
             }
-            
+
             return operand.un(p, .pre_dec_expr);
         },
         .tilde => {
@@ -2412,7 +2458,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            
+
             return operand.un(p, .post_dec_expr);
         },
         .minus_minus => {
@@ -2424,7 +2470,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            
+
             return operand.un(p, .post_dec_expr);
         },
         .l_bracket => return p.todo("array access"),

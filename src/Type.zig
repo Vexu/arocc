@@ -193,8 +193,8 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
 
             if (inner.data.array.elem.hasIncompleteSize()) return p.errTok(.array_incomplete_elem, source_tok);
             if (inner.data.array.elem.isFunc()) return p.errTok(.array_func_elem, source_tok);
-            if (inner.data.array.elem.specifier == .static_array and inner.isArray()) return p.errTok(.static_non_outernmost_array, source_tok);
-            if (inner.data.array.elem.qual.any() and inner.isArray()) return p.errTok(.qualifier_non_outernmost_array, source_tok);
+            if (inner.data.array.elem.specifier == .static_array and inner.isArray()) return p.errTok(.static_non_outermost_array, source_tok);
+            if (inner.data.array.elem.qual.any() and inner.isArray()) return p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .func, .var_args_func, .old_style_func => {
             try inner.data.func.return_type.combine(outer, p, source_tok);
