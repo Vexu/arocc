@@ -393,13 +393,13 @@ fn decl(p: *Parser) Error!bool {
         break :blk d;
     };
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
+        _ = try p.expectToken(.semicolon);
         if (decl_spec.ty.specifier == .@"enum") return true;
         if (decl_spec.ty.isEnumOrRecord()) {
             // TODO check that there was a name token
             return true;
         }
         try p.errTok(.missing_declaration, first_tok);
-        _ = try p.expectToken(.semicolon);
         return true;
     };
 
@@ -522,27 +522,40 @@ fn decl(p: *Parser) Error!bool {
 fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.eatToken(.keyword_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
-    var start = p.tok_i;
     const res = try p.constExpr();
-    const end = p.tok_i;
     _ = try p.expectToken(.comma);
-    const str = try p.expectToken(.string_literal); // TODO resolve string literal
+    const str = switch (p.tok_ids[p.tok_i]) {
+        .string_literal,
+        .string_literal_utf_16,
+        .string_literal_utf_8,
+        .string_literal_utf_32,
+        .string_literal_wide,
+        => try p.stringLiteral(),
+        else => {
+            try p.err(.expected_str_literal);
+            return error.ParsingFailed;
+        },
+    };
     try p.expectClosing(l_paren, .r_paren);
+    _ = try p.expectToken(.semicolon);
 
     if (!res.getBool()) {
         var msg = std.ArrayList(u8).init(p.pp.comp.gpa);
         defer msg.deinit();
 
-        try msg.append('\'');
-        while (start < end) {
-            try msg.appendSlice(p.tokSlice(start));
-            start += 1;
-            if (start != end) try msg.append(' ');
-        }
-        try msg.appendSlice("' ");
-        try msg.appendSlice(p.tokSlice(str));
+        const data = p.nodes.items(.data)[@enumToInt(str.node)].str;
+        try Tree.dumpStr(p.strings.items[data.index..][0..data.len], p.nodes.items(.tag)[@enumToInt(str.node)], msg.writer());
+
         try p.errStr(.static_assert_failure, static_assert, try p.arena.dupe(u8, msg.items));
     }
+    const node = try p.addNode(.{
+        .tag = .static_assert,
+        .data = .{ .bin = .{
+            .lhs = res.node,
+            .rhs = str.node,
+        } },
+    });
+    try p.cur_decl_list.append(node);
     return true;
 }
 
@@ -891,24 +904,11 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             try p.errTok(.previous_definition, prev.name_tok);
         }
     }
-    var tag_ty: Type = .{ .specifier = .int };
-
-    var fields = std.ArrayList(Type.Enum.Field).init(p.pp.comp.gpa);
-    defer fields.deinit();
-
-    while (try p.enumerator()) |field| {
-        try fields.append(field);
-        if (p.eatToken(.comma) == null) break;
-    }
-
-    if (fields.items.len == 0) try p.err(.empty_enum);
-
-    try p.expectClosing(l_brace, .r_brace);
     const enum_ty = try p.arena.create(Type.Enum);
     enum_ty.* = .{
         .name = if (maybe_ident) |ident| p.tokSlice(ident) else try p.getAnonymousName(enum_tok),
-        .tag_ty = tag_ty,
-        .fields = try p.arena.dupe(Type.Enum.Field, fields.items),
+        .tag_ty = .{ .specifier = .void }, // void means incomplete
+        .fields = &.{},
     };
 
     const node = try p.addNode(.{
@@ -927,6 +927,18 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             .name_tok = ident,
         } });
     }
+
+    var fields = std.ArrayList(Type.Enum.Field).init(p.pp.comp.gpa);
+    defer fields.deinit();
+
+    while (try p.enumerator()) |field| {
+        try fields.append(field);
+        if (p.eatToken(.comma) == null) break;
+    }
+    if (fields.items.len == 0) try p.err(.empty_enum);
+
+    try p.expectClosing(l_brace, .r_brace);
+    enum_ty.fields = try p.arena.dupe(Type.Enum.Field, fields.items);
     return enum_ty;
 }
 
@@ -2672,90 +2684,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         .string_literal_utf_8,
         .string_literal_utf_32,
         .string_literal_wide,
-        => {
-            var start = p.tok_i;
-            // use 1 for wchar_t
-            var width: ?u8 = null;
-            while (true) {
-                switch (p.tok_ids[p.tok_i]) {
-                    .string_literal => {},
-                    .string_literal_utf_16 => if (width) |some| {
-                        if (some != 16) try p.err(.unsupported_str_cat);
-                    } else {
-                        width = 16;
-                    },
-                    .string_literal_utf_8 => if (width) |some| {
-                        if (some != 8) try p.err(.unsupported_str_cat);
-                    } else {
-                        width = 8;
-                    },
-                    .string_literal_utf_32 => if (width) |some| {
-                        if (some != 32) try p.err(.unsupported_str_cat);
-                    } else {
-                        width = 32;
-                    },
-                    .string_literal_wide => if (width) |some| {
-                        if (some != 1) try p.err(.unsupported_str_cat);
-                    } else {
-                        width = 1;
-                    },
-                    else => break,
-                }
-                p.tok_i += 1;
-            }
-            if (width == null) width = 8;
-            if (width.? != 8) return p.todo("non-utf8 strings");
-            const index = p.strings.items.len;
-            while (start < p.tok_i) : (start += 1) {
-                var slice = p.tokSlice(start);
-                slice = slice[mem.indexOf(u8, slice, "\"").? + 1 .. slice.len - 1];
-                var i: u32 = 0;
-                try p.strings.ensureUnusedCapacity(slice.len);
-                while (i < slice.len) : (i += 1) {
-                    switch (slice[i]) {
-                        '\\' => {
-                            i += 1;
-                            switch (slice[i]) {
-                                '\n' => i += 1,
-                                '\r' => i += 2,
-                                '\'', '\"', '\\', '?' => |c| p.strings.appendAssumeCapacity(c),
-                                'n' => p.strings.appendAssumeCapacity('\n'),
-                                'r' => p.strings.appendAssumeCapacity('\r'),
-                                't' => p.strings.appendAssumeCapacity('\t'),
-                                'a' => p.strings.appendAssumeCapacity(0x07),
-                                'b' => p.strings.appendAssumeCapacity(0x08),
-                                'e' => p.strings.appendAssumeCapacity(0x1B),
-                                'f' => p.strings.appendAssumeCapacity(0x0C),
-                                'v' => p.strings.appendAssumeCapacity(0x0B),
-                                'x' => return p.todo("hex escape"),
-                                'u' => return p.todo("u escape"),
-                                'U' => return p.todo("U escape"),
-                                '0'...'7' => return p.todo("octal escape"),
-                                else => unreachable,
-                            }
-                        },
-                        else => |c| p.strings.appendAssumeCapacity(c),
-                    }
-                }
-            }
-            try p.strings.append(0);
-            const len = p.strings.items.len - index;
-
-            const arr_ty = try p.arena.create(Type.Array);
-            arr_ty.* = .{ .elem = .{ .specifier = .char }, .len = len };
-            var res: Result = .{
-                .ty = .{
-                    .specifier = .array,
-                    .data = .{ .array = arr_ty },
-                },
-            };
-            res.node = try p.addNode(.{
-                .tag = .string_literal_expr,
-                .ty = res.ty,
-                .data = .{ .str = .{ .index = @intCast(u32, index), .len = @intCast(u32, len) } },
-            });
-            return res;
-        },
+        => return p.stringLiteral(),
         .char_literal,
         .char_literal_utf_16,
         .char_literal_utf_32,
@@ -2886,5 +2815,90 @@ fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
         res.ty = .{ .specifier = .ulong_long };
     }
     res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
+    return res;
+}
+
+fn stringLiteral(p: *Parser) Error!Result {
+    var start = p.tok_i;
+    // use 1 for wchar_t
+    var width: ?u8 = null;
+    while (true) {
+        switch (p.tok_ids[p.tok_i]) {
+            .string_literal => {},
+            .string_literal_utf_16 => if (width) |some| {
+                if (some != 16) try p.err(.unsupported_str_cat);
+            } else {
+                width = 16;
+            },
+            .string_literal_utf_8 => if (width) |some| {
+                if (some != 8) try p.err(.unsupported_str_cat);
+            } else {
+                width = 8;
+            },
+            .string_literal_utf_32 => if (width) |some| {
+                if (some != 32) try p.err(.unsupported_str_cat);
+            } else {
+                width = 32;
+            },
+            .string_literal_wide => if (width) |some| {
+                if (some != 1) try p.err(.unsupported_str_cat);
+            } else {
+                width = 1;
+            },
+            else => break,
+        }
+        p.tok_i += 1;
+    }
+    if (width == null) width = 8;
+    if (width.? != 8) return p.todo("non-utf8 strings");
+    const index = p.strings.items.len;
+    while (start < p.tok_i) : (start += 1) {
+        var slice = p.tokSlice(start);
+        slice = slice[mem.indexOf(u8, slice, "\"").? + 1 .. slice.len - 1];
+        var i: u32 = 0;
+        try p.strings.ensureUnusedCapacity(slice.len);
+        while (i < slice.len) : (i += 1) {
+            switch (slice[i]) {
+                '\\' => {
+                    i += 1;
+                    switch (slice[i]) {
+                        '\n' => i += 1,
+                        '\r' => i += 2,
+                        '\'', '\"', '\\', '?' => |c| p.strings.appendAssumeCapacity(c),
+                        'n' => p.strings.appendAssumeCapacity('\n'),
+                        'r' => p.strings.appendAssumeCapacity('\r'),
+                        't' => p.strings.appendAssumeCapacity('\t'),
+                        'a' => p.strings.appendAssumeCapacity(0x07),
+                        'b' => p.strings.appendAssumeCapacity(0x08),
+                        'e' => p.strings.appendAssumeCapacity(0x1B),
+                        'f' => p.strings.appendAssumeCapacity(0x0C),
+                        'v' => p.strings.appendAssumeCapacity(0x0B),
+                        'x' => return p.todo("hex escape"),
+                        'u' => return p.todo("u escape"),
+                        'U' => return p.todo("U escape"),
+                        '0'...'7' => return p.todo("octal escape"),
+                        else => unreachable,
+                    }
+                },
+                else => |c| p.strings.appendAssumeCapacity(c),
+            }
+        }
+    }
+    try p.strings.append(0);
+    const len = p.strings.items.len - index;
+
+    const arr_ty = try p.arena.create(Type.Array);
+    arr_ty.* = .{ .elem = .{ .specifier = .char }, .len = len };
+    var res: Result = .{
+        .ty = .{
+            .specifier = .array,
+            .data = .{ .array = arr_ty },
+        },
+    };
+    res.node = try p.addNode(.{
+        .tag = .string_literal_expr,
+        .ty = res.ty,
+        .data = .{ .str = .{ .index = @intCast(u32, index), .len = @intCast(u32, len) } },
+    });
     return res;
 }

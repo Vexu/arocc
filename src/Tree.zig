@@ -115,6 +115,9 @@ pub const Tag = enum(u8) {
 
     // ====== Decl ======
 
+    // _Static_assert
+    static_assert,
+
     // function prototype
     fn_proto,
     static_fn_proto,
@@ -340,6 +343,13 @@ pub fn isLval(nodes: Node.List.Slice, node: NodeIndex) bool {
     }
 }
 
+pub fn dumpStr(bytes: []const u8, tag: Tag, writer: anytype) !void {
+    switch (tag) {
+        .string_literal_expr => try writer.print("\"{}\"", .{std.zig.fmtEscapes(bytes)}),
+        else => unreachable,
+    }
+}
+
 pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
@@ -381,7 +391,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     try ty.dump(tree, w);
     try w.writeAll("'");
     if (isLval(tree.nodes, node)) {
-        try w.writeAll(ATTRIBUTE ++" lvalue");
+        try w.writeAll(ATTRIBUTE ++ " lvalue");
     }
     if (tree.value_map.get(node)) |val| {
         if (ty.isUnsignedInt(tree.comp))
@@ -392,6 +402,14 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     try w.writeAll("\n" ++ RESET);
     switch (tag) {
         .invalid => unreachable,
+        .static_assert => {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("condition:\n");
+            try tree.dumpNode(data.bin.lhs, level + delta, w);
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("diagnostic:\n");
+            try tree.dumpNode(data.bin.rhs, level + delta, w);
+        },
         .fn_proto,
         .static_fn_proto,
         .inline_fn_proto,
@@ -593,7 +611,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .string_literal_expr => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("data: " ++ LITERAL ++ "\"{s}\"\n" ++ RESET, .{tree.strings[data.str.index..][0..data.str.len]});
+            try w.writeAll("data: " ++ LITERAL);
+            try dumpStr(tree.strings[data.str.index..][0..data.str.len], tag, w);
+            try w.writeAll("\n" ++ RESET);
         },
         .call_expr => {
             try w.writeByteNTimes(' ', level + half);

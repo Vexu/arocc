@@ -144,6 +144,7 @@ pub const Tag = enum {
     redefinition,
     previous_definition,
     expected_identifier,
+    expected_str_literal,
 };
 
 const Options = struct {
@@ -301,7 +302,7 @@ pub fn render(comp: *Compilation) void {
             .expected_integer_constant_expr => m.write("expression is not an integer constant expression"),
             .missing_type_specifier => m.write("type specifier missing, defaults to 'int'"),
             .multiple_storage_class => m.print("cannot combine with previous '{s}' declaration specifier", .{msg.extra.str}),
-            .static_assert_failure => m.print("static_assert failed due to requirement {s}", .{msg.extra.str}),
+            .static_assert_failure => m.print("static assertion failed {s}", .{msg.extra.str}),
             .expected_type => m.write("expected a type"),
             .cannot_combine_spec => m.print("cannot combine with previous '{s}' specifier", .{msg.extra.str}),
             .duplicate_decl_spec => m.print("duplicate '{s}' declaration specifier", .{msg.extra.str}),
@@ -373,6 +374,7 @@ pub fn render(comp: *Compilation) void {
             .redefinition => m.print("redefinition of '{s}'", .{msg.extra.str}),
             .previous_definition => m.write("previous definition is here"),
             .expected_identifier => m.write("expected identifier"),
+            .expected_str_literal => m.write("expected string literal for diagnostic message in static_assert"),
         }
         m.end(lcs);
 
@@ -500,6 +502,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .empty_enum,
         .redefinition,
         .expected_identifier,
+        .expected_str_literal,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
