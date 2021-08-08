@@ -178,12 +178,11 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     return @intToEnum(NodeIndex, @intCast(u32, res));
 }
 
-const Range = struct { start: u32, end: u32 };
-fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Range {
+fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range {
     const start = @intCast(u32, p.data.items.len);
     try p.data.appendSlice(nodes);
     const end = @intCast(u32, p.data.items.len);
-    return Range{ .start = start, .end = end };
+    return Tree.Node.Range{ .start = start, .end = end };
 }
 
 fn findTypedef(p: *Parser, name: []const u8) ?Scope.Symbol {
@@ -747,7 +746,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
             try p.err(.extern_initializer);
             decl_spec.storage_class = .none;
         }
-        const init = try p.initializer();
+        const init = try p.initializer(decl_spec.ty);
+        try init.expect(p);
         const casted = try init.coerce(p, init_d.d.ty);
         init_d.initializer = casted.node;
     }
@@ -1274,29 +1274,96 @@ fn typeName(p: *Parser) Error!?Type {
 /// initializer
 ///  : assignExpr
 ///  | '{' initializerItems '}'
-fn initializer(p: *Parser) Error!Result {
-    if (p.eatToken(.l_brace)) |_| {
-        return p.todo("compound initializer");
+fn initializer(p: *Parser, paren_ty: Type) Error!Result {
+    if (p.eatToken(.l_brace)) |l_brace| {
+        var initializers = NodeList.init(p.pp.comp.gpa);
+        defer initializers.deinit();
+
+        while (try p.initializerItem(paren_ty)) |item| {
+            try initializers.append(item);
+            if (p.eatToken(.comma) == null) break;
+        }
+        try p.expectClosing(l_brace, .r_brace);
+
+        return Result{
+            .node = switch (initializers.items.len) {
+                0 => try p.addNode(.{
+                    .tag = .compound_initializer_two_expr,
+                    .ty = paren_ty,
+                    .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+                }),
+                1 => try p.addNode(.{
+                    .tag = .compound_initializer_two_expr,
+                    .ty = paren_ty,
+                    .data = .{ .bin = .{ .lhs = initializers.items[0], .rhs = .none } },
+                }),
+                2 => try p.addNode(.{
+                    .tag = .compound_initializer_two_expr,
+                    .ty = paren_ty,
+                    .data = .{ .bin = .{ .lhs = initializers.items[0], .rhs = initializers.items[1] } },
+                }),
+                else => try p.addNode(.{
+                    .tag = .compound_initializer_expr,
+                    .ty = paren_ty,
+                    .data = .{ .range = try p.addList(initializers.items) },
+                }),
+            },
+            .ty = paren_ty,
+        };
     }
-    const res = try p.assignExpr();
-    try res.expect(p);
-    return res;
+    return p.assignExpr();
 }
 
-/// initializerItems : designation? initializer  (',' designation? initializer)? ','?
-fn initializerItems(p: *Parser) Error!NodeIndex {
-    return p.todo("initializerItems");
-}
+/// initializerItems : designation? initializer (',' designation? initializer)* ','?
 /// designation : designator+ '='
-fn designation(p: *Parser) Error!NodeIndex {
-    return p.todo("designation");
-}
-
 /// designator
 ///  : '[' constExpr ']'
 ///  | '.' identifier
-fn designator(p: *Parser) Error!NodeIndex {
-    return p.todo("designator");
+fn initializerItem(p: *Parser, paren_ty: Type) Error!?NodeIndex {
+    var cur_ty = paren_ty;
+    var designation: NodeIndex = .none;
+    while (true) {
+        if (p.eatToken(.l_bracket)) |l_bracket| {
+            const res = try p.constExpr();
+            try p.expectClosing(l_bracket, .r_bracket);
+            designation = try p.addNode(.{
+                .tag = .array_designator_expr,
+                // TODO do type checking
+                .data = .{ .bin = .{
+                    .lhs = designation,
+                    .rhs = res.node,
+                } },
+            });
+        } else if (p.eatToken(.period)) |_| {
+            const identifier = try p.expectToken(.identifier);
+            designation = try p.addNode(.{
+                .tag = .member_designator_expr,
+                .data = .{
+                    .member = .{
+                        .lhs = designation,
+                        // TODO do type checking
+                        .name = identifier,
+                    },
+                },
+            });
+        } else break;
+    }
+    if (designation != .none) _ = try p.expectToken(.equal);
+
+    const init_res = try p.initializer(cur_ty);
+    if (designation != .none) {
+        try init_res.expect(p);
+    } else if (init_res.node == .none) {
+        return null;
+    }
+    return try p.addNode(.{
+        .tag = .initializer_item_expr,
+        // TODO do type checking
+        .data = .{ .bin = .{
+            .lhs = designation,
+            .rhs = init_res.node,
+        } },
+    });
 }
 
 // ====== statements ======
@@ -1453,13 +1520,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
                 .tag = .forever_stmt,
                 .data = .{ .un = body },
             });
-        } else {
-            const range = try p.addList(&.{ init.node, cond.node, incr.node });
-            return try p.addNode(.{
-                .tag = .for_stmt,
-                .data = .{ .range = .{ .start = range.start, .end = range.end } },
-            });
-        }
+        } else return try p.addNode(.{
+            .tag = .for_stmt,
+            .data = .{ .range = try p.addList(&.{ init.node, cond.node, incr.node }) },
+        });
     }
     if (p.eatToken(.keyword_goto)) |_| {
         const name_tok = try p.expectToken(.identifier);
@@ -1668,13 +1732,10 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
             .tag = .compound_stmt_two,
             .data = .{ .bin = .{ .lhs = statements.items[0], .rhs = statements.items[1] } },
         }),
-        else => {
-            const range = try p.addList(statements.items);
-            return try p.addNode(.{
-                .tag = .compound_stmt,
-                .data = .{ .range = .{ .start = range.start, .end = range.end } },
-            });
-        },
+        else => return try p.addNode(.{
+            .tag = .compound_stmt,
+            .data = .{ .range = try p.addList(statements.items) },
+        }),
     }
 }
 
@@ -2333,11 +2394,50 @@ fn mulExpr(p: *Parser) Error!Result {
     return lhs;
 }
 
-/// castExpr :  ( '(' typeName ')' )* unExpr
+/// castExpr
+///  :  '(' typeName ')' castExpr
+///  | '(' typeName ')' '{' initializerItems '}'
+///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         if (try p.typeName()) |ty| {
             try p.expectClosing(l_paren, .r_paren);
+            if (p.eatToken(.l_brace)) |l_brace| {
+                var initializers = NodeList.init(p.pp.comp.gpa);
+                defer initializers.deinit();
+
+                while (try p.initializerItem(ty)) |item| {
+                    try initializers.append(item);
+                    if (p.eatToken(.comma) == null) break;
+                }
+                try p.expectClosing(l_brace, .r_brace);
+
+                return Result{
+                    .ty = ty,
+                    .node = switch (initializers.items.len) {
+                        0 => try p.addNode(.{
+                            .tag = .compound_literal_two_expr,
+                            .ty = ty,
+                            .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+                        }),
+                        1 => try p.addNode(.{
+                            .tag = .compound_literal_two_expr,
+                            .ty = ty,
+                            .data = .{ .bin = .{ .lhs = initializers.items[0], .rhs = .none } },
+                        }),
+                        2 => try p.addNode(.{
+                            .tag = .compound_literal_two_expr,
+                            .ty = ty,
+                            .data = .{ .bin = .{ .lhs = initializers.items[0], .rhs = initializers.items[1] } },
+                        }),
+                        else => try p.addNode(.{
+                            .tag = .compound_literal_expr,
+                            .ty = ty,
+                            .data = .{ .range = try p.addList(initializers.items) },
+                        }),
+                    },
+                };
+            }
             var operand = try p.castExpr();
             operand.ty = ty;
             return operand.un(p, .cast_expr);
@@ -2559,11 +2659,10 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 }),
                 else => {
                     try p.data.append(lhs.node);
-                    const range = try p.addList(args.items);
                     res.node = try p.addNode(.{
                         .tag = .call_expr,
                         .ty = ty.data.func.return_type,
-                        .data = .{ .range = .{ .start = range.start - 1, .end = range.end } },
+                        .data = .{ .range = try p.addList(args.items) },
                     });
                 },
             }
@@ -2593,9 +2692,44 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
 
             return operand.un(p, .post_dec_expr);
         },
-        .l_bracket => return p.todo("array access"),
-        .period => return p.todo("member access"),
-        .arrow => return p.todo("member access pointer"),
+        .l_bracket => {
+            var operand = lhs;
+
+            const l_bracket = p.tok_i;
+            p.tok_i += 1;
+            const index = try p.expr();
+            try p.expectClosing(l_bracket, .r_bracket);
+
+            // TODO validate type
+            try operand.bin(p, .array_access_expr, index);
+            return operand;
+        },
+        .period => {
+            p.tok_i += 1;
+            const name = try p.expectToken(.identifier);
+            // TODO validate type
+            return Result{
+                .ty = lhs.ty,
+                .node = try p.addNode(.{
+                    .tag = .member_access_expr,
+                    .ty = lhs.ty,
+                    .data = .{ .member = .{ .lhs = lhs.node, .name = name } },
+                }),
+            };
+        },
+        .arrow => {
+            p.tok_i += 1;
+            const name = try p.expectToken(.identifier);
+            // TODO validate type / deref
+            return Result{
+                .ty = lhs.ty,
+                .node = try p.addNode(.{
+                    .tag = .member_access_ptr_expr,
+                    .ty = lhs.ty,
+                    .data = .{ .member = .{ .lhs = lhs.node, .name = name } },
+                }),
+            };
+        },
         else => return Result{},
     }
 }
@@ -2607,7 +2741,6 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
 ///  | CHAR_LITERAL
 ///  | STRING_LITERAL
 ///  | '(' expr ')'
-///  | '(' typeName ')' '{' initializerItems '}'
 ///  | keyword_generic '(' assignExpr ',' genericAssoc (',' genericAssoc)* ')'
 ///
 /// genericAssoc

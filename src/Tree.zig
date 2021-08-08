@@ -45,16 +45,15 @@ pub const Node = struct {
     ty: Type = .{ .specifier = .void },
     data: Data,
 
+    pub const Range = struct { start: u32, end: u32 };
+
     pub const Data = union {
         decl: struct {
             name: TokenIndex,
             node: NodeIndex = .none,
         },
         decl_ref: TokenIndex,
-        range: struct {
-            start: u32,
-            end: u32,
-        },
+        range: Range,
         if3: struct {
             cond: NodeIndex,
             body: u32,
@@ -67,6 +66,10 @@ pub const Node = struct {
         bin: struct {
             lhs: NodeIndex,
             rhs: NodeIndex,
+        },
+        member: struct {
+            lhs: NodeIndex,
+            name: TokenIndex,
         },
         int: u64,
         float: f32,
@@ -287,9 +290,9 @@ pub const Tag = enum(u8) {
     call_expr_one,
     /// data[0](data[1..])
     call_expr,
-    /// lhs.rhs rhs is a TokenIndex of the identifier
+    /// lhs.member
     member_access_expr,
-    /// lhs->rhs rhs is a TokenIndex of the identifier
+    /// lhs->member
     member_access_ptr_expr,
     /// un++
     post_inc_expr,
@@ -309,8 +312,22 @@ pub const Tag = enum(u8) {
     double_literal,
     /// tree.str[index..][0..len]
     string_literal_expr,
-    /// TODO
+
+    // ====== Initializer expressions ======
+    /// { lhs, rhs }
+    compound_initializer_two_expr,
+    /// { range }
+    compound_initializer_expr,
+    /// (ty){ lhs, rhs }
+    compound_literal_two_expr,
+    /// (ty){ range }
     compound_literal_expr,
+    /// lhs = rhs
+    initializer_item_expr,
+    /// lhs?[rhs]
+    array_designator_expr,
+    /// lhs?.name
+    member_designator_expr,
 
     // ====== Implicit casts ======
 
@@ -333,7 +350,7 @@ pub fn isLval(nodes: Node.List.Slice, node: NodeIndex) bool {
         },
         .member_access_expr => {
             const data = nodes.items(.data)[@enumToInt(node)];
-            return isLval(nodes, data.bin.lhs);
+            return isLval(nodes, data.member.lhs);
         },
         .paren_expr => {
             const data = nodes.items(.data)[@enumToInt(node)];
@@ -461,13 +478,13 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 if (field.node != .none) try tree.dumpNode(field.node, level + delta, w);
             }
         },
-        .compound_stmt => {
+        .compound_stmt, .compound_initializer_expr, .compound_literal_expr => {
             for (tree.data[data.range.start..data.range.end]) |stmt, i| {
                 if (i != 0) try w.writeByte('\n');
                 try tree.dumpNode(stmt, level + delta, w);
             }
         },
-        .compound_stmt_two => {
+        .compound_stmt_two, .compound_initializer_two_expr, .compound_literal_two_expr => {
             if (data.bin.lhs != .none) try tree.dumpNode(data.bin.lhs, level + delta, w);
             if (data.bin.rhs != .none) try tree.dumpNode(data.bin.rhs, level + delta, w);
         },
@@ -711,6 +728,35 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .double_literal => {
             try w.writeByteNTimes(' ', level + 1);
             try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.double});
+        },
+        .member_access_expr, .member_access_ptr_expr, .member_designator_expr => {
+            if (data.member.lhs != .none) {
+                try w.writeByteNTimes(' ', level + 1);
+                try w.writeAll("lhs:\n");
+                try tree.dumpNode(data.member.lhs, level + delta, w);
+            }
+            try w.writeByteNTimes(' ', level + 1);
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.member.name)});
+        },
+        .array_access_expr, .array_designator_expr => {
+            if (data.bin.lhs != .none) {
+                try w.writeByteNTimes(' ', level + 1);
+                try w.writeAll("lhs:\n");
+                try tree.dumpNode(data.bin.lhs, level + delta, w);
+            }
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("index:\n");
+            try tree.dumpNode(data.bin.rhs, level + delta, w);
+        },
+        .initializer_item_expr => {
+            if (data.bin.lhs != .none) {
+                try w.writeByteNTimes(' ', level + 1);
+                try w.writeAll("designator:\n");
+                try tree.dumpNode(data.bin.lhs, level + delta, w);
+            }
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("initializer:\n");
+            try tree.dumpNode(data.bin.rhs, level + delta, w);
         },
         else => {},
     }
