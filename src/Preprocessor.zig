@@ -261,7 +261,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
     }
 }
 
-fn tokSliceSafe(pp: *Preprocessor, token: RawToken) []const u8 {
+pub fn tokSliceSafe(pp: *Preprocessor, token: RawToken) []const u8 {
     if (token.id.lexeme()) |some| return some;
     assert(token.source != .generated);
     return pp.comp.getSource(token.source).buf[token.start..token.end];

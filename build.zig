@@ -1,13 +1,6 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-const version = std.SemanticVersion{
-    .major = 0,
-    .minor = 0,
-    .patch = 0,
-    .pre = "dev",
-};
-
 pub fn build(b: *Builder) void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
@@ -20,8 +13,6 @@ pub fn build(b: *Builder) void {
     const mode = b.standardReleaseOptions();
 
     const exe = b.addExecutable("arocc", "src/main.zig");
-    exe.addBuildOption(std.SemanticVersion, "version", version);
-    exe.addBuildOption([]const u8, "version_str", std.fmt.allocPrint(b.allocator, "{}", .{version}) catch unreachable);
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
@@ -35,17 +26,15 @@ pub fn build(b: *Builder) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    addTests(b, .{
-        "src/main.zig",
-        "test/preprocessor.zig",
-    });
-}
-
-fn addTests(b: *Builder, tests: anytype) void {
     const tests_step = b.step("test", "Run all tests");
-    inline for (tests) |t| {
-        var test_step = b.addTest(t);
-        test_step.addPackagePath("aro", "src/lib.zig");
-        tests_step.dependOn(&test_step.step);
-    }
+
+    var unit_tests = b.addTest("src/main.zig");
+    tests_step.dependOn(&unit_tests.step);
+
+    const integration_tests = b.addExecutable("arocc", "test/runner.zig");
+    integration_tests.addPackagePath("aro", "src/lib.zig");
+
+    const integration_test_runner = integration_tests.run();
+    integration_test_runner.addArg(b.pathFromRoot("test/cases"));
+    tests_step.dependOn(&integration_test_runner.step);
 }

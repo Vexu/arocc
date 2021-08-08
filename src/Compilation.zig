@@ -52,7 +52,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
 
     try buf.appendSlice(
         \\#define __VERSION__ "Aro 
-    ++ @import("build_options").version_str ++ "\"\n" ++
+    ++ @import("lib.zig").version_str ++ "\"\n" ++
         \\#define __STDC__ 1
         \\#define __STDC_HOSTED__ 1
         \\#define __STDC_VERSION__ 201710L

@@ -362,7 +362,7 @@ pub fn isLval(nodes: Node.List.Slice, node: NodeIndex) bool {
 
 pub fn dumpStr(bytes: []const u8, tag: Tag, writer: anytype) !void {
     switch (tag) {
-        .string_literal_expr => try writer.print("\"{}\"", .{std.zig.fmtEscapes(bytes)}),
+        .string_literal_expr => try writer.print("\"{}\"", .{std.zig.fmtEscapes(bytes[0 .. bytes.len - 1])}),
         else => unreachable,
     }
 }
