@@ -414,7 +414,7 @@ fn decl(p: *Parser) Error!bool {
         }
 
         // TODO declare all parameters
-        // for (init_d.d.ty.data.func.param_types) |param| {}
+        // for (init_d.d.ty.data.func.params) |param| {}
 
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null and !p.in_function) {
@@ -444,7 +444,7 @@ fn decl(p: *Parser) Error!bool {
                         try p.errTok(.invalid_void_param, d.name);
                     }
 
-                    // TODO declare and check that d.name is in init_d.d.ty.data.func.param_types
+                    // TODO declare and check that d.name is in init_d.d.ty.data.func.params
                     if (p.eatToken(.comma) == null) break;
                 }
                 _ = try p.expectToken(.semicolon);
@@ -572,7 +572,7 @@ pub const DeclSpec = struct {
     @"noreturn": ?TokenIndex = null,
     ty: Type = .{ .specifier = undefined },
 
-    fn validateParam(d: DeclSpec, p: *Parser, ty: Type) Error!Tree.Tag {
+    fn validateParam(d: DeclSpec, p: *Parser, ty: Type) Error!void {
         _ = ty;
         switch (d.storage_class) {
             .none, .register => {},
@@ -581,7 +581,6 @@ pub const DeclSpec = struct {
         if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
         if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
         if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
-        return if (d.storage_class == .register) .register_param_decl else .param_decl;
     }
 
     fn validateFnDef(d: DeclSpec, p: *Parser) Error!Tree.Tag {
@@ -795,13 +794,13 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 continue;
             },
             .keyword_struct => {
-                try ty.combine(p, .{ .@"struct" = {} });
-                // ty.kind.@"struct" = try p.recordSpec();
+                try ty.combine(p, .{ .@"struct" = undefined });
+                ty.kind.@"struct" = try p.recordSpec();
                 continue;
             },
             .keyword_union => {
-                try ty.combine(p, .{ .@"union" = {} });
-                // ty.kind.@"union" = try p.recordSpec();
+                try ty.combine(p, .{ .@"union" = undefined });
+                ty.kind.@"union" = try p.recordSpec();
                 continue;
             },
             .keyword_alignas => {
@@ -852,7 +851,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
 /// recordSpec
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
-fn recordSpec(p: *Parser) Error!NodeIndex {
+fn recordSpec(p: *Parser) Error!*Type.Record {
     // const kind_tok = p.tok_ids[p.tok_i];
     p.tok_i += 1;
     return p.todo("recordSpec");
@@ -916,8 +915,8 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             .specifier = .@"enum",
             .data = .{ .@"enum" = enum_ty },
         },
-        .tag = .enum_def,
-        .data = undefined,
+        .tag = .enum_decl_two,
+        .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
     });
     try p.cur_decl_list.append(node);
     if (maybe_ident) |ident| {
@@ -930,44 +929,72 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
 
     var fields = std.ArrayList(Type.Enum.Field).init(p.pp.comp.gpa);
     defer fields.deinit();
+    var field_nodes = NodeList.init(p.pp.comp.gpa);
+    defer field_nodes.deinit();
 
-    while (try p.enumerator()) |field| {
-        try fields.append(field);
+    while (try p.enumerator()) |field_and_node| {
+        try fields.append(field_and_node.field);
+        try field_nodes.append(field_and_node.node);
         if (p.eatToken(.comma) == null) break;
     }
     if (fields.items.len == 0) try p.err(.empty_enum);
 
     try p.expectClosing(l_brace, .r_brace);
     enum_ty.fields = try p.arena.dupe(Type.Enum.Field, fields.items);
+    switch (field_nodes.items.len) {
+        0 => {},
+        1 => p.nodes.items(.data)[@enumToInt(node)] = .{
+            .bin = .{ .lhs = field_nodes.items[0], .rhs = .none },
+        },
+        2 => p.nodes.items(.data)[@enumToInt(node)] = .{
+            .bin = .{ .lhs = field_nodes.items[0], .rhs = field_nodes.items[1] },
+        },
+        else => {
+            p.nodes.items(.tag)[@enumToInt(node)] = .enum_decl;
+            p.nodes.items(.data)[@enumToInt(node)] = .{ .range = try p.addList(field_nodes.items) };
+        },
+    }
     return enum_ty;
 }
 
+const EnumFieldAndNode = struct { field: Type.Enum.Field, node: NodeIndex };
+
 /// enumerator : IDENTIFIER ('=' constExpr)
-fn enumerator(p: *Parser) Error!?Type.Enum.Field {
-    var field = Type.Enum.Field{
-        .name = p.eatToken(.identifier) orelse {
-            if (p.tok_ids[p.tok_i] == .r_brace) return null;
-            try p.err(.expected_identifier);
-            // TODO skip to }
-            return error.ParsingFailed;
-        },
-        .node = .none,
+fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
+    const name_tok = p.eatToken(.identifier) orelse {
+        if (p.tok_ids[p.tok_i] == .r_brace) return null;
+        try p.err(.expected_identifier);
+        // TODO skip to }
+        return error.ParsingFailed;
     };
-    if (p.eatToken(.equal) != null) {
-        const res = try p.constExpr();
-        field.node = res.node;
+    const name = p.tokSlice(name_tok);
+    // TODO get from enumSpec
+    var res: Result = .{
+        .ty = .{ .specifier = .int },
+        .val = .{
+            .unsigned = 0,
+        },
+    };
+    if (p.eatToken(.equal)) |_| {
+        res = try p.constExpr();
     }
 
-    try p.scopes.append(.{
-        .enumeration = .{
-            .name = p.tokSlice(field.name),
-            .value = .{ // TODO make this work
-                .node = field.node,
-                .val = .{ .signed = 0 },
-            },
-        },
-    });
-    return field;
+    try p.scopes.append(.{ .enumeration = .{
+        .name = name,
+        .value = res,
+    } });
+    return EnumFieldAndNode{ .field = .{
+        .name = name,
+        .ty = res.ty,
+        .value = res.as_u64(),
+    }, .node = try p.addNode(.{
+        .tag = .enum_field_decl,
+        .ty = res.ty,
+        .data = .{ .decl = .{
+            .name = name_tok,
+            .node = res.node,
+        } },
+    }) };
 }
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
@@ -1143,30 +1170,29 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         }
 
         const func_ty = try p.arena.create(Type.Func);
-        func_ty.param_types = &.{};
+        func_ty.params = &.{};
         var specifier: Type.Specifier = .func;
 
         if (try p.paramDecls()) |params| {
-            func_ty.param_types = params;
+            func_ty.params = params;
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
         } else if (p.tok_ids[p.tok_i] == .r_paren) {
             specifier = .old_style_func;
         } else if (p.tok_ids[p.tok_i] == .identifier) {
             d.old_style_func = p.tok_i;
-            var params = NodeList.init(p.pp.comp.gpa);
+            var params = std.ArrayList(Type.Func.Param).init(p.pp.comp.gpa);
             defer params.deinit();
 
             specifier = .old_style_func;
             while (true) {
-                const param = try p.addNode(.{
-                    .tag = .param_decl,
+                try params.append(.{
+                    .name = p.tokSlice(try p.expectToken(.identifier)),
                     .ty = .{ .specifier = .int },
-                    .data = .{ .decl = .{ .name = try p.expectToken(.identifier) } },
+                    .register = false,
                 });
-                try params.append(param);
                 if (p.eatToken(.comma) == null) break;
             }
-            func_ty.param_types = try p.arena.dupe(NodeIndex, params.items);
+            func_ty.params = try p.arena.dupe(Type.Func.Param, params.items);
         } else {
             try p.err(.expected_param_decl);
         }
@@ -1200,8 +1226,8 @@ fn pointer(p: *Parser, base_ty: Type) Error!Type {
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
 /// paramDecl : declSpec (declarator | abstractDeclarator)
-fn paramDecls(p: *Parser) Error!?[]NodeIndex {
-    var params = NodeList.init(p.pp.comp.gpa);
+fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
+    var params = std.ArrayList(Type.Func.Param).init(p.pp.comp.gpa);
     defer params.deinit();
 
     while (true) {
@@ -1241,7 +1267,7 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
                     if (param_ty.qual.any()) try p.err(.void_param_qualified);
                     return error.ParsingFailed;
                 }
-                return &[0]NodeIndex{};
+                return &[0]Type.Func.Param{};
             }
             try p.err(.void_must_be_first_param);
             return error.ParsingFailed;
@@ -1249,17 +1275,17 @@ fn paramDecls(p: *Parser) Error!?[]NodeIndex {
             // TODO convert to pointer
         }
 
-        const param = try p.addNode(.{
-            .tag = try param_decl_spec.validateParam(p, param_ty),
+        try param_decl_spec.validateParam(p, param_ty);
+        try params.append(.{
+            .name = p.tokSlice(name_tok),
             .ty = param_ty,
-            .data = .{ .decl = .{ .name = name_tok } },
+            .register = param_decl_spec.storage_class == .register,
         });
-        try params.append(param);
 
         if (p.eatToken(.comma) == null) break;
         if (p.tok_ids[p.tok_i] == .ellipsis) break;
     }
-    return try p.arena.dupe(NodeIndex, params.items);
+    return try p.arena.dupe(Type.Func.Param, params.items);
 }
 
 /// typeName : specQual abstractDeclarator
@@ -1288,17 +1314,17 @@ fn initializer(p: *Parser, paren_ty: Type) Error!Result {
         return Result{
             .node = switch (initializers.items.len) {
                 0 => try p.addNode(.{
-                    .tag = .compound_initializer_two_expr,
+                    .tag = .compound_initializer_expr_two,
                     .ty = paren_ty,
                     .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
                 }),
                 1 => try p.addNode(.{
-                    .tag = .compound_initializer_two_expr,
+                    .tag = .compound_initializer_expr_two,
                     .ty = paren_ty,
                     .data = .{ .bin = .{ .lhs = initializers.items[0], .rhs = .none } },
                 }),
                 2 => try p.addNode(.{
-                    .tag = .compound_initializer_two_expr,
+                    .tag = .compound_initializer_expr_two,
                     .ty = paren_ty,
                     .data = .{ .bin = .{ .lhs = initializers.items[0], .rhs = initializers.items[1] } },
                 }),
@@ -1836,6 +1862,14 @@ pub const Result = struct {
         return switch (res.val) {
             .signed => |v| v != 0,
             .unsigned => |v| v != 0,
+            .unavailable => unreachable,
+        };
+    }
+
+    fn as_u64(res: Result) u64 {
+        return switch (res.val) {
+            .signed => |v| @bitCast(u64, v),
+            .unsigned => |v| v,
             .unavailable => unreachable,
         };
     }
@@ -2416,17 +2450,17 @@ fn castExpr(p: *Parser) Error!Result {
                     .ty = ty,
                     .node = switch (initializers.items.len) {
                         0 => try p.addNode(.{
-                            .tag = .compound_literal_two_expr,
+                            .tag = .compound_literal_expr_two,
                             .ty = ty,
                             .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
                         }),
                         1 => try p.addNode(.{
-                            .tag = .compound_literal_two_expr,
+                            .tag = .compound_literal_expr_two,
                             .ty = ty,
                             .data = .{ .bin = .{ .lhs = initializers.items[0], .rhs = .none } },
                         }),
                         2 => try p.addNode(.{
-                            .tag = .compound_literal_two_expr,
+                            .tag = .compound_literal_expr_two,
                             .ty = ty,
                             .data = .{ .bin = .{ .lhs = initializers.items[0], .rhs = initializers.items[1] } },
                         }),
@@ -2608,7 +2642,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.errStr(.not_callable, l_paren, Type.Builder.fromType(lhs.ty).str());
                 return error.ParsingFailed;
             };
-            const param_types = ty.data.func.param_types;
+            const params = ty.data.func.params;
 
             var args = NodeList.init(p.pp.comp.gpa);
             defer args.deinit();
@@ -2616,13 +2650,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             var first_after = l_paren;
             if (p.eatToken(.r_paren) == null) {
                 while (true) {
-                    if (args.items.len == param_types.len) first_after = p.tok_i;
+                    if (args.items.len == params.len) first_after = p.tok_i;
                     const arg = try p.assignExpr();
                     try arg.expect(p);
 
-                    if (args.items.len < param_types.len) {
-                        const param_ty = p.nodes.items(.ty)[@enumToInt(param_types[args.items.len])];
-                        const casted = try arg.coerce(p, param_ty);
+                    if (args.items.len < params.len) {
+                        const casted = try arg.coerce(p, params[args.items.len].ty);
                         try args.append(casted.node);
                     } else {
                         // TODO coerce to var args passable type
@@ -2634,14 +2667,14 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.expectClosing(l_paren, .r_paren);
             }
 
-            const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, param_types.len), .actual = @intCast(u32, args.items.len) } };
-            if (ty.specifier == .func and param_types.len != args.items.len) {
+            const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, params.len), .actual = @intCast(u32, args.items.len) } };
+            if (ty.specifier == .func and params.len != args.items.len) {
                 try p.errExtra(.expected_arguments, first_after, extra);
             }
-            if (ty.specifier == .old_style_func and param_types.len != args.items.len) {
+            if (ty.specifier == .old_style_func and params.len != args.items.len) {
                 try p.errExtra(.expected_arguments_old, first_after, extra);
             }
-            if (ty.specifier == .var_args_func and args.items.len < param_types.len) {
+            if (ty.specifier == .var_args_func and args.items.len < params.len) {
                 try p.errExtra(.expected_at_least_arguments, first_after, extra);
             }
 
@@ -2763,7 +2796,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     try p.errStr(.implicit_func_decl, name_tok, name);
 
                     const func_ty = try p.arena.create(Type.Func);
-                    func_ty.* = .{ .return_type = .{ .specifier = .int }, .param_types = &.{} };
+                    func_ty.* = .{ .return_type = .{ .specifier = .int }, .params = &.{} };
                     const ty: Type = .{ .specifier = .old_style_func, .data = .{ .func = func_ty } };
                     const node = try p.addNode(.{
                         .ty = ty,

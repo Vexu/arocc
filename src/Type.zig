@@ -24,9 +24,16 @@ pub const Qualifiers = packed struct {
     }
 };
 
+// TODO improve memory usage
 pub const Func = struct {
     return_type: Type,
-    param_types: []NodeIndex,
+    params: []Param,
+
+    pub const Param = struct {
+        name: []const u8,
+        ty: Type,
+        register: bool,
+    };
 };
 
 pub const Array = struct {
@@ -39,14 +46,30 @@ pub const VLA = struct {
     elem: Type,
 };
 
+// TODO improve memory usage
 pub const Enum = struct {
     name: []const u8,
     tag_ty: Type,
     fields: []Field,
 
     pub const Field = struct {
-        name: TokenIndex,
-        node: NodeIndex,
+        name: []const u8,
+        ty: Type,
+        value: u64,
+    };
+};
+
+// TODO improve memory usage
+pub const Record = struct {
+    name: []const u8,
+    fields: []Field,
+    size: u32,
+    alignment: u32,
+
+    pub const Field = struct {
+        name: []const u8,
+        ty: Type,
+        bit_width: u32,
     };
 };
 
@@ -109,6 +132,7 @@ data: union {
     array: *Array,
     vla: *VLA,
     @"enum": *Enum,
+    record: *Record,
     none: void,
 } = .{ .none = {} },
 alignment: u32 = 0,
@@ -284,8 +308,8 @@ pub const Builder = struct {
         static_array: *Array,
         incomplete_array: *Array,
         variable_len_array: *VLA,
-        @"struct",
-        @"union",
+        @"struct": *Record,
+        @"union": *Record,
         @"enum": *Enum,
 
         pub fn str(spec: Kind) []const u8 {
@@ -425,12 +449,14 @@ pub const Builder = struct {
                 ty.data = .{ .vla = data };
                 return;
             },
-            .@"struct" => |_| {
+            .@"struct" => |data| {
                 ty.specifier = .@"struct";
+                ty.data = .{ .record = data };
                 return;
             },
-            .@"union" => |_| {
+            .@"union" => |data| {
                 ty.specifier = .@"union";
+                ty.data = .{ .record = data };
                 return;
             },
             .@"enum" => |data| {
@@ -613,55 +639,59 @@ pub const Builder = struct {
             .static_array => .{ .static_array = ty.data.array },
             .incomplete_array => .{ .incomplete_array = ty.data.array },
             .variable_len_array => .{ .variable_len_array = ty.data.vla },
-            .@"struct" => .{ .@"struct" = {} },
-            .@"union" => .{ .@"union" = {} },
+            .@"struct" => .{ .@"struct" = ty.data.record },
+            .@"union" => .{ .@"union" = ty.data.record },
             .@"enum" => .{ .@"enum" = ty.data.@"enum" },
         };
     }
 };
 
 // Print as Zig types since those are actually readable
-pub fn dump(ty: Type, tree: Tree, w: anytype) @TypeOf(w).Error!void {
+pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
     try ty.qual.dump(w);
     switch (ty.specifier) {
         .pointer => {
             try w.writeAll("*");
-            try ty.data.sub_type.dump(tree, w);
+            try ty.data.sub_type.dump(w);
         },
         .atomic => {
             try w.writeAll("_Atomic");
-            try ty.data.sub_type.dump(tree, w);
+            try ty.data.sub_type.dump(w);
             try w.writeAll(")");
         },
         .func, .var_args_func, .old_style_func => {
             try w.writeAll("fn (");
-            for (ty.data.func.param_types) |param, i| {
+            for (ty.data.func.params) |param, i| {
                 if (i != 0) try w.writeAll(", ");
-                const name_tok = tree.nodes.items(.data)[@enumToInt(param)].decl.name;
-                if (tree.tokens.items(.id)[name_tok] == .identifier) {
-                    try w.print("{s}: ", .{tree.tokSlice(name_tok)});
-                }
-                try tree.nodes.items(.ty)[@enumToInt(param)].dump(tree, w);
+                if (param.register) try w.writeAll("register ");
+                try w.print("{s}: ", .{param.name});
+                try param.ty.dump(w);
             }
             if (ty.specifier != .func) {
-                if (ty.data.func.param_types.len != 0) try w.writeAll(", ");
+                if (ty.data.func.params.len != 0) try w.writeAll(", ");
                 try w.writeAll("...");
             }
             try w.writeAll(") ");
-            try ty.data.func.return_type.dump(tree, w);
+            try ty.data.func.return_type.dump(w);
         },
         .array, .static_array => {
             try w.writeByte('[');
             if (ty.specifier == .static_array) try w.writeAll("static ");
             try w.print("{d}]", .{ty.data.array.len});
-            try ty.data.array.elem.dump(tree, w);
+            try ty.data.array.elem.dump(w);
         },
         .incomplete_array => {
             try w.writeAll("[]");
-            try ty.data.array.elem.dump(tree, w);
+            try ty.data.array.elem.dump(w);
         },
         .@"enum" => {
             try w.print("enum {s}", .{ty.data.@"enum".name});
+        },
+        .@"struct" => {
+            try w.print("struct {s}", .{ty.data.record.name});
+        },
+        .@"union" => {
+            try w.print("union {s}", .{ty.data.record.name});
         },
         else => try w.writeAll(Builder.fromType(ty).str()),
     }

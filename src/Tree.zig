@@ -157,10 +157,26 @@ pub const Tag = enum(u8) {
     // typedef declaration
     typedef,
 
-    // container definitions
-    struct_def,
-    union_def,
-    enum_def,
+    // container declarations
+    /// { lhs; rhs; }
+    struct_decl_two,
+    /// { lhs; rhs; }
+    union_decl_two,
+    /// { lhs, rhs, }
+    enum_decl_two,
+    /// { range }
+    struct_decl,
+    /// { range }
+    union_decl,
+    /// { range }
+    enum_decl,
+
+    /// name = node
+    enum_field_decl,
+    /// ty name : node
+    record_field_decl,
+    /// ty : un
+    unnamed_bit_field_decl,
 
     // ====== Stmt ======
 
@@ -315,11 +331,11 @@ pub const Tag = enum(u8) {
 
     // ====== Initializer expressions ======
     /// { lhs, rhs }
-    compound_initializer_two_expr,
+    compound_initializer_expr_two,
     /// { range }
     compound_initializer_expr,
     /// (ty){ lhs, rhs }
-    compound_literal_two_expr,
+    compound_literal_expr_two,
     /// (ty){ range }
     compound_literal_expr,
     /// lhs = rhs
@@ -405,7 +421,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     const ty = tree.nodes.items(.ty)[@enumToInt(node)];
     try w.writeByteNTimes(' ', level);
     try w.print(TAG ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
-    try ty.dump(tree, w);
+    try ty.dump(w);
     try w.writeAll("'");
     if (isLval(tree.nodes, node)) {
         try w.writeAll(ATTRIBUTE ++ " lvalue");
@@ -471,20 +487,48 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(data.decl.node, level + delta, w);
             }
         },
-        .enum_def => {
-            for (ty.data.@"enum".fields) |field| {
+        .enum_field_decl => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
-                try w.print(NAME ++ "{s}:\n" ++ RESET, .{tree.tokSlice(field.name)});
-                if (field.node != .none) try tree.dumpNode(field.node, level + delta, w);
+                try w.writeAll("value:\n");
+                try tree.dumpNode(data.decl.node, level + delta, w);
             }
         },
-        .compound_stmt, .compound_initializer_expr, .compound_literal_expr => {
+        .record_field_decl => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            if (data.decl.node != .none) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("bits:\n");
+                try tree.dumpNode(data.decl.node, level + delta, w);
+            }
+        },
+        .unnamed_bit_field_decl => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("bits:\n");
+            try tree.dumpNode(data.un, level + delta, w);
+        },
+        .compound_stmt,
+        .compound_initializer_expr,
+        .compound_literal_expr,
+        .enum_decl,
+        .struct_decl,
+        .union_decl,
+        => {
             for (tree.data[data.range.start..data.range.end]) |stmt, i| {
                 if (i != 0) try w.writeByte('\n');
                 try tree.dumpNode(stmt, level + delta, w);
             }
         },
-        .compound_stmt_two, .compound_initializer_two_expr, .compound_literal_two_expr => {
+        .compound_stmt_two,
+        .compound_initializer_expr_two,
+        .compound_literal_expr_two,
+        .enum_decl_two,
+        .struct_decl_two,
+        .union_decl_two,
+        => {
             if (data.bin.lhs != .none) try tree.dumpNode(data.bin.lhs, level + delta, w);
             if (data.bin.rhs != .none) try tree.dumpNode(data.bin.rhs, level + delta, w);
         },
