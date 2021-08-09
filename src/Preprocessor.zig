@@ -913,6 +913,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     var first = tokenizer.next();
     first.id.simplifyMacroKeyword();
     if (first.id == .nl or first.id == .eof) {
+        // TODO warn about redefinitions
         _ = try pp.defines.put(name_str, .empty);
         return;
     } else if (first.start == macro_name.end) {

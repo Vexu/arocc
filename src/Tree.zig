@@ -141,10 +141,6 @@ pub const Tag = enum(u8) {
     noreturn_inline_fn_def,
     noreturn_inline_static_fn_def,
 
-    // a parameter
-    param_decl,
-    register_param_decl,
-
     // variable declaration
     @"var",
     extern_var,
@@ -174,9 +170,8 @@ pub const Tag = enum(u8) {
     /// name = node
     enum_field_decl,
     /// ty name : node
+    /// name == 0 means unnamed
     record_field_decl,
-    /// ty : un
-    unnamed_bit_field_decl,
 
     // ====== Stmt ======
 
@@ -497,18 +492,15 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             }
         },
         .record_field_decl => {
-            try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            if (data.decl.name != 0) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            }
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("bits:\n");
                 try tree.dumpNode(data.decl.node, level + delta, w);
             }
-        },
-        .unnamed_bit_field_decl => {
-            try w.writeByteNTimes(' ', level + half);
-            try w.writeAll("bits:\n");
-            try tree.dumpNode(data.un, level + delta, w);
         },
         .compound_stmt,
         .compound_initializer_expr,
@@ -802,6 +794,5 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeAll("initializer:\n");
             try tree.dumpNode(data.bin.rhs, level + delta, w);
         },
-        else => {},
     }
 }

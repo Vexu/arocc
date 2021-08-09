@@ -646,6 +646,9 @@ pub const Builder = struct {
     }
 };
 
+/// Useful for debugging, too noisy to be enabled by default.
+const dump_detailed_containers = false;
+
 // Print as Zig types since those are actually readable
 pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
     try ty.qual.dump(w);
@@ -686,13 +689,34 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
         },
         .@"enum" => {
             try w.print("enum {s}", .{ty.data.@"enum".name});
+            if (dump_detailed_containers) try dumpEnum(ty.data.@"enum", w);
         },
         .@"struct" => {
             try w.print("struct {s}", .{ty.data.record.name});
+            if (dump_detailed_containers) try dumpRecord(ty.data.record, w);
         },
         .@"union" => {
             try w.print("union {s}", .{ty.data.record.name});
+            if (dump_detailed_containers) try dumpRecord(ty.data.record, w);
         },
         else => try w.writeAll(Builder.fromType(ty).str()),
     }
+}
+
+fn dumpEnum(@"enum": *Enum, w: anytype) @TypeOf(w).Error!void {
+    try w.writeAll(" {");
+    for (@"enum".fields) |field| {
+        try w.print(" {s} = {d},", .{ field.name, field.value });
+    }
+    try w.writeAll(" }");
+}
+
+fn dumpRecord(record: *Record, w: anytype) @TypeOf(w).Error!void {
+    try w.writeAll(" {");
+    for (record.fields) |field| {
+        try w.writeByte(' ');
+        try field.ty.dump(w);
+        try w.print(" {s}: {d};", .{ field.name, field.bit_width });
+    }
+    try w.writeAll(" }");
 }
