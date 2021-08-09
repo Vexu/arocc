@@ -28,7 +28,7 @@ const Scope = union(enum) {
 
     const Symbol = struct {
         name: []const u8,
-        node: NodeIndex,
+        ty: Type,
         name_tok: TokenIndex,
     };
 
@@ -407,17 +407,15 @@ fn decl(p: *Parser) Error!bool {
         switch (p.tok_ids[p.tok_i]) {
             .comma, .semicolon => break :fn_def,
             .l_brace => {},
-            else => {
-                if (!p.in_function) try p.err(.expected_fn_body);
+            else => if (init_d.d.old_style_func == null) {
+                try p.err(.expected_fn_body);
                 break :fn_def;
             },
         }
 
-        // TODO declare all parameters
-        // for (init_d.d.ty.data.func.params) |param| {}
-
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null and !p.in_function) {
+            init_d.d.ty.specifier = .func;
             param_loop: while (true) {
                 const param_decl_spec = (try p.declSpec()) orelse break;
                 if (p.eatToken(.semicolon)) |semi| {
@@ -444,12 +442,35 @@ fn decl(p: *Parser) Error!bool {
                         try p.errTok(.invalid_void_param, d.name);
                     }
 
+                    // find and correct parameter types
+                    // TODO check for missing declarations and redefinitions
+                    const name_str = p.tokSlice(d.name);
+                    for (init_d.d.ty.data.func.params) |*param| {
+                        if (mem.eql(u8, param.name, name_str)) {
+                            param.ty = d.ty;
+                            break;
+                        }
+                    } else {
+                        try p.errStr(.parameter_missing, d.name, name_str);
+                    }
+
                     // TODO declare and check that d.name is in init_d.d.ty.data.func.params
                     if (p.eatToken(.comma) == null) break;
                 }
                 _ = try p.expectToken(.semicolon);
             }
         }
+
+        for (init_d.d.ty.data.func.params) |param| {
+            try p.scopes.append(.{
+                .symbol = .{
+                    .name = param.name,
+                    .ty = param.ty,
+                    .name_tok = 0, // TODO split Scope.Symbol into Scope.Typedef
+                },
+            });
+        }
+
         if (p.in_function) try p.err(.func_not_in_root);
 
         const in_function = p.in_function;
@@ -463,7 +484,7 @@ fn decl(p: *Parser) Error!bool {
         });
         try p.scopes.append(.{ .symbol = .{
             .name = p.tokSlice(init_d.d.name),
-            .node = node,
+            .ty = init_d.d.ty,
             .name_tok = init_d.d.name,
         } });
         const body = try p.compoundStmt();
@@ -495,13 +516,13 @@ fn decl(p: *Parser) Error!bool {
         if (decl_spec.storage_class == .typedef) {
             try p.scopes.append(.{ .typedef = .{
                 .name = p.tokSlice(init_d.d.name),
-                .node = node,
+                .ty = init_d.d.ty,
                 .name_tok = init_d.d.name,
             } });
         } else {
             try p.scopes.append(.{ .symbol = .{
                 .name = p.tokSlice(init_d.d.name),
-                .node = node,
+                .ty = init_d.d.ty,
                 .name_tok = init_d.d.name,
             } });
         }
@@ -543,7 +564,11 @@ fn staticAssert(p: *Parser) Error!bool {
         defer msg.deinit();
 
         const data = p.nodes.items(.data)[@enumToInt(str.node)].str;
-        try Tree.dumpStr(p.strings.items[data.index..][0..data.len], p.nodes.items(.tag)[@enumToInt(str.node)], msg.writer());
+        try Tree.dumpStr(
+            p.strings.items[data.index..][0..data.len],
+            p.nodes.items(.tag)[@enumToInt(str.node)],
+            msg.writer(),
+        );
 
         try p.errStr(.static_assert_failure, static_assert, try p.arena.dupe(u8, msg.items));
     }
@@ -815,7 +840,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
             },
             .identifier => {
                 const typedef = p.findTypedef(p.tokSlice(p.tok_i)) orelse break;
-                const new_spec = Type.Builder.fromType(p.nodes.items(.ty)[@enumToInt(typedef.node)]);
+                const new_spec = Type.Builder.fromType(typedef.ty);
 
                 const err_start = p.pp.comp.diag.list.items.len;
                 ty.combine(p, new_spec) catch {
@@ -893,7 +918,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             return error.ParsingFailed;
         };
         if (p.findEnum(ident)) |prev| {
-            return p.nodes.items(.ty)[@enumToInt(prev.node)].data.@"enum";
+            return prev.ty.data.@"enum";
         }
         return p.todo("enum forward declaration");
     };
@@ -909,20 +934,19 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
         .tag_ty = .{ .specifier = .void }, // void means incomplete
         .fields = &.{},
     };
+    const ty = Type{
+        .specifier = .@"enum",
+        .data = .{ .@"enum" = enum_ty },
+    };
 
-    const node = try p.addNode(.{
-        .ty = .{
-            .specifier = .@"enum",
-            .data = .{ .@"enum" = enum_ty },
-        },
-        .tag = .enum_decl_two,
-        .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
-    });
+    const node = try p.addNode(.{ .tag = .enum_decl_two, .ty = ty, .data = .{
+        .bin = .{ .lhs = .none, .rhs = .none },
+    } });
     try p.cur_decl_list.append(node);
     if (maybe_ident) |ident| {
         try p.scopes.append(.{ .@"enum" = .{
             .name = enum_ty.name,
-            .node = node,
+            .ty = ty,
             .name_tok = ident,
         } });
     }
@@ -2667,7 +2691,10 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.expectClosing(l_paren, .r_paren);
             }
 
-            const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, params.len), .actual = @intCast(u32, args.items.len) } };
+            const extra = Diagnostics.Message.Extra{ .arguments = .{
+                .expected = @intCast(u32, params.len),
+                .actual = @intCast(u32, args.items.len),
+            } };
             if (ty.specifier == .func and params.len != args.items.len) {
                 try p.errExtra(.expected_arguments, first_after, extra);
             }
@@ -2807,13 +2834,17 @@ fn primaryExpr(p: *Parser) Error!Result {
                     try p.cur_decl_list.append(node);
                     try p.scopes.append(.{ .symbol = .{
                         .name = name,
-                        .node = node,
+                        .ty = ty,
                         .name_tok = name_tok,
                     } });
 
                     return Result{
                         .ty = ty,
-                        .node = try p.addNode(.{ .tag = .decl_ref_expr, .ty = ty, .data = .{ .decl_ref = name_tok } }),
+                        .node = try p.addNode(.{
+                            .tag = .decl_ref_expr,
+                            .ty = ty,
+                            .data = .{ .decl_ref = name_tok },
+                        }),
                     };
                 }
                 try p.errStr(.undeclared_identifier, name_tok, p.tokSlice(name_tok));
@@ -2832,13 +2863,12 @@ fn primaryExpr(p: *Parser) Error!Result {
                 },
                 .symbol => |s| {
                     // TODO actually check type
-                    const ty = p.nodes.items(.ty)[@enumToInt(s.node)];
                     return Result{
-                        .ty = ty,
+                        .ty = s.ty,
                         .node = try p.addNode(.{
                             .tag = .decl_ref_expr,
-                            .ty = ty,
-                            .data = .{ .decl = .{ .name = name_tok, .node = s.node } },
+                            .ty = s.ty,
+                            .data = .{ .decl_ref = name_tok },
                         }),
                     };
                 },
