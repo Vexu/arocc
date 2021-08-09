@@ -100,7 +100,6 @@ pub const Specifier = enum {
 
     // data.sub_type
     pointer,
-    atomic,
     unspecified_variable_len_array,
     // data.func
     /// int foo(int bar, char baz) and int (void)
@@ -220,7 +219,6 @@ pub fn sizeof(ty: Type, comp: *Compilation) u64 {
         .complex_double => 16,
         .complex_long_double => 32,
         .pointer, .static_array => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .atomic => return ty.data.sub_type.sizeof(comp),
         .array => return ty.data.sub_type.sizeof(comp) * ty.data.array.len,
         .@"struct" => @panic("TODO"),
         .@"union" => @panic("TODO"),
@@ -299,7 +297,6 @@ pub const Builder = struct {
         complex_long_double,
 
         pointer: *Type,
-        atomic: *Type,
         unspecified_variable_len_array: *Type,
         func: *Func,
         var_args_func: *Func,
@@ -355,7 +352,6 @@ pub const Builder = struct {
 
                 // TODO make these more specific?
                 .pointer => "pointer",
-                .atomic => "atomic",
                 .func, .var_args_func, .old_style_func => "function",
                 .array, .static_array, .unspecified_variable_len_array, .variable_len_array, .incomplete_array => "array",
                 .@"struct" => "struct",
@@ -399,11 +395,6 @@ pub const Builder = struct {
                 return error.ParsingFailed;
             },
 
-            .atomic => |data| {
-                ty.specifier = .atomic;
-                ty.data = .{ .sub_type = data };
-                return;
-            },
             .pointer => |data| {
                 ty.specifier = .pointer;
                 ty.data = .{ .sub_type = data };
@@ -479,7 +470,6 @@ pub const Builder = struct {
                 .none => spec.kind = new,
                 else => return spec.cannotCombine(p),
             },
-            .atomic => return p.todo("atomic types"),
             .signed => spec.kind = switch (spec.kind) {
                 .none => .signed,
                 .char => .schar,
@@ -630,7 +620,6 @@ pub const Builder = struct {
             .complex_long_double => .complex_long_double,
 
             .pointer => .{ .pointer = ty.data.sub_type },
-            .atomic => .{ .atomic = ty.data.sub_type },
             .unspecified_variable_len_array => .{ .unspecified_variable_len_array = ty.data.sub_type },
             .func => .{ .func = ty.data.func },
             .var_args_func => .{ .var_args_func = ty.data.func },
@@ -656,11 +645,6 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
         .pointer => {
             try w.writeAll("*");
             try ty.data.sub_type.dump(w);
-        },
-        .atomic => {
-            try w.writeAll("_Atomic");
-            try ty.data.sub_type.dump(w);
-            try w.writeAll(")");
         },
         .func, .var_args_func, .old_style_func => {
             try w.writeAll("fn (");
@@ -701,6 +685,7 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
         },
         else => try w.writeAll(Builder.fromType(ty).str()),
     }
+    if (ty.alignment != 0) try w.print(" _Alignas({d})", .{ty.alignment});
 }
 
 fn dumpEnum(@"enum": *Enum, w: anytype) @TypeOf(w).Error!void {

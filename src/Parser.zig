@@ -812,7 +812,9 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 ///  | enumSpec
 ///  | typedef  // IDENTIFIER
 /// atomicTypeSpec : keyword_atomic '(' typeName ')'
-/// alignSpec : keyword_alignas '(' typeName ')'
+/// alignSpec
+///   : keyword_alignas '(' typeName ')'
+///   | keyword_alignas '(' constExpr ')'
 fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
     const start = p.tok_i;
     while (true) {
@@ -829,10 +831,34 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
             .keyword_float => try ty.combine(p, .float),
             .keyword_double => try ty.combine(p, .double),
             .keyword_complex => try ty.combine(p, .complex),
-            .keyword_atomic => return p.todo("atomic types"),
-            .keyword_enum => {
-                try ty.combine(p, .{ .@"enum" = undefined });
-                ty.kind.@"enum" = try p.enumSpec();
+            .keyword_atomic => {
+                const atomic_tok = p.tok_i;
+                p.tok_i += 1;
+                const l_paren = p.eatToken(.l_paren) orelse {
+                    // _Atomic qualifier not _Atomic(typeName)
+                    p.tok_i = atomic_tok;
+                    break;
+                };
+                const inner_ty = (try p.typeName()) orelse {
+                    try p.err(.expected_type);
+                    return error.ParsingFailed;
+                };
+                try p.expectClosing(l_paren, .r_paren);
+
+                const new_spec = Type.Builder.fromType(inner_ty);
+
+                // combine() uses p.tok_i for error reporting
+                const cur = p.tok_i;
+                defer p.tok_i = cur;
+                p.tok_i = atomic_tok;
+                try ty.combine(p, new_spec);
+
+                if (complete_type.qual.atomic)
+                    try p.errStr(.duplicate_decl_spec, atomic_tok, "atomic")
+                else
+                    complete_type.qual.atomic = true;
+
+                // TODO check that the type can be atomic
                 continue;
             },
             .keyword_struct => {
@@ -845,15 +871,10 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 ty.kind.@"union" = try p.recordSpec();
                 continue;
             },
-            .keyword_alignas => {
-                if (complete_type.alignment != 0) try p.errStr(.duplicate_decl_spec, p.tok_i, "alignment");
-                const l_paren = try p.expectToken(.l_paren);
-                const other_type = (try p.typeName()) orelse {
-                    try p.err(.expected_type);
-                    return error.ParsingFailed;
-                };
-                try p.expectClosing(l_paren, .r_paren);
-                complete_type.alignment = other_type.alignment;
+            .keyword_enum => {
+                try ty.combine(p, .{ .@"enum" = undefined });
+                ty.kind.@"enum" = try p.enumSpec();
+                continue;
             },
             .identifier => {
                 const typedef = p.findTypedef(p.tokSlice(p.tok_i)) orelse break;
@@ -870,6 +891,20 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                     .tok = typedef.name_tok,
                     .spec = new_spec.str(),
                 };
+            },
+            .keyword_alignas => {
+                if (complete_type.alignment != 0) try p.errStr(.duplicate_decl_spec, p.tok_i, "alignment");
+                p.tok_i += 1;
+                const l_paren = try p.expectToken(.l_paren);
+                if (try p.typeName()) |inner_ty| {
+                    complete_type.alignment = inner_ty.alignment;
+                } else {
+                    const res = try p.constExpr();
+                    // TODO more validation here
+                    complete_type.alignment = @intCast(u32, res.as_u64());
+                }
+                try p.expectClosing(l_paren, .r_paren);
+                continue;
             },
             else => break,
         }
@@ -1190,6 +1225,8 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
                     ty.qual.@"volatile" = true;
             },
             .keyword_atomic => {
+                // _Atomic(typeName) instead of just _Atomic
+                if (p.tok_ids[p.tok_i + 1] == .l_paren) break;
                 if (ty.qual.atomic)
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "atomic")
                 else
