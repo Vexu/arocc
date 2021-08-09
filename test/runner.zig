@@ -91,6 +91,7 @@ pub fn main() !void {
         const case = std.mem.sliceTo(std.fs.path.basename(path), '.');
         var case_node = root_node.start(case, 0);
         case_node.activate();
+        defer case_node.end();
         progress.refresh();
 
         comp.diag.errors = 0;
@@ -101,7 +102,6 @@ pub fn main() !void {
         try pp.preprocess(test_runner_macros);
         pp.preprocess(file) catch |err| {
             fail_count += 1;
-            case_node.end();
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
@@ -113,12 +113,13 @@ pub fn main() !void {
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro != .simple or macro.simple.tokens.len != 1 or macro.simple.tokens[0].id != .integer_literal) {
                 fail_count += 1;
-                case_node.end();
-                progress.log("{s}: invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{ case, macro });
+                progress.log("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
                 continue;
             }
             const tok_slice = pp.tokSliceSafe(macro.simple.tokens[0]);
-            skip_count += try std.fmt.parseInt(u32, tok_slice, 0);
+            const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
+            progress.log("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
+            skip_count += tests_skipped;
         }
 
         if (pp.defines.get("EXPECTED_TOKENS")) |macro| {
@@ -129,18 +130,16 @@ pub fn main() !void {
                 .empty => &[_]aro.Tokenizer.Token{},
                 else => {
                     fail_count += 1;
-                    case_node.end();
-                    progress.log("{s}: invalid EXPECTED_TOKENS {}\n", .{ case, macro });
+                    progress.log("invalid EXPECTED_TOKENS {}\n", .{macro});
                     continue;
                 },
             };
 
             if (pp.tokens.len - 1 != expected_tokens.len) {
                 fail_count += 1;
-                case_node.end();
                 progress.log(
-                    "{s}: EXPECTED_TOKENS count differs: expected {d} found {d}\n",
-                    .{ case, expected_tokens.len, pp.tokens.len - 1 },
+                    "EXPECTED_TOKENS count differs: expected {d} found {d}\n",
+                    .{ expected_tokens.len, pp.tokens.len - 1 },
                 );
                 continue;
             }
@@ -150,7 +149,6 @@ pub fn main() !void {
                 const tok = pp.tokens.get(i);
                 if (tok.id == .eof) {
                     if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
-                    case_node.end();
                     break;
                 }
 
@@ -158,10 +156,9 @@ pub fn main() !void {
                 const actual = pp.expandedSlice(tok);
                 if (!std.mem.eql(u8, expected, actual)) {
                     fail_count += 1;
-                    case_node.end();
                     progress.log(
-                        "{s}: unexpected token found: expected '{s}' found '{s}'\n",
-                        .{ case, expected, actual },
+                        "unexpected token found: expected '{s}' found '{s}'\n",
+                        .{ expected, actual },
                     );
                     break;
                 }
@@ -179,38 +176,33 @@ pub fn main() !void {
 
             if (macro != .simple) {
                 fail_count += 1;
-                case_node.end();
-                progress.log("{s}: invalid EXPECTED_ERRORS {}\n", .{ case, macro });
+                progress.log("invalid EXPECTED_ERRORS {}\n", .{macro});
                 continue;
             }
 
             for (macro.simple.tokens) |str| {
                 if (str.id != .string_literal) {
                     fail_count += 1;
-                    case_node.end();
-                    progress.log("{s}: EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{ case, @tagName(str.id) });
+                    progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
                     break;
                 }
                 const expected_error = std.mem.trim(u8, pp.tokSliceSafe(str), "\"");
 
                 if (std.mem.indexOf(u8, m.buf.items, expected_error) == null) {
                     fail_count += 1;
-                    case_node.end();
                     progress.log(
-                        \\{s}: expected to find error:
+                        \\
+                        \\======= expected to find error =======
                         \\{s}
                         \\
-                        \\but output does not contain it
+                        \\=== but output does not contain it ===
                         \\{s}
                         \\
                         \\
-                    , .{ case, expected_error, m.buf.items });
+                    , .{ expected_error, m.buf.items });
                     break;
                 }
-            } else {
-                ok_count += 1;
-                case_node.end();
-            }
+            } else ok_count += 1;
             continue;
         }
 
