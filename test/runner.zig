@@ -74,6 +74,7 @@ pub fn main() !void {
     // iterate over all cases
     var ok_count: u32 = 0;
     var fail_count: u32 = 0;
+    var skip_count: u32 = 0;
     for (cases.items) |range| {
         const path = path_buf.items[range.start..range.end];
         const file = comp.addSource(path) catch |err| {
@@ -108,6 +109,17 @@ pub fn main() !void {
             .id = .eof,
             .loc = .{ .id = file.id, .byte_offset = @intCast(u32, file.buf.len) },
         });
+
+        if (pp.defines.get("TESTS_SKIPPED")) |macro| {
+            if (macro != .simple or macro.simple.tokens.len != 1 or macro.simple.tokens[0].id != .integer_literal) {
+                fail_count += 1;
+                case_node.end();
+                progress.log("{s}: invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{ case, macro });
+                continue;
+            }
+            const tok_slice = pp.tokSliceSafe(macro.simple.tokens[0]);
+            skip_count += try std.fmt.parseInt(u32, tok_slice, 0);
+        }
 
         if (pp.defines.get("EXPECTED_TOKENS")) |macro| {
             comp.renderErrors();
@@ -160,9 +172,45 @@ pub fn main() !void {
         var tree = try aro.Parser.parse(&pp);
         defer tree.deinit();
 
-        if (pp.defines.get("EXPECTED_ERRORS")) |_| {
-            // TODO
-            ok_count += 1;
+        if (pp.defines.get("EXPECTED_ERRORS")) |macro| {
+            var m = MsgWriter.init(gpa);
+            defer m.deinit();
+            aro.Diagnostics.renderExtra(&comp, &m);
+
+            if (macro != .simple) {
+                fail_count += 1;
+                case_node.end();
+                progress.log("{s}: invalid EXPECTED_ERRORS {}\n", .{ case, macro });
+                continue;
+            }
+
+            for (macro.simple.tokens) |str| {
+                if (str.id != .string_literal) {
+                    fail_count += 1;
+                    case_node.end();
+                    progress.log("{s}: EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{ case, @tagName(str.id) });
+                    break;
+                }
+                const expected_error = std.mem.trim(u8, pp.tokSliceSafe(str), "\"");
+
+                if (std.mem.indexOf(u8, m.buf.items, expected_error) == null) {
+                    fail_count += 1;
+                    case_node.end();
+                    progress.log(
+                        \\{s}: expected to find error:
+                        \\{s}
+                        \\
+                        \\but output does not contain it
+                        \\{s}
+                        \\
+                        \\
+                    , .{ case, expected_error, m.buf.items });
+                    break;
+                }
+            } else {
+                ok_count += 1;
+                case_node.end();
+            }
             continue;
         }
 
@@ -171,10 +219,51 @@ pub fn main() !void {
     }
 
     root_node.end();
-    if (ok_count == cases.items.len) {
-        print("All {d} tests passed.\n\n", .{ok_count});
+    if (ok_count == cases.items.len and skip_count == 0) {
+        print("All {d} tests passed.\n", .{ok_count});
+    } else if (fail_count == 0) {
+        print("{d} passed; {d} skipped.\n", .{ ok_count, skip_count });
     } else {
         print("{d} passed; {d} failed.\n\n", .{ ok_count, fail_count });
         std.process.exit(1);
     }
 }
+
+const MsgWriter = struct {
+    buf: std.ArrayList(u8),
+
+    fn init(gpa: *std.mem.Allocator) MsgWriter {
+        return .{
+            .buf = std.ArrayList(u8).init(gpa),
+        };
+    }
+
+    fn deinit(m: *MsgWriter) void {
+        m.buf.deinit();
+    }
+
+    pub fn print(m: *MsgWriter, comptime fmt: []const u8, args: anytype) void {
+        m.buf.writer().print(fmt, args) catch {};
+    }
+
+    pub fn write(m: *MsgWriter, msg: []const u8) void {
+        m.buf.writer().writeAll(msg) catch {};
+    }
+
+    pub fn location(m: *MsgWriter, path: []const u8, lcs: aro.Source.LCS) void {
+        m.print("{s}:{d}:{d}: ", .{ path, lcs.line, lcs.col });
+    }
+
+    pub fn start(m: *MsgWriter, kind: aro.Diagnostics.Kind) void {
+        m.print("{s}: ", .{@tagName(kind)});
+    }
+
+    pub fn end(m: *MsgWriter, lcs: ?aro.Source.LCS) void {
+        if (lcs == null) {
+            m.write("\n");
+            return;
+        }
+        m.print("\n{s}\n", .{lcs.?.str});
+        m.print("{s: >[1]}^\n", .{ "", lcs.?.col - 1 });
+    }
+};

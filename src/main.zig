@@ -6,7 +6,6 @@ const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
-const build_options = @import("build_options");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -87,7 +86,7 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                 return;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
                 const std_out = std.io.getStdOut().writer();
-                std_out.writeAll(build_options.version_str ++ "\n") catch |err| {
+                std_out.writeAll(@import("lib.zig").version_str ++ "\n") catch |err| {
                     return comp.diag.fatalNoSrc("{s} when trying to print version", .{@errorName(err)});
                 };
                 return;

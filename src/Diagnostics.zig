@@ -237,6 +237,10 @@ pub fn render(comp: *Compilation) void {
     var m = MsgWriter.init(comp.diag.color);
     defer m.deinit();
 
+    renderExtra(comp, &m);
+}
+
+pub fn renderExtra(comp: *Compilation, m: anytype) void {
     var errors: u32 = 0;
     var warnings: u32 = 0;
     for (comp.diag.list.items) |msg| {
@@ -407,7 +411,7 @@ pub fn render(comp: *Compilation) void {
     comp.diag.errors += errors;
 }
 
-const Kind = enum { @"fatal error", @"error", note, warning, off };
+pub const Kind = enum { @"fatal error", @"error", note, warning, off };
 
 fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
     var kind: Kind = switch (tag) {

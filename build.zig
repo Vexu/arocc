@@ -27,6 +27,7 @@ pub fn build(b: *Builder) void {
     run_step.dependOn(&run_cmd.step);
 
     const tests_step = b.step("test", "Run all tests");
+    tests_step.dependOn(&exe.step);
 
     var unit_tests = b.addTest("src/main.zig");
     tests_step.dependOn(&unit_tests.step);
