@@ -1603,7 +1603,7 @@ test "string prefix" {
 
 test "num suffixes" {
     try expectTokens(
-        \\ 1.0f 1.0L 1.0 .0 1.
+        \\ 1.0f 1.0L 1.0 .0 1. 0x1p0f 0X1p0
         \\ 0l 0lu 0ll 0llu 0
         \\ 1u 1ul 1ull 1
         \\
@@ -1612,6 +1612,8 @@ test "num suffixes" {
         .float_literal_l,
         .float_literal,
         .float_literal,
+        .float_literal,
+        .float_literal_f,
         .float_literal,
         .nl,
         .integer_literal_l,

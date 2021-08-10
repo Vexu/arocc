@@ -3100,12 +3100,21 @@ fn primaryExpr(p: *Parser) Error!Result {
         => {
             return p.todo("char literals");
         },
-        .float_literal,
-        .float_literal_f,
-        .float_literal_l,
-        => {
-            return p.todo("float literals");
+        .float_literal => {
+            defer p.tok_i += 1;
+            const ty = Type{ .specifier = .double };
+            return Result{ .ty = ty, .node = try p.addNode(
+                .{ .tag = .double_literal, .ty = ty, .data = .{ .double = try p.parseFloat(p.tok_i, f64) } },
+            ) };
         },
+        .float_literal_f => {
+            defer p.tok_i += 1;
+            const ty = Type{ .specifier = .float };
+            return Result{ .ty = ty, .node = try p.addNode(
+                .{ .tag = .float_literal, .ty = ty, .data = .{ .float = try p.parseFloat(p.tok_i, f32) } },
+            ) };
+        },
+        .float_literal_l => return p.todo("long double literals"),
         .zero => {
             p.tok_i += 1;
             var res: Result = .{ .val = .{ .signed = 0 } };
@@ -3191,6 +3200,22 @@ fn primaryExpr(p: *Parser) Error!Result {
             return p.todo("generic");
         },
         else => return Result{},
+    }
+}
+
+fn parseFloat(p: *Parser, tok: TokenIndex, comptime T: type) Error!T {
+    var bytes = p.tokSlice(tok);
+    if (p.tok_ids[tok] != .float_literal) bytes = bytes[0..bytes.len - 1];
+    if (bytes.len > 2 and (bytes[1] == 'x' or bytes[1] == 'X')) {
+        assert(bytes[0] == '0'); // validated by Tokenizer
+        return std.fmt.parseHexFloat(T, bytes) catch |e| switch (e) {
+            error.InvalidCharacter => unreachable, // validated by Tokenizer
+            error.Overflow => p.todo("what to do with hex floats too big"),
+        };
+    } else {
+        return std.fmt.parseFloat(T, bytes) catch |e| switch (e) {
+            error.InvalidCharacter => unreachable, // validated by Tokenizer
+        };
     }
 }
 
