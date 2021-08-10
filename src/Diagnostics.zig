@@ -150,6 +150,7 @@ pub const Tag = enum {
     wrong_tag,
     expected_parens_around_typename,
     alignof_expr,
+    invalid_sizeof,
 };
 
 const Options = struct {
@@ -391,6 +392,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .wrong_tag => m.print("use of '{s}' with tag type that does not match previous definition", .{msg.extra.str}),
             .expected_parens_around_typename => m.write("expected parentheses around type name"),
             .alignof_expr => m.write("'_Alignof' applied to an expression is a GNU extension"),
+            .invalid_sizeof => m.print("invalid application of 'sizeof' to an incomplete type '{s}'", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -522,6 +524,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .expected_str_literal,
         .parameter_missing,
         .expected_parens_around_typename,
+        .invalid_sizeof,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
