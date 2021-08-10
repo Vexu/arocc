@@ -180,6 +180,15 @@ pub fn isEnumOrRecord(ty: Type) bool {
     };
 }
 
+pub fn elemType(ty: Type) Type {
+    return switch (ty.specifier) {
+        .pointer, .unspecified_variable_len_array => ty.data.sub_type.*,
+        .array, .static_array, .incomplete_array => ty.data.array.elem,
+        .variable_len_array => ty.data.vla.elem,
+        else => unreachable,
+    };
+}
+
 pub fn wideChar(p: *Parser) Type {
     _ = p;
     // TODO get target from compilation
@@ -188,7 +197,12 @@ pub fn wideChar(p: *Parser) Type {
 
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
-        .void, .incomplete_array => true,
+        .void,
+        .incomplete_array,
+        .incomplete_struct,
+        .incomplete_union,
+        .incomplete_enum,
+        => true,
         else => false,
     };
 }
@@ -235,7 +249,14 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
 pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
     switch (inner.specifier) {
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
-        .variable_len_array, .unspecified_variable_len_array => return p.todo("combine array"),
+        .unspecified_variable_len_array => return p.todo("combine [*] array"),
+        .variable_len_array => {
+            try inner.data.vla.elem.combine(outer, p, source_tok);
+
+            if (inner.data.vla.elem.hasIncompleteSize()) return p.errTok(.array_incomplete_elem, source_tok);
+            if (inner.data.vla.elem.isFunc()) return p.errTok(.array_func_elem, source_tok);
+            if (inner.data.vla.elem.qual.any() and inner.isArray()) return p.errTok(.qualifier_non_outermost_array, source_tok);
+        },
         .array, .static_array, .incomplete_array => {
             try inner.data.array.elem.combine(outer, p, source_tok);
 
@@ -668,7 +689,7 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             for (ty.data.func.params) |param, i| {
                 if (i != 0) try w.writeAll(", ");
                 if (param.register) try w.writeAll("register ");
-                try w.print("{s}: ", .{param.name});
+                if (param.name.len != 0) try w.print("{s}: ", .{param.name});
                 try param.ty.dump(w);
             }
             if (ty.specifier != .func) {

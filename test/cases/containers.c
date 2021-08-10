@@ -22,6 +22,12 @@ struct StructTest{
     _Static_assert(sizeof(struct StructTest), "foo");
 };
 
+void foo(void) {
+    union StructTest {
+        int b;
+    };
+}
+
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
     "containers.c:20:6: warning: declaration does not declare anything" \

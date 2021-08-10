@@ -12,4 +12,11 @@ int fooo(bar, baz)
     return *baz * bar;
 }
 
+int foooo(n, bar)
+    int n;
+    int bar[n];
+{
+    return n;
+}
+
 #define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing"
