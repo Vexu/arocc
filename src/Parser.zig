@@ -820,17 +820,17 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
     while (true) {
         if (try p.typeQual(complete_type)) continue;
         switch (p.tok_ids[p.tok_i]) {
-            .keyword_void => try ty.combine(p, .void),
-            .keyword_bool => try ty.combine(p, .bool),
-            .keyword_char => try ty.combine(p, .char),
-            .keyword_short => try ty.combine(p, .short),
-            .keyword_int => try ty.combine(p, .int),
-            .keyword_long => try ty.combine(p, .long),
-            .keyword_signed => try ty.combine(p, .signed),
-            .keyword_unsigned => try ty.combine(p, .unsigned),
-            .keyword_float => try ty.combine(p, .float),
-            .keyword_double => try ty.combine(p, .double),
-            .keyword_complex => try ty.combine(p, .complex),
+            .keyword_void => try ty.combine(p, .void, p.tok_i),
+            .keyword_bool => try ty.combine(p, .bool, p.tok_i),
+            .keyword_char => try ty.combine(p, .char, p.tok_i),
+            .keyword_short => try ty.combine(p, .short, p.tok_i),
+            .keyword_int => try ty.combine(p, .int, p.tok_i),
+            .keyword_long => try ty.combine(p, .long, p.tok_i),
+            .keyword_signed => try ty.combine(p, .signed, p.tok_i),
+            .keyword_unsigned => try ty.combine(p, .unsigned, p.tok_i),
+            .keyword_float => try ty.combine(p, .float, p.tok_i),
+            .keyword_double => try ty.combine(p, .double, p.tok_i),
+            .keyword_complex => try ty.combine(p, .complex, p.tok_i),
             .keyword_atomic => {
                 const atomic_tok = p.tok_i;
                 p.tok_i += 1;
@@ -846,12 +846,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 try p.expectClosing(l_paren, .r_paren);
 
                 const new_spec = Type.Builder.fromType(inner_ty);
-
-                // combine() uses p.tok_i for error reporting
-                const cur = p.tok_i;
-                defer p.tok_i = cur;
-                p.tok_i = atomic_tok;
-                try ty.combine(p, new_spec);
+                try ty.combine(p, new_spec, atomic_tok);
 
                 if (complete_type.qual.atomic)
                     try p.errStr(.duplicate_decl_spec, atomic_tok, "atomic")
@@ -862,17 +857,17 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 continue;
             },
             .keyword_struct => {
-                try ty.combine(p, .{ .@"struct" = undefined });
+                try ty.combine(p, .{ .@"struct" = undefined }, p.tok_i);
                 ty.kind.@"struct" = try p.recordSpec();
                 continue;
             },
             .keyword_union => {
-                try ty.combine(p, .{ .@"union" = undefined });
+                try ty.combine(p, .{ .@"union" = undefined }, p.tok_i);
                 ty.kind.@"union" = try p.recordSpec();
                 continue;
             },
             .keyword_enum => {
-                try ty.combine(p, .{ .@"enum" = undefined });
+                try ty.combine(p, .{ .@"enum" = undefined }, p.tok_i);
                 ty.kind.@"enum" = try p.enumSpec();
                 continue;
             },
@@ -881,7 +876,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 const new_spec = Type.Builder.fromType(typedef.ty);
 
                 const err_start = p.pp.comp.diag.list.items.len;
-                ty.combine(p, new_spec) catch {
+                ty.combine(p, new_spec, p.tok_i) catch {
                     // Remove new error messages
                     // TODO improve/make threadsafe?
                     p.pp.comp.diag.list.items.len = err_start;

@@ -458,17 +458,16 @@ pub const Builder = struct {
         };
     }
 
-    pub fn cannotCombine(spec: Builder, p: *Parser) Parser.Error {
-        try p.errExtra(.cannot_combine_spec, p.tok_i, .{ .str = spec.kind.str() });
+    pub fn cannotCombine(spec: Builder, p: *Parser, source_tok: TokenIndex) Compilation.Error!void {
+        try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = spec.kind.str() });
         if (spec.typedef) |some| try p.errStr(.sepc_from_typedef, some.tok, some.spec);
-        return error.ParsingFailed;
     }
 
-    pub fn combine(spec: *Builder, p: *Parser, new: Kind) Parser.Error!void {
+    pub fn combine(spec: *Builder, p: *Parser, new: Kind, source_tok: TokenIndex) Compilation.Error!void {
         switch (new) {
             else => switch (spec.kind) {
                 .none => spec.kind = new,
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .signed => spec.kind = switch (spec.kind) {
                 .none => .signed,
@@ -488,7 +487,7 @@ pub const Builder = struct {
                 .slong_long,
                 .slong_long_int,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "signed"),
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .unsigned => spec.kind = switch (spec.kind) {
                 .none => .unsigned,
@@ -508,20 +507,20 @@ pub const Builder = struct {
                 .ulong_long,
                 .ulong_long_int,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "unsigned"),
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .char => spec.kind = switch (spec.kind) {
                 .none => .char,
                 .unsigned => .uchar,
                 .signed => .schar,
                 .char, .schar, .uchar => return p.errStr(.duplicate_decl_spec, p.tok_i, "char"),
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .short => spec.kind = switch (spec.kind) {
                 .none => .short,
                 .unsigned => .ushort,
                 .signed => .sshort,
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .int => spec.kind = switch (spec.kind) {
                 .none => .int,
@@ -549,7 +548,7 @@ pub const Builder = struct {
                 .slong_long_int,
                 .ulong_long_int,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "int"),
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .long => spec.kind = switch (spec.kind) {
                 .none => .long,
@@ -560,13 +559,13 @@ pub const Builder = struct {
                 .sint => .slong_int,
                 .ulong => .ulong_long,
                 .long_long, .ulong_long => return p.errStr(.duplicate_decl_spec, p.tok_i, "long"),
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .float => spec.kind = switch (spec.kind) {
                 .none => .float,
                 .complex => .complex_float,
                 .complex_float, .float => return p.errStr(.duplicate_decl_spec, p.tok_i, "float"),
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .double => spec.kind = switch (spec.kind) {
                 .none => .double,
@@ -578,7 +577,7 @@ pub const Builder = struct {
                 .complex_double,
                 .double,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "double"),
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
             .complex => spec.kind = switch (spec.kind) {
                 .none => .complex,
@@ -592,7 +591,7 @@ pub const Builder = struct {
                 .complex_double,
                 .complex_long_double,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "_Complex"),
-                else => return spec.cannotCombine(p),
+                else => return spec.cannotCombine(p, source_tok),
             },
         }
     }
