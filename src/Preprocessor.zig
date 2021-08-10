@@ -400,12 +400,16 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         .tok_i = @intCast(u32, start),
         .arena = &pp.arena.allocator,
         .in_macro = true,
-        .cur_decl_list = undefined,
-        .scopes = undefined,
         .data = undefined,
-        .labels = undefined,
         .strings = undefined,
         .value_map = undefined,
+        .scopes = undefined,
+        .labels = undefined,
+        .decl_buf = undefined,
+        .list_buf = undefined,
+        .param_buf = undefined,
+        .enum_buf = undefined,
+        .record_buf = undefined,
     };
     return parser.macroExpr();
 }
