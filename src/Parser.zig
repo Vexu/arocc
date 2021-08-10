@@ -2794,8 +2794,52 @@ fn unExpr(p: *Parser) Error!Result {
             operand.ty = .{ .specifier = .int };
             return operand.un(p, .bool_not_expr);
         },
-        .keyword_sizeof => return p.todo("unExpr sizeof"),
-        .keyword_alignof => return p.todo("unExpr alignof"),
+        .keyword_sizeof => {
+            p.tok_i += 1;
+            const expected_paren = p.tok_i;
+            var res = Result{};
+            if (try p.typeName()) |ty| {
+                res.ty = ty;
+                try p.errTok(.expected_parens_around_typename, expected_paren);
+            } else if (p.eatToken(.l_paren)) |l_paren| {
+                if (try p.typeName()) |ty| {
+                    res.ty = ty;
+                    try p.expectClosing(l_paren, .r_paren);
+                } else {
+                    p.tok_i = expected_paren;
+                    res = try p.unExpr();
+                }
+            } else {
+                res = try p.unExpr();
+            }
+
+            res.val = .{ .unsigned = res.ty.sizeof(p.pp.comp) };
+            return res.un(p, .sizeof_expr);
+        },
+        .keyword_alignof, .keyword_alignof1, .keywrod_alignof2 => {
+            p.tok_i += 1;
+            const expected_paren = p.tok_i;
+            var res = Result{};
+            if (try p.typeName()) |ty| {
+                res.ty = ty;
+                try p.errTok(.expected_parens_around_typename, expected_paren);
+            } else if (p.eatToken(.l_paren)) |l_paren| {
+                if (try p.typeName()) |ty| {
+                    res.ty = ty;
+                    try p.expectClosing(l_paren, .r_paren);
+                } else {
+                    p.tok_i = expected_paren;
+                    res = try p.unExpr();
+                    try p.errTok(.alignof_expr, expected_paren);
+                }
+            } else {
+                res = try p.unExpr();
+                try p.errTok(.alignof_expr, expected_paren);
+            }
+
+            res.val = .{ .unsigned = res.ty.alignment };
+            return res.un(p, .alignof_expr);
+        },
         else => {
             var lhs = try p.primaryExpr();
             while (true) {

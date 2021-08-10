@@ -323,8 +323,13 @@ pub const Tag = enum(u8) {
     double_literal,
     /// tree.str[index..][0..len]
     string_literal_expr,
+    /// sizeof(un?)
+    sizeof_expr,
+    /// _Alignof(un?)
+    alignof_expr,
 
     // ====== Initializer expressions ======
+
     /// { lhs, rhs }
     compound_initializer_expr_two,
     /// { range }
@@ -793,6 +798,13 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("initializer:\n");
             try tree.dumpNode(data.bin.rhs, level + delta, w);
+        },
+        .sizeof_expr, .alignof_expr => {
+            if (data.un != .none) {
+                try w.writeByteNTimes(' ', level + 1);
+                try w.writeAll("expr:\n");
+                try tree.dumpNode(data.un, level + delta, w);
+            }
         },
     }
 }
