@@ -3084,11 +3084,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
 ///  | CHAR_LITERAL
 ///  | STRING_LITERAL
 ///  | '(' expr ')'
-///  | keyword_generic '(' assignExpr ',' genericAssoc (',' genericAssoc)* ')'
-///
-/// genericAssoc
-///  : typeName ':' assignExpr
-///  | keyword_default ':' assignExpr
+///  | genericSelection
 fn primaryExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         var e = try p.expr();
@@ -3204,181 +3200,10 @@ fn primaryExpr(p: *Parser) Error!Result {
         .integer_literal_lu,
         .integer_literal_ll,
         .integer_literal_llu,
-        => {
-            const id = p.tok_ids[p.tok_i];
-            var slice = p.tokSlice(p.tok_i);
-            defer p.tok_i += 1;
-            var base: u8 = 10;
-            if (mem.startsWith(u8, slice, "0x") or mem.startsWith(u8, slice, "0X")) {
-                slice = slice[2..];
-                base = 10;
-            } else if (mem.startsWith(u8, slice, "0b") or mem.startsWith(u8, slice, "0B")) {
-                slice = slice[2..];
-                base = 2;
-            } else if (slice[0] == '0') {
-                base = 8;
-            }
-            switch (id) {
-                .integer_literal_u, .integer_literal_l => slice = slice[0 .. slice.len - 1],
-                .integer_literal_lu, .integer_literal_ll => slice = slice[0 .. slice.len - 2],
-                .integer_literal_llu => slice = slice[0 .. slice.len - 3],
-                else => {},
-            }
-
-            var val: u64 = 0;
-            var overflow = false;
-            for (slice) |c| {
-                const digit: u64 = switch (c) {
-                    '0'...'9' => c - '0',
-                    'A'...'Z' => c - 'A' + 10,
-                    'a'...'z' => c - 'a' + 10,
-                    else => unreachable,
-                };
-
-                if (val != 0 and @mulWithOverflow(u64, val, base, &val)) overflow = true;
-                if (@addWithOverflow(u64, val, digit, &val)) overflow = true;
-            }
-            if (overflow) {
-                try p.err(.int_literal_too_big);
-                var res: Result = .{ .ty = .{ .specifier = .ulong_long }, .val = .{ .unsigned = val } };
-                res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
-                return res;
-            }
-
-            if (base == 10) {
-                switch (id) {
-                    .integer_literal => return p.castInt(val, &.{ .int, .long, .long_long }),
-                    .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-                    .integer_literal_l => return p.castInt(val, &.{ .long, .long_long }),
-                    .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
-                    .integer_literal_ll => return p.castInt(val, &.{.long_long}),
-                    .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
-                    else => unreachable,
-                }
-            } else {
-                switch (id) {
-                    .integer_literal => return p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
-                    .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-                    .integer_literal_l => return p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
-                    .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
-                    .integer_literal_ll => return p.castInt(val, &.{ .long_long, .ulong_long }),
-                    .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
-                    else => unreachable,
-                }
-            }
-        },
-        .keyword_generic => {
-            p.tok_i += 1;
-            const l_paren = try p.expectToken(.l_paren);
-            const controlling = try p.assignExpr();
-            _ = try p.expectToken(.comma);
-
-            const list_buf_top = p.list_buf.items.len;
-            defer p.list_buf.items.len = list_buf_top;
-            try p.list_buf.append(controlling.node);
-
-            var default_tok: ?TokenIndex = null;
-            // TODO actually choose
-            var chosen: Result = .{};
-            while (true) {
-                const start = p.tok_i;
-                if (try p.typeName()) |ty| {
-                    if (ty.qual.any()) {
-                        try p.errTok(.generic_qual_type, start);
-                    }
-                    _ = try p.expectToken(.colon);
-                    chosen = try p.assignExpr();
-                    try p.list_buf.append(try p.addNode(.{
-                        .tag = .generic_association_expr,
-                        .ty = ty,
-                        .data = .{ .un = chosen.node },
-                    }));
-                } else if (p.eatToken(.keyword_default)) |tok| {
-                    if (default_tok) |prev| {
-                        try p.errTok(.generic_duplicate_default, tok);
-                        try p.errTok(.previous_case, prev);
-                    }
-                    default_tok = tok;
-                    _ = try p.expectToken(.colon);
-                    chosen = try p.assignExpr();
-                    try p.list_buf.append(try p.addNode(.{
-                        .tag = .generic_default_expr,
-                        .data = .{ .un = chosen.node },
-                    }));
-                } else {
-                    if (p.list_buf.items.len == list_buf_top + 1) {
-                        try p.err(.expected_type);
-                        return error.ParsingFailed;
-                    }
-                    break;
-                }
-                if (p.eatToken(.comma) == null) break;
-            }
-            try p.expectClosing(l_paren, .r_paren);
-
-            var generic_node: Tree.Node = .{
-                .tag = .generic_expr_one,
-                .ty = chosen.ty,
-                .data = .{ .bin = .{ .lhs = controlling.node, .rhs = chosen.node } },
-            };
-            const associations = p.list_buf.items[list_buf_top..];
-            if (associations.len > 2) { // associations[0] == controlling.node
-                generic_node.tag = .generic_expr;
-                generic_node.data = .{ .range = try p.addList(associations) };
-            }
-            chosen.node = try p.addNode(generic_node);
-            return chosen;
-        },
+        => return p.integerLiteral(),
+        .keyword_generic => return p.genericSelection(),
         else => return Result{},
     }
-}
-
-fn parseFloat(p: *Parser, tok: TokenIndex, comptime T: type) Error!T {
-    var bytes = p.tokSlice(tok);
-    if (p.tok_ids[tok] != .float_literal) bytes = bytes[0 .. bytes.len - 1];
-    if (bytes.len > 2 and (bytes[1] == 'x' or bytes[1] == 'X')) {
-        assert(bytes[0] == '0'); // validated by Tokenizer
-        return std.fmt.parseHexFloat(T, bytes) catch |e| switch (e) {
-            error.InvalidCharacter => unreachable, // validated by Tokenizer
-            error.Overflow => p.todo("what to do with hex floats too big"),
-        };
-    } else {
-        return std.fmt.parseFloat(T, bytes) catch |e| switch (e) {
-            error.InvalidCharacter => unreachable, // validated by Tokenizer
-        };
-    }
-}
-
-fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
-    var res: Result = .{};
-    for (specs) |spec| {
-        const ty = Type{ .specifier = spec };
-        const unsigned = ty.isUnsignedInt(p.pp.comp);
-        const size = ty.sizeof(p.pp.comp).?;
-        res.ty = ty;
-
-        if (unsigned) {
-            res.val = .{ .unsigned = val };
-            switch (size) {
-                2 => if (val <= std.math.maxInt(u16)) break,
-                4 => if (val <= std.math.maxInt(u32)) break,
-                8 => if (val <= std.math.maxInt(u64)) break,
-                else => unreachable,
-            }
-        } else {
-            res.val = .{ .signed = @bitCast(i64, val) };
-            switch (size) {
-                2 => if (val <= std.math.maxInt(i16)) break,
-                4 => if (val <= std.math.maxInt(i32)) break,
-                8 => if (val <= std.math.maxInt(i64)) break,
-                else => unreachable,
-            }
-        }
-    } else {
-        res.ty = .{ .specifier = .ulong_long };
-    }
-    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
-    return res;
 }
 
 fn stringLiteral(p: *Parser) Error!Result {
@@ -3492,4 +3317,183 @@ fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8,
     var buf: [4]u8 = undefined;
     const to_write = std.unicode.utf8Encode(c, &buf) catch unreachable; // validated above
     p.strings.appendSliceAssumeCapacity(buf[0..to_write]);
+}
+
+fn parseFloat(p: *Parser, tok: TokenIndex, comptime T: type) Error!T {
+    var bytes = p.tokSlice(tok);
+    if (p.tok_ids[tok] != .float_literal) bytes = bytes[0 .. bytes.len - 1];
+    if (bytes.len > 2 and (bytes[1] == 'x' or bytes[1] == 'X')) {
+        assert(bytes[0] == '0'); // validated by Tokenizer
+        return std.fmt.parseHexFloat(T, bytes) catch |e| switch (e) {
+            error.InvalidCharacter => unreachable, // validated by Tokenizer
+            error.Overflow => p.todo("what to do with hex floats too big"),
+        };
+    } else {
+        return std.fmt.parseFloat(T, bytes) catch |e| switch (e) {
+            error.InvalidCharacter => unreachable, // validated by Tokenizer
+        };
+    }
+}
+
+fn integerLiteral(p: *Parser) Error!Result {
+    const id = p.tok_ids[p.tok_i];
+    var slice = p.tokSlice(p.tok_i);
+    defer p.tok_i += 1;
+    var base: u8 = 10;
+    if (mem.startsWith(u8, slice, "0x") or mem.startsWith(u8, slice, "0X")) {
+        slice = slice[2..];
+        base = 10;
+    } else if (mem.startsWith(u8, slice, "0b") or mem.startsWith(u8, slice, "0B")) {
+        slice = slice[2..];
+        base = 2;
+    } else if (slice[0] == '0') {
+        base = 8;
+    }
+    switch (id) {
+        .integer_literal_u, .integer_literal_l => slice = slice[0 .. slice.len - 1],
+        .integer_literal_lu, .integer_literal_ll => slice = slice[0 .. slice.len - 2],
+        .integer_literal_llu => slice = slice[0 .. slice.len - 3],
+        else => {},
+    }
+
+    var val: u64 = 0;
+    var overflow = false;
+    for (slice) |c| {
+        const digit: u64 = switch (c) {
+            '0'...'9' => c - '0',
+            'A'...'Z' => c - 'A' + 10,
+            'a'...'z' => c - 'a' + 10,
+            else => unreachable,
+        };
+
+        if (val != 0 and @mulWithOverflow(u64, val, base, &val)) overflow = true;
+        if (@addWithOverflow(u64, val, digit, &val)) overflow = true;
+    }
+    if (overflow) {
+        try p.err(.int_literal_too_big);
+        var res: Result = .{ .ty = .{ .specifier = .ulong_long }, .val = .{ .unsigned = val } };
+        res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
+        return res;
+    }
+
+    if (base == 10) {
+        switch (id) {
+            .integer_literal => return p.castInt(val, &.{ .int, .long, .long_long }),
+            .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+            .integer_literal_l => return p.castInt(val, &.{ .long, .long_long }),
+            .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
+            .integer_literal_ll => return p.castInt(val, &.{.long_long}),
+            .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
+            else => unreachable,
+        }
+    } else {
+        switch (id) {
+            .integer_literal => return p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
+            .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+            .integer_literal_l => return p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
+            .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
+            .integer_literal_ll => return p.castInt(val, &.{ .long_long, .ulong_long }),
+            .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
+            else => unreachable,
+        }
+    }
+}
+
+fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
+    var res: Result = .{};
+    for (specs) |spec| {
+        const ty = Type{ .specifier = spec };
+        const unsigned = ty.isUnsignedInt(p.pp.comp);
+        const size = ty.sizeof(p.pp.comp).?;
+        res.ty = ty;
+
+        if (unsigned) {
+            res.val = .{ .unsigned = val };
+            switch (size) {
+                2 => if (val <= std.math.maxInt(u16)) break,
+                4 => if (val <= std.math.maxInt(u32)) break,
+                8 => if (val <= std.math.maxInt(u64)) break,
+                else => unreachable,
+            }
+        } else {
+            res.val = .{ .signed = @bitCast(i64, val) };
+            switch (size) {
+                2 => if (val <= std.math.maxInt(i16)) break,
+                4 => if (val <= std.math.maxInt(i32)) break,
+                8 => if (val <= std.math.maxInt(i64)) break,
+                else => unreachable,
+            }
+        }
+    } else {
+        res.ty = .{ .specifier = .ulong_long };
+    }
+    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
+    return res;
+}
+
+/// genericSelection : keyword_generic '(' assignExpr ',' genericAssoc (',' genericAssoc)* ')'
+/// genericAssoc
+///  : typeName ':' assignExpr
+///  | keyword_default ':' assignExpr
+fn genericSelection(p: *Parser) Error!Result {
+    p.tok_i += 1;
+    const l_paren = try p.expectToken(.l_paren);
+    const controlling = try p.assignExpr();
+    _ = try p.expectToken(.comma);
+
+    const list_buf_top = p.list_buf.items.len;
+    defer p.list_buf.items.len = list_buf_top;
+    try p.list_buf.append(controlling.node);
+
+    var default_tok: ?TokenIndex = null;
+    // TODO actually choose
+    var chosen: Result = .{};
+    while (true) {
+        const start = p.tok_i;
+        if (try p.typeName()) |ty| {
+            if (ty.qual.any()) {
+                try p.errTok(.generic_qual_type, start);
+            }
+            _ = try p.expectToken(.colon);
+            chosen = try p.assignExpr();
+            try p.list_buf.append(try p.addNode(.{
+                .tag = .generic_association_expr,
+                .ty = ty,
+                .data = .{ .un = chosen.node },
+            }));
+        } else if (p.eatToken(.keyword_default)) |tok| {
+            if (default_tok) |prev| {
+                try p.errTok(.generic_duplicate_default, tok);
+                try p.errTok(.previous_case, prev);
+            }
+            default_tok = tok;
+            _ = try p.expectToken(.colon);
+            chosen = try p.assignExpr();
+            try p.list_buf.append(try p.addNode(.{
+                .tag = .generic_default_expr,
+                .data = .{ .un = chosen.node },
+            }));
+        } else {
+            if (p.list_buf.items.len == list_buf_top + 1) {
+                try p.err(.expected_type);
+                return error.ParsingFailed;
+            }
+            break;
+        }
+        if (p.eatToken(.comma) == null) break;
+    }
+    try p.expectClosing(l_paren, .r_paren);
+
+    var generic_node: Tree.Node = .{
+        .tag = .generic_expr_one,
+        .ty = chosen.ty,
+        .data = .{ .bin = .{ .lhs = controlling.node, .rhs = chosen.node } },
+    };
+    const associations = p.list_buf.items[list_buf_top..];
+    if (associations.len > 2) { // associations[0] == controlling.node
+        generic_node.tag = .generic_expr;
+        generic_node.data = .{ .range = try p.addList(associations) };
+    }
+    chosen.node = try p.addNode(generic_node);
+    return chosen;
 }
