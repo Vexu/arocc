@@ -152,6 +152,10 @@ pub const Tag = enum {
     alignof_expr,
     invalid_sizeof,
     macro_redefined,
+    generic_qual_type,
+    generic_duplicate,
+    generic_duplicate_default,
+    generic_no_match,
 };
 
 const Options = struct {
@@ -168,6 +172,7 @@ const Options = struct {
     @"empty-struct": Kind = .off,
     @"gnu-alignof-expression": Kind = .warning,
     @"macro-redefined": Kind = .warning,
+    @"generic-qual-type": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -396,6 +401,10 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .alignof_expr => m.write("'_Alignof' applied to an expression is a GNU extension"),
             .invalid_sizeof => m.print("invalid application of 'sizeof' to an incomplete type '{s}'", .{msg.extra.str}),
             .macro_redefined => m.print("'{s}' macro redefined", .{msg.extra.str}),
+            .generic_qual_type => m.write("generic association with qualifiers cannot be matched with"),
+            .generic_duplicate => m.print("type '{s}' in generic association compatible with previously specified type", .{msg.extra.str}),
+            .generic_duplicate_default => m.write("duplicate default generic association"),
+            .generic_no_match => m.print("controlling expression type '{s}' not compatile with any generic association type", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -528,6 +537,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .parameter_missing,
         .expected_parens_around_typename,
         .invalid_sizeof,
+        .generic_duplicate,
+        .generic_duplicate_default,
+        .generic_no_match,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -557,6 +569,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .empty_record => diag.options.@"empty-struct",
         .alignof_expr => diag.options.@"gnu-alignof-expression",
         .macro_redefined => diag.options.@"macro-redefined",
+        .generic_qual_type => diag.options.@"generic-qual-type",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

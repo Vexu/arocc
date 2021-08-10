@@ -2957,6 +2957,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
 
             const list_buf_top = p.list_buf.items.len;
             defer p.list_buf.items.len = list_buf_top;
+            try p.list_buf.append(lhs.node);
             var arg_count: u32 = 0;
 
             var first_after = l_paren;
@@ -3000,12 +3001,11 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 .data = .{ .bin = .{ .lhs = lhs.node, .rhs = .none } },
             };
             const args = p.list_buf.items[list_buf_top..];
-            switch (args.len) {
+            switch (arg_count) {
                 0 => {},
-                1 => call_node.data.bin.rhs = args[0],
+                1 => call_node.data.bin.rhs = args[1], // args[0] == lhs.node
                 else => {
                     call_node.tag = .call_expr;
-                    try p.data.append(lhs.node);
                     call_node.data = .{ .range = try p.addList(args) };
                 },
             }
@@ -3268,7 +3268,66 @@ fn primaryExpr(p: *Parser) Error!Result {
             }
         },
         .keyword_generic => {
-            return p.todo("generic");
+            p.tok_i += 1;
+            const l_paren = try p.expectToken(.l_paren);
+            const controlling = try p.assignExpr();
+            _ = try p.expectToken(.comma);
+
+            const list_buf_top = p.list_buf.items.len;
+            defer p.list_buf.items.len = list_buf_top;
+            try p.list_buf.append(controlling.node);
+
+            var default_tok: ?TokenIndex = null;
+            // TODO actually choose
+            var chosen: Result = .{};
+            while (true) {
+                const start = p.tok_i;
+                if (try p.typeName()) |ty| {
+                    if (ty.qual.any()) {
+                        try p.errTok(.generic_qual_type, start);
+                    }
+                    _ = try p.expectToken(.colon);
+                    chosen = try p.assignExpr();
+                    try p.list_buf.append(try p.addNode(.{
+                        .tag = .generic_association_expr,
+                        .ty = ty,
+                        .data = .{ .un = chosen.node },
+                    }));
+                } else if (p.eatToken(.keyword_default)) |tok| {
+                    if (default_tok) |prev| {
+                        try p.errTok(.generic_duplicate_default, tok);
+                        try p.errTok(.previous_case, prev);
+                    }
+                    default_tok = tok;
+                    _ = try p.expectToken(.colon);
+                    chosen = try p.assignExpr();
+                    try p.list_buf.append(try p.addNode(.{
+                        .tag = .generic_default_expr,
+                        .data = .{ .un = chosen.node },
+                    }));
+                } else {
+                    if (p.list_buf.items.len == list_buf_top + 1) {
+                        try p.err(.expected_type);
+                        return error.ParsingFailed;
+                    }
+                    break;
+                }
+                if (p.eatToken(.comma) == null) break;
+            }
+            try p.expectClosing(l_paren, .r_paren);
+
+            var generic_node: Tree.Node = .{
+                .tag = .generic_expr_one,
+                .ty = chosen.ty,
+                .data = .{ .bin = .{ .lhs = controlling.node, .rhs = chosen.node } },
+            };
+            const associations = p.list_buf.items[list_buf_top..];
+            if (associations.len > 2) { // associations[0] == controlling.node
+                generic_node.tag = .generic_expr;
+                generic_node.data = .{ .range = try p.addList(associations) };
+            }
+            chosen.node = try p.addNode(generic_node);
+            return chosen;
         },
         else => return Result{},
     }

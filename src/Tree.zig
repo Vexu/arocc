@@ -327,6 +327,14 @@ pub const Tag = enum(u8) {
     sizeof_expr,
     /// _Alignof(un?)
     alignof_expr,
+    /// _Generic(controlling lhs, chosen rhs)
+    generic_expr_one,
+    /// _Generic(controlling range[0], chosen range[1], rest range[2..])
+    generic_expr,
+    /// ty: un
+    generic_association_expr,
+    // default: un
+    generic_default_expr,
 
     // ====== Initializer expressions ======
 
@@ -805,6 +813,31 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeAll("expr:\n");
                 try tree.dumpNode(data.un, level + delta, w);
             }
+        },
+        .generic_expr_one => {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("controlling:\n");
+            try tree.dumpNode(data.bin.lhs, level + delta, w);
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("chosen:\n");
+            try tree.dumpNode(data.bin.rhs, level + delta, w);
+        },
+        .generic_expr => {
+            const nodes = tree.data[data.range.start..data.range.end];
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("controlling:\n");
+            try tree.dumpNode(nodes[0], level + delta, w);
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("chosen:\n");
+            try tree.dumpNode(nodes[1], level + delta, w);
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("rest:\n");
+            for (nodes[2..]) |expr| {
+                try tree.dumpNode(expr, level + delta, w);
+            }
+        },
+        .generic_association_expr, .generic_default_expr => {
+            try tree.dumpNode(data.un, level + delta, w);
         },
     }
 }
