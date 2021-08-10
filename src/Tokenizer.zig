@@ -843,11 +843,11 @@ pub fn next(self: *Tokenizer) Token {
                 'x' => state = .hex_escape,
                 'u' => {
                     counter = 4;
-                    state = .octal_escape;
+                    state = .unicode_escape;
                 },
                 'U' => {
                     counter = 8;
-                    state = .octal_escape;
+                    state = .unicode_escape;
                 },
                 else => {
                     id = .invalid;

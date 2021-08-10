@@ -156,6 +156,8 @@ pub const Tag = enum {
     generic_duplicate,
     generic_duplicate_default,
     generic_no_match,
+    escape_sequence_overflow,
+    invalid_universal_character,
 };
 
 const Options = struct {
@@ -272,6 +274,14 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             const loc = if (msg.loc.next != null) msg.loc.next.?.* else msg.loc;
             const source = comp.getSource(loc.id);
             lcs = source.lineColString(loc.byte_offset);
+            switch (msg.tag) {
+                .escape_sequence_overflow,
+                .invalid_universal_character,
+                => { // use msg.extra.unsigned for index into string literal
+                    lcs.?.col += @truncate(u32, msg.extra.unsigned);
+                },
+                else => {},
+            }
             m.location(source.path, lcs.?);
         }
 
@@ -405,6 +415,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .generic_duplicate => m.print("type '{s}' in generic association compatible with previously specified type", .{msg.extra.str}),
             .generic_duplicate_default => m.write("duplicate default generic association"),
             .generic_no_match => m.print("controlling expression type '{s}' not compatile with any generic association type", .{msg.extra.str}),
+            .escape_sequence_overflow => m.write("escape sequence out of range"),
+            .invalid_universal_character => m.write("invalid universal character"),
         }
         m.end(lcs);
 
@@ -540,6 +552,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .generic_duplicate,
         .generic_duplicate_default,
         .generic_no_match,
+        .escape_sequence_overflow,
+        .invalid_universal_character,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
