@@ -1204,7 +1204,7 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
     var any = false;
     while (true) {
         switch (p.tok_ids[p.tok_i]) {
-            .keyword_restrict => {
+            .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => {
                 if (ty.specifier != .pointer)
                     try p.errExtra(.restrict_non_pointer, p.tok_i, .{ .str = Type.Builder.fromType(ty.*).str() })
                 else if (ty.qual.restrict)
@@ -1212,13 +1212,13 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
                 else
                     ty.qual.restrict = true;
             },
-            .keyword_const => {
+            .keyword_const, .keyword_const1, .keyword_const2 => {
                 if (ty.qual.@"const")
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "const")
                 else
                     ty.qual.@"const" = true;
             },
-            .keyword_volatile => {
+            .keyword_volatile, .keyword_volatile1, .keyword_volatile2 => {
                 if (ty.qual.@"volatile")
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "volatile")
                 else

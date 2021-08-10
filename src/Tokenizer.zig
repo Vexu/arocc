@@ -174,6 +174,14 @@ pub const Token = struct {
         keyword_line,
         keyword_va_args,
 
+        // gcc keywords
+        keyword_const1,
+        keyword_const2,
+        keyword_volatile1,
+        keyword_volatile2,
+        keyword_restrict1,
+        keyword_restrict2,
+
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
@@ -401,6 +409,12 @@ pub const Token = struct {
                 .keyword_pragma => "pragma",
                 .keyword_line => "line",
                 .keyword_va_args => "__VA_ARGS__",
+                .keyword_const1 => "__const",
+                .keyword_const2 => "__const__",
+                .keyword_volatile1 => "__volatile",
+                .keyword_volatile2 => "__volatile__",
+                .keyword_restrict1 => "__restrict",
+                .keyword_restrict2 => "__restrict__",
             };
         }
 
@@ -498,6 +512,14 @@ pub const Token = struct {
         .{ "pragma", .keyword_pragma },
         .{ "line", .keyword_line },
         .{ "__VA_ARGS__", .keyword_va_args },
+
+        // gcc keywords
+        .{ "__const", .keyword_const1 },
+        .{ "__const__", .keyword_const2 },
+        .{ "__volatile", .keyword_volatile1 },
+        .{ "__volatile__", .keyword_volatile2 },
+        .{ "__restrict", .keyword_restrict1 },
+        .{ "__restrict__", .keyword_restrict2 },
     });
 };
 
