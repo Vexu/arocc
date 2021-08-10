@@ -3164,9 +3164,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         .char_literal_utf_16,
         .char_literal_utf_32,
         .char_literal_wide,
-        => {
-            return p.todo("char literals");
-        },
+        => return p.charLiteral(),
         .float_literal => {
             defer p.tok_i += 1;
             const ty = Type{ .specifier = .double };
@@ -3238,7 +3236,7 @@ fn stringLiteral(p: *Parser) Error!Result {
         p.tok_i += 1;
     }
     if (width == null) width = 8;
-    if (width.? != 8) return p.todo("non-utf8 strings");
+    if (width.? != 8) return p.todo("unicode string literals");
     const index = p.strings.items.len;
     while (start < p.tok_i) : (start += 1) {
         var slice = p.tokSlice(start);
@@ -3261,10 +3259,10 @@ fn stringLiteral(p: *Parser) Error!Result {
                         'e' => p.strings.appendAssumeCapacity(0x1B),
                         'f' => p.strings.appendAssumeCapacity(0x0C),
                         'v' => p.strings.appendAssumeCapacity(0x0B),
-                        'x' => try p.parseNumberEscape(start, 16, slice, &i),
+                        'x' => p.strings.appendAssumeCapacity(try p.parseNumberEscape(start, 16, slice, &i)),
+                        '0'...'7' => p.strings.appendAssumeCapacity(try p.parseNumberEscape(start, 8, slice, &i)),
                         'u' => try p.parseUnicodeEscape(start, 4, slice, &i),
                         'U' => try p.parseUnicodeEscape(start, 8, slice, &i),
-                        '0'...'7' => try p.parseNumberEscape(start, 8, slice, &i),
                         else => unreachable,
                     }
                 },
@@ -3291,7 +3289,7 @@ fn stringLiteral(p: *Parser) Error!Result {
     return res;
 }
 
-fn parseNumberEscape(p: *Parser, tok: TokenIndex, base: u8, slice: []const u8, i: *usize) !void {
+fn parseNumberEscape(p: *Parser, tok: TokenIndex, base: u8, slice: []const u8, i: *usize) !u8 {
     if (base == 16) i.* += 1; // skip x
     var char: u8 = 0;
     var reported = false;
@@ -3304,7 +3302,7 @@ fn parseNumberEscape(p: *Parser, tok: TokenIndex, base: u8, slice: []const u8, i
         char += val;
     }
     i.* -= 1;
-    p.strings.appendAssumeCapacity(char);
+    return char;
 }
 
 fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8, i: *usize) !void {
@@ -3317,6 +3315,71 @@ fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8,
     var buf: [4]u8 = undefined;
     const to_write = std.unicode.utf8Encode(c, &buf) catch unreachable; // validated above
     p.strings.appendSliceAssumeCapacity(buf[0..to_write]);
+}
+
+fn charLiteral(p: *Parser) Error!Result {
+    const lit_tok = p.tok_i;
+    const ty: Type = switch (p.tok_ids[p.tok_i]) {
+        .char_literal => .{ .specifier = .int },
+        else => return p.todo("unicode char literals"),
+    };
+    p.tok_i += 1;
+
+    var val: u32 = 0;
+    var overflow_reported = false;
+    var multichar: u8 = 0;
+    var slice = p.tokSlice(lit_tok);
+    slice = slice[0 .. slice.len - 1];
+    var i = mem.indexOf(u8, slice, "\'").? + 1;
+    while (i < slice.len) : (i += 1) {
+        var c = slice[i];
+        switch (c) {
+            '\\' => {
+                i += 1;
+                switch (slice[i]) {
+                    '\n' => i += 1,
+                    '\r' => i += 2,
+                    '\'', '\"', '\\', '?' => c = slice[i],
+                    'n' => c = '\n',
+                    'r' => c = '\r',
+                    't' => c = '\t',
+                    'a' => c = 0x07,
+                    'b' => c = 0x08,
+                    'e' => c = 0x1B,
+                    'f' => c = 0x0C,
+                    'v' => c = 0x0B,
+                    'x' => c = try p.parseNumberEscape(lit_tok, 16, slice, &i),
+                    '0'...'7' => c = try p.parseNumberEscape(lit_tok, 8, slice, &i),
+                    'u', 'U' => return p.todo("unicode escapes in char literals"),
+                    else => unreachable,
+                }
+            },
+            else => {},
+        }
+        if (@mulWithOverflow(u32, val, 0xff, &val) and !overflow_reported) {
+            try p.errExtra(.char_lit_too_wide, lit_tok, .{ .unsigned = i });
+            overflow_reported = true;
+        }
+        val += c;
+        switch (multichar) {
+            0 => multichar = 1,
+            1 => {
+                multichar = 2;
+                try p.errTok(.multichar_literal, lit_tok);
+            },
+            else => {},
+        }
+    }
+
+    return Result{
+        .ty = ty,
+        .val = .{ .unsigned = val },
+        .node = try p.addNode(.{
+            .tag = .int_literal,
+            .ty = ty,
+            .data = .{ .int = val },
+        }),
+    };
 }
 
 fn parseFloat(p: *Parser, tok: TokenIndex, comptime T: type) Error!T {
