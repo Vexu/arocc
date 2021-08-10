@@ -899,6 +899,19 @@ fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
     };
 }
 
+/// Defines a new macro and warns if it is a duplicate
+fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
+    const name_str = pp.tokSliceSafe(name_tok);
+    if (try pp.defines.fetchPut(name_str, macro)) |_| {
+        try pp.comp.diag.add(.{
+            .tag = .macro_redefined,
+            .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start },
+            .extra = .{ .str = name_str },
+        });
+        // TODO add a previous definition note
+    }
+}
+
 /// Handle a #define directive.
 fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     // Get macro name and validate it.
@@ -911,15 +924,12 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         try pp.err(macro_name, .macro_name_must_be_identifier);
         return skipToNl(tokenizer);
     }
-    const name_str = pp.tokSliceSafe(macro_name);
 
     // Check for function macros and empty defines.
     var first = tokenizer.next();
     first.id.simplifyMacroKeyword();
     if (first.id == .nl or first.id == .eof) {
-        // TODO warn about redefinitions
-        _ = try pp.defines.put(name_str, .empty);
-        return;
+        return pp.defineMacro(macro_name, .empty);
     } else if (first.start == macro_name.end) {
         if (first.id == .l_paren) return pp.defineFn(tokenizer, macro_name, first);
         try pp.err(first, .whitespace_after_macro_name);
@@ -931,10 +941,9 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         const start = tokenizer.index;
         const second = tokenizer.next();
         if (second.id == .nl or second.id == .eof) {
-            if (mem.eql(u8, pp.tokSliceSafe(first), name_str)) {
+            if (mem.eql(u8, pp.tokSliceSafe(first), pp.tokSliceSafe(macro_name))) {
                 // #define FOO FOO
-                _ = try pp.defines.put(name_str, .self);
-                return;
+                return pp.defineMacro(macro_name, .self);
             }
         }
         tokenizer.index = start;
@@ -963,7 +972,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     }
 
     const list = try pp.arena.allocator.dupe(RawToken, pp.token_buf.items);
-    _ = try pp.defines.put(name_str, .{ .simple = .{
+    try pp.defineMacro(macro_name, .{ .simple = .{
         .loc = .{ .id = macro_name.source, .byte_offset = macro_name.start },
         .tokens = list,
     } });
@@ -1063,8 +1072,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 
     const param_list = try pp.arena.allocator.dupe([]const u8, params.items);
     const token_list = try pp.arena.allocator.dupe(RawToken, pp.token_buf.items);
-    const name_str = pp.tokSliceSafe(macro_name);
-    _ = try pp.defines.put(name_str, .{ .func = .{
+    try pp.defineMacro(macro_name, .{ .func = .{
         .params = param_list,
         .var_args = var_args,
         .tokens = token_list,

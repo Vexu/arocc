@@ -151,6 +151,7 @@ pub const Tag = enum {
     expected_parens_around_typename,
     alignof_expr,
     invalid_sizeof,
+    macro_redefined,
 };
 
 const Options = struct {
@@ -166,6 +167,7 @@ const Options = struct {
     @"unknown-warning-option": Kind = .warning,
     @"empty-struct": Kind = .off,
     @"gnu-alignof-expression": Kind = .warning,
+    @"macro-redefined": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -393,6 +395,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .expected_parens_around_typename => m.write("expected parentheses around type name"),
             .alignof_expr => m.write("'_Alignof' applied to an expression is a GNU extension"),
             .invalid_sizeof => m.print("invalid application of 'sizeof' to an incomplete type '{s}'", .{msg.extra.str}),
+            .macro_redefined => m.print("'{s}' macro redefined", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -553,6 +556,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .unknown_warning => diag.options.@"unknown-warning-option",
         .empty_record => diag.options.@"empty-struct",
         .alignof_expr => diag.options.@"gnu-alignof-expression",
+        .macro_redefined => diag.options.@"macro-redefined",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;
