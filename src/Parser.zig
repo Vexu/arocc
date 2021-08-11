@@ -463,10 +463,7 @@ fn decl(p: *Parser) Error!bool {
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
         _ = try p.expectToken(.semicolon);
         if (decl_spec.ty.specifier == .@"enum") return true;
-        if (decl_spec.ty.isEnumOrRecord()) {
-            // TODO check that there was a name token
-            return true;
-        }
+        if (decl_spec.ty.isEnumOrRecord() and decl_spec.ty.data.record.name[0] != '(') return true;
         try p.errTok(.missing_declaration, first_tok);
         return true;
     };
@@ -1117,7 +1114,23 @@ fn recordDecls(p: *Parser) Error!void {
                 }
                 bits_node = res.node;
             }
-            if (name_tok == 0 and bits_node == .none) {
+            if (name_tok == 0 and bits_node == .none) unnamed: {
+                if (ty.specifier == .@"enum") break :unnamed;
+                if (ty.isEnumOrRecord() and ty.data.record.name[0] == '(') {
+                    // An anonymous record appears as indirect fields on the parent
+                    try p.record_buf.append(.{
+                        .name = try p.getAnonymousName(first_tok),
+                        .ty = ty,
+                        .bit_width = 0,
+                    });
+                    const node = try p.addNode(.{
+                        .tag = .indirect_record_field_decl,
+                        .ty = ty,
+                        .data = undefined,
+                    });
+                    try p.decl_buf.append(node);
+                    break; // must be followed by a semicolon
+                }
                 try p.err(.missing_declaration);
             } else {
                 try p.record_buf.append(.{
@@ -1208,7 +1221,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
     const enum_buf_top = p.enum_buf.items.len;
     defer {
         p.decl_buf.items.len = decl_buf_top;
-        p.decl_buf.items.len = list_buf_top;
+        p.list_buf.items.len = list_buf_top;
         p.enum_buf.items.len = enum_buf_top;
     }
 

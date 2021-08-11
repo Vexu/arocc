@@ -172,6 +172,8 @@ pub const Tag = enum(u8) {
     /// ty name : node
     /// name == 0 means unnamed
     record_field_decl,
+    /// Used when a record has an unnamed record as a field
+    indirect_record_field_decl,
 
     // ====== Stmt ======
 
@@ -515,6 +517,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(data.decl.node, level + delta, w);
             }
         },
+        .indirect_record_field_decl => {},
         .compound_stmt,
         .compound_initializer_expr,
         .compound_literal_expr,

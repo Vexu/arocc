@@ -189,7 +189,7 @@ pub fn main() !void {
                     \\{s}
                     \\
                     \\
-                , .{ expected_count, macro.simple.tokens.len, m.buf.items });
+                , .{ macro.simple.tokens.len, expected_count, m.buf.items });
                 continue;
             }
 
