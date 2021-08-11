@@ -224,7 +224,7 @@ fn findSymbol(p: *Parser, name_tok: TokenIndex) ?Scope {
     return null;
 }
 
-fn findTag(p: *Parser, kind: Token.Id, name_tok: TokenIndex) !?Scope.Symbol {
+fn findTag(p: *Parser, kind: Token.Id, name_tok: TokenIndex, ref_kind: enum { reference, definition }) !?Scope.Symbol {
     const name = p.tokSlice(name_tok);
     var i = p.scopes.items.len;
     var saw_block = false;
@@ -253,7 +253,9 @@ fn findTag(p: *Parser, kind: Token.Id, name_tok: TokenIndex) !?Scope.Symbol {
                 try p.errTok(.previous_definition, u.name_tok);
                 return null;
             },
-            .block => saw_block = true,
+            .block => if (ref_kind == .reference) {
+                saw_block = true;
+            } else return null,
             else => {},
         }
     }
@@ -907,18 +909,18 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 continue;
             },
             .keyword_struct => {
-                try ty.combine(p, .incomplete_struct, p.tok_i);
-                try p.recordSpec(ty);
+                const tag_tok = p.tok_i;
+                try ty.combine(p, .{ .@"struct" = try p.recordSpec() }, tag_tok);
                 continue;
             },
             .keyword_union => {
-                try ty.combine(p, .incomplete_union, p.tok_i);
-                try p.recordSpec(ty);
+                const tag_tok = p.tok_i;
+                try ty.combine(p, .{ .@"union" = try p.recordSpec() }, tag_tok);
                 continue;
             },
             .keyword_enum => {
-                try ty.combine(p, .incomplete_enum, p.tok_i);
-                try p.enumSpec(ty);
+                const tag_tok = p.tok_i;
+                try ty.combine(p, .{ .@"enum" = try p.enumSpec() }, tag_tok);
                 continue;
             },
             .identifier => {
@@ -978,7 +980,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
 /// recordSpec
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
-fn recordSpec(p: *Parser, ty_builder: *Type.Builder) Error!void {
+fn recordSpec(p: *Parser) Error!*Type.Record {
     const kind_tok = p.tok_i;
     const is_struct = p.tok_ids[kind_tok] == .keyword_struct;
     p.tok_i += 1;
@@ -989,35 +991,35 @@ fn recordSpec(p: *Parser, ty_builder: *Type.Builder) Error!void {
             return error.ParsingFailed;
         };
         // check if this is a referense to a previous type
-        if (try p.findTag(p.tok_ids[kind_tok], ident)) |prev| {
-            if (prev.ty.specifier == .@"union") {
-                ty_builder.kind = .{ .@"union" = prev.ty.data.record };
-            } else if (prev.ty.specifier == .@"struct") {
-                ty_builder.kind = .{ .@"struct" = prev.ty.data.record };
-            }
+        if (try p.findTag(p.tok_ids[kind_tok], ident, .reference)) |prev| {
+            return prev.ty.data.record;
         } else {
-            // this is a forward declaration, ty_builder.kind is already set correctly.
+            // this is a forward declaration, create a new record Type.
+            return Type.Record.create(p.arena, p.tokSlice(ident));
         }
-        return;
     };
-    // check if this is a redefinition
-    if (maybe_ident) |ident| {
-        if (try p.findTag(p.tok_ids[kind_tok], ident)) |prev| {
-            try p.errStr(.redefinition, ident, p.tokSlice(ident));
-            try p.errTok(.previous_definition, prev.name_tok);
+
+    // Get forward declared type or create a new one
+    const record_ty: *Type.Record = if (maybe_ident) |ident| record_ty: {
+        if (try p.findTag(p.tok_ids[kind_tok], ident, .definition)) |prev| {
+            if (!prev.ty.data.record.isIncomplete()) {
+                // if the record isn't incomplete, this is a redefinition
+                try p.errStr(.redefinition, ident, p.tokSlice(ident));
+                try p.errTok(.previous_definition, prev.name_tok);
+            } else {
+                break :record_ty prev.ty.data.record;
+            }
         }
-    }
+        break :record_ty try Type.Record.create(p.arena, p.tokSlice(ident));
+    } else try Type.Record.create(p.arena, try p.getAnonymousName(kind_tok));
+    const ty = Type{
+        .specifier = if (is_struct) .@"struct" else .@"union",
+        .data = .{ .record = record_ty },
+    };
 
     // declare a symbol for the type
-    const record_name = if (maybe_ident) |ident| p.tokSlice(ident) else try p.getAnonymousName(kind_tok);
-    var sym_index: ?usize = null;
     if (maybe_ident) |ident| {
-        const sym = Scope.Symbol{
-            .name = record_name,
-            .ty = .{ .specifier = if (is_struct) .incomplete_struct else .incomplete_union },
-            .name_tok = ident,
-        };
-        sym_index = p.scopes.items.len;
+        const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = ident };
         try p.scopes.append(if (is_struct) .{ .@"struct" = sym } else .{ .@"union" = sym });
     }
 
@@ -1031,28 +1033,10 @@ fn recordSpec(p: *Parser, ty_builder: *Type.Builder) Error!void {
     }
 
     try p.recordDecls();
+    record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
 
     if (p.record_buf.items.len == record_buf_top) try p.errStr(.empty_record, kind_tok, p.tokSlice(kind_tok));
     try p.expectClosing(l_brace, .r_brace);
-
-    // create the type
-    const record_ty = try p.arena.create(Type.Record);
-    record_ty.* = .{
-        .name = record_name,
-        .size = 0, // TODO calculate
-        .alignment = 0, // TODO calculate
-        .fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]),
-    };
-    ty_builder.kind = if (is_struct) .{ .@"struct" = record_ty } else .{ .@"union" = record_ty };
-    const ty = Type{
-        .specifier = if (is_struct) .@"struct" else .@"union",
-        .data = .{ .record = record_ty },
-    };
-    if (sym_index) |index| if (is_struct) {
-        p.scopes.items[index].@"struct".ty = ty;
-    } else {
-        p.scopes.items[index].@"union".ty = ty;
-    };
 
     // finish by creating a node
     var node: Tree.Node = .{
@@ -1071,6 +1055,7 @@ fn recordSpec(p: *Parser, ty_builder: *Type.Builder) Error!void {
         },
     }
     p.decl_buf.items[decl_buf_top - 1] = try p.addNode(node);
+    return record_ty;
 }
 
 /// recordDecl
@@ -1138,7 +1123,7 @@ fn specQual(p: *Parser) Error!?Type {
 /// enumSpec
 ///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
 ///  | keyword_enum IDENTIFIER
-fn enumSpec(p: *Parser, ty_builder: *Type.Builder) Error!void {
+fn enumSpec(p: *Parser) Error!*Type.Enum {
     const enum_tok = p.tok_i;
     p.tok_i += 1;
     const maybe_ident = p.eatToken(.identifier);
@@ -1148,31 +1133,27 @@ fn enumSpec(p: *Parser, ty_builder: *Type.Builder) Error!void {
             return error.ParsingFailed;
         };
         // check if this is a referense to a previous type
-        if (try p.findTag(.keyword_enum, ident)) |prev| {
-            if (prev.ty.specifier == .@"enum") {
-                ty_builder.kind = .{ .@"enum" = prev.ty.data.@"enum" };
-            }
+        if (try p.findTag(.keyword_enum, ident, .reference)) |prev| {
+            return prev.ty.data.@"enum";
         } else {
-            // this is a forward declaration, ty_builder.kind is already set correctly.
+            // this is a forward declaration, create a new enum Type.
+            return Type.Enum.create(p.arena, p.tokSlice(ident));
         }
-        return;
     };
-    // check if this is a redefinition
-    if (maybe_ident) |ident| {
-        if (try p.findTag(.keyword_enum, ident)) |prev| {
-            try p.errStr(.redefinition, ident, p.tokSlice(ident));
-            try p.errTok(.previous_definition, prev.name_tok);
-        }
-    }
 
-    // create the type
-    const enum_ty = try p.arena.create(Type.Enum);
-    enum_ty.* = .{
-        .name = if (maybe_ident) |ident| p.tokSlice(ident) else try p.getAnonymousName(enum_tok),
-        .tag_ty = .{ .specifier = .void }, // void means incomplete
-        .fields = &.{},
-    };
-    ty_builder.kind = .{ .@"enum" = enum_ty };
+    // Get forward declared type or create a new one
+    const enum_ty: *Type.Enum = if (maybe_ident) |ident| enum_ty: {
+        if (try p.findTag(.keyword_enum, ident, .definition)) |prev| {
+            if (!prev.ty.data.@"enum".isIncomplete()) {
+                // if the enum isn't incomplete, this is a redefinition
+                try p.errStr(.redefinition, ident, p.tokSlice(ident));
+                try p.errTok(.previous_definition, prev.name_tok);
+            } else {
+                break :enum_ty prev.ty.data.@"enum";
+            }
+        }
+        break :enum_ty try Type.Enum.create(p.arena, p.tokSlice(ident));
+    } else try Type.Enum.create(p.arena, try p.getAnonymousName(enum_tok));
     const ty = Type{
         .specifier = .@"enum",
         .data = .{ .@"enum" = enum_ty },
@@ -1203,10 +1184,10 @@ fn enumSpec(p: *Parser, ty_builder: *Type.Builder) Error!void {
         try p.list_buf.append(field_and_node.node);
         if (p.eatToken(.comma) == null) break;
     }
-    if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
-
-    try p.expectClosing(l_brace, .r_brace);
     enum_ty.fields = try p.arena.dupe(Type.Enum.Field, p.enum_buf.items[enum_buf_top..]);
+
+    if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
+    try p.expectClosing(l_brace, .r_brace);
 
     // finish by creating a node
     var node: Tree.Node = .{ .tag = .enum_decl_two, .ty = ty, .data = .{
@@ -1223,6 +1204,7 @@ fn enumSpec(p: *Parser, ty_builder: *Type.Builder) Error!void {
         },
     }
     p.decl_buf.items[decl_buf_top - 1] = try p.addNode(node);
+    return enum_ty;
 }
 
 const EnumFieldAndNode = struct { field: Type.Enum.Field, node: NodeIndex };
@@ -2896,7 +2878,7 @@ fn unExpr(p: *Parser) Error!Result {
                 res.val = .{ .unsigned = size };
             } else {
                 res.val = .unavailable;
-                try p.errStr(.invalid_sizeof, expected_paren, Type.Builder.fromType(res.ty).str());
+                try p.errStr(.invalid_sizeof, expected_paren - 1, Type.Builder.fromType(res.ty).str());
             }
             return res.un(p, .sizeof_expr);
         },

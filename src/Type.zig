@@ -1,3 +1,4 @@
+const std = @import("std");
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
@@ -57,6 +58,17 @@ pub const Enum = struct {
         ty: Type,
         value: u64,
     };
+
+    pub fn isIncomplete(e: Enum) bool {
+        return e.fields.len == std.math.maxInt(usize);
+    }
+
+    pub fn create(allocator: *std.mem.Allocator, name: []const u8) !*Enum {
+        var e = try allocator.create(Enum);
+        e.name = name;
+        e.fields.len = std.math.maxInt(usize);
+        return e;
+    }
 };
 
 // TODO improve memory usage
@@ -71,6 +83,17 @@ pub const Record = struct {
         ty: Type,
         bit_width: u32,
     };
+
+    pub fn isIncomplete(r: Record) bool {
+        return r.fields.len == std.math.maxInt(usize);
+    }
+
+    pub fn create(allocator: *std.mem.Allocator, name: []const u8) !*Record {
+        var r = try allocator.create(Record);
+        r.name = name;
+        r.fields.len = std.math.maxInt(usize);
+        return r;
+    }
 };
 
 pub const Specifier = enum {
@@ -116,10 +139,6 @@ pub const Specifier = enum {
     incomplete_array,
     // data.vla
     variable_len_array,
-
-    incomplete_struct,
-    incomplete_union,
-    incomplete_enum,
 
     // data.record
     @"struct",
@@ -198,17 +217,16 @@ pub fn wideChar(p: *Parser) Type {
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
         .void,
-        .incomplete_array,
-        .incomplete_struct,
-        .incomplete_union,
-        .incomplete_enum,
+        .incomplete_array
         => true,
+        .@"enum" => ty.data.@"enum".isIncomplete(),
+        .@"struct", .@"union" => ty.data.record.isIncomplete(),
         else => false,
     };
 }
 
 /// Size of type as reported by sizeof
-pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
+pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
     // TODO get target from compilation
     return switch (ty.specifier) {
         .variable_len_array, .unspecified_variable_len_array, .incomplete_array => unreachable, // TODO special case
@@ -237,12 +255,9 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .complex_double => 16,
         .complex_long_double => 32,
         .pointer, .static_array => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .array => ty.data.sub_type.sizeof(comp).? * ty.data.array.len,
-        .@"struct", .@"union" => ty.data.record.size,
-        .@"enum" => ty.data.@"enum".tag_ty.sizeof(comp),
-        .incomplete_struct => null,
-        .incomplete_union => null,
-        .incomplete_enum => null,
+        .array => ty.data.sub_type.sizeof(comp).? * @intCast(u32, ty.data.array.len),
+        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
+        .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
     };
 }
 
@@ -323,10 +338,6 @@ pub const Builder = struct {
         complex_double,
         complex_long_double,
 
-        incomplete_struct,
-        incomplete_union,
-        incomplete_enum,
-
         pointer: *Type,
         unspecified_variable_len_array: *Type,
         func: *Func,
@@ -385,9 +396,9 @@ pub const Builder = struct {
                 .pointer => "pointer",
                 .func, .var_args_func, .old_style_func => "function",
                 .array, .static_array, .unspecified_variable_len_array, .variable_len_array, .incomplete_array => "array",
-                .incomplete_struct, .@"struct" => "struct",
-                .incomplete_union, .@"union" => "union",
-                .incomplete_enum, .@"enum" => "enum",
+                .@"struct" => "struct",
+                .@"union" => "union",
+                .@"enum" => "enum",
             };
         }
     };
@@ -425,10 +436,6 @@ pub const Builder = struct {
                 try p.errExtra(.type_is_invalid, p.tok_i, .{ .str = spec.kind.str() });
                 return error.ParsingFailed;
             },
-
-            .incomplete_struct => .incomplete_struct,
-            .incomplete_union => .incomplete_union,
-            .incomplete_enum => .incomplete_enum,
 
             .pointer => |data| {
                 ty.specifier = .pointer;
@@ -652,10 +659,6 @@ pub const Builder = struct {
             .complex_float => .complex_float,
             .complex_double => .complex_double,
             .complex_long_double => .complex_long_double,
-
-            .incomplete_struct => .incomplete_struct,
-            .incomplete_union => .incomplete_union,
-            .incomplete_enum => .incomplete_enum,
 
             .pointer => .{ .pointer = ty.data.sub_type },
             .unspecified_variable_len_array => .{ .unspecified_variable_len_array = ty.data.sub_type },
