@@ -206,12 +206,25 @@ fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range
     return Tree.Node.Range{ .start = start, .end = end };
 }
 
-fn findTypedef(p: *Parser, name: []const u8) ?Scope.Symbol {
+fn findTypedef(p: *Parser, name_tok: TokenIndex) !?Scope.Symbol {
+    const name = p.tokSlice(name_tok);
     var i = p.scopes.items.len;
     while (i > 0) {
         i -= 1;
         switch (p.scopes.items[i]) {
             .typedef => |t| if (mem.eql(u8, t.name, name)) return t,
+            .@"struct" => |s| if (mem.eql(u8, s.name, name)) {
+                try p.errStr(.must_use_struct, name_tok, name);
+                return s;
+            },
+            .@"union" => |u| if (mem.eql(u8, u.name, name)) {
+                try p.errStr(.must_use_union, name_tok, name);
+                return u;
+            },
+            .@"enum" => |e| if (mem.eql(u8, e.name, name)) {
+                try p.errStr(.must_use_enum, name_tok, name);
+                return e;
+            },
             else => {},
         }
     }
@@ -933,7 +946,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 continue;
             },
             .identifier => {
-                const typedef = p.findTypedef(p.tokSlice(p.tok_i)) orelse break;
+                const typedef = (try p.findTypedef(p.tok_i)) orelse break;
                 const new_spec = Type.Builder.fromType(typedef.ty);
 
                 const err_start = p.pp.comp.diag.list.items.len;
@@ -1004,7 +1017,14 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
             return prev.ty.data.record;
         } else {
             // this is a forward declaration, create a new record Type.
-            return Type.Record.create(p.arena, p.tokSlice(ident));
+            const record_ty = try Type.Record.create(p.arena, p.tokSlice(ident));
+            const ty = Type{
+                .specifier = if (is_struct) .@"struct" else .@"union",
+                .data = .{ .record = record_ty },
+            };
+            const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = ident };
+            try p.scopes.append(if (is_struct) .{ .@"struct" = sym } else .{ .@"union" = sym });
+            return record_ty;
         }
     };
 
@@ -1146,7 +1166,11 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             return prev.ty.data.@"enum";
         } else {
             // this is a forward declaration, create a new enum Type.
-            return Type.Enum.create(p.arena, p.tokSlice(ident));
+            const enum_ty = try Type.Enum.create(p.arena, p.tokSlice(ident));
+            const ty = Type{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } };
+            const sym = Scope.Symbol{ .name = enum_ty.name, .ty = ty, .name_tok = ident };
+            try p.scopes.append(.{ .@"enum" = sym });
+            return enum_ty;
         }
     };
 

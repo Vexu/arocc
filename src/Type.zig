@@ -253,7 +253,7 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
         .complex_double => 16,
         .complex_long_double => 32,
         .pointer, .static_array => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .array => ty.data.sub_type.sizeof(comp).? * @intCast(u32, ty.data.array.len),
+        .array => ty.data.array.elem.sizeof(comp).? * @intCast(u32, ty.data.array.len),
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
     };

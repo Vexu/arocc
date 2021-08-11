@@ -36,6 +36,7 @@ void bar(void) {
         };
     }
     (void)sizeof(struct Foo);
+    Foo a;
 }
 
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
@@ -43,4 +44,5 @@ void bar(void) {
     "containers.c:20:6: warning: declaration does not declare anything" \
     "containers.c:21:25: warning: declaration does not declare anything" \
     "containers.c:22:20: error: invalid application of 'sizeof' to an incomplete type 'struct StructTest'" \
-    "containers.c:38:11: error: invalid application of 'sizeof' to an incomplete type 'struct Foo'"
+    "containers.c:38:11: error: invalid application of 'sizeof' to an incomplete type 'struct Foo'" \
+    "containers.c:39:5: error: must use 'struct' tag to refer to type 'Foo'"
