@@ -259,6 +259,51 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
     };
 }
 
+pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
+    if (a.alignment != b.alignment) return false;
+    if (a.specifier != b.specifier) return false;
+
+    if (check_qualifiers) {
+        if (a.qual.@"const" != b.qual.@"const") return false;
+        if (a.qual.atomic != b.qual.atomic) return false;
+        if (a.qual.@"volatile" != b.qual.@"volatile") return false;
+        if (a.qual.restrict != b.qual.restrict) return false;
+    }
+
+    switch (a.specifier) {
+        .pointer,
+        .unspecified_variable_len_array,
+        => if (!a.data.sub_type.eql(b.data.sub_type.*, true)) return false,
+
+        .func,
+        .var_args_func,
+        .old_style_func,
+        => {
+            // TODO validate this
+            if (a.data.func.params.len != b.data.func.params.len) return false;
+            if (!a.data.func.return_type.eql(b.data.func.return_type, true)) return false;
+            for (a.data.func.params) |param, i| {
+                if (!param.ty.eql(b.data.func.params[i].ty, true)) return false;
+            }
+        },
+
+        .array,
+        .static_array,
+        .incomplete_array,
+        => {
+            if (a.data.array.len != b.data.array.len) return false;
+            if (!a.data.array.elem.eql(b.data.array.elem, true)) return false;
+        },
+        .variable_len_array => if (!a.data.vla.elem.eql(b.data.vla.elem, true)) return false,
+
+        .@"struct", .@"union" => if (a.data.record != b.data.record) return false,
+        .@"enum" => if (a.data.@"enum" != b.data.@"enum") return false,
+
+        else => {},
+    }
+    return true;
+}
+
 pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
     switch (inner.specifier) {
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),

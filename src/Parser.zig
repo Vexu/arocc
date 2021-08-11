@@ -31,11 +31,13 @@ const Scope = union(enum) {
         name: []const u8,
         ty: Type,
         name_tok: TokenIndex,
+        is_initialized: bool = false,
     };
 
     const Enumeration = struct {
         name: []const u8,
         value: Result,
+        name_tok: TokenIndex,
     };
 
     const Switch = struct {
@@ -231,7 +233,7 @@ fn findTypedef(p: *Parser, name_tok: TokenIndex) !?Scope.Symbol {
     return null;
 }
 
-fn findSymbol(p: *Parser, name_tok: TokenIndex) ?Scope {
+fn findSymbol(p: *Parser, name_tok: TokenIndex, ref_kind: enum { reference, definition }) ?Scope {
     const name = p.tokSlice(name_tok);
     var i = p.scopes.items.len;
     while (i > 0) {
@@ -240,6 +242,7 @@ fn findSymbol(p: *Parser, name_tok: TokenIndex) ?Scope {
         switch (sym) {
             .symbol => |s| if (mem.eql(u8, s.name, name)) return sym,
             .enumeration => |e| if (mem.eql(u8, e.name, name)) return sym,
+            .block => if (ref_kind == .definition) return null,
             else => {},
         }
     }
@@ -570,6 +573,7 @@ fn decl(p: *Parser) Error!bool {
             .name = p.tokSlice(init_d.d.name),
             .ty = init_d.d.ty,
             .name_tok = init_d.d.name,
+            .is_initialized = init_d.initializer != .none,
         } });
         const body = try p.compoundStmt();
         p.nodes.items(.data)[@enumToInt(node)].decl.node = body.?;
@@ -608,6 +612,7 @@ fn decl(p: *Parser) Error!bool {
                 .name = p.tokSlice(init_d.d.name),
                 .ty = init_d.d.ty,
                 .name_tok = init_d.d.name,
+                .is_initialized = init_d.initializer != .none,
             } });
         }
 
@@ -862,6 +867,21 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         try init.expect(p);
         const casted = try init.coerce(p, init_d.d.ty);
         init_d.initializer = casted.node;
+    }
+    const name = init_d.d.name;
+    if (p.findSymbol(name, .definition)) |scope| {
+        if (scope == .enumeration) {
+            try p.errStr(.redefinition_different_sym, name, p.tokSlice(name));
+            try p.errTok(.previous_definition, scope.enumeration.name_tok);
+        } else if (scope.symbol.ty.eql(init_d.d.ty, true)) {
+            if ((init_d.initializer != .none) and scope.symbol.is_initialized) {
+                try p.errStr(.redefinition, name, p.tokSlice(name));
+                try p.errTok(.previous_definition, scope.symbol.name_tok);
+            }
+        } else {
+            try p.errStr(.redefinition_incompatible, name, p.tokSlice(name));
+            try p.errTok(.previous_definition, scope.symbol.name_tok);
+        }
     }
     return init_d;
 }
@@ -1275,9 +1295,20 @@ fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
         res = try p.constExpr();
     }
 
+    if (p.findSymbol(name_tok, .definition)) |scope| {
+        if (scope == .enumeration) {
+            try p.errStr(.redefinition, name_tok, name);
+            try p.errTok(.previous_definition, scope.enumeration.name_tok);
+        } else {
+            try p.errStr(.redefinition_different_sym, name_tok, name);
+            try p.errTok(.previous_definition, scope.symbol.name_tok);
+        }
+    }
+
     try p.scopes.append(.{ .enumeration = .{
         .name = name,
         .value = res,
+        .name_tok = name_tok,
     } });
     return EnumFieldAndNode{ .field = .{
         .name = name,
@@ -1481,10 +1512,23 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             const param_buf_top = p.param_buf.items.len;
             defer p.param_buf.items.len = param_buf_top;
 
+            // findSymbol stops the search at .block
+            try p.scopes.append(.block);
+
             specifier = .old_style_func;
             while (true) {
+                const name_tok = try p.expectToken(.identifier);
+                if (p.findSymbol(name_tok, .definition)) |scope| {
+                    try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
+                    try p.errTok(.previous_definition, scope.symbol.name_tok);
+                }
+                try p.scopes.append(.{ .symbol = .{
+                    .name = p.tokSlice(name_tok),
+                    .ty = undefined,
+                    .name_tok = name_tok,
+                } });
                 try p.param_buf.append(.{
-                    .name = p.tokSlice(try p.expectToken(.identifier)),
+                    .name = p.tokSlice(name_tok),
                     .ty = .{ .specifier = .int },
                     .register = false,
                 });
@@ -1525,12 +1569,16 @@ fn pointer(p: *Parser, base_ty: Type) Error!Type {
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
 /// paramDecl : declSpec (declarator | abstractDeclarator)
 fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
+    // TODO warn about visibility of types declared here
     const param_buf_top = p.param_buf.items.len;
     const scopes_top = p.scopes.items.len;
     defer {
         p.param_buf.items.len = param_buf_top;
         p.scopes.items.len = scopes_top;
     }
+
+    // findSymbol stops the search at .block
+    try p.scopes.append(.block);
 
     while (true) {
         const param_decl_spec = if (try p.declSpec()) |some|
@@ -1550,11 +1598,22 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
             name_tok = some.name;
             param_ty = some.ty;
-            if (some.name != 0) try p.scopes.append(.{ .symbol = .{
-                .name = p.tokSlice(some.name),
-                .ty = some.ty,
-                .name_tok = some.name,
-            } });
+            if (some.name != 0) {
+                if (p.findSymbol(name_tok, .definition)) |scope| {
+                    if (scope == .enumeration) {
+                        try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
+                        try p.errTok(.previous_definition, scope.enumeration.name_tok);
+                    } else {
+                        try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
+                        try p.errTok(.previous_definition, scope.symbol.name_tok);
+                    }
+                }
+                try p.scopes.append(.{ .symbol = .{
+                    .name = p.tokSlice(name_tok),
+                    .ty = some.ty,
+                    .name_tok = name_tok,
+                } });
+            }
         }
 
         if (param_ty.isFunc()) {
@@ -3123,7 +3182,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         .identifier => {
             const name_tok = p.tok_i;
             p.tok_i += 1;
-            const sym = p.findSymbol(name_tok) orelse {
+            const sym = p.findSymbol(name_tok, .reference) orelse {
                 if (p.tok_ids[p.tok_i] == .l_paren) {
                     // implicitly declare simple functions as like `puts("foo")`;
                     const name = p.tokSlice(name_tok);

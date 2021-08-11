@@ -163,6 +163,9 @@ pub const Tag = enum {
     must_use_struct,
     must_use_union,
     must_use_enum,
+    redefinition_different_sym,
+    redefinition_incompatible,
+    redefinition_of_parameter,
 };
 
 const Options = struct {
@@ -428,6 +431,9 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .must_use_struct => m.print("must use 'struct' tag to refer to type '{s}'", .{msg.extra.str}),
             .must_use_union => m.print("must use 'union' tag to refer to type '{s}'", .{msg.extra.str}),
             .must_use_enum => m.print("must use 'enum' tag to refer to type '{s}'", .{msg.extra.str}),
+            .redefinition_different_sym => m.print("redefinition of '{s}' as different kind of symbol", .{msg.extra.str}),
+            .redefinition_incompatible => m.print("redefinition of '{s}' with a different type", .{msg.extra.str}),
+            .redefinition_of_parameter => m.print("redefinition of parameter '{s}'", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -568,6 +574,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .must_use_struct,
         .must_use_union,
         .must_use_enum,
+        .redefinition_different_sym,
+        .redefinition_incompatible,
+        .redefinition_of_parameter,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

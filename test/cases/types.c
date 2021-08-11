@@ -1,8 +1,8 @@
-int _Alignas(int) _Alignas(float) _Alignas(16) b;
+int _Alignas(int) _Alignas(float) _Alignas(16) a;
 
-const volatile int a;
-__const __volatile int b;
-__const__ __volatile__ int c;
+const volatile int b;
+__const __volatile int c;
+__const__ __volatile__ int d;
 int foo(int *restrict a, int *__restrict b, int *__restrict__ c);
 
-int foo(int n, int bar[n]);
+int bar(int n, int bar[n]);

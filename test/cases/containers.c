@@ -40,7 +40,7 @@ void bar(void) {
 }
 
 enum {
-    A,
+    D,
 };
 
 struct {
@@ -51,7 +51,7 @@ struct {
 
 struct StructWithEnum{
     enum {
-        A,
+        E,
     };
 };
 
