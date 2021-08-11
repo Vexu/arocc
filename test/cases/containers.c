@@ -42,5 +42,5 @@ void bar(void) {
     "containers.c:9:6: note: previous definition is here" \
     "containers.c:20:6: warning: declaration does not declare anything" \
     "containers.c:21:25: warning: declaration does not declare anything" \
-    "containers.c:22:20: error: invalid application of 'sizeof' to an incomplete type 'struct'" \
-    "containers.c:38:11: error: invalid application of 'sizeof' to an incomplete type 'struct'"
+    "containers.c:22:20: error: invalid application of 'sizeof' to an incomplete type 'struct StructTest'" \
+    "containers.c:38:11: error: invalid application of 'sizeof' to an incomplete type 'struct Foo'"

@@ -183,6 +183,15 @@ pub fn todo(p: *Parser, msg: []const u8) Error {
     return error.ParsingFailed;
 }
 
+pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
+    if (Type.Builder.fromType(ty).str()) |str| return str;
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    try ty.dump(p.strings.writer());
+    return try p.arena.dupe(u8, p.strings.items[strings_top..]);
+}
+
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     if (p.in_macro) return .none;
     const res = p.nodes.len;
@@ -936,7 +945,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 };
                 ty.typedef = .{
                     .tok = typedef.name_tok,
-                    .spec = new_spec.str(),
+                    .ty = typedef.ty,
                 };
             },
             .keyword_alignas => {
@@ -1254,7 +1263,7 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
         switch (p.tok_ids[p.tok_i]) {
             .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => {
                 if (ty.specifier != .pointer)
-                    try p.errExtra(.restrict_non_pointer, p.tok_i, .{ .str = Type.Builder.fromType(ty.*).str() })
+                    try p.errExtra(.restrict_non_pointer, p.tok_i, .{ .str = try p.typeStr(ty.*) })
                 else if (ty.qual.restrict)
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "restrict")
                 else
@@ -2878,7 +2887,7 @@ fn unExpr(p: *Parser) Error!Result {
                 res.val = .{ .unsigned = size };
             } else {
                 res.val = .unavailable;
-                try p.errStr(.invalid_sizeof, expected_paren - 1, Type.Builder.fromType(res.ty).str());
+                try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
             }
             return res.un(p, .sizeof_expr);
         },
@@ -2932,7 +2941,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             const l_paren = p.tok_i;
             p.tok_i += 1;
             const ty = lhs.ty.isCallable() orelse {
-                try p.errStr(.not_callable, l_paren, Type.Builder.fromType(lhs.ty).str());
+                try p.errStr(.not_callable, l_paren, try p.typeStr(lhs.ty));
                 return error.ParsingFailed;
             };
             const params = ty.data.func.params;

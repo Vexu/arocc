@@ -216,9 +216,7 @@ pub fn wideChar(p: *Parser) Type {
 
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
-        .void,
-        .incomplete_array
-        => true,
+        .void, .incomplete_array => true,
         .@"enum" => ty.data.@"enum".isIncomplete(),
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         else => false,
@@ -229,7 +227,7 @@ pub fn hasIncompleteSize(ty: Type) bool {
 pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
     // TODO get target from compilation
     return switch (ty.specifier) {
-        .variable_len_array, .unspecified_variable_len_array, .incomplete_array => unreachable, // TODO special case
+        .variable_len_array, .unspecified_variable_len_array, .incomplete_array => return null,
         .func, .var_args_func, .old_style_func, .void, .bool => 1,
         .char, .schar, .uchar => 1,
         .short, .ushort => 2,
@@ -293,7 +291,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
 pub const Builder = struct {
     typedef: ?struct {
         tok: TokenIndex,
-        spec: []const u8,
+        ty: Type,
     } = null,
     kind: Kind = .none,
 
@@ -351,7 +349,7 @@ pub const Builder = struct {
         @"union": *Record,
         @"enum": *Enum,
 
-        pub fn str(spec: Kind) []const u8 {
+        pub fn str(spec: Kind) ?[]const u8 {
             return switch (spec) {
                 .none => unreachable,
                 .void => "void",
@@ -392,13 +390,7 @@ pub const Builder = struct {
                 .complex_double => "_Complex double",
                 .complex_long_double => "_Complex long double",
 
-                // TODO make these more specific?
-                .pointer => "pointer",
-                .func, .var_args_func, .old_style_func => "function",
-                .array, .static_array, .unspecified_variable_len_array, .variable_len_array, .incomplete_array => "array",
-                .@"struct" => "struct",
-                .@"union" => "union",
-                .@"enum" => "enum",
+                else => null,
             };
         }
     };
@@ -433,7 +425,7 @@ pub const Builder = struct {
             .complex_double => .complex_double,
             .complex_long_double => .complex_long_double,
             .complex, .complex_long => {
-                try p.errExtra(.type_is_invalid, p.tok_i, .{ .str = spec.kind.str() });
+                try p.errExtra(.type_is_invalid, p.tok_i, .{ .str = spec.kind.str().? });
                 return error.ParsingFailed;
             },
 
@@ -501,8 +493,10 @@ pub const Builder = struct {
     }
 
     pub fn cannotCombine(spec: Builder, p: *Parser, source_tok: TokenIndex) Compilation.Error!void {
-        try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = spec.kind.str() });
-        if (spec.typedef) |some| try p.errStr(.sepc_from_typedef, some.tok, some.spec);
+        var prev_ty: Type = .{ .specifier = undefined };
+        spec.finish(p, &prev_ty) catch unreachable;
+        try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = try p.typeStr(prev_ty) });
+        if (spec.typedef) |some| try p.errStr(.sepc_from_typedef, some.tok, try p.typeStr(some.ty));
     }
 
     pub fn combine(spec: *Builder, p: *Parser, new: Kind, source_tok: TokenIndex) Compilation.Error!void {
@@ -724,7 +718,15 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try w.print("union {s}", .{ty.data.record.name});
             if (dump_detailed_containers) try dumpRecord(ty.data.record, w);
         },
-        else => try w.writeAll(Builder.fromType(ty).str()),
+        .unspecified_variable_len_array => {
+            try w.writeAll("[*]");
+            try ty.data.array.elem.dump(w);
+        },
+        .variable_len_array => {
+            try w.writeAll("[<expr>]");
+            try ty.data.array.elem.dump(w);
+        },
+        else => try w.writeAll(Builder.fromType(ty).str().?),
     }
     if (ty.alignment != 0) try w.print(" _Alignas({d})", .{ty.alignment});
 }
