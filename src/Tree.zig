@@ -385,6 +385,8 @@ pub const Tag = enum(u8) {
     int_cast,
     /// Convert one floating type to another
     float_cast,
+    /// Convert type to void; only appears on the branches of a conditional expr
+    to_void,
 
     pub fn isImplicit(tag: Tag) bool {
         return switch (tag) {
@@ -402,6 +404,7 @@ pub const Tag = enum(u8) {
             .float_to_bool,
             .int_cast,
             .float_cast,
+            .to_void,
             => true,
             else => false,
         };
@@ -904,6 +907,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .float_to_bool,
         .int_cast,
         .float_cast,
+        .to_void,
         => {
             try tree.dumpNode(data.un, level + delta, w);
         },

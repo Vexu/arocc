@@ -1874,7 +1874,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         // for (init
         const init_start = p.tok_i;
         const init = if (!got_decl) try p.expr() else Result{};
-        try p.maybeWarnUnused(init.node, init_start);
+        try init.maybeWarnUnused(p, init_start);
         if (!got_decl) _ = try p.expectToken(.semicolon);
 
         // for (init; cond
@@ -1884,7 +1884,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         // for (init; cond; incr
         const incr_start = p.tok_i;
         const incr = try p.expr();
-        try p.maybeWarnUnused(incr.node, incr_start);
+        try incr.maybeWarnUnused(p, incr_start);
         try p.expectClosing(l_paren, .r_paren);
 
         try p.scopes.append(.loop);
@@ -1944,36 +1944,13 @@ fn stmt(p: *Parser) Error!NodeIndex {
     const e = try p.expr();
     if (e.node != .none) {
         _ = try p.expectToken(.semicolon);
-        try p.maybeWarnUnused(e.node, expr_start);
+        try e.maybeWarnUnused(p, expr_start);
         return e.node;
     }
     if (p.eatToken(.semicolon)) |_| return .none;
 
     try p.err(.expected_stmt);
     return error.ParsingFailed;
-}
-
-fn maybeWarnUnused(p: *Parser, node: NodeIndex, expr_start: TokenIndex) Error!void {
-    switch (p.nodes.items(.tag)[@enumToInt(node)]) {
-        .invalid, // So that we don't need to check for node == 0
-        .assign_expr,
-        .mul_assign_expr,
-        .div_assign_expr,
-        .mod_assign_expr,
-        .add_assign_expr,
-        .sub_assign_expr,
-        .shl_assign_expr,
-        .shr_assign_expr,
-        .bit_and_assign_expr,
-        .bit_xor_assign_expr,
-        .bit_or_assign_expr,
-        .call_expr,
-        .call_expr_one,
-        => return,
-        .cast_expr => if (p.nodes.items(.ty)[@enumToInt(node)].specifier == .void) return,
-        else => {},
-    }
-    try p.errTok(.unused_value, expr_start);
 }
 
 /// labeledStmt
@@ -2240,6 +2217,29 @@ pub const Result = struct {
         }
     }
 
+    fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex) Error!void {
+        if (res.ty.specifier == .void) return;
+        switch (p.nodes.items(.tag)[@enumToInt(res.node)]) {
+            .invalid, // So that we don't need to check for node == 0
+            .assign_expr,
+            .mul_assign_expr,
+            .div_assign_expr,
+            .mod_assign_expr,
+            .add_assign_expr,
+            .sub_assign_expr,
+            .shl_assign_expr,
+            .shr_assign_expr,
+            .bit_and_assign_expr,
+            .bit_xor_assign_expr,
+            .bit_or_assign_expr,
+            .call_expr,
+            .call_expr_one,
+            => return,
+            else => {},
+        }
+        try p.errTok(.unused_value, expr_start);
+    }
+
     fn bin(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
         lhs.node = try p.addNode(.{
             .tag = tag,
@@ -2270,9 +2270,9 @@ pub const Result = struct {
         boolean_logic,
         relational,
         equality,
+        conditional,
         add,
         sub,
-        conditional,
     }) !bool {
         try a.lvalConversion(p);
         try b.lvalConversion(p);
@@ -2303,37 +2303,68 @@ pub const Result = struct {
         const b_ptr = b.ty.specifier == .pointer;
         const a_scalar = a_arithmetic or a_ptr;
         const b_scalar = b_arithmetic or b_ptr;
-        if (kind == .boolean_logic) {
-            if (!a_scalar or !b_scalar) return a.invalidBinTy(tok, b, p);
+        switch (kind) {
+            .boolean_logic => {
+                if (!a_scalar or !b_scalar) return a.invalidBinTy(tok, b, p);
 
-            // Do integer promotions but nothing else
-            if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp));
-            if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
-            return a.shouldEval(b, p);
-        }
+                // Do integer promotions but nothing else
+                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp));
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+                return a.shouldEval(b, p);
+            },
+            .relational, .equality => {
+                // comparisons between floats and pointes not allowed
+                if (!a_scalar or !b_scalar or (a_float and b_ptr) or (b_float and a_ptr))
+                    return a.invalidBinTy(tok, b, p);
 
-        if (kind == .relational or kind == .equality) {
-            // comparisons between floats and pointes not allowed
-            if (!a_scalar or !b_scalar or (a_float and b_ptr) or (b_float and a_ptr))
+                // TODO print types
+                if (a_int or b_int) try p.errTok(.comparison_ptr_int, tok);
+                if (a_ptr and b_ptr) {
+                    if (!a.ty.eql(b.ty, false)) try p.errTok(.comparison_distinct_ptr, tok);
+                } else if (a_ptr) {
+                    try b.ptrCast(p, a.ty);
+                } else {
+                    assert(b_ptr);
+                    try a.ptrCast(p, b.ty);
+                }
+
+                return a.shouldEval(b, p);
+            },
+            .conditional => {
+                // doesn't matter what we return here, as the result is ignored
+                if (a.ty.specifier == .void or b.ty.specifier == .void) {
+                    try a.toVoid(p);
+                    try b.toVoid(p);
+                    return true;
+                }
+                // TODO struct/record and pointers
                 return a.invalidBinTy(tok, b, p);
+            },
+            .add => {
+                // if both aren't arithmetic one should be pointer and the other an integer
+                if (a_ptr == b_ptr or a_int == b_int) return a.invalidBinTy(tok, b, p);
 
-            // TODO print types
-            if (a_int or b_int) try p.errTok(.comparison_ptr_int, tok);
-            if (a_ptr and b_ptr) {
-                if (!a.ty.eql(b.ty, false)) try p.errTok(.comparison_distinct_ptr, tok);
-            } else if (a_ptr) {
-                try b.ptrCast(p, a.ty);
-            } else {
-                assert(b_ptr);
-                try a.ptrCast(p, b.ty);
-            }
+                // Do integer promotions but nothing else
+                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp));
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+                return a.shouldEval(b, p);
+            },
+            .sub => {
+                // if both aren't arithmetic then either both should be pointers or just a
+                if (!a_ptr or !(b_ptr or b_int)) return a.invalidBinTy(tok, b, p);
 
-            return a.shouldEval(b, p);
+                if (a_ptr and b_ptr) {
+                    // TODO print types
+                    if (!a.ty.eql(b.ty, false)) try p.errTok(.incompatible_pointers, tok);
+                    a.ty = Type.ptrDiffT(p.pp.comp);
+                }
+
+                // Do integer promotion on b if needed
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+                return a.shouldEval(b, p);
+            },
+            else => return a.invalidBinTy(tok, b, p),
         }
-
-        // TODO more casts here
-
-        return a.shouldEval(b, p);
     }
 
     fn lvalConversion(res: *Result, p: *Parser) Error!void {
@@ -2430,6 +2461,17 @@ pub const Result = struct {
             res.ty = ptr_ty;
             res.node = try p.addNode(.{
                 .tag = .int_to_pointer,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        }
+    }
+
+    fn toVoid(res: *Result, p: *Parser) Error!void {
+        if (res.ty.specifier != .void) {
+            res.ty = .{ .specifier = .void };
+            res.node = try p.addNode(.{
+                .tag = .to_void,
                 .ty = res.ty,
                 .data = .{ .un = res.node },
             });
@@ -2654,7 +2696,7 @@ fn expr(p: *Parser) Error!Result {
     var expr_start = p.tok_i;
     var lhs = try p.assignExpr();
     while (p.eatToken(.comma)) |_| {
-        try p.maybeWarnUnused(lhs.node, expr_start);
+        try lhs.maybeWarnUnused(p, expr_start);
         expr_start = p.tok_i;
 
         const rhs = try p.assignExpr();
@@ -2748,9 +2790,10 @@ fn condExpr(p: *Parser) Error!Result {
     if (cond.val != .unavailable) {
         cond.val = if (cond.getBool()) then_expr.val else else_expr.val;
     }
+    cond.ty = then_expr.ty;
     cond.node = try p.addNode(.{
         .tag = .cond_expr,
-        .ty = then_expr.ty,
+        .ty = cond.ty,
         .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ then_expr.node, else_expr.node })).start } },
     });
     return cond;

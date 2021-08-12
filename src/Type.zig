@@ -263,10 +263,16 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     };
 }
 
-pub fn wideChar(p: *Parser) Type {
-    _ = p;
+pub fn wideChar(comp: *Compilation) Type {
+    _ = comp;
     // TODO get target from compilation
     return .{ .specifier = .int };
+}
+
+pub fn ptrDiffT(comp: *Compilation) Type {
+    _ = comp;
+    // TODO get target from compilation
+    return .{ .specifier = .long };
 }
 
 pub fn hasIncompleteSize(ty: Type) bool {
