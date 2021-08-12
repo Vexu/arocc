@@ -2267,7 +2267,7 @@ pub const Result = struct {
     fn adjustTypes(a: *Result, tok: TokenIndex, b: *Result, p: *Parser, kind: enum {
         integer,
         arithmetic,
-        scalar,
+        boolean_logic,
         add,
         sub,
         comparison,
@@ -2278,20 +2278,30 @@ pub const Result = struct {
 
         const a_int = a.ty.isInt();
         const b_int = b.ty.isInt();
-        const a_float = a.ty.isFloat();
-        const b_float = b.ty.isFloat();
-
         if (a_int and b_int) {
             try a.usualArithmeticConversion(b, p);
             return a.shouldEval(b, p);
         }
         if (kind == .integer) return a.invalidBinTy(tok, b, p);
 
-        if ((a_float and b_float) or (a_float and b_int) or (a_int and b_float)) {
+        const a_arithmetic = a_int or a.ty.isFloat();
+        const b_arithmetic = b_int or b.ty.isFloat();
+        if (a_arithmetic and b_arithmetic) {
             try a.usualArithmeticConversion(b, p);
             return a.shouldEval(b, p);
         }
         if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
+
+        const a_scalar = a_arithmetic or a.ty.specifier == .pointer;
+        const b_scalar = b_arithmetic or b.ty.specifier == .pointer;
+        if (kind == .boolean_logic) {
+            if (!a_scalar or !b_scalar) return a.invalidBinTy(tok, b, p);
+
+            // Do integer promotions but nothing else
+            if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp));
+            if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+            return a.shouldEval(b, p);
+        }
 
         // TODO more casts here
 
@@ -2299,7 +2309,17 @@ pub const Result = struct {
     }
 
     fn lvalConversion(res: *Result, p: *Parser) Error!void {
-        if (res.ty.isArray()) {
+        if (res.ty.isFunc()) {
+            var elem_ty = try p.arena.create(Type);
+            elem_ty.* = res.ty;
+            res.ty.specifier = .pointer;
+            res.ty.data = .{ .sub_type = elem_ty };
+            res.node = try p.addNode(.{
+                .tag = .function_to_pointer,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        } else if (res.ty.isArray()) {
             var elem_ty = try p.arena.create(Type);
             elem_ty.* = res.ty.elemType();
             res.ty.specifier = .pointer;
@@ -2309,7 +2329,7 @@ pub const Result = struct {
                 .ty = res.ty,
                 .data = .{ .un = res.node },
             });
-        } else if (Tree.isLval(p.nodes.slice(), res.node)) {
+        } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), res.node)) {
             res.ty.qual = .{};
             res.node = try p.addNode(.{
                 .tag = .lval_to_rval,
@@ -2692,7 +2712,7 @@ fn lorExpr(p: *Parser) Error!Result {
         if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
         var rhs = try p.landExpr();
 
-        if (try lhs.adjustTypes(tok, &rhs, p, .scalar)) {
+        if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
             lhs.val = .{ .signed = @boolToInt(lhs.getBool() or rhs.getBool()) };
         }
         lhs.ty = .{ .specifier = .int };
@@ -2711,7 +2731,7 @@ fn landExpr(p: *Parser) Error!Result {
         if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
         var rhs = try p.orExpr();
 
-        if (try lhs.adjustTypes(tok, &rhs, p, .scalar)) {
+        if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
             lhs.val = .{ .signed = @boolToInt(lhs.getBool() and rhs.getBool()) };
         }
         lhs.ty = .{ .specifier = .int };
