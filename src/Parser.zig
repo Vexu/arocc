@@ -3116,7 +3116,19 @@ fn castExpr(p: *Parser) Error!Result {
                 return Result{ .node = try p.addNode(node), .ty = ty };
             }
             var operand = try p.castExpr();
+            if (ty.specifier == .void) {
+                // everything can cast to void
+            } else if (ty.isInt() or ty.isFloat() or ty.specifier == .pointer) {
+                if (ty.isFloat() and operand.ty.specifier == .pointer)
+                    try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(operand.ty));
+                if (operand.ty.isFloat() and ty.specifier == .pointer)
+                    try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(operand.ty));
+            } else {
+                try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
+            }
+            if (ty.qual.any()) try p.errStr(.qual_cast, l_paren, try p.typeStr(ty));
             operand.ty = ty;
+            operand.ty.qual = .{};
             try operand.un(p, .cast_expr);
             return operand;
         }

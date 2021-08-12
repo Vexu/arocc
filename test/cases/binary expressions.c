@@ -6,7 +6,7 @@ void foo(void) {
     (void)((char)a * (int*)2);
     (void)(foo && (char)2);
     (void)(foo || (void)2);
-    (void)((const int*)1 == (int *const)1);
+    (void)((const int*)1 == (int *)1);
     (void)((float*)1 == (int*)1);
     (void)(1 == (int*)1);
     (void)(1.0 == (int*)1);
