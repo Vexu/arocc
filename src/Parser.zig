@@ -1366,6 +1366,7 @@ fn typeQual(p: *Parser, ty: *Type) Error!bool {
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "atomic")
                 else
                     ty.qual.atomic = true;
+                // TODO check that the type can be atomic
             },
             else => break,
         }
@@ -1791,9 +1792,13 @@ fn stmt(p: *Parser) Error!NodeIndex {
         defer p.scopes.items.len = start_scopes_len;
 
         const l_paren = try p.expectToken(.l_paren);
-        const cond = try p.expr();
-        // TODO validate type
+        var cond = try p.expr();
         try cond.expect(p);
+        try cond.lvalConversion(p);
+        if (cond.ty.isInt())
+            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+        else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
+            try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try p.expectClosing(l_paren, .r_paren);
 
         const then = try p.stmt();
@@ -1820,9 +1825,13 @@ fn stmt(p: *Parser) Error!NodeIndex {
         defer p.scopes.items.len = start_scopes_len;
 
         const l_paren = try p.expectToken(.l_paren);
-        const cond = try p.expr();
-        // TODO validate type
+        var cond = try p.expr();
         try cond.expect(p);
+        try cond.lvalConversion(p);
+        if (cond.ty.isInt())
+            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+        else
+            try p.errStr(.statement_int, l_paren + 1, try p.typeStr(cond.ty));
         try p.expectClosing(l_paren, .r_paren);
 
         var switch_scope = Scope.Switch{
@@ -1842,9 +1851,13 @@ fn stmt(p: *Parser) Error!NodeIndex {
         defer p.scopes.items.len = start_scopes_len;
 
         const l_paren = try p.expectToken(.l_paren);
-        const cond = try p.expr();
-        // TODO validate type
+        var cond = try p.expr();
         try cond.expect(p);
+        try cond.lvalConversion(p);
+        if (cond.ty.isInt())
+            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+        else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
+            try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try p.expectClosing(l_paren, .r_paren);
 
         try p.scopes.append(.loop);
@@ -1865,9 +1878,13 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         _ = try p.expectToken(.keyword_while);
         const l_paren = try p.expectToken(.l_paren);
-        const cond = try p.expr();
-        // TODO validate type
+        var cond = try p.expr();
         try cond.expect(p);
+        try cond.lvalConversion(p);
+        if (cond.ty.isInt())
+            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+        else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
+            try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try p.expectClosing(l_paren, .r_paren);
 
         _ = try p.expectToken(.semicolon);
@@ -1892,7 +1909,14 @@ fn stmt(p: *Parser) Error!NodeIndex {
         if (!got_decl) _ = try p.expectToken(.semicolon);
 
         // for (init; cond
-        const cond = try p.expr();
+        var cond = try p.expr();
+        if (cond.node != .none) {
+            try cond.lvalConversion(p);
+            if (cond.ty.isInt())
+                try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+            else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
+                try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
+        }
         _ = try p.expectToken(.semicolon);
 
         // for (init; cond; incr
@@ -2232,7 +2256,7 @@ pub const Result = struct {
     }
 
     fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex) Error!void {
-        if (res.ty.specifier == .void) return;
+        if (res.ty.specifier == .void or res.node == .none) return;
         switch (p.nodes.items(.tag)[@enumToInt(res.node)]) {
             .invalid, // So that we don't need to check for node == 0
             .assign_expr,

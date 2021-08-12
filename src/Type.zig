@@ -164,7 +164,7 @@ qual: Qualifiers = .{},
 pub fn isCallable(ty: Type) ?Type {
     return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => ty,
-        .pointer => ty.data.sub_type.isCallable(),
+        .pointer => if (ty.data.sub_type.isFunc()) ty.data.sub_type.* else null,
         else => null,
     };
 }
