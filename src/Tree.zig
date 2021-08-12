@@ -357,10 +357,55 @@ pub const Tag = enum(u8) {
 
     // ====== Implicit casts ======
 
-    /// convert T[] to T *
+    /// Convert T[] to T *
     array_to_pointer,
-    /// same as deref
+    /// Converts an lvalue to an rvalue
     lval_to_rval,
+    /// Convert a function type to a pointer to a function
+    function_to_pointer,
+    /// Convert a pointer type to a _Bool
+    pointer_to_bool,
+    /// Convert a pointer type to an integer type
+    pointer_to_int,
+    /// Convert _Bool to an integer type
+    bool_to_int,
+    /// Convert _Bool to a floating type
+    bool_to_float,
+    /// Convert a _Bool to a pointer; will cause a  warning
+    bool_to_pointer,
+    /// Convert an integer type to _Bool
+    int_to_bool,
+    /// Convert an integer to a floating
+    int_to_float,
+    /// Convert an integer type to a pointer type
+    int_to_pointer,
+    /// Convert a floating type to a _Bool
+    float_to_bool,
+    /// Convert one integer type to another
+    int_cast,
+    /// Convert one floating type to another
+    float_cast,
+
+    pub fn isImplicit(tag: Tag) bool {
+        return switch (tag) {
+            .array_to_pointer,
+            .lval_to_rval,
+            .function_to_pointer,
+            .pointer_to_bool,
+            .pointer_to_int,
+            .bool_to_int,
+            .bool_to_float,
+            .bool_to_pointer,
+            .int_to_bool,
+            .int_to_float,
+            .int_to_pointer,
+            .float_to_bool,
+            .int_cast,
+            .float_cast,
+            => true,
+            else => false,
+        };
+    }
 };
 
 pub fn isLval(nodes: Node.List.Slice, node: NodeIndex) bool {
@@ -420,6 +465,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     const half = delta / 2;
     const TYPE = "\x1b[35;1m";
     const TAG = "\x1b[36;1m";
+    const IMPLICIT = "\x1b[34;1m";
     const NAME = "\x1b[91;1m";
     const LITERAL = "\x1b[32;1m";
     const ATTRIBUTE = "\x1b[93;1m";
@@ -430,7 +476,11 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     const data = tree.nodes.items(.data)[@enumToInt(node)];
     const ty = tree.nodes.items(.ty)[@enumToInt(node)];
     try w.writeByteNTimes(' ', level);
-    try w.print(TAG ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
+    if (tag.isImplicit()) {
+        try w.print(IMPLICIT ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
+    } else {
+        try w.print(TAG ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
+    }
     try ty.dump(w);
     try w.writeAll("'");
     if (isLval(tree.nodes, node)) {
@@ -754,8 +804,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .post_inc_expr,
         .post_dec_expr,
         .paren_expr,
-        .array_to_pointer,
-        .lval_to_rval,
         => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("operand:\n");
@@ -840,6 +888,23 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             }
         },
         .generic_association_expr, .generic_default_expr => {
+            try tree.dumpNode(data.un, level + delta, w);
+        },
+        .array_to_pointer,
+        .lval_to_rval,
+        .function_to_pointer,
+        .pointer_to_bool,
+        .pointer_to_int,
+        .bool_to_int,
+        .bool_to_float,
+        .bool_to_pointer,
+        .int_to_bool,
+        .int_to_float,
+        .int_to_pointer,
+        .float_to_bool,
+        .int_cast,
+        .float_cast,
+        => {
             try tree.dumpNode(data.un, level + delta, w);
         },
     }

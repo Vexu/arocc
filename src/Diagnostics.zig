@@ -166,6 +166,7 @@ pub const Tag = enum {
     redefinition_different_sym,
     redefinition_incompatible,
     redefinition_of_parameter,
+    invalid_bin_types,
 };
 
 const Options = struct {
@@ -434,6 +435,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .redefinition_different_sym => m.print("redefinition of '{s}' as different kind of symbol", .{msg.extra.str}),
             .redefinition_incompatible => m.print("redefinition of '{s}' with a different type", .{msg.extra.str}),
             .redefinition_of_parameter => m.print("redefinition of parameter '{s}'", .{msg.extra.str}),
+            .invalid_bin_types => m.write("invalid operands to binary expression"),
         }
         m.end(lcs);
 
@@ -577,6 +579,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .redefinition_different_sym,
         .redefinition_incompatible,
         .redefinition_of_parameter,
+        .invalid_bin_types,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

@@ -2258,38 +2258,85 @@ pub const Result = struct {
     }
 
     fn coerce(res: Result, p: *Parser, dest_ty: Type) !Result {
-        var casted = res;
         _ = dest_ty;
         _ = p;
-        // var cur_ty = res.ty;
-        // if (casted.data == .lval) {
-        //     cur_ty.qual.@"const" = false;
-        //     casted = try node(p, .{
-        //         .tag = .lval_to_rval,
-        //         .ty = cur_ty,
-        //         .data = .{ .first = casted.node },
-        //     });
-        // }
-        // if (dest_ty.specifier == .pointer and cur_ty.isArray()) {
-        //     const elem_ty = &cur_ty.data.array.elem;
-        //     cur_ty.specifier = .pointer;
-        //     cur_ty.data = .{ .sub_type = elem_ty };
-        //     casted = try node(p, .{
-        //         .tag = .array_to_pointer,
-        //         .ty = cur_ty,
-        //         .data = .{ .first = casted.node },
-        //     });
-        // }
-        return casted;
+        return res;
     }
 
     /// Adjust types for binary operation, returns true if the result can and should be evaluated.
-    fn adjustTypes(a: *Result, b: *Result, p: *Parser) !bool {
-        const a_is_unsigned = a.ty.isUnsignedInt(p.pp.comp);
-        const b_is_unsigned = b.ty.isUnsignedInt(p.pp.comp);
+    fn adjustTypes(a: *Result, tok: TokenIndex, b: *Result, p: *Parser, kind: enum {
+        integer,
+        scalar,
+        add,
+        sub,
+        arithmetic,
+        comparison,
+        conditional,
+    }) !bool {
+        try a.lvalConversion(p);
+        try b.lvalConversion(p);
 
-        if (a_is_unsigned != b_is_unsigned) {}
+        if (a.ty.isInt() and b.ty.isInt()) {
+            var int_ty: Type = .{ .specifier = .int }; // TODO select based a.ty and b.ty
+            try a.intCast(p, int_ty);
+            try b.intCast(p, int_ty);
+            return a.shouldEval(b, p);
+        }
+        if (kind == .integer) return a.invalidBinTy(tok, b, p);
 
+        // TODO more casts here
+
+        return a.shouldEval(b, p);
+    }
+
+    fn lvalConversion(res: *Result, p: *Parser) Error!void {
+        if (res.ty.isArray()) {
+            var elem_ty = try p.arena.create(Type);
+            elem_ty.* = res.ty.elemType();
+            res.ty.specifier = .pointer;
+            res.ty.data = .{ .sub_type = elem_ty };
+            res.node = try p.addNode(.{
+                .tag = .array_to_pointer,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        } else if (Tree.isLval(p.nodes.slice(), res.node)) {
+            res.ty.qual = .{};
+            res.node = try p.addNode(.{
+                .tag = .lval_to_rval,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        }
+    }
+
+    fn intCast(res: *Result, p: *Parser, int_ty: Type) Error!void {
+        if (res.ty.specifier == .bool) {
+            res.ty = int_ty;
+            res.node = try p.addNode(.{
+                .tag = .bool_to_int,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        } else if (!res.ty.eql(int_ty, true)) {
+            res.ty = int_ty;
+            res.node = try p.addNode(.{
+                .tag = .int_cast,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        }
+    }
+
+    fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!bool {
+        // TODO print a and b types
+        _ = a;
+        _ = b;
+        try p.errTok(.invalid_bin_types, tok);
+        return false;
+    }
+
+    fn shouldEval(a: *Result, b: *Result, p: *Parser) Error!bool {
         if (p.no_eval) return false;
         if (a.val != .unavailable and b.val != .unavailable)
             return true;
@@ -2453,6 +2500,7 @@ fn expr(p: *Parser) Error!Result {
 
         const rhs = try p.assignExpr();
         lhs.val = rhs.val;
+        lhs.ty = rhs.ty;
         try lhs.bin(p, .comma_expr, rhs);
     }
     return lhs;
@@ -2483,6 +2531,7 @@ fn assignExpr(p: *Parser) Error!Result {
         return error.ParsingFailed;
     }
     var rhs = try p.assignExpr();
+    try rhs.lvalConversion(p); // TODO more casts here
 
     try lhs.bin(p, if (eq != null)
         .assign_expr
@@ -2523,24 +2572,26 @@ fn condExpr(p: *Parser) Error!Result {
     const saved_eval = p.no_eval;
 
     // Depending on the value of the condition, avoid evaluating unreachable branches.
-    const then_expr = blk: {
+    var then_expr = blk: {
         defer p.no_eval = saved_eval;
         if (cond.val != .unavailable and !cond.getBool()) p.no_eval = true;
         break :blk try p.expr();
     };
-    _ = try p.expectToken(.colon);
-    const else_expr = blk: {
+    const colon = try p.expectToken(.colon);
+    var else_expr = blk: {
         defer p.no_eval = saved_eval;
         if (cond.val != .unavailable and cond.getBool()) p.no_eval = true;
         break :blk try p.condExpr();
     };
+
+    _ = try then_expr.adjustTypes(colon, &else_expr, p, .conditional);
 
     if (cond.val != .unavailable) {
         cond.val = if (cond.getBool()) then_expr.val else else_expr.val;
     }
     cond.node = try p.addNode(.{
         .tag = .cond_expr,
-        .ty = then_expr.ty, // TODO resolve type properly
+        .ty = then_expr.ty,
         .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ then_expr.node, else_expr.node })).start } },
     });
     return cond;
@@ -2552,11 +2603,11 @@ fn lorExpr(p: *Parser) Error!Result {
     const saved_eval = p.no_eval;
     defer p.no_eval = saved_eval;
 
-    while (p.eatToken(.pipe_pipe)) |_| {
+    while (p.eatToken(.pipe_pipe)) |tok| {
         if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
-        const rhs = try p.landExpr();
+        var rhs = try p.landExpr();
 
-        if (lhs.val != .unavailable and rhs.val != .unavailable) {
+        if (try lhs.adjustTypes(tok, &rhs, p, .scalar)) {
             lhs.val = .{ .signed = @boolToInt(lhs.getBool() or rhs.getBool()) };
         }
         lhs.ty = .{ .specifier = .int };
@@ -2571,11 +2622,11 @@ fn landExpr(p: *Parser) Error!Result {
     const saved_eval = p.no_eval;
     defer p.no_eval = saved_eval;
 
-    while (p.eatToken(.ampersand_ampersand)) |_| {
+    while (p.eatToken(.ampersand_ampersand)) |tok| {
         if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
-        const rhs = try p.orExpr();
+        var rhs = try p.orExpr();
 
-        if (lhs.val != .unavailable and rhs.val != .unavailable) {
+        if (try lhs.adjustTypes(tok, &rhs, p, .scalar)) {
             lhs.val = .{ .signed = @boolToInt(lhs.getBool() and rhs.getBool()) };
         }
         lhs.ty = .{ .specifier = .int };
@@ -2587,10 +2638,10 @@ fn landExpr(p: *Parser) Error!Result {
 /// orExpr : xorExpr ('|' xorExpr)*
 fn orExpr(p: *Parser) Error!Result {
     var lhs = try p.xorExpr();
-    while (p.eatToken(.pipe)) |_| {
+    while (p.eatToken(.pipe)) |tok| {
         var rhs = try p.xorExpr();
 
-        if (try lhs.adjustTypes(&rhs, p)) {
+        if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = switch (lhs.val) {
                 .unsigned => |v| .{ .unsigned = v | rhs.val.unsigned },
                 .signed => |v| .{ .signed = v | rhs.val.signed },
@@ -2605,10 +2656,10 @@ fn orExpr(p: *Parser) Error!Result {
 /// xorExpr : andExpr ('^' andExpr)*
 fn xorExpr(p: *Parser) Error!Result {
     var lhs = try p.andExpr();
-    while (p.eatToken(.caret)) |_| {
+    while (p.eatToken(.caret)) |tok| {
         var rhs = try p.andExpr();
 
-        if (try lhs.adjustTypes(&rhs, p)) {
+        if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = switch (lhs.val) {
                 .unsigned => |v| .{ .unsigned = v ^ rhs.val.unsigned },
                 .signed => |v| .{ .signed = v ^ rhs.val.signed },
@@ -2623,10 +2674,10 @@ fn xorExpr(p: *Parser) Error!Result {
 /// andExpr : eqExpr ('&' eqExpr)*
 fn andExpr(p: *Parser) Error!Result {
     var lhs = try p.eqExpr();
-    while (p.eatToken(.ampersand)) |_| {
+    while (p.eatToken(.ampersand)) |tok| {
         var rhs = try p.eqExpr();
 
-        if (try lhs.adjustTypes(&rhs, p)) {
+        if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = switch (lhs.val) {
                 .unsigned => |v| .{ .unsigned = v & rhs.val.unsigned },
                 .signed => |v| .{ .signed = v & rhs.val.signed },
@@ -2647,7 +2698,7 @@ fn eqExpr(p: *Parser) Error!Result {
         if (ne == null) break;
         var rhs = try p.compExpr();
 
-        if (try lhs.adjustTypes(&rhs, p)) {
+        if (try lhs.adjustTypes(ne.?, &rhs, p, .comparison)) {
             const res = if (eq != null)
                 lhs.compare(.eq, rhs)
             else
@@ -2672,7 +2723,7 @@ fn compExpr(p: *Parser) Error!Result {
         if (ge == null) break;
         var rhs = try p.shiftExpr();
 
-        if (try lhs.adjustTypes(&rhs, p)) {
+        if (try lhs.adjustTypes(ge.?, &rhs, p, .comparison)) {
             const res = if (lt != null)
                 lhs.compare(.lt, rhs)
             else if (le != null)
@@ -2705,7 +2756,7 @@ fn shiftExpr(p: *Parser) Error!Result {
         if (shr == null) break;
         var rhs = try p.addExpr();
 
-        if (try lhs.adjustTypes(&rhs, p)) {
+        if (try lhs.adjustTypes(shr.?, &rhs, p, .integer)) {
             // TODO overflow
             if (shl != null) {
                 lhs.val = switch (lhs.val) {
@@ -2735,7 +2786,7 @@ fn addExpr(p: *Parser) Error!Result {
         if (minus == null) break;
         var rhs = try p.mulExpr();
 
-        if (try lhs.adjustTypes(&rhs, p)) {
+        if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
                 try lhs.add(plus.?, rhs, p);
             } else {
@@ -2757,7 +2808,14 @@ fn mulExpr(p: *Parser) Error!Result {
         if (percent == null) break;
         var rhs = try p.castExpr();
 
-        if (try lhs.adjustTypes(&rhs, p)) {
+        const tag = if (mul != null)
+            .mul_expr
+        else if (div != null)
+            Tree.Tag.div_expr
+        else
+            Tree.Tag.mod_expr;
+
+        if (try lhs.adjustTypes(percent.?, &rhs, p, if (tag == .mod_expr) .integer else .arithmetic)) {
             // TODO divide by zero
             if (mul != null) {
                 try lhs.mul(mul.?, rhs, p);
@@ -2776,12 +2834,7 @@ fn mulExpr(p: *Parser) Error!Result {
             }
         }
 
-        try lhs.bin(p, if (mul != null)
-            .mul_expr
-        else if (div != null)
-            Tree.Tag.div_expr
-        else
-            Tree.Tag.mod_expr, rhs);
+        try lhs.bin(p, tag, rhs);
     }
     return lhs;
 }
