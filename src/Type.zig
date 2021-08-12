@@ -275,6 +275,12 @@ pub fn ptrDiffT(comp: *Compilation) Type {
     return .{ .specifier = .long };
 }
 
+pub fn sizeT(comp: *Compilation) Type {
+    _ = comp;
+    // TODO get target from compilation
+    return .{ .specifier = .ulong };
+}
+
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
         .void, .incomplete_array => true,

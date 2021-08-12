@@ -170,6 +170,7 @@ pub const Tag = enum {
     comparison_ptr_int,
     comparison_distinct_ptr,
     incompatible_pointers,
+    invalid_argument_un,
 };
 
 const Options = struct {
@@ -444,6 +445,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .comparison_ptr_int => m.write("comparison between pointer and integer"),
             .comparison_distinct_ptr => m.write("comparison of distinct pointer types"),
             .incompatible_pointers => m.write("incompatible pointer types"),
+            .invalid_argument_un => m.print("invalid argument type '{s}' to unary expression", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -589,6 +591,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .redefinition_of_parameter,
         .invalid_bin_types,
         .incompatible_pointers,
+        .invalid_argument_un,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

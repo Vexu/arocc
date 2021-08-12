@@ -2234,6 +2234,10 @@ pub const Result = struct {
             .bit_or_assign_expr,
             .call_expr,
             .call_expr_one,
+            .pre_inc_expr,
+            .pre_dec_expr,
+            .post_inc_expr,
+            .post_dec_expr,
             => return,
             else => {},
         }
@@ -3098,6 +3102,7 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
             var operand = try p.castExpr();
 
+            // TODO validate type
             if (!Tree.isLval(p.nodes.slice(), operand.node)) {
                 try p.errTok(.addr_of_rvalue, tok);
                 return error.ParsingFailed;
@@ -3114,6 +3119,7 @@ fn unExpr(p: *Parser) Error!Result {
         .asterisk => {
             p.tok_i += 1;
             var operand = try p.castExpr();
+            // TODO validate pointer type
 
             switch (operand.ty.specifier) {
                 .pointer => {
@@ -3132,13 +3138,25 @@ fn unExpr(p: *Parser) Error!Result {
         },
         .plus => {
             p.tok_i += 1;
-            // TODO upcast to int / validate arithmetic type
-            return p.castExpr();
+
+            var operand = try p.castExpr();
+            try operand.lvalConversion(p);
+            if (!operand.ty.isInt() and !operand.ty.isFloat())
+                try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+            return operand;
         },
         .minus => {
             p.tok_i += 1;
-            // TODO upcast to int / validate arithmetic type
+
             var operand = try p.castExpr();
+            try operand.lvalConversion(p);
+            if (!operand.ty.isInt() and !operand.ty.isFloat())
+                try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+
             const size = operand.ty.sizeof(p.pp.comp).?;
             switch (operand.val) {
                 .unsigned => |*v| switch (size) {
@@ -3157,13 +3175,16 @@ fn unExpr(p: *Parser) Error!Result {
         },
         .plus_plus => {
             p.tok_i += 1;
-            // TODO upcast to int / validate arithmetic type
-            var operand = try p.castExpr();
 
-            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+            var operand = try p.castExpr();
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
+                try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
 
             // TODO overflow
             switch (operand.val) {
@@ -3176,13 +3197,16 @@ fn unExpr(p: *Parser) Error!Result {
         },
         .minus_minus => {
             p.tok_i += 1;
-            // TODO upcast to int / validate arithmetic type
-            var operand = try p.castExpr();
 
-            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+            var operand = try p.castExpr();
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
+                try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
 
             // TODO overflow
             switch (operand.val) {
@@ -3195,9 +3219,11 @@ fn unExpr(p: *Parser) Error!Result {
         },
         .tilde => {
             p.tok_i += 1;
-            // TODO upcast to int / validate arithmetic type
-            var operand = try p.unExpr();
 
+            var operand = try p.castExpr();
+            try operand.lvalConversion(p);
+            if (!operand.ty.isInt()) try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
             switch (operand.val) {
                 .unsigned => |*v| v.* = ~v.*,
                 .signed => |*v| v.* = ~v.*,
@@ -3208,7 +3234,13 @@ fn unExpr(p: *Parser) Error!Result {
         },
         .bang => {
             p.tok_i += 1;
-            var operand = try p.unExpr();
+
+            var operand = try p.castExpr();
+            try operand.lvalConversion(p);
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and operand.ty.specifier != .pointer)
+                try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
             if (operand.val != .unavailable) {
                 operand.val = .{ .signed = @boolToInt(!operand.getBool()) };
             }
@@ -3240,6 +3272,7 @@ fn unExpr(p: *Parser) Error!Result {
                 res.val = .unavailable;
                 try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
             }
+            res.ty = Type.sizeT(p.pp.comp);
             return res.un(p, .sizeof_expr);
         },
         .keyword_alignof, .keyword_alignof1, .keyword_alignof2 => {
@@ -3263,6 +3296,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.alignof_expr, expected_paren);
             }
 
+            res.ty = Type.sizeT(p.pp.comp);
             res.val = .{ .unsigned = res.ty.alignment };
             return res.un(p, .alignof_expr);
         },
@@ -3355,25 +3389,31 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
         },
         .plus_plus => {
             defer p.tok_i += 1;
-            // TODO upcast to int / validate arithmetic type
-            var operand = lhs;
 
-            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+            var operand = lhs;
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
+                try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
 
             return operand.un(p, .post_dec_expr);
         },
         .minus_minus => {
             defer p.tok_i += 1;
-            // TODO upcast to int / validate arithmetic type
-            var operand = lhs;
 
-            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+            var operand = lhs;
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
+                try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
+
+            if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
 
             return operand.un(p, .post_dec_expr);
         },
