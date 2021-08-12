@@ -3477,16 +3477,31 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             return operand;
         },
         .l_bracket => {
-            var operand = lhs;
-
             const l_bracket = p.tok_i;
             p.tok_i += 1;
-            const index = try p.expr();
+            var index = try p.expr();
             try p.expectClosing(l_bracket, .r_bracket);
 
-            // TODO validate type
-            try operand.bin(p, .array_access_expr, index);
-            return operand;
+            const l_ty = lhs.ty;
+            const r_ty = index.ty;
+            var ptr = lhs;
+            try ptr.lvalConversion(p);
+            try index.lvalConversion(p);
+            if (ptr.ty.specifier == .pointer) {
+                ptr.ty = ptr.ty.data.sub_type.*;
+                if (!index.ty.isInt()) try p.errTok(.invalid_index, l_bracket);
+                try p.checkArrayBounds(index, l_ty, l_bracket);
+            } else if (index.ty.specifier == .pointer) {
+                index.ty = index.ty.data.sub_type.*;
+                if (!ptr.ty.isInt()) try p.errTok(.invalid_index, l_bracket);
+                try p.checkArrayBounds(ptr, r_ty, l_bracket);
+                std.mem.swap(Result, &ptr, &index);
+            } else {
+                try p.errTok(.invalid_subscript, l_bracket);
+            }
+
+            try ptr.bin(p, .array_access_expr, index);
+            return ptr;
         },
         .period => {
             p.tok_i += 1;
@@ -3515,6 +3530,23 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             };
         },
         else => return Result{},
+    }
+}
+
+fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !void {
+    const len = switch (arr_ty.specifier) {
+        .array, .static_array => arr_ty.data.array.len,
+        else => return,
+    };
+
+    switch (index.val) {
+        .unsigned => |val| if (std.math.compare(val, .gte, len))
+            try p.errExtra(.array_after, tok, .{ .unsigned = val }),
+        .signed => |val| if (val < 0)
+            try p.errExtra(.array_before, tok, .{ .signed = val })
+        else if (std.math.compare(val, .gte, len))
+            try p.errExtra(.array_after, tok, .{ .unsigned = @intCast(u64, val) }),
+        .unavailable => return,
     }
 }
 
