@@ -1,7 +1,11 @@
 # Aro
 A C compiler with the goal of providing fast compilation and low memory usage with good diagnostics.
 
-Right now preprocessing and parsing is mostly done but anything beyond that is missing.
+Currently it can preprocess, parse and semantically analyze ~75% of standard C17 with 
+work still being needed to support all of the usual extensions.
+
+Future plans for the project include making it the C backend of Zig's `translate-c` feature and
+making it an optional C frontend for the self-hosted Zig compiler.
 ```c
 #define MAIN ma##in
 
@@ -11,7 +15,7 @@ int *something[5];
 
 #if defined MAIN
 int MAIN(int argc, const char *argv[]) {
-    return 0;
+    return (argc * (char)4)[(int)1.f];
 }
 #endif
 ```
@@ -19,12 +23,31 @@ int MAIN(int argc, const char *argv[]) {
 var: '[5]*int'
  name: something
 
-fn_def: 'fn (argc: int, argv: []*const char) int'
+fn_def: 'fn (argc: int, argv: **const char) int'
  name: main
  body:
   compound_stmt_two: 'void'
     return_stmt: 'void'
      expr:
-      int_32_literal: 'int'
-       value: 0
+      array_access_expr: '*const char' lvalue
+       lhs:
+        lval_to_rval: '**const char'
+          decl_ref_expr: '**const char' lvalue
+           name: argv
+       index:
+        paren_expr: 'int'
+         operand:
+          mul_expr: 'int'
+           lhs:
+            lval_to_rval: 'int'
+              decl_ref_expr: 'int' lvalue
+               name: argc
+           rhs:
+            int_cast: 'int' (value: 4)
+              cast_expr: 'char'
+               operand:
+                int_literal: 'int'
+                 value: 4
+
 ```
+<sup>types are printed in Zig style as C types are more confusing than necessary</sup>
