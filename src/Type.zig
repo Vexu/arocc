@@ -190,6 +190,13 @@ pub fn isInt(ty: Type) bool {
     };
 }
 
+pub fn isFloat(ty: Type) bool {
+    return switch (ty.specifier) {
+        .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double => true,
+        else => false,
+    };
+}
+
 pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
     _ = comp;
     return switch (ty.specifier) {
@@ -212,6 +219,40 @@ pub fn elemType(ty: Type) Type {
         .array, .static_array, .incomplete_array => ty.data.array.elem,
         .variable_len_array => ty.data.vla.elem,
         else => unreachable,
+    };
+}
+
+pub fn eitherLongDouble(a: Type, b: Type) ?Type {
+    if (a.specifier == .long_double or a.specifier == .complex_long_double) return a;
+    if (b.specifier == .long_double or b.specifier == .complex_long_double) return b;
+    return null;
+}
+
+pub fn eitherDouble(a: Type, b: Type) ?Type {
+    if (a.specifier == .double or a.specifier == .complex_double) return a;
+    if (b.specifier == .double or b.specifier == .complex_double) return b;
+    return null;
+}
+
+pub fn eitherFloat(a: Type, b: Type) ?Type {
+    if (a.specifier == .float or a.specifier == .complex_float) return a;
+    if (b.specifier == .float or b.specifier == .complex_float) return b;
+    return null;
+}
+
+pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
+    return .{
+        .specifier = switch (ty.specifier) {
+            .bool, .char, .schar, .uchar, .short => .int,
+            .ushort => if (ty.sizeof(comp).? == sizeof(.{ .specifier = .int }, comp)) Specifier.uint else .int,
+            .int => .int,
+            .uint => .uint,
+            .long => .long,
+            .ulong => .ulong,
+            .long_long => .long_long,
+            .ulong_long => .ulong_long,
+            else => unreachable, // not an integer type
+        },
     };
 }
 
@@ -548,7 +589,7 @@ pub const Builder = struct {
         var prev_ty: Type = .{ .specifier = undefined };
         spec.finish(p, &prev_ty) catch unreachable;
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = try p.typeStr(prev_ty) });
-        if (spec.typedef) |some| try p.errStr(.sepc_from_typedef, some.tok, try p.typeStr(some.ty));
+        if (spec.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
 
     pub fn combine(spec: *Builder, p: *Parser, new: Kind, source_tok: TokenIndex) Compilation.Error!void {

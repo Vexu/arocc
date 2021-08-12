@@ -2266,23 +2266,32 @@ pub const Result = struct {
     /// Adjust types for binary operation, returns true if the result can and should be evaluated.
     fn adjustTypes(a: *Result, tok: TokenIndex, b: *Result, p: *Parser, kind: enum {
         integer,
+        arithmetic,
         scalar,
         add,
         sub,
-        arithmetic,
         comparison,
         conditional,
     }) !bool {
         try a.lvalConversion(p);
         try b.lvalConversion(p);
 
-        if (a.ty.isInt() and b.ty.isInt()) {
-            var int_ty: Type = .{ .specifier = .int }; // TODO select based a.ty and b.ty
-            try a.intCast(p, int_ty);
-            try b.intCast(p, int_ty);
+        const a_int = a.ty.isInt();
+        const b_int = b.ty.isInt();
+        const a_float = a.ty.isFloat();
+        const b_float = b.ty.isFloat();
+
+        if (a_int and b_int) {
+            try a.usualArithmeticConversion(b, p);
             return a.shouldEval(b, p);
         }
         if (kind == .integer) return a.invalidBinTy(tok, b, p);
+
+        if ((a_float and b_float) or (a_float and b_int) or (a_int and b_float)) {
+            try a.usualArithmeticConversion(b, p);
+            return a.shouldEval(b, p);
+        }
+        if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
 
         // TODO more casts here
 
@@ -2325,6 +2334,82 @@ pub const Result = struct {
                 .ty = res.ty,
                 .data = .{ .un = res.node },
             });
+        }
+    }
+
+    fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
+        if (res.ty.specifier == .bool) {
+            res.ty = float_ty;
+            res.node = try p.addNode(.{
+                .tag = .bool_to_float,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        } else if (res.ty.isInt()) {
+            res.ty = float_ty;
+            res.node = try p.addNode(.{
+                .tag = .int_to_float,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        } else if (!res.ty.eql(float_ty, true)) {
+            res.ty = float_ty;
+            res.node = try p.addNode(.{
+                .tag = .float_cast,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        }
+    }
+
+    fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser) Error!void {
+        // if either is a float cast to that type
+        if (Type.eitherLongDouble(a.ty, b.ty)) |ty| {
+            try a.floatCast(p, ty);
+            try b.floatCast(p, ty);
+            return;
+        }
+        if (Type.eitherDouble(a.ty, b.ty)) |ty| {
+            try a.floatCast(p, ty);
+            try b.floatCast(p, ty);
+            return;
+        }
+        if (Type.eitherFloat(a.ty, b.ty)) |ty| {
+            try a.floatCast(p, ty);
+            try b.floatCast(p, ty);
+            return;
+        }
+
+        // Do integer promotion on both operands
+        const a_promoted = a.ty.integerPromotion(p.pp.comp);
+        const b_promoted = b.ty.integerPromotion(p.pp.comp);
+        if (a_promoted.eql(b_promoted, true)) {
+            // cast to promoted type
+            try a.intCast(p, a_promoted);
+            try b.intCast(p, a_promoted);
+            return;
+        }
+
+        const a_unsigned = a_promoted.isUnsignedInt(p.pp.comp);
+        const b_unsigned = b_promoted.isUnsignedInt(p.pp.comp);
+        if (a_unsigned == b_unsigned) {
+            // cast to greater signed or unsigned type
+            const res_spec = std.math.max(@enumToInt(a_promoted.specifier), @enumToInt(b_promoted.specifier));
+            const res_ty = Type{ .specifier = @intToEnum(Type.Specifier, res_spec) };
+            try a.intCast(p, res_ty);
+            try b.intCast(p, res_ty);
+            return;
+        }
+
+        // cast to the unsigned type with greater rank
+        if (a_unsigned and (@enumToInt(a_promoted.specifier) >= @enumToInt(b_promoted.specifier))) {
+            try a.intCast(p, a_promoted);
+            try b.intCast(p, a_promoted);
+            return;
+        } else {
+            assert(b_unsigned and (@enumToInt(b_promoted.specifier) >= @enumToInt(a_promoted.specifier)));
+            try a.intCast(p, b_promoted);
+            try b.intCast(p, b_promoted);
         }
     }
 
