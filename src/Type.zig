@@ -185,7 +185,7 @@ pub fn isArray(ty: Type) bool {
 
 pub fn isInt(ty: Type) bool {
     return switch (ty.specifier) {
-        .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
+        .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
         else => false,
     };
 }

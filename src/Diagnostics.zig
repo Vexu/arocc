@@ -171,6 +171,8 @@ pub const Tag = enum {
     comparison_distinct_ptr,
     incompatible_pointers,
     invalid_argument_un,
+    incompatible_assign,
+    implicit_ptr_to_int,
 };
 
 const Options = struct {
@@ -191,6 +193,7 @@ const Options = struct {
     multichar: Kind = .warning,
     @"pointer-integer-compare": Kind = .warning,
     @"compare-distinct-pointer-types": Kind = .warning,
+    @"literal-conversion": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -446,6 +449,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .comparison_distinct_ptr => m.write("comparison of distinct pointer types"),
             .incompatible_pointers => m.write("incompatible pointer types"),
             .invalid_argument_un => m.print("invalid argument type '{s}' to unary expression", .{msg.extra.str}),
+            .incompatible_assign => m.write("assignment from incompatible type"),
+            .implicit_ptr_to_int => m.write("implicit pointer to integer conversion in assignment"),
         }
         m.end(lcs);
 
@@ -592,6 +597,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .invalid_bin_types,
         .incompatible_pointers,
         .invalid_argument_un,
+        .incompatible_assign,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -626,6 +632,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .multichar_literal => diag.options.multichar,
         .comparison_ptr_int => diag.options.@"pointer-integer-compare",
         .comparison_distinct_ptr => diag.options.@"compare-distinct-pointer-types",
+        .implicit_ptr_to_int => diag.options.@"literal-conversion",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

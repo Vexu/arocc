@@ -2252,13 +2252,12 @@ pub const Result = struct {
         });
     }
 
-    fn un(operand: *Result, p: *Parser, tag: Tree.Tag) Error!Result {
+    fn un(operand: *Result, p: *Parser, tag: Tree.Tag) Error!void {
         operand.node = try p.addNode(.{
             .tag = tag,
             .ty = operand.ty,
             .data = .{ .un = operand.node },
         });
-        return operand.*;
     }
 
     fn coerce(res: Result, p: *Parser, dest_ty: Type) !Result {
@@ -2377,46 +2376,39 @@ pub const Result = struct {
             elem_ty.* = res.ty;
             res.ty.specifier = .pointer;
             res.ty.data = .{ .sub_type = elem_ty };
-            res.node = try p.addNode(.{
-                .tag = .function_to_pointer,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
             var elem_ty = try p.arena.create(Type);
             elem_ty.* = res.ty.elemType();
             res.ty.specifier = .pointer;
             res.ty.data = .{ .sub_type = elem_ty };
-            res.node = try p.addNode(.{
-                .tag = .array_to_pointer,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .array_to_pointer);
         } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), res.node)) {
             res.ty.qual = .{};
-            res.node = try p.addNode(.{
-                .tag = .lval_to_rval,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .lval_to_rval);
+        }
+    }
+
+    fn boolCast(res: *Result, p: *Parser, bool_ty: Type) Error!void {
+        if (res.ty.specifier == .pointer) {
+            res.ty = bool_ty;
+            try res.un(p, .pointer_to_bool);
+        } else if (res.ty.isInt() and res.ty.specifier != .bool) {
+            res.ty = bool_ty;
+            try res.un(p, .int_to_bool);
+        } else if (res.ty.isFloat()) {
+            res.ty = bool_ty;
+            try res.un(p, .float_to_bool);
         }
     }
 
     fn intCast(res: *Result, p: *Parser, int_ty: Type) Error!void {
         if (res.ty.specifier == .bool) {
             res.ty = int_ty;
-            res.node = try p.addNode(.{
-                .tag = .bool_to_int,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .bool_to_int);
         } else if (!res.ty.eql(int_ty, true)) {
             res.ty = int_ty;
-            res.node = try p.addNode(.{
-                .tag = .int_cast,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .int_cast);
             const is_unsigned = int_ty.isUnsignedInt(p.pp.comp);
             if (is_unsigned and res.val == .signed) {
                 const copy = res.val.signed;
@@ -2431,43 +2423,23 @@ pub const Result = struct {
     fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
         if (res.ty.specifier == .bool) {
             res.ty = float_ty;
-            res.node = try p.addNode(.{
-                .tag = .bool_to_float,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .bool_to_float);
         } else if (res.ty.isInt()) {
             res.ty = float_ty;
-            res.node = try p.addNode(.{
-                .tag = .int_to_float,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .int_to_float);
         } else if (!res.ty.eql(float_ty, true)) {
             res.ty = float_ty;
-            res.node = try p.addNode(.{
-                .tag = .float_cast,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .float_cast);
         }
     }
 
     fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
         if (res.ty.specifier == .bool) {
             res.ty = ptr_ty;
-            res.node = try p.addNode(.{
-                .tag = .bool_to_pointer,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .bool_to_pointer);
         } else if (res.ty.isInt()) {
             res.ty = ptr_ty;
-            res.node = try p.addNode(.{
-                .tag = .int_to_pointer,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
+            try res.un(p, .int_to_pointer);
         }
     }
 
@@ -2711,6 +2683,36 @@ fn expr(p: *Parser) Error!Result {
     return lhs;
 }
 
+fn tokToTag(p: *Parser, tok: TokenIndex) Tree.Tag {
+    return switch (p.tok_ids[tok]) {
+        .equal => .assign_expr,
+        .asterisk_equal => .mul_assign_expr,
+        .slash_equal => .div_assign_expr,
+        .percent_equal => .mod_assign_expr,
+        .plus_equal => .add_assign_expr,
+        .minus_equal => .sub_assign_expr,
+        .angle_bracket_angle_bracket_left_equal => .shl_assign_expr,
+        .angle_bracket_angle_bracket_right_equal => .shr_assign_expr,
+        .ampersand_equal => .bit_and_assign_expr,
+        .caret_equal => .bit_xor_assign_expr,
+        .pipe_equal => .bit_or_assign_expr,
+        .equal_equal => .equal_expr,
+        .bang_equal => .not_equal_expr,
+        .angle_bracket_left => .less_than_expr,
+        .angle_bracket_left_equal => .less_than_equal_expr,
+        .angle_bracket_right => .greater_than_expr,
+        .angle_bracket_right_equal => .greater_than_equal_expr,
+        .angle_bracket_angle_bracket_left => .shl_expr,
+        .angle_bracket_angle_bracket_right => .shr_expr,
+        .plus => .add_expr,
+        .minus => .sub_expr,
+        .asterisk => .mul_expr,
+        .slash => .div_expr,
+        .percent => .mod_expr,
+        else => unreachable,
+    };
+}
+
 /// assignExpr
 ///  : condExpr
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
@@ -2730,36 +2732,66 @@ fn assignExpr(p: *Parser) Error!Result {
     const bit_xor = bit_and orelse p.eatToken(.caret_equal);
     const bit_or = bit_xor orelse p.eatToken(.pipe_equal);
 
-    if (bit_or == null) return lhs;
-    if (!Tree.isLval(p.nodes.slice(), lhs.node)) {
+    const tag = p.tokToTag(bit_or orelse return lhs);
+    var rhs = try p.assignExpr();
+    try rhs.lvalConversion(p);
+
+    if (!Tree.isLval(p.nodes.slice(), lhs.node) or lhs.ty.qual.@"const") {
         try p.errTok(.not_assignable, tok);
         return error.ParsingFailed;
     }
-    var rhs = try p.assignExpr();
-    try rhs.lvalConversion(p); // TODO more casts here
+    // TODO print types in these errors
+    if (lhs.ty.specifier == .bool) {
+        // this is ridiculous but it's what clang does
+        if (rhs.ty.isInt() or rhs.ty.isFloat() or (rhs.ty.specifier == .pointer and tag == .assign_expr)) {
+            try rhs.boolCast(p, lhs.ty);
+        } else {
+            try p.errTok(.incompatible_assign, tok);
+        }
+    } else if (lhs.ty.isInt()) {
+        if (rhs.ty.isInt() or rhs.ty.isFloat()) {
+            try rhs.intCast(p, lhs.ty);
+        } else if (tag == .assign_expr and rhs.ty.specifier == .pointer) {
+            try p.errTok(.implicit_ptr_to_int, tok);
+            try rhs.intCast(p, lhs.ty);
+        } else {
+            try p.errTok(.incompatible_assign, tok);
+        }
+    } else if (lhs.ty.isFloat()) {
+        switch (tag) {
+            .mod_assign_expr,
+            .shl_assign_expr,
+            .shr_assign_expr,
+            .bit_and_assign_expr,
+            .bit_xor_assign_expr,
+            .bit_or_assign_expr,
+            => try p.errTok(.invalid_bin_types, tok),
+            else => if (rhs.ty.isInt() or rhs.ty.isFloat()) {
+                try rhs.floatCast(p, lhs.ty);
+            } else {
+                try p.errTok(.incompatible_assign, tok);
+            },
+        }
+    } else if (lhs.ty.specifier == .pointer) {
+        if ((tag == .add_assign_expr or tag == .sub_assign_expr) and
+            (rhs.ty.isInt() or rhs.ty.isFloat()))
+            try rhs.ptrCast(p, lhs.ty)
+        else if (tag != .assign_expr)
+            try p.errTok(.invalid_bin_types, tok)
+        else if (!lhs.ty.eql(rhs.ty, false))
+            try p.errTok(.incompatible_assign, tok);
+    } else if (lhs.ty.isEnumOrRecord()) { // enum.isInt() == true
+        if (tag != .assign_expr)
+            try p.errTok(.invalid_bin_types, tok)
+        else if (!lhs.ty.eql(rhs.ty, false))
+            try p.errTok(.incompatible_assign, tok);
+    } else if (lhs.ty.isArray() or lhs.ty.isFunc()) {
+        try p.errTok(.not_assignable, tok);
+    } else {
+        try p.errTok(.incompatible_assign, tok);
+    }
 
-    try lhs.bin(p, if (eq != null)
-        .assign_expr
-    else if (mul != null)
-        Tree.Tag.mul_assign_expr
-    else if (div != null)
-        Tree.Tag.div_assign_expr
-    else if (mod != null)
-        Tree.Tag.mod_assign_expr
-    else if (add != null)
-        Tree.Tag.add_assign_expr
-    else if (sub != null)
-        Tree.Tag.sub_assign_expr
-    else if (shl != null)
-        Tree.Tag.shl_assign_expr
-    else if (shr != null)
-        Tree.Tag.shr_assign_expr
-    else if (bit_and != null)
-        Tree.Tag.bit_and_assign_expr
-    else if (bit_xor != null)
-        Tree.Tag.bit_xor_assign_expr
-    else
-        Tree.Tag.bit_or_assign_expr, rhs);
+    try lhs.bin(p, tag, rhs);
     return lhs;
 }
 
@@ -2901,11 +2933,11 @@ fn eqExpr(p: *Parser) Error!Result {
     while (true) {
         const eq = p.eatToken(.equal_equal);
         const ne = eq orelse p.eatToken(.bang_equal);
-        if (ne == null) break;
+        const tag = p.tokToTag(ne orelse break);
         var rhs = try p.compExpr();
 
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
-            const res = if (eq != null)
+            const res = if (tag == .equal_expr)
                 lhs.compare(.eq, rhs)
             else
                 lhs.compare(.neq, rhs);
@@ -2913,7 +2945,7 @@ fn eqExpr(p: *Parser) Error!Result {
             lhs.val = .{ .signed = @boolToInt(res) };
         }
         lhs.ty = .{ .specifier = .int };
-        try lhs.bin(p, if (eq != null) .equal_expr else .not_equal_expr, rhs);
+        try lhs.bin(p, tag, rhs);
     }
     return lhs;
 }
@@ -2926,29 +2958,20 @@ fn compExpr(p: *Parser) Error!Result {
         const le = lt orelse p.eatToken(.angle_bracket_left_equal);
         const gt = le orelse p.eatToken(.angle_bracket_right);
         const ge = gt orelse p.eatToken(.angle_bracket_right_equal);
-        if (ge == null) break;
+        const tag = p.tokToTag(ge orelse break);
         var rhs = try p.shiftExpr();
 
         if (try lhs.adjustTypes(ge.?, &rhs, p, .relational)) {
-            const res = if (lt != null)
-                lhs.compare(.lt, rhs)
-            else if (le != null)
-                lhs.compare(.lte, rhs)
-            else if (gt != null)
-                lhs.compare(.gt, rhs)
-            else
-                lhs.compare(.gte, rhs);
-            lhs.val = .{ .signed = @boolToInt(res) };
+            lhs.val = .{ .signed = @boolToInt(switch (tag) {
+                .less_than_expr => lhs.compare(.lt, rhs),
+                .less_than_equal_expr => lhs.compare(.lte, rhs),
+                .greater_than_expr => lhs.compare(.gt, rhs),
+                .greater_than_equal_expr => lhs.compare(.gte, rhs),
+                else => unreachable,
+            }) };
         }
         lhs.ty = .{ .specifier = .int };
-        try lhs.bin(p, if (lt != null)
-            .less_than_expr
-        else if (le != null)
-            Tree.Tag.less_than_equal_expr
-        else if (gt != null)
-            Tree.Tag.greater_than_expr
-        else
-            Tree.Tag.greater_than_equal_expr, rhs);
+        try lhs.bin(p, tag, rhs);
     }
     return lhs;
 }
@@ -2959,7 +2982,7 @@ fn shiftExpr(p: *Parser) Error!Result {
     while (true) {
         const shl = p.eatToken(.angle_bracket_angle_bracket_left);
         const shr = shl orelse p.eatToken(.angle_bracket_angle_bracket_right);
-        if (shr == null) break;
+        const tag = p.tokToTag(shr orelse break);
         var rhs = try p.addExpr();
 
         if (try lhs.adjustTypes(shr.?, &rhs, p, .integer)) {
@@ -2978,7 +3001,7 @@ fn shiftExpr(p: *Parser) Error!Result {
                 };
             }
         }
-        try lhs.bin(p, if (shl != null) .shl_expr else .shr_expr, rhs);
+        try lhs.bin(p, tag, rhs);
     }
     return lhs;
 }
@@ -2989,7 +3012,7 @@ fn addExpr(p: *Parser) Error!Result {
     while (true) {
         const plus = p.eatToken(.plus);
         const minus = plus orelse p.eatToken(.minus);
-        if (minus == null) break;
+        const tag = p.tokToTag(minus orelse break);
         var rhs = try p.mulExpr();
 
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
@@ -2999,7 +3022,7 @@ fn addExpr(p: *Parser) Error!Result {
                 try lhs.sub(minus.?, rhs, p);
             }
         }
-        try lhs.bin(p, if (plus != null) .add_expr else .sub_expr, rhs);
+        try lhs.bin(p, tag, rhs);
     }
     return lhs;
 }
@@ -3011,15 +3034,8 @@ fn mulExpr(p: *Parser) Error!Result {
         const mul = p.eatToken(.asterisk);
         const div = mul orelse p.eatToken(.slash);
         const percent = div orelse p.eatToken(.percent);
-        if (percent == null) break;
+        const tag = p.tokToTag(percent orelse break);
         var rhs = try p.castExpr();
-
-        const tag = if (mul != null)
-            .mul_expr
-        else if (div != null)
-            Tree.Tag.div_expr
-        else
-            Tree.Tag.mod_expr;
 
         if (try lhs.adjustTypes(percent.?, &rhs, p, if (tag == .mod_expr) .integer else .arithmetic)) {
             // TODO divide by zero
@@ -3082,7 +3098,8 @@ fn castExpr(p: *Parser) Error!Result {
             }
             var operand = try p.castExpr();
             operand.ty = ty;
-            return operand.un(p, .cast_expr);
+            try operand.un(p, .cast_expr);
+            return operand;
         }
         p.tok_i -= 1;
     }
@@ -3114,7 +3131,8 @@ fn unExpr(p: *Parser) Error!Result {
                 .specifier = .pointer,
                 .data = .{ .sub_type = elem_ty },
             };
-            return operand.un(p, .addr_of_expr);
+            try operand.un(p, .addr_of_expr);
+            return operand;
         },
         .asterisk => {
             p.tok_i += 1;
@@ -3134,7 +3152,8 @@ fn unExpr(p: *Parser) Error!Result {
                     return error.ParsingFailed;
                 },
             }
-            return operand.un(p, .deref_expr);
+            try operand.un(p, .deref_expr);
+            return operand;
         },
         .plus => {
             p.tok_i += 1;
@@ -3171,7 +3190,8 @@ fn unExpr(p: *Parser) Error!Result {
                 },
                 .unavailable => {},
             }
-            return operand.un(p, .negate_expr);
+            try operand.un(p, .negate_expr);
+            return operand;
         },
         .plus_plus => {
             p.tok_i += 1;
@@ -3193,7 +3213,8 @@ fn unExpr(p: *Parser) Error!Result {
                 .unavailable => {},
             }
 
-            return operand.un(p, .pre_inc_expr);
+            try operand.un(p, .pre_inc_expr);
+            return operand;
         },
         .minus_minus => {
             p.tok_i += 1;
@@ -3215,7 +3236,8 @@ fn unExpr(p: *Parser) Error!Result {
                 .unavailable => {},
             }
 
-            return operand.un(p, .pre_dec_expr);
+            try operand.un(p, .pre_dec_expr);
+            return operand;
         },
         .tilde => {
             p.tok_i += 1;
@@ -3230,7 +3252,8 @@ fn unExpr(p: *Parser) Error!Result {
                 .unavailable => {},
             }
 
-            return operand.un(p, .bool_not_expr);
+            try operand.un(p, .bool_not_expr);
+            return operand;
         },
         .bang => {
             p.tok_i += 1;
@@ -3245,7 +3268,8 @@ fn unExpr(p: *Parser) Error!Result {
                 operand.val = .{ .signed = @boolToInt(!operand.getBool()) };
             }
             operand.ty = .{ .specifier = .int };
-            return operand.un(p, .bool_not_expr);
+            try operand.un(p, .bool_not_expr);
+            return operand;
         },
         .keyword_sizeof => {
             p.tok_i += 1;
@@ -3273,7 +3297,8 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
             }
             res.ty = Type.sizeT(p.pp.comp);
-            return res.un(p, .sizeof_expr);
+            try res.un(p, .sizeof_expr);
+            return res;
         },
         .keyword_alignof, .keyword_alignof1, .keyword_alignof2 => {
             p.tok_i += 1;
@@ -3298,7 +3323,8 @@ fn unExpr(p: *Parser) Error!Result {
 
             res.ty = Type.sizeT(p.pp.comp);
             res.val = .{ .unsigned = res.ty.alignment };
-            return res.un(p, .alignof_expr);
+            try res.un(p, .alignof_expr);
+            return res;
         },
         else => {
             var lhs = try p.primaryExpr();
@@ -3400,7 +3426,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             }
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
 
-            return operand.un(p, .post_dec_expr);
+            try operand.un(p, .post_dec_expr);
+            return operand;
         },
         .minus_minus => {
             defer p.tok_i += 1;
@@ -3415,7 +3442,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             }
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
 
-            return operand.un(p, .post_dec_expr);
+            try operand.un(p, .post_dec_expr);
+            return operand;
         },
         .l_bracket => {
             var operand = lhs;
@@ -3471,7 +3499,8 @@ fn primaryExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         var e = try p.expr();
         try p.expectClosing(l_paren, .r_paren);
-        return e.un(p, .paren_expr);
+        try e.un(p, .paren_expr);
+        return e;
     }
     switch (p.tok_ids[p.tok_i]) {
         .identifier => {
