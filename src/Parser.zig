@@ -1029,7 +1029,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
             try p.err(.ident_or_l_brace);
             return error.ParsingFailed;
         };
-        // check if this is a referense to a previous type
+        // check if this is a reference to a previous type
         if (try p.findTag(p.tok_ids[kind_tok], ident, .reference)) |prev| {
             return prev.ty.data.record;
         } else {
@@ -1194,7 +1194,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             try p.err(.ident_or_l_brace);
             return error.ParsingFailed;
         };
-        // check if this is a referense to a previous type
+        // check if this is a reference to a previous type
         if (try p.findTag(.keyword_enum, ident, .reference)) |prev| {
             return prev.ty.data.@"enum";
         } else {
@@ -2268,9 +2268,10 @@ pub const Result = struct {
         integer,
         arithmetic,
         boolean_logic,
+        relational,
+        equality,
         add,
         sub,
-        comparison,
         conditional,
     }) !bool {
         try a.lvalConversion(p);
@@ -2284,22 +2285,49 @@ pub const Result = struct {
         }
         if (kind == .integer) return a.invalidBinTy(tok, b, p);
 
-        const a_arithmetic = a_int or a.ty.isFloat();
-        const b_arithmetic = b_int or b.ty.isFloat();
+        const a_float = a.ty.isFloat();
+        const b_float = b.ty.isFloat();
+        const a_arithmetic = a_int or a_float;
+        const b_arithmetic = b_int or b_float;
         if (a_arithmetic and b_arithmetic) {
+            // <, <=, >, >= only work on real types
+            if (kind == .relational and (!a.ty.isReal() or !b.ty.isReal()))
+                return a.invalidBinTy(tok, b, p);
+
             try a.usualArithmeticConversion(b, p);
             return a.shouldEval(b, p);
         }
         if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
 
-        const a_scalar = a_arithmetic or a.ty.specifier == .pointer;
-        const b_scalar = b_arithmetic or b.ty.specifier == .pointer;
+        const a_ptr = a.ty.specifier == .pointer;
+        const b_ptr = b.ty.specifier == .pointer;
+        const a_scalar = a_arithmetic or a_ptr;
+        const b_scalar = b_arithmetic or b_ptr;
         if (kind == .boolean_logic) {
             if (!a_scalar or !b_scalar) return a.invalidBinTy(tok, b, p);
 
             // Do integer promotions but nothing else
             if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp));
             if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+            return a.shouldEval(b, p);
+        }
+
+        if (kind == .relational or kind == .equality) {
+            // comparisons between floats and pointes not allowed
+            if (!a_scalar or !b_scalar or (a_float and b_ptr) or (b_float and a_ptr))
+                return a.invalidBinTy(tok, b, p);
+
+            // TODO print types
+            if (a_int or b_int) try p.errTok(.comparison_ptr_int, tok);
+            if (a_ptr and b_ptr) {
+                if (!a.ty.eql(b.ty, false)) try p.errTok(.comparison_distinct_ptr, tok);
+            } else if (a_ptr) {
+                try b.ptrCast(p, a.ty);
+            } else {
+                assert(b_ptr);
+                try a.ptrCast(p, b.ty);
+            }
+
             return a.shouldEval(b, p);
         }
 
@@ -2354,6 +2382,14 @@ pub const Result = struct {
                 .ty = res.ty,
                 .data = .{ .un = res.node },
             });
+            const is_unsigned = int_ty.isUnsignedInt(p.pp.comp);
+            if (is_unsigned and res.val == .signed) {
+                const copy = res.val.signed;
+                res.val = .{ .unsigned = @bitCast(u64, copy) };
+            } else if (!is_unsigned and res.val == .unsigned) {
+                const copy = res.val.unsigned;
+                res.val = .{ .signed = @bitCast(i64, copy) };
+            }
         }
     }
 
@@ -2376,6 +2412,24 @@ pub const Result = struct {
             res.ty = float_ty;
             res.node = try p.addNode(.{
                 .tag = .float_cast,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        }
+    }
+
+    fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
+        if (res.ty.specifier == .bool) {
+            res.ty = ptr_ty;
+            res.node = try p.addNode(.{
+                .tag = .bool_to_pointer,
+                .ty = res.ty,
+                .data = .{ .un = res.node },
+            });
+        } else if (res.ty.isInt()) {
+            res.ty = ptr_ty;
+            res.node = try p.addNode(.{
+                .tag = .int_to_pointer,
                 .ty = res.ty,
                 .data = .{ .un = res.node },
             });
@@ -2492,8 +2546,8 @@ pub const Result = struct {
         switch (a.val) {
             .unsigned => |*v| {
                 switch (size) {
-                    1 => unreachable, // upcasted to int
-                    2 => unreachable, // upcasted to int
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
                     4 => {
                         var res: u32 = undefined;
                         overflow = @mulWithOverflow(u32, @truncate(u32, v.*), @truncate(u32, b.val.unsigned), &res);
@@ -2506,8 +2560,8 @@ pub const Result = struct {
             },
             .signed => |*v| {
                 switch (size) {
-                    1 => unreachable, // upcasted to int
-                    2 => unreachable, // upcasted to int
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
                     4 => {
                         var res: i32 = undefined;
                         overflow = @mulWithOverflow(i32, @truncate(i32, v.*), @truncate(i32, b.val.signed), &res);
@@ -2528,8 +2582,8 @@ pub const Result = struct {
         switch (a.val) {
             .unsigned => |*v| {
                 switch (size) {
-                    1 => unreachable, // upcasted to int
-                    2 => unreachable, // upcasted to int
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
                     4 => {
                         var res: u32 = undefined;
                         overflow = @addWithOverflow(u32, @truncate(u32, v.*), @truncate(u32, b.val.unsigned), &res);
@@ -2542,8 +2596,8 @@ pub const Result = struct {
             },
             .signed => |*v| {
                 switch (size) {
-                    1 => unreachable, // upcasted to int
-                    2 => unreachable, // upcasted to int
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
                     4 => {
                         var res: i32 = undefined;
                         overflow = @addWithOverflow(i32, @truncate(i32, v.*), @truncate(i32, b.val.signed), &res);
@@ -2564,8 +2618,8 @@ pub const Result = struct {
         switch (a.val) {
             .unsigned => |*v| {
                 switch (size) {
-                    1 => unreachable, // upcasted to int
-                    2 => unreachable, // upcasted to int
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
                     4 => {
                         var res: u32 = undefined;
                         overflow = @subWithOverflow(u32, @truncate(u32, v.*), @truncate(u32, b.val.unsigned), &res);
@@ -2578,8 +2632,8 @@ pub const Result = struct {
             },
             .signed => |*v| {
                 switch (size) {
-                    1 => unreachable, // upcasted to int
-                    2 => unreachable, // upcasted to int
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
                     4 => {
                         var res: i32 = undefined;
                         overflow = @subWithOverflow(i32, @truncate(i32, v.*), @truncate(i32, b.val.signed), &res);
@@ -2803,7 +2857,7 @@ fn eqExpr(p: *Parser) Error!Result {
         if (ne == null) break;
         var rhs = try p.compExpr();
 
-        if (try lhs.adjustTypes(ne.?, &rhs, p, .comparison)) {
+        if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const res = if (eq != null)
                 lhs.compare(.eq, rhs)
             else
@@ -2828,7 +2882,7 @@ fn compExpr(p: *Parser) Error!Result {
         if (ge == null) break;
         var rhs = try p.shiftExpr();
 
-        if (try lhs.adjustTypes(ge.?, &rhs, p, .comparison)) {
+        if (try lhs.adjustTypes(ge.?, &rhs, p, .relational)) {
             const res = if (lt != null)
                 lhs.compare(.lt, rhs)
             else if (le != null)
@@ -3145,7 +3199,7 @@ fn unExpr(p: *Parser) Error!Result {
             }
             return res.un(p, .sizeof_expr);
         },
-        .keyword_alignof, .keyword_alignof1, .keywrod_alignof2 => {
+        .keyword_alignof, .keyword_alignof1, .keyword_alignof2 => {
             p.tok_i += 1;
             const expected_paren = p.tok_i;
             var res = Result{};

@@ -10,4 +10,4 @@ int a = 'abcde';
     "strings.c:4:20: error: invalid universal character" \
     "strings.c:5:20: error: invalid universal character" \
     "strings.c:7:9: warning: multi-character character constant" \
-    "strings.c:7:9: warning: charcter constant too long for its type"
+    "strings.c:7:9: warning: character constant too long for its type"

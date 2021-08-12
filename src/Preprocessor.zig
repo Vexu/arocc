@@ -415,7 +415,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
 }
 
 /// Skip until #else #elif #endif, return last directive token id.
-/// Also skips nested #if ... #endif's.
+/// Also skips nested #if ... #endifs.
 fn skip(
     pp: *Preprocessor,
     tokenizer: *Tokenizer,
@@ -583,7 +583,7 @@ fn expandExtra(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize) Error
                 defer buf.deinit();
                 try buf.ensureCapacity(macro.tokens.len);
 
-                // Add all of the macros tokens to the new bufer handling any concats.
+                // Add all of the macros tokens to the new buffer handling any concats.
                 var i: usize = 0;
                 while (i < macro.tokens.len) : (i += 1) {
                     const raw = macro.tokens[i];
@@ -984,7 +984,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
     var params = std.ArrayList([]const u8).init(pp.comp.gpa);
     defer params.deinit();
 
-    // Parse the paremeter list.
+    // Parse the parameter list.
     var var_args = false;
     while (true) {
         var tok = tokenizer.next();

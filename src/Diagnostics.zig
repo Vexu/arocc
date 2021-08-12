@@ -167,6 +167,8 @@ pub const Tag = enum {
     redefinition_incompatible,
     redefinition_of_parameter,
     invalid_bin_types,
+    comparison_ptr_int,
+    comparison_distinct_ptr,
 };
 
 const Options = struct {
@@ -185,6 +187,8 @@ const Options = struct {
     @"macro-redefined": Kind = .warning,
     @"generic-qual-type": Kind = .warning,
     multichar: Kind = .warning,
+    @"pointer-integer-compare": Kind = .warning,
+    @"compare-distinct-pointer-types": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -424,11 +428,11 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .generic_qual_type => m.write("generic association with qualifiers cannot be matched with"),
             .generic_duplicate => m.print("type '{s}' in generic association compatible with previously specified type", .{msg.extra.str}),
             .generic_duplicate_default => m.write("duplicate default generic association"),
-            .generic_no_match => m.print("controlling expression type '{s}' not compatile with any generic association type", .{msg.extra.str}),
+            .generic_no_match => m.print("controlling expression type '{s}' not compatible with any generic association type", .{msg.extra.str}),
             .escape_sequence_overflow => m.write("escape sequence out of range"),
             .invalid_universal_character => m.write("invalid universal character"),
             .multichar_literal => m.write("multi-character character constant"),
-            .char_lit_too_wide => m.write("charcter constant too long for its type"),
+            .char_lit_too_wide => m.write("character constant too long for its type"),
             .must_use_struct => m.print("must use 'struct' tag to refer to type '{s}'", .{msg.extra.str}),
             .must_use_union => m.print("must use 'union' tag to refer to type '{s}'", .{msg.extra.str}),
             .must_use_enum => m.print("must use 'enum' tag to refer to type '{s}'", .{msg.extra.str}),
@@ -436,6 +440,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .redefinition_incompatible => m.print("redefinition of '{s}' with a different type", .{msg.extra.str}),
             .redefinition_of_parameter => m.print("redefinition of parameter '{s}'", .{msg.extra.str}),
             .invalid_bin_types => m.write("invalid operands to binary expression"),
+            .comparison_ptr_int => m.write("comparison between pointer and integer"),
+            .comparison_distinct_ptr => m.write("comparison of distinct pointer types"),
         }
         m.end(lcs);
 
@@ -612,6 +618,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .macro_redefined => diag.options.@"macro-redefined",
         .generic_qual_type => diag.options.@"generic-qual-type",
         .multichar_literal => diag.options.multichar,
+        .comparison_ptr_int => diag.options.@"pointer-integer-compare",
+        .comparison_distinct_ptr => diag.options.@"compare-distinct-pointer-types",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

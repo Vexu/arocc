@@ -197,6 +197,13 @@ pub fn isFloat(ty: Type) bool {
     };
 }
 
+pub fn isReal(ty: Type) bool {
+    return switch (ty.specifier) {
+        .complex_float, .complex_double, .complex_long_double => false,
+        else => true,
+    };
+}
+
 pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
     _ = comp;
     return switch (ty.specifier) {
@@ -321,7 +328,7 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
     switch (a.specifier) {
         .pointer,
         .unspecified_variable_len_array,
-        => if (!a.data.sub_type.eql(b.data.sub_type.*, true)) return false,
+        => if (!a.data.sub_type.eql(b.data.sub_type.*, check_qualifiers)) return false,
 
         .func,
         .var_args_func,
@@ -329,9 +336,9 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
         => {
             // TODO validate this
             if (a.data.func.params.len != b.data.func.params.len) return false;
-            if (!a.data.func.return_type.eql(b.data.func.return_type, true)) return false;
+            if (!a.data.func.return_type.eql(b.data.func.return_type, check_qualifiers)) return false;
             for (a.data.func.params) |param, i| {
-                if (!param.ty.eql(b.data.func.params[i].ty, true)) return false;
+                if (!param.ty.eql(b.data.func.params[i].ty, check_qualifiers)) return false;
             }
         },
 
@@ -340,9 +347,9 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
         .incomplete_array,
         => {
             if (a.data.array.len != b.data.array.len) return false;
-            if (!a.data.array.elem.eql(b.data.array.elem, true)) return false;
+            if (!a.data.array.elem.eql(b.data.array.elem, check_qualifiers)) return false;
         },
-        .variable_len_array => if (!a.data.vla.elem.eql(b.data.vla.elem, true)) return false,
+        .variable_len_array => if (!a.data.vla.elem.eql(b.data.vla.elem, check_qualifiers)) return false,
 
         .@"struct", .@"union" => if (a.data.record != b.data.record) return false,
         .@"enum" => if (a.data.@"enum" != b.data.@"enum") return false,

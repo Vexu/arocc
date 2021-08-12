@@ -182,7 +182,7 @@ pub const Token = struct {
         keyword_restrict1,
         keyword_restrict2,
         keyword_alignof1,
-        keywrod_alignof2,
+        keyword_alignof2,
 
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
@@ -418,7 +418,7 @@ pub const Token = struct {
                 .keyword_restrict1 => "__restrict",
                 .keyword_restrict2 => "__restrict__",
                 .keyword_alignof1 => "__alignof",
-                .keywrod_alignof2 => "__alignof__",
+                .keyword_alignof2 => "__alignof__",
             };
         }
 
@@ -525,7 +525,7 @@ pub const Token = struct {
         .{ "__restrict", .keyword_restrict1 },
         .{ "__restrict__", .keyword_restrict2 },
         .{ "__alignof", .keyword_alignof1 },
-        .{ "__alignof__", .keywrod_alignof2 },
+        .{ "__alignof__", .keyword_alignof2 },
     });
 };
 
