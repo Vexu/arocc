@@ -483,19 +483,29 @@ fn decl(p: *Parser) Error!bool {
         }
         if (p.in_function) try p.err(.func_not_in_root);
 
+        // TODO check redefinition
+        try p.scopes.append(.{ .symbol = .{
+            .name = p.tokSlice(init_d.d.name),
+            .ty = init_d.d.ty,
+            .name_tok = init_d.d.name,
+            .is_initialized = true,
+        } });
+
         const in_function = p.in_function;
         p.in_function = true;
         defer p.in_function = in_function;
+
+        const scopes_top = p.scopes.items.len;
+        defer p.scopes.items.len = scopes_top;
+
+        // findSymbol stops the search at .block
+        try p.scopes.append(.block);
 
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null) {
             init_d.d.ty.specifier = .func;
             const param_buf_top = p.param_buf.items.len;
-            const scopes_top = p.scopes.items.len;
-            defer {
-                p.param_buf.items.len = param_buf_top;
-                p.scopes.items.len = scopes_top;
-            }
+            defer p.param_buf.items.len = param_buf_top;
 
             param_loop: while (true) {
                 const param_decl_spec = (try p.declSpec()) orelse break;
@@ -552,16 +562,16 @@ fn decl(p: *Parser) Error!bool {
                 }
                 _ = try p.expectToken(.semicolon);
             }
-        }
-
-        for (init_d.d.ty.data.func.params) |param| {
-            try p.scopes.append(.{
-                .symbol = .{
-                    .name = param.name,
-                    .ty = param.ty,
-                    .name_tok = 0, // TODO split Scope.Symbol into Scope.Typedef
-                },
-            });
+        } else {
+            for (init_d.d.ty.data.func.params) |param| {
+                try p.scopes.append(.{
+                    .symbol = .{
+                        .name = param.name,
+                        .ty = param.ty,
+                        .name_tok = 0, // TODO split Scope.Symbol into Scope.Typedef
+                    },
+                });
+            }
         }
 
         const node = try p.addNode(.{
@@ -856,9 +866,9 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
     var init_d = InitDeclarator{
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
-    if (p.eatToken(.equal)) |_| {
+    if (p.eatToken(.equal)) |eq| {
         if (decl_spec.storage_class == .typedef or
-            decl_spec.ty.isFunc()) try p.err(.illegal_initializer);
+            init_d.d.func_declarator != null) try p.errTok(.illegal_initializer, eq);
         if (decl_spec.storage_class == .@"extern") {
             try p.err(.extern_initializer);
             decl_spec.storage_class = .none;
@@ -1510,7 +1520,11 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         } else if (p.tok_ids[p.tok_i] == .identifier) {
             d.old_style_func = p.tok_i;
             const param_buf_top = p.param_buf.items.len;
-            defer p.param_buf.items.len = param_buf_top;
+            const scopes_top = p.scopes.items.len;
+            defer {
+                p.param_buf.items.len = param_buf_top;
+                p.scopes.items.len = scopes_top;
+            }
 
             // findSymbol stops the search at .block
             try p.scopes.append(.block);
@@ -2797,8 +2811,13 @@ fn assignExpr(p: *Parser) Error!Result {
 
 /// constExpr : condExpr
 fn constExpr(p: *Parser) Error!Result {
+    const start = p.tok_i;
     const res = try p.condExpr();
     try res.expect(p);
+    if (!res.ty.isInt()) {
+        try p.errTok(.expected_integer_constant_expr, start);
+        return error.ParsingFailed;
+    }
     return res;
 }
 

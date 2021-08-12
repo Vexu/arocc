@@ -19,4 +19,7 @@ int foooo(n, bar)
     return n;
 }
 
-#define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing"
+int bar(int) = foo; 
+
+#define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing" \
+    "functions.c:22:14: error: illegal initializer (only variables can be initialized)"
