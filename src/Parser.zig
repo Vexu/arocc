@@ -2301,11 +2301,23 @@ pub const Result = struct {
     }
 
     fn expect(res: Result, p: *Parser) Error!void {
+        if (p.in_macro) {
+            if (res.val == .unavailable) {
+                try p.errTok(.expected_expr, p.tok_i);
+                return error.ParsingFailed;
+            }
+            return;
+        }
         try res.saveValue(p);
         if (res.node == .none) {
             try p.errTok(.expected_expr, p.tok_i);
             return error.ParsingFailed;
         }
+    }
+
+    fn empty(res: Result, p: *Parser) bool {
+        if (p.in_macro) return res.val == .unavailable;
+        return res.node == .none;
     }
 
     fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex) Error!void {
@@ -2809,6 +2821,7 @@ fn tokToTag(p: *Parser, tok: TokenIndex) Tree.Tag {
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
 fn assignExpr(p: *Parser) Error!Result {
     var lhs = try p.condExpr();
+    if (lhs.empty(p)) return lhs;
 
     const tok = p.tok_i;
     const eq = p.eatToken(.equal);
@@ -2825,6 +2838,7 @@ fn assignExpr(p: *Parser) Error!Result {
 
     const tag = p.tokToTag(bit_or orelse return lhs);
     var rhs = try p.assignExpr();
+    try rhs.expect(p);
     try rhs.lvalConversion(p);
 
     if (!Tree.isLval(p.nodes.slice(), lhs.node) or lhs.ty.qual.@"const") {
@@ -2901,7 +2915,7 @@ fn constExpr(p: *Parser) Error!Result {
 /// condExpr : lorExpr ('?' expression? ':' condExpr)?
 fn condExpr(p: *Parser) Error!Result {
     var cond = try p.lorExpr();
-    if (p.eatToken(.question_mark) == null) return cond;
+    if (cond.empty(p) or p.eatToken(.question_mark) == null) return cond;
     const saved_eval = p.no_eval;
 
     // Depending on the value of the condition, avoid evaluating unreachable branches.
@@ -2910,12 +2924,14 @@ fn condExpr(p: *Parser) Error!Result {
         if (cond.val != .unavailable and !cond.getBool()) p.no_eval = true;
         break :blk try p.expr();
     };
+    try then_expr.expect(p); // TODO binary cond expr
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;
         if (cond.val != .unavailable and cond.getBool()) p.no_eval = true;
         break :blk try p.condExpr();
     };
+    try else_expr.expect(p);
 
     _ = try then_expr.adjustTypes(colon, &else_expr, p, .conditional);
 
@@ -2934,12 +2950,14 @@ fn condExpr(p: *Parser) Error!Result {
 /// lorExpr : landExpr ('||' landExpr)*
 fn lorExpr(p: *Parser) Error!Result {
     var lhs = try p.landExpr();
+    if (lhs.empty(p)) return lhs;
     const saved_eval = p.no_eval;
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.pipe_pipe)) |tok| {
         if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
         var rhs = try p.landExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
             lhs.val = .{ .signed = @boolToInt(lhs.getBool() or rhs.getBool()) };
@@ -2953,12 +2971,14 @@ fn lorExpr(p: *Parser) Error!Result {
 /// landExpr : orExpr ('&&' orExpr)*
 fn landExpr(p: *Parser) Error!Result {
     var lhs = try p.orExpr();
+    if (lhs.empty(p)) return lhs;
     const saved_eval = p.no_eval;
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.ampersand_ampersand)) |tok| {
         if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
         var rhs = try p.orExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
             lhs.val = .{ .signed = @boolToInt(lhs.getBool() and rhs.getBool()) };
@@ -2972,8 +2992,10 @@ fn landExpr(p: *Parser) Error!Result {
 /// orExpr : xorExpr ('|' xorExpr)*
 fn orExpr(p: *Parser) Error!Result {
     var lhs = try p.xorExpr();
+    if (lhs.empty(p)) return lhs;
     while (p.eatToken(.pipe)) |tok| {
         var rhs = try p.xorExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = switch (lhs.val) {
@@ -2990,8 +3012,10 @@ fn orExpr(p: *Parser) Error!Result {
 /// xorExpr : andExpr ('^' andExpr)*
 fn xorExpr(p: *Parser) Error!Result {
     var lhs = try p.andExpr();
+    if (lhs.empty(p)) return lhs;
     while (p.eatToken(.caret)) |tok| {
         var rhs = try p.andExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = switch (lhs.val) {
@@ -3008,8 +3032,10 @@ fn xorExpr(p: *Parser) Error!Result {
 /// andExpr : eqExpr ('&' eqExpr)*
 fn andExpr(p: *Parser) Error!Result {
     var lhs = try p.eqExpr();
+    if (lhs.empty(p)) return lhs;
     while (p.eatToken(.ampersand)) |tok| {
         var rhs = try p.eqExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = switch (lhs.val) {
@@ -3026,11 +3052,13 @@ fn andExpr(p: *Parser) Error!Result {
 /// eqExpr : compExpr (('==' | '!=') compExpr)*
 fn eqExpr(p: *Parser) Error!Result {
     var lhs = try p.compExpr();
+    if (lhs.empty(p)) return lhs;
     while (true) {
         const eq = p.eatToken(.equal_equal);
         const ne = eq orelse p.eatToken(.bang_equal);
         const tag = p.tokToTag(ne orelse break);
         var rhs = try p.compExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const res = if (tag == .equal_expr)
@@ -3049,6 +3077,7 @@ fn eqExpr(p: *Parser) Error!Result {
 /// compExpr : shiftExpr (('<' | '<=' | '>' | '>=') shiftExpr)*
 fn compExpr(p: *Parser) Error!Result {
     var lhs = try p.shiftExpr();
+    if (lhs.empty(p)) return lhs;
     while (true) {
         const lt = p.eatToken(.angle_bracket_left);
         const le = lt orelse p.eatToken(.angle_bracket_left_equal);
@@ -3056,6 +3085,7 @@ fn compExpr(p: *Parser) Error!Result {
         const ge = gt orelse p.eatToken(.angle_bracket_right_equal);
         const tag = p.tokToTag(ge orelse break);
         var rhs = try p.shiftExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(ge.?, &rhs, p, .relational)) {
             lhs.val = .{ .signed = @boolToInt(switch (tag) {
@@ -3075,11 +3105,13 @@ fn compExpr(p: *Parser) Error!Result {
 /// shiftExpr : addExpr (('<<' | '>>') addExpr)*
 fn shiftExpr(p: *Parser) Error!Result {
     var lhs = try p.addExpr();
+    if (lhs.empty(p)) return lhs;
     while (true) {
         const shl = p.eatToken(.angle_bracket_angle_bracket_left);
         const shr = shl orelse p.eatToken(.angle_bracket_angle_bracket_right);
         const tag = p.tokToTag(shr orelse break);
         var rhs = try p.addExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(shr.?, &rhs, p, .integer)) {
             // TODO overflow
@@ -3105,11 +3137,13 @@ fn shiftExpr(p: *Parser) Error!Result {
 /// addExpr : mulExpr (('+' | '-') mulExpr)*
 fn addExpr(p: *Parser) Error!Result {
     var lhs = try p.mulExpr();
+    if (lhs.empty(p)) return lhs;
     while (true) {
         const plus = p.eatToken(.plus);
         const minus = plus orelse p.eatToken(.minus);
         const tag = p.tokToTag(minus orelse break);
         var rhs = try p.mulExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
@@ -3126,12 +3160,14 @@ fn addExpr(p: *Parser) Error!Result {
 /// mulExpr : castExpr (('*' | '/' | '%') castExpr)*´
 fn mulExpr(p: *Parser) Error!Result {
     var lhs = try p.castExpr();
+    if (lhs.empty(p)) return lhs;
     while (true) {
         const mul = p.eatToken(.asterisk);
         const div = mul orelse p.eatToken(.slash);
         const percent = div orelse p.eatToken(.percent);
         const tag = p.tokToTag(percent orelse break);
         var rhs = try p.castExpr();
+        try rhs.expect(p);
 
         if (try lhs.adjustTypes(percent.?, &rhs, p, if (tag == .mod_expr) .integer else .arithmetic)) {
             // TODO divide by zero
@@ -3193,6 +3229,7 @@ fn castExpr(p: *Parser) Error!Result {
                 return Result{ .node = try p.addNode(node), .ty = ty };
             }
             var operand = try p.castExpr();
+            try operand.expect(p);
             if (ty.specifier == .void) {
                 // everything can cast to void
             } else if (ty.isInt() or ty.isFloat() or ty.specifier == .pointer) {
@@ -3226,6 +3263,7 @@ fn unExpr(p: *Parser) Error!Result {
         .ampersand => {
             p.tok_i += 1;
             var operand = try p.castExpr();
+            try operand.expect(p);
 
             // TODO validate type
             if (!Tree.isLval(p.nodes.slice(), operand.node)) {
@@ -3245,6 +3283,7 @@ fn unExpr(p: *Parser) Error!Result {
         .asterisk => {
             p.tok_i += 1;
             var operand = try p.castExpr();
+            try operand.expect(p);
             // TODO validate pointer type
 
             switch (operand.ty.specifier) {
@@ -3267,6 +3306,7 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
 
             var operand = try p.castExpr();
+            try operand.expect(p);
             try operand.lvalConversion(p);
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
@@ -3278,6 +3318,7 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
 
             var operand = try p.castExpr();
+            try operand.expect(p);
             try operand.lvalConversion(p);
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
@@ -3305,6 +3346,7 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
 
             var operand = try p.castExpr();
+            try operand.expect(p);
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
@@ -3328,6 +3370,7 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
 
             var operand = try p.castExpr();
+            try operand.expect(p);
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
@@ -3351,6 +3394,7 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
 
             var operand = try p.castExpr();
+            try operand.expect(p);
             try operand.lvalConversion(p);
             if (!operand.ty.isInt()) try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
@@ -3367,6 +3411,7 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
 
             var operand = try p.castExpr();
+            try operand.expect(p);
             try operand.lvalConversion(p);
             if (!operand.ty.isInt() and !operand.ty.isFloat() and operand.ty.specifier != .pointer)
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
@@ -3393,9 +3438,11 @@ fn unExpr(p: *Parser) Error!Result {
                 } else {
                     p.tok_i = expected_paren;
                     res = try p.unExpr();
+                    try res.expect(p);
                 }
             } else {
                 res = try p.unExpr();
+                try res.expect(p);
             }
 
             if (res.ty.sizeof(p.pp.comp)) |size| {
@@ -3422,10 +3469,12 @@ fn unExpr(p: *Parser) Error!Result {
                 } else {
                     p.tok_i = expected_paren;
                     res = try p.unExpr();
+                    try res.expect(p);
                     try p.errTok(.alignof_expr, expected_paren);
                 }
             } else {
                 res = try p.unExpr();
+                try res.expect(p);
                 try p.errTok(.alignof_expr, expected_paren);
             }
 
@@ -3436,9 +3485,10 @@ fn unExpr(p: *Parser) Error!Result {
         },
         else => {
             var lhs = try p.primaryExpr();
+            if (lhs.empty(p)) return lhs;
             while (true) {
                 const suffix = try p.suffixExpr(lhs);
-                if (suffix.node == .none) break;
+                if (suffix.empty(p)) break;
                 lhs = suffix;
             }
             return lhs;
@@ -3455,6 +3505,7 @@ fn unExpr(p: *Parser) Error!Result {
 ///  | '--'
 /// argumentExprList : assignExpr (',' assignExpr)*
 fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
+    assert(!lhs.empty(p));
     switch (p.tok_ids[p.tok_i]) {
         .l_paren => {
             const l_paren = p.tok_i;
@@ -3557,6 +3608,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             const l_bracket = p.tok_i;
             p.tok_i += 1;
             var index = try p.expr();
+            try index.expect(p);
             try p.expectClosing(l_bracket, .r_bracket);
 
             const l_ty = lhs.ty;
@@ -3638,6 +3690,7 @@ fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !v
 fn primaryExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         var e = try p.expr();
+        try e.expect(p);
         try p.expectClosing(l_paren, .r_paren);
         try e.un(p, .paren_expr);
         return e;
@@ -4053,6 +4106,7 @@ fn genericSelection(p: *Parser) Error!Result {
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     const controlling = try p.assignExpr();
+    try controlling.expect(p);
     _ = try p.expectToken(.comma);
 
     const list_buf_top = p.list_buf.items.len;
@@ -4070,6 +4124,7 @@ fn genericSelection(p: *Parser) Error!Result {
             }
             _ = try p.expectToken(.colon);
             chosen = try p.assignExpr();
+            try chosen.expect(p);
             try p.list_buf.append(try p.addNode(.{
                 .tag = .generic_association_expr,
                 .ty = ty,
@@ -4083,6 +4138,7 @@ fn genericSelection(p: *Parser) Error!Result {
             default_tok = tok;
             _ = try p.expectToken(.colon);
             chosen = try p.assignExpr();
+            try chosen.expect(p);
             try p.list_buf.append(try p.addNode(.{
                 .tag = .generic_default_expr,
                 .data = .{ .un = chosen.node },

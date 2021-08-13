@@ -24,6 +24,7 @@ void foo(void) {
     // struct Foo { int a; } b, c;
     // (void)(1 ? b : c);
     // (void)(1 ? b : 1);
+    ?:;
 }
 
 #define TESTS_SKIPPED 6
@@ -38,3 +39,4 @@ void foo(void) {
     "binary expressions.c:15:20: error: invalid operands to binary expression" \
     "binary expressions.c:18:14: error: invalid operands to binary expression" \
     "binary expressions.c:19:20: error: incompatible pointer types" \
+    "binary expressions.c:27:5: error: expected statement"
