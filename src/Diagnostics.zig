@@ -186,6 +186,7 @@ pub const Tag = enum {
     func_should_return,
     incompatible_return,
     implicit_int_to_ptr,
+    func_does_not_return,
 };
 
 const Options = struct {
@@ -480,6 +481,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .func_should_return => m.print("non-void function '{s}' should return a value", .{msg.extra.str}),
             .incompatible_return => m.print("returning '{s}' from a function with incompatible result type", .{msg.extra.str}),
             .implicit_int_to_ptr => m.write("implicit integer to pointer conversion"),
+            .func_does_not_return => m.print("non-void function '{s}' does not return a value", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -652,6 +654,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .overflow_unsigned,
         .overflow_signed,
         .char_lit_too_wide,
+        .func_does_not_return,
         => .warning,
         .unsupported_pragma => diag.options.@"unsupported-pragma",
         .whitespace_after_macro_name => diag.options.@"c99-extensions",

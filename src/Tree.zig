@@ -388,6 +388,10 @@ pub const Tag = enum(u8) {
     /// Convert type to void; only appears on the branches of a conditional expr
     to_void,
 
+    /// Inserted at the end of a function body if no return stmt is found.
+    /// ty is the functions return type
+    implicit_return,
+
     pub fn isImplicit(tag: Tag) bool {
         return switch (tag) {
             .array_to_pointer,
@@ -405,6 +409,7 @@ pub const Tag = enum(u8) {
             .int_cast,
             .float_cast,
             .to_void,
+            .implicit_return,
             => true,
             else => false,
         };
@@ -723,7 +728,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeByteNTimes(' ', level + half);
             try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
         },
-        .continue_stmt, .break_stmt => {},
+        .continue_stmt, .break_stmt, .implicit_return => {},
         .return_stmt => {
             if (data.un != .none) {
                 try w.writeByteNTimes(' ', level + half);

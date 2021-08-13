@@ -591,7 +591,7 @@ fn decl(p: *Parser) Error!bool {
             .name_tok = init_d.d.name,
             .is_initialized = init_d.initializer != .none,
         } });
-        const body = try p.compoundStmt();
+        const body = try p.compoundStmt(true);
         p.nodes.items(.data)[@enumToInt(node)].decl.node = body.?;
 
         // check gotos
@@ -1792,7 +1792,7 @@ fn initializerItem(p: *Parser, paren_ty: Type) Error!?NodeIndex {
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.labeledStmt()) |some| return some;
-    if (try p.compoundStmt()) |some| return some;
+    if (try p.compoundStmt(false)) |some| return some;
     if (p.eatToken(.keyword_if)) |_| {
         const start_scopes_len = p.scopes.items.len;
         defer p.scopes.items.len = start_scopes_len;
@@ -2070,7 +2070,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
 }
 
 /// compoundStmt : '{' ( decl| staticAssert | stmt)* '}'
-fn compoundStmt(p: *Parser) Error!?NodeIndex {
+fn compoundStmt(p: *Parser, add_implicit_return: bool) Error!?NodeIndex {
     const l_brace = p.eatToken(.l_brace) orelse return null;
 
     const decl_buf_top = p.decl_buf.items.len;
@@ -2117,6 +2117,12 @@ fn compoundStmt(p: *Parser) Error!?NodeIndex {
     if (noreturn_index) |some| {
         // if new labels were defined we cannot be certain that the code is unreachable
         if (some != p.tok_i - 1 and noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
+    }
+    if (add_implicit_return and (p.decl_buf.items.len == decl_buf_top or
+        p.nodes.items(.tag)[@enumToInt(p.decl_buf.items[p.decl_buf.items.len - 1])] != .return_stmt))
+    {
+        if (p.return_type.?.specifier != .void) try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func_name));
+        try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.return_type.?, .data = undefined }));
     }
 
     var node: Tree.Node = .{
