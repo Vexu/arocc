@@ -187,6 +187,8 @@ pub const Tag = enum {
     incompatible_return,
     implicit_int_to_ptr,
     func_does_not_return,
+    incompatible_param,
+    parameter_here,
 };
 
 const Options = struct {
@@ -482,6 +484,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .incompatible_return => m.print("returning '{s}' from a function with incompatible result type", .{msg.extra.str}),
             .implicit_int_to_ptr => m.write("implicit integer to pointer conversion"),
             .func_does_not_return => m.print("non-void function '{s}' does not return a value", .{msg.extra.str}),
+            .incompatible_param => m.print("passing '{s}' to parameter of incompatible type", .{msg.extra.str}),
+            .parameter_here => m.write("passing argument to parameter here"),
         }
         m.end(lcs);
 
@@ -638,6 +642,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .statement_scalar,
         .func_should_return,
         .incompatible_return,
+        .incompatible_param,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -647,6 +652,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .previous_label,
         .previous_case,
         .previous_definition,
+        .parameter_here,
         => .note,
         .invalid_old_style_params,
         .expected_arguments_old,

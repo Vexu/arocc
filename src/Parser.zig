@@ -574,7 +574,7 @@ fn decl(p: *Parser) Error!bool {
                     .symbol = .{
                         .name = param.name,
                         .ty = param.ty,
-                        .name_tok = 0, // TODO split Scope.Symbol into Scope.Typedef
+                        .name_tok = param.name_tok,
                     },
                 });
             }
@@ -881,8 +881,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         }
         const init = try p.initializer(decl_spec.ty);
         try init.expect(p);
-        const casted = try init.coerce(p, init_d.d.ty);
-        init_d.initializer = casted.node;
+        // TODO do type coercion
+        init_d.initializer = init.node;
     }
     const name = init_d.d.name;
     if (p.findSymbol(name, .definition)) |scope| {
@@ -1550,6 +1550,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 } });
                 try p.param_buf.append(.{
                     .name = p.tokSlice(name_tok),
+                    .name_tok = name_tok,
                     .ty = .{ .specifier = .int },
                     .register = false,
                 });
@@ -1614,6 +1615,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
         };
 
         var name_tok: TokenIndex = 0;
+        const first_tok = p.tok_i;
         var param_ty = param_decl_spec.ty;
         if (try p.declarator(param_decl_spec.ty, .param)) |some| {
             if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
@@ -1670,6 +1672,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
         try param_decl_spec.validateParam(p, param_ty);
         try p.param_buf.append(.{
             .name = if (name_tok == 0) "" else p.tokSlice(name_tok),
+            .name_tok = if (name_tok == 0) first_tok else name_tok,
             .ty = param_ty,
             .register = param_decl_spec.storage_class == .register,
         });
@@ -2261,6 +2264,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
     } else {
+        // should be unreachable
         try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
     }
     return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
@@ -2367,12 +2371,6 @@ pub const Result = struct {
             .ty = operand.ty,
             .data = .{ .un = operand.node },
         });
-    }
-
-    fn coerce(res: Result, p: *Parser, dest_ty: Type) !Result {
-        _ = dest_ty;
-        _ = p;
-        return res;
     }
 
     /// Adjust types for binary operation, returns true if the result can and should be evaluated.
@@ -3513,71 +3511,7 @@ fn unExpr(p: *Parser) Error!Result {
 fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
     assert(!lhs.empty(p));
     switch (p.tok_ids[p.tok_i]) {
-        .l_paren => {
-            const l_paren = p.tok_i;
-            p.tok_i += 1;
-            const ty = lhs.ty.isCallable() orelse {
-                try p.errStr(.not_callable, l_paren, try p.typeStr(lhs.ty));
-                return error.ParsingFailed;
-            };
-            const params = ty.data.func.params;
-
-            const list_buf_top = p.list_buf.items.len;
-            defer p.list_buf.items.len = list_buf_top;
-            try p.list_buf.append(lhs.node);
-            var arg_count: u32 = 0;
-
-            var first_after = l_paren;
-            if (p.eatToken(.r_paren) == null) {
-                while (true) {
-                    if (arg_count == params.len) first_after = p.tok_i;
-                    const arg = try p.assignExpr();
-                    try arg.expect(p);
-
-                    if (arg_count < params.len) {
-                        const casted = try arg.coerce(p, params[arg_count].ty);
-                        try p.list_buf.append(casted.node);
-                    } else {
-                        // TODO coerce to var args passable type
-                        try p.list_buf.append(arg.node);
-                    }
-                    arg_count += 1;
-
-                    _ = p.eatToken(.comma) orelse break;
-                }
-                try p.expectClosing(l_paren, .r_paren);
-            }
-
-            const extra = Diagnostics.Message.Extra{ .arguments = .{
-                .expected = @intCast(u32, params.len),
-                .actual = @intCast(u32, arg_count),
-            } };
-            if (ty.specifier == .func and params.len != arg_count) {
-                try p.errExtra(.expected_arguments, first_after, extra);
-            }
-            if (ty.specifier == .old_style_func and params.len != arg_count) {
-                try p.errExtra(.expected_arguments_old, first_after, extra);
-            }
-            if (ty.specifier == .var_args_func and arg_count < params.len) {
-                try p.errExtra(.expected_at_least_arguments, first_after, extra);
-            }
-
-            var call_node: Tree.Node = .{
-                .tag = .call_expr_one,
-                .ty = ty.data.func.return_type,
-                .data = .{ .bin = .{ .lhs = lhs.node, .rhs = .none } },
-            };
-            const args = p.list_buf.items[list_buf_top..];
-            switch (arg_count) {
-                0 => {},
-                1 => call_node.data.bin.rhs = args[1], // args[0] == lhs.node
-                else => {
-                    call_node.tag = .call_expr;
-                    call_node.data = .{ .range = try p.addList(args) };
-                },
-            }
-            return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
-        },
+        .l_paren => return p.callExpr(lhs),
         .plus_plus => {
             defer p.tok_i += 1;
 
@@ -3666,6 +3600,121 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
         },
         else => return Result{},
     }
+}
+
+fn callExpr(p: *Parser, lhs: Result) Error!Result {
+    const l_paren = p.tok_i;
+    p.tok_i += 1;
+    const ty = lhs.ty.isCallable() orelse {
+        try p.errStr(.not_callable, l_paren, try p.typeStr(lhs.ty));
+        return error.ParsingFailed;
+    };
+    const params = ty.data.func.params;
+    var func = lhs;
+    try func.lvalConversion(p);
+
+    const list_buf_top = p.list_buf.items.len;
+    defer p.list_buf.items.len = list_buf_top;
+    try p.list_buf.append(func.node);
+    var arg_count: u32 = 0;
+
+    var first_after = l_paren;
+    if (p.eatToken(.r_paren) == null) {
+        while (true) {
+            const param_tok = p.tok_i;
+            if (arg_count == params.len) first_after = p.tok_i;
+            var arg = try p.assignExpr();
+            try arg.expect(p);
+            try arg.lvalConversion(p);
+
+            if (arg_count < params.len) {
+                const p_ty = params[arg_count].ty;
+                if (p_ty.specifier == .bool) {
+                    // this is ridiculous but it's what clang does
+                    if (arg.ty.isInt() or arg.ty.isFloat() or arg.ty.specifier == .pointer) {
+                        try arg.boolCast(p, p_ty);
+                    } else {
+                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                        try p.errTok(.parameter_here, params[arg_count].name_tok);
+                    }
+                } else if (p_ty.isInt()) {
+                    if (arg.ty.isInt() or arg.ty.isFloat()) {
+                        try arg.intCast(p, p_ty);
+                    } else if (arg.ty.specifier == .pointer) {
+                        try p.errTok(.implicit_ptr_to_int, param_tok);
+                        try p.errTok(.parameter_here, params[arg_count].name_tok);
+                        try arg.intCast(p, p_ty);
+                    } else {
+                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                        try p.errTok(.parameter_here, params[arg_count].name_tok);
+                    }
+                } else if (p_ty.isFloat()) {
+                    if (arg.ty.isInt() or arg.ty.isFloat()) {
+                        try arg.floatCast(p, p_ty);
+                    } else {
+                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                        try p.errTok(.parameter_here, params[arg_count].name_tok);
+                    }
+                } else if (p_ty.specifier == .pointer) {
+                    if (arg.ty.isInt()) {
+                        try p.errTok(.implicit_int_to_ptr, param_tok);
+                        try p.errTok(.parameter_here, params[arg_count].name_tok);
+                        try arg.intCast(p, p_ty);
+                    } else if (!p_ty.eql(arg.ty, false)) {
+                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                        try p.errTok(.parameter_here, params[arg_count].name_tok);
+                    }
+                } else if (p_ty.isEnumOrRecord()) { // enum.isInt() == true
+                    if (!p_ty.eql(arg.ty, false)) {
+                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                        try p.errTok(.parameter_here, params[arg_count].name_tok);
+                    }
+                } else {
+                    // should be unreachable
+                    try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                    try p.errTok(.parameter_here, params[arg_count].name_tok);
+                }
+            } else {
+                if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.pp.comp));
+                if (arg.ty.specifier == .float) try arg.floatCast(p, .{ .specifier = .double });
+            }
+            try p.list_buf.append(arg.node);
+            arg_count += 1;
+
+            _ = p.eatToken(.comma) orelse break;
+        }
+        try p.expectClosing(l_paren, .r_paren);
+    }
+
+    const extra = Diagnostics.Message.Extra{ .arguments = .{
+        .expected = @intCast(u32, params.len),
+        .actual = @intCast(u32, arg_count),
+    } };
+    if (ty.specifier == .func and params.len != arg_count) {
+        try p.errExtra(.expected_arguments, first_after, extra);
+    }
+    if (ty.specifier == .old_style_func and params.len != arg_count) {
+        try p.errExtra(.expected_arguments_old, first_after, extra);
+    }
+    if (ty.specifier == .var_args_func and arg_count < params.len) {
+        try p.errExtra(.expected_at_least_arguments, first_after, extra);
+    }
+
+    var call_node: Tree.Node = .{
+        .tag = .call_expr_one,
+        .ty = ty.data.func.return_type,
+        .data = .{ .bin = .{ .lhs = func.node, .rhs = .none } },
+    };
+    const args = p.list_buf.items[list_buf_top..];
+    switch (arg_count) {
+        0 => {},
+        1 => call_node.data.bin.rhs = args[1], // args[0] == func.node
+        else => {
+            call_node.tag = .call_expr;
+            call_node.data = .{ .range = try p.addList(args) };
+        },
+    }
+    return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !void {
