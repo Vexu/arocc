@@ -91,7 +91,8 @@ record_buf: std.ArrayList(Type.Record.Field),
 // configuration and miscellaneous info
 no_eval: bool = false,
 in_macro: bool = false,
-in_function: bool = false,
+return_type: ?Type = null,
+func_name: TokenIndex = 0,
 label_count: u32 = 0,
 
 fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
@@ -453,7 +454,7 @@ fn decl(p: *Parser) Error!bool {
     var decl_spec = if (try p.declSpec()) |some|
         some
     else blk: {
-        if (p.in_function) return false;
+        if (p.return_type != null) return false;
         switch (p.tok_ids[first_tok]) {
             .asterisk, .l_paren, .identifier => {},
             else => return false,
@@ -481,7 +482,7 @@ fn decl(p: *Parser) Error!bool {
                 break :fn_def;
             },
         }
-        if (p.in_function) try p.err(.func_not_in_root);
+        if (p.return_type != null) try p.err(.func_not_in_root);
 
         // TODO check redefinition
         try p.scopes.append(.{ .symbol = .{
@@ -491,9 +492,14 @@ fn decl(p: *Parser) Error!bool {
             .is_initialized = true,
         } });
 
-        const in_function = p.in_function;
-        p.in_function = true;
-        defer p.in_function = in_function;
+        const return_type = p.return_type;
+        const func_name = p.func_name;
+        p.return_type = init_d.d.ty.data.func.return_type;
+        p.func_name = init_d.d.name;
+        defer {
+            p.return_type = return_type;
+            p.func_name = func_name;
+        }
 
         const scopes_top = p.scopes.items.len;
         defer p.scopes.items.len = scopes_top;
@@ -589,7 +595,7 @@ fn decl(p: *Parser) Error!bool {
         p.nodes.items(.data)[@enumToInt(node)].decl.node = body.?;
 
         // check gotos
-        if (!in_function) {
+        if (return_type == null) {
             for (p.labels.items) |item| {
                 if (item == .unresolved_goto)
                     try p.errStr(.undeclared_label, item.unresolved_goto, p.tokSlice(item.unresolved_goto));
@@ -739,7 +745,7 @@ pub const DeclSpec = struct {
         if (ty.isFunc() and d.storage_class != .typedef) {
             switch (d.storage_class) {
                 .none, .@"extern" => {},
-                .static => |tok_i| if (p.in_function) try p.errTok(.static_func_not_global, tok_i),
+                .static => |tok_i| if (p.return_type != null) try p.errTok(.static_func_not_global, tok_i),
                 .typedef => unreachable,
                 .auto, .register => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
             }
@@ -762,7 +768,7 @@ pub const DeclSpec = struct {
             if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
             if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
             switch (d.storage_class) {
-                .auto, .register => if (!p.in_function) try p.err(.illegal_storage_on_global),
+                .auto, .register => if (p.return_type == null) try p.err(.illegal_storage_on_global),
                 .typedef => return .typedef,
                 else => {},
             }
@@ -1467,7 +1473,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
 
         switch (size.val) {
             .unavailable => if (size.node != .none) {
-                if (!p.in_function and kind != .param) try p.errTok(.variable_len_array_file_scope, l_bracket);
+                if (p.return_type == null and kind != .param) try p.errTok(.variable_len_array_file_scope, l_bracket);
                 const vla_ty = try p.arena.create(Type.VLA);
                 vla_ty.expr = size.node;
                 res_ty.data = .{ .vla = vla_ty };
@@ -1968,15 +1974,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         _ = try p.expectToken(.semicolon);
         return try p.addNode(.{ .tag = .break_stmt, .data = undefined });
     }
-    if (p.eatToken(.keyword_return)) |_| {
-        const e = try p.expr();
-        _ = try p.expectToken(.semicolon);
-        // TODO cast to return type
-        return try p.addNode(.{
-            .tag = .return_stmt,
-            .data = .{ .un = e.node },
-        });
-    }
+    if (try p.returnStmt()) |some| return some;
 
     const expr_start = p.tok_i;
     const e = try p.expr();
@@ -2205,6 +2203,61 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
     p.tok_i -= 1; // So we can consume EOF
     try p.expectClosing(l_brace, .r_brace);
     unreachable;
+}
+
+fn returnStmt(p: *Parser) Error!?NodeIndex {
+    const ret_tok = p.eatToken(.keyword_return) orelse return null;
+
+    const e_tok = p.tok_i;
+    var e = try p.expr();
+    _ = try p.expectToken(.semicolon);
+    const ret_ty = p.return_type.?;
+
+    if (e.node == .none) {
+        if (ret_ty.specifier != .void) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func_name));
+        return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
+    }
+    try e.lvalConversion(p);
+
+    // TODO print types in these errors
+    // Return type conversion is done as if it was assignment
+    if (ret_ty.specifier == .bool) {
+        // this is ridiculous but it's what clang does
+        if (e.ty.isInt() or e.ty.isFloat() or e.ty.specifier == .pointer) {
+            try e.boolCast(p, ret_ty);
+        } else {
+            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
+        }
+    } else if (ret_ty.isInt()) {
+        if (e.ty.isInt() or e.ty.isFloat()) {
+            try e.intCast(p, ret_ty);
+        } else if (e.ty.specifier == .pointer) {
+            try p.errTok(.implicit_ptr_to_int, e_tok);
+            try e.intCast(p, ret_ty);
+        } else {
+            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
+        }
+    } else if (ret_ty.isFloat()) {
+        if (e.ty.isInt() or e.ty.isFloat()) {
+            try e.floatCast(p, ret_ty);
+        } else {
+            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
+        }
+    } else if (ret_ty.specifier == .pointer) {
+        if (e.ty.isInt()) {
+            try p.errTok(.implicit_int_to_ptr, e_tok);
+            try e.intCast(p, ret_ty);
+        } else if (!ret_ty.eql(e.ty, false)) {
+            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
+        }
+    } else if (ret_ty.isEnumOrRecord()) { // enum.isInt() == true
+        if (!ret_ty.eql(e.ty, false)) {
+            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
+        }
+    } else {
+        try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
+    }
+    return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
 }
 
 // ====== expressions ======

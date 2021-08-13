@@ -183,6 +183,9 @@ pub const Tag = enum {
     array_before,
     statement_int,
     statement_scalar,
+    func_should_return,
+    incompatible_return,
+    implicit_int_to_ptr,
 };
 
 const Options = struct {
@@ -206,6 +209,7 @@ const Options = struct {
     @"literal-conversion": Kind = .warning,
     @"cast-qualifiers": Kind = .warning,
     @"array-bounds": Kind = .warning,
+    @"int-conversion": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -462,7 +466,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .incompatible_pointers => m.write("incompatible pointer types"),
             .invalid_argument_un => m.print("invalid argument type '{s}' to unary expression", .{msg.extra.str}),
             .incompatible_assign => m.write("assignment from incompatible type"),
-            .implicit_ptr_to_int => m.write("implicit pointer to integer conversion in assignment"),
+            .implicit_ptr_to_int => m.write("implicit pointer to integer conversion"),
             .invalid_cast_to_float => m.print("pointer cannot be cast to type '{s}'", .{msg.extra.str}),
             .invalid_cast_to_pointer => m.print("operand of type '{s}' cannot be cast to a pointer type", .{msg.extra.str}),
             .invalid_cast_type => m.print("cannot cast to non arithmetic or pointer type '{s}'", .{msg.extra.str}),
@@ -473,6 +477,9 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .array_before => m.print("array index {d} is before the beginning of the array", .{msg.extra.signed}),
             .statement_int => m.print("statement requires expression with integer type ('{s}' invalid)", .{msg.extra.str}),
             .statement_scalar => m.print("statement requires expression with scalar type ('{s}' invalid)", .{msg.extra.str}),
+            .func_should_return => m.print("non-void function '{s}' should return a value", .{msg.extra.str}),
+            .incompatible_return => m.print("returning '{s}' from a function with incompatible result type", .{msg.extra.str}),
+            .implicit_int_to_ptr => m.write("implicit integer to pointer conversion"),
         }
         m.end(lcs);
 
@@ -627,6 +634,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .invalid_subscript,
         .statement_int,
         .statement_scalar,
+        .func_should_return,
+        .incompatible_return,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -665,6 +674,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .qual_cast => diag.options.@"cast-qualifiers",
         .array_after => diag.options.@"array-bounds",
         .array_before => diag.options.@"array-bounds",
+        .implicit_int_to_ptr => diag.options.@"int-conversion",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

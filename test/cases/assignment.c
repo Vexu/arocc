@@ -29,7 +29,7 @@ void foo(void) {
 
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
     "assignment.c:4:7: error: expression is not assignable" \
-    "assignment.c:12:7: warning: implicit pointer to integer conversion in assignment" \
+    "assignment.c:12:7: warning: implicit pointer to integer conversion" \
     "assignment.c:13:7: error: assignment from incompatible type" \
     "assignment.c:16:7: error: invalid operands to binary expression" \
     "assignment.c:20:7: error: invalid operands to binary expression" \
