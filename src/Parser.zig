@@ -879,10 +879,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
             try p.err(.extern_initializer);
             decl_spec.storage_class = .none;
         }
-        const init = try p.initializer(decl_spec.ty);
+        var init = try p.initializer(decl_spec.ty);
         try init.expect(p);
         // TODO do type coercion
         init_d.initializer = init.node;
+        try init.saveValue(p);
     }
     const name = init_d.d.name;
     if (p.findSymbol(name, .definition)) |scope| {
@@ -1806,6 +1807,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
             try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
         else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
+        try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
         const then = try p.stmt();
@@ -1839,6 +1841,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
             try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
         else
             try p.errStr(.statement_int, l_paren + 1, try p.typeStr(cond.ty));
+        try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
         var switch_scope = Scope.Switch{
@@ -1865,6 +1868,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
             try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
         else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
+        try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
         try p.scopes.append(.loop);
@@ -1892,6 +1896,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
             try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
         else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
+        try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
         _ = try p.expectToken(.semicolon);
@@ -1911,7 +1916,8 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         // for (init
         const init_start = p.tok_i;
-        const init = if (!got_decl) try p.expr() else Result{};
+        var init = if (!got_decl) try p.expr() else Result{};
+        try init.saveValue(p);
         try init.maybeWarnUnused(p, init_start);
         if (!got_decl) _ = try p.expectToken(.semicolon);
 
@@ -1924,12 +1930,14 @@ fn stmt(p: *Parser) Error!NodeIndex {
             else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
                 try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         }
+        try cond.saveValue(p);
         _ = try p.expectToken(.semicolon);
 
         // for (init; cond; incr
         const incr_start = p.tok_i;
-        const incr = try p.expr();
+        var incr = try p.expr();
         try incr.maybeWarnUnused(p, incr_start);
+        try incr.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
         try p.scopes.append(.loop);
@@ -2265,6 +2273,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
         // should be unreachable
         try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
     }
+    try e.saveValue(p);
     return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
 }
 
@@ -2316,7 +2325,6 @@ pub const Result = struct {
             }
             return;
         }
-        try res.saveValue(p);
         if (res.node == .none) {
             try p.errTok(.expected_expr, p.tok_i);
             return error.ParsingFailed;
@@ -2633,19 +2641,14 @@ pub const Result = struct {
         return p.no_eval;
     }
 
-    fn saveValue(res: Result, p: *Parser) !void {
+    fn saveValue(res: *Result, p: *Parser) !void {
         assert(!p.in_macro);
-        if (res.val == .unavailable) return;
-        switch (p.nodes.items(.tag)[@enumToInt(res.node)]) {
-            .int_literal => return,
-            else => {},
-        }
-
         switch (res.val) {
             .unsigned => |v| try p.value_map.put(res.node, v),
             .signed => |v| try p.value_map.put(res.node, @bitCast(u64, v)),
-            .unavailable => {},
+            .unavailable => return,
         }
+        res.val = .unavailable;
     }
 
     fn hash(res: Result) u64 {
@@ -2916,6 +2919,9 @@ fn constExpr(p: *Parser) Error!Result {
         try p.errTok(.expected_integer_constant_expr, start);
         return error.ParsingFailed;
     }
+    // saveValue sets val to unavailable
+    var copy = res;
+    try copy.saveValue(p);
     return res;
 }
 
@@ -2944,6 +2950,9 @@ fn condExpr(p: *Parser) Error!Result {
 
     if (cond.val != .unavailable) {
         cond.val = if (cond.getBool()) then_expr.val else else_expr.val;
+    } else {
+        try then_expr.saveValue(p);
+        try else_expr.saveValue(p);
     }
     cond.ty = then_expr.ty;
     cond.node = try p.addNode(.{
@@ -3572,6 +3581,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.errTok(.invalid_subscript, l_bracket);
             }
 
+            try ptr.saveValue(p);
+            try index.saveValue(p);
             try ptr.bin(p, .array_access_expr, index);
             return ptr;
         },
@@ -3681,6 +3692,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.pp.comp));
                 if (arg.ty.specifier == .float) try arg.floatCast(p, .{ .specifier = .double });
             }
+            try arg.saveValue(p);
             try p.list_buf.append(arg.node);
             arg_count += 1;
 
@@ -4163,8 +4175,15 @@ fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
 fn genericSelection(p: *Parser) Error!Result {
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
-    const controlling = try p.assignExpr();
-    try controlling.expect(p);
+    const controlling = blk: {
+        // controlling expression is not evaluated
+        const no_eval = p.no_eval;
+        defer p.no_eval = no_eval;
+        p.no_eval = true;
+        const controlling = try p.assignExpr();
+        try controlling.expect(p);
+        break :blk controlling;
+    };
     _ = try p.expectToken(.comma);
 
     const list_buf_top = p.list_buf.items.len;
@@ -4183,6 +4202,7 @@ fn genericSelection(p: *Parser) Error!Result {
             _ = try p.expectToken(.colon);
             chosen = try p.assignExpr();
             try chosen.expect(p);
+            try chosen.saveValue(p);
             try p.list_buf.append(try p.addNode(.{
                 .tag = .generic_association_expr,
                 .ty = ty,
@@ -4197,6 +4217,7 @@ fn genericSelection(p: *Parser) Error!Result {
             _ = try p.expectToken(.colon);
             chosen = try p.assignExpr();
             try chosen.expect(p);
+            try chosen.saveValue(p);
             try p.list_buf.append(try p.addNode(.{
                 .tag = .generic_default_expr,
                 .data = .{ .un = chosen.node },
