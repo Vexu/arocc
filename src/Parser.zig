@@ -2447,6 +2447,11 @@ pub const Result = struct {
                     try b.toVoid(p);
                     return true;
                 }
+                if ((a_ptr and b_int) or (a_int and b_ptr)) {
+                    try p.errTok(.implicit_int_to_ptr, tok);
+                    try (if (a_int) a else b).ptrCast(p, if (a_ptr) a.ty else b.ty);
+                    return true;
+                }
                 // TODO struct/record and pointers
                 return a.invalidBinTy(tok, b, p);
             },

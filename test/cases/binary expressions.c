@@ -18,7 +18,8 @@ void foo(void) {
     (void)(1 - (int*)2);
     (void)((int*)1 - (float*)2);
     (void)(1 ? (void)2 : 3);
-    // (void)(1 ? (int*)2 : 3);
+    (void)(1 ? (int*)2 : 3);
+    (void)(1 ? 2 : (int*)3);
     // (void)(1 ? (int*)2 : (int*)3);
     // (void)(1 ? (int*)2 : (float*)3);
     // struct Foo { int a; } b, c;
@@ -27,7 +28,7 @@ void foo(void) {
     ?:;
 }
 
-#define TESTS_SKIPPED 6
+#define TESTS_SKIPPED 5
 
 #define EXPECTED_ERRORS "binary expressions.c:3:14: error: invalid operands to binary expression" \
     "binary expressions.c:6:20: error: invalid operands to binary expression" \
@@ -39,4 +40,6 @@ void foo(void) {
     "binary expressions.c:15:20: error: invalid operands to binary expression" \
     "binary expressions.c:18:14: error: invalid operands to binary expression" \
     "binary expressions.c:19:20: error: incompatible pointer types" \
-    "binary expressions.c:27:5: error: expected statement"
+    "binary expressions.c:21:24: warning: implicit integer to pointer conversion" \
+    "binary expressions.c:22:18: warning: implicit integer to pointer conversion" \
+    "binary expressions.c:28:5: error: expected statement"
