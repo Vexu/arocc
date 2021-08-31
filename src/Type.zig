@@ -11,6 +11,9 @@ pub const Qualifiers = packed struct {
     @"const": bool = false,
     atomic: bool = false,
     @"volatile": bool = false,
+
+    // for function parameters only, stored here since it fits in the padding
+    register: bool = false,
     restrict: bool = false,
 
     pub fn any(quals: Qualifiers) bool {
@@ -22,7 +25,33 @@ pub const Qualifiers = packed struct {
         if (quals.atomic) try w.writeAll("_Atomic ");
         if (quals.@"volatile") try w.writeAll("volatile ");
         if (quals.restrict) try w.writeAll("restrict ");
+        if (quals.register) try w.writeAll("register ");
     }
+
+    pub const Builder = struct {
+        @"const": ?TokenIndex = null,
+        atomic: ?TokenIndex = null,
+        @"volatile": ?TokenIndex = null,
+        restrict: ?TokenIndex = null,
+
+        pub fn finish(b: Builder, p: *Parser, ty: *Type) !void {
+            if (ty.specifier != .pointer and b.restrict != null) {
+                try p.errStr(.restrict_non_pointer, b.restrict.?, try p.typeStr(ty.*));
+            }
+            if (b.atomic) |some| {
+                if (ty.isArray()) try p.errStr(.atomic_array, some, try p.typeStr(ty.*));
+                if (ty.isFunc()) try p.errStr(.atomic_func, some, try p.typeStr(ty.*));
+                if (ty.hasIncompleteSize()) try p.errStr(.atomic_incomplete, some, try p.typeStr(ty.*));
+            }
+
+            ty.qual = .{
+                .@"const" = b.@"const" != null,
+                .atomic = b.atomic != null,
+                .@"volatile" = b.@"volatile" != null,
+                .restrict = b.restrict != null,
+            };
+        }
+    };
 };
 
 // TODO improve memory usage
@@ -34,7 +63,6 @@ pub const Func = struct {
         name: []const u8,
         ty: Type,
         name_tok: TokenIndex,
-        register: bool,
     };
 };
 
@@ -335,7 +363,6 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
         if (a.qual.@"const" != b.qual.@"const") return false;
         if (a.qual.atomic != b.qual.atomic) return false;
         if (a.qual.@"volatile" != b.qual.@"volatile") return false;
-        if (a.qual.restrict != b.qual.restrict) return false;
     }
 
     switch (a.specifier) {
@@ -406,9 +433,10 @@ pub const Builder = struct {
         tok: TokenIndex,
         ty: Type,
     } = null,
-    kind: Kind = .none,
+    specifier: Builder.Specifier = .none,
+    qual: Qualifiers.Builder = .{},
 
-    pub const Kind = union(enum) {
+    pub const Specifier = union(enum) {
         none,
         void,
         bool,
@@ -462,7 +490,7 @@ pub const Builder = struct {
         @"union": *Record,
         @"enum": *Enum,
 
-        pub fn str(spec: Kind) ?[]const u8 {
+        pub fn str(spec: Builder.Specifier) ?[]const u8 {
             return switch (spec) {
                 .none => unreachable,
                 .void => "void",
@@ -508,117 +536,106 @@ pub const Builder = struct {
         }
     };
 
-    pub fn finish(spec: Builder, p: *Parser, ty: *Type) Parser.Error!void {
-        ty.specifier = switch (spec.kind) {
+    pub fn finish(b: Builder, p: *Parser, ty: *Type) Parser.Error!void {
+        switch (b.specifier) {
             .none => {
                 ty.specifier = .int;
-                return p.err(.missing_type_specifier);
+                try p.err(.missing_type_specifier);
             },
-            .void => .void,
-            .bool => .bool,
-            .char => .char,
-            .schar => .schar,
-            .uchar => .uchar,
+            .void => ty.specifier = .void,
+            .bool => ty.specifier = .bool,
+            .char => ty.specifier = .char,
+            .schar => ty.specifier = .schar,
+            .uchar => ty.specifier = .uchar,
 
-            .unsigned => .uint,
-            .signed => .int,
-            .short_int, .sshort_int, .short, .sshort => .short,
-            .ushort, .ushort_int => .ushort,
-            .int, .sint => .int,
-            .uint => .uint,
-            .long, .slong, .long_int, .slong_int => .long,
-            .ulong, .ulong_int => .ulong,
-            .long_long, .slong_long, .long_long_int, .slong_long_int => .long_long,
-            .ulong_long, .ulong_long_int => .ulong_long,
+            .unsigned => ty.specifier = .uint,
+            .signed => ty.specifier = .int,
+            .short_int, .sshort_int, .short, .sshort => ty.specifier = .short,
+            .ushort, .ushort_int => ty.specifier = .ushort,
+            .int, .sint => ty.specifier = .int,
+            .uint => ty.specifier = .uint,
+            .long, .slong, .long_int, .slong_int => ty.specifier = .long,
+            .ulong, .ulong_int => ty.specifier = .ulong,
+            .long_long, .slong_long, .long_long_int, .slong_long_int => ty.specifier = .long_long,
+            .ulong_long, .ulong_long_int => ty.specifier = .ulong_long,
 
-            .float => .float,
-            .double => .double,
-            .long_double => .long_double,
-            .complex_float => .complex_float,
-            .complex_double => .complex_double,
-            .complex_long_double => .complex_long_double,
+            .float => ty.specifier = .float,
+            .double => ty.specifier = .double,
+            .long_double => ty.specifier = .long_double,
+            .complex_float => ty.specifier = .complex_float,
+            .complex_double => ty.specifier = .complex_double,
+            .complex_long_double => ty.specifier = .complex_long_double,
             .complex, .complex_long => {
-                try p.errExtra(.type_is_invalid, p.tok_i, .{ .str = spec.kind.str().? });
+                try p.errExtra(.type_is_invalid, p.tok_i, .{ .str = b.specifier.str().? });
                 return error.ParsingFailed;
             },
 
             .pointer => |data| {
                 ty.specifier = .pointer;
                 ty.data = .{ .sub_type = data };
-                return;
             },
             .unspecified_variable_len_array => |data| {
                 ty.specifier = .unspecified_variable_len_array;
                 ty.data = .{ .sub_type = data };
-                return;
             },
             .func => |data| {
                 ty.specifier = .func;
                 ty.data = .{ .func = data };
-                return;
             },
             .var_args_func => |data| {
                 ty.specifier = .var_args_func;
                 ty.data = .{ .func = data };
-                return;
             },
             .old_style_func => |data| {
                 ty.specifier = .old_style_func;
                 ty.data = .{ .func = data };
-                return;
             },
             .array => |data| {
                 ty.specifier = .array;
                 ty.data = .{ .array = data };
-                return;
             },
             .static_array => |data| {
                 ty.specifier = .static_array;
                 ty.data = .{ .array = data };
-                return;
             },
             .incomplete_array => |data| {
                 ty.specifier = .incomplete_array;
                 ty.data = .{ .array = data };
-                return;
             },
             .variable_len_array => |data| {
                 ty.specifier = .variable_len_array;
                 ty.data = .{ .vla = data };
-                return;
             },
             .@"struct" => |data| {
                 ty.specifier = .@"struct";
                 ty.data = .{ .record = data };
-                return;
             },
             .@"union" => |data| {
                 ty.specifier = .@"union";
                 ty.data = .{ .record = data };
-                return;
             },
             .@"enum" => |data| {
                 ty.specifier = .@"enum";
                 ty.data = .{ .@"enum" = data };
-                return;
             },
-        };
+        }
+        try b.qual.finish(p, ty);
     }
 
-    pub fn cannotCombine(spec: Builder, p: *Parser, source_tok: TokenIndex) Compilation.Error!void {
+    pub fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) Compilation.Error!void {
         var prev_ty: Type = .{ .specifier = undefined };
-        spec.finish(p, &prev_ty) catch unreachable;
+        b.finish(p, &prev_ty) catch unreachable;
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = try p.typeStr(prev_ty) });
-        if (spec.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
+        if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
 
-    pub fn combine(spec: *Builder, p: *Parser, new: Kind, source_tok: TokenIndex) Compilation.Error!void {
+    pub fn combine(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) Compilation.Error!void {
         switch (new) {
-            else => switch (spec.kind) {
-                .none => spec.kind = new,
-                else => return spec.cannotCombine(p, source_tok),
+            else => switch (b.specifier) {
+                .none => b.specifier = new,
+                else => return b.cannotCombine(p, source_tok),
             },
-            .signed => spec.kind = switch (spec.kind) {
+            .signed => b.specifier = switch (b.specifier) {
                 .none => .signed,
                 .char => .schar,
                 .short => .sshort,
@@ -636,9 +653,9 @@ pub const Builder = struct {
                 .slong_long,
                 .slong_long_int,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "signed"),
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
-            .unsigned => spec.kind = switch (spec.kind) {
+            .unsigned => b.specifier = switch (b.specifier) {
                 .none => .unsigned,
                 .char => .uchar,
                 .short => .ushort,
@@ -656,22 +673,22 @@ pub const Builder = struct {
                 .ulong_long,
                 .ulong_long_int,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "unsigned"),
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
-            .char => spec.kind = switch (spec.kind) {
+            .char => b.specifier = switch (b.specifier) {
                 .none => .char,
                 .unsigned => .uchar,
                 .signed => .schar,
                 .char, .schar, .uchar => return p.errStr(.duplicate_decl_spec, p.tok_i, "char"),
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
-            .short => spec.kind = switch (spec.kind) {
+            .short => b.specifier = switch (b.specifier) {
                 .none => .short,
                 .unsigned => .ushort,
                 .signed => .sshort,
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
-            .int => spec.kind = switch (spec.kind) {
+            .int => b.specifier = switch (b.specifier) {
                 .none => .int,
                 .signed => .sint,
                 .unsigned => .uint,
@@ -697,9 +714,9 @@ pub const Builder = struct {
                 .slong_long_int,
                 .ulong_long_int,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "int"),
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
-            .long => spec.kind = switch (spec.kind) {
+            .long => b.specifier = switch (b.specifier) {
                 .none => .long,
                 .long => .long_long,
                 .unsigned => .ulong,
@@ -708,15 +725,15 @@ pub const Builder = struct {
                 .sint => .slong_int,
                 .ulong => .ulong_long,
                 .long_long, .ulong_long => return p.errStr(.duplicate_decl_spec, p.tok_i, "long"),
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
-            .float => spec.kind = switch (spec.kind) {
+            .float => b.specifier = switch (b.specifier) {
                 .none => .float,
                 .complex => .complex_float,
                 .complex_float, .float => return p.errStr(.duplicate_decl_spec, p.tok_i, "float"),
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
-            .double => spec.kind = switch (spec.kind) {
+            .double => b.specifier = switch (b.specifier) {
                 .none => .double,
                 .long => .long_double,
                 .complex_long => .complex_long_double,
@@ -726,9 +743,9 @@ pub const Builder = struct {
                 .complex_double,
                 .double,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "double"),
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
-            .complex => spec.kind = switch (spec.kind) {
+            .complex => b.specifier = switch (b.specifier) {
                 .none => .complex,
                 .long => .complex_long,
                 .float => .complex_float,
@@ -740,12 +757,12 @@ pub const Builder = struct {
                 .complex_double,
                 .complex_long_double,
                 => return p.errStr(.duplicate_decl_spec, p.tok_i, "_Complex"),
-                else => return spec.cannotCombine(p, source_tok),
+                else => return b.cannotCombine(p, source_tok),
             },
         }
     }
 
-    pub fn fromType(ty: Type) Kind {
+    pub fn fromType(ty: Type) Builder.Specifier {
         return switch (ty.specifier) {
             .void => .void,
             .bool => .bool,
@@ -798,7 +815,6 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try w.writeAll("fn (");
             for (ty.data.func.params) |param, i| {
                 if (i != 0) try w.writeAll(", ");
-                if (param.register) try w.writeAll("register ");
                 if (param.name.len != 0) try w.print("{s}: ", .{param.name});
                 try param.ty.dump(w);
             }

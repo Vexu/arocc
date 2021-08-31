@@ -706,10 +706,10 @@ pub const DeclSpec = struct {
     @"noreturn": ?TokenIndex = null,
     ty: Type = .{ .specifier = undefined },
 
-    fn validateParam(d: DeclSpec, p: *Parser, ty: Type) Error!void {
-        _ = ty;
+    fn validateParam(d: DeclSpec, p: *Parser, ty: *Type) Error!void {
         switch (d.storage_class) {
-            .none, .register => {},
+            .none => {},
+            .register => ty.qual.register = true,
             .auto, .@"extern", .static, .typedef => |tok_i| try p.errTok(.invalid_storage_on_param, tok_i),
         }
         if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
@@ -925,7 +925,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
     const start = p.tok_i;
     while (true) {
-        if (try p.typeQual(complete_type)) continue;
+        if (try p.typeQual(&ty.qual)) continue;
         switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try ty.combine(p, .void, p.tok_i),
             .keyword_bool => try ty.combine(p, .bool, p.tok_i),
@@ -955,12 +955,10 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 const new_spec = Type.Builder.fromType(inner_ty);
                 try ty.combine(p, new_spec, atomic_tok);
 
-                if (complete_type.qual.atomic)
+                if (ty.qual.atomic != null)
                     try p.errStr(.duplicate_decl_spec, atomic_tok, "atomic")
                 else
-                    complete_type.qual.atomic = true;
-
-                // TODO check that the type can be atomic
+                    ty.qual.atomic = atomic_tok;
                 continue;
             },
             .keyword_struct => {
@@ -1341,38 +1339,35 @@ fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
 }
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
-fn typeQual(p: *Parser, ty: *Type) Error!bool {
+fn typeQual(p: *Parser, b: *Type.Qualifiers.Builder) Error!bool {
     var any = false;
     while (true) {
         switch (p.tok_ids[p.tok_i]) {
             .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => {
-                if (ty.specifier != .pointer)
-                    try p.errExtra(.restrict_non_pointer, p.tok_i, .{ .str = try p.typeStr(ty.*) })
-                else if (ty.qual.restrict)
+                if (b.restrict != null)
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "restrict")
                 else
-                    ty.qual.restrict = true;
+                    b.restrict = p.tok_i;
             },
             .keyword_const, .keyword_const1, .keyword_const2 => {
-                if (ty.qual.@"const")
+                if (b.@"const" != null)
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "const")
                 else
-                    ty.qual.@"const" = true;
+                    b.@"const" = p.tok_i;
             },
             .keyword_volatile, .keyword_volatile1, .keyword_volatile2 => {
-                if (ty.qual.@"volatile")
+                if (b.@"volatile" != null)
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "volatile")
                 else
-                    ty.qual.@"volatile" = true;
+                    b.@"volatile" = p.tok_i;
             },
             .keyword_atomic => {
                 // _Atomic(typeName) instead of just _Atomic
                 if (p.tok_ids[p.tok_i + 1] == .l_paren) break;
-                if (ty.qual.atomic)
+                if (b.atomic != null)
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "atomic")
                 else
-                    ty.qual.atomic = true;
-                // TODO check that the type can be atomic
+                    b.atomic = p.tok_i;
             },
             else => break,
         }
@@ -1447,10 +1442,11 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             // so that we can get any restrict type that might be present
             .specifier = .pointer,
         };
+        var quals = Type.Qualifiers.Builder{};
 
-        var got_quals = try p.typeQual(&res_ty);
+        var got_quals = try p.typeQual(&quals);
         var static = p.eatToken(.keyword_static);
-        if (static != null and !got_quals) got_quals = try p.typeQual(&res_ty);
+        if (static != null and !got_quals) got_quals = try p.typeQual(&quals);
         var star = p.eatToken(.asterisk);
         const size = if (star) |_| Result{} else try p.assignExpr();
         try p.expectClosing(l_bracket, .r_bracket);
@@ -1466,8 +1462,10 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 try p.errTok(.array_qualifiers, l_bracket);
             if (star) |some| try p.errTok(.star_non_param, some);
             static = null;
-            res_ty.qual = .{};
+            quals = .{};
             star = null;
+        } else {
+            try quals.finish(p, &res_ty);
         }
         if (static) |_| try size.expect(p);
 
@@ -1552,7 +1550,6 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                     .name = p.tokSlice(name_tok),
                     .name_tok = name_tok,
                     .ty = .{ .specifier = .int },
-                    .register = false,
                 });
                 if (p.eatToken(.comma) == null) break;
             }
@@ -1583,7 +1580,9 @@ fn pointer(p: *Parser, base_ty: Type) Error!Type {
             .specifier = .pointer,
             .data = .{ .sub_type = elem_ty },
         };
-        _ = try p.typeQual(&ty);
+        var quals = Type.Qualifiers.Builder{};
+        _ = try p.typeQual(&quals);
+        try quals.finish(p, &ty);
     }
     return ty;
 }
@@ -1669,12 +1668,11 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             return error.ParsingFailed;
         }
 
-        try param_decl_spec.validateParam(p, param_ty);
+        try param_decl_spec.validateParam(p, &param_ty);
         try p.param_buf.append(.{
             .name = if (name_tok == 0) "" else p.tokSlice(name_tok),
             .name_tok = if (name_tok == 0) first_tok else name_tok,
             .ty = param_ty,
-            .register = param_decl_spec.storage_class == .register,
         });
 
         if (p.eatToken(.comma) == null) break;
