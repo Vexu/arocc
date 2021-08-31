@@ -191,7 +191,7 @@ pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
-    try ty.dump(p.strings.writer());
+    try ty.print(p.strings.writer());
     return try p.arena.dupe(u8, p.strings.items[strings_top..]);
 }
 

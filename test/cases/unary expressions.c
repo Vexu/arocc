@@ -22,8 +22,8 @@ void foo(void) {
     (void);
 }
 
-#define EXPECTED_ERRORS "unary expressions.c:3:11: error: invalid argument type '*int' to unary expression" \
-    "unary expressions.c:5:11: error: invalid argument type '*int' to unary expression" \
+#define EXPECTED_ERRORS "unary expressions.c:3:11: error: invalid argument type 'int *' to unary expression" \
+    "unary expressions.c:5:11: error: invalid argument type 'int *' to unary expression" \
     "unary expressions.c:11:6: error: expression is not assignable" \
     "unary expressions.c:12:5: error: expression is not assignable" \
     "unary expressions.c:13:11: warning: type specifier missing, defaults to 'int'" \
