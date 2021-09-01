@@ -1918,9 +1918,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         // for (init
         const init_start = p.tok_i;
+        var err_start = p.pp.comp.diag.list.items.len;
         var init = if (!got_decl) try p.expr() else Result{};
         try init.saveValue(p);
-        try init.maybeWarnUnused(p, init_start);
+        try init.maybeWarnUnused(p, init_start, err_start);
         if (!got_decl) _ = try p.expectToken(.semicolon);
 
         // for (init; cond
@@ -1937,8 +1938,9 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         // for (init; cond; incr
         const incr_start = p.tok_i;
+        err_start = p.pp.comp.diag.list.items.len;
         var incr = try p.expr();
-        try incr.maybeWarnUnused(p, incr_start);
+        try incr.maybeWarnUnused(p, incr_start, err_start);
         try incr.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
@@ -1988,10 +1990,11 @@ fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.returnStmt()) |some| return some;
 
     const expr_start = p.tok_i;
+    const err_start = p.pp.comp.diag.list.items.len;
     const e = try p.expr();
     if (e.node != .none) {
         _ = try p.expectToken(.semicolon);
-        try e.maybeWarnUnused(p, expr_start);
+        try e.maybeWarnUnused(p, expr_start, err_start);
         return e.node;
     }
     if (p.eatToken(.semicolon)) |_| return .none;
@@ -2338,8 +2341,10 @@ pub const Result = struct {
         return res.node == .none;
     }
 
-    fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex) Error!void {
+    fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex, err_start: usize) Error!void {
         if (res.ty.specifier == .void or res.node == .none) return;
+        // don't warn about unused result if the expression contained errors
+        if (p.pp.comp.diag.list.items.len > err_start) return;
         switch (p.nodes.items(.tag)[@enumToInt(res.node)]) {
             .invalid, // So that we don't need to check for node == 0
             .assign_expr,
@@ -2785,10 +2790,12 @@ pub const Result = struct {
 /// expr : assignExpr (',' assignExpr)*
 fn expr(p: *Parser) Error!Result {
     var expr_start = p.tok_i;
+    var err_start = p.pp.comp.diag.list.items.len;
     var lhs = try p.assignExpr();
     while (p.eatToken(.comma)) |_| {
-        try lhs.maybeWarnUnused(p, expr_start);
+        try lhs.maybeWarnUnused(p, expr_start, err_start);
         expr_start = p.tok_i;
+        err_start = p.pp.comp.diag.list.items.len;
 
         const rhs = try p.assignExpr();
         lhs.val = rhs.val;
@@ -3819,12 +3826,12 @@ fn primaryExpr(p: *Parser) Error!Result {
                     return res;
                 },
                 .symbol => |s| return Result{
+                    .ty = s.ty,
+                    .node = try p.addNode(.{
+                        .tag = .decl_ref_expr,
                         .ty = s.ty,
-                        .node = try p.addNode(.{
-                            .tag = .decl_ref_expr,
-                            .ty = s.ty,
-                            .data = .{ .decl_ref = name_tok },
-                        }),
+                        .data = .{ .decl_ref = name_tok },
+                    }),
                 },
                 else => unreachable,
             }
