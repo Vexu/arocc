@@ -192,6 +192,7 @@ pub const Tag = enum {
     atomic_array,
     atomic_func,
     atomic_incomplete,
+    addr_of_register,
 };
 
 const Options = struct {
@@ -492,6 +493,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .atomic_array => m.print("atomic cannot be applied to array type '{s}'", .{msg.extra.str}),
             .atomic_func => m.print("atomic cannot be applied to function type '{s}'", .{msg.extra.str}),
             .atomic_incomplete => m.print("atomic cannot be applied to incomplete type '{s}'", .{msg.extra.str}),
+            .addr_of_register => m.write("address of register variable requested"),
         }
         m.end(lcs);
 
@@ -652,6 +654,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .atomic_array,
         .atomic_func,
         .atomic_incomplete,
+        .addr_of_register,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

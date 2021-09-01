@@ -802,7 +802,7 @@ pub const Builder = struct {
     }
 };
 
-/// Print type in the 
+/// Print type in C style
 pub fn print(ty: Type, w: anytype) @TypeOf(w).Error!void {
     _ = try ty.printPrologue(w);
     try ty.printEpilogue(w);

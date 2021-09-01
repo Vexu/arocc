@@ -32,6 +32,7 @@ const Scope = union(enum) {
         ty: Type,
         name_tok: TokenIndex,
         is_initialized: bool = false,
+        is_register: bool = false,
     };
 
     const Enumeration = struct {
@@ -629,6 +630,7 @@ fn decl(p: *Parser) Error!bool {
                 .ty = init_d.d.ty,
                 .name_tok = init_d.d.name,
                 .is_initialized = init_d.initializer != .none,
+                .is_register = decl_spec.storage_class == .register,
             } });
         }
 
@@ -3281,10 +3283,13 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
 
-            // TODO validate type
-            if (!Tree.isLval(p.nodes.slice(), operand.node)) {
+            const slice = p.nodes.slice();
+            if (!Tree.isLval(slice, operand.node)) {
                 try p.errTok(.addr_of_rvalue, tok);
-                return error.ParsingFailed;
+            }
+            if (slice.items(.tag)[@enumToInt(operand.node)] == .decl_ref_expr) {
+                const sym = p.findSymbol(slice.items(.data)[@enumToInt(operand.node)].decl_ref, .reference).?;
+                if (sym.symbol.is_register) try p.errTok(.addr_of_register, tok);
             }
 
             const elem_ty = try p.arena.create(Type);
@@ -3805,7 +3810,6 @@ fn primaryExpr(p: *Parser) Error!Result {
             };
             switch (sym) {
                 .enumeration => |e| {
-                    // TODO actually check type
                     var res = e.value;
                     res.node = try p.addNode(.{
                         .tag = .enumeration_ref,
@@ -3814,16 +3818,13 @@ fn primaryExpr(p: *Parser) Error!Result {
                     });
                     return res;
                 },
-                .symbol => |s| {
-                    // TODO actually check type
-                    return Result{
+                .symbol => |s| return Result{
                         .ty = s.ty,
                         .node = try p.addNode(.{
                             .tag = .decl_ref_expr,
                             .ty = s.ty,
                             .data = .{ .decl_ref = name_tok },
                         }),
-                    };
                 },
                 else => unreachable,
             }

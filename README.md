@@ -15,7 +15,7 @@ int *something[5];
 
 #if defined MAIN
 int MAIN(int argc, const char *argv[]) {
-    return (argc * (char)4)[(int)1.f];
+    return (argc * (char)4)[argv];
 }
 #endif
 ```

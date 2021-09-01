@@ -45,10 +45,7 @@ pub fn main() !void {
     }
 
     var progress = std.Progress{};
-    const root_node = progress.start("Test", cases.items.len) catch |err| switch (err) {
-        // TODO still run tests in this case
-        error.TimerUnsupported => @panic("timer unsupported"),
-    };
+    const root_node = try progress.start("Test", cases.items.len);
 
     // prepare compiler
     var comp = aro.Compilation.init(gpa);
