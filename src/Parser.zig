@@ -884,10 +884,15 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         var init = try p.initializer(decl_spec.ty);
         try init.expect(p);
         // TODO do type coercion
+        // TODO infer array size
         init_d.initializer = init.node;
         try init.saveValue(p);
     }
     const name = init_d.d.name;
+    if (init_d.d.ty.hasIncompleteSize()) {
+        try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
+        return init_d;
+    }
     if (p.findSymbol(name, .definition)) |scope| {
         if (scope == .enumeration) {
             try p.errStr(.redefinition_different_sym, name, p.tokSlice(name));
@@ -3312,20 +3317,12 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
             var operand = try p.castExpr();
             try operand.expect(p);
-            // TODO validate pointer type
 
             switch (operand.ty.specifier) {
-                .pointer => {
-                    operand.ty = operand.ty.data.sub_type.*;
-                },
-                .array, .static_array => {
-                    operand.ty = operand.ty.data.array.elem;
-                },
+                .pointer => operand.ty = operand.ty.data.sub_type.*,
+                .array, .static_array => operand.ty = operand.ty.data.array.elem,
                 .func, .var_args_func, .old_style_func => {},
-                else => {
-                    try p.errTok(.indirection_ptr, tok);
-                    return error.ParsingFailed;
-                },
+                else => try p.errTok(.indirection_ptr, tok),
             }
             try operand.un(p, .deref_expr);
             return operand;

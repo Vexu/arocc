@@ -407,7 +407,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             try inner.data.vla.elem.combine(outer, p, source_tok);
 
             const elem_ty = inner.data.vla.elem;
-            if (elem_ty.hasIncompleteSize()) return p.errTok(.array_incomplete_elem, source_tok);
+            if (elem_ty.hasIncompleteSize()) return p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
             if (elem_ty.isFunc()) return p.errTok(.array_func_elem, source_tok);
             if (elem_ty.qual.any() and elem_ty.isArray()) return p.errTok(.qualifier_non_outermost_array, source_tok);
         },
@@ -415,7 +415,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             try inner.data.array.elem.combine(outer, p, source_tok);
 
             const elem_ty = inner.data.array.elem;
-            if (elem_ty.hasIncompleteSize()) return p.errTok(.array_incomplete_elem, source_tok);
+            if (elem_ty.hasIncompleteSize()) return p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
             if (elem_ty.isFunc()) return p.errTok(.array_func_elem, source_tok);
             if (elem_ty.specifier == .static_array and elem_ty.isArray()) return p.errTok(.static_non_outermost_array, source_tok);
             if (elem_ty.qual.any() and elem_ty.isArray()) return p.errTok(.qualifier_non_outermost_array, source_tok);

@@ -193,6 +193,7 @@ pub const Tag = enum {
     atomic_func,
     atomic_incomplete,
     addr_of_register,
+    variable_incomplete_ty,
 };
 
 const Options = struct {
@@ -428,7 +429,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .variable_len_array_file_scope => m.write("variable length arrays not allowed at file scope"),
             .useless_static => m.write("'static' useless without a constant size"),
             .negative_array_size => m.write("array size must be 0 or greater"),
-            .array_incomplete_elem => m.write("array has incomplete element type"),
+            .array_incomplete_elem => m.print("array has incomplete element type '{s}'", .{msg.extra.str}),
             .array_func_elem => m.write("arrays cannot have functions as their element type"),
             .static_non_outermost_array => m.write("'static' used in non-outermost array type"),
             .qualifier_non_outermost_array => m.write("type qualifier used in non-outermost array type"),
@@ -494,6 +495,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .atomic_func => m.print("atomic cannot be applied to function type '{s}'", .{msg.extra.str}),
             .atomic_incomplete => m.print("atomic cannot be applied to incomplete type '{s}'", .{msg.extra.str}),
             .addr_of_register => m.write("address of register variable requested"),
+            .variable_incomplete_ty => m.print("variable has incomplete type '{s}'", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -655,6 +657,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .atomic_func,
         .atomic_incomplete,
         .addr_of_register,
+        .variable_incomplete_ty,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
