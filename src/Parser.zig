@@ -538,12 +538,7 @@ fn decl(p: *Parser) Error!bool {
                         };
                     } else if (d.ty.isArray()) {
                         // params declared as arrays are converted to pointers
-                        const elem_ty = try p.arena.create(Type);
-                        elem_ty.* = d.ty.elemType();
-                        d.ty = Type{
-                            .specifier = .pointer,
-                            .data = .{ .sub_type = elem_ty },
-                        };
+                        d.ty.decayArray();
                     } else if (d.ty.specifier == .void) {
                         try p.errTok(.invalid_void_param, d.name);
                     }
@@ -1656,12 +1651,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             };
         } else if (param_ty.isArray()) {
             // params declared as arrays are converted to pointers
-            const elem_ty = try p.arena.create(Type);
-            elem_ty.* = param_ty.elemType();
-            param_ty = Type{
-                .specifier = .pointer,
-                .data = .{ .sub_type = elem_ty },
-            };
+            param_ty.decayArray();
         } else if (param_ty.specifier == .void) {
             // validate void parameters
             if (p.param_buf.items.len == param_buf_top) {
@@ -2248,7 +2238,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     // Return type conversion is done as if it was assignment
     if (ret_ty.specifier == .bool) {
         // this is ridiculous but it's what clang does
-        if (e.ty.isInt() or e.ty.isFloat() or e.ty.specifier == .pointer) {
+        if (e.ty.isInt() or e.ty.isFloat() or e.ty.isPtr()) {
             try e.boolCast(p, ret_ty);
         } else {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
@@ -2256,7 +2246,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     } else if (ret_ty.isInt()) {
         if (e.ty.isInt() or e.ty.isFloat()) {
             try e.intCast(p, ret_ty);
-        } else if (e.ty.specifier == .pointer) {
+        } else if (e.ty.isPtr()) {
             try p.errTok(.implicit_ptr_to_int, e_tok);
             try e.intCast(p, ret_ty);
         } else {
@@ -2268,7 +2258,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
         } else {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
-    } else if (ret_ty.specifier == .pointer) {
+    } else if (ret_ty.isPtr()) {
         if (e.ty.isInt()) {
             try p.errTok(.implicit_int_to_ptr, e_tok);
             try e.intCast(p, ret_ty);
@@ -2427,8 +2417,8 @@ pub const Result = struct {
         }
         if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
 
-        const a_ptr = a.ty.specifier == .pointer;
-        const b_ptr = b.ty.specifier == .pointer;
+        const a_ptr = a.ty.isPtr();
+        const b_ptr = b.ty.isPtr();
         const a_scalar = a_arithmetic or a_ptr;
         const b_scalar = b_arithmetic or b_ptr;
         switch (kind) {
@@ -2508,10 +2498,7 @@ pub const Result = struct {
             res.ty.data = .{ .sub_type = elem_ty };
             try res.un(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
-            var elem_ty = try p.arena.create(Type);
-            elem_ty.* = res.ty.elemType();
-            res.ty.specifier = .pointer;
-            res.ty.data = .{ .sub_type = elem_ty };
+            res.ty.decayArray();
             try res.un(p, .array_to_pointer);
         } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), res.node)) {
             res.ty.qual = .{};
@@ -2520,7 +2507,7 @@ pub const Result = struct {
     }
 
     fn boolCast(res: *Result, p: *Parser, bool_ty: Type) Error!void {
-        if (res.ty.specifier == .pointer) {
+        if (res.ty.isPtr()) {
             res.ty = bool_ty;
             try res.un(p, .pointer_to_bool);
         } else if (res.ty.isInt() and res.ty.specifier != .bool) {
@@ -2536,6 +2523,12 @@ pub const Result = struct {
         if (res.ty.specifier == .bool) {
             res.ty = int_ty;
             try res.un(p, .bool_to_int);
+        } else if (res.ty.isPtr()) {
+            res.ty = int_ty;
+            try res.un(p, .pointer_to_int);
+        } else if (res.ty.isFloat()) {
+            res.ty = int_ty;
+            try res.un(p, .float_to_int);
         } else if (!res.ty.eql(int_ty, true)) {
             res.ty = int_ty;
             try res.un(p, .int_cast);
@@ -2872,7 +2865,7 @@ fn assignExpr(p: *Parser) Error!Result {
     // TODO print types in these errors
     if (lhs.ty.specifier == .bool) {
         // this is ridiculous but it's what clang does
-        if (rhs.ty.isInt() or rhs.ty.isFloat() or (rhs.ty.specifier == .pointer and tag == .assign_expr)) {
+        if (rhs.ty.isInt() or rhs.ty.isFloat() or (rhs.ty.isPtr() and tag == .assign_expr)) {
             try rhs.boolCast(p, lhs.ty);
         } else {
             try p.errTok(.incompatible_assign, tok);
@@ -2880,7 +2873,7 @@ fn assignExpr(p: *Parser) Error!Result {
     } else if (lhs.ty.isInt()) {
         if (rhs.ty.isInt() or rhs.ty.isFloat()) {
             try rhs.intCast(p, lhs.ty);
-        } else if (tag == .assign_expr and rhs.ty.specifier == .pointer) {
+        } else if (tag == .assign_expr and rhs.ty.isPtr()) {
             try p.errTok(.implicit_ptr_to_int, tok);
             try rhs.intCast(p, lhs.ty);
         } else {
@@ -2901,7 +2894,7 @@ fn assignExpr(p: *Parser) Error!Result {
                 try p.errTok(.incompatible_assign, tok);
             },
         }
-    } else if (lhs.ty.specifier == .pointer) {
+    } else if (lhs.ty.isPtr()) {
         if ((tag == .add_assign_expr or tag == .sub_assign_expr) and
             (rhs.ty.isInt() or rhs.ty.isFloat()))
             try rhs.ptrCast(p, lhs.ty)
@@ -3262,10 +3255,10 @@ fn castExpr(p: *Parser) Error!Result {
             try operand.expect(p);
             if (ty.specifier == .void) {
                 // everything can cast to void
-            } else if (ty.isInt() or ty.isFloat() or ty.specifier == .pointer) {
-                if (ty.isFloat() and operand.ty.specifier == .pointer)
+            } else if (ty.isInt() or ty.isFloat() or ty.isPtr()) {
+                if (ty.isFloat() and operand.ty.isPtr())
                     try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(operand.ty));
-                if (operand.ty.isFloat() and ty.specifier == .pointer)
+                if (operand.ty.isFloat() and ty.isPtr())
                     try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(operand.ty));
             } else {
                 try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
@@ -3318,11 +3311,10 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
 
-            switch (operand.ty.specifier) {
-                .pointer => operand.ty = operand.ty.data.sub_type.*,
-                .array, .static_array => operand.ty = operand.ty.data.array.elem,
-                .func, .var_args_func, .old_style_func => {},
-                else => try p.errTok(.indirection_ptr, tok),
+            if (operand.ty.isArray() or operand.ty.isPtr()) {
+                operand.ty = operand.ty.elemType();
+            } else if (!operand.ty.isFunc()) {
+                try p.errTok(.indirection_ptr, tok);
             }
             try operand.un(p, .deref_expr);
             return operand;
@@ -3577,12 +3569,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             var ptr = lhs;
             try ptr.lvalConversion(p);
             try index.lvalConversion(p);
-            if (ptr.ty.specifier == .pointer) {
-                ptr.ty = ptr.ty.data.sub_type.*;
+            if (ptr.ty.isPtr()) {
+                ptr.ty = ptr.ty.elemType();
                 if (!index.ty.isInt()) try p.errTok(.invalid_index, l_bracket);
                 try p.checkArrayBounds(index, l_ty, l_bracket);
-            } else if (index.ty.specifier == .pointer) {
-                index.ty = index.ty.data.sub_type.*;
+            } else if (index.ty.isPtr()) {
+                index.ty = index.ty.elemType();
                 if (!ptr.ty.isInt()) try p.errTok(.invalid_index, l_bracket);
                 try p.checkArrayBounds(ptr, r_ty, l_bracket);
                 std.mem.swap(Result, &ptr, &index);
@@ -3654,7 +3646,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 const p_ty = params[arg_count].ty;
                 if (p_ty.specifier == .bool) {
                     // this is ridiculous but it's what clang does
-                    if (arg.ty.isInt() or arg.ty.isFloat() or arg.ty.specifier == .pointer) {
+                    if (arg.ty.isInt() or arg.ty.isFloat() or arg.ty.isPtr()) {
                         try arg.boolCast(p, p_ty);
                     } else {
                         try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
@@ -3663,7 +3655,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 } else if (p_ty.isInt()) {
                     if (arg.ty.isInt() or arg.ty.isFloat()) {
                         try arg.intCast(p, p_ty);
-                    } else if (arg.ty.specifier == .pointer) {
+                    } else if (arg.ty.isPtr()) {
                         try p.errTok(.implicit_ptr_to_int, param_tok);
                         try p.errTok(.parameter_here, params[arg_count].name_tok);
                         try arg.intCast(p, p_ty);
@@ -3678,7 +3670,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                         try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
                         try p.errTok(.parameter_here, params[arg_count].name_tok);
                     }
-                } else if (p_ty.specifier == .pointer) {
+                } else if (p_ty.isPtr()) {
                     if (arg.ty.isInt()) {
                         try p.errTok(.implicit_int_to_ptr, param_tok);
                         try p.errTok(.parameter_here, params[arg_count].name_tok);

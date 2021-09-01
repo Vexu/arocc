@@ -381,6 +381,8 @@ pub const Tag = enum(u8) {
     int_to_pointer,
     /// Convert a floating type to a _Bool
     float_to_bool,
+    /// Convert a floating type to an integer
+    float_to_int,
     /// Convert one integer type to another
     int_cast,
     /// Convert one floating type to another
@@ -406,6 +408,7 @@ pub const Tag = enum(u8) {
             .int_to_float,
             .int_to_pointer,
             .float_to_bool,
+            .float_to_int,
             .int_cast,
             .float_cast,
             .to_void,
@@ -910,6 +913,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .int_to_float,
         .int_to_pointer,
         .float_to_bool,
+        .float_to_int,
         .int_cast,
         .float_cast,
         .to_void,

@@ -153,6 +153,7 @@ pub const Specifier = enum {
     // data.sub_type
     pointer,
     unspecified_variable_len_array,
+    decayed_unspecified_variable_len_array,
     // data.func
     /// int foo(int bar, char baz) and int (void)
     func,
@@ -164,10 +165,14 @@ pub const Specifier = enum {
 
     // data.array
     array,
+    decayed_array,
     static_array,
+    decayed_static_array,
     incomplete_array,
+    decayed_incomplete_array,
     // data.vla
     variable_len_array,
+    decayed_variable_len_array,
 
     // data.record
     @"struct",
@@ -212,6 +217,13 @@ pub fn isArray(ty: Type) bool {
     };
 }
 
+pub fn isPtr(ty: Type) bool {
+    return switch (ty.specifier) {
+        .pointer, .decayed_array, .decayed_static_array, .decayed_incomplete_array, .decayed_variable_len_array, .decayed_unspecified_variable_len_array => true,
+        else => false,
+    };
+}
+
 pub fn isInt(ty: Type) bool {
     return switch (ty.specifier) {
         .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
@@ -251,9 +263,9 @@ pub fn isEnumOrRecord(ty: Type) bool {
 
 pub fn elemType(ty: Type) Type {
     return switch (ty.specifier) {
-        .pointer, .unspecified_variable_len_array => ty.data.sub_type.*,
-        .array, .static_array, .incomplete_array => ty.data.array.elem,
-        .variable_len_array => ty.data.vla.elem,
+        .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.*,
+        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem,
+        .variable_len_array, .decayed_variable_len_array => ty.data.vla.elem,
         else => unreachable,
     };
 }
@@ -348,7 +360,14 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
         .complex_float => 8,
         .complex_double => 16,
         .complex_long_double => 32,
-        .pointer, .static_array => comp.target.cpu.arch.ptrBitWidth() >> 3,
+        .pointer,
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        .static_array,
+        => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .array => ty.data.array.elem.sizeof(comp).? * @intCast(u32, ty.data.array.len),
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
@@ -367,8 +386,12 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
 
     switch (a.specifier) {
         .pointer,
-        .unspecified_variable_len_array,
-        => if (!a.data.sub_type.eql(b.data.sub_type.*, check_qualifiers)) return false,
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        => if (!a.elemType().eql(b.elemType(), check_qualifiers)) return false,
 
         .func,
         .var_args_func,
@@ -399,6 +422,12 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
     return true;
 }
 
+/// Decays an array to a pointer
+pub fn decayArray(ty: *Type) void {
+    // the decayed array type is the current specifier +1
+    ty.specifier = @intToEnum(Type.Specifier, @enumToInt(ty.specifier) + 1);
+}
+
 pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
     switch (inner.specifier) {
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
@@ -425,6 +454,12 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             if (inner.data.func.return_type.isArray()) return p.errTok(.func_cannot_return_array, source_tok);
             if (inner.data.func.return_type.isFunc()) return p.errTok(.func_cannot_return_func, source_tok);
         },
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        => unreachable, // type should not be able to decay before being combined
         else => inner.* = outer,
     }
 }
@@ -481,13 +516,18 @@ pub const Builder = struct {
 
         pointer: *Type,
         unspecified_variable_len_array: *Type,
+        decayed_unspecified_variable_len_array: *Type,
         func: *Func,
         var_args_func: *Func,
         old_style_func: *Func,
         array: *Array,
+        decayed_array: *Array,
         static_array: *Array,
+        decayed_static_array: *Array,
         incomplete_array: *Array,
+        decayed_incomplete_array: *Array,
         variable_len_array: *VLA,
+        decayed_variable_len_array: *VLA,
         @"struct": *Record,
         @"union": *Record,
         @"enum": *Enum,
@@ -580,6 +620,10 @@ pub const Builder = struct {
                 ty.specifier = .unspecified_variable_len_array;
                 ty.data = .{ .sub_type = data };
             },
+            .decayed_unspecified_variable_len_array => |data| {
+                ty.specifier = .decayed_unspecified_variable_len_array;
+                ty.data = .{ .sub_type = data };
+            },
             .func => |data| {
                 ty.specifier = .func;
                 ty.data = .{ .func = data };
@@ -596,16 +640,32 @@ pub const Builder = struct {
                 ty.specifier = .array;
                 ty.data = .{ .array = data };
             },
+            .decayed_array => |data| {
+                ty.specifier = .decayed_array;
+                ty.data = .{ .array = data };
+            },
             .static_array => |data| {
                 ty.specifier = .static_array;
+                ty.data = .{ .array = data };
+            },
+            .decayed_static_array => |data| {
+                ty.specifier = .decayed_static_array;
                 ty.data = .{ .array = data };
             },
             .incomplete_array => |data| {
                 ty.specifier = .incomplete_array;
                 ty.data = .{ .array = data };
             },
+            .decayed_incomplete_array => |data| {
+                ty.specifier = .decayed_incomplete_array;
+                ty.data = .{ .array = data };
+            },
             .variable_len_array => |data| {
                 ty.specifier = .variable_len_array;
+                ty.data = .{ .vla = data };
+            },
+            .decayed_variable_len_array => |data| {
+                ty.specifier = .decayed_variable_len_array;
                 ty.data = .{ .vla = data };
             },
             .@"struct" => |data| {
@@ -788,13 +848,18 @@ pub const Builder = struct {
 
             .pointer => .{ .pointer = ty.data.sub_type },
             .unspecified_variable_len_array => .{ .unspecified_variable_len_array = ty.data.sub_type },
+            .decayed_unspecified_variable_len_array => .{ .decayed_unspecified_variable_len_array = ty.data.sub_type },
             .func => .{ .func = ty.data.func },
             .var_args_func => .{ .var_args_func = ty.data.func },
             .old_style_func => .{ .old_style_func = ty.data.func },
             .array => .{ .array = ty.data.array },
+            .decayed_array => .{ .decayed_array = ty.data.array },
             .static_array => .{ .static_array = ty.data.array },
+            .decayed_static_array => .{ .decayed_static_array = ty.data.array },
             .incomplete_array => .{ .incomplete_array = ty.data.array },
+            .decayed_incomplete_array => .{ .decayed_incomplete_array = ty.data.array },
             .variable_len_array => .{ .variable_len_array = ty.data.vla },
+            .decayed_variable_len_array => .{ .decayed_variable_len_array = ty.data.vla },
             .@"struct" => .{ .@"struct" = ty.data.record },
             .@"union" => .{ .@"union" = ty.data.record },
             .@"enum" => .{ .@"enum" = ty.data.@"enum" },
@@ -819,8 +884,14 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
         return true;
     }
     switch (ty.specifier) {
-        .pointer => {
-            const elem_ty = ty.data.sub_type;
+        .pointer,
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        => {
+            const elem_ty = ty.elemType();
             const simple = try elem_ty.printPrologue(w);
             if (simple) try w.writeByte(' ');
             if (elem_ty.isFunc() or elem_ty.isArray()) try w.writeByte('(');
@@ -854,8 +925,14 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
 fn printEpilogue(ty: Type, w: anytype) @TypeOf(w).Error!void {
     if (ty.qual.atomic) return;
     switch (ty.specifier) {
-        .pointer => {
-            const elem_ty = ty.data.sub_type;
+        .pointer,
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        => {
+            const elem_ty = ty.elemType();
             if (elem_ty.isFunc() or elem_ty.isArray()) try w.writeByte(')');
             try elem_ty.printEpilogue(w);
         },
@@ -935,13 +1012,13 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try w.writeAll(") ");
             try ty.data.func.return_type.dump(w);
         },
-        .array, .static_array => {
+        .array, .static_array, .decayed_array, .decayed_static_array => {
             try w.writeByte('[');
-            if (ty.specifier == .static_array) try w.writeAll("static ");
+            if (ty.specifier == .static_array or ty.specifier == .decayed_static_array) try w.writeAll("static ");
             try w.print("{d}]", .{ty.data.array.len});
             try ty.data.array.elem.dump(w);
         },
-        .incomplete_array => {
+        .incomplete_array, .decayed_incomplete_array => {
             try w.writeAll("[]");
             try ty.data.array.elem.dump(w);
         },
@@ -957,11 +1034,11 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try w.print("union {s}", .{ty.data.record.name});
             if (dump_detailed_containers) try dumpRecord(ty.data.record, w);
         },
-        .unspecified_variable_len_array => {
+        .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => {
             try w.writeAll("[*]");
             try ty.data.array.elem.dump(w);
         },
-        .variable_len_array => {
+        .variable_len_array, .decayed_variable_len_array => {
             try w.writeAll("[<expr>]");
             try ty.data.array.elem.dump(w);
         },
