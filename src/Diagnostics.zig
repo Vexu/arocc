@@ -200,6 +200,7 @@ pub const Tag = enum {
     align_ignored,
     zero_align_ignored,
     non_pow2_align,
+    pointer_mismatch,
 };
 
 const Options = struct {
@@ -224,6 +225,7 @@ const Options = struct {
     @"cast-qualifiers": Kind = .warning,
     @"array-bounds": Kind = .warning,
     @"int-conversion": Kind = .warning,
+    @"pointer-type-mismatch": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -508,6 +510,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .align_ignored => m.write("'_Alignas' attribute is ignored here"),
             .zero_align_ignored => m.write("specified alignment of zero is ignored"),
             .non_pow2_align => m.write("requested alignment is not a power of 2"),
+            .pointer_mismatch => m.print("pointer type mismatch ({s})", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -717,6 +720,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .array_after => diag.options.@"array-bounds",
         .array_before => diag.options.@"array-bounds",
         .implicit_int_to_ptr => diag.options.@"int-conversion",
+        .pointer_mismatch => diag.options.@"pointer-type-mismatch",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

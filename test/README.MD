@@ -24,7 +24,7 @@ CALL(CAT)
 ## Testing for errors
 Expected compile errors can be tested by defining a `EXPECTED_ERRORS` macro.
 
-**exmpale:**
+**example:**
 ```c
 #define EXPECTED_ERRORS \
     "invalid types.c:8:6: error: cannot combine with previous 'long' specifier" \
@@ -32,6 +32,22 @@ Expected compile errors can be tested by defining a `EXPECTED_ERRORS` macro.
 
 long float a;
 enum Foo {};
+```
+---
+## Testing type resolution
+Type resolution can be tested by defining a `EXPECTED_TYPES` macro, and a function.
+The nth token in the `EXPECTED_TYPES` macro is the expected type of the nth statement
+in the function
+
+**example:**
+```c
+void my_test(void) {
+    int x = 5;
+    1L;
+    (void)1L;
+}
+#define EXPECTED_TYPES \
+    "int" "long" "void"
 ```
 ---
 ## Marking a test as skipped

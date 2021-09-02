@@ -386,8 +386,15 @@ pub const Tag = enum(u8) {
     int_cast,
     /// Convert one floating type to another
     float_cast,
+    /// Convert pointer to one with same child type but more CV-quals,
+    /// OR to appropriately-qualified void *
+    /// only appears on the branches of a conditional expr
+    qual_cast,
     /// Convert type to void; only appears on the branches of a conditional expr
     to_void,
+
+    /// Convert a literal 0 to a null pointer
+    null_to_pointer,
 
     /// Inserted at the end of a function body if no return stmt is found.
     /// ty is the functions return type
@@ -412,6 +419,8 @@ pub const Tag = enum(u8) {
             .float_cast,
             .to_void,
             .implicit_return,
+            .qual_cast,
+            .null_to_pointer,
             => true,
             else => false,
         };
@@ -916,6 +925,8 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .int_cast,
         .float_cast,
         .to_void,
+        .qual_cast,
+        .null_to_pointer,
         => {
             try tree.dumpNode(data.un, level + delta, w);
         },
