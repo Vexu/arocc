@@ -473,13 +473,14 @@ pub fn dump(tree: Tree, writer: anytype) @TypeOf(writer).Error!void {
 fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Error!void {
     const delta = 2;
     const half = delta / 2;
-    const TYPE = "\x1b[35;1m";
-    const TAG = "\x1b[36;1m";
-    const IMPLICIT = "\x1b[34;1m";
-    const NAME = "\x1b[91;1m";
-    const LITERAL = "\x1b[32;1m";
-    const ATTRIBUTE = "\x1b[93;1m";
-    const RESET = "\x1b[0m";
+    const win = @import("builtin").os.tag == .windows;
+    const TYPE = if (win) "" else "\x1b[35;1m";
+    const TAG = if (win) "" else "\x1b[36;1m";
+    const IMPLICIT = if (win) "" else "\x1b[34;1m";
+    const NAME = if (win) "" else "\x1b[91;1m";
+    const LITERAL = if (win) "" else "\x1b[32;1m";
+    const ATTRIBUTE = if (win) "" else "\x1b[93;1m";
+    const RESET = if (win) "" else "\x1b[0m";
     std.debug.assert(node != .none);
 
     const tag = tree.nodes.items(.tag)[@enumToInt(node)];

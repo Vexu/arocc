@@ -182,6 +182,7 @@ pub const Specifier = enum {
     @"enum",
 };
 
+/// All fields of Type except data may be mutated
 data: union {
     sub_type: *Type,
     func: *Func,

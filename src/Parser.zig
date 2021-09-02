@@ -23,6 +23,7 @@ const Scope = union(enum) {
     @"enum": Symbol,
     decl: Symbol,
     def: Symbol,
+    param: Symbol,
     enumeration: Enumeration,
     loop,
     @"switch": *Switch,
@@ -241,7 +242,7 @@ fn findSymbol(p: *Parser, name_tok: TokenIndex, ref_kind: enum { reference, defi
         i -= 1;
         const sym = p.scopes.items[i];
         switch (sym) {
-            .def, .decl => |s| if (mem.eql(u8, s.name, name)) return sym,
+            .def, .decl, .param => |s| if (mem.eql(u8, s.name, name)) return sym,
             .enumeration => |e| if (mem.eql(u8, e.name, name)) return sym,
             .block => if (ref_kind == .definition) return null,
             else => {},
@@ -553,7 +554,7 @@ fn decl(p: *Parser) Error!bool {
                         try p.errStr(.parameter_missing, d.name, name_str);
                     }
 
-                    try p.scopes.append(.{ .def = .{
+                    try p.scopes.append(.{ .param = .{
                         .name = name_str,
                         .name_tok = d.name,
                         .ty = d.ty,
@@ -565,7 +566,7 @@ fn decl(p: *Parser) Error!bool {
         } else {
             for (init_d.d.ty.data.func.params) |param| {
                 try p.scopes.append(.{
-                    .def = .{
+                    .param = .{
                         .name = param.name,
                         .ty = param.ty,
                         .name_tok = param.name_tok,
@@ -889,6 +890,10 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
             try p.errStr(.redefinition_incompatible, name, p.tokSlice(name));
             try p.errTok(.previous_definition, s.name_tok);
         } else if (init_d.initializer != .none) {
+            try p.errStr(.redefinition, name, p.tokSlice(name));
+            try p.errTok(.previous_definition, s.name_tok);
+        },
+        .param => |s| {
             try p.errStr(.redefinition, name, p.tokSlice(name));
             try p.errTok(.previous_definition, s.name_tok);
         },
@@ -1309,7 +1314,7 @@ fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
             try p.errStr(.redefinition, name_tok, name);
             try p.errTok(.previous_definition, e.name_tok);
         },
-        .decl, .def => |s| {
+        .decl, .def, .param => |s| {
             try p.errStr(.redefinition_different_sym, name_tok, name);
             try p.errTok(.previous_definition, s.name_tok);
         },
@@ -1536,9 +1541,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 const name_tok = try p.expectToken(.identifier);
                 if (p.findSymbol(name_tok, .definition)) |scope| {
                     try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
-                    try p.errTok(.previous_definition, scope.def.name_tok);
+                    try p.errTok(.previous_definition, scope.param.name_tok);
                 }
-                try p.scopes.append(.{ .def = .{
+                try p.scopes.append(.{ .param = .{
                     .name = p.tokSlice(name_tok),
                     .ty = undefined,
                     .name_tok = name_tok,
@@ -1624,10 +1629,10 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
                         try p.errTok(.previous_definition, scope.enumeration.name_tok);
                     } else {
                         try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
-                        try p.errTok(.previous_definition, scope.def.name_tok);
+                        try p.errTok(.previous_definition, scope.param.name_tok);
                     }
                 }
-                try p.scopes.append(.{ .def = .{
+                try p.scopes.append(.{ .param = .{
                     .name = p.tokSlice(name_tok),
                     .ty = some.ty,
                     .name_tok = name_tok,
@@ -2073,7 +2078,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
 }
 
 /// compoundStmt : '{' ( decl| staticAssert | stmt)* '}'
-fn compoundStmt(p: *Parser, add_implicit_return: bool) Error!?NodeIndex {
+fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
     const l_brace = p.eatToken(.l_brace) orelse return null;
 
     const decl_buf_top = p.decl_buf.items.len;
@@ -2081,7 +2086,8 @@ fn compoundStmt(p: *Parser, add_implicit_return: bool) Error!?NodeIndex {
 
     const scopes_top = p.scopes.items.len;
     defer p.scopes.items.len = scopes_top;
-    try p.scopes.append(.block);
+    // the parameters of a function are in the same scope as the body
+    if (!is_fn_body) try p.scopes.append(.block);
 
     var noreturn_index: ?TokenIndex = null;
     var noreturn_label_count: u32 = 0;
@@ -2121,7 +2127,7 @@ fn compoundStmt(p: *Parser, add_implicit_return: bool) Error!?NodeIndex {
         // if new labels were defined we cannot be certain that the code is unreachable
         if (some != p.tok_i - 1 and noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
     }
-    if (add_implicit_return and (p.decl_buf.items.len == decl_buf_top or
+    if (is_fn_body and (p.decl_buf.items.len == decl_buf_top or
         p.nodes.items(.tag)[@enumToInt(p.decl_buf.items[p.decl_buf.items.len - 1])] != .return_stmt))
     {
         if (p.return_type.?.specifier != .void) try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func_name));
@@ -3805,7 +3811,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     });
                     return res;
                 },
-                .def, .decl => |s| return Result{
+                .def, .decl, .param => |s| return Result{
                     .ty = s.ty,
                     .node = try p.addNode(.{
                         .tag = .decl_ref_expr,
