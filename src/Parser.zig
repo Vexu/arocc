@@ -576,19 +576,13 @@ fn decl(p: *Parser) Error!bool {
             }
         }
 
+        const body = try p.compoundStmt(true);
         const node = try p.addNode(.{
             .ty = init_d.d.ty,
             .tag = try decl_spec.validateFnDef(p),
-            .data = .{ .decl = .{ .name = init_d.d.name } },
+            .data = .{ .decl = .{ .name = init_d.d.name, .node = body.? } },
         });
-        try p.scopes.append(.{ .symbol = .{
-            .name = p.tokSlice(init_d.d.name),
-            .ty = init_d.d.ty,
-            .name_tok = init_d.d.name,
-            .is_initialized = init_d.initializer != .none,
-        } });
-        const body = try p.compoundStmt(true);
-        p.nodes.items(.data)[@enumToInt(node)].decl.node = body.?;
+        try p.decl_buf.append(node);
 
         // check gotos
         if (return_type == null) {
@@ -599,8 +593,6 @@ fn decl(p: *Parser) Error!bool {
             p.labels.items.len = 0;
             p.label_count = 0;
         }
-
-        try p.decl_buf.append(node);
         return true;
     }
 
@@ -3735,7 +3727,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
 fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !void {
     const len = switch (arr_ty.specifier) {
-        .array, .static_array => arr_ty.data.array.len,
+        .array, .static_array, .decayed_array, .decayed_static_array => arr_ty.data.array.len,
         else => return,
     };
 
