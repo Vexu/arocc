@@ -20,8 +20,12 @@ void foo(void) {
     1 ? (void)2 : 3;
     1 ? (int*)2 : 3;
     1 ? 2 : (int*)3;
-    // (void)(1 ? (int*)2 : (int*)3);
-    // (void)(1 ? (int*)2 : (float*)3);
+    (void)(1 ? (int*)2 : (int*)3);
+    (void)(1 ? (int*)2 : (float*)3);
+    (void)(1 ? (int*)2 : (const void*)3);
+    (void)(1 ? (volatile int*)2 : (const void*)3);
+    (void)(1 ? (const int *)1 : 0);
+    (void)(1 ? 0 : (const int *)1);
     // struct Foo { int a; } b, c;
     // (void)(1 ? b : c);
     // (void)(1 ? b : 1);
@@ -32,7 +36,7 @@ int bar(void) {
     return 1U < 2U;
 }
 
-#define TESTS_SKIPPED 5
+#define TESTS_SKIPPED 3
 
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
@@ -46,4 +50,5 @@ int bar(void) {
     "binary expressions.c:19:13: error: incompatible pointer types ('int *' and 'float *')" \
     "binary expressions.c:21:17: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
     "binary expressions.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
-    "binary expressions.c:28:5: error: expected statement"
+    "binary expressions.c:24:24: warning: pointer type mismatch ('int *' and 'float *')" \
+    "binary expressions.c:32:5: error: expected statement"

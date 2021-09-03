@@ -2339,6 +2339,14 @@ pub const Result = struct {
         };
     }
 
+    fn isZero(res: Result) bool {
+        return switch (res.val) {
+            .signed => |v| v == 0,
+            .unsigned => |v| v == 0,
+            .unavailable => false,
+        };
+    }
+
     fn expect(res: Result, p: *Parser) Error!void {
         if (p.in_macro) {
             if (res.val == .unavailable) {
@@ -2401,6 +2409,42 @@ pub const Result = struct {
             .ty = operand.ty,
             .data = .{ .un = operand.node },
         });
+    }
+
+    fn qualCast(res: *Result, p: *Parser, elem_ty: *Type) Error!void {
+        res.ty = .{
+            .data = .{ .sub_type = elem_ty },
+            .specifier = .pointer,
+        };
+        try res.un(p, .qual_cast);
+    }
+
+    fn adjustCondExprPtrs(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) !bool {
+        assert(a.ty.specifier == .pointer and b.ty.specifier == .pointer);
+
+        const a_elem = a.ty.elemType();
+        const b_elem = b.ty.elemType();
+        if (a_elem.eql(b_elem, true)) return true;
+
+        var adjusted_elem_ty = try p.arena.create(Type);
+        adjusted_elem_ty.* = a_elem;
+
+        const has_void_star_branch = a.ty.isVoidStar() or b.ty.isVoidStar();
+        const only_quals_differ = a_elem.eql(b_elem, false);
+        const pointers_compatible = only_quals_differ or has_void_star_branch;
+
+        if (!pointers_compatible or has_void_star_branch) {
+            if (!pointers_compatible) {
+                try p.errStr(.pointer_mismatch, tok, try p.typePairStrExtra(a.ty, " and ", b.ty));
+            }
+            adjusted_elem_ty.* = .{ .specifier = .void };
+        }
+        if (pointers_compatible) {
+            adjusted_elem_ty.qual = a_elem.qual.mergeCVA(b_elem.qual);
+        }
+        if (!adjusted_elem_ty.eql(a_elem, true)) try a.qualCast(p, adjusted_elem_ty);
+        if (!adjusted_elem_ty.eql(b_elem, true)) try b.qualCast(p, adjusted_elem_ty);
+        return true;
     }
 
     /// Adjust types for binary operation, returns true if the result can and should be evaluated.
@@ -2477,13 +2521,20 @@ pub const Result = struct {
                     return true;
                 }
                 if ((a_ptr and b_int) or (a_int and b_ptr)) {
+                    if (a.isZero() or b.isZero()) {
+                        try a.nullCast(p, b.ty);
+                        try b.nullCast(p, a.ty);
+                        return true;
+                    }
                     const int_ty = if (a_int) a else b;
                     const ptr_ty = if (a_ptr) a else b;
                     try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(int_ty.ty, " to ", ptr_ty.ty));
                     try int_ty.ptrCast(p, ptr_ty.ty);
+
                     return true;
                 }
-                // TODO struct/record and pointers
+                if (a_ptr and b_ptr) return a.adjustCondExprPtrs(tok, b, p);
+                // TODO struct/record
                 return a.invalidBinTy(tok, b, p);
             },
             .add => {
@@ -2600,6 +2651,12 @@ pub const Result = struct {
                 .data = .{ .un = res.node },
             });
         }
+    }
+
+    fn nullCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
+        if (!res.isZero()) return;
+        res.ty = ptr_ty;
+        try res.un(p, .null_to_pointer);
     }
 
     fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser) Error!void {
@@ -2922,6 +2979,8 @@ fn assignExpr(p: *Parser) Error!Result {
             try rhs.ptrCast(p, lhs.ty)
         else if (tag != .assign_expr)
             try p.errStr(.invalid_bin_types, tok, try p.typePairStr(lhs.ty, rhs.ty))
+        else if (rhs.isZero())
+            try rhs.nullCast(p, lhs.ty)
         else if (!lhs.ty.eql(rhs.ty, false))
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
     } else if (lhs.ty.isEnumOrRecord()) { // enum.isInt() == true

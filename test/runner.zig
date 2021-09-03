@@ -1,6 +1,10 @@
 const std = @import("std");
 const print = std.debug.print;
 const aro = @import("aro");
+const Tree = aro.Tree;
+const Token = Tree.Token;
+const NodeIndex = Tree.NodeIndex;
+const AllocatorError = std.mem.Allocator.Error;
 
 const predefined_macros =
     \\#define EXPECT(x) _Static_assert(x, "unexpected result")
@@ -166,6 +170,47 @@ pub fn main() !void {
         var tree = try aro.Parser.parse(&pp);
         defer tree.deinit();
 
+        if (pp.defines.get("EXPECTED_TYPES")) |types| {
+            const test_fn = for (tree.root_decls) |decl| {
+                if (tree.nodes.items(.tag)[@enumToInt(decl)] == .fn_def) break tree.nodes.items(.data)[@enumToInt(decl)];
+            } else {
+                fail_count += 1;
+                progress.log("EXPECTED_TYPES requires a function to be defined\n", .{});
+                break;
+            };
+
+            var actual = StmtTypeDumper.init(gpa);
+            defer actual.deinit(gpa);
+
+            try actual.dump(&tree, test_fn.decl.node, gpa);
+
+            if (types.simple.tokens.len != actual.types.items.len) {
+                fail_count += 1;
+                progress.log("EXPECTED_TYPES count of {d} does not match function statement length of {d}\n", .{
+                    types.simple.tokens.len,
+                    actual.types.items.len,
+                });
+                break;
+            }
+            for (types.simple.tokens) |str, i| {
+                if (str.id != .string_literal) {
+                    fail_count += 1;
+                    progress.log("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
+                    break;
+                }
+                const expected_type = std.mem.trim(u8, pp.tokSliceSafe(str), "\"");
+                const actual_type = actual.types.items[i];
+                if (!std.mem.eql(u8, expected_type, actual_type)) {
+                    fail_count += 1;
+                    progress.log("expected type '{s}' did not match actual type '{s}'\n", .{
+                        expected_type,
+                        actual_type,
+                    });
+                    break;
+                }
+            }
+        }
+
         if (pp.defines.get("EXPECTED_ERRORS")) |macro| {
             const expected_count = comp.diag.list.items.len;
             var m = MsgWriter.init(gpa);
@@ -268,5 +313,54 @@ const MsgWriter = struct {
         }
         m.print("\n{s}\n", .{lcs.?.str});
         m.print("{s: >[1]}^\n", .{ "", lcs.?.col - 1 });
+    }
+};
+
+const StmtTypeDumper = struct {
+    types: std.ArrayList([]const u8),
+
+    fn deinit(self: *StmtTypeDumper, allocator: *std.mem.Allocator) void {
+        for (self.types.items) |t| {
+            allocator.free(t);
+        }
+        self.types.deinit();
+    }
+
+    fn init(allocator: *std.mem.Allocator) StmtTypeDumper {
+        return .{
+            .types = std.ArrayList([]const u8).init(allocator),
+        };
+    }
+
+    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: NodeIndex, m: *MsgWriter) AllocatorError!void {
+        if (node == .none) return;
+        const tag = tree.nodes.items(.tag)[@enumToInt(node)];
+        if (tag == .implicit_return) return;
+        const ty = tree.nodes.items(.ty)[@enumToInt(node)];
+        ty.dump(m.buf.writer()) catch {};
+        try self.types.append(m.buf.toOwnedSlice());
+    }
+
+    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, decl_idx: NodeIndex, allocator: *std.mem.Allocator) AllocatorError!void {
+        var m = MsgWriter.init(allocator);
+        defer m.deinit();
+
+        const idx = @enumToInt(decl_idx);
+
+        const tag = tree.nodes.items(.tag)[idx];
+        const data = tree.nodes.items(.data)[idx];
+
+        switch (tag) {
+            .compound_stmt_two => {
+                try self.dumpNode(tree, data.bin.lhs, &m);
+                try self.dumpNode(tree, data.bin.rhs, &m);
+            },
+            .compound_stmt => {
+                for (tree.data[data.range.start..data.range.end]) |stmt| {
+                    try self.dumpNode(tree, stmt, &m);
+                }
+            },
+            else => unreachable,
+        }
     }
 };

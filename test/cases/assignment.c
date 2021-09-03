@@ -25,6 +25,9 @@ void foo(void) {
     f *= g;
     int arr[4];
     arr = 4;
+    int *x;
+    x = 0;
+    x = (0);
 }
 
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
