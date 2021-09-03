@@ -2983,7 +2983,8 @@ fn lorExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
-            lhs.val = .{ .signed = @boolToInt(lhs.getBool() or rhs.getBool()) };
+            const res = @boolToInt(lhs.getBool() or rhs.getBool());
+            lhs.val = .{ .signed = res };
         }
         lhs.ty = .{ .specifier = .int };
         try lhs.bin(p, .bool_or_expr, rhs);
@@ -3004,7 +3005,8 @@ fn landExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
-            lhs.val = .{ .signed = @boolToInt(lhs.getBool() and rhs.getBool()) };
+            const res = @boolToInt(lhs.getBool() and rhs.getBool());
+            lhs.val = .{ .signed = res };
         }
         lhs.ty = .{ .specifier = .int };
         try lhs.bin(p, .bool_and_expr, rhs);
@@ -3111,13 +3113,14 @@ fn compExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(ge.?, &rhs, p, .relational)) {
-            lhs.val = .{ .signed = @boolToInt(switch (tag) {
+            const res = @boolToInt(switch (tag) {
                 .less_than_expr => lhs.compare(.lt, rhs),
                 .less_than_equal_expr => lhs.compare(.lte, rhs),
                 .greater_than_expr => lhs.compare(.gt, rhs),
                 .greater_than_equal_expr => lhs.compare(.gte, rhs),
                 else => unreachable,
-            }) };
+            });
+            lhs.val = .{ .signed = res };
         }
         lhs.ty = .{ .specifier = .int };
         try lhs.bin(p, tag, rhs);
@@ -3432,7 +3435,8 @@ fn unExpr(p: *Parser) Error!Result {
 
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
             if (operand.val != .unavailable) {
-                operand.val = .{ .signed = @boolToInt(!operand.getBool()) };
+                const res = @boolToInt(!operand.getBool());
+                operand.val = .{ .signed = res };
             }
             operand.ty = .{ .specifier = .int };
             try operand.un(p, .bool_not_expr);

@@ -28,6 +28,10 @@ void foo(void) {
     ?:;
 }
 
+int bar(void) {
+    return 1U < 2U;
+}
+
 #define TESTS_SKIPPED 5
 
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression" \
