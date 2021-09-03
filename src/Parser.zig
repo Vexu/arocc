@@ -196,6 +196,24 @@ pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
     return try p.arena.dupe(u8, p.strings.items[strings_top..]);
 }
 
+pub fn typePairStr(p: *Parser, a: Type, b: Type) ![]const u8 {
+    return p.typePairStrExtra(a, " and ", b);
+}
+
+pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const u8 {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    try p.strings.append('\'');
+    try a.print(p.strings.writer());
+    try p.strings.append('\'');
+    try p.strings.appendSlice(msg);
+    try p.strings.append('\'');
+    try b.print(p.strings.writer());
+    try p.strings.append('\'');
+    return try p.arena.dupe(u8, p.strings.items[strings_top..]);
+}
+
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     if (p.in_macro) return .none;
     const res = p.nodes.len;
@@ -2234,7 +2252,6 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     }
     try e.lvalConversion(p);
 
-    // TODO print types in these errors
     // Return type conversion is done as if it was assignment
     if (ret_ty.specifier == .bool) {
         // this is ridiculous but it's what clang does
@@ -2247,7 +2264,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
         if (e.ty.isInt() or e.ty.isFloat()) {
             try e.intCast(p, ret_ty);
         } else if (e.ty.isPtr()) {
-            try p.errTok(.implicit_ptr_to_int, e_tok);
+            try p.errStr(.implicit_ptr_to_int, e_tok, try p.typePairStrExtra(e.ty, " to ", ret_ty));
             try e.intCast(p, ret_ty);
         } else {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
@@ -2260,7 +2277,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
         }
     } else if (ret_ty.isPtr()) {
         if (e.ty.isInt()) {
-            try p.errTok(.implicit_int_to_ptr, e_tok);
+            try p.errStr(.implicit_int_to_ptr, e_tok, try p.typePairStrExtra(e.ty, " to ", ret_ty));
             try e.intCast(p, ret_ty);
         } else if (!ret_ty.eql(e.ty, false)) {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
@@ -2435,10 +2452,9 @@ pub const Result = struct {
                 if (!a_scalar or !b_scalar or (a_float and b_ptr) or (b_float and a_ptr))
                     return a.invalidBinTy(tok, b, p);
 
-                // TODO print types
-                if (a_int or b_int) try p.errTok(.comparison_ptr_int, tok);
+                if (a_int or b_int) try p.errStr(.comparison_ptr_int, tok, try p.typePairStr(a.ty, b.ty));
                 if (a_ptr and b_ptr) {
-                    if (!a.ty.eql(b.ty, false)) try p.errTok(.comparison_distinct_ptr, tok);
+                    if (!a.ty.eql(b.ty, false)) try p.errStr(.comparison_distinct_ptr, tok, try p.typePairStr(a.ty, b.ty));
                 } else if (a_ptr) {
                     try b.ptrCast(p, a.ty);
                 } else {
@@ -2456,8 +2472,10 @@ pub const Result = struct {
                     return true;
                 }
                 if ((a_ptr and b_int) or (a_int and b_ptr)) {
-                    try p.errTok(.implicit_int_to_ptr, tok);
-                    try (if (a_int) a else b).ptrCast(p, if (a_ptr) a.ty else b.ty);
+                    const int_ty = if (a_int) a else b;
+                    const ptr_ty = if (a_ptr) a else b;
+                    try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(int_ty.ty, " to ", ptr_ty.ty));
+                    try int_ty.ptrCast(p, ptr_ty.ty);
                     return true;
                 }
                 // TODO struct/record and pointers
@@ -2477,8 +2495,7 @@ pub const Result = struct {
                 if (!a_ptr or !(b_ptr or b_int)) return a.invalidBinTy(tok, b, p);
 
                 if (a_ptr and b_ptr) {
-                    // TODO print types
-                    if (!a.ty.eql(b.ty, false)) try p.errTok(.incompatible_pointers, tok);
+                    if (!a.ty.eql(b.ty, false)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.ty, b.ty));
                     a.ty = Type.ptrDiffT(p.pp.comp);
                 }
 
@@ -2629,10 +2646,7 @@ pub const Result = struct {
     }
 
     fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!bool {
-        // TODO print a and b types
-        _ = a;
-        _ = b;
-        try p.errTok(.invalid_bin_types, tok);
+        try p.errStr(.invalid_bin_types, tok, try p.typePairStr(a.ty, b.ty));
         return false;
     }
 
@@ -2862,22 +2876,22 @@ fn assignExpr(p: *Parser) Error!Result {
         try p.errTok(.not_assignable, tok);
         return error.ParsingFailed;
     }
-    // TODO print types in these errors
+    const e_msg = " from incompatible type ";
     if (lhs.ty.specifier == .bool) {
         // this is ridiculous but it's what clang does
         if (rhs.ty.isInt() or rhs.ty.isFloat() or (rhs.ty.isPtr() and tag == .assign_expr)) {
             try rhs.boolCast(p, lhs.ty);
         } else {
-            try p.errTok(.incompatible_assign, tok);
+            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
         }
     } else if (lhs.ty.isInt()) {
         if (rhs.ty.isInt() or rhs.ty.isFloat()) {
             try rhs.intCast(p, lhs.ty);
         } else if (tag == .assign_expr and rhs.ty.isPtr()) {
-            try p.errTok(.implicit_ptr_to_int, tok);
+            try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(rhs.ty, " to ", lhs.ty));
             try rhs.intCast(p, lhs.ty);
         } else {
-            try p.errTok(.incompatible_assign, tok);
+            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
         }
     } else if (lhs.ty.isFloat()) {
         switch (tag) {
@@ -2887,11 +2901,11 @@ fn assignExpr(p: *Parser) Error!Result {
             .bit_and_assign_expr,
             .bit_xor_assign_expr,
             .bit_or_assign_expr,
-            => try p.errTok(.invalid_bin_types, tok),
+            => try p.errStr(.invalid_bin_types, tok, try p.typePairStr(lhs.ty, rhs.ty)),
             else => if (rhs.ty.isInt() or rhs.ty.isFloat()) {
                 try rhs.floatCast(p, lhs.ty);
             } else {
-                try p.errTok(.incompatible_assign, tok);
+                try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
             },
         }
     } else if (lhs.ty.isPtr()) {
@@ -2899,18 +2913,18 @@ fn assignExpr(p: *Parser) Error!Result {
             (rhs.ty.isInt() or rhs.ty.isFloat()))
             try rhs.ptrCast(p, lhs.ty)
         else if (tag != .assign_expr)
-            try p.errTok(.invalid_bin_types, tok)
+            try p.errStr(.invalid_bin_types, tok, try p.typePairStr(lhs.ty, rhs.ty))
         else if (!lhs.ty.eql(rhs.ty, false))
-            try p.errTok(.incompatible_assign, tok);
+            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
     } else if (lhs.ty.isEnumOrRecord()) { // enum.isInt() == true
         if (tag != .assign_expr)
-            try p.errTok(.invalid_bin_types, tok)
+            try p.errStr(.invalid_bin_types, tok, try p.typePairStr(lhs.ty, rhs.ty))
         else if (!lhs.ty.eql(rhs.ty, false))
-            try p.errTok(.incompatible_assign, tok);
+            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
     } else if (lhs.ty.isArray() or lhs.ty.isFunc()) {
         try p.errTok(.not_assignable, tok);
     } else {
-        try p.errTok(.incompatible_assign, tok);
+        try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
     }
 
     try lhs.bin(p, tag, rhs);
@@ -3657,7 +3671,11 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                     if (arg.ty.isInt() or arg.ty.isFloat()) {
                         try arg.intCast(p, p_ty);
                     } else if (arg.ty.isPtr()) {
-                        try p.errTok(.implicit_ptr_to_int, param_tok);
+                        try p.errStr(
+                            .implicit_ptr_to_int,
+                            param_tok,
+                            try p.typePairStrExtra(arg.ty, " to ", p_ty),
+                        );
                         try p.errTok(.parameter_here, params[arg_count].name_tok);
                         try arg.intCast(p, p_ty);
                     } else {
@@ -3673,7 +3691,11 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                     }
                 } else if (p_ty.isPtr()) {
                     if (arg.ty.isInt()) {
-                        try p.errTok(.implicit_int_to_ptr, param_tok);
+                        try p.errStr(
+                            .implicit_int_to_ptr,
+                            param_tok,
+                            try p.typePairStrExtra(arg.ty, " to ", p_ty),
+                        );
                         try p.errTok(.parameter_here, params[arg_count].name_tok);
                         try arg.intCast(p, p_ty);
                     } else if (!p_ty.eql(arg.ty, false)) {

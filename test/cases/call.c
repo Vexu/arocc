@@ -31,11 +31,11 @@ void foo(void) {
 
 #define EXPECTED_ERRORS "call.c:16:7: error: passing 'void' to parameter of incompatible type" \
     "call.c:5:21: note: passing argument to parameter here" \
-    "call.c:19:7: warning: implicit pointer to integer conversion" \
+    "call.c:19:7: warning: implicit pointer to integer conversion from 'int *' to 'int'" \
     "call.c:6:18: note: passing argument to parameter here" \
     "call.c:22:7: error: passing 'int *' to parameter of incompatible type" \
     "call.c:7:20: note: passing argument to parameter here" \
-    "call.c:23:8: warning: implicit integer to pointer conversion" \
+    "call.c:23:8: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
     "call.c:8:20: note: passing argument to parameter here" \
     "call.c:25:8: error: passing 'float' to parameter of incompatible type" \
     "call.c:8:20: note: passing argument to parameter here" \

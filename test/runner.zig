@@ -198,7 +198,8 @@ pub fn main() !void {
                 }
                 const expected_error = std.mem.trim(u8, pp.tokSliceSafe(str), "\"");
 
-                if (std.mem.indexOf(u8, m.buf.items, expected_error) == null) {
+                const index = std.mem.indexOf(u8, m.buf.items, expected_error);
+                if (index == null or m.buf.items[index.? + expected_error.len] != '\n') {
                     fail_count += 1;
                     progress.log(
                         \\
