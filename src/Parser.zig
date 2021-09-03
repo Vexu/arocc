@@ -470,18 +470,14 @@ fn nextExternDecl(p: *Parser) void {
 ///  | declSpec declarator decl* compoundStmt
 fn decl(p: *Parser) Error!bool {
     const first_tok = p.tok_i;
-    var decl_spec = if (try p.declSpec()) |some|
-        some
-    else blk: {
+    var decl_spec = if (try p.declSpec(false)) |some| some else blk: {
         if (p.return_type != null) return false;
         switch (p.tok_ids[first_tok]) {
             .asterisk, .l_paren, .identifier => {},
             else => return false,
         }
-        var d: DeclSpec = .{};
         var spec: Type.Builder = .{};
-        try spec.finish(p, &d.ty);
-        break :blk d;
+        break :blk DeclSpec{ .ty = try spec.finish(p) };
     };
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
         _ = try p.expectToken(.semicolon);
@@ -532,7 +528,7 @@ fn decl(p: *Parser) Error!bool {
             defer p.param_buf.items.len = param_buf_top;
 
             param_loop: while (true) {
-                const param_decl_spec = (try p.declSpec()) orelse break;
+                const param_decl_spec = (try p.declSpec(true)) orelse break;
                 if (p.eatToken(.semicolon)) |semi| {
                     try p.errTok(.missing_declaration, semi);
                     continue :param_loop;
@@ -800,13 +796,13 @@ pub const DeclSpec = struct {
 ///  | keyword_auto
 ///  | keyword_register
 /// funcSpec : keyword_inline | keyword_noreturn
-fn declSpec(p: *Parser) Error!?DeclSpec {
+fn declSpec(p: *Parser, is_param: bool) Error!?DeclSpec {
     var d: DeclSpec = .{};
     var spec: Type.Builder = .{};
 
     const start = p.tok_i;
     while (true) {
-        if (try p.typeSpec(&spec, &d.ty)) continue;
+        if (try p.typeSpec(&spec)) continue;
         const id = p.tok_ids[p.tok_i];
         switch (id) {
             .keyword_typedef,
@@ -865,7 +861,11 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
     }
 
     if (p.tok_i == start) return null;
-    try spec.finish(p, &d.ty);
+    if (is_param and spec.align_tok != null) {
+        try p.errTok(.alignas_on_param, spec.align_tok.?);
+        spec.align_tok = null;
+    }
+    d.ty = try spec.finish(p);
     return d;
 }
 
@@ -940,7 +940,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 /// alignSpec
 ///   : keyword_alignas '(' typeName ')'
 ///   | keyword_alignas '(' constExpr ')'
-fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
+fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
         if (try p.typeQual(&ty.qual)) continue;
@@ -1011,15 +1011,22 @@ fn typeSpec(p: *Parser, ty: *Type.Builder, complete_type: *Type) Error!bool {
                 };
             },
             .keyword_alignas => {
-                if (complete_type.alignment != 0) try p.errStr(.duplicate_decl_spec, p.tok_i, "alignment");
+                if (ty.align_tok != null) try p.errStr(.duplicate_decl_spec, p.tok_i, "alignment");
+                ty.align_tok = p.tok_i;
                 p.tok_i += 1;
                 const l_paren = try p.expectToken(.l_paren);
                 if (try p.typeName()) |inner_ty| {
-                    complete_type.alignment = inner_ty.alignment;
+                    ty.alignment = inner_ty.alignment;
                 } else {
                     const res = try p.constExpr();
-                    // TODO more validation here
-                    complete_type.alignment = @intCast(u32, res.as_u64());
+                    var requested = @intCast(u29, res.as_u64());
+                    if (requested == 0) {
+                        try p.errTok(.zero_align_ignored, ty.align_tok.?);
+                    } else if (!std.mem.isValidAlign(requested)) {
+                        requested = 0;
+                        try p.errTok(.non_pow2_align, ty.align_tok.?);
+                    }
+                    ty.alignment = requested;
                 }
                 try p.expectClosing(l_paren, .r_paren);
                 continue;
@@ -1206,10 +1213,10 @@ fn recordDecls(p: *Parser) Error!void {
 /// specQual : (typeSpec | typeQual | alignSpec)+
 fn specQual(p: *Parser) Error!?Type {
     var spec: Type.Builder = .{};
-    var ty: Type = .{ .specifier = undefined };
-    if (try p.typeSpec(&spec, &ty)) {
-        try spec.finish(p, &ty);
-        return ty;
+    if (try p.typeSpec(&spec)) {
+        if (spec.alignment != 0) try p.errTok(.align_ignored, spec.align_tok.?);
+        spec.align_tok = null;
+        return try spec.finish(p);
     }
     return null;
 }
@@ -1622,15 +1629,13 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
     try p.scopes.append(.block);
 
     while (true) {
-        const param_decl_spec = if (try p.declSpec()) |some|
+        const param_decl_spec = if (try p.declSpec(true)) |some|
             some
         else if (p.param_buf.items.len == param_buf_top)
             return null
         else blk: {
-            var d: DeclSpec = .{};
             var spec: Type.Builder = .{};
-            try spec.finish(p, &d.ty);
-            break :blk d;
+            break :blk DeclSpec{ .ty = try spec.finish(p) };
         };
 
         var name_tok: TokenIndex = 0;
@@ -2513,12 +2518,15 @@ pub const Result = struct {
             elem_ty.* = res.ty;
             res.ty.specifier = .pointer;
             res.ty.data = .{ .sub_type = elem_ty };
+            res.ty.alignment = 0;
             try res.un(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
             res.ty.decayArray();
+            res.ty.alignment = 0;
             try res.un(p, .array_to_pointer);
         } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), res.node)) {
             res.ty.qual = .{};
+            res.ty.alignment = 0;
             try res.un(p, .lval_to_rval);
         }
     }
@@ -3511,7 +3519,7 @@ fn unExpr(p: *Parser) Error!Result {
             }
 
             res.ty = Type.sizeT(p.pp.comp);
-            res.val = .{ .unsigned = res.ty.alignment };
+            res.val = .{ .unsigned = res.ty.alignof(p.pp.comp) };
             try res.un(p, .alignof_expr);
             return res;
         },

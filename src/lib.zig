@@ -7,4 +7,4 @@ pub const Tokenizer = @import("Tokenizer.zig");
 pub const Tree = @import("Tree.zig");
 
 pub const version_str = "0.0.0-dev";
-pub const version = std.SemanticVersion.parse(version_str) catch unreachable;
+pub const version = @import("std").SemanticVersion.parse(version_str) catch unreachable;

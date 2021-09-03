@@ -194,6 +194,12 @@ pub const Tag = enum {
     atomic_incomplete,
     addr_of_register,
     variable_incomplete_ty,
+    alignas_on_func,
+    alignas_on_param,
+    minimum_alignment,
+    align_ignored,
+    zero_align_ignored,
+    non_pow2_align,
 };
 
 const Options = struct {
@@ -496,6 +502,12 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .atomic_incomplete => m.print("atomic cannot be applied to incomplete type '{s}'", .{msg.extra.str}),
             .addr_of_register => m.write("address of register variable requested"),
             .variable_incomplete_ty => m.print("variable has incomplete type '{s}'", .{msg.extra.str}),
+            .alignas_on_func => m.write("'_Alignas' attribute only applies to variables and fields"),
+            .alignas_on_param => m.write("'_Alignas' attribute cannot be applied to a function parameter"),
+            .minimum_alignment => m.print("requested alignment is less than minimum alignment of {d}", .{msg.extra.unsigned}),
+            .align_ignored => m.write("'_Alignas' attribute is ignored here"),
+            .zero_align_ignored => m.write("specified alignment of zero is ignored"),
+            .non_pow2_align => m.write("requested alignment is not a power of 2"),
         }
         m.end(lcs);
 
@@ -658,6 +670,10 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .atomic_incomplete,
         .addr_of_register,
         .variable_incomplete_ty,
+        .alignas_on_func,
+        .alignas_on_param,
+        .minimum_alignment,
+        .non_pow2_align,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -676,6 +692,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .overflow_signed,
         .char_lit_too_wide,
         .func_does_not_return,
+        .align_ignored,
+        .zero_align_ignored,
         => .warning,
         .unsupported_pragma => diag.options.@"unsupported-pragma",
         .whitespace_after_macro_name => diag.options.@"c99-extensions",

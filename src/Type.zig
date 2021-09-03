@@ -192,6 +192,7 @@ data: union {
     record: *Record,
     none: void,
 } = .{ .none = {} },
+/// user requested alignment, to get type alignment use `alignof`
 alignment: u32 = 0,
 specifier: Specifier,
 qual: Qualifiers = .{},
@@ -375,6 +376,48 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
     };
 }
 
+/// Get the alignment of a type
+pub fn alignof(ty: Type, comp: *Compilation) u32 {
+    if (ty.alignment != 0) return ty.alignment;
+    // TODO get target from compilation
+    return switch (ty.specifier) {
+        .unspecified_variable_len_array => unreachable, // must be bound in function definition
+        .variable_len_array, .incomplete_array => ty.elemType().alignof(comp),
+        .func, .var_args_func, .old_style_func => 4, // TODO check target
+        .char, .schar, .uchar, .void, .bool => 1,
+        .short, .ushort => 2,
+        .int, .uint => 4,
+        .long, .ulong => switch (comp.target.os.tag) {
+            .linux,
+            .macos,
+            .freebsd,
+            .netbsd,
+            .dragonfly,
+            .openbsd,
+            .wasi,
+            .emscripten,
+            => comp.target.cpu.arch.ptrBitWidth() >> 3,
+            .windows, .uefi => 4,
+            else => 4,
+        },
+        .long_long, .ulong_long => 8,
+        .float, .complex_float => 4,
+        .double, .complex_double => 8,
+        .long_double, .complex_long_double => 16,
+        .pointer,
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        .static_array,
+        => comp.target.cpu.arch.ptrBitWidth() >> 3,
+        .array => ty.data.array.elem.alignof(comp),
+        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else ty.data.record.alignment,
+        .@"enum" => if (ty.data.@"enum".isIncomplete()) 0 else ty.data.@"enum".tag_ty.alignof(comp),
+    };
+}
+
 pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
     if (a.alignment != b.alignment) return false;
     if (a.specifier != b.specifier) return false;
@@ -473,6 +516,8 @@ pub const Builder = struct {
     } = null,
     specifier: Builder.Specifier = .none,
     qual: Qualifiers.Builder = .{},
+    alignment: u32 = 0,
+    align_tok: ?TokenIndex = null,
 
     pub const Specifier = union(enum) {
         none,
@@ -579,7 +624,8 @@ pub const Builder = struct {
         }
     };
 
-    pub fn finish(b: Builder, p: *Parser, ty: *Type) Parser.Error!void {
+    pub fn finish(b: Builder, p: *Parser) Parser.Error!Type {
+        var ty: Type = .{ .specifier = undefined };
         switch (b.specifier) {
             .none => {
                 ty.specifier = .int;
@@ -682,12 +728,22 @@ pub const Builder = struct {
                 ty.data = .{ .@"enum" = data };
             },
         }
-        try b.qual.finish(p, ty);
+        try b.qual.finish(p, &ty);
+        if (b.align_tok) |align_tok| {
+            const default = ty.alignof(p.pp.comp);
+            if (ty.isFunc()) {
+                try p.errTok(.alignas_on_func, align_tok);
+            } else if (b.alignment != 0 and b.alignment < default) {
+                try p.errExtra(.minimum_alignment, align_tok, .{ .unsigned = default });
+            } else {
+                ty.alignment = b.alignment;
+            }
+        }
+        return ty;
     }
 
     pub fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) Compilation.Error!void {
-        var prev_ty: Type = .{ .specifier = undefined };
-        b.finish(p, &prev_ty) catch unreachable;
+        const prev_ty = b.finish(p) catch unreachable;
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = try p.typeStr(prev_ty) });
         if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }

@@ -6,3 +6,6 @@ __const__ __volatile__ int d;
 int foo(int *restrict a, int *__restrict b, int *__restrict__ c);
 
 int bar(int n, int bar[n]);
+
+#define EXPECTED_ERRORS "types.c:1:19: warning: duplicate 'alignment' declaration specifier" \
+    "types.c:1:35: warning: duplicate 'alignment' declaration specifier"
