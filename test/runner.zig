@@ -167,10 +167,14 @@ pub fn main() !void {
             continue;
         }
 
+        const expected_types = pp.defines.get("EXPECTED_TYPES");
+        if (expected_types) |_| pp.comp.diag.options.@"unused-value" = .off;
+        defer pp.comp.diag.options.@"unused-value" = .warning;
+
         var tree = try aro.Parser.parse(&pp);
         defer tree.deinit();
 
-        if (pp.defines.get("EXPECTED_TYPES")) |types| {
+        if (expected_types) |types| {
             const test_fn = for (tree.root_decls) |decl| {
                 if (tree.nodes.items(.tag)[@enumToInt(decl)] == .fn_def) break tree.nodes.items(.data)[@enumToInt(decl)];
             } else {

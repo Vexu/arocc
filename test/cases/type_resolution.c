@@ -33,22 +33,5 @@ void test_type_resolution(void) {
     "*void" \
     "*void"
 
-#define EXPECTED_ERRORS "type_resolution.c:2:5: warning: expression result unused" \
-    "type_resolution.c:3:5: warning: expression result unused" \
-    "type_resolution.c:4:5: warning: expression result unused" \
-    "type_resolution.c:5:5: warning: expression result unused" \
-    "type_resolution.c:6:5: warning: expression result unused" \
-    "type_resolution.c:9:5: warning: expression result unused" \
-    "type_resolution.c:10:5: warning: expression result unused" \
-    "type_resolution.c:11:5: warning: expression result unused" \
-    "type_resolution.c:12:5: warning: expression result unused" \
-    "type_resolution.c:13:5: warning: expression result unused" \
-    "type_resolution.c:14:5: warning: expression result unused" \
-    "type_resolution.c:15:5: warning: expression result unused" \
-    "type_resolution.c:17:5: warning: expression result unused" \
-    "type_resolution.c:16:5: warning: expression result unused" \
-    "type_resolution.c:17:5: warning: expression result unused" \
-    "type_resolution.c:18:5: warning: expression result unused" \
-    "type_resolution.c:19:5: warning: expression result unused" \
-    "type_resolution.c:22:19: warning: pointer type mismatch ('int *' and 'float *')" \
+#define EXPECTED_ERRORS "type_resolution.c:22:19: warning: pointer type mismatch ('int *' and 'float *')" \
     "type_resolution.c:23:19: warning: pointer type mismatch ('int *' and '_Atomic(int) *')" \
