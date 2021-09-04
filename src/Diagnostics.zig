@@ -72,6 +72,7 @@ pub const Tag = enum {
     missing_type_specifier,
     multiple_storage_class,
     static_assert_failure,
+    static_assert_failure_message,
     expected_type,
     cannot_combine_spec,
     duplicate_decl_spec,
@@ -201,6 +202,8 @@ pub const Tag = enum {
     zero_align_ignored,
     non_pow2_align,
     pointer_mismatch,
+    static_assert_not_constant,
+    static_assert_missing_message,
 };
 
 const Options = struct {
@@ -226,6 +229,7 @@ const Options = struct {
     @"array-bounds": Kind = .warning,
     @"int-conversion": Kind = .warning,
     @"pointer-type-mismatch": Kind = .warning,
+    @"c2x-extension": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -382,7 +386,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .expected_integer_constant_expr => m.write("expression is not an integer constant expression"),
             .missing_type_specifier => m.write("type specifier missing, defaults to 'int'"),
             .multiple_storage_class => m.print("cannot combine with previous '{s}' declaration specifier", .{msg.extra.str}),
-            .static_assert_failure => m.print("static assertion failed {s}", .{msg.extra.str}),
+            .static_assert_failure => m.write("static assertion failed"),
+            .static_assert_failure_message => m.print("static assertion failed {s}", .{msg.extra.str}),
             .expected_type => m.write("expected a type"),
             .cannot_combine_spec => m.print("cannot combine with previous '{s}' specifier", .{msg.extra.str}),
             .duplicate_decl_spec => m.print("duplicate '{s}' declaration specifier", .{msg.extra.str}),
@@ -511,6 +516,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .zero_align_ignored => m.write("specified alignment of zero is ignored"),
             .non_pow2_align => m.write("requested alignment is not a power of 2"),
             .pointer_mismatch => m.print("pointer type mismatch ({s})", .{msg.extra.str}),
+            .static_assert_not_constant => m.write("static_assert expression is not an integral constant expression"),
+            .static_assert_missing_message => m.write("static_assert with no message is a C2X extension"),
         }
         m.end(lcs);
 
@@ -582,6 +589,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .expected_integer_constant_expr,
         .multiple_storage_class,
         .static_assert_failure,
+        .static_assert_failure_message,
         .expected_type,
         .cannot_combine_spec,
         .restrict_non_pointer,
@@ -677,6 +685,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .alignas_on_param,
         .minimum_alignment,
         .non_pow2_align,
+        .static_assert_not_constant,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -721,6 +730,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .array_before => diag.options.@"array-bounds",
         .implicit_int_to_ptr => diag.options.@"int-conversion",
         .pointer_mismatch => diag.options.@"pointer-type-mismatch",
+        .static_assert_missing_message => diag.options.@"c2x-extension",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

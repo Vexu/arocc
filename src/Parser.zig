@@ -646,39 +646,52 @@ fn decl(p: *Parser) Error!bool {
 fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.eatToken(.keyword_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
+    const res_token = p.tok_i;
     const res = try p.constExpr();
-    _ = try p.expectToken(.comma);
-    const str = switch (p.tok_ids[p.tok_i]) {
-        .string_literal,
-        .string_literal_utf_16,
-        .string_literal_utf_8,
-        .string_literal_utf_32,
-        .string_literal_wide,
-        => try p.stringLiteral(),
-        else => {
-            try p.err(.expected_str_literal);
-            return error.ParsingFailed;
-        },
+    var message_warning = false;
+    const str = if (p.eatToken(.comma) != null)
+        switch (p.tok_ids[p.tok_i]) {
+            .string_literal,
+            .string_literal_utf_16,
+            .string_literal_utf_8,
+            .string_literal_utf_32,
+            .string_literal_wide,
+            => try p.stringLiteral(),
+            else => {
+                try p.err(.expected_str_literal);
+                return error.ParsingFailed;
+            },
+        }
+    else blk: {
+        message_warning = true;
+        break :blk Result{ .ty = .{ .specifier = .void } };
     };
     try p.expectClosing(l_paren, .r_paren);
     _ = try p.expectToken(.semicolon);
+    if (message_warning) try p.errTok(.static_assert_missing_message, static_assert);
 
-    if (res.val != .unavailable and !res.getBool()) {
-        const strings_top = p.strings.items.len;
-        defer p.strings.items.len = strings_top;
-
-        const data = p.nodes.items(.data)[@enumToInt(str.node)].str;
-        try Tree.dumpStr(
-            p.strings.items[data.index..][0..data.len],
-            p.nodes.items(.tag)[@enumToInt(str.node)],
-            p.strings.writer(),
-        );
-
-        try p.errStr(
-            .static_assert_failure,
-            static_assert,
-            try p.arena.dupe(u8, p.strings.items[strings_top..]),
-        );
+    if (res.val == .unavailable) {
+        // an unavailable sizeof expression is already a compile error, so we don't emit
+        // another error for an invalid _Static_assert condition. This matches the behavior
+        // of gcc/clang
+        const res_tag = p.nodes.items(.tag)[@enumToInt(res.node)];
+        if (res_tag != .sizeof_expr) try p.errTok(.static_assert_not_constant, res_token);
+    } else if (!res.getBool()) {
+        if (str.node != .none) {
+            const strings_top = p.strings.items.len;
+            defer p.strings.items.len = strings_top;
+            const data = p.nodes.items(.data)[@enumToInt(str.node)].str;
+            try Tree.dumpStr(
+                p.strings.items[data.index..][0..data.len],
+                p.nodes.items(.tag)[@enumToInt(str.node)],
+                p.strings.writer(),
+            );
+            try p.errStr(
+                .static_assert_failure_message,
+                static_assert,
+                try p.arena.dupe(u8, p.strings.items[strings_top..]),
+            );
+        } else try p.errTok(.static_assert_failure, static_assert);
     }
     const node = try p.addNode(.{
         .tag = .static_assert,

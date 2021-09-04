@@ -519,9 +519,11 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("condition:\n");
             try tree.dumpNode(data.bin.lhs, level + delta, w);
-            try w.writeByteNTimes(' ', level + 1);
-            try w.writeAll("diagnostic:\n");
-            try tree.dumpNode(data.bin.rhs, level + delta, w);
+            if (data.bin.rhs != .none) {
+                try w.writeByteNTimes(' ', level + 1);
+                try w.writeAll("diagnostic:\n");
+                try tree.dumpNode(data.bin.rhs, level + delta, w);
+            }
         },
         .fn_proto,
         .static_fn_proto,
