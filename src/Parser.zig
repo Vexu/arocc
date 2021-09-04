@@ -579,6 +579,7 @@ fn decl(p: *Parser) Error!bool {
             }
         } else {
             for (init_d.d.ty.data.func.params) |param| {
+                if (param.ty.hasUnboundVLA()) try p.errTok(.unbound_vla, param.name_tok);
                 try p.scopes.append(.{
                     .param = .{
                         .name = param.name,

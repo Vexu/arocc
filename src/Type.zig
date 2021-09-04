@@ -348,6 +348,27 @@ pub fn hasIncompleteSize(ty: Type) bool {
     };
 }
 
+pub fn hasUnboundVLA(ty: Type) bool {
+    var cur = ty;
+    while (true) {
+        switch (cur.specifier) {
+            .unspecified_variable_len_array,
+            .decayed_unspecified_variable_len_array,
+            => return true,
+            .array,
+            .static_array,
+            .incomplete_array,
+            .variable_len_array,
+            .decayed_array,
+            .decayed_static_array,
+            .decayed_incomplete_array,
+            .decayed_variable_len_array,
+            => cur = cur.elemType(),
+            else => return false,
+        }
+    }
+}
+
 /// Size of type as reported by sizeof
 pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
     // TODO get target from compilation
@@ -490,28 +511,35 @@ pub fn decayArray(ty: *Type) void {
 pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
     switch (inner.specifier) {
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
-        .unspecified_variable_len_array => return p.todo("combine [*] array"),
+        .unspecified_variable_len_array => {
+            try inner.data.sub_type.combine(outer, p, source_tok);
+
+            const elem_ty = inner.data.sub_type.*;
+            if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
+            if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
+            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
+        },
         .variable_len_array => {
             try inner.data.vla.elem.combine(outer, p, source_tok);
 
             const elem_ty = inner.data.vla.elem;
-            if (elem_ty.hasIncompleteSize()) return p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
-            if (elem_ty.isFunc()) return p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.qual.any() and elem_ty.isArray()) return p.errTok(.qualifier_non_outermost_array, source_tok);
+            if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
+            if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
+            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .array, .static_array, .incomplete_array => {
             try inner.data.array.elem.combine(outer, p, source_tok);
 
             const elem_ty = inner.data.array.elem;
-            if (elem_ty.hasIncompleteSize()) return p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
-            if (elem_ty.isFunc()) return p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.specifier == .static_array and elem_ty.isArray()) return p.errTok(.static_non_outermost_array, source_tok);
-            if (elem_ty.qual.any() and elem_ty.isArray()) return p.errTok(.qualifier_non_outermost_array, source_tok);
+            if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
+            if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
+            if (elem_ty.specifier == .static_array and elem_ty.isArray()) try p.errTok(.static_non_outermost_array, source_tok);
+            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .func, .var_args_func, .old_style_func => {
             try inner.data.func.return_type.combine(outer, p, source_tok);
-            if (inner.data.func.return_type.isArray()) return p.errTok(.func_cannot_return_array, source_tok);
-            if (inner.data.func.return_type.isFunc()) return p.errTok(.func_cannot_return_func, source_tok);
+            if (inner.data.func.return_type.isArray()) try p.errTok(.func_cannot_return_array, source_tok);
+            if (inner.data.func.return_type.isFunc()) try p.errTok(.func_cannot_return_func, source_tok);
         },
         .decayed_array,
         .decayed_static_array,
@@ -1085,12 +1113,14 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try ty.data.func.return_type.dump(w);
         },
         .array, .static_array, .decayed_array, .decayed_static_array => {
+            if (ty.specifier == .decayed_array or ty.specifier == .decayed_static_array) try w.writeByte('d');
             try w.writeByte('[');
             if (ty.specifier == .static_array or ty.specifier == .decayed_static_array) try w.writeAll("static ");
             try w.print("{d}]", .{ty.data.array.len});
             try ty.data.array.elem.dump(w);
         },
         .incomplete_array, .decayed_incomplete_array => {
+            if (ty.specifier == .decayed_incomplete_array) try w.writeByte('d');
             try w.writeAll("[]");
             try ty.data.array.elem.dump(w);
         },
@@ -1107,10 +1137,12 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             if (dump_detailed_containers) try dumpRecord(ty.data.record, w);
         },
         .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => {
+            if (ty.specifier == .decayed_unspecified_variable_len_array) try w.writeByte('d');
             try w.writeAll("[*]");
-            try ty.data.array.elem.dump(w);
+            try ty.data.sub_type.dump(w);
         },
         .variable_len_array, .decayed_variable_len_array => {
+            if (ty.specifier == .decayed_variable_len_array) try w.writeByte('d');
             try w.writeAll("[<expr>]");
             try ty.data.array.elem.dump(w);
         },

@@ -19,6 +19,11 @@ int foooo(n, bar)
 
 int bar(int) = foo;
 
+int baz(int a[*]) {
+    return a[0];
+}
+
 #define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing" \
     "functions.c:20:14: error: illegal initializer (only variables can be initialized)" \
-    "functions.c:18:2: warning: non-void function 'foooo' does not return a value"
+    "functions.c:18:2: warning: non-void function 'foooo' does not return a value" \
+    "functions.c:22:13: error: variable length array must be bound in function definition"
