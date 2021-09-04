@@ -28,12 +28,11 @@ pub const Qualifiers = packed struct {
         if (quals.register) try w.writeAll("register ");
     }
 
-    /// Merge the const/volatile/_Atomic qualifiers
-    pub fn mergeCVA(a: Qualifiers, b: Qualifiers) Qualifiers {
+    /// Merge the const/volatile qualifiers
+    pub fn mergeCV(a: Qualifiers, b: Qualifiers) Qualifiers {
         return .{
             .@"const" = a.@"const" or b.@"const",
             .@"volatile" = a.@"volatile" or b.@"volatile",
-            .atomic = a.atomic or b.atomic,
         };
     }
 
@@ -438,9 +437,9 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
     if (a.alignment != b.alignment) return false;
     if (a.specifier != b.specifier) return false;
 
+    if (a.qual.atomic != b.qual.atomic) return false;
     if (check_qualifiers) {
         if (a.qual.@"const" != b.qual.@"const") return false;
-        if (a.qual.atomic != b.qual.atomic) return false;
         if (a.qual.@"volatile" != b.qual.@"volatile") return false;
     }
 

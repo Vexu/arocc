@@ -20,6 +20,7 @@ void test_type_resolution(void) {
     (x ? (int *)1 : (void *)2);
 
     (x ? (int *)1 : (float *)2);
+    (x ? (int *)1 : (_Atomic int*)2);
 }
 
 #define EXPECTED_TYPES "int" "long" "unsigned long" "long long" "unsigned long long" "int" \
@@ -29,6 +30,7 @@ void test_type_resolution(void) {
     "*const void" "*const void" \
     "*const int" "*const int" \
     "*void" "*void" \
+    "*void" \
     "*void"
 
 #define EXPECTED_ERRORS "type_resolution.c:2:5: warning: expression result unused" \
@@ -48,4 +50,5 @@ void test_type_resolution(void) {
     "type_resolution.c:17:5: warning: expression result unused" \
     "type_resolution.c:18:5: warning: expression result unused" \
     "type_resolution.c:19:5: warning: expression result unused" \
-    "type_resolution.c:22:19: warning: pointer type mismatch ('int *' and 'float *')"
+    "type_resolution.c:22:19: warning: pointer type mismatch ('int *' and 'float *')" \
+    "type_resolution.c:23:19: warning: pointer type mismatch ('int *' and '_Atomic(int) *')" \

@@ -648,7 +648,6 @@ fn staticAssert(p: *Parser) Error!bool {
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
     const res = try p.constExpr();
-    var message_warning = false;
     const str = if (p.eatToken(.comma) != null)
         switch (p.tok_ids[p.tok_i]) {
             .string_literal,
@@ -662,13 +661,11 @@ fn staticAssert(p: *Parser) Error!bool {
                 return error.ParsingFailed;
             },
         }
-    else blk: {
-        message_warning = true;
-        break :blk Result{ .ty = .{ .specifier = .void } };
-    };
+    else
+        Result{};
     try p.expectClosing(l_paren, .r_paren);
     _ = try p.expectToken(.semicolon);
-    if (message_warning) try p.errTok(.static_assert_missing_message, static_assert);
+    if (str.node == .none) try p.errTok(.static_assert_missing_message, static_assert);
 
     if (res.val == .unavailable) {
         // an unavailable sizeof expression is already a compile error, so we don't emit
@@ -1990,10 +1987,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
                 .tag = .forever_stmt,
                 .data = .{ .un = body },
             });
-        } else return try p.addNode(.{
-            .tag = .for_stmt,
-            .data = .{ .range = try p.addList(&.{ init.node, cond.node, incr.node }) },
-        });
+        } else return try p.addNode(.{ .tag = .for_stmt, .data = .{ .if3 = .{
+            .cond = body,
+            .body = (try p.addList(&.{ init.node, cond.node, incr.node })).start,
+        } } });
     }
     if (p.eatToken(.keyword_goto)) |_| {
         const name_tok = try p.expectToken(.identifier);
@@ -2433,7 +2430,7 @@ pub const Result = struct {
     }
 
     fn adjustCondExprPtrs(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) !bool {
-        assert(a.ty.specifier == .pointer and b.ty.specifier == .pointer);
+        assert(a.ty.isPtr() and b.ty.isPtr());
 
         const a_elem = a.ty.elemType();
         const b_elem = b.ty.elemType();
@@ -2453,7 +2450,7 @@ pub const Result = struct {
             adjusted_elem_ty.* = .{ .specifier = .void };
         }
         if (pointers_compatible) {
-            adjusted_elem_ty.qual = a_elem.qual.mergeCVA(b_elem.qual);
+            adjusted_elem_ty.qual = a_elem.qual.mergeCV(b_elem.qual);
         }
         if (!adjusted_elem_ty.eql(a_elem, true)) try a.qualCast(p, adjusted_elem_ty);
         if (!adjusted_elem_ty.eql(b_elem, true)) try b.qualCast(p, adjusted_elem_ty);
