@@ -208,6 +208,7 @@ pub const Tag = enum {
     static_assert_missing_message,
     unbound_vla,
     array_too_large,
+    incompatible_ptr_assign,
 };
 
 const Options = struct {
@@ -234,6 +235,7 @@ const Options = struct {
     @"int-conversion": Kind = .warning,
     @"pointer-type-mismatch": Kind = .warning,
     @"c2x-extension": Kind = .warning,
+    @"incompatible-pointer-types": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -526,6 +528,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .static_assert_missing_message => m.write("static_assert with no message is a C2X extension"),
             .unbound_vla => m.write("variable length array must be bound in function definition"),
             .array_too_large => m.write("array is too large"),
+            .incompatible_ptr_assign => m.print("incompatible pointer types assigning to {s}", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -743,6 +746,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .implicit_int_to_ptr => diag.options.@"int-conversion",
         .pointer_mismatch => diag.options.@"pointer-type-mismatch",
         .static_assert_missing_message => diag.options.@"c2x-extension",
+        .incompatible_ptr_assign => diag.options.@"incompatible-pointer-types",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

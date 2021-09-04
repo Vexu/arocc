@@ -2345,7 +2345,7 @@ pub fn macroExpr(p: *Parser) Compilation.Error!bool {
     return res.getBool();
 }
 
-pub const Result = struct {
+const Result = struct {
     node: NodeIndex = .none,
     ty: Type = .{ .specifier = .int },
     val: union(enum) {
@@ -2972,54 +2972,87 @@ fn assignExpr(p: *Parser) Error!Result {
         try p.errTok(.not_assignable, tok);
         return error.ParsingFailed;
     }
+
+    // adjustTypes will do do lvalue conversion but we do not want that
+    var lhs_copy = lhs;
+    switch (tag) {
+        .assign_expr => {}, // handle plain assignment separately
+        .mul_assign_expr,
+        .div_assign_expr,
+        .mod_assign_expr,
+        => {
+            _ = try lhs_copy.adjustTypes(tok, &rhs, p, .arithmetic);
+            try lhs.bin(p, tag, rhs);
+            return lhs;
+        },
+        .sub_assign_expr,
+        .add_assign_expr,
+        => {
+            if (lhs.ty.isPtr() and rhs.ty.isInt()) {
+                try rhs.ptrCast(p, lhs.ty);
+            } else {
+                _ = try lhs_copy.adjustTypes(tok, &rhs, p, .arithmetic);
+            }
+            try lhs.bin(p, tag, rhs);
+            return lhs;
+        },
+        .shl_assign_expr,
+        .shr_assign_expr,
+        .bit_and_assign_expr,
+        .bit_xor_assign_expr,
+        .bit_or_assign_expr,
+        => {
+            _ = try lhs_copy.adjustTypes(tok, &rhs, p, .integer);
+            try lhs.bin(p, tag, rhs);
+            return lhs;
+        },
+        else => unreachable,
+    }
+
+    // rhs does not need to be qualified
+    var unqual_ty = lhs.ty;
+    unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
     if (lhs.ty.specifier == .bool) {
         // this is ridiculous but it's what clang does
-        if (rhs.ty.isInt() or rhs.ty.isFloat() or (rhs.ty.isPtr() and tag == .assign_expr)) {
-            try rhs.boolCast(p, lhs.ty);
+        if (rhs.ty.isInt() or rhs.ty.isFloat() or rhs.ty.isPtr()) {
+            try rhs.boolCast(p, unqual_ty);
         } else {
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
         }
-    } else if (lhs.ty.isInt()) {
+    } else if (unqual_ty.isInt()) {
         if (rhs.ty.isInt() or rhs.ty.isFloat()) {
-            try rhs.intCast(p, lhs.ty);
-        } else if (tag == .assign_expr and rhs.ty.isPtr()) {
+            try rhs.intCast(p, unqual_ty);
+        } else if (rhs.ty.isPtr()) {
             try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(rhs.ty, " to ", lhs.ty));
-            try rhs.intCast(p, lhs.ty);
+            try rhs.intCast(p, unqual_ty);
         } else {
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
         }
-    } else if (lhs.ty.isFloat()) {
-        switch (tag) {
-            .mod_assign_expr,
-            .shl_assign_expr,
-            .shr_assign_expr,
-            .bit_and_assign_expr,
-            .bit_xor_assign_expr,
-            .bit_or_assign_expr,
-            => try p.errStr(.invalid_bin_types, tok, try p.typePairStr(lhs.ty, rhs.ty)),
-            else => if (rhs.ty.isInt() or rhs.ty.isFloat()) {
-                try rhs.floatCast(p, lhs.ty);
-            } else {
-                try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-            },
+    } else if (unqual_ty.isFloat()) {
+        if (rhs.ty.isInt() or rhs.ty.isFloat()) {
+            try rhs.floatCast(p, unqual_ty);
+        } else {
+            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
         }
-    } else if (lhs.ty.isPtr()) {
-        if ((tag == .add_assign_expr or tag == .sub_assign_expr) and
-            (rhs.ty.isInt() or rhs.ty.isFloat()))
-            try rhs.ptrCast(p, lhs.ty)
-        else if (tag != .assign_expr)
-            try p.errStr(.invalid_bin_types, tok, try p.typePairStr(lhs.ty, rhs.ty))
-        else if (rhs.isZero())
-            try rhs.nullCast(p, lhs.ty)
-        else if (!lhs.ty.eql(rhs.ty, false))
+    } else if (unqual_ty.isPtr()) {
+        if (rhs.isZero()) {
+            try rhs.nullCast(p, lhs.ty);
+        } else if (rhs.ty.isInt()) {
+            try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(rhs.ty, " to ", lhs.ty));
+            try rhs.ptrCast(p, unqual_ty);
+        } else if (rhs.ty.isPtr()) {
+            if (!unqual_ty.eql(rhs.ty, false)) {
+                try p.errStr(.incompatible_ptr_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
+                try rhs.ptrCast(p, unqual_ty);
+            }
+        } else {
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-    } else if (lhs.ty.isEnumOrRecord()) { // enum.isInt() == true
-        if (tag != .assign_expr)
-            try p.errStr(.invalid_bin_types, tok, try p.typePairStr(lhs.ty, rhs.ty))
-        else if (!lhs.ty.eql(rhs.ty, false))
+        }
+    } else if (unqual_ty.isEnumOrRecord()) { // enum.isInt() == true
+        if (!unqual_ty.eql(rhs.ty, false))
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-    } else if (lhs.ty.isArray() or lhs.ty.isFunc()) {
+    } else if (unqual_ty.isArray() or unqual_ty.isFunc()) {
         try p.errTok(.not_assignable, tok);
     } else {
         try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));

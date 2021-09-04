@@ -28,13 +28,20 @@ void foo(void) {
     int *x;
     x = 0;
     x = (0);
+    x = 2;
+    volatile struct Foo h;
+    h = f;
+    char *i;
+    i = x;
 }
 
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
     "assignment.c:4:7: error: expression is not assignable" \
     "assignment.c:12:7: warning: implicit pointer to integer conversion from 'int *' to 'int'" \
-    "assignment.c:13:7: error: assignment to 'int' from incompatible type 'int *'" \
+    "assignment.c:13:7: error: invalid operands to binary expression ('int' and 'int *')" \
     "assignment.c:16:7: error: invalid operands to binary expression ('float' and 'int')" \
     "assignment.c:20:7: error: invalid operands to binary expression ('int *' and 'int')" \
     "assignment.c:25:7: error: invalid operands to binary expression ('struct Foo' and 'struct Foo')" \
-    "assignment.c:27:9: error: expression is not assignable"
+    "assignment.c:27:9: error: expression is not assignable" \
+    "assignment.c:31:7: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
+    "assignment.c:35:7: warning: incompatible pointer types assigning to 'char *' from incompatible type 'int *'"
