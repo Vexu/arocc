@@ -209,6 +209,10 @@ pub const Tag = enum {
     unbound_vla,
     array_too_large,
     incompatible_ptr_assign,
+    vla_init,
+    func_init,
+    incompatible_init,
+    empty_scalar_init,
 };
 
 const Options = struct {
@@ -529,6 +533,10 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .unbound_vla => m.write("variable length array must be bound in function definition"),
             .array_too_large => m.write("array is too large"),
             .incompatible_ptr_assign => m.print("incompatible pointer types assigning to {s}", .{msg.extra.str}),
+            .vla_init => m.write("variable-sized object may not be initialized"),
+            .func_init => m.write("illegal initializer type"),
+            .incompatible_init => m.print("initializing {s}", .{msg.extra.str}),
+            .empty_scalar_init => m.write("scalar initializer cannot be empty"),
         }
         m.end(lcs);
 
@@ -701,6 +709,10 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .static_assert_not_constant,
         .unbound_vla,
         .array_too_large,
+        .vla_init,
+        .func_init,
+        .incompatible_init,
+        .empty_scalar_init,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

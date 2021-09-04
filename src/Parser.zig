@@ -353,6 +353,22 @@ fn findSwitch(p: *Parser) ?*Scope.Switch {
     return null;
 }
 
+fn nodeIs(p: *Parser, node: NodeIndex, tag: Tree.Tag) bool {
+    var cur = node;
+    const tags = p.nodes.items(.tag);
+    const data = p.nodes.items(.data);
+    while (true) {
+        const cur_tag = tags[@enumToInt(cur)];
+        if (cur_tag == .paren_expr) {
+            cur = data[@enumToInt(cur)].un;
+        } else if (cur_tag == tag) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
 /// root : (decl | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     var arena = std.heap.ArenaAllocator.init(pp.comp.gpa);
@@ -672,8 +688,7 @@ fn staticAssert(p: *Parser) Error!bool {
         // an unavailable sizeof expression is already a compile error, so we don't emit
         // another error for an invalid _Static_assert condition. This matches the behavior
         // of gcc/clang
-        const res_tag = p.nodes.items(.tag)[@enumToInt(res.node)];
-        if (res_tag != .sizeof_expr) try p.errTok(.static_assert_not_constant, res_token);
+        if (!p.nodeIs(res.node, .sizeof_expr)) try p.errTok(.static_assert_not_constant, res_token);
     } else if (!res.getBool()) {
         if (str.node != .none) {
             const strings_top = p.strings.items.len;
@@ -888,18 +903,18 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
     if (p.eatToken(.equal)) |eq| {
-        if (decl_spec.storage_class == .typedef or
-            init_d.d.func_declarator != null) try p.errTok(.illegal_initializer, eq);
-        if (decl_spec.storage_class == .@"extern") {
+        if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
+            try p.errTok(.illegal_initializer, eq);
+        } else if (init_d.d.ty.specifier == .variable_len_array) {
+            try p.errTok(.vla_init, eq);
+        } else if (decl_spec.storage_class == .@"extern") {
             try p.err(.extern_initializer);
             decl_spec.storage_class = .none;
         }
-        var init = try p.initializer(decl_spec.ty);
-        try init.expect(p);
-        // TODO do type coercion
-        // TODO infer array size
-        init_d.initializer = init.node;
-        try init.saveValue(p);
+
+        var init_list_expr = try p.initializer(init_d.d.ty);
+        init_d.initializer = init_list_expr.node;
+        init_d.d.ty = init_list_expr.ty;
     }
     const name = init_d.d.name;
     if (init_d.d.ty.hasIncompleteSize()) {
@@ -1744,35 +1759,100 @@ fn typeName(p: *Parser) Error!?Type {
 /// initializer
 ///  : assignExpr
 ///  | '{' initializerItems '}'
-fn initializer(p: *Parser, paren_ty: Type) Error!Result {
-    if (p.eatToken(.l_brace)) |l_brace| {
-        const list_buf_top = p.list_buf.items.len;
-        defer p.list_buf.items.len = list_buf_top;
+pub fn initializer(p: *Parser, init_ty: Type) Error!Result {
+    const l_brace = p.eatToken(.l_brace) orelse {
+        const tok = p.tok_i;
+        var res = try p.assignExpr();
+        try res.expect(p);
+        try p.coerceInit(&res, tok, init_ty);
+        return res;
+    };
 
-        while (try p.initializerItem(paren_ty)) |item| {
-            try p.list_buf.append(item);
-            if (p.eatToken(.comma) == null) break;
-        }
-        try p.expectClosing(l_brace, .r_brace);
+    var node: Tree.Node = .{
+        .tag = .init_list_expr_two,
+        .ty = init_ty,
+        .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+    };
 
-        var node: Tree.Node = .{
-            .tag = .compound_initializer_expr_two,
-            .ty = paren_ty,
-            .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
-        };
-        const initializers = p.list_buf.items[list_buf_top..];
-        switch (initializers.len) {
-            0 => {},
-            1 => node.data = .{ .bin = .{ .lhs = initializers[0], .rhs = .none } },
-            2 => node.data = .{ .bin = .{ .lhs = initializers[0], .rhs = initializers[1] } },
-            else => {
-                node.tag = .compound_initializer_expr;
-                node.data = .{ .range = try p.addList(initializers) };
-            },
-        }
-        return Result{ .node = try p.addNode(node), .ty = paren_ty };
+    const is_scalar = init_ty.isInt() or init_ty.isFloat() or init_ty.isPtr();
+    if (p.eatToken(.r_brace)) |_| {
+        if (is_scalar) try p.errTok(.empty_scalar_init, l_brace);
+        return Result{ .node = try p.addNode(node), .ty = init_ty };
     }
-    return p.assignExpr();
+
+    const list_buf_top = p.list_buf.items.len;
+    defer p.list_buf.items.len = list_buf_top;
+
+    while (try p.initializerItem(init_ty)) |item| {
+        try p.list_buf.append(item);
+        if (p.eatToken(.comma) == null) break;
+    }
+    try p.expectClosing(l_brace, .r_brace);
+
+    const initializers = p.list_buf.items[list_buf_top..];
+    switch (initializers.len) {
+        0 => {},
+        1 => node.data = .{ .bin = .{ .lhs = initializers[0], .rhs = .none } },
+        2 => node.data = .{ .bin = .{ .lhs = initializers[0], .rhs = initializers[1] } },
+        else => {
+            node.tag = .init_list_expr;
+            node.data = .{ .range = try p.addList(initializers) };
+        },
+    }
+    return Result{ .node = try p.addNode(node), .ty = init_ty };
+}
+
+fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
+    // item does not need to be qualified
+    var unqual_ty = target;
+    unqual_ty.qual = .{};
+    const e_msg = " from incompatible type ";
+    if (target.specifier == .bool) {
+        // this is ridiculous but it's what clang does
+        if (item.ty.isInt() or item.ty.isFloat() or item.ty.isPtr()) {
+            try item.boolCast(p, unqual_ty);
+        } else {
+            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+        }
+    } else if (unqual_ty.isInt()) {
+        if (item.ty.isInt() or item.ty.isFloat()) {
+            try item.intCast(p, unqual_ty);
+        } else if (item.ty.isPtr()) {
+            try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(item.ty, " to ", target));
+            try item.intCast(p, unqual_ty);
+        } else {
+            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+        }
+    } else if (unqual_ty.isFloat()) {
+        if (item.ty.isInt() or item.ty.isFloat()) {
+            try item.floatCast(p, unqual_ty);
+        } else {
+            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+        }
+    } else if (unqual_ty.isPtr()) {
+        if (item.isZero()) {
+            try item.nullCast(p, target);
+        } else if (item.ty.isInt()) {
+            try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(item.ty, " to ", target));
+            try item.ptrCast(p, unqual_ty);
+        } else if (item.ty.isPtr()) {
+            if (!unqual_ty.eql(item.ty, false)) {
+                try p.errStr(.incompatible_ptr_assign, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+                try item.ptrCast(p, unqual_ty);
+            }
+        } else {
+            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+        }
+    } else if (unqual_ty.isEnumOrRecord()) { // enum.isInt() == true
+        if (!unqual_ty.eql(item.ty, false))
+            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+    } else if (unqual_ty.isArray()) {
+        // TODO
+    } else if (unqual_ty.isFunc()) {
+        // we have already issued an error for this
+    } else {
+        try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+    }
 }
 
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?
@@ -1811,15 +1891,17 @@ fn initializerItem(p: *Parser, paren_ty: Type) Error!?NodeIndex {
     }
     if (designation != .none) _ = try p.expectToken(.equal);
 
-    const init_res = try p.initializer(cur_ty);
+    const tok = p.tok_i;
+    var init_res = try p.initializer(cur_ty);
     if (designation != .none) {
         try init_res.expect(p);
     } else if (init_res.node == .none) {
         return null;
     }
+    try p.coerceInit(&init_res, tok, cur_ty);
     return try p.addNode(.{
         .tag = .initializer_item_expr,
-        // TODO do type checking
+        .ty = cur_ty,
         .data = .{ .bin = .{
             .lhs = designation,
             .rhs = init_res.node,
@@ -1855,7 +1937,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
             try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
-        else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
+        else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -1916,7 +1998,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
             try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
-        else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
+        else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -1944,7 +2026,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
             try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
-        else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
+        else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -1978,7 +2060,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
             try cond.lvalConversion(p);
             if (cond.ty.isInt())
                 try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
-            else if (!cond.ty.isFloat() and cond.ty.specifier != .pointer)
+            else if (!cond.ty.isFloat() and !cond.ty.isPtr())
                 try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         }
         try cond.saveValue(p);
@@ -3372,32 +3454,16 @@ fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         if (try p.typeName()) |ty| {
             try p.expectClosing(l_paren, .r_paren);
-            if (p.eatToken(.l_brace)) |l_brace| {
-                const list_buf_top = p.list_buf.items.len;
-                defer p.list_buf.items.len = list_buf_top;
-
-                while (try p.initializerItem(ty)) |item| {
-                    try p.list_buf.append(item);
-                    if (p.eatToken(.comma) == null) break;
+            if (p.tok_ids[p.tok_i] == .l_brace) {
+                // compound literal
+                if (ty.isFunc()) {
+                    try p.err(.func_init);
+                } else if (ty.specifier == .variable_len_array) {
+                    try p.err(.vla_init);
                 }
-                try p.expectClosing(l_brace, .r_brace);
-
-                var node: Tree.Node = .{
-                    .tag = .compound_literal_expr_two,
-                    .ty = ty,
-                    .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
-                };
-                const initializers = p.list_buf.items[list_buf_top..];
-                switch (initializers.len) {
-                    0 => {},
-                    1 => node.data = .{ .bin = .{ .lhs = initializers[0], .rhs = .none } },
-                    2 => node.data = .{ .bin = .{ .lhs = initializers[0], .rhs = initializers[1] } },
-                    else => {
-                        node.tag = .compound_literal_expr;
-                        node.data = .{ .range = try p.addList(initializers) };
-                    },
-                }
-                return Result{ .node = try p.addNode(node), .ty = ty };
+                var init_list_expr = try p.initializer(ty);
+                try init_list_expr.un(p, .compound_literal_expr);
+                return init_list_expr;
             }
             var operand = try p.castExpr();
             try operand.expect(p);
@@ -3509,7 +3575,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             var operand = try p.castExpr();
             try operand.expect(p);
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
@@ -3533,7 +3599,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             var operand = try p.castExpr();
             try operand.expect(p);
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
@@ -3575,7 +3641,7 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
             try operand.lvalConversion(p);
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and operand.ty.specifier != .pointer)
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
@@ -3675,7 +3741,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             defer p.tok_i += 1;
 
             var operand = lhs;
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
@@ -3691,7 +3757,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             defer p.tok_i += 1;
 
             var operand = lhs;
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and operand.ty.specifier != .pointer)
+            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {

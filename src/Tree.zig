@@ -340,12 +340,10 @@ pub const Tag = enum(u8) {
     // ====== Initializer expressions ======
 
     /// { lhs, rhs }
-    compound_initializer_expr_two,
+    init_list_expr_two,
     /// { range }
-    compound_initializer_expr,
-    /// (ty){ lhs, rhs }
-    compound_literal_expr_two,
-    /// (ty){ range }
+    init_list_expr,
+    /// (ty){ un }
     compound_literal_expr,
     /// lhs = rhs
     initializer_item_expr,
@@ -590,8 +588,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .indirect_record_field_decl => {},
         .compound_stmt,
-        .compound_initializer_expr,
-        .compound_literal_expr,
+        .init_list_expr,
         .enum_decl,
         .struct_decl,
         .union_decl,
@@ -602,14 +599,16 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             }
         },
         .compound_stmt_two,
-        .compound_initializer_expr_two,
-        .compound_literal_expr_two,
+        .init_list_expr_two,
         .enum_decl_two,
         .struct_decl_two,
         .union_decl_two,
         => {
             if (data.bin.lhs != .none) try tree.dumpNode(data.bin.lhs, level + delta, w);
             if (data.bin.rhs != .none) try tree.dumpNode(data.bin.rhs, level + delta, w);
+        },
+        .compound_literal_expr => {
+            try tree.dumpNode(data.un, level + half, w);
         },
         .labeled_stmt => {
             try w.writeByteNTimes(' ', level + half);
