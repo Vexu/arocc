@@ -218,7 +218,7 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     if (p.in_macro) return .none;
     const res = p.nodes.len;
     try p.nodes.append(p.pp.comp.gpa, node);
-    return @intToEnum(NodeIndex, @intCast(u32, res));
+    return @intToEnum(NodeIndex, res);
 }
 
 fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range {
@@ -1028,9 +1028,16 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 const l_paren = try p.expectToken(.l_paren);
                 if (try p.typeName()) |inner_ty| {
                     ty.alignment = inner_ty.alignment;
-                } else {
+                } else blk: {
                     const res = try p.constExpr();
-                    var requested = @intCast(u29, res.as_u64());
+                    if (res.val == .signed and res.val.signed < 0) {
+                        try p.errExtra(.negative_alignment, ty.align_tok.?, .{ .signed = res.val.signed });
+                        break :blk;
+                    }
+                    var requested = std.math.cast(u29, res.as_u64()) catch {
+                        try p.errExtra(.maximum_alignment, ty.align_tok.?, .{ .unsigned = res.as_u64() });
+                        break :blk;
+                    };
                     if (requested == 0) {
                         try p.errTok(.zero_align_ignored, ty.align_tok.?);
                     } else if (!std.mem.isValidAlign(requested)) {
@@ -1507,6 +1514,12 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         }
         if (static) |_| try size.expect(p);
 
+        const outer = try p.directDeclarator(base_type, d, kind);
+        var max_bits = p.pp.comp.target.cpu.arch.ptrBitWidth();
+        if (max_bits > 61) max_bits = 61;
+        const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
+        const max_elems = max_bytes / (outer.sizeof(p.pp.comp) orelse 1);
+
         switch (size.val) {
             .unavailable => if (size.node != .none) {
                 if (p.return_type == null and kind != .param) try p.errTok(.variable_len_array_file_scope, l_bracket);
@@ -1529,6 +1542,10 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             .unsigned => |v| {
                 const arr_ty = try p.arena.create(Type.Array);
                 arr_ty.len = v;
+                if (arr_ty.len > max_elems) {
+                    try p.errTok(.array_too_large, l_bracket);
+                    arr_ty.len = max_elems;
+                }
                 res_ty.data = .{ .array = arr_ty };
                 res_ty.specifier = .array;
             },
@@ -1536,12 +1553,15 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 if (v < 0) try p.errTok(.negative_array_size, l_bracket);
                 const arr_ty = try p.arena.create(Type.Array);
                 arr_ty.len = @bitCast(u64, v);
+                if (arr_ty.len > max_elems) {
+                    try p.errTok(.array_too_large, l_bracket);
+                    arr_ty.len = max_elems;
+                }
                 res_ty.data = .{ .array = arr_ty };
                 res_ty.specifier = .array;
             },
         }
 
-        const outer = try p.directDeclarator(base_type, d, kind);
         try res_ty.combine(outer, p, l_bracket);
         return res_ty;
     } else if (p.eatToken(.l_paren)) |l_paren| {

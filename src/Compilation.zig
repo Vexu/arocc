@@ -118,7 +118,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     errdefer comp.gpa.free(contents);
 
     const source = Source{
-        .id = @intToEnum(Source.Id, @intCast(u32, comp.sources.count() + 2)),
+        .id = @intToEnum(Source.Id, comp.sources.count() + 2),
         .path = duped_path,
         .buf = contents,
     };
@@ -143,7 +143,7 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
     errdefer comp.gpa.free(contents);
 
     const source = Source{
-        .id = @intToEnum(Source.Id, @intCast(u32, comp.sources.count() + 2)),
+        .id = @intToEnum(Source.Id, comp.sources.count() + 2),
         .path = duped_path,
         .buf = contents,
     };

@@ -180,7 +180,7 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
         errdefer comp.gpa.free(contents);
 
         const source = Source{
-            .id = @intToEnum(Source.Id, @intCast(u32, comp.sources.count() + 2)),
+            .id = @intToEnum(Source.Id, comp.sources.count() + 2),
             .path = duped_path,
             .buf = contents,
         };

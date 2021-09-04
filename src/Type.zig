@@ -112,8 +112,8 @@ pub const Enum = struct {
 pub const Record = struct {
     name: []const u8,
     fields: []Field,
-    size: u32,
-    alignment: u32,
+    size: u64,
+    alignment: u29,
 
     pub const Field = struct {
         name: []const u8,
@@ -201,7 +201,7 @@ data: union {
     none: void,
 } = .{ .none = {} },
 /// user requested alignment, to get type alignment use `alignof`
-alignment: u32 = 0,
+alignment: u29 = 0,
 specifier: Specifier,
 qual: Qualifiers = .{},
 
@@ -370,7 +370,7 @@ pub fn hasUnboundVLA(ty: Type) bool {
 }
 
 /// Size of type as reported by sizeof
-pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
+pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
     // TODO get target from compilation
     return switch (ty.specifier) {
         .variable_len_array, .unspecified_variable_len_array, .incomplete_array => return null,
@@ -406,14 +406,14 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u32 {
         .decayed_unspecified_variable_len_array,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .array => ty.data.array.elem.sizeof(comp).? * @intCast(u32, ty.data.array.len),
+        .array => ty.data.array.elem.sizeof(comp).? * ty.data.array.len,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
     };
 }
 
 /// Get the alignment of a type
-pub fn alignof(ty: Type, comp: *Compilation) u32 {
+pub fn alignof(ty: Type, comp: *Compilation) u29 {
     if (ty.alignment != 0) return ty.alignment;
     // TODO get target from compilation
     return switch (ty.specifier) {
@@ -559,7 +559,7 @@ pub const Builder = struct {
     } = null,
     specifier: Builder.Specifier = .none,
     qual: Qualifiers.Builder = .{},
-    alignment: u32 = 0,
+    alignment: u29 = 0,
     align_tok: ?TokenIndex = null,
 
     pub const Specifier = union(enum) {

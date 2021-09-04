@@ -64,7 +64,7 @@ pub fn main() !void {
         errdefer comp.gpa.free(contents);
 
         const source = aro.Source{
-            .id = @intToEnum(aro.Source.Id, @intCast(u32, comp.sources.count() + 2)),
+            .id = @intToEnum(aro.Source.Id, comp.sources.count() + 2),
             .path = duped_path,
             .buf = contents,
         };

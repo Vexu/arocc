@@ -198,6 +198,8 @@ pub const Tag = enum {
     alignas_on_func,
     alignas_on_param,
     minimum_alignment,
+    maximum_alignment,
+    negative_alignment,
     align_ignored,
     zero_align_ignored,
     non_pow2_align,
@@ -205,6 +207,7 @@ pub const Tag = enum {
     static_assert_not_constant,
     static_assert_missing_message,
     unbound_vla,
+    array_too_large,
 };
 
 const Options = struct {
@@ -513,13 +516,16 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .alignas_on_func => m.write("'_Alignas' attribute only applies to variables and fields"),
             .alignas_on_param => m.write("'_Alignas' attribute cannot be applied to a function parameter"),
             .minimum_alignment => m.print("requested alignment is less than minimum alignment of {d}", .{msg.extra.unsigned}),
+            .maximum_alignment => m.print("requested alignment of {d} is too large", .{msg.extra.unsigned}),
+            .negative_alignment => m.print("requested negative alignment of {d} is invalid", .{msg.extra.signed}),
             .align_ignored => m.write("'_Alignas' attribute is ignored here"),
-            .zero_align_ignored => m.write("specified alignment of zero is ignored"),
+            .zero_align_ignored => m.write("requested alignment of zero is ignored"),
             .non_pow2_align => m.write("requested alignment is not a power of 2"),
             .pointer_mismatch => m.print("pointer type mismatch ({s})", .{msg.extra.str}),
             .static_assert_not_constant => m.write("static_assert expression is not an integral constant expression"),
             .static_assert_missing_message => m.write("static_assert with no message is a C2X extension"),
             .unbound_vla => m.write("variable length array must be bound in function definition"),
+            .array_too_large => m.write("array is too large"),
         }
         m.end(lcs);
 
@@ -686,9 +692,12 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .alignas_on_func,
         .alignas_on_param,
         .minimum_alignment,
+        .maximum_alignment,
+        .negative_alignment,
         .non_pow2_align,
         .static_assert_not_constant,
         .unbound_vla,
+        .array_too_large,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
