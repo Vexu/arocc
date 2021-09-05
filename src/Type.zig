@@ -28,11 +28,23 @@ pub const Qualifiers = packed struct {
         if (quals.register) try w.writeAll("register ");
     }
 
-    /// Merge the const/volatile qualifiers
+    /// Merge the const/volatile qualifiers, used by type resolution
+    /// of the conditional operator
     pub fn mergeCV(a: Qualifiers, b: Qualifiers) Qualifiers {
         return .{
             .@"const" = a.@"const" or b.@"const",
             .@"volatile" = a.@"volatile" or b.@"volatile",
+        };
+    }
+
+    /// Merge all qualifiers, used by typeof()
+    fn mergeAll(a: Qualifiers, b: Qualifiers) Qualifiers {
+        return .{
+            .@"const" = a.@"const" or b.@"const",
+            .atomic = a.atomic or b.atomic,
+            .@"volatile" = a.@"volatile" or b.@"volatile",
+            .restrict = a.restrict or b.restrict,
+            .register = a.register or b.register,
         };
     }
 
@@ -568,6 +580,7 @@ pub const Builder = struct {
     qual: Qualifiers.Builder = .{},
     alignment: u29 = 0,
     align_tok: ?TokenIndex = null,
+    typeof: ?Type = null,
 
     pub const Specifier = union(enum) {
         none,
@@ -678,8 +691,12 @@ pub const Builder = struct {
         var ty: Type = .{ .specifier = undefined };
         switch (b.specifier) {
             .none => {
-                ty.specifier = .int;
-                try p.err(.missing_type_specifier);
+                if (b.typeof) |typeof| {
+                    ty = typeof;
+                } else {
+                    ty.specifier = .int;
+                    try p.err(.missing_type_specifier);
+                }
             },
             .void => ty.specifier = .void,
             .bool => ty.specifier = .bool,
@@ -779,6 +796,9 @@ pub const Builder = struct {
             },
         }
         try b.qual.finish(p, &ty);
+        if (b.typeof) |typeof| {
+            ty.qual = ty.qual.mergeAll(typeof.qual);
+        }
         if (b.align_tok) |align_tok| {
             const default = ty.alignof(p.pp.comp);
             if (ty.isFunc()) {
@@ -798,7 +818,15 @@ pub const Builder = struct {
         if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
 
+    pub fn combineFromTypeof(b: *Builder, p: *Parser, new: Type, source_tok: TokenIndex) Compilation.Error!void {
+        if (b.typeof != null) return p.errStr(.cannot_combine_spec, source_tok, "typeof");
+        if (b.specifier != .none) return p.errStr(.invalid_typeof, source_tok, @tagName(b.specifier));
+        b.typeof = new;
+    }
+
     pub fn combine(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) Compilation.Error!void {
+        if (b.typeof != null) try p.errStr(.invalid_typeof, source_tok, @tagName(new));
+
         switch (new) {
             else => switch (b.specifier) {
                 .none => b.specifier = new,
