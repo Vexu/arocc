@@ -138,6 +138,8 @@ pub const Token = struct {
         keyword_struct,
         keyword_switch,
         keyword_typedef,
+        keyword_typeof1,
+        keyword_typeof2,
         keyword_union,
         keyword_unsigned,
         keyword_void,
@@ -183,6 +185,7 @@ pub const Token = struct {
         keyword_restrict2,
         keyword_alignof1,
         keyword_alignof2,
+        keyword_typeof,
 
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
@@ -244,6 +247,9 @@ pub const Token = struct {
                 .keyword_static_assert,
                 .keyword_thread_local,
                 .identifier,
+                .keyword_typeof,
+                .keyword_typeof1,
+                .keyword_typeof2,
                 => return true,
                 else => return false,
             }
@@ -382,6 +388,7 @@ pub const Token = struct {
                 .keyword_struct => "struct",
                 .keyword_switch => "switch",
                 .keyword_typedef => "typedef",
+                .keyword_typeof => "typeof",
                 .keyword_union => "union",
                 .keyword_unsigned => "unsigned",
                 .keyword_void => "void",
@@ -419,6 +426,8 @@ pub const Token = struct {
                 .keyword_restrict2 => "__restrict__",
                 .keyword_alignof1 => "__alignof",
                 .keyword_alignof2 => "__alignof__",
+                .keyword_typeof1 => "__typeof",
+                .keyword_typeof2 => "__typeof__",
             };
         }
 
@@ -486,6 +495,8 @@ pub const Token = struct {
         .{ "void", .keyword_void },
         .{ "volatile", .keyword_volatile },
         .{ "while", .keyword_while },
+        .{ "__typeof__", .keyword_typeof2 },
+        .{ "__typeof", .keyword_typeof1 },
 
         // ISO C99
         .{ "_Bool", .keyword_bool },
@@ -526,6 +537,7 @@ pub const Token = struct {
         .{ "__restrict__", .keyword_restrict2 },
         .{ "__alignof", .keyword_alignof1 },
         .{ "__alignof__", .keyword_alignof2 },
+        .{ "typeof", .keyword_typeof },
     });
 };
 
@@ -902,6 +914,8 @@ pub fn next(self: *Tokenizer) Token {
                 'a'...'z', 'A'...'Z', '_', '0'...'9', '$' => {},
                 else => {
                     id = Token.keywords.get(self.buf[start..self.index]) orelse .identifier;
+                    // TODO: if id == .keyword_typeof and GNU extensions are not enabled,
+                    // turn id back into .identifier
                     break;
                 },
             },

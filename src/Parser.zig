@@ -472,6 +472,9 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_union,
             .keyword_alignas,
             .identifier,
+            .keyword_typeof,
+            .keyword_typeof1,
+            .keyword_typeof2,
             => if (parens == 0) return,
             else => {},
         }
@@ -813,6 +816,25 @@ pub const DeclSpec = struct {
     }
 };
 
+fn typeof(p: *Parser) Error!?Type {
+    switch (p.tok_ids[p.tok_i]) {
+        .keyword_typeof, .keyword_typeof1, .keyword_typeof2 => p.tok_i += 1,
+        else => return null,
+    }
+    const l_paren = try p.expectToken(.l_paren);
+    if (try p.typeName()) |ty| {
+        try p.expectClosing(l_paren, .r_paren);
+        return ty;
+    }
+    if (p.eatToken(.r_paren)) |r_paren| {
+        try p.errTok(.expected_expr, r_paren);
+        return error.ParsingFailed;
+    }
+    const typeof_expr = try p.expr();
+    try p.expectClosing(l_paren, .r_paren);
+    return typeof_expr.ty;
+}
+
 /// declSpec: (storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec)+
 /// storageClassSpec:
 ///  : keyword_typedef
@@ -970,6 +992,10 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
+        if (try p.typeof()) |inner_ty| {
+            try ty.combineFromTypeof(p, inner_ty, start);
+            continue;
+        }
         if (try p.typeQual(&ty.qual)) continue;
         switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try ty.combine(p, .void, p.tok_i),
@@ -1246,6 +1272,8 @@ fn recordDecls(p: *Parser) Error!void {
 
 /// specQual : (typeSpec | typeQual | alignSpec)+
 fn specQual(p: *Parser) Error!?Type {
+    if (try p.typeof()) |ty| return ty;
+
     var spec: Type.Builder = .{};
     if (try p.typeSpec(&spec)) {
         if (spec.alignment != 0) try p.errTok(.align_ignored, spec.align_tok.?);
@@ -2386,6 +2414,9 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_struct,
             .keyword_union,
             .keyword_alignas,
+            .keyword_typeof,
+            .keyword_typeof1,
+            .keyword_typeof2,
             => if (parens == 0) return,
             else => {},
         }
