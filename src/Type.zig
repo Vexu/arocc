@@ -278,6 +278,13 @@ pub fn isEnumOrRecord(ty: Type) bool {
     };
 }
 
+pub fn isRecord(ty: Type) bool {
+    return switch (ty.specifier) {
+        .@"struct", .@"union" => true,
+        else => false,
+    };
+}
+
 pub fn elemType(ty: Type) Type {
     return switch (ty.specifier) {
         .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.*,
@@ -1012,13 +1019,17 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
             if (simple) try w.writeByte(' ');
             return false;
         },
+        else => {},
+    }
+    try ty.qual.dump(w);
+    if (ty.alignment != 0) try w.print("_Alignas({d}) ", .{ty.alignment});
+
+    switch (ty.specifier) {
         .@"enum" => try w.print("enum {s}", .{ty.data.@"enum".name}),
         .@"struct" => try w.print("struct {s}", .{ty.data.record.name}),
         .@"union" => try w.print("union {s}", .{ty.data.record.name}),
         else => try w.writeAll(Builder.fromType(ty).str().?),
     }
-    try ty.qual.dump(w);
-    if (ty.alignment != 0) try w.print(" _Alignas({d})", .{ty.alignment});
     return true;
 }
 
