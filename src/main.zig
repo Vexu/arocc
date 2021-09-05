@@ -233,6 +233,7 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
 test {
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
+    _ = @import("InitList.zig");
     _ = @import("Parser.zig");
     _ = @import("Preprocessor.zig");
     _ = @import("Source.zig");
