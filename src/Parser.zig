@@ -13,6 +13,7 @@ const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const NodeList = std.ArrayList(NodeIndex);
+const InitList = @import("InitList.zig");
 
 const Parser = @This();
 
@@ -937,9 +938,12 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         }
 
         var init_list_expr = try p.initializer(init_d.d.ty);
-        try init_list_expr.expect(p);
         init_d.initializer = init_list_expr.node;
-        init_d.d.ty = init_list_expr.ty;
+        if (init_d.d.ty.specifier == .incomplete_array) {
+            // Modifying .data is exceptionally allowed for .incomplete_array.
+            init_d.d.ty.data.array.len = init_list_expr.ty.data.array.len;
+            init_d.d.ty.specifier = .array;
+        }
     }
     const name = init_d.d.name;
     if (decl_spec.storage_class != .typedef and init_d.d.ty.hasIncompleteSize()) {
@@ -1800,103 +1804,171 @@ fn typeName(p: *Parser) Error!?Type {
 /// initializer
 ///  : assignExpr
 ///  | '{' initializerItems '}'
+fn initializer(p: *Parser, init_ty: Type) Error!Result {
+    // fast path for non-braced initializers
+    if (p.tok_ids[p.tok_i] != .l_brace) {
+        const tok = p.tok_i;
+        var res = try p.assignExpr();
+        try res.expect(p);
+        if (try p.coerceArrayInit(&res, tok, init_ty)) return res;
+        try p.coerceInit(&res, tok, init_ty);
+        return res;
+    }
+
+    var il: InitList = .{};
+    errdefer il.deinit(p.pp.comp.gpa);
+
+    var index: usize = 0;
+    _ = try p.initializerItem(&il, &index, init_ty);
+
+    return error.ParsingFailed; // TODO collapse InitList to nodes
+}
+
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?
 /// designation : designator+ '='
 /// designator
 ///  : '[' constExpr ']'
 ///  | '.' identifier
-fn initializer(p: *Parser, init_ty: Type) Error!Result {
+fn initializerItem(p: *Parser, il: *InitList, index: *usize, init_ty: Type) Error!bool {
     const l_brace = p.eatToken(.l_brace) orelse {
         const tok = p.tok_i;
         var res = try p.assignExpr();
-        if (res.empty(p)) return res;
-        try p.coerceInit(&res, tok, init_ty);
-        return res;
-    };
+        if (res.empty(p)) return false;
 
-    var node: Tree.Node = .{
-        .tag = .init_list_expr_two,
-        .ty = init_ty,
-        .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+        const arr = try p.coerceArrayInit(&res, tok, init_ty);
+        if (!arr) try p.coerceInit(&res, tok, init_ty);
+        if (try il.put(p.pp.comp.gpa, index.*, res.node, tok)) |some| {
+            try p.errTok(.initializer_overrides, tok);
+            try p.errTok(.previous_initializer, some);
+        }
+        return true;
     };
 
     const is_scalar = init_ty.isInt() or init_ty.isFloat() or init_ty.isPtr();
     if (p.eatToken(.r_brace)) |_| {
         if (is_scalar) try p.errTok(.empty_scalar_init, l_brace);
-        return Result{ .node = try p.addNode(node), .ty = init_ty };
+        if (try il.put(p.pp.comp.gpa, index.*, .none, l_brace)) |some| {
+            try p.errTok(.initializer_overrides, l_brace);
+            try p.errTok(.previous_initializer, some);
+        }
+        return true;
     }
 
-    const list_buf_top = p.list_buf.items.len;
-    defer p.list_buf.items.len = list_buf_top;
-
-    var elem_ty = init_ty;
-    if (elem_ty.isArray()) {
-        elem_ty = elem_ty.elemType();
-    }
-
-    var first: Result = undefined;
+    var count: u64 = 0;
     var is_str_init = false;
-    while (true) {
+    while (true) : (count += 1) {
         const first_tok = p.tok_i;
-        var cur_ty = elem_ty;
-        var designator = false;
+        var cur_ty = init_ty;
+        var cur_li = il;
         while (true) {
             if (p.eatToken(.l_bracket)) |l_bracket| {
-                const res = try p.constExpr();
-                _ = res;
+                if (!cur_ty.isArray()) {
+                    try p.errStr(.invalid_array_designator, l_bracket, try p.typeStr(cur_ty));
+                    return error.ParsingFailed;
+                }
+                const index_res = try p.constExpr();
                 try p.expectClosing(l_bracket, .r_bracket);
-                designator = true;
-            } else if (p.eatToken(.period)) |_| {
+
+                const index_unchecked = switch (index_res.val) {
+                    .unsigned => |val| val,
+                    .signed => |val| if (val < 0) {
+                        try p.errExtra(.negative_array_designator, l_bracket + 1, .{ .signed = val });
+                        return error.ParsingFailed;
+                    } else @intCast(u64, val),
+                    .unavailable => unreachable,
+                };
+                const max_len = if (cur_ty.specifier == .array) cur_ty.data.array.len else std.math.maxInt(usize);
+                if (index_unchecked >= max_len) {
+                    try p.errExtra(.oob_array_designator, l_bracket + 1, .{ .unsigned = index_unchecked });
+                    return error.ParsingFailed;
+                }
+                const checked = @intCast(usize, index_unchecked);
+
+                if (cur_li == il) index.* = checked;
+                const item = try cur_li.find(p.pp.comp.gpa, checked);
+                cur_li = &item.list;
+                cur_ty = cur_ty.elemType();
+            } else if (p.eatToken(.period)) |period| {
                 const identifier = try p.expectToken(.identifier);
                 _ = identifier;
-                designator = true;
+                if (!cur_ty.isRecord()) {
+                    try p.errStr(.invalid_member_designator, period, try p.typeStr(cur_ty));
+                    return error.ParsingFailed;
+                }
+                return p.todo("member designators");
             } else break;
         }
 
-        const count = p.list_buf.items.len - list_buf_top;
-        var init_res: Result = undefined;
-        if (designator) {
-            _ = try p.expectToken(.equal);
-            init_res = try p.initializer(cur_ty);
-            try init_res.expect(p);
-        } else if (p.isStringInit()) {
-            if (count == 0) is_str_init = true;
-            init_res = try p.initializer(init_ty);
-        } else {
-            init_res = try p.initializer(cur_ty);
-            if (init_res.node == .none) break;
+        var elem_ty = init_ty;
+        if (elem_ty.isArray()) {
+            elem_ty = elem_ty.elemType();
         }
 
-        if (count == 0) {
-            first = init_res;
-        } else if (count == 1) {
+        if (cur_li != il) {
+            _ = try p.expectToken(.equal);
+        } else if (is_str_init and p.isStringInit()) {
+            // cast subsequent invalid strings to string to avoid strange errors
+            elem_ty = init_ty;
+        } else if (count == 0 and p.isStringInit()) {
+            is_str_init = true;
+            elem_ty = init_ty;
+        }
+        const saw = try p.initializerItem(cur_li, index, elem_ty);
+        if (!saw) {
+            if (cur_li != il) {
+                try p.err(.expected_expr);
+                return error.ParsingFailed;
+            }
+            break;
+        }
+        index.* += 1;
+
+        if (count == 1) {
             if (is_scalar) try p.errTok(.excess_scalar_init, first_tok);
             if (is_str_init) try p.errTok(.excess_str_init, first_tok);
         }
 
-        try p.list_buf.append(init_res.node);
         if (p.eatToken(.comma) == null) break;
     }
     try p.expectClosing(l_brace, .r_brace);
+    if (try il.put(p.pp.comp.gpa, index.*, .none, l_brace)) |some| {
+        try p.errTok(.initializer_overrides, l_brace);
+        try p.errTok(.previous_initializer, some);
+    }
+    return true;
+}
 
-    const initializers = p.list_buf.items[list_buf_top..];
-    if (is_scalar or is_str_init) return first;
+fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bool {
+    if (!target.isArray()) return false;
 
-    if (init_ty.specifier == .incomplete_array) {
-        node.ty.data.array.len = initializers.len;
-        node.ty.specifier = .array;
+    if (!item.ty.isArray()) {
+        const e_msg = " from incompatible type ";
+        try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+        return true; // do not do further coercion
     }
 
-    switch (initializers.len) {
-        0 => unreachable,
-        1 => node.data = .{ .bin = .{ .lhs = initializers[0], .rhs = .none } },
-        2 => node.data = .{ .bin = .{ .lhs = initializers[0], .rhs = initializers[1] } },
-        else => {
-            node.tag = .init_list_expr;
-            node.data = .{ .range = try p.addList(initializers) };
-        },
+    if (!target.elemType().eql(item.ty.elemType(), false)) {
+        const e_msg = " with array of type ";
+        try p.errStr(.incompatible_array_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+        return true; // do not do further coercion
     }
-    return Result{ .node = try p.addNode(node), .ty = node.ty };
+
+    if (target.specifier == .array) {
+        assert(item.ty.specifier == .array);
+        var len = item.ty.data.array.len;
+        if (p.nodeIs(item.node, .string_literal_expr)) {
+            // the null byte of a string can be dropped
+            if (len - 1 > target.data.array.len)
+                try p.errTok(.str_init_too_long, tok);
+        } else if (len > target.data.array.len) {
+            try p.errStr(
+                .arr_init_too_long,
+                tok,
+                try p.typePairStrExtra(target, " with array of type ", item.ty),
+            );
+        }
+    }
+    return true;
 }
 
 fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
@@ -1904,27 +1976,6 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     var unqual_ty = target;
     unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
-
-    if (unqual_ty.isArray()) {
-        if (!item.ty.isArray()) {
-            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-        } else if (unqual_ty.specifier == .array) {
-            assert(item.ty.specifier == .array);
-            var len = item.ty.data.array.len;
-            if (p.nodeIs(item.node, .string_literal_expr)) {
-                if (len - 1 > unqual_ty.data.array.len)
-                    try p.errTok(.str_init_too_long, tok);
-            } else if (len > unqual_ty.data.array.len) {
-                try p.errStr(
-                    .arr_init_too_long,
-                    tok,
-                    try p.typePairStrExtra(target, " with array of type ", item.ty),
-                );
-            }
-        }
-        return;
-    }
-
     try item.lvalConversion(p);
     if (target.specifier == .bool) {
         // this is ridiculous but it's what clang does
@@ -1965,7 +2016,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     } else if (unqual_ty.isRecord()) {
         if (!unqual_ty.eql(item.ty, false))
             try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-    } else if (unqual_ty.isFunc()) {
+    } else if (unqual_ty.isArray() or unqual_ty.isFunc()) {
         // we have already issued an error for this
     } else {
         try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
