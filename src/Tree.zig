@@ -347,12 +347,6 @@ pub const Tag = enum(u8) {
     init_list_expr,
     /// (ty){ un }
     compound_literal_expr,
-    /// lhs = rhs
-    initializer_item_expr,
-    /// lhs?[rhs]
-    array_designator_expr,
-    /// lhs?.name
-    member_designator_expr,
 
     // ====== Implicit casts ======
 
@@ -400,6 +394,12 @@ pub const Tag = enum(u8) {
     /// ty is the functions return type
     implicit_return,
 
+    /// Inserted in init_list_expr to represent unspecified elements.
+    /// data.int contains the amount of elements.
+    array_filler_expr,
+    /// Inserted in init_list_expr to represent unspecified fields.
+    struct_filler_expr,
+
     pub fn isImplicit(tag: Tag) bool {
         return switch (tag) {
             .array_to_pointer,
@@ -421,6 +421,8 @@ pub const Tag = enum(u8) {
             .implicit_return,
             .qual_cast,
             .null_to_pointer,
+            .array_filler_expr,
+            .struct_filler_expr,
             => true,
             else => false,
         };
@@ -861,7 +863,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeByteNTimes(' ', level + 1);
             try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.double});
         },
-        .member_access_expr, .member_access_ptr_expr, .member_designator_expr => {
+        .member_access_expr, .member_access_ptr_expr => {
             if (data.member.lhs != .none) {
                 try w.writeByteNTimes(' ', level + 1);
                 try w.writeAll("lhs:\n");
@@ -870,7 +872,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeByteNTimes(' ', level + 1);
             try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.member.name)});
         },
-        .array_access_expr, .array_designator_expr => {
+        .array_access_expr => {
             if (data.bin.lhs != .none) {
                 try w.writeByteNTimes(' ', level + 1);
                 try w.writeAll("lhs:\n");
@@ -878,16 +880,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             }
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("index:\n");
-            try tree.dumpNode(data.bin.rhs, level + delta, w);
-        },
-        .initializer_item_expr => {
-            if (data.bin.lhs != .none) {
-                try w.writeByteNTimes(' ', level + 1);
-                try w.writeAll("designator:\n");
-                try tree.dumpNode(data.bin.lhs, level + delta, w);
-            }
-            try w.writeByteNTimes(' ', level + 1);
-            try w.writeAll("initializer:\n");
             try tree.dumpNode(data.bin.rhs, level + delta, w);
         },
         .sizeof_expr, .alignof_expr => {
@@ -943,5 +935,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         => {
             try tree.dumpNode(data.un, level + delta, w);
         },
+        .array_filler_expr => {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.print("count: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.int});
+        },
+        .struct_filler_expr => {},
     }
 }

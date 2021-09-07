@@ -1816,12 +1816,14 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
     }
 
     var il: InitList = .{};
-    errdefer il.deinit(p.pp.comp.gpa);
+    defer il.deinit(p.pp.comp.gpa);
 
-    var index: usize = 0;
-    _ = try p.initializerItem(&il, &index, init_ty);
+    _ = try p.initializerItem(&il, init_ty);
 
-    return error.ParsingFailed; // TODO collapse InitList to nodes
+    return Result{
+        .ty = init_ty,
+        .node = try p.convertInitList(il, init_ty),
+    };
 }
 
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?
@@ -1829,7 +1831,7 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
 /// designator
 ///  : '[' constExpr ']'
 ///  | '.' identifier
-fn initializerItem(p: *Parser, il: *InitList, index: *usize, init_ty: Type) Error!bool {
+fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
     const l_brace = p.eatToken(.l_brace) orelse {
         const tok = p.tok_i;
         var res = try p.assignExpr();
@@ -1837,20 +1839,24 @@ fn initializerItem(p: *Parser, il: *InitList, index: *usize, init_ty: Type) Erro
 
         const arr = try p.coerceArrayInit(&res, tok, init_ty);
         if (!arr) try p.coerceInit(&res, tok, init_ty);
-        if (try il.put(p.pp.comp.gpa, index.*, res.node, tok)) |some| {
+        if (il.tok != 0) {
             try p.errTok(.initializer_overrides, tok);
-            try p.errTok(.previous_initializer, some);
+            try p.errTok(.previous_initializer, il.tok);
         }
+        il.node = res.node;
+        il.tok = tok;
         return true;
     };
 
     const is_scalar = init_ty.isInt() or init_ty.isFloat() or init_ty.isPtr();
     if (p.eatToken(.r_brace)) |_| {
         if (is_scalar) try p.errTok(.empty_scalar_init, l_brace);
-        if (try il.put(p.pp.comp.gpa, index.*, .none, l_brace)) |some| {
+        if (il.tok != 0) {
             try p.errTok(.initializer_overrides, l_brace);
-            try p.errTok(.previous_initializer, some);
+            try p.errTok(.previous_initializer, il.tok);
         }
+        il.node = .none;
+        il.tok = l_brace;
         return true;
     }
 
@@ -1859,7 +1865,7 @@ fn initializerItem(p: *Parser, il: *InitList, index: *usize, init_ty: Type) Erro
     while (true) : (count += 1) {
         const first_tok = p.tok_i;
         var cur_ty = init_ty;
-        var cur_li = il;
+        var cur_il = il;
         while (true) {
             if (p.eatToken(.l_bracket)) |l_bracket| {
                 if (!cur_ty.isArray()) {
@@ -1884,57 +1890,78 @@ fn initializerItem(p: *Parser, il: *InitList, index: *usize, init_ty: Type) Erro
                 }
                 const checked = @intCast(usize, index_unchecked);
 
-                if (cur_li == il) index.* = checked;
-                const item = try cur_li.find(p.pp.comp.gpa, checked);
-                cur_li = &item.list;
+                cur_il = try cur_il.find(p.pp.comp.gpa, checked);
                 cur_ty = cur_ty.elemType();
+                count = checked;
             } else if (p.eatToken(.period)) |period| {
                 const identifier = try p.expectToken(.identifier);
-                _ = identifier;
                 if (!cur_ty.isRecord()) {
-                    try p.errStr(.invalid_member_designator, period, try p.typeStr(cur_ty));
+                    try p.errStr(.invalid_field_designator, period, try p.typeStr(cur_ty));
                     return error.ParsingFailed;
                 }
-                return p.todo("member designators");
+                const field = cur_ty.getField(p.tokSlice(identifier)) orelse {
+                    try p.errStr(.no_such_field_designator, period, p.tokSlice(identifier));
+                    return error.ParsingFailed;
+                };
+
+                cur_il = try cur_il.find(p.pp.comp.gpa, field.i);
+                cur_ty = field.f.ty;
+                count = field.i;
             } else break;
         }
 
-        var elem_ty = init_ty;
-        if (elem_ty.isArray()) {
-            elem_ty = elem_ty.elemType();
-        }
-
-        if (cur_li != il) {
+        if (cur_il != il) {
             _ = try p.expectToken(.equal);
-        } else if (is_str_init and p.isStringInit()) {
-            // cast subsequent invalid strings to string to avoid strange errors
-            elem_ty = init_ty;
-        } else if (count == 0 and p.isStringInit()) {
-            is_str_init = true;
-            elem_ty = init_ty;
-        }
-        const saw = try p.initializerItem(cur_li, index, elem_ty);
-        if (!saw) {
-            if (cur_li != il) {
+            const saw = try p.initializerItem(cur_il, cur_ty);
+            if (!saw) {
                 try p.err(.expected_expr);
                 return error.ParsingFailed;
             }
-            break;
-        }
-        index.* += 1;
-
-        if (count == 1) {
-            if (is_scalar) try p.errTok(.excess_scalar_init, first_tok);
-            if (is_str_init) try p.errTok(.excess_str_init, first_tok);
+        } else if (is_str_init and p.isStringInit()) {
+            // discard further strings
+            var tmp_il = InitList{};
+            defer tmp_il.deinit(p.pp.comp.gpa);
+            const saw = try p.initializerItem(&tmp_il, init_ty);
+            if (!saw) break;
+            if (count == 1) try p.errTok(.excess_str_init, first_tok);
+        } else if (count == 0 and p.isStringInit()) {
+            is_str_init = true;
+            const saw = try p.initializerItem(cur_il, init_ty);
+            if (!saw) break;
+        } else if (is_scalar and count != 0) {
+            // discard further scalars
+            var tmp_il = InitList{};
+            defer tmp_il.deinit(p.pp.comp.gpa);
+            const saw = try p.initializerItem(&tmp_il, init_ty);
+            if (!saw) break;
+            if (count == 1) try p.errTok(.excess_scalar_init, first_tok);
+        } else if (is_scalar and count == 0) {
+            const saw = try p.initializerItem(cur_il, init_ty);
+            if (!saw) break;
+        } else if (cur_ty.isArray()) {
+            cur_il = try cur_il.find(p.pp.comp.gpa, count);
+            const saw = try p.initializerItem(cur_il, cur_ty.elemType());
+            if (!saw) break;
+        } else if (cur_ty.isRecord()) {
+            // TODO deal with anonymous structs
+            cur_il = try cur_il.find(p.pp.comp.gpa, count);
+            const saw = try p.initializerItem(cur_il, cur_ty.data.record.fields[count].ty);
+            if (!saw) break;
+        } else {
+            return error.ParsingFailed;
         }
 
         if (p.eatToken(.comma) == null) break;
     }
     try p.expectClosing(l_brace, .r_brace);
-    if (try il.put(p.pp.comp.gpa, index.*, .none, l_brace)) |some| {
+
+    if (is_scalar or is_str_init) return true;
+    if (il.tok != 0) {
         try p.errTok(.initializer_overrides, l_brace);
-        try p.errTok(.previous_initializer, some);
+        try p.errTok(.previous_initializer, il.tok);
     }
+    il.node = .none;
+    il.tok = l_brace;
     return true;
 }
 
@@ -2036,6 +2063,33 @@ fn isStringInit(p: *Parser) bool {
             => return true,
             else => return false,
         }
+    }
+}
+
+/// Convert InitList into an AST
+fn convertInitList(p: *Parser, il: InitList, init_ty: Type) !NodeIndex {
+    if (init_ty.isInt() or init_ty.isFloat() or init_ty.isPtr()) {
+        if (il.node == .none) {
+            return p.addNode(.{
+                .tag = .array_filler_expr,
+                .ty = init_ty,
+                .data = .{ .int = 1 },
+            });
+        }
+        return il.node;
+    } else if (init_ty.specifier == .variable_len_array) {
+        return error.ParsingFailed; // vla invalid, reported earlier
+    } else if (init_ty.isArray()) {
+        if (il.node != .none and p.nodeIs(il.node, .string_literal_expr)) {
+            return il.node;
+        }
+        return error.ParsingFailed; // TODO
+    } else if (init_ty.isRecord()) {
+        return error.ParsingFailed; // TODO
+    } else if (init_ty.isFunc()) {
+        return error.ParsingFailed; // invalid func initializer, reported earlier
+    } else {
+        unreachable;
     }
 }
 

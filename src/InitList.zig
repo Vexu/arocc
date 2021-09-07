@@ -17,8 +17,6 @@ const InitList = @This();
 const Item = struct {
     list: InitList = .{},
     index: u64,
-    node: NodeIndex,
-    tok: TokenIndex,
 
     fn order(_: void, a: Item, b: Item) std.math.Order {
         return std.math.order(a.index, b.index);
@@ -26,6 +24,8 @@ const Item = struct {
 };
 
 list: std.ArrayListUnmanaged(Item) = .{},
+node: NodeIndex = .none,
+tok: TokenIndex = 0,
 
 /// Deinitialize freeing all memory.
 pub fn deinit(il: *InitList, gpa: *Allocator) void {
@@ -40,6 +40,15 @@ pub fn put(il: *InitList, gpa: *Allocator, index: usize, node: NodeIndex, tok: T
     var left: usize = 0;
     var right: usize = items.len;
 
+    // Append new value to empty list
+    if (left == right) {
+        try il.list.append(gpa, .{
+            .list = .{ .node = node, .tok = tok },
+            .index = index,
+        });
+        return null;
+    }
+
     while (left < right) {
         // Avoid overflowing in the midpoint calculation
         const mid = left + (right - left) / 2;
@@ -47,11 +56,10 @@ pub fn put(il: *InitList, gpa: *Allocator, index: usize, node: NodeIndex, tok: T
         switch (std.math.order(items[mid].index, index)) {
             .eq => {
                 // Replace previous entry.
-                const prev = items[mid].tok;
+                const prev = items[mid].list.tok;
                 items[mid].list.deinit(gpa);
                 items[mid] = .{
-                    .node = node,
-                    .tok = tok,
+                    .list = .{ .node = node, .tok = tok },
                     .index = index,
                 };
                 return prev;
@@ -62,16 +70,15 @@ pub fn put(il: *InitList, gpa: *Allocator, index: usize, node: NodeIndex, tok: T
     }
 
     // Insert a new value into a sorted position.
-    try il.list.insert(gpa, left, .{
-        .node = node,
-        .tok = tok,
+    try il.list.insert(gpa, left + 1, .{
+        .list = .{ .node = node, .tok = tok },
         .index = index,
     });
     return null;
 }
 
 /// Find item at index, create new if one does not exist.
-pub fn find(il: *InitList, gpa: *Allocator, index: usize) !*Item {
+pub fn find(il: *InitList, gpa: *Allocator, index: usize) !*InitList {
     const items = il.list.items;
     var left: usize = 0;
     var right: usize = items.len;
@@ -81,7 +88,7 @@ pub fn find(il: *InitList, gpa: *Allocator, index: usize) !*Item {
         const mid = left + (right - left) / 2;
         // Compare the key with the midpoint element
         switch (std.math.order(items[mid].index, index)) {
-            .eq => return &items[mid],
+            .eq => return &items[mid].list,
             .gt => left = mid + 1,
             .lt => right = mid,
         }
@@ -89,11 +96,10 @@ pub fn find(il: *InitList, gpa: *Allocator, index: usize) !*Item {
 
     // Insert a new value into a sorted position.
     try il.list.insert(gpa, left, .{
-        .node = .none,
-        .tok = 0,
+        .list = .{ .node = .none, .tok = 0 },
         .index = index,
     });
-    return &il.list.items[left];
+    return &il.list.items[left].list;
 }
 
 test "basic usage" {
@@ -121,7 +127,7 @@ test "basic usage" {
         var item = try il.find(gpa, 0);
         var i: usize = 1;
         while (i < 5) : (i += 1) {
-            item = try item.list.find(gpa, i);
+            item = try item.find(gpa, i);
         }
     }
 
@@ -130,7 +136,7 @@ test "basic usage" {
         var item = try il.find(failing, 0);
         var i: usize = 1;
         while (i < 5) : (i += 1) {
-            item = try item.list.find(failing, i);
+            item = try item.find(failing, i);
         }
     }
 }

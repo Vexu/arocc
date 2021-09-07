@@ -14,6 +14,12 @@ void foo(void) {
     #define N 1000000000
     int m[] = { [N] = 1, [N] = 2 };
     int n = { .foo = 1 };
+    struct Foo {
+        int a;
+        int b;
+        int c;
+    } a = { .b = 1, 2 };
+    struct Foo b = { .d = 0 };
 }
 
 #define TESTS_SKIPPED 2
@@ -31,4 +37,5 @@ void foo(void) {
     "initializers.c:13:19: error: array designator index 2 exceeds array bounds" \
     "initializers.c:15:32: warning: initializer overrides previous initialization" \
     "initializers.c:15:23: note: previous initialization" \
-    "initializers.c:16:15: error: member designator used for non-record type 'int'"
+    "initializers.c:16:15: error: field designator used for non-record type 'int'" \
+    "initializers.c:22:22: error: record type has no field named 'd'"

@@ -390,6 +390,27 @@ pub fn hasUnboundVLA(ty: Type) bool {
     }
 }
 
+const FieldAndIndex = struct { f: Record.Field, i: usize };
+pub fn getField(ty: Type, name: []const u8) ?FieldAndIndex {
+    // TODO deal with anonymous struct
+    switch (ty.specifier) {
+        .@"struct" => {
+            std.debug.assert(!ty.data.record.isIncomplete());
+            for (ty.data.record.fields) |f, i| {
+                if (std.mem.eql(u8, name, f.name)) return FieldAndIndex{ .f = f, .i = i };
+            }
+        },
+        .@"union" => {
+            std.debug.assert(!ty.data.record.isIncomplete());
+            for (ty.data.record.fields) |f| {
+                if (std.mem.eql(u8, name, f.name)) return FieldAndIndex{ .f = f, .i = 0 };
+            }
+        },
+        else => unreachable,
+    }
+    return null;
+}
+
 /// Size of type as reported by sizeof
 pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
     // TODO get target from compilation
