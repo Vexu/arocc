@@ -56,6 +56,7 @@ const usage =
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  -o <file>               Write output to <file>
+    \\  -std=<standard>         Specify language standard
     \\  -Wall                   Enable all warnings
     \\  -Werror                 Treat all warnings as errors
     \\  -Werror=<warning>       Treat warning as error
@@ -154,6 +155,9 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
             } else if (mem.startsWith(u8, arg, "-W")) {
                 const option = arg["-W".len..];
                 try comp.diag.set(option, .warning);
+            } else if (mem.startsWith(u8, arg, "-std=")) {
+                const standard = arg["-std=".len..];
+                comp.langopts.setStandard(standard) catch return comp.diag.fatalNoSrc("Invalid standard '{s}'", .{standard});
             } else {
                 const std_out = std.io.getStdErr().writer();
                 std_out.print(usage, .{args[0]}) catch {};

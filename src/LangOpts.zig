@@ -23,6 +23,12 @@ const Standard = enum {
     c2x,
     /// Working Draft for ISO C2x with GNU extensions
     gnu2x,
+
+    const Invalid = error{InvalidStandard};
+
+    fn fromString(name: []const u8) Invalid!Standard{
+        return std.meta.stringToEnum(Standard, name) orelse error.InvalidStandard;
+    }
 };
 
 standard: Standard = .gnu17,
@@ -36,4 +42,8 @@ pub fn hasGNUKeywords(langopts: LangOpts) bool {
 
 pub fn hasC99Keywords(langopts: LangOpts) bool {
     return @enumToInt(langopts.standard) >= @enumToInt(Standard.c99);
+}
+
+pub fn setStandard(self: *LangOpts, name: []const u8) Standard.Invalid!void {
+    self.standard = try Standard.fromString(name);
 }
