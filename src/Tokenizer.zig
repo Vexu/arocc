@@ -1,6 +1,8 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
+const LangOpts = @import("LangOpts.zig");
 
 const Tokenizer = @This();
 
@@ -462,7 +464,21 @@ pub const Token = struct {
         }
     };
 
-    pub const keywords = std.ComptimeStringMap(Id, .{
+    /// double underscore and underscore + capital letter identifiers
+    /// belong to the implementation namespace, so we always convert them
+    /// to keywords.
+    /// TODO: add `.keyword_asm` here as GNU extension once that is supported.
+    pub fn getTokenId(comp: *const Compilation, str: []const u8) Token.Id {
+        const kw = all_kws.get(str) orelse return .identifier;
+        return switch (kw) {
+            .keyword_inline => if (comp.langopts.hasGNUKeywords() or comp.langopts.hasC99Keywords()) kw else .identifier,
+            .keyword_restrict => if (comp.langopts.hasC99Keywords()) kw else .identifier,
+            .keyword_typeof => if (comp.langopts.hasGNUKeywords()) kw else .identifier,
+            else => kw,
+        };
+    }
+
+    const all_kws = std.ComptimeStringMap(Id, .{
         .{ "auto", .keyword_auto },
         .{ "break", .keyword_break },
         .{ "case", .keyword_case },
@@ -544,6 +560,7 @@ pub const Token = struct {
 buf: []const u8,
 index: u32 = 0,
 source: Source.Id,
+comp: *const Compilation,
 
 pub fn next(self: *Tokenizer) Token {
     var state: enum {
@@ -913,9 +930,7 @@ pub fn next(self: *Tokenizer) Token {
             .identifier => switch (c) {
                 'a'...'z', 'A'...'Z', '_', '0'...'9', '$' => {},
                 else => {
-                    id = Token.keywords.get(self.buf[start..self.index]) orelse .identifier;
-                    // TODO: if id == .keyword_typeof and GNU extensions are not enabled,
-                    // turn id back into .identifier
+                    id = Token.getTokenId(self.comp, self.buf[start..self.index]);
                     break;
                 },
             },
@@ -1322,7 +1337,7 @@ pub fn next(self: *Tokenizer) Token {
         switch (state) {
             .start, .line_comment => {},
             .u, .u8, .U, .L, .identifier => {
-                id = Token.keywords.get(self.buf[start..self.index]) orelse .identifier;
+                id = Token.getTokenId(self.comp, self.buf[start..self.index]);
             },
             .cr,
             .back_slash,
@@ -1656,9 +1671,12 @@ test "comments" {
 }
 
 fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) !void {
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
     var tokenizer = Tokenizer{
         .buf = source,
         .source = .unused,
+        .comp = &comp,
     };
     for (expected_tokens) |expected_token_id| {
         const token = tokenizer.next();

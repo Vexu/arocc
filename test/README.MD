@@ -21,6 +21,10 @@ XCAT(HE, LLO)
 CALL(CAT)
 ```
 ---
+## Setting the C standard
+The C standard to use for a test can be set with the following comment as the first line
+of the file: `//std=<standard>`. See LangOpts.zig for a list of standards.
+
 ## Testing for errors
 Expected compile errors can be tested by defining a `EXPECTED_ERRORS` macro.
 

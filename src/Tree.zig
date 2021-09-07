@@ -463,6 +463,7 @@ pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
             tree.generated
         else
             tree.comp.getSource(loc.id).buf,
+        .comp = tree.comp,
         .index = loc.byte_offset,
         .source = .generated,
     };
