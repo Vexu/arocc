@@ -7,6 +7,7 @@ const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const Diagnostics = @import("Diagnostics.zig");
+const LangOpts = @import("LangOpts.zig");
 
 const Compilation = @This();
 
@@ -23,6 +24,7 @@ system_include_dirs: std.ArrayList([]const u8),
 output_name: ?[]const u8 = null,
 target: std.Target = std.Target.current,
 only_preprocess: bool = false,
+langopts: LangOpts = .{},
 
 pub fn init(gpa: *Allocator) Compilation {
     return .{

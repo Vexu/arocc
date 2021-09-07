@@ -131,6 +131,7 @@ fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
             p.pp.generated.items
         else
             p.pp.comp.getSource(loc.id).buf,
+        .comp = p.pp.comp,
         .index = loc.byte_offset,
         .source = .generated,
     };

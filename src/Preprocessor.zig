@@ -78,6 +78,7 @@ pub fn deinit(pp: *Preprocessor) void {
 pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
     var tokenizer = Tokenizer{
         .buf = source.buf,
+        .comp = pp.comp,
         .source = source.id,
     };
 
@@ -750,7 +751,7 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
         switch (tok.id) {
             .empty_arg => _ = buf.orderedRemove(tok_i),
             .identifier_from_param => {
-                tok.id = Tokenizer.Token.keywords.get(pp.expandedSlice(tok.*)) orelse .identifier;
+                tok.id = Tokenizer.Token.getTokenId(pp.comp.langopts, pp.expandedSlice(tok.*));
                 try pp.expandExtra(&buf, &tok_i);
             },
             else => tok_i += 1,
@@ -851,6 +852,7 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
             pp.generated.items
         else
             pp.comp.getSource(tok.loc.id).buf,
+        .comp = pp.comp,
         .index = tok.loc.byte_offset,
         .source = .generated,
     };
@@ -877,6 +879,7 @@ fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
     // Try to tokenize the result.
     var tmp_tokenizer = Tokenizer{
         .buf = pp.generated.items,
+        .comp = pp.comp,
         .index = @intCast(u32, start),
         .source = .generated,
     };
