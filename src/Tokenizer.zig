@@ -468,12 +468,12 @@ pub const Token = struct {
     /// belong to the implementation namespace, so we always convert them
     /// to keywords.
     /// TODO: add `.keyword_asm` here as GNU extension once that is supported.
-    pub fn getTokenId(langopts: LangOpts, str: []const u8) Token.Id {
+    pub fn getTokenId(comp: *const Compilation, str: []const u8) Token.Id {
         const kw = all_kws.get(str) orelse return .identifier;
         return switch (kw) {
-            .keyword_inline => if (langopts.hasGNUKeywords() or langopts.hasC99Keywords()) kw else .identifier,
-            .keyword_restrict => if (langopts.hasC99Keywords()) kw else .identifier,
-            .keyword_typeof => if (langopts.hasGNUKeywords()) kw else .identifier,
+            .keyword_inline => if (comp.langopts.hasGNUKeywords() or comp.langopts.hasC99Keywords()) kw else .identifier,
+            .keyword_restrict => if (comp.langopts.hasC99Keywords()) kw else .identifier,
+            .keyword_typeof => if (comp.langopts.hasGNUKeywords()) kw else .identifier,
             else => kw,
         };
     }
@@ -930,7 +930,7 @@ pub fn next(self: *Tokenizer) Token {
             .identifier => switch (c) {
                 'a'...'z', 'A'...'Z', '_', '0'...'9', '$' => {},
                 else => {
-                    id = Token.getTokenId(self.comp.langopts, self.buf[start..self.index]);
+                    id = Token.getTokenId(self.comp, self.buf[start..self.index]);
                     break;
                 },
             },
@@ -1337,7 +1337,7 @@ pub fn next(self: *Tokenizer) Token {
         switch (state) {
             .start, .line_comment => {},
             .u, .u8, .U, .L, .identifier => {
-                id = Token.getTokenId(self.comp.langopts, self.buf[start..self.index]);
+                id = Token.getTokenId(self.comp, self.buf[start..self.index]);
             },
             .cr,
             .back_slash,

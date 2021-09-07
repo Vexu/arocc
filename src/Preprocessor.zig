@@ -751,7 +751,7 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
         switch (tok.id) {
             .empty_arg => _ = buf.orderedRemove(tok_i),
             .identifier_from_param => {
-                tok.id = Tokenizer.Token.getTokenId(pp.comp.langopts, pp.expandedSlice(tok.*));
+                tok.id = Tokenizer.Token.getTokenId(pp.comp, pp.expandedSlice(tok.*));
                 try pp.expandExtra(&buf, &tok_i);
             },
             else => tok_i += 1,

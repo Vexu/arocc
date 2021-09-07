@@ -26,7 +26,7 @@ const Standard = enum {
 
     const Invalid = error{InvalidStandard};
 
-    fn fromString(name: []const u8) Invalid!Standard{
+    fn fromString(name: []const u8) Invalid!Standard {
         return std.meta.stringToEnum(Standard, name) orelse error.InvalidStandard;
     }
 };
@@ -34,7 +34,7 @@ const Standard = enum {
 standard: Standard = .gnu17,
 
 pub fn hasGNUKeywords(langopts: LangOpts) bool {
-    return switch(langopts.standard) {
+    return switch (langopts.standard) {
         .gnu89, .gnu99, .gnu11, .gnu17, .gnu2x => true,
         else => false,
     };
