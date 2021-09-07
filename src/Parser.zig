@@ -142,7 +142,7 @@ fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
 fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
     _ = p.expectToken(id) catch |e| {
         if (e == error.ParsingFailed) {
-            try p.pp.comp.diag.add(.{
+            try p.pp.comp.addDiagnostic(.{
                 .tag = switch (id) {
                     .r_paren => .to_match_paren,
                     .r_brace => .to_match_brace,
@@ -163,7 +163,7 @@ pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, str: []const 
 
 pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diagnostics.Message.Extra) Compilation.Error!void {
     @setCold(true);
-    try p.pp.comp.diag.add(.{
+    try p.pp.comp.addDiagnostic(.{
         .tag = tag,
         .loc = p.pp.tokens.items(.loc)[tok_i],
         .extra = extra,
@@ -172,7 +172,7 @@ pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diag
 
 pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.Error!void {
     @setCold(true);
-    try p.pp.comp.diag.add(.{
+    try p.pp.comp.addDiagnostic(.{
         .tag = tag,
         .loc = p.pp.tokens.items(.loc)[tok_i],
     });

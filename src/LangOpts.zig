@@ -1,4 +1,5 @@
 const std = @import("std");
+const DiagnosticTag = @import("Diagnostics.zig").Tag;
 
 const LangOpts = @This();
 
@@ -39,6 +40,10 @@ const Standard = enum {
         .{ "c2x", .c2x },
         .{ "gnu2x", .gnu2x },
     });
+
+    pub fn atLeast(self: Standard, other: Standard) bool {
+        return @enumToInt(self) >= @enumToInt(other);
+    }
 };
 
 standard: Standard = .gnu17,
@@ -51,9 +56,16 @@ pub fn hasGNUKeywords(langopts: LangOpts) bool {
 }
 
 pub fn hasC99Keywords(langopts: LangOpts) bool {
-    return @enumToInt(langopts.standard) >= @enumToInt(Standard.c99);
+    return langopts.standard.atLeast(.c99);
 }
 
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
+}
+
+pub fn suppress(langopts: LangOpts, tag: DiagnosticTag) bool {
+    return switch (tag) {
+        .static_assert_missing_message => langopts.standard.atLeast(.c2x),
+        else => false,
+    };
 }
