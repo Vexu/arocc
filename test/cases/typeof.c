@@ -27,12 +27,9 @@ void baz(void) {
     x = 5;
     const typeof(*p_i)y;
     y = 5;
-    // typeof(0/0) divzero = 0;
+    typeof(0/0) divzero = 0;
 }
 
 #define EXPECTED_ERRORS "typeof.c:23:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
     "typeof.c:27:7: error: expression is not assignable" \
     "typeof.c:29:7: error: expression is not assignable"
-
-
-#define TESTS_SKIPPED 1
