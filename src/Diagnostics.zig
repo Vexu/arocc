@@ -218,6 +218,7 @@ pub const Tag = enum {
     str_init_too_long,
     arr_init_too_long,
     invalid_typeof,
+    division_by_zero,
 };
 
 const Options = struct {
@@ -246,6 +247,7 @@ const Options = struct {
     @"c2x-extension": Kind = .warning,
     @"incompatible-pointer-types": Kind = .warning,
     @"excess-initializers": Kind = .warning,
+    @"division-by-zero": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -548,6 +550,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .str_init_too_long => m.write("initializer-string for char array is too long"),
             .arr_init_too_long => m.print("cannot initialize type ({s})", .{msg.extra.str}),
             .invalid_typeof => m.print("'{s} typeof' is invalid", .{msg.extra.str}),
+            .division_by_zero => m.print("{s} by zero is undefined", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -776,6 +779,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .excess_str_init,
         .str_init_too_long,
         => diag.options.@"excess-initializers",
+        .division_by_zero => diag.options.@"division-by-zero",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;
