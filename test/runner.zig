@@ -78,7 +78,7 @@ pub fn main() !void {
     var skip_count: u32 = 0;
     for (cases.items) |range| {
         const path = path_buf.items[range.start..range.end];
-        try comp.langopts.setStandard("gnu17");
+        comp.langopts.standard = .default;
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
             progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
