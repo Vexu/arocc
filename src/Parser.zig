@@ -1945,7 +1945,11 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         } else if (cur_ty.isRecord()) {
             // TODO deal with anonymous structs
             cur_il = try cur_il.find(p.pp.comp.gpa, count);
-            const saw = try p.initializerItem(cur_il, cur_ty.data.record.fields[count].ty);
+            const f_ty = if (count < cur_ty.data.record.fields.len)
+                cur_ty.data.record.fields[count].ty
+            else
+                Type{ .specifier = .void };
+            const saw = try p.initializerItem(cur_il, f_ty);
             if (!saw) break;
         } else {
             return error.ParsingFailed;
@@ -1999,6 +2003,8 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
 }
 
 fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
+    if (target.specifier == .void) return; // Do not do type coercion on excess items
+
     // item does not need to be qualified
     var unqual_ty = target;
     unqual_ty.qual = .{};
@@ -2067,7 +2073,7 @@ fn isStringInit(p: *Parser) bool {
 }
 
 /// Convert InitList into an AST
-fn convertInitList(p: *Parser, il: InitList, init_ty: Type) !NodeIndex {
+fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
     if (init_ty.isInt() or init_ty.isFloat() or init_ty.isPtr()) {
         if (il.node == .none) {
             return p.addNode(.{
@@ -2085,7 +2091,40 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) !NodeIndex {
         }
         return error.ParsingFailed; // TODO
     } else if (init_ty.isRecord()) {
-        return error.ParsingFailed; // TODO
+        const list_buf_top = p.list_buf.items.len;
+        defer p.list_buf.items.len = list_buf_top;
+
+        var init_index: usize = 0;
+        for (init_ty.data.record.fields) |f, i| {
+            if (init_index < il.list.items.len and il.list.items[init_index].index == i) {
+                const item = try p.convertInitList(il.list.items[init_index].list, f.ty);
+                try p.list_buf.append(item);
+                init_index += 1;
+            } else {
+                const item = try p.addNode(.{ .tag = .struct_filler_expr, .ty = f.ty, .data = undefined });
+                try p.list_buf.append(item);
+            }
+        }
+        if (il.list.items.len > init_index and il.list.items[init_index].index >= init_ty.data.record.fields.len) {
+            try p.errTok(.excess_struct_init, il.list.items[init_index].list.tok);
+        }
+        
+        var init_list_node: Tree.Node = .{
+            .tag = .init_list_expr_two,
+            .ty = init_ty,
+            .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+        };
+        const items = p.list_buf.items[list_buf_top..];
+        switch (items.len) {
+            0 => {},
+            1 => init_list_node.data.bin.lhs = items[0],
+            2 => init_list_node.data.bin = .{ .lhs = items[0], .rhs = items[1]},
+            else => {
+                init_list_node.tag = .init_list_expr;
+                init_list_node.data = .{ .range = try p.addList(items) };
+            },
+        }
+        return try p.addNode(init_list_node);
     } else if (init_ty.isFunc()) {
         return error.ParsingFailed; // invalid func initializer, reported earlier
     } else {

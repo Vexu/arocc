@@ -15,12 +15,10 @@ void foo(void) {
     int m[] = { [N] = 1, [N] = 2 };
     int n = { .foo = 1 };
     struct Foo {
-        int a;
-        int b;
-        int c;
-    } a = { .b = 1, 2 };
-    struct Foo b = { .d = 0 };
-}
+        int a, b, c;
+    } o = { .b = 1, 2 }, p = { .d = 0 };
+    struct Foo q = { .c = 1, .b = 2, 3, 4, 5}, r = { .c = 1, 2};
+// } TODO incorrect expected external declaration
 
 #define TESTS_SKIPPED 2
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
@@ -38,4 +36,8 @@ void foo(void) {
     "initializers.c:15:32: warning: initializer overrides previous initialization" \
     "initializers.c:15:23: note: previous initialization" \
     "initializers.c:16:15: error: field designator used for non-record type 'int'" \
-    "initializers.c:22:22: error: record type has no field named 'd'"
+    "initializers.c:19:32: error: record type has no field named 'd'" \
+    "initializers.c:20:38: warning: initializer overrides previous initialization" \
+    "initializers.c:20:27: note: previous initialization" \
+    "initializers.c:20:41: warning: excess elements in struct initializer" \
+    "initializers.c:20:62: warning: excess elements in struct initializer"

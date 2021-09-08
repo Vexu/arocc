@@ -42,10 +42,11 @@ pub fn put(il: *InitList, gpa: *Allocator, index: usize, node: NodeIndex, tok: T
 
     // Append new value to empty list
     if (left == right) {
-        try il.list.append(gpa, .{
+        const item = try il.list.addOne(gpa);
+        item.* = .{
             .list = .{ .node = node, .tok = tok },
             .index = index,
-        });
+        };
         return null;
     }
 
@@ -53,7 +54,7 @@ pub fn put(il: *InitList, gpa: *Allocator, index: usize, node: NodeIndex, tok: T
         // Avoid overflowing in the midpoint calculation
         const mid = left + (right - left) / 2;
         // Compare the key with the midpoint element
-        switch (std.math.order(items[mid].index, index)) {
+        switch (std.math.order(index, items[mid].index)) {
             .eq => {
                 // Replace previous entry.
                 const prev = items[mid].list.tok;
@@ -70,7 +71,7 @@ pub fn put(il: *InitList, gpa: *Allocator, index: usize, node: NodeIndex, tok: T
     }
 
     // Insert a new value into a sorted position.
-    try il.list.insert(gpa, left + 1, .{
+    try il.list.insert(gpa, left, .{
         .list = .{ .node = node, .tok = tok },
         .index = index,
     });
@@ -83,11 +84,21 @@ pub fn find(il: *InitList, gpa: *Allocator, index: usize) !*InitList {
     var left: usize = 0;
     var right: usize = items.len;
 
+    // Append new value to empty list
+    if (left == right) {
+        const item = try il.list.addOne(gpa);
+        item.* = .{
+            .list = .{ .node = .none, .tok = 0 },
+            .index = index,
+        };
+        return &item.list;
+    }
+
     while (left < right) {
         // Avoid overflowing in the midpoint calculation
         const mid = left + (right - left) / 2;
         // Compare the key with the midpoint element
-        switch (std.math.order(items[mid].index, index)) {
+        switch (std.math.order(index, items[mid].index)) {
             .eq => return &items[mid].list,
             .gt => left = mid + 1,
             .lt => right = mid,

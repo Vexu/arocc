@@ -1,6 +1,6 @@
 void foo(void) {
     1 = 1;
-    const int a;
+    const int a = 2;
     a = 1;
     _Bool b;
     b = 5.5f;
