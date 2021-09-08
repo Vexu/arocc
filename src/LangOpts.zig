@@ -44,20 +44,16 @@ const Standard = enum {
     pub fn atLeast(self: Standard, other: Standard) bool {
         return @enumToInt(self) >= @enumToInt(other);
     }
+
+    pub fn isGNU(standard: Standard) bool {
+        return switch (standard) {
+            .gnu89, .gnu99, .gnu11, .gnu17, .gnu2x => true,
+            else => false,
+        };
+    }
 };
 
 standard: Standard = .gnu17,
-
-pub fn hasGNUKeywords(langopts: LangOpts) bool {
-    return switch (langopts.standard) {
-        .gnu89, .gnu99, .gnu11, .gnu17, .gnu2x => true,
-        else => false,
-    };
-}
-
-pub fn hasC99Keywords(langopts: LangOpts) bool {
-    return langopts.standard.atLeast(.c99);
-}
 
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
@@ -66,6 +62,7 @@ pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!voi
 pub fn suppress(langopts: LangOpts, tag: DiagnosticTag) bool {
     return switch (tag) {
         .static_assert_missing_message => langopts.standard.atLeast(.c2x),
+        .alignof_expr => langopts.standard.isGNU(),
         else => false,
     };
 }
