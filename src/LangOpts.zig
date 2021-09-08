@@ -20,6 +20,9 @@ const Standard = enum {
     gnu11,
     /// ISO C 2017
     c17,
+    /// Default value if nothing specified; adds the GNU keywords to
+    /// C17 but does not suppress warnings about using GNU extensions
+    default,
     /// ISO C 2017 with GNU extensions
     gnu17,
     /// Working Draft for ISO C2x
@@ -47,13 +50,17 @@ const Standard = enum {
 
     pub fn isGNU(standard: Standard) bool {
         return switch (standard) {
-            .gnu89, .gnu99, .gnu11, .gnu17, .gnu2x => true,
+            .gnu89, .gnu99, .gnu11, .default, .gnu17, .gnu2x => true,
             else => false,
         };
     }
+
+    pub fn isExplicitGNU(standard: Standard) bool {
+        return standard.isGNU() and standard != .default;
+    }
 };
 
-standard: Standard = .gnu17,
+standard: Standard = .default,
 
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
@@ -62,7 +69,7 @@ pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!voi
 pub fn suppress(langopts: LangOpts, tag: DiagnosticTag) bool {
     return switch (tag) {
         .static_assert_missing_message => langopts.standard.atLeast(.c2x),
-        .alignof_expr => langopts.standard.isGNU(),
+        .alignof_expr => langopts.standard.isExplicitGNU(),
         else => false,
     };
 }
