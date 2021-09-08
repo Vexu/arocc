@@ -1,3 +1,4 @@
+//std=gnu17
 int foo(void) {
     return 42.0;
 }
@@ -30,6 +31,6 @@ void baz(void) {
     typeof(0/0) divzero = 0;
 }
 
-#define EXPECTED_ERRORS "typeof.c:23:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
-    "typeof.c:27:7: error: expression is not assignable" \
-    "typeof.c:29:7: error: expression is not assignable"
+#define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
+    "typeof.c:28:7: error: expression is not assignable" \
+    "typeof.c:30:7: error: expression is not assignable"
