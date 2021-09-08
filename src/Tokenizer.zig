@@ -470,10 +470,11 @@ pub const Token = struct {
     /// TODO: add `.keyword_asm` here as GNU extension once that is supported.
     pub fn getTokenId(comp: *const Compilation, str: []const u8) Token.Id {
         const kw = all_kws.get(str) orelse return .identifier;
+        const standard = comp.langopts.standard;
         return switch (kw) {
-            .keyword_inline => if (comp.langopts.hasGNUKeywords() or comp.langopts.hasC99Keywords()) kw else .identifier,
-            .keyword_restrict => if (comp.langopts.hasC99Keywords()) kw else .identifier,
-            .keyword_typeof => if (comp.langopts.hasGNUKeywords()) kw else .identifier,
+            .keyword_inline => if (standard.isGNU() or standard.atLeast(.c99)) kw else .identifier,
+            .keyword_restrict => if (standard.atLeast(.c99)) kw else .identifier,
+            .keyword_typeof => if (standard.isGNU()) kw else .identifier,
             else => kw,
         };
     }
