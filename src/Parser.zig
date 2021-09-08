@@ -823,15 +823,17 @@ fn typeof(p: *Parser) Error!?Type {
         else => return null,
     }
     const l_paren = try p.expectToken(.l_paren);
+    const start = p.tok_i;
     if (try p.typeName()) |ty| {
         try p.expectClosing(l_paren, .r_paren);
         return ty;
     }
+    p.tok_i = start;
     if (p.eatToken(.r_paren)) |r_paren| {
         try p.errTok(.expected_expr, r_paren);
         return error.ParsingFailed;
     }
-    const typeof_expr = try p.expr();
+    const typeof_expr = try p.parseNoEval(assignExpr);
     try p.expectClosing(l_paren, .r_paren);
     return typeof_expr.ty;
 }
@@ -3737,12 +3739,10 @@ fn unExpr(p: *Parser) Error!Result {
                     try p.expectClosing(l_paren, .r_paren);
                 } else {
                     p.tok_i = expected_paren;
-                    res = try p.unExpr();
-                    try res.expect(p);
+                    res = try p.parseNoEval(assignExpr);
                 }
             } else {
-                res = try p.unExpr();
-                try res.expect(p);
+                res = try p.parseNoEval(unExpr);
             }
 
             if (res.ty.sizeof(p.pp.comp)) |size| {
@@ -3768,13 +3768,11 @@ fn unExpr(p: *Parser) Error!Result {
                     try p.expectClosing(l_paren, .r_paren);
                 } else {
                     p.tok_i = expected_paren;
-                    res = try p.unExpr();
-                    try res.expect(p);
+                    res = try p.parseNoEval(assignExpr);
                     try p.errTok(.alignof_expr, expected_paren);
                 }
             } else {
-                res = try p.unExpr();
-                try res.expect(p);
+                res = try p.parseNoEval(unExpr);
                 try p.errTok(.alignof_expr, expected_paren);
             }
 
@@ -4456,6 +4454,16 @@ fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
     return res;
 }
 
+/// Run a parser function but do not evaluate the result
+fn parseNoEval(p: *Parser, func: fn(*Parser) Error!Result) Error!Result {
+    const no_eval = p.no_eval;
+    defer p.no_eval = no_eval;
+    p.no_eval = true;
+    const parsed = try func(p);
+    try parsed.expect(p);
+    return parsed;
+}
+
 /// genericSelection : keyword_generic '(' assignExpr ',' genericAssoc (',' genericAssoc)* ')'
 /// genericAssoc
 ///  : typeName ':' assignExpr
@@ -4463,15 +4471,7 @@ fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
 fn genericSelection(p: *Parser) Error!Result {
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
-    const controlling = blk: {
-        // controlling expression is not evaluated
-        const no_eval = p.no_eval;
-        defer p.no_eval = no_eval;
-        p.no_eval = true;
-        const controlling = try p.assignExpr();
-        try controlling.expect(p);
-        break :blk controlling;
-    };
+    const controlling = try p.parseNoEval(assignExpr);
     _ = try p.expectToken(.comma);
 
     const list_buf_top = p.list_buf.items.len;
