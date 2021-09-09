@@ -6,7 +6,7 @@ void foo(void) {
     int e = {1, 2};
     const char f[] = {"foo", "bar"};
     const char g[2] = "foo";
-    // int h[2] = (int []){1,2,3};
+    int h[2] = (int []){1,2,3};
     int i[] = "foo";
     int j = { [0] = 1 } // TODO incorrect expected external declaration ;
     int k[2] = { [-1] = 1 };
@@ -18,6 +18,7 @@ void foo(void) {
         int a, b, c;
     } o = { .b = 1, 2 }, p = { .d = 0 };
     struct Foo q = { .c = 1, .b = 2, 3, 4, 5}, r = { .c = 1, 2};
+    int s[2] = {1, 2, 3}, t[2] = {[1] = 1, 2, 3};
 // } TODO incorrect expected external declaration
 
 #define TESTS_SKIPPED 2
@@ -28,7 +29,7 @@ void foo(void) {
     "initializers.c:6:17: warning: excess elements in scalar initializer" \
     "initializers.c:7:30: warning: excess elements in string initializer" \
     "initializers.c:8:23: warning: initializer-string for char array is too long" \
-    /* "initializers.c:9:16: error: cannot initialize type ('int [2]' with array of type 'int [3]')" */ \
+    "initializers.c:9:16: error: cannot initialize type ('int [2]' with array of type 'int [3]')" \
     "initializers.c:10:15: error: cannot initialize array of type 'int []' with array of type 'char [4]'" \
     "initializers.c:11:15: error: array designator used for non-array type 'int'" \
     "initializers.c:12:19: error: array designator value -1 is negative" \
@@ -40,4 +41,6 @@ void foo(void) {
     "initializers.c:20:38: warning: initializer overrides previous initialization" \
     "initializers.c:20:27: note: previous initialization" \
     "initializers.c:20:41: warning: excess elements in struct initializer" \
-    "initializers.c:20:62: warning: excess elements in struct initializer"
+    "initializers.c:20:62: warning: excess elements in struct initializer" \
+    "initializers.c:21:23: warning: excess elements in array initializer" \
+    "initializers.c:21:44: warning: excess elements in array initializer"

@@ -1820,10 +1820,8 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
 
     _ = try p.initializerItem(&il, init_ty);
 
-    return Result{
-        .ty = init_ty,
-        .node = try p.convertInitList(il, init_ty),
-    };
+    const res = try p.convertInitList(il, init_ty);
+    return Result{ .ty = p.nodes.items(.ty)[@enumToInt(res)], .node = res };
 }
 
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?
@@ -2086,10 +2084,64 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
     } else if (init_ty.specifier == .variable_len_array) {
         return error.ParsingFailed; // vla invalid, reported earlier
     } else if (init_ty.isArray()) {
-        if (il.node != .none and p.nodeIs(il.node, .string_literal_expr)) {
+        if (il.node != .none) {
             return il.node;
         }
-        return error.ParsingFailed; // TODO
+        const list_buf_top = p.list_buf.items.len;
+        defer p.list_buf.items.len = list_buf_top;
+
+        const elem_ty = init_ty.elemType();
+
+        const max_items = if (init_ty.specifier == .array) init_ty.data.array.len else std.math.maxInt(usize);
+        var start: u64 = 0;
+        for (il.list.items) |*init| {
+            if (init.index >= max_items) {
+                try p.errTok(.excess_array_init, init.list.tok);
+                break;
+            }
+            if (init.index > start) {
+                const elem = try p.addNode(.{
+                    .tag = .array_filler_expr,
+                    .ty = elem_ty,
+                    .data = .{ .int = init.index - start },
+                });
+                try p.list_buf.append(elem);
+            }
+            start = init.index + 1;
+
+            const elem = try p.convertInitList(init.list, elem_ty);
+            try p.list_buf.append(elem);
+        }
+
+        var init_list_node: Tree.Node = .{
+            .tag = .init_list_expr_two,
+            .ty = init_ty,
+            .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+        };
+
+        if (init_ty.specifier == .incomplete_array) {
+            init_list_node.ty.specifier = .array;
+            init_list_node.ty.data.array.len = start;
+        } else if (start < max_items) {
+            const elem = try p.addNode(.{
+                .tag = .array_filler_expr,
+                .ty = elem_ty,
+                .data = .{ .int = max_items - start },
+            });
+            try p.list_buf.append(elem);
+        }
+
+        const items = p.list_buf.items[list_buf_top..];
+        switch (items.len) {
+            0 => {},
+            1 => init_list_node.data.bin.lhs = items[0],
+            2 => init_list_node.data.bin = .{ .lhs = items[0], .rhs = items[1] },
+            else => {
+                init_list_node.tag = .init_list_expr;
+                init_list_node.data = .{ .range = try p.addList(items) };
+            },
+        }
+        return try p.addNode(init_list_node);
     } else if (init_ty.isRecord()) {
         const list_buf_top = p.list_buf.items.len;
         defer p.list_buf.items.len = list_buf_top;
@@ -2108,7 +2160,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         if (il.list.items.len > init_index and il.list.items[init_index].index >= init_ty.data.record.fields.len) {
             try p.errTok(.excess_struct_init, il.list.items[init_index].list.tok);
         }
-        
+
         var init_list_node: Tree.Node = .{
             .tag = .init_list_expr_two,
             .ty = init_ty,
@@ -2118,7 +2170,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         switch (items.len) {
             0 => {},
             1 => init_list_node.data.bin.lhs = items[0],
-            2 => init_list_node.data.bin = .{ .lhs = items[0], .rhs = items[1]},
+            2 => init_list_node.data.bin = .{ .lhs = items[0], .rhs = items[1] },
             else => {
                 init_list_node.tag = .init_list_expr;
                 init_list_node.data = .{ .range = try p.addList(items) };
