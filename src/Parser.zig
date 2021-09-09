@@ -2764,7 +2764,7 @@ const Result = struct {
             res.ty.decayArray();
             res.ty.alignment = 0;
             try res.un(p, .array_to_pointer);
-        } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), res.node)) {
+        } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, res.node)) {
             res.ty.qual = .{};
             res.ty.alignment = 0;
             try res.un(p, .lval_to_rval);
@@ -3126,7 +3126,7 @@ fn assignExpr(p: *Parser) Error!Result {
     try rhs.expect(p);
     try rhs.lvalConversion(p);
 
-    if (!Tree.isLval(p.nodes.slice(), lhs.node) or lhs.ty.qual.@"const") {
+    if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, lhs.node) or lhs.ty.qual.@"const") {
         try p.errTok(.not_assignable, tok);
         return error.ParsingFailed;
     }
@@ -3540,6 +3540,7 @@ fn mulExpr(p: *Parser) Error!Result {
 /// castExpr
 ///  :  '(' typeName ')' castExpr
 ///  | '(' typeName ')' '{' initializerItems '}'
+///  | __builtin_choose_expr '(' constExpr ',' assignExpr ',' assignExpr ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
@@ -3576,6 +3577,11 @@ fn castExpr(p: *Parser) Error!Result {
         }
         p.tok_i -= 1;
     }
+    switch (p.tok_ids[p.tok_i]) {
+        .builtin_choose_expr => return p.builtinChooseExpr(),
+        // TODO: other special-cased builtins
+        else => {},
+    }
     return p.unExpr();
 }
 
@@ -3594,7 +3600,7 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.expect(p);
 
             const slice = p.nodes.slice();
-            if (!Tree.isLval(slice, operand.node)) {
+            if (!Tree.isLval(slice, p.data.items, p.value_map, operand.node)) {
                 try p.errTok(.addr_of_rvalue, tok);
             }
             if (operand.ty.qual.register) try p.errTok(.addr_of_register, tok);
@@ -3669,7 +3675,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
+            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.qual.@"const") {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
@@ -3693,7 +3699,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
+            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.qual.@"const") {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
@@ -3812,6 +3818,43 @@ fn unExpr(p: *Parser) Error!Result {
     }
 }
 
+fn builtinChooseExpr(p: *Parser) Error!Result {
+    p.tok_i += 1;
+    const l_paren = try p.expectToken(.l_paren);
+    const cond_tok = p.tok_i;
+    var cond = try p.constExpr();
+    if (cond.val == .unavailable) {
+        try p.errTok(.builtin_choose_cond, cond_tok);
+        return error.ParsingFailed;
+    }
+
+    _ = try p.expectToken(.comma);
+
+    var then_expr = if (cond.getBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
+    try then_expr.expect(p);
+
+    _ = try p.expectToken(.comma);
+
+    var else_expr = if (!cond.getBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
+    try else_expr.expect(p);
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    if (cond.getBool()) {
+        cond.val = then_expr.val;
+        cond.ty = then_expr.ty;
+    } else {
+        cond.val = else_expr.val;
+        cond.ty = else_expr.ty;
+    }
+    cond.node = try p.addNode(.{
+        .tag = .builtin_choose_expr,
+        .ty = cond.ty,
+        .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ then_expr.node, else_expr.node })).start } },
+    });
+    return cond;
+}
+
 /// suffixExpr
 ///  : '[' expr ']'
 ///  | '(' argumentExprList? ')'
@@ -3831,7 +3874,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
+            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.qual.@"const") {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
@@ -3847,7 +3890,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), operand.node) or operand.ty.qual.@"const") {
+            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.qual.@"const") {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }

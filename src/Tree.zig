@@ -336,6 +336,8 @@ pub const Tag = enum(u8) {
     generic_association_expr,
     // default: un
     generic_default_expr,
+    /// __builtin_choose_expr(lhs, data[0], data[1])
+    builtin_choose_expr,
 
     // ====== Initializer expressions ======
 
@@ -425,7 +427,7 @@ pub const Tag = enum(u8) {
     }
 };
 
-pub fn isLval(nodes: Node.List.Slice, node: NodeIndex) bool {
+pub fn isLval(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: ValueMap, node: NodeIndex) bool {
     switch (nodes.items(.tag)[@enumToInt(node)]) {
         .compound_literal_expr => return true,
         .string_literal_expr => return true,
@@ -438,11 +440,20 @@ pub fn isLval(nodes: Node.List.Slice, node: NodeIndex) bool {
         },
         .member_access_expr => {
             const data = nodes.items(.data)[@enumToInt(node)];
-            return isLval(nodes, data.member.lhs);
+            return isLval(nodes, extra, value_map, data.member.lhs);
         },
         .paren_expr => {
             const data = nodes.items(.data)[@enumToInt(node)];
-            return isLval(nodes, data.un);
+            return isLval(nodes, extra, value_map, data.un);
+        },
+        .builtin_choose_expr => {
+            const data = nodes.items(.data)[@enumToInt(node)];
+
+            if (value_map.get(data.if3.cond)) |val| {
+                const offset = @boolToInt(val == 0);
+                return isLval(nodes, extra, value_map, extra[data.if3.body + offset]);
+            }
+            return false;
         },
         else => return false,
     }
@@ -502,7 +513,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     }
     try ty.dump(w);
     try w.writeAll("'");
-    if (isLval(tree.nodes, node)) {
+    if (isLval(tree.nodes, tree.data, tree.value_map, node)) {
         try w.writeAll(ATTRIBUTE ++ " lvalue");
     }
     if (tree.value_map.get(node)) |val| {
@@ -637,7 +648,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(data.un, level + delta, w);
             }
         },
-        .cond_expr, .if_then_else_stmt => {
+        .cond_expr, .if_then_else_stmt, .builtin_choose_expr => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
             try tree.dumpNode(data.if3.cond, level + delta, w);
