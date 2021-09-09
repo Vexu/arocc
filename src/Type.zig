@@ -402,8 +402,8 @@ pub fn getField(ty: Type, name: []const u8) ?FieldAndIndex {
         },
         .@"union" => {
             std.debug.assert(!ty.data.record.isIncomplete());
-            for (ty.data.record.fields) |f| {
-                if (std.mem.eql(u8, name, f.name)) return FieldAndIndex{ .f = f, .i = 0 };
+            for (ty.data.record.fields) |f, i| {
+                if (std.mem.eql(u8, name, f.name)) return FieldAndIndex{ .f = f, .i = i };
             }
         },
         else => unreachable,

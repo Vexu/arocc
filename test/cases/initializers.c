@@ -17,8 +17,18 @@ void foo(void) {
     struct Foo {
         int a, b, c;
     } o = { .b = 1, 2 }, p = { .d = 0 };
-    struct Foo q = { .c = 1, .b = 2, 3, 4, 5}, r = { .c = 1, 2};
+    // struct Foo q = { .c = 1, .b = 2, 3, 4, 5}, r = { .c = 1, 2}; TODO
     int s[2] = {1, 2, 3}, t[2] = {[1] = 1, 2, 3};
+
+    int arr[2][2] = {1, [1] = 3, 4, 5, 6};
+    struct {
+        int a, b;
+        union {
+            int a;
+            float b;
+        } c;
+    } arr2[2] = {1, [0].c.b = 2, 3, 4, 5, 6, 7, 8};
+    struct {} empty[2] = {1};
 // } TODO incorrect expected external declaration
 
 #define TESTS_SKIPPED 2
@@ -38,9 +48,12 @@ void foo(void) {
     "initializers.c:15:23: note: previous initialization" \
     "initializers.c:16:15: error: field designator used for non-record type 'int'" \
     "initializers.c:19:32: error: record type has no field named 'd'" \
-    "initializers.c:20:38: warning: initializer overrides previous initialization" \
-    "initializers.c:20:27: note: previous initialization" \
-    "initializers.c:20:41: warning: excess elements in struct initializer" \
-    "initializers.c:20:62: warning: excess elements in struct initializer" \
+    /* "initializers.c:20:38: warning: initializer overrides previous initialization" */ \
+    /* "initializers.c:20:27: note: previous initialization" */ \
+    /* "initializers.c:20:41: warning: excess elements in struct initializer" */ \
+    /* "initializers.c:20:62: warning: excess elements in struct initializer" */ \
     "initializers.c:21:23: warning: excess elements in array initializer" \
-    "initializers.c:21:44: warning: excess elements in array initializer"
+    "initializers.c:21:44: warning: excess elements in array initializer" \
+    "initializers.c:23:37: warning: excess elements in array initializer" \
+    "initializers.c:30:43: warning: excess elements in array initializer" \
+    "initializers.c:31:27: error: initializer for aggregate with no elements requires explicit braces"

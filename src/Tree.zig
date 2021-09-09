@@ -71,6 +71,10 @@ pub const Node = struct {
             lhs: NodeIndex,
             name: TokenIndex,
         },
+        union_init: struct {
+            field_index: u32,
+            node: NodeIndex,
+        },
         int: u64,
         float: f32,
         double: f64,
@@ -342,9 +346,15 @@ pub const Tag = enum(u8) {
     // ====== Initializer expressions ======
 
     /// { lhs, rhs }
-    init_list_expr_two,
+    array_init_expr_two,
     /// { range }
-    init_list_expr,
+    array_init_expr,
+    /// { lhs, rhs }
+    struct_init_expr_two,
+    /// { range }
+    struct_init_expr,
+    /// { union_init }
+    union_init_expr,
     /// (ty){ un }
     compound_literal_expr,
 
@@ -394,11 +404,11 @@ pub const Tag = enum(u8) {
     /// ty is the functions return type
     implicit_return,
 
-    /// Inserted in init_list_expr to represent unspecified elements.
+    /// Inserted in array_init_expr to represent unspecified elements.
     /// data.int contains the amount of elements.
     array_filler_expr,
-    /// Inserted in init_list_expr to represent unspecified fields.
-    struct_filler_expr,
+    /// Inserted in record and scalar initializers for unspecified elements.
+    default_init_expr,
 
     pub fn isImplicit(tag: Tag) bool {
         return switch (tag) {
@@ -422,7 +432,7 @@ pub const Tag = enum(u8) {
             .qual_cast,
             .null_to_pointer,
             .array_filler_expr,
-            .struct_filler_expr,
+            .default_init_expr,
             => true,
             else => false,
         };
@@ -602,7 +612,8 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .indirect_record_field_decl => {},
         .compound_stmt,
-        .init_list_expr,
+        .array_init_expr,
+        .struct_init_expr,
         .enum_decl,
         .struct_decl,
         .union_decl,
@@ -613,13 +624,21 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             }
         },
         .compound_stmt_two,
-        .init_list_expr_two,
+        .array_init_expr_two,
+        .struct_init_expr_two,
         .enum_decl_two,
         .struct_decl_two,
         .union_decl_two,
         => {
             if (data.bin.lhs != .none) try tree.dumpNode(data.bin.lhs, level + delta, w);
             if (data.bin.rhs != .none) try tree.dumpNode(data.bin.rhs, level + delta, w);
+        },
+        .union_init_expr => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.print("field index: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.union_init.field_index});
+            if (data.union_init.node != .none) {
+                try tree.dumpNode(data.union_init.node, level + delta, w);
+            }
         },
         .compound_literal_expr => {
             try tree.dumpNode(data.un, level + half, w);
@@ -939,6 +958,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeByteNTimes(' ', level + 1);
             try w.print("count: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.int});
         },
-        .struct_filler_expr => {},
+        .default_init_expr => {},
     }
 }

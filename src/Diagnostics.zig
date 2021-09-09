@@ -233,6 +233,7 @@ pub const Tag = enum {
     oob_array_designator,
     invalid_field_designator,
     no_such_field_designator,
+    empty_aggregate_init_braces,
 };
 
 const Options = struct {
@@ -580,6 +581,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .oob_array_designator => m.print("array designator index {d} exceeds array bounds", .{msg.extra.unsigned}),
             .invalid_field_designator => m.print("field designator used for non-record type '{s}'", .{msg.extra.str}),
             .no_such_field_designator => m.print("record type has no field named '{s}'", .{msg.extra.str}),
+            .empty_aggregate_init_braces => m.write("initializer for aggregate with no elements requires explicit braces"),
         }
         m.end(lcs);
 
@@ -768,6 +770,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .oob_array_designator,
         .invalid_field_designator,
         .no_such_field_designator,
+        .empty_aggregate_init_braces,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
