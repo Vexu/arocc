@@ -189,6 +189,9 @@ pub const Token = struct {
         keyword_alignof2,
         keyword_typeof,
 
+        // gcc builtins
+        builtin_choose_expr,
+
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
@@ -260,6 +263,7 @@ pub const Token = struct {
                 .keyword_restrict2,
                 .keyword_alignof1,
                 .keyword_alignof2,
+                .builtin_choose_expr,
                 => return true,
                 else => return false,
             }
@@ -438,6 +442,7 @@ pub const Token = struct {
                 .keyword_alignof2 => "__alignof__",
                 .keyword_typeof1 => "__typeof",
                 .keyword_typeof2 => "__typeof__",
+                .builtin_choose_expr => "__builtin_choose_expr",
             };
         }
 
@@ -563,6 +568,9 @@ pub const Token = struct {
         .{ "__alignof", .keyword_alignof1 },
         .{ "__alignof__", .keyword_alignof2 },
         .{ "typeof", .keyword_typeof },
+
+        // gcc builtins
+        .{ "__builtin_choose_expr", .builtin_choose_expr },
     });
 };
 

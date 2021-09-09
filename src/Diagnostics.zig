@@ -219,6 +219,7 @@ pub const Tag = enum {
     arr_init_too_long,
     invalid_typeof,
     division_by_zero,
+    builtin_choose_cond,
 };
 
 const Options = struct {
@@ -551,6 +552,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .arr_init_too_long => m.print("cannot initialize type ({s})", .{msg.extra.str}),
             .invalid_typeof => m.print("'{s} typeof' is invalid", .{msg.extra.str}),
             .division_by_zero => m.print("{s} by zero is undefined", .{msg.extra.str}),
+            .builtin_choose_cond => m.write("'__builtin_choose_expr' requires a constant expression"),
         }
         m.end(lcs);
 
@@ -729,6 +731,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .empty_scalar_init,
         .arr_init_too_long,
         .invalid_typeof,
+        .builtin_choose_cond,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
