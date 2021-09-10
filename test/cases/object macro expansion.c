@@ -7,3 +7,5 @@ x
 x
 #define y define
 y
+
+#define __restrict restrict

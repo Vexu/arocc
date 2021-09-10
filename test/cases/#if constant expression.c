@@ -10,3 +10,15 @@ long
 #if 1 - 1
 #error "foo"
 #endif
+
+#if defined BAR ? 1 : 0
+#error foo
+#endif
+
+#if 0 && 0
+# error foo
+#endif
+
+#if 0 || 0
+# error foo
+#endif

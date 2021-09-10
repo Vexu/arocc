@@ -223,6 +223,7 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
 }
 
 fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range {
+    if (p.in_macro) return Tree.Node.Range{ .start = 0, .end = 0 };
     const start = @intCast(u32, p.data.items.len);
     try p.data.appendSlice(nodes);
     const end = @intCast(u32, p.data.items.len);
@@ -943,7 +944,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         init_d.d.ty = init_list_expr.ty;
     }
     const name = init_d.d.name;
-    if (init_d.d.ty.hasIncompleteSize()) {
+    if (decl_spec.storage_class != .typedef and init_d.d.ty.hasIncompleteSize()) {
         try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
         return init_d;
     }
@@ -1175,6 +1176,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     try p.decl_buf.append(.none);
     const decl_buf_top = p.decl_buf.items.len;
     const record_buf_top = p.record_buf.items.len;
+    errdefer p.decl_buf.items.len = decl_buf_top - 1;
     defer {
         p.decl_buf.items.len = decl_buf_top;
         p.record_buf.items.len = record_buf_top;
@@ -1343,6 +1345,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
     const decl_buf_top = p.decl_buf.items.len;
     const list_buf_top = p.list_buf.items.len;
     const enum_buf_top = p.enum_buf.items.len;
+    errdefer p.decl_buf.items.len = decl_buf_top - 1;
     defer {
         p.decl_buf.items.len = decl_buf_top;
         p.list_buf.items.len = list_buf_top;
@@ -3307,7 +3310,7 @@ fn landExpr(p: *Parser) Error!Result {
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.ampersand_ampersand)) |tok| {
-        if (lhs.val != .unavailable and lhs.getBool()) p.no_eval = true;
+        if (lhs.val != .unavailable and !lhs.getBool()) p.no_eval = true;
         var rhs = try p.orExpr();
         try rhs.expect(p);
 
