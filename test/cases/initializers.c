@@ -8,7 +8,7 @@ void foo(void) {
     const char g[2] = "foo";
     int h[2] = (int []){1,2,3};
     int i[] = "foo";
-    int j = { [0] = 1 } // TODO incorrect expected external declaration ;
+    int j = { [0] = 1 };
     int k[2] = { [-1] = 1 };
     int l[2] = { [2] = 1 };
     #define N 1000000000
@@ -29,7 +29,7 @@ void foo(void) {
         } c;
     } arr2[2] = {1, [0].c.b = 2, 3, 4, 5, 6, 7, 8};
     struct {} empty[2] = {1};
-// } TODO incorrect expected external declaration
+}
 
 #define TESTS_SKIPPED 2
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \

@@ -444,7 +444,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
 fn nextExternDecl(p: *Parser) void {
     var parens: u32 = 0;
-    while (p.tok_i < p.tok_ids.len) : (p.tok_i += 1) {
+    while (true) : (p.tok_i += 1) {
         switch (p.tok_ids[p.tok_i]) {
             .l_paren, .l_brace, .l_bracket => parens += 1,
             .r_paren, .r_brace, .r_bracket => if (parens != 0) {
@@ -479,10 +479,28 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_typeof1,
             .keyword_typeof2,
             => if (parens == 0) return,
+            .eof => return,
             else => {},
         }
     }
-    p.tok_i -= 1; // so that we can consume the eof token elsewhere
+}
+
+fn skipTo(p: *Parser, id: Token.Id) void {
+    var parens: u32 = 0;
+    while (true) : (p.tok_i += 1) {
+        if (p.tok_ids[p.tok_i] == id and parens == 0) {
+            p.tok_i += 1;
+            return;
+        }
+        switch (p.tok_ids[p.tok_i]) {
+            .l_paren, .l_brace, .l_bracket => parens += 1,
+            .r_paren, .r_brace, .r_bracket => if (parens != 0) {
+                parens -= 1;
+            },
+            .eof => return,
+            else => {},
+        }
+    }
 }
 
 // ====== declarations ======
@@ -1866,6 +1884,8 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
     var warned_excess = false;
     var is_str_init = false;
     while (true) : (count += 1) {
+        errdefer p.skipTo(.r_brace);
+
         const first_tok = p.tok_i;
         var cur_ty = init_ty;
         var cur_il = il;
