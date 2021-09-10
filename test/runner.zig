@@ -184,6 +184,7 @@ pub fn main() !void {
 
         var tree = try aro.Parser.parse(&pp);
         defer tree.deinit();
+        tree.dump(std.io.null_writer) catch {};
 
         if (expected_types) |types| {
             const test_fn = for (tree.root_decls) |decl| {
