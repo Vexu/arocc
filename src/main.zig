@@ -67,7 +67,11 @@ const usage =
 ;
 
 fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
-    try comp.system_include_dirs.append("/usr/include");
+    comp.defineSystemIncludes() catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.SelfExeNotFound => return comp.diag.fatalNoSrc("could not find Aro executable path", .{}),
+        error.AroIncludeNotFound => return comp.diag.fatalNoSrc("could not find Aro builtin headers", .{}),
+    };
 
     var source_files = std.ArrayList(Source).init(comp.gpa);
     defer source_files.deinit();

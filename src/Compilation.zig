@@ -1,13 +1,14 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const mem = std.mem;
 const Allocator = mem.Allocator;
-const assert = std.debug.assert;
+const Diagnostics = @import("Diagnostics.zig");
+const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
-const Diagnostics = @import("Diagnostics.zig");
-const LangOpts = @import("LangOpts.zig");
+const Type = @import("Type.zig");
 
 const Compilation = @This();
 
@@ -22,6 +23,7 @@ diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
 system_include_dirs: std.ArrayList([]const u8),
 output_name: ?[]const u8 = null,
+builtin_header_path: ?[]u8 = null,
 target: std.Target = std.Target.current,
 only_preprocess: bool = false,
 langopts: LangOpts = .{},
@@ -45,6 +47,7 @@ pub fn deinit(comp: *Compilation) void {
     comp.diag.deinit();
     comp.include_dirs.deinit();
     comp.system_include_dirs.deinit();
+    if (comp.builtin_header_path) |some| comp.gpa.free(some);
 }
 
 /// Generate builtin macros that will be available to each source file.
@@ -113,6 +116,11 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         \\
     );
 
+    const w = buf.writer();
+    try generateTypeMacro(w, "__PTRDIFF_TYPE__", Type.ptrDiffT(comp));
+    try generateTypeMacro(w, "__SIZE_TYPE__", Type.sizeT(comp));
+    try generateTypeMacro(w, "__WCHAR_TYPE__", Type.wideChar(comp));
+
     const duped_path = try comp.gpa.dupe(u8, "<builtin>");
     errdefer comp.gpa.free(duped_path);
 
@@ -126,6 +134,29 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     };
     try comp.sources.put(duped_path, source);
     return source;
+}
+
+fn generateTypeMacro(w: anytype, name: []const u8, ty: Type) !void {
+    try w.print("#define {s} ", .{name});
+    try ty.print(w);
+    try w.writeByte('\n');
+}
+
+pub fn defineSystemIncludes(comp: *Compilation) !void {
+    var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var search_path: []const u8 = std.fs.selfExePath(&buf) catch return error.SelfExeNotFound;
+    while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
+        var base_dir = std.fs.cwd().openDir(dirname, .{}) catch continue;
+        defer base_dir.close();
+
+        base_dir.access("include/stddef.h", .{}) catch continue;
+        const path = try std.fs.path.join(comp.gpa, &.{dirname, "include"});
+        comp.builtin_header_path = path;
+        try comp.system_include_dirs.append(path);
+        break;
+    } else return error.AroIncludeNotFound;
+
+    try comp.system_include_dirs.append("/usr/include");
 }
 
 pub fn getSource(comp: *Compilation, id: Source.Id) Source {

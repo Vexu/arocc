@@ -55,6 +55,8 @@ pub fn main() !void {
     var comp = aro.Compilation.init(gpa);
     defer comp.deinit();
 
+    try comp.defineSystemIncludes();
+
     const builtin_macros = try comp.generateBuiltinMacros();
     const test_runner_macros = blk: {
         const duped_path = try gpa.dupe(u8, "<test_runner>");
