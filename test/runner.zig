@@ -182,6 +182,7 @@ pub fn main() !void {
 
         var tree = try aro.Parser.parse(&pp);
         defer tree.deinit();
+        tree.dump(std.io.null_writer) catch {};
 
         if (expected_types) |types| {
             const test_fn = for (tree.root_decls) |decl| {
@@ -276,10 +277,7 @@ pub fn main() !void {
         }
 
         comp.renderErrors();
-        if (comp.diag.errors != 0) fail_count += 1 else {
-            tree.dump(std.io.null_writer) catch {};
-            ok_count += 1;
-        }
+        if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
     }
 
     root_node.end();

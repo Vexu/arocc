@@ -2058,7 +2058,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         return try p.addNode(.{
             .tag = .switch_stmt,
-            .data = .{ .bin = .{ .rhs = cond.node, .lhs = body } },
+            .data = .{ .bin = .{ .lhs = cond.node, .rhs = body } },
         });
     }
     if (p.eatToken(.keyword_while)) |_| {
