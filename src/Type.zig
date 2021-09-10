@@ -200,6 +200,16 @@ pub const Specifier = enum {
 
     // data.enum
     @"enum",
+
+    /// typeof(type-name)
+    typeof_type,
+    /// decayed array created with typeof(type-name)
+    decayed_typeof_type,
+
+    /// typeof(expression)
+    typeof_expr,
+    /// decayed array created with typeof(expression)
+    decayed_typeof_expr,
 };
 
 /// All fields of Type except data may be mutated
@@ -221,6 +231,8 @@ pub fn isCallable(ty: Type) ?Type {
     return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => ty,
         .pointer => if (ty.data.sub_type.isFunc()) ty.data.sub_type.* else null,
+        .typeof_type => ty.data.sub_type.isCallable(),
+        .typeof_expr => ty.data.vla.elem.isCallable(),
         else => null,
     };
 }
@@ -228,6 +240,8 @@ pub fn isCallable(ty: Type) ?Type {
 pub fn isFunc(ty: Type) bool {
     return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => true,
+        .typeof_type => ty.data.sub_type.isFunc(),
+        .typeof_expr => ty.data.vla.elem.isFunc(),
         else => false,
     };
 }
@@ -235,13 +249,25 @@ pub fn isFunc(ty: Type) bool {
 pub fn isArray(ty: Type) bool {
     return switch (ty.specifier) {
         .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => true,
+        .typeof_type => ty.data.sub_type.isArray(),
+        .typeof_expr => ty.data.vla.elem.isArray(),
         else => false,
     };
 }
 
 pub fn isPtr(ty: Type) bool {
     return switch (ty.specifier) {
-        .pointer, .decayed_array, .decayed_static_array, .decayed_incomplete_array, .decayed_variable_len_array, .decayed_unspecified_variable_len_array => true,
+        .pointer,
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
+        => true,
+        .typeof_type => ty.data.sub_type.isPtr(),
+        .typeof_expr => ty.data.vla.elem.isPtr(),
         else => false,
     };
 }
@@ -249,6 +275,8 @@ pub fn isPtr(ty: Type) bool {
 pub fn isInt(ty: Type) bool {
     return switch (ty.specifier) {
         .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
+        .typeof_type => ty.data.sub_type.isInt(),
+        .typeof_expr => ty.data.vla.elem.isInt(),
         else => false,
     };
 }
@@ -256,6 +284,8 @@ pub fn isInt(ty: Type) bool {
 pub fn isFloat(ty: Type) bool {
     return switch (ty.specifier) {
         .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double => true,
+        .typeof_type => ty.data.sub_type.isFloat(),
+        .typeof_expr => ty.data.vla.elem.isFloat(),
         else => false,
     };
 }
@@ -263,6 +293,8 @@ pub fn isFloat(ty: Type) bool {
 pub fn isReal(ty: Type) bool {
     return switch (ty.specifier) {
         .complex_float, .complex_double, .complex_long_double => false,
+        .typeof_type => ty.data.sub_type.isReal(),
+        .typeof_expr => ty.data.vla.elem.isReal(),
         else => true,
     };
 }
@@ -270,7 +302,17 @@ pub fn isReal(ty: Type) bool {
 pub fn isVoidStar(ty: Type) bool {
     return switch (ty.specifier) {
         .pointer => ty.data.sub_type.specifier == .void,
+        .typeof_type => ty.data.sub_type.isVoidStar(),
+        .typeof_expr => ty.data.vla.elem.isVoidStar(),
         else => false,
+    };
+}
+
+pub fn isConst(ty: Type) bool {
+    return switch (ty.specifier) {
+        .typeof_type => ty.qual.@"const" or ty.data.sub_type.isConst(),
+        .typeof_expr => ty.qual.@"const" or ty.data.vla.elem.isConst(),
+        else => ty.qual.@"const",
     };
 }
 
@@ -278,6 +320,8 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
     return switch (ty.specifier) {
         .char => return getCharSignedness(comp) == .unsigned,
         .uchar, .ushort, .uint, .ulong, .ulong_long => return true,
+        .typeof_type => ty.data.sub_type.isUnsignedInt(comp),
+        .typeof_expr => ty.data.vla.elem.isUnsignedInt(comp),
         else => false,
     };
 }
@@ -285,6 +329,8 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
 pub fn isEnumOrRecord(ty: Type) bool {
     return switch (ty.specifier) {
         .@"enum", .@"struct", .@"union" => true,
+        .typeof_type => ty.data.sub_type.isEnumOrRecord(),
+        .typeof_expr => ty.data.vla.elem.isEnumOrRecord(),
         else => false,
     };
 }
@@ -292,34 +338,44 @@ pub fn isEnumOrRecord(ty: Type) bool {
 pub fn isRecord(ty: Type) bool {
     return switch (ty.specifier) {
         .@"struct", .@"union" => true,
+        .typeof_type => ty.data.sub_type.isRecord(),
+        .typeof_expr => ty.data.vla.elem.isRecord(),
         else => false,
     };
 }
 
 pub fn elemType(ty: Type) Type {
     return switch (ty.specifier) {
-        .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.*,
-        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem,
-        .variable_len_array, .decayed_variable_len_array => ty.data.vla.elem,
+        .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.unwrapTypeof(),
+        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem.unwrapTypeof(),
+        .variable_len_array, .decayed_variable_len_array => ty.data.vla.elem.unwrapTypeof(),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.elemType(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.vla.elem.elemType(),
         else => unreachable,
     };
 }
 
 pub fn eitherLongDouble(a: Type, b: Type) ?Type {
-    if (a.specifier == .long_double or a.specifier == .complex_long_double) return a;
-    if (b.specifier == .long_double or b.specifier == .complex_long_double) return b;
+    const unwrapped_a = a.unwrapTypeof();
+    if (unwrapped_a.specifier == .long_double or unwrapped_a.specifier == .complex_long_double) return a;
+    const unwrapped_b = b.unwrapTypeof();
+    if (unwrapped_b.specifier == .long_double or unwrapped_b.specifier == .complex_long_double) return b;
     return null;
 }
 
 pub fn eitherDouble(a: Type, b: Type) ?Type {
-    if (a.specifier == .double or a.specifier == .complex_double) return a;
-    if (b.specifier == .double or b.specifier == .complex_double) return b;
+    const unwrapped_a = a.unwrapTypeof();
+    if (unwrapped_a.specifier == .double or unwrapped_a.specifier == .complex_double) return a;
+    const unwrapped_b = b.unwrapTypeof();
+    if (unwrapped_b.specifier == .double or unwrapped_b.specifier == .complex_double) return b;
     return null;
 }
 
 pub fn eitherFloat(a: Type, b: Type) ?Type {
-    if (a.specifier == .float or a.specifier == .complex_float) return a;
-    if (b.specifier == .float or b.specifier == .complex_float) return b;
+    const unwrapped_a = a.unwrapTypeof();
+    if (unwrapped_a.specifier == .float or unwrapped_a.specifier == .complex_float) return a;
+    const unwrapped_b = b.unwrapTypeof();
+    if (unwrapped_b.specifier == .float or unwrapped_b.specifier == .complex_float) return b;
     return null;
 }
 
@@ -336,6 +392,8 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
             .ulong => .ulong,
             .long_long => .long_long,
             .ulong_long => .ulong_long,
+            .typeof_type => return ty.data.sub_type.integerPromotion(comp),
+            .typeof_expr => return ty.data.vla.elem.integerPromotion(comp),
             else => unreachable, // not an integer type
         },
     };
@@ -384,6 +442,8 @@ pub fn hasIncompleteSize(ty: Type) bool {
         .void, .incomplete_array => true,
         .@"enum" => ty.data.@"enum".isIncomplete(),
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
+        .typeof_type => ty.data.sub_type.hasIncompleteSize(),
+        .typeof_expr => ty.data.vla.elem.hasIncompleteSize(),
         else => false,
     };
 }
@@ -404,6 +464,8 @@ pub fn hasUnboundVLA(ty: Type) bool {
             .decayed_incomplete_array,
             .decayed_variable_len_array,
             => cur = cur.elemType(),
+            .typeof_type, .decayed_typeof_type => cur = cur.data.sub_type.*,
+            .typeof_expr, .decayed_typeof_expr => cur = cur.data.vla.elem,
             else => return false,
         }
     }
@@ -490,6 +552,8 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .array => ty.data.array.elem.sizeof(comp).? * ty.data.array.len,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.sizeof(comp),
+        .typeof_expr, .decayed_typeof_expr => ty.data.vla.elem.sizeof(comp),
     };
 }
 
@@ -532,10 +596,23 @@ pub fn alignof(ty: Type, comp: *Compilation) u29 {
         .array => ty.data.array.elem.alignof(comp),
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else ty.data.record.alignment,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) 0 else ty.data.@"enum".tag_ty.alignof(comp),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
+        .typeof_expr, .decayed_typeof_expr => ty.data.vla.elem.alignof(comp),
     };
 }
 
-pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
+pub fn unwrapTypeof(ty: Type) Type {
+    return switch (ty.specifier) {
+        .typeof_type => ty.data.sub_type.unwrapTypeof(),
+        .typeof_expr => ty.data.vla.elem.unwrapTypeof(),
+        else => ty,
+    };
+}
+
+pub fn eql(a_param: Type, b_param: Type, check_qualifiers: bool) bool {
+    const a = a_param.unwrapTypeof();
+    const b = b_param.unwrapTypeof();
+
     if (a.alignment != b.alignment) return false;
     if (a.isPtr()) {
         if (!b.isPtr()) return false;
@@ -633,6 +710,8 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
         => unreachable, // type should not be able to decay before being combined
         else => inner.* = outer,
     }
@@ -708,6 +787,10 @@ pub const Builder = struct {
         @"struct": *Record,
         @"union": *Record,
         @"enum": *Enum,
+        typeof_type: *Type,
+        decayed_typeof_type: *Type,
+        typeof_expr: *VLA,
+        decayed_typeof_expr: *VLA,
 
         pub fn str(spec: Builder.Specifier) ?[]const u8 {
             return switch (spec) {
@@ -861,6 +944,22 @@ pub const Builder = struct {
             .@"enum" => |data| {
                 ty.specifier = .@"enum";
                 ty.data = .{ .@"enum" = data };
+            },
+            .typeof_type => |data| {
+                ty.specifier = .typeof_type;
+                ty.data = .{ .sub_type = data };
+            },
+            .decayed_typeof_type => |data| {
+                ty.specifier = .decayed_typeof_type;
+                ty.data = .{ .sub_type = data };
+            },
+            .typeof_expr => |data| {
+                ty.specifier = .typeof_expr;
+                ty.data = .{ .vla = data };
+            },
+            .decayed_typeof_expr => |data| {
+                ty.specifier = .decayed_typeof_expr;
+                ty.data = .{ .vla = data };
             },
         }
         try b.qual.finish(p, &ty);
@@ -1066,6 +1165,11 @@ pub const Builder = struct {
             .@"struct" => .{ .@"struct" = ty.data.record },
             .@"union" => .{ .@"union" = ty.data.record },
             .@"enum" => .{ .@"enum" = ty.data.@"enum" },
+
+            .typeof_type => .{ .typeof_type = ty.data.sub_type },
+            .decayed_typeof_type => .{ .decayed_typeof_type = ty.data.sub_type },
+            .typeof_expr => .{ .typeof_expr = ty.data.vla },
+            .decayed_typeof_expr => .{ .decayed_typeof_expr = ty.data.vla },
         };
     }
 };
@@ -1093,6 +1197,8 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
         => {
             const elem_ty = ty.elemType();
             const simple = try elem_ty.printPrologue(w);
@@ -1114,6 +1220,10 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
             const simple = try elem_ty.printPrologue(w);
             if (simple) try w.writeByte(' ');
             return false;
+        },
+        .typeof_type, .typeof_expr => {
+            const actual = ty.unwrapTypeof();
+            return actual.printPrologue(w);
         },
         else => {},
     }
@@ -1138,6 +1248,8 @@ fn printEpilogue(ty: Type, w: anytype) @TypeOf(w).Error!void {
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
         => {
             const elem_ty = ty.elemType();
             if (elem_ty.isFunc() or elem_ty.isArray()) try w.writeByte(')');
@@ -1252,6 +1364,16 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             if (ty.specifier == .decayed_variable_len_array) try w.writeByte('d');
             try w.writeAll("[<expr>]");
             try ty.data.vla.elem.dump(w);
+        },
+        .typeof_type, .decayed_typeof_type => {
+            try w.writeAll("typeof(");
+            try ty.data.sub_type.dump(w);
+            try w.writeAll(")");
+        },
+        .typeof_expr, .decayed_typeof_expr => {
+            try w.writeAll("typeof(<expr>: ");
+            try ty.data.vla.elem.dump(w);
+            try w.writeAll(")");
         },
         else => try w.writeAll(Builder.fromType(ty).str().?),
     }

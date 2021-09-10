@@ -853,12 +853,36 @@ fn typeof(p: *Parser) Error!?Type {
     const l_paren = try p.expectToken(.l_paren);
     if (try p.typeName()) |ty| {
         try p.expectClosing(l_paren, .r_paren);
-        return ty;
+        const typeof_ty = try p.arena.create(Type);
+        typeof_ty.* = .{
+            .data = ty.data,
+            .qual = ty.qual, // todo: exclude register qualifier
+            .specifier = ty.specifier,
+        };
+
+        return Type{
+            .data = .{ .sub_type = typeof_ty },
+            .specifier = .typeof_type,
+        };
     }
     const typeof_expr = try p.parseNoEval(expr);
     try typeof_expr.expect(p);
     try p.expectClosing(l_paren, .r_paren);
-    return typeof_expr.ty;
+
+    const inner = try p.arena.create(Type.VLA);
+    inner.* = .{
+        .expr = typeof_expr.node,
+        .elem = .{
+            .data = typeof_expr.ty.data,
+            .qual = typeof_expr.ty.qual, // todo: exclude register qualifier
+            .specifier = typeof_expr.ty.specifier,
+        },
+    };
+
+    return Type{
+        .data = .{ .vla = inner },
+        .specifier = .typeof_expr,
+    };
 }
 
 /// declSpec: (storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec)+
@@ -2095,7 +2119,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     if (target.specifier == .void) return; // Do not do type coercion on excess items
 
     // item does not need to be qualified
-    var unqual_ty = target;
+    var unqual_ty = target.unwrapTypeof();
     unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
     try item.lvalConversion(p);
@@ -3454,7 +3478,7 @@ fn assignExpr(p: *Parser) Error!Result {
     try rhs.expect(p);
     try rhs.lvalConversion(p);
 
-    if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, lhs.node) or lhs.ty.qual.@"const") {
+    if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, lhs.node) or lhs.ty.isConst()) {
         try p.errTok(.not_assignable, tok);
         return error.ParsingFailed;
     }
@@ -3503,7 +3527,7 @@ fn assignExpr(p: *Parser) Error!Result {
     }
 
     // rhs does not need to be qualified
-    var unqual_ty = lhs.ty;
+    var unqual_ty = lhs.ty.unwrapTypeof();
     unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
     if (lhs.ty.specifier == .bool) {
@@ -4015,7 +4039,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.qual.@"const") {
+            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
@@ -4039,7 +4063,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.qual.@"const") {
+            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
@@ -4214,7 +4238,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.qual.@"const") {
+            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
@@ -4230,7 +4254,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.qual.@"const") {
+            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }

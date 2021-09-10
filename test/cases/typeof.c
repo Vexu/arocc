@@ -34,6 +34,20 @@ void baz(void) {
 typeof((void)1, (int*)2) a = 2.f;
 typeof();
 
+void qux(int x) {
+    char vla[x];
+    char arr[10];
+    typeof(arr) arr2;
+    typeof(char[10]) arr3;
+
+    typeof(vla) vla2;
+    typeof(char[x]) vla3;
+    char *p = arr2;
+    p = arr3;
+    p = vla2;
+    p = vla3;
+}
+
 #define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
     "typeof.c:28:7: error: expression is not assignable" \
     "typeof.c:30:7: error: expression is not assignable" \
