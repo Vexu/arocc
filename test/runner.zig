@@ -276,7 +276,10 @@ pub fn main() !void {
         }
 
         comp.renderErrors();
-        if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
+        if (comp.diag.errors != 0) fail_count += 1 else {
+            tree.dump(std.io.null_writer) catch {};
+            ok_count += 1;
+        }
     }
 
     root_node.end();

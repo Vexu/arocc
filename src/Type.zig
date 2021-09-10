@@ -1183,7 +1183,7 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
         .variable_len_array, .decayed_variable_len_array => {
             if (ty.specifier == .decayed_variable_len_array) try w.writeByte('d');
             try w.writeAll("[<expr>]");
-            try ty.data.array.elem.dump(w);
+            try ty.data.vla.elem.dump(w);
         },
         else => try w.writeAll(Builder.fromType(ty).str().?),
     }
