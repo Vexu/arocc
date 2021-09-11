@@ -818,23 +818,21 @@ pub const DeclSpec = struct {
     }
 };
 
+/// typeof
+///   : keyword_typeof '(' typeName ')'
+///   | keyword_typeof '(' expr ')'
 fn typeof(p: *Parser) Error!?Type {
     switch (p.tok_ids[p.tok_i]) {
         .keyword_typeof, .keyword_typeof1, .keyword_typeof2 => p.tok_i += 1,
         else => return null,
     }
     const l_paren = try p.expectToken(.l_paren);
-    const start = p.tok_i;
     if (try p.typeName()) |ty| {
         try p.expectClosing(l_paren, .r_paren);
         return ty;
     }
-    p.tok_i = start;
-    if (p.eatToken(.r_paren)) |r_paren| {
-        try p.errTok(.expected_expr, r_paren);
-        return error.ParsingFailed;
-    }
-    const typeof_expr = try p.parseNoEval(assignExpr);
+    const typeof_expr = try p.parseNoEval(expr);
+    try typeof_expr.expect(p);
     try p.expectClosing(l_paren, .r_paren);
     return typeof_expr.ty;
 }
@@ -989,6 +987,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 ///  | recordSpec
 ///  | enumSpec
 ///  | typedef  // IDENTIFIER
+///  | typeof
 /// atomicTypeSpec : keyword_atomic '(' typeName ')'
 /// alignSpec
 ///   : keyword_alignas '(' typeName ')'
@@ -1076,7 +1075,10 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     ty.alignment = inner_ty.alignment;
                 } else blk: {
                     const res = try p.constExpr();
-                    if (res.val == .signed and res.val.signed < 0) {
+                    if (res.val == .unavailable) {
+                        try p.errTok(.alignas_unavailable, ty.align_tok.?);
+                        break :blk;
+                    } else if (res.val == .signed and res.val.signed < 0) {
                         try p.errExtra(.negative_alignment, ty.align_tok.?, .{ .signed = res.val.signed });
                         break :blk;
                     }
@@ -1277,8 +1279,6 @@ fn recordDecls(p: *Parser) Error!void {
 
 /// specQual : (typeSpec | typeQual | alignSpec)+
 fn specQual(p: *Parser) Error!?Type {
-    if (try p.typeof()) |ty| return ty;
-
     var spec: Type.Builder = .{};
     if (try p.typeSpec(&spec)) {
         if (spec.alignment != 0) try p.errTok(.align_ignored, spec.align_tok.?);
@@ -1399,7 +1399,12 @@ fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
         },
     };
     if (p.eatToken(.equal)) |_| {
-        res = try p.constExpr();
+        const specified = try p.constExpr();
+        if (specified.val == .unavailable) {
+            try p.errTok(.enum_val_unavailable, name_tok + 2);
+        } else {
+            res = specified;
+        }
     }
 
     if (p.findSymbol(name_tok, .definition)) |scope| switch (scope) {
@@ -2244,6 +2249,10 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             .data = .{ .bin = .{ .lhs = val.node, .rhs = s } },
         });
         if (p.findSwitch()) |some| {
+            if (val.val == .unavailable) {
+                try p.errTok(.case_val_unavailable, case + 1);
+                return node;
+            }
             const gop = try some.cases.getOrPut(val);
             if (gop.found_existing) {
                 switch (val.val) {
@@ -3763,7 +3772,7 @@ fn unExpr(p: *Parser) Error!Result {
                     try p.expectClosing(l_paren, .r_paren);
                 } else {
                     p.tok_i = expected_paren;
-                    res = try p.parseNoEval(assignExpr);
+                    res = try p.parseNoEval(unExpr);
                 }
             } else {
                 res = try p.parseNoEval(unExpr);
@@ -3792,7 +3801,7 @@ fn unExpr(p: *Parser) Error!Result {
                     try p.expectClosing(l_paren, .r_paren);
                 } else {
                     p.tok_i = expected_paren;
-                    res = try p.parseNoEval(assignExpr);
+                    res = try p.parseNoEval(unExpr);
                     try p.errTok(.alignof_expr, expected_paren);
                 }
             } else {

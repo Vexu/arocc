@@ -220,6 +220,9 @@ pub const Tag = enum {
     invalid_typeof,
     division_by_zero,
     builtin_choose_cond,
+    alignas_unavailable,
+    case_val_unavailable,
+    enum_val_unavailable,
 };
 
 const Options = struct {
@@ -553,6 +556,9 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .invalid_typeof => m.print("'{s} typeof' is invalid", .{msg.extra.str}),
             .division_by_zero => m.print("{s} by zero is undefined", .{msg.extra.str}),
             .builtin_choose_cond => m.write("'__builtin_choose_expr' requires a constant expression"),
+            .alignas_unavailable => m.write("'_Alignas' attribute requires integer constant expression"),
+            .case_val_unavailable => m.write("case value must be an integer constant expression"),
+            .enum_val_unavailable => m.write("enum value must be an integer constant expression"),
         }
         m.end(lcs);
 
@@ -732,6 +738,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .arr_init_too_long,
         .invalid_typeof,
         .builtin_choose_cond,
+        .alignas_unavailable,
+        .case_val_unavailable,
+        .enum_val_unavailable,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

@@ -31,6 +31,11 @@ void baz(void) {
     typeof(0/0) divzero = 0;
 }
 
+typeof((void)1, (int*)2) a = 2.f;
+typeof();
+
 #define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
     "typeof.c:28:7: error: expression is not assignable" \
-    "typeof.c:30:7: error: expression is not assignable"
+    "typeof.c:30:7: error: expression is not assignable" \
+    "typeof.c:34:30: error: initializing 'int *' from incompatible type 'float'" \
+    "typeof.c:35:8: error: expected expression" \
