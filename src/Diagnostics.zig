@@ -215,6 +215,8 @@ pub const Tag = enum {
     empty_scalar_init,
     excess_scalar_init,
     excess_str_init,
+    excess_struct_init,
+    excess_array_init,
     str_init_too_long,
     arr_init_too_long,
     invalid_typeof,
@@ -223,6 +225,15 @@ pub const Tag = enum {
     alignas_unavailable,
     case_val_unavailable,
     enum_val_unavailable,
+    incompatible_array_init,
+    initializer_overrides,
+    previous_initializer,
+    invalid_array_designator,
+    negative_array_designator,
+    oob_array_designator,
+    invalid_field_designator,
+    no_such_field_designator,
+    empty_aggregate_init_braces,
 };
 
 const Options = struct {
@@ -252,6 +263,7 @@ const Options = struct {
     @"incompatible-pointer-types": Kind = .warning,
     @"excess-initializers": Kind = .warning,
     @"division-by-zero": Kind = .warning,
+    @"initializer-overrides": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -551,6 +563,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .empty_scalar_init => m.write("scalar initializer cannot be empty"),
             .excess_scalar_init => m.write("excess elements in scalar initializer"),
             .excess_str_init => m.write("excess elements in string initializer"),
+            .excess_struct_init => m.write("excess elements in struct initializer"),
+            .excess_array_init => m.write("excess elements in array initializer"),
             .str_init_too_long => m.write("initializer-string for char array is too long"),
             .arr_init_too_long => m.print("cannot initialize type ({s})", .{msg.extra.str}),
             .invalid_typeof => m.print("'{s} typeof' is invalid", .{msg.extra.str}),
@@ -559,6 +573,15 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .alignas_unavailable => m.write("'_Alignas' attribute requires integer constant expression"),
             .case_val_unavailable => m.write("case value must be an integer constant expression"),
             .enum_val_unavailable => m.write("enum value must be an integer constant expression"),
+            .incompatible_array_init => m.print("cannot initialize array of type {s}", .{msg.extra.str}),
+            .initializer_overrides => m.write("initializer overrides previous initialization"),
+            .previous_initializer => m.write("previous initialization"),
+            .invalid_array_designator => m.print("array designator used for non-array type '{s}'", .{msg.extra.str}),
+            .negative_array_designator => m.print("array designator value {d} is negative", .{msg.extra.signed}),
+            .oob_array_designator => m.print("array designator index {d} exceeds array bounds", .{msg.extra.unsigned}),
+            .invalid_field_designator => m.print("field designator used for non-record type '{s}'", .{msg.extra.str}),
+            .no_such_field_designator => m.print("record type has no field named '{s}'", .{msg.extra.str}),
+            .empty_aggregate_init_braces => m.write("initializer for aggregate with no elements requires explicit braces"),
         }
         m.end(lcs);
 
@@ -741,6 +764,13 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .alignas_unavailable,
         .case_val_unavailable,
         .enum_val_unavailable,
+        .incompatible_array_init,
+        .invalid_array_designator,
+        .negative_array_designator,
+        .oob_array_designator,
+        .invalid_field_designator,
+        .no_such_field_designator,
+        .empty_aggregate_init_braces,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -751,6 +781,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .previous_case,
         .previous_definition,
         .parameter_here,
+        .previous_initializer,
         => .note,
         .invalid_old_style_params,
         .expected_arguments_old,
@@ -789,9 +820,12 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .incompatible_ptr_assign => diag.options.@"incompatible-pointer-types",
         .excess_scalar_init,
         .excess_str_init,
+        .excess_struct_init,
+        .excess_array_init,
         .str_init_too_long,
         => diag.options.@"excess-initializers",
         .division_by_zero => diag.options.@"division-by-zero",
+        .initializer_overrides => diag.options.@"initializer-overrides",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;
