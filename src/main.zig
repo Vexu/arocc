@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
+const Codegen = @import("Codegen.zig");
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Preprocessor = @import("Preprocessor.zig");
@@ -236,9 +237,12 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     comp.renderErrors();
 
     tree.dump(std.io.getStdOut().writer()) catch {};
+
+    try Codegen.generateTree(comp, tree);
 }
 
 test {
+    _ = @import("Codegen.zig");
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
     _ = @import("InitList.zig");

@@ -15,6 +15,7 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("arocc", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+    exe.addPackagePath("zig", "deps/zig/lib.zig");
     exe.install();
 
     const run_cmd = exe.run();
@@ -30,10 +31,12 @@ pub fn build(b: *Builder) void {
     tests_step.dependOn(&exe.step);
 
     var unit_tests = b.addTest("src/main.zig");
+    unit_tests.addPackagePath("zig", "deps/zig/lib.zig");
     tests_step.dependOn(&unit_tests.step);
 
     const integration_tests = b.addExecutable("arocc", "test/runner.zig");
     integration_tests.addPackagePath("aro", "src/lib.zig");
+    integration_tests.addPackagePath("zig", "deps/zig/lib.zig");
 
     const integration_test_runner = integration_tests.run();
     integration_test_runner.addArg(b.pathFromRoot("test/cases"));

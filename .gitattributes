@@ -1,1 +1,3 @@
 *.zig text eol=lf
+
+deps/** linguist-vendored
