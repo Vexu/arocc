@@ -54,6 +54,19 @@ const Standard = enum {
     pub fn isExplicitGNU(standard: Standard) bool {
         return standard.isGNU() and standard != .default;
     }
+
+    /// Value reported by __STDC_VERSION__ macro
+    pub fn StdCVersionMacro(standard: Standard) ?[]const u8 {
+        return switch (standard) {
+            .c89, .gnu89 => null,
+            .iso9899 => "199409L",
+            .c99, .gnu99 => "199901L",
+            .c11, .gnu11 => "201112L",
+            .default, .c17, .gnu17 => "201710L",
+            // todo: update once finalized; this currently matches clang
+            .c2x, .gnu2x => "201710L",
+        };
+    }
 };
 
 standard: Standard = .default,
