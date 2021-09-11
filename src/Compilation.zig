@@ -150,7 +150,7 @@ pub fn defineSystemIncludes(comp: *Compilation) !void {
         defer base_dir.close();
 
         base_dir.access("include/stddef.h", .{}) catch continue;
-        const path = try std.fs.path.join(comp.gpa, &.{dirname, "include"});
+        const path = try std.fs.path.join(comp.gpa, &.{ dirname, "include" });
         comp.builtin_header_path = path;
         try comp.system_include_dirs.append(path);
         break;

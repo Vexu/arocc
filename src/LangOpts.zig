@@ -31,17 +31,13 @@ const Standard = enum {
     gnu2x,
 
     const NameMap = std.ComptimeStringMap(Standard, .{
-        .{ "c89", .c89 }, .{ "c90", .c89 }, .{ "iso9899:1990", .c89 },
-        .{ "iso9899:199409", .iso9899},
-        .{ "gnu89", .gnu89 }, .{ "gnu90", .gnu89 },
-        .{ "c99", .c99 }, .{ "iso9899:1999", .c99 },
-        .{ "gnu99", .gnu99 },
-        .{ "c11", .c11 }, .{ "iso9899:2011", .c11 },
-        .{ "gnu11", .gnu11 },
-        .{ "c17", .c17 }, .{ "iso9899:2017", .c17 }, .{ "c18", .c17 }, .{ "iso9899:2018", .c17 },
-        .{ "gnu17", .gnu17 }, .{ "gnu18", .gnu17 },
-        .{ "c2x", .c2x },
-        .{ "gnu2x", .gnu2x },
+        .{ "c89", .c89 },                .{ "c90", .c89 },          .{ "iso9899:1990", .c89 },
+        .{ "iso9899:199409", .iso9899 }, .{ "gnu89", .gnu89 },      .{ "gnu90", .gnu89 },
+        .{ "c99", .c99 },                .{ "iso9899:1999", .c99 }, .{ "gnu99", .gnu99 },
+        .{ "c11", .c11 },                .{ "iso9899:2011", .c11 }, .{ "gnu11", .gnu11 },
+        .{ "c17", .c17 },                .{ "iso9899:2017", .c17 }, .{ "c18", .c17 },
+        .{ "iso9899:2018", .c17 },       .{ "gnu17", .gnu17 },      .{ "gnu18", .gnu17 },
+        .{ "c2x", .c2x },                .{ "gnu2x", .gnu2x },
     });
 
     pub fn atLeast(self: Standard, other: Standard) bool {
