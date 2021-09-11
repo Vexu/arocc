@@ -30,6 +30,10 @@ void foo(void) {
     // (void)(1 ? b : c);
     // (void)(1 ? b : 1);
     ?:;
+    (void)(1 * (int)sizeof(int));
+    int *ptr;
+    char idx;
+    ptr = ptr + idx;
 }
 
 int bar(void) {

@@ -325,8 +325,10 @@ pub fn eitherFloat(a: Type, b: Type) ?Type {
 }
 
 pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
+    var specifier = ty.specifier;
+    if (specifier == .@"enum") specifier = ty.data.@"enum".tag_ty.specifier;
     return .{
-        .specifier = switch (ty.specifier) {
+        .specifier = switch (specifier) {
             .bool, .char, .schar, .uchar, .short => .int,
             .ushort => if (ty.sizeof(comp).? == sizeof(.{ .specifier = .int }, comp)) Specifier.uint else .int,
             .int => .int,

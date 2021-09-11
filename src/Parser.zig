@@ -900,7 +900,7 @@ fn declSpec(p: *Parser, is_param: bool) Error!?DeclSpec {
                 d.@"inline" = p.tok_i;
             },
             .keyword_noreturn => {
-                if (d.@"noreturn" != p.tok_i) {
+                if (d.@"noreturn" != null) {
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "_Noreturn");
                 }
                 d.@"noreturn" = null;
@@ -1358,6 +1358,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
         if (p.eatToken(.comma) == null) break;
     }
     enum_ty.fields = try p.arena.dupe(Type.Enum.Field, p.enum_buf.items[enum_buf_top..]);
+    enum_ty.tag_ty = .{ .specifier = .int }; // TODO actually resolve
 
     if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
     try p.expectClosing(l_brace, .r_brace);
@@ -2339,15 +2340,17 @@ fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
             noreturn_index = p.tok_i;
             noreturn_label_count = p.label_count;
         }
+        switch (p.nodes.items(.tag)[@enumToInt(s)]) {
+            .case_stmt, .default_stmt, .labeled_stmt => noreturn_index = null,
+            else => {},
+        }
     }
 
     if (noreturn_index) |some| {
         // if new labels were defined we cannot be certain that the code is unreachable
         if (some != p.tok_i - 1 and noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
     }
-    if (is_fn_body and (p.decl_buf.items.len == decl_buf_top or
-        p.nodes.items(.tag)[@enumToInt(p.decl_buf.items[p.decl_buf.items.len - 1])] != .return_stmt))
-    {
+    if (is_fn_body and (p.decl_buf.items.len == decl_buf_top or !p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]))) {
         if (p.return_type.?.specifier != .void) try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func_name));
         try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.return_type.?, .data = undefined }));
     }
@@ -2375,6 +2378,16 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) bool {
         .if_then_else_stmt => {
             const data = p.data.items[p.nodes.items(.data)[@enumToInt(node)].if3.body..];
             return p.nodeIsNoreturn(data[0]) and p.nodeIsNoreturn(data[1]);
+        },
+        .compound_stmt_two => {
+            const data = p.nodes.items(.data)[@enumToInt(node)];
+            if (data.bin.rhs != .none) return p.nodeIsNoreturn(data.bin.rhs);
+            if (data.bin.lhs != .none) return p.nodeIsNoreturn(data.bin.lhs);
+            return false;
+        },
+        .compound_stmt => {
+            const data = p.nodes.items(.data)[@enumToInt(node)];
+            return p.nodeIsNoreturn(p.data.items[data.range.end - 1]);
         },
         else => return false,
     }
@@ -2742,6 +2755,9 @@ const Result = struct {
                 // Do integer promotions but nothing else
                 if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp));
                 if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+
+                // The result type is the type of the pointer operand
+                if (a_int) a.ty = b.ty else b.ty = a.ty;
                 return a.shouldEval(b, p);
             },
             .sub => {
@@ -3575,6 +3591,15 @@ fn castExpr(p: *Parser) Error!Result {
                     try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(operand.ty));
                 if (operand.ty.isFloat() and ty.isPtr())
                     try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(operand.ty));
+
+                const is_unsigned = ty.isUnsignedInt(p.pp.comp);
+                if (is_unsigned and operand.val == .signed) {
+                    const copy = operand.val.signed;
+                    operand.val = .{ .unsigned = @bitCast(u64, copy) };
+                } else if (!is_unsigned and operand.val == .unsigned) {
+                    const copy = operand.val.unsigned;
+                    operand.val = .{ .signed = @bitCast(i64, copy) };
+                }
             } else {
                 try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
             }
