@@ -33,6 +33,16 @@ void foo(void) {
     h = f;
     char *i;
     i = x;
+    {
+        char *y = 0;
+        int *z = y;
+        z = y;
+    }
+    {
+        const int *y = 0;
+        int *z = y;
+        z = y;
+    }
 }
 
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
@@ -44,4 +54,8 @@ void foo(void) {
     "assignment.c:25:7: error: invalid operands to binary expression ('struct Foo' and 'struct Foo')" \
     "assignment.c:27:9: error: expression is not assignable" \
     "assignment.c:31:7: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
-    "assignment.c:35:7: warning: incompatible pointer types assigning to 'char *' from incompatible type 'int *'"
+    "assignment.c:35:7: warning: incompatible pointer types assigning to 'char *' from incompatible type 'int *'" \
+    "assignment.c:38:18: warning: incompatible pointer types initializing 'int *' from incompatible type 'char *'" \
+    "assignment.c:39:11: warning: incompatible pointer types assigning to 'int *' from incompatible type 'char *'" \
+    "assignment.c:43:18: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers" \
+    "assignment.c:44:11: warning: assigning to 'int *' from incompatible type 'const int *' discards qualifiers" \

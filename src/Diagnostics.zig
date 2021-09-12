@@ -208,6 +208,7 @@ pub const Tag = enum {
     static_assert_missing_message,
     unbound_vla,
     array_too_large,
+    incompatible_ptr_init,
     incompatible_ptr_assign,
     vla_init,
     func_init,
@@ -234,6 +235,8 @@ pub const Tag = enum {
     invalid_field_designator,
     no_such_field_designator,
     empty_aggregate_init_braces,
+    ptr_init_discards_quals,
+    ptr_assign_discards_quals,
 };
 
 const Options = struct {
@@ -264,6 +267,7 @@ const Options = struct {
     @"excess-initializers": Kind = .warning,
     @"division-by-zero": Kind = .warning,
     @"initializer-overrides": Kind = .warning,
+    @"incompatible-pointer-types-discards-qualifiers": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -556,6 +560,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .static_assert_missing_message => m.write("static_assert with no message is a C2X extension"),
             .unbound_vla => m.write("variable length array must be bound in function definition"),
             .array_too_large => m.write("array is too large"),
+            .incompatible_ptr_init => m.print("incompatible pointer types initializing {s}", .{msg.extra.str}),
             .incompatible_ptr_assign => m.print("incompatible pointer types assigning to {s}", .{msg.extra.str}),
             .vla_init => m.write("variable-sized object may not be initialized"),
             .func_init => m.write("illegal initializer type"),
@@ -582,6 +587,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .invalid_field_designator => m.print("field designator used for non-record type '{s}'", .{msg.extra.str}),
             .no_such_field_designator => m.print("record type has no field named '{s}'", .{msg.extra.str}),
             .empty_aggregate_init_braces => m.write("initializer for aggregate with no elements requires explicit braces"),
+            .ptr_init_discards_quals => m.print("initializing {s} discards qualifiers", .{msg.extra.str}),
+            .ptr_assign_discards_quals => m.print("assigning to {s} discards qualifiers", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -817,7 +824,12 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .implicit_int_to_ptr => diag.options.@"int-conversion",
         .pointer_mismatch => diag.options.@"pointer-type-mismatch",
         .static_assert_missing_message => diag.options.@"c2x-extension",
-        .incompatible_ptr_assign => diag.options.@"incompatible-pointer-types",
+        .incompatible_ptr_init,
+        .incompatible_ptr_assign,
+        => diag.options.@"incompatible-pointer-types",
+        .ptr_init_discards_quals,
+        .ptr_assign_discards_quals,
+        => diag.options.@"incompatible-pointer-types-discards-qualifiers",
         .excess_scalar_init,
         .excess_str_init,
         .excess_struct_init,
