@@ -5,7 +5,7 @@ const Object = @import("../Object.zig");
 const Elf = @This();
 
 const Section = struct {
-    data: std.ArrayListUnmanaged(u8) = .{},
+    data: std.ArrayList(u8),
     name_offset: std.elf.Elf64_Word,
     type: std.elf.Elf64_Word,
     flags: std.elf.Elf64_Xword,
@@ -47,7 +47,7 @@ pub fn create(comp: *Compilation) !*Object {
 
 pub fn deinit(elf: *Elf) void {
     const gpa = elf.sections.allocator;
-    for (elf.sections.values()) |*sect| sect.data.deinit(gpa);
+    for (elf.sections.values()) |*sect| sect.data.deinit();
     elf.sections.deinit();
     elf.symtab.deinit();
     elf.strtab.deinit();
@@ -64,11 +64,12 @@ fn sectionString(sec: Object.Section) []const u8 {
     };
 }
 
-pub fn getSection(elf: *Elf, section: Object.Section) !*std.ArrayListUnmanaged(u8) {
+pub fn getSection(elf: *Elf, section: Object.Section) !*std.ArrayList(u8) {
     const section_name = sectionString(section);
     const section_idx = elf.sections.getIndex(section_name) orelse blk: {
         const idx = elf.sections.count();
         try elf.sections.putNoClobber(section_name, .{
+            .data = std.ArrayList(u8).init(elf.sections.allocator),
             .name_offset = @truncate(std.elf.Elf64_Word, elf.strtab.items.len),
             .type = std.elf.SHT_PROGBITS,
             .flags = switch (section) {

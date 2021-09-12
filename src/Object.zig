@@ -29,7 +29,7 @@ pub const Section = union(enum) {
     custom: []const u8,
 };
 
-pub fn getSection(obj: *Object, section: Section) !*std.ArrayListUnmanaged(u8) {
+pub fn getSection(obj: *Object, section: Section) !*std.ArrayList(u8) {
     switch (obj.format) {
         .elf => return @fieldParentPtr(Elf, "obj", obj).getSection(section),
         else => @panic("unsupported object format"),
