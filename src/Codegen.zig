@@ -72,6 +72,13 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
             else => unreachable,
         }
     }
+
+    const out_file_name = comp.output_name orelse "a.o";
+    const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |err|
+        return comp.diag.fatalNoSrc("could not create output file '{s}': {s}", .{ out_file_name, @errorName(err) });
+    defer out_file.close();
+    c.obj.finish(out_file) catch |err|
+        return comp.diag.fatalNoSrc("could output to object file '{s}': {s}", .{ out_file_name, @errorName(err) });
 }
 
 fn genFn(c: *Codegen, decl: NodeIndex) Error!void {

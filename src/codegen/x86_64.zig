@@ -55,7 +55,10 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!void {
         .function_to_pointer => try func.genNode(data.un), // no-op
         .array_to_pointer => try func.genNode(data.un), // no-op
         .decl_ref_expr => {},
-        .return_stmt => {},
+        .return_stmt => {
+            // TODO gen return value
+            try func.data.appendSlice(func.gpa, &.{ 0x48, 0x83, 0xc4, 0x10, 0x5d, 0xc3 });
+        },
         .int_literal => {},
         .string_literal_expr => {},
         else => return func.c.comp.diag.fatalNoSrc("TODO x86_64 genNode {}\n", .{func.c.node_tag[@enumToInt(node)]}),
