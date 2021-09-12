@@ -257,7 +257,11 @@ pub fn main() !void {
                     progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
                     break;
                 }
-                const expected_error = std.mem.trim(u8, pp.tokSliceSafe(str), "\"");
+                const start = path_buf.items.len;
+                defer path_buf.items.len = start;
+                // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
+                std.debug.assert((try std.zig.string_literal.parseAppend(&path_buf, pp.tokSliceSafe(str))) == .success);
+                const expected_error = path_buf.items[start..];
 
                 const index = std.mem.indexOf(u8, m.buf.items, expected_error);
                 if (index == null or m.buf.items[index.? + expected_error.len] != '\n') {

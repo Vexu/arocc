@@ -715,18 +715,20 @@ fn staticAssert(p: *Parser) Error!bool {
         if (!p.nodeIs(res.node, .sizeof_expr)) try p.errTok(.static_assert_not_constant, res_token);
     } else if (!res.getBool()) {
         if (str.node != .none) {
-            const strings_top = p.strings.items.len;
-            defer p.strings.items.len = strings_top;
+            var buf = std.ArrayList(u8).init(p.pp.comp.gpa);
+            defer buf.deinit();
+
             const data = p.nodes.items(.data)[@enumToInt(str.node)].str;
+            try buf.ensureUnusedCapacity(data.len);
             try Tree.dumpStr(
                 p.strings.items[data.index..][0..data.len],
                 p.nodes.items(.tag)[@enumToInt(str.node)],
-                p.strings.writer(),
+                buf.writer(),
             );
             try p.errStr(
                 .static_assert_failure_message,
                 static_assert,
-                try p.arena.dupe(u8, p.strings.items[strings_top..]),
+                try p.arena.dupe(u8, buf.items),
             );
         } else try p.errTok(.static_assert_failure, static_assert);
     }
