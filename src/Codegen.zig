@@ -83,12 +83,14 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
 
 fn genFn(c: *Codegen, decl: NodeIndex) Error!void {
     const section: []const u8 = "text";
-    const name = c.tree.tokSlice(c.node_data[@enumToInt(decl)].decl.name);
-    const data = try c.obj.declareSymbol(section, name);
+    const data = try c.obj.getSection(section);
+    const start_len = data.items.len;
     switch (c.comp.target.cpu.arch) {
         .x86_64 => try x86_64.genFn(c, decl, data),
         else => return c.comp.diag.fatalNoSrc("implement genFn for target {}\n", .{c.comp.target.cpu.arch}),
     }
+    const name = c.tree.tokSlice(c.node_data[@enumToInt(decl)].decl.name);
+    try c.obj.declareSymbol(section, name, .Strong, .func, start_len, data.items.len - start_len);
 }
 
 fn genVar(c: *Codegen, decl: NodeIndex) Error!void {

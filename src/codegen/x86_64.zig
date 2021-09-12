@@ -26,7 +26,10 @@ pub fn genFn(c: *Codegen, decl: NodeIndex, data: *std.ArrayListUnmanaged(u8)) Co
     defer func.deinit();
 
     // function prologue
-    try func.data.appendSlice(func.gpa, &.{ 0x55, 0x48, 0x89, 0xe5 });
+    try func.data.appendSlice(func.gpa, &.{
+        0x55, // push rbp
+        0x48, 0x89, 0xe5, // mov rbp,rsp
+    });
     try func.genNode(c.node_data[@enumToInt(decl)].decl.node);
     // all functions are guaranteed to end in a return statement so no extra work required here
 }
@@ -57,7 +60,11 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!void {
         .decl_ref_expr => {},
         .return_stmt => {
             // TODO gen return value
-            try func.data.appendSlice(func.gpa, &.{ 0x48, 0x83, 0xc4, 0x10, 0x5d, 0xc3 });
+            try func.data.appendSlice(func.gpa, &.{ 0x31, 0xc0 }); // xor eax
+            try func.data.appendSlice(func.gpa, &.{
+                0x5d, // pop rbp
+                0xc3, // ret
+            });
         },
         .int_literal => {},
         .string_literal_expr => {},
