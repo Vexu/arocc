@@ -21,7 +21,15 @@ pub fn deinit(obj: *Object) void {
     }
 }
 
-pub fn getSection(obj: *Object, section: []const u8) !*std.ArrayListUnmanaged(u8) {
+pub const Section = union(enum) {
+    data,
+    read_only_data,
+    func,
+    strings,
+    custom: []const u8,
+};
+
+pub fn getSection(obj: *Object, section: Section) !*std.ArrayListUnmanaged(u8) {
     switch (obj.format) {
         .elf => return @fieldParentPtr(Elf, "obj", obj).getSection(section),
         else => @panic("unsupported object format"),
@@ -35,13 +43,13 @@ pub const SymbolType = enum {
 
 pub fn declareSymbol(
     obj: *Object,
-    section: []const u8,
-    name: []const u8,
+    section: Section,
+    name: ?[]const u8,
     linkage: std.builtin.GlobalLinkage,
     @"type": SymbolType,
     offset: u64,
     size: u64,
-) !void {
+) ![]const u8 {
     switch (obj.format) {
         .elf => return @fieldParentPtr(Elf, "obj", obj).declareSymbol(section, name, linkage, @"type", offset, size),
         else => @panic("unsupported object format"),
