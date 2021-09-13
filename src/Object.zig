@@ -22,6 +22,7 @@ pub fn deinit(obj: *Object) void {
 }
 
 pub const Section = union(enum) {
+    @"undefined",
     data,
     read_only_data,
     func,
@@ -39,6 +40,7 @@ pub fn getSection(obj: *Object, section: Section) !*std.ArrayList(u8) {
 pub const SymbolType = enum {
     func,
     variable,
+    external,
 };
 
 pub fn declareSymbol(
@@ -52,6 +54,13 @@ pub fn declareSymbol(
 ) ![]const u8 {
     switch (obj.format) {
         .elf => return @fieldParentPtr(Elf, "obj", obj).declareSymbol(section, name, linkage, @"type", offset, size),
+        else => @panic("unsupported object format"),
+    }
+}
+
+pub fn addRelocation(obj: *Object, name: []const u8, section: Section, address: u64, addend: i64) !void {
+    switch (obj.format) {
+        .elf => return @fieldParentPtr(Elf, "obj", obj).addRelocation(name, section, address, addend),
         else => @panic("unsupported object format"),
     }
 }

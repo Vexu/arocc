@@ -31,7 +31,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
             // these produce no code
             .static_assert, .typedef => {},
 
-            // no work needed
+            // define symbol
             .fn_proto,
             .static_fn_proto,
             .inline_fn_proto,
@@ -42,7 +42,10 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
             .noreturn_inline_static_fn_proto,
             .extern_var,
             .threadlocal_extern_var,
-            => {},
+            => {
+                const name = c.tree.tokSlice(c.node_data[@enumToInt(decl)].decl.name);
+                _ = try c.obj.declareSymbol(.@"undefined", name, .Strong, .external, 0, 0);
+            },
 
             // function definition
             .fn_def,
