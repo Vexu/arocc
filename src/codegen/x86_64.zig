@@ -47,8 +47,8 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
         .none => unreachable,
         .symbol => |sym| {
             // lea address with 0 and add relocation
-            const encoder = try x86_64.Encoder.init(func.data, 7);
-            encoder.rex(.{ .b = reg.isExtended() });
+            const encoder = try x86_64.Encoder.init(func.data, 8);
+            encoder.rex(.{ .w = func.c.comp.target.cpu.arch.ptrBitWidth() == 64 });
             encoder.opcode_1byte(0x8D);
             encoder.modRm_RIPDisp32(reg.low_id());
 
@@ -137,6 +137,7 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
 
     const data = func.c.node_data[@enumToInt(node)];
     switch (func.c.node_tag[@enumToInt(node)]) {
+        .static_assert => return Value{ .none = {} },
         .compound_stmt_two => {
             if (data.bin.lhs != .none) _ = try func.genNode(data.bin.lhs);
             if (data.bin.rhs != .none) _ = try func.genNode(data.bin.rhs);

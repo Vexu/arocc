@@ -29,7 +29,15 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
     for (tree.root_decls) |decl| {
         switch (node_tags[@enumToInt(decl)]) {
             // these produce no code
-            .static_assert, .typedef => {},
+            .static_assert,
+            .typedef,
+            .struct_decl_two,
+            .union_decl_two,
+            .enum_decl_two,
+            .struct_decl,
+            .union_decl,
+            .enum_decl,
+            => {},
 
             // define symbol
             .fn_proto,
