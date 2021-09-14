@@ -10,14 +10,14 @@ comp: *Compilation,
 pub fn create(comp: *Compilation) !*Object {
     switch (comp.target.getObjectFormat()) {
         .elf => return Elf.create(comp),
-        else => @panic("unsupported object format"),
+        else => unreachable,
     }
 }
 
 pub fn deinit(obj: *Object) void {
     switch (obj.format) {
         .elf => @fieldParentPtr(Elf, "obj", obj).deinit(),
-        else => @panic("unsupported object format"),
+        else => unreachable,
     }
 }
 
@@ -33,7 +33,7 @@ pub const Section = union(enum) {
 pub fn getSection(obj: *Object, section: Section) !*std.ArrayList(u8) {
     switch (obj.format) {
         .elf => return @fieldParentPtr(Elf, "obj", obj).getSection(section),
-        else => @panic("unsupported object format"),
+        else => unreachable,
     }
 }
 
@@ -54,20 +54,20 @@ pub fn declareSymbol(
 ) ![]const u8 {
     switch (obj.format) {
         .elf => return @fieldParentPtr(Elf, "obj", obj).declareSymbol(section, name, linkage, @"type", offset, size),
-        else => @panic("unsupported object format"),
+        else => unreachable,
     }
 }
 
 pub fn addRelocation(obj: *Object, name: []const u8, section: Section, address: u64, addend: i64) !void {
     switch (obj.format) {
         .elf => return @fieldParentPtr(Elf, "obj", obj).addRelocation(name, section, address, addend),
-        else => @panic("unsupported object format"),
+        else => unreachable,
     }
 }
 
 pub fn finish(obj: *Object, file: std.fs.File) !void {
     switch (obj.format) {
         .elf => return @fieldParentPtr(Elf, "obj", obj).finish(file),
-        else => @panic("unsupported object format"),
+        else => unreachable,
     }
 }

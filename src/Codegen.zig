@@ -15,7 +15,9 @@ node_data: []const Tree.Node.Data,
 
 pub const Error = Compilation.Error || error{CodegenFailed};
 
-pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
+/// Generate tree to an object file.
+/// Caller is responsible for flushing and freeing the returned object.
+pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!*Object {
     var c = Codegen{
         .comp = comp,
         .tree = tree,
@@ -23,7 +25,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
         .node_tag = tree.nodes.items(.tag),
         .node_data = tree.nodes.items(.data),
     };
-    defer c.obj.deinit();
+    errdefer c.obj.deinit();
 
     const node_tags = tree.nodes.items(.tag);
     for (tree.root_decls) |decl| {
@@ -84,12 +86,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
         }
     }
 
-    const out_file_name = comp.output_name orelse "a.o";
-    const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |err|
-        return comp.diag.fatalNoSrc("could not create output file '{s}': {s}", .{ out_file_name, @errorName(err) });
-    defer out_file.close();
-    c.obj.finish(out_file) catch |err|
-        return comp.diag.fatalNoSrc("could output to object file '{s}': {s}", .{ out_file_name, @errorName(err) });
+    return c.obj;
 }
 
 fn genFn(c: *Codegen, decl: NodeIndex) Error!void {
@@ -98,7 +95,7 @@ fn genFn(c: *Codegen, decl: NodeIndex) Error!void {
     const start_len = data.items.len;
     switch (c.comp.target.cpu.arch) {
         .x86_64 => try x86_64.genFn(c, decl, data),
-        else => return c.comp.diag.fatalNoSrc("implement genFn for target {}\n", .{c.comp.target.cpu.arch}),
+        else => unreachable,
     }
     const name = c.tree.tokSlice(c.node_data[@enumToInt(decl)].decl.name);
     _ = try c.obj.declareSymbol(section, name, .Strong, .func, start_len, data.items.len - start_len);
@@ -107,6 +104,6 @@ fn genFn(c: *Codegen, decl: NodeIndex) Error!void {
 fn genVar(c: *Codegen, decl: NodeIndex) Error!void {
     switch (c.comp.target.cpu.arch) {
         .x86_64 => try x86_64.genVar(c, decl),
-        else => return c.comp.diag.fatalNoSrc("implement genVar for target {}\n", .{c.comp.target.cpu.arch}),
+        else => unreachable,
     }
 }

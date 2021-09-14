@@ -48,7 +48,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
         .symbol => |sym| {
             // lea address with 0 and add relocation
             const encoder = try x86_64.Encoder.init(func.data, 8);
-            encoder.rex(.{ .w = func.c.comp.target.cpu.arch.ptrBitWidth() == 64 });
+            encoder.rex(.{ .w = true });
             encoder.opcode_1byte(0x8D);
             encoder.modRm_RIPDisp32(reg.low_id());
 
@@ -66,17 +66,11 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
             // If we're accessing e.g. r8d, we need to use a REX prefix before the actual operation. Since
             // this is a 32-bit operation, the W flag is set to zero. X is also zero, as we're not using a SIB.
             // Both R and B are set, as we're extending, in effect, the register bits *and* the operand.
-            encoder.rex(.{
-                .r = reg.isExtended(),
-                .b = reg.isExtended(),
-            });
+            encoder.rex(.{ .r = reg.isExtended(), .b = reg.isExtended() });
             encoder.opcode_1byte(0x31);
             // Section 3.1.1.1 of the Intel x64 Manual states that "/r indicates that the
             // ModR/M byte of the instruction contains a register operand and an r/m operand."
-            encoder.modRm_direct(
-                reg.low_id(),
-                reg.low_id(),
-            );
+            encoder.modRm_direct(reg.low_id(), reg.low_id());
         } else if (x <= std.math.maxInt(i32)) {
             // Next best case: if we set the lower four bytes, the upper four will be zeroed.
             //
@@ -86,9 +80,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
             // Just as with XORing, we need a REX prefix. This time though, we only
             // need the B bit set, as we're extending the opcode's register field,
             // and there is no Mod R/M byte.
-            encoder.rex(.{
-                .b = reg.isExtended(),
-            });
+            encoder.rex(.{ .b = reg.isExtended() });
             encoder.opcode_withReg(0xB8, reg.low_id());
 
             // no ModR/M byte
@@ -105,10 +97,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
             // 64-bit and uses the full bit-width of the register.
             {
                 const encoder = try x86_64.Encoder.init(func.data, 10);
-                encoder.rex(.{
-                    .w = true,
-                    .b = reg.isExtended(),
-                });
+                encoder.rex(.{ .w = true, .b = reg.isExtended() });
                 encoder.opcode_withReg(0xB8, reg.low_id());
                 encoder.imm64(@bitCast(u64, x));
             }
@@ -119,10 +108,9 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
                 return;
 
             // This is a variant of 8B /r.
-            const abi_size = 8; // TODO ??
             const encoder = try x86_64.Encoder.init(func.data, 3);
             encoder.rex(.{
-                .w = abi_size == 8,
+                .w = true,
                 .r = reg.isExtended(),
                 .b = src_reg.isExtended(),
             });
