@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
+const Codegen = @import("Codegen.zig");
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Preprocessor = @import("Preprocessor.zig");
@@ -47,21 +48,26 @@ const usage =
     \\  -h, --help      Print this message.
     \\  -v, --version   Print aro version.
     \\
-    \\Feature options:
-    \\  -E                      Only run the preprocessor
+    \\Compile options:
+    \\  -c                      Only run preprocess, compile, and assemble steps
     \\  -D <macro>=<value>      Define <macro> to <value> (defaults to 1)
-    \\  -U <macro>              Undefine <macro>
+    \\  -E                      Only run the preprocessor
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  -o <file>               Write output to <file>
     \\  -std=<standard>         Specify language standard
+    \\  --target=<value>        Generate code for the given target
+    \\  -U <macro>              Undefine <macro>
     \\  -Wall                   Enable all warnings
     \\  -Werror                 Treat all warnings as errors
     \\  -Werror=<warning>       Treat warning as error
     \\  -W<warning>             Enable the specified warning
     \\  -Wno-<warning>          Disable the specified warning
+    \\
+    \\Depub options:
+    \\  --verbose-ast           Dump produced AST to stdout
     \\
     \\
 ;
@@ -95,6 +101,8 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                     return comp.diag.fatalNoSrc("{s} when trying to print version", .{@errorName(err)});
                 };
                 return;
+            } else if (mem.eql(u8, arg, "-c")) {
+                comp.only_compile = true;
             } else if (mem.startsWith(u8, arg, "-D")) {
                 var macro = arg["-D".len..];
                 if (macro.len == 0) {
@@ -161,7 +169,15 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                 try comp.diag.set(option, .warning);
             } else if (mem.startsWith(u8, arg, "-std=")) {
                 const standard = arg["-std=".len..];
-                comp.langopts.setStandard(standard) catch return comp.diag.fatalNoSrc("Invalid standard '{s}'", .{standard});
+                comp.langopts.setStandard(standard) catch
+                    return comp.diag.fatalNoSrc("Invalid standard '{s}'", .{standard});
+            } else if (mem.startsWith(u8, arg, "--target=")) {
+                const triple = arg["--target=".len..];
+                const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch
+                    return comp.diag.fatalNoSrc("Invalid target '{s}'", .{triple});
+                comp.target = cross.toTarget(); // TODO deprecated
+            } else if (mem.eql(u8, arg, "--verbose-ast")) {
+                comp.verbose_ast = true;
             } else {
                 const std_out = std.io.getStdErr().writer();
                 std_out.print(usage, .{args[0]}) catch {};
@@ -233,12 +249,48 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     var tree = try Parser.parse(&pp);
     defer tree.deinit();
 
+    if (comp.verbose_ast) {
+        var buf_writer = std.io.bufferedWriter(std.io.getStdOut().writer());
+        tree.dump(buf_writer.writer()) catch {};
+        buf_writer.flush() catch {};
+    }
+
+    const prev_errors = comp.diag.errors;
     comp.renderErrors();
 
-    tree.dump(std.io.getStdOut().writer()) catch {};
+    if (comp.diag.errors != prev_errors) return; // do not compile if there were errors
+
+    if (comp.target.getObjectFormat() != .elf or comp.target.cpu.arch != .x86_64) {
+        return comp.diag.fatalNoSrc(
+            "unsupported target {s}-{s}-{s}, currently only x86-64 elf is supported",
+            .{ @tagName(comp.target.cpu.arch), @tagName(comp.target.os.tag), @tagName(comp.target.abi) },
+        );
+    }
+
+    const obj = try Codegen.generateTree(comp, tree);
+    defer obj.deinit();
+
+    const basename = std.fs.path.basename(source.path);
+    const out_file_name = comp.output_name orelse try std.fmt.allocPrint(comp.gpa, "{s}{s}", .{
+        basename[0 .. basename.len - std.fs.path.extension(source.path).len],
+        comp.target.getObjectFormat().fileExt(comp.target.cpu.arch),
+    });
+    defer if (comp.output_name == null) comp.gpa.free(out_file_name);
+
+    const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |err|
+        return comp.diag.fatalNoSrc("could not create output file '{s}': {s}", .{ out_file_name, @errorName(err) });
+    defer out_file.close();
+
+    obj.finish(out_file) catch |err|
+        return comp.diag.fatalNoSrc("could output to object file '{s}': {s}", .{ out_file_name, @errorName(err) });
+
+    if (comp.only_compile) return;
+
+    // TODO invoke linker
 }
 
 test {
+    _ = @import("Codegen.zig");
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
     _ = @import("InitList.zig");

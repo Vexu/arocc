@@ -26,6 +26,8 @@ output_name: ?[]const u8 = null,
 builtin_header_path: ?[]u8 = null,
 target: std.Target = std.Target.current,
 only_preprocess: bool = false,
+only_compile: bool = false,
+verbose_ast: bool = false,
 langopts: LangOpts = .{},
 
 pub fn init(gpa: *Allocator) Compilation {

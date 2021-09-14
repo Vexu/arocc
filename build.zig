@@ -12,9 +12,15 @@ pub fn build(b: *Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
+    const zig_pkg = std.build.Pkg{
+        .name = "zig",
+        .path = .{ .path = "deps/zig/lib.zig" },
+    };
+
     const exe = b.addExecutable("arocc", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+    exe.addPackage(zig_pkg);
     exe.install();
 
     const run_cmd = exe.run();
@@ -30,12 +36,18 @@ pub fn build(b: *Builder) void {
     tests_step.dependOn(&exe.step);
 
     var unit_tests = b.addTest("src/main.zig");
+    unit_tests.addPackage(zig_pkg);
     tests_step.dependOn(&unit_tests.step);
 
     const integration_tests = b.addExecutable("arocc", "test/runner.zig");
-    integration_tests.addPackagePath("aro", "src/lib.zig");
+    integration_tests.addPackage(.{
+        .name = "aro",
+        .path = .{ .path = "src/lib.zig" },
+        .dependencies = &.{zig_pkg},
+    });
 
     const integration_test_runner = integration_tests.run();
     integration_test_runner.addArg(b.pathFromRoot("test/cases"));
+    integration_test_runner.addArg(b.zig_exe);
     tests_step.dependOn(&integration_test_runner.step);
 }

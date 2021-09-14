@@ -1,6 +1,7 @@
 const std = @import("std");
 const print = std.debug.print;
 const aro = @import("aro");
+const Codegen = aro.Codegen;
 const Tree = aro.Tree;
 const Token = Tree.Token;
 const NodeIndex = Tree.NodeIndex;
@@ -19,8 +20,8 @@ pub fn main() !void {
     var args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    if (args.len != 2) {
-        print("expected test case directory as only argument\n", .{});
+    if (args.len != 3) {
+        print("expected test case directory and zig executable as only arguments\n", .{});
         return error.InvalidArguments;
     }
 
@@ -73,6 +74,13 @@ pub fn main() !void {
         try comp.sources.put(duped_path, source);
         break :blk source;
     };
+
+    // apparently we can't use setAstCwd without libc on windows yet
+    const win = @import("builtin").os.tag == .windows;
+    var tmp_dir = if (!win) std.testing.tmpDir(.{});
+    defer if (!win) tmp_dir.cleanup();
+
+    if (!win) try tmp_dir.dir.setAsCwd();
 
     // iterate over all cases
     var ok_count: u32 = 0;
@@ -283,6 +291,79 @@ pub fn main() !void {
         }
 
         comp.renderErrors();
+
+        if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
+            if (comp.diag.errors != 0) break :blk;
+
+            if (macro != .simple) {
+                fail_count += 1;
+                progress.log("invalid EXPECTED_OUTPUT {}\n", .{macro});
+                continue;
+            }
+
+            if (macro.simple.tokens.len != 1 or macro.simple.tokens[0].id != .string_literal) {
+                fail_count += 1;
+                progress.log("EXPECTED_OUTPUT takes exactly one string", .{});
+                continue;
+            }
+
+            const start = path_buf.items.len;
+            defer path_buf.items.len = start;
+            // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
+            std.debug.assert((try std.zig.string_literal.parseAppend(&path_buf, pp.tokSliceSafe(macro.simple.tokens[0]))) == .success);
+            const expected_output = path_buf.items[start..];
+
+            const obj_name = "test_object.o";
+            {
+                const obj = try Codegen.generateTree(&comp, tree);
+                defer obj.deinit();
+
+                const out_file = try std.fs.cwd().createFile(obj_name, .{});
+                defer out_file.close();
+
+                try obj.finish(out_file);
+            }
+
+            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, comp.gpa);
+            defer child.deinit();
+
+            child.stdout_behavior = .Pipe;
+
+            try child.spawn();
+
+            const stdout = try child.stdout.?.reader().readAllAlloc(comp.gpa, std.math.maxInt(u16));
+            defer comp.gpa.free(stdout);
+
+            switch (try child.wait()) {
+                .Exited => |code| if (code != 0) {
+                    fail_count += 1;
+                    continue;
+                },
+                else => {
+                    fail_count += 1;
+                    continue;
+                },
+            }
+
+            if (!std.mem.eql(u8, expected_output, stdout)) {
+                fail_count += 1;
+                progress.log(
+                    \\
+                    \\======= expected output =======
+                    \\{s}
+                    \\
+                    \\=== but output does not contain it ===
+                    \\{s}
+                    \\
+                    \\
+                , .{ expected_output, stdout });
+                break;
+            }
+
+            ok_count += 1;
+            continue;
+        }
+
         if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
     }
 

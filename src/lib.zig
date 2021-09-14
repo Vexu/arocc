@@ -1,6 +1,8 @@
+pub const Codegen = @import("Codegen.zig");
 pub const Compilation = @import("Compilation.zig");
 pub const Diagnostics = @import("Diagnostics.zig");
 pub const Parser = @import("Parser.zig");
+pub const Object = @import("Object.zig");
 pub const Preprocessor = @import("Preprocessor.zig");
 pub const Source = @import("Source.zig");
 pub const Tokenizer = @import("Tokenizer.zig");
