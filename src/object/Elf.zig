@@ -126,23 +126,26 @@ pub fn declareSymbol(
         .variable => std.elf.STT_OBJECT,
         .external => std.elf.STT_NOTYPE,
     };
-    const sym = try elf.arena.allocator.create(Symbol);
-    sym.* = .{
+    const name = if (maybe_name) |some| some else blk: {
+        defer elf.unnamed_symbol_mangle += 1;
+        break :blk try std.fmt.allocPrint(&elf.arena.allocator, ".L.{d}", .{elf.unnamed_symbol_mangle});
+    };
+
+    const gop = if (linkage == .Internal)
+        try elf.local_symbols.getOrPut(elf.arena.child_allocator, name)
+    else
+        try elf.global_symbols.getOrPut(elf.arena.child_allocator, name);
+
+    if (!gop.found_existing) {
+        gop.value_ptr.* = try elf.arena.allocator.create(Symbol);
+        elf.strtab_len += name.len + 1; // +1 for null byte
+    }
+    gop.value_ptr.*.* = .{
         .section = section,
         .size = size,
         .offset = offset,
         .info = (binding << 4) + sym_type,
     };
-    const name = if (maybe_name) |some| some else blk: {
-        defer elf.unnamed_symbol_mangle += 1;
-        break :blk try std.fmt.allocPrint(&elf.arena.allocator, ".L.{d}", .{elf.unnamed_symbol_mangle});
-    };
-    elf.strtab_len += name.len + 1; // +1 for null byte
-    if (linkage == .Internal) {
-        try elf.local_symbols.put(elf.arena.child_allocator, name, sym);
-    } else {
-        try elf.global_symbols.put(elf.arena.child_allocator, name, sym);
-    }
     return name;
 }
 
