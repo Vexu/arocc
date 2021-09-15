@@ -3,6 +3,7 @@ const Type = @import("Type.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
+const Attribute = @import("Attribute.zig");
 
 const Tree = @This();
 
@@ -213,6 +214,8 @@ pub const Tag = enum(u8) {
     continue_stmt,
     // break; first and second unused
     break_stmt,
+    // null statement (just a semicolon); first and second unused
+    null_stmt,
     /// return first; first may be null
     return_stmt,
 
@@ -410,6 +413,13 @@ pub const Tag = enum(u8) {
     /// Inserted in record and scalar initializers for unspecified elements.
     default_init_expr,
 
+    /// attribute argument identifier (see `mode` attribute)
+    attr_arg_ident,
+    /// rhs can be none
+    attr_params_two,
+    /// range
+    attr_params,
+
     pub fn isImplicit(tag: Tag) bool {
         return switch (tag) {
             .array_to_pointer,
@@ -535,6 +545,17 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.print(LITERAL ++ " (value: {d})" ++ RESET, .{@bitCast(i64, val)});
     }
     try w.writeAll("\n" ++ RESET);
+    if (ty.specifier == .attributed) {
+        for (ty.data.attributed.attributes) |attr| {
+            const attr_name = tree.tokSlice(attr.name);
+            try w.writeByteNTimes(' ', level + half);
+            try w.print(ATTRIBUTE ++ "attr: {s}\n" ++ RESET, .{attr_name});
+            if (attr.params != .none) {
+                try tree.dumpNode(attr.params, level + delta, w);
+            }
+        }
+    }
+
     switch (tag) {
         .invalid => unreachable,
         .static_assert => {
@@ -617,6 +638,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .enum_decl,
         .struct_decl,
         .union_decl,
+        .attr_params,
         => {
             for (tree.data[data.range.start..data.range.end]) |stmt, i| {
                 if (i != 0) try w.writeByte('\n');
@@ -629,6 +651,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .enum_decl_two,
         .struct_decl_two,
         .union_decl_two,
+        .attr_params_two,
         => {
             if (data.bin.lhs != .none) try tree.dumpNode(data.bin.lhs, level + delta, w);
             if (data.bin.rhs != .none) try tree.dumpNode(data.bin.rhs, level + delta, w);
@@ -773,7 +796,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeByteNTimes(' ', level + half);
             try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
         },
-        .continue_stmt, .break_stmt, .implicit_return => {},
+        .continue_stmt, .break_stmt, .implicit_return, .null_stmt => {},
         .return_stmt => {
             if (data.un != .none) {
                 try w.writeByteNTimes(' ', level + half);
@@ -786,6 +809,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeAll("data: " ++ LITERAL);
             try dumpStr(tree.strings[data.str.index..][0..data.str.len], tag, w);
             try w.writeAll("\n" ++ RESET);
+        },
+        .attr_arg_ident => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.print(ATTRIBUTE ++ "name: {s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
         },
         .call_expr => {
             try w.writeByteNTimes(' ', level + half);

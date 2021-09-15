@@ -4,6 +4,7 @@ const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
 const Parser = @import("Parser.zig");
 const Compilation = @import("Compilation.zig");
+const Attribute = @import("Attribute.zig");
 
 const Type = @This();
 
@@ -102,6 +103,11 @@ pub const Array = struct {
 pub const Expr = struct {
     node: NodeIndex,
     ty: Type,
+};
+
+pub const Attributed = struct {
+    attributes: []Attribute,
+    base: Type,
 };
 
 // TODO improve memory usage
@@ -218,6 +224,9 @@ pub const Specifier = enum {
     typeof_expr,
     /// decayed array created with typeof(expression)
     decayed_typeof_expr,
+
+    /// data.attributed
+    attributed,
 };
 
 /// All fields of Type except data may be mutated
@@ -228,6 +237,7 @@ data: union {
     expr: *Expr,
     @"enum": *Enum,
     record: *Record,
+    attributed: *Attributed,
     none: void,
 } = .{ .none = {} },
 /// user requested alignment, to get type alignment use `alignof`
@@ -591,6 +601,7 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.sizeof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.sizeof(comp),
+        .attributed => ty.data.attributed.base.sizeof(comp),
     };
 }
 
@@ -635,6 +646,7 @@ pub fn alignof(ty: Type, comp: *Compilation) u29 {
         .@"enum" => if (ty.data.@"enum".isIncomplete()) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
+        .attributed => ty.data.attributed.base.alignof(comp),
     };
 }
 
@@ -864,6 +876,8 @@ pub const Builder = struct {
         typeof_expr: *Expr,
         decayed_typeof_expr: *Expr,
 
+        attributed: *Attributed,
+
         pub fn str(spec: Builder.Specifier) ?[]const u8 {
             return switch (spec) {
                 .none => unreachable,
@@ -1033,6 +1047,10 @@ pub const Builder = struct {
                 ty.specifier = .decayed_typeof_expr;
                 ty.data = .{ .expr = data };
             },
+            .attributed => |data| {
+                ty.specifier = .attributed;
+                ty.data = .{ .attributed = data };
+            },
         }
         try b.qual.finish(p, &ty);
         if (b.align_tok) |align_tok| {
@@ -1057,7 +1075,16 @@ pub const Builder = struct {
     pub fn combineFromTypeof(b: *Builder, p: *Parser, new: Type, source_tok: TokenIndex) Compilation.Error!void {
         if (b.typeof != null) return p.errStr(.cannot_combine_spec, source_tok, "typeof");
         if (b.specifier != .none) return p.errStr(.invalid_typeof, source_tok, @tagName(b.specifier));
-        b.typeof = new;
+        const inner = switch (new.specifier) {
+            .typeof_type => new.data.sub_type.*,
+            .typeof_expr => new.data.expr.ty,
+            else => unreachable,
+        };
+
+        b.typeof = switch (inner.specifier) {
+            .attributed => inner.data.attributed.base,
+            else => new,
+        };
     }
 
     pub fn combine(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) Compilation.Error!void {
@@ -1239,6 +1266,8 @@ pub const Builder = struct {
             .decayed_typeof_type => .{ .decayed_typeof_type = ty.data.sub_type },
             .typeof_expr => .{ .typeof_expr = ty.data.expr },
             .decayed_typeof_expr => .{ .decayed_typeof_expr = ty.data.expr },
+
+            .attributed => .{ .attributed = ty.data.attributed },
         };
     }
 };
@@ -1442,6 +1471,11 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
         .typeof_expr, .decayed_typeof_expr => {
             try w.writeAll("typeof(<expr>: ");
             try ty.data.expr.ty.dump(w);
+            try w.writeAll(")");
+        },
+        .attributed => {
+            try w.writeAll("attributed(");
+            try ty.data.attributed.base.dump(w);
             try w.writeAll(")");
         },
         else => try w.writeAll(Builder.fromType(ty).str().?),

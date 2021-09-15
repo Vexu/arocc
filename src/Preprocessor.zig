@@ -10,6 +10,7 @@ const RawToken = Tokenizer.Token;
 const Parser = @import("Parser.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Token = @import("Tree.zig").Token;
+const AttrTag = @import("Attribute.zig").Tag;
 
 const Preprocessor = @This();
 const DefineMap = std.StringHashMap(Macro);
@@ -103,6 +104,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
         .comp = pp.comp,
         .source = source.id,
     };
+    const TRAILING_WS = " \r\t\x0B\x0C";
 
     // Estimate how many new tokens this source will contain.
     const estimated_token_count = source.buf.len / 8;
@@ -129,7 +131,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                             if (tokenizer.buf[tokenizer.index] == '\n') break;
                         }
                         var slice = tokenizer.buf[start..tokenizer.index];
-                        slice = mem.trim(u8, slice, " \t\x0B\x0C");
+                        slice = mem.trim(u8, slice, TRAILING_WS);
                         try pp.comp.diag.add(.{
                             .tag = .error_directive,
                             .loc = .{ .id = tok.source, .byte_offset = tok.start },
@@ -232,7 +234,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                             if (tokenizer.buf[tokenizer.index] == '\n') break;
                         }
                         var slice = tokenizer.buf[start..tokenizer.index];
-                        slice = mem.trim(u8, slice, " \r\t\x0B\x0C");
+                        slice = mem.trim(u8, slice, TRAILING_WS);
                         if (mem.eql(u8, slice, "once")) {
                             const prev = try pp.pragma_once.fetchPut(tokenizer.source, {});
                             if (prev != null and !seen_pragma_once) {
@@ -376,10 +378,38 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
                     try pp.err(first, .to_match_paren);
                 }
             }
-            if (pp.defines.get(pp.tokSliceSafe(macro_tok))) |_| {
+            if (macro_tok.id.isFeatureCheck() or pp.defines.get(pp.tokSliceSafe(macro_tok)) != null) {
                 tok.id = .one;
             } else {
                 tok.id = .zero;
+            }
+        } else if (tok.id == .keyword_has_attribute and pp.defines.get(pp.tokSliceSafe(tok)) == null) {
+            const l_paren = tokenizer.next();
+            if (l_paren.id != .l_paren) {
+                const extra = Diagnostics.Message.Extra{ .tok_id = .{ .expected = .l_paren, .actual = tok.id } };
+                try pp.comp.diag.add(.{
+                    .tag = .missing_token,
+                    .loc = .{ .id = l_paren.source, .byte_offset = l_paren.start },
+                    .extra = extra,
+                });
+                return false;
+            }
+            const attr_tok = tokenizer.next();
+            if (!attr_tok.id.isMacroIdentifier()) {
+                try pp.err(attr_tok, .feature_check_requires_identifier);
+                return false;
+            }
+            const r_paren = tokenizer.next();
+            if (r_paren.id != .r_paren) {
+                try pp.err(r_paren, .missing_paren_param_list);
+                try pp.err(l_paren, .to_match_paren);
+                return false;
+            }
+            const attr_name = pp.tokSliceSafe(attr_tok);
+            if (AttrTag.fromString(attr_name) == null) {
+                tok.id = .zero;
+            } else {
+                tok.id = .one;
             }
         }
         try pp.expandMacro(tokenizer, tok);
@@ -433,6 +463,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         .param_buf = undefined,
         .enum_buf = undefined,
         .record_buf = undefined,
+        .attr_buf = undefined,
     };
     return parser.macroExpr();
 }
@@ -985,6 +1016,9 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     if (!macro_name.id.isMacroIdentifier()) {
         try pp.err(macro_name, .macro_name_must_be_identifier);
         return skipToNl(tokenizer);
+    }
+    if (macro_name.id.isFeatureCheck()) {
+        try pp.err(macro_name, .builtin_macro_redefined);
     }
 
     // Check for function macros and empty defines.
