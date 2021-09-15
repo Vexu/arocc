@@ -237,6 +237,13 @@ pub const Tag = enum {
     empty_aggregate_init_braces,
     ptr_init_discards_quals,
     ptr_assign_discards_quals,
+    unknown_attribute,
+    ignored_attribute,
+    invalid_fallthrough,
+    cannot_apply_attribute_to_statement,
+    builtin_macro_redefined,
+    missing_token,
+    feature_check_requires_identifier,
 };
 
 const Options = struct {
@@ -268,6 +275,9 @@ const Options = struct {
     @"division-by-zero": Kind = .warning,
     @"initializer-overrides": Kind = .warning,
     @"incompatible-pointer-types-discards-qualifiers": Kind = .warning,
+    @"unknown-attributes": Kind = .warning,
+    @"ignored-attributes": Kind = .warning,
+    @"builtin-macro-redefined": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -589,6 +599,16 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .empty_aggregate_init_braces => m.write("initializer for aggregate with no elements requires explicit braces"),
             .ptr_init_discards_quals => m.print("initializing {s} discards qualifiers", .{msg.extra.str}),
             .ptr_assign_discards_quals => m.print("assigning to {s} discards qualifiers", .{msg.extra.str}),
+            .unknown_attribute => m.print("unknown attribute '{s}' ignored", .{msg.extra.str}),
+            .ignored_attribute => m.print("{s}", .{msg.extra.str}),
+            .invalid_fallthrough => m.write("fallthrough annotation does not directly precede switch label"),
+            .cannot_apply_attribute_to_statement => m.write("attribute cannot be applied to a statement"),
+            .builtin_macro_redefined => m.write("redefining builtin macro"),
+            .feature_check_requires_identifier => m.write("builtin feature check macro requires a parenthesized identifier"),
+            .missing_token => m.print("missing '{s}', after '{s}'", .{
+                msg.extra.tok_id.expected.symbol(),
+                msg.extra.tok_id.actual.symbol(),
+            }),
         }
         m.end(lcs);
 
@@ -778,6 +798,10 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .invalid_field_designator,
         .no_such_field_designator,
         .empty_aggregate_init_braces,
+        .invalid_fallthrough,
+        .cannot_apply_attribute_to_statement,
+        .missing_token,
+        .feature_check_requires_identifier,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -838,6 +862,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         => diag.options.@"excess-initializers",
         .division_by_zero => diag.options.@"division-by-zero",
         .initializer_overrides => diag.options.@"initializer-overrides",
+        .unknown_attribute => diag.options.@"unknown-attributes",
+        .ignored_attribute => diag.options.@"ignored-attributes",
+        .builtin_macro_redefined => diag.options.@"builtin-macro-redefined",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

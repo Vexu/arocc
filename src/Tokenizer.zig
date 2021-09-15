@@ -175,6 +175,7 @@ pub const Token = struct {
         keyword_pragma,
         keyword_line,
         keyword_va_args,
+        keyword_has_attribute,
 
         // gcc keywords
         keyword_const1,
@@ -190,12 +191,22 @@ pub const Token = struct {
         // gcc builtins
         builtin_choose_expr,
 
+        keyword_attribute1,
+        keyword_attribute2,
+
+        /// Return true if token is a feature check operator
+        pub fn isFeatureCheck(id: Id) bool {
+            // TODO: implement __has_c_attribute, __has_builtin, and __has_include
+            return id == .keyword_has_attribute;
+        }
+
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
                 .keyword_include,
                 .keyword_define,
                 .keyword_defined,
+                .keyword_has_attribute,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -262,6 +273,8 @@ pub const Token = struct {
                 .keyword_alignof1,
                 .keyword_alignof2,
                 .builtin_choose_expr,
+                .keyword_attribute1,
+                .keyword_attribute2,
                 => return true,
                 else => return false,
             }
@@ -273,6 +286,7 @@ pub const Token = struct {
                 .keyword_include,
                 .keyword_define,
                 .keyword_defined,
+                .keyword_has_attribute,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -421,6 +435,7 @@ pub const Token = struct {
                 .keyword_include => "include",
                 .keyword_define => "define",
                 .keyword_defined => "defined",
+                .keyword_has_attribute => "__has_attribute",
                 .keyword_undef => "undef",
                 .keyword_ifdef => "ifdef",
                 .keyword_ifndef => "ifndef",
@@ -441,6 +456,8 @@ pub const Token = struct {
                 .keyword_typeof1 => "__typeof",
                 .keyword_typeof2 => "__typeof__",
                 .builtin_choose_expr => "__builtin_choose_expr",
+                .keyword_attribute1 => "__attribute",
+                .keyword_attribute2 => "__attribute__",
             };
         }
 
@@ -546,6 +563,7 @@ pub const Token = struct {
         .{ "include", .keyword_include },
         .{ "define", .keyword_define },
         .{ "defined", .keyword_defined },
+        .{ "__has_attribute", .keyword_has_attribute },
         .{ "undef", .keyword_undef },
         .{ "ifdef", .keyword_ifdef },
         .{ "ifndef", .keyword_ifndef },
@@ -569,6 +587,9 @@ pub const Token = struct {
 
         // gcc builtins
         .{ "__builtin_choose_expr", .builtin_choose_expr },
+
+        .{ "__attribute", .keyword_attribute1 },
+        .{ "__attribute__", .keyword_attribute2 },
     });
 };
 
@@ -1494,6 +1515,7 @@ test "keywords" {
         \\struct switch typedef union unsigned void volatile 
         \\while _Bool _Complex _Imaginary inline restrict _Alignas 
         \\_Alignof _Atomic _Generic _Noreturn _Static_assert _Thread_local 
+        \\__attribute __attribute__
         \\
     , &.{
         .keyword_auto,
@@ -1545,6 +1567,9 @@ test "keywords" {
         .keyword_noreturn,
         .keyword_static_assert,
         .keyword_thread_local,
+        .nl,
+        .keyword_attribute1,
+        .keyword_attribute2,
         .nl,
     });
 }
