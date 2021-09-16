@@ -856,7 +856,7 @@ fn typeof(p: *Parser) Error!?Type {
         const typeof_ty = try p.arena.create(Type);
         typeof_ty.* = .{
             .data = ty.data,
-            .qual = ty.qual, // todo: exclude register qualifier
+            .qual = ty.qual.inheritFromTypeof(),
             .specifier = ty.specifier,
         };
 
@@ -874,7 +874,7 @@ fn typeof(p: *Parser) Error!?Type {
         .node = typeof_expr.node,
         .ty = .{
             .data = typeof_expr.ty.data,
-            .qual = typeof_expr.ty.qual, // todo: exclude register qualifier
+            .qual = typeof_expr.ty.qual.inheritFromTypeof(),
             .specifier = typeof_expr.ty.specifier,
         },
     };

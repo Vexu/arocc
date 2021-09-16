@@ -48,6 +48,14 @@ pub const Qualifiers = packed struct {
         };
     }
 
+    /// register is a storage class and not actually a qualifier
+    /// so it is not preserved by typeof()
+    pub fn inheritFromTypeof(quals: Qualifiers) Qualifiers {
+        var res = quals;
+        res.register = false;
+        return res;
+    }
+
     pub const Builder = struct {
         @"const": ?TokenIndex = null,
         atomic: ?TokenIndex = null,
