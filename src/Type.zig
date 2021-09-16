@@ -374,6 +374,15 @@ pub fn elemType(ty: Type) Type {
     };
 }
 
+pub fn arrayLen(ty: Type) usize {
+    return switch (ty.specifier) {
+        .array => ty.data.array.len,
+        .typeof_type => ty.data.sub_type.arrayLen(),
+        .typeof_expr => ty.data.expr.ty.arrayLen(),
+        else => std.math.maxInt(usize),
+    };
+}
+
 pub fn eitherLongDouble(a: Type, b: Type) ?Type {
     const unwrapped_a = a.unwrapTypeof();
     if (unwrapped_a.specifier == .long_double or unwrapped_a.specifier == .complex_long_double) return a;

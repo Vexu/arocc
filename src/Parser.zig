@@ -1936,7 +1936,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     } else @intCast(u64, val),
                     .unavailable => unreachable,
                 };
-                const max_len = if (cur_ty.is(.array)) cur_ty.data.array.len else std.math.maxInt(usize);
+                const max_len = cur_ty.arrayLen();
                 if (index_unchecked >= max_len) {
                     try p.errExtra(.oob_array_designator, l_bracket + 1, .{ .unsigned = index_unchecked });
                     return error.ParsingFailed;
@@ -2029,7 +2029,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         if (index != 0) index = il.*.list.items[index - 1].index;
 
         const arr_ty = ty.*;
-        const max_elems = if (arr_ty.is(.array)) arr_ty.data.array.len else std.math.maxInt(usize);
+        const max_elems = arr_ty.arrayLen();
         if (max_elems == 0) {
             if (p.tok_ids[p.tok_i] != .l_brace) {
                 try p.err(.empty_aggregate_init_braces);
@@ -2098,13 +2098,13 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
     }
 
     if (target.is(.array)) {
-        assert(item.ty.is(.array));
+        assert(item.ty.specifier == .array);
         var len = item.ty.data.array.len;
         if (p.nodeIs(item.node, .string_literal_expr)) {
             // the null byte of a string can be dropped
-            if (len - 1 > target.data.array.len)
+            if (len - 1 > target.arrayLen())
                 try p.errTok(.str_init_too_long, tok);
-        } else if (len > target.data.array.len) {
+        } else if (len > target.arrayLen()) {
             try p.errStr(
                 .arr_init_too_long,
                 tok,
@@ -2207,7 +2207,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
 
         const elem_ty = init_ty.elemType();
 
-        const max_items = if (init_ty.is(.array)) init_ty.data.array.len else std.math.maxInt(usize);
+        const max_items = init_ty.arrayLen();
         var start: u64 = 0;
         for (il.list.items) |*init| {
             if (init.index > start) {
@@ -4448,8 +4448,9 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !void {
-    const len = switch (arr_ty.specifier) {
-        .array, .static_array, .decayed_array, .decayed_static_array => arr_ty.data.array.len,
+    const unwrapped = arr_ty.unwrapTypeof();
+    const len = switch (unwrapped.specifier) {
+        .array, .static_array, .decayed_array, .decayed_static_array => unwrapped.data.array.len,
         else => return,
     };
 
