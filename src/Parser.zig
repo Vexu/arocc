@@ -524,7 +524,7 @@ fn decl(p: *Parser) Error!bool {
     };
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
         _ = try p.expectToken(.semicolon);
-        if (decl_spec.ty.specifier == .@"enum") return true;
+        if (decl_spec.ty.is(.@"enum")) return true;
         if (decl_spec.ty.isRecord() and decl_spec.ty.data.record.name[0] != '(') return true;
         try p.errTok(.missing_declaration, first_tok);
         return true;
@@ -595,7 +595,7 @@ fn decl(p: *Parser) Error!bool {
                     } else if (d.ty.isArray()) {
                         // params declared as arrays are converted to pointers
                         d.ty.decayArray();
-                    } else if (d.ty.specifier == .void) {
+                    } else if (d.ty.is(.void)) {
                         try p.errTok(.invalid_void_param, d.name);
                     }
 
@@ -977,7 +977,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
     if (p.eatToken(.equal)) |eq| {
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
             try p.errTok(.illegal_initializer, eq);
-        } else if (init_d.d.ty.specifier == .variable_len_array) {
+        } else if (init_d.d.ty.is(.variable_len_array)) {
             try p.errTok(.vla_init, eq);
         } else if (decl_spec.storage_class == .@"extern") {
             try p.err(.extern_initializer);
@@ -986,7 +986,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr.node;
-        if (init_d.d.ty.specifier == .incomplete_array) {
+        if (init_d.d.ty.is(.incomplete_array)) {
             // Modifying .data is exceptionally allowed for .incomplete_array.
             init_d.d.ty.data.array.len = init_list_expr.ty.data.array.len;
             init_d.d.ty.specifier = .array;
@@ -1295,7 +1295,7 @@ fn recordDecls(p: *Parser) Error!void {
                 bits_node = res.node;
             }
             if (name_tok == 0 and bits_node == .none) unnamed: {
-                if (ty.specifier == .@"enum") break :unnamed;
+                if (ty.is(.@"enum")) break :unnamed;
                 if (ty.isRecord() and ty.data.record.name[0] == '(') {
                     // An anonymous record appears as indirect fields on the parent
                     try p.record_buf.append(.{
@@ -1815,7 +1815,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
         } else if (param_ty.isArray()) {
             // params declared as arrays are converted to pointers
             param_ty.decayArray();
-        } else if (param_ty.specifier == .void) {
+        } else if (param_ty.is(.void)) {
             // validate void parameters
             if (p.param_buf.items.len == param_buf_top) {
                 if (p.tok_ids[p.tok_i] != .r_paren) {
@@ -1936,7 +1936,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     } else @intCast(u64, val),
                     .unavailable => unreachable,
                 };
-                const max_len = if (cur_ty.specifier == .array) cur_ty.data.array.len else std.math.maxInt(usize);
+                const max_len = if (cur_ty.is(.array)) cur_ty.data.array.len else std.math.maxInt(usize);
                 if (index_unchecked >= max_len) {
                     try p.errExtra(.oob_array_designator, l_bracket + 1, .{ .unsigned = index_unchecked });
                     return error.ParsingFailed;
@@ -2029,7 +2029,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         if (index != 0) index = il.*.list.items[index - 1].index;
 
         const arr_ty = ty.*;
-        const max_elems = if (arr_ty.specifier == .array) arr_ty.data.array.len else std.math.maxInt(usize);
+        const max_elems = if (arr_ty.is(.array)) arr_ty.data.array.len else std.math.maxInt(usize);
         if (max_elems == 0) {
             if (p.tok_ids[p.tok_i] != .l_brace) {
                 try p.err(.empty_aggregate_init_braces);
@@ -2045,7 +2045,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
             if (try p.findScalarInitializer(il, ty)) return true;
         }
         return false;
-    } else if (ty.specifier == .@"struct") {
+    } else if (ty.is(.@"struct")) {
         var index = il.*.list.items.len;
         if (index != 0) index = il.*.list.items[index - 1].index + 1;
 
@@ -2066,7 +2066,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
             if (try p.findScalarInitializer(il, ty)) return true;
         }
         return false;
-    } else if (ty.specifier == .@"union") {
+    } else if (ty.is(.@"union")) {
         if (ty.data.record.fields.len == 0) {
             if (p.tok_ids[p.tok_i] != .l_brace) {
                 try p.err(.empty_aggregate_init_braces);
@@ -2097,8 +2097,8 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
         return true; // do not do further coercion
     }
 
-    if (target.specifier == .array) {
-        assert(item.ty.specifier == .array);
+    if (target.is(.array)) {
+        assert(item.ty.is(.array));
         var len = item.ty.data.array.len;
         if (p.nodeIs(item.node, .string_literal_expr)) {
             // the null byte of a string can be dropped
@@ -2116,14 +2116,14 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
 }
 
 fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
-    if (target.specifier == .void) return; // Do not do type coercion on excess items
+    if (target.is(.void)) return; // Do not do type coercion on excess items
 
     // item does not need to be qualified
     var unqual_ty = target.unwrapTypeof();
     unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
     try item.lvalConversion(p);
-    if (target.specifier == .bool) {
+    if (target.is(.bool)) {
         // this is ridiculous but it's what clang does
         if (item.ty.isInt() or item.ty.isFloat() or item.ty.isPtr()) {
             try item.boolCast(p, unqual_ty);
@@ -2196,7 +2196,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             return p.addNode(.{ .tag = .default_init_expr, .ty = init_ty, .data = undefined });
         }
         return il.node;
-    } else if (init_ty.specifier == .variable_len_array) {
+    } else if (init_ty.is(.variable_len_array)) {
         return error.ParsingFailed; // vla invalid, reported earlier
     } else if (init_ty.isArray()) {
         if (il.node != .none) {
@@ -2207,7 +2207,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
 
         const elem_ty = init_ty.elemType();
 
-        const max_items = if (init_ty.specifier == .array) init_ty.data.array.len else std.math.maxInt(usize);
+        const max_items = if (init_ty.is(.array)) init_ty.data.array.len else std.math.maxInt(usize);
         var start: u64 = 0;
         for (il.list.items) |*init| {
             if (init.index > start) {
@@ -2230,7 +2230,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
         };
 
-        if (init_ty.specifier == .incomplete_array) {
+        if (init_ty.is(.incomplete_array)) {
             arr_init_node.ty.specifier = .array;
             arr_init_node.ty.data.array.len = start;
         } else if (start < max_items) {
@@ -2253,7 +2253,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             },
         }
         return try p.addNode(arr_init_node);
-    } else if (init_ty.specifier == .@"struct") {
+    } else if (init_ty.is(.@"struct")) {
         const list_buf_top = p.list_buf.items.len;
         defer p.list_buf.items.len = list_buf_top;
 
@@ -2285,7 +2285,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             },
         }
         return try p.addNode(struct_init_node);
-    } else if (init_ty.specifier == .@"union") {
+    } else if (init_ty.is(.@"union")) {
         var union_init_node: Tree.Node = .{
             .tag = .union_init_expr,
             .ty = init_ty,
@@ -2678,7 +2678,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
         if (some != p.tok_i - 1 and noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
     }
     if (is_fn_body and (p.decl_buf.items.len == decl_buf_top or !p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]))) {
-        if (p.return_type.?.specifier != .void) try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func_name));
+        if (!p.return_type.?.is(.void)) try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func_name));
         try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.return_type.?, .data = undefined }));
     }
 
@@ -2790,13 +2790,13 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     const ret_ty = p.return_type.?;
 
     if (e.node == .none) {
-        if (ret_ty.specifier != .void) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func_name));
+        if (!ret_ty.is(.void)) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func_name));
         return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
     }
     try e.lvalConversion(p);
 
     // Return type conversion is done as if it was assignment
-    if (ret_ty.specifier == .bool) {
+    if (ret_ty.is(.bool)) {
         // this is ridiculous but it's what clang does
         if (e.ty.isInt() or e.ty.isFloat() or e.ty.isPtr()) {
             try e.boolCast(p, ret_ty);
@@ -2905,7 +2905,7 @@ const Result = struct {
     }
 
     fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex, err_start: usize) Error!void {
-        if (res.ty.specifier == .void or res.node == .none) return;
+        if (res.ty.is(.void) or res.node == .none) return;
         // don't warn about unused result if the expression contained errors
         if (p.pp.comp.diag.list.items.len > err_start) return;
         switch (p.nodes.items(.tag)[@enumToInt(res.node)]) {
@@ -3053,7 +3053,7 @@ const Result = struct {
             },
             .conditional => {
                 // doesn't matter what we return here, as the result is ignored
-                if (a.ty.specifier == .void or b.ty.specifier == .void) {
+                if (a.ty.is(.void) or b.ty.is(.void)) {
                     try a.toVoid(p);
                     try b.toVoid(p);
                     return true;
@@ -3127,7 +3127,7 @@ const Result = struct {
         if (res.ty.isPtr()) {
             res.ty = bool_ty;
             try res.un(p, .pointer_to_bool);
-        } else if (res.ty.isInt() and res.ty.specifier != .bool) {
+        } else if (res.ty.isInt() and !res.ty.is(.bool)) {
             res.ty = bool_ty;
             try res.un(p, .int_to_bool);
         } else if (res.ty.isFloat()) {
@@ -3137,7 +3137,7 @@ const Result = struct {
     }
 
     fn intCast(res: *Result, p: *Parser, int_ty: Type) Error!void {
-        if (res.ty.specifier == .bool) {
+        if (res.ty.is(.bool)) {
             res.ty = int_ty;
             try res.un(p, .bool_to_int);
         } else if (res.ty.isPtr()) {
@@ -3161,7 +3161,7 @@ const Result = struct {
     }
 
     fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
-        if (res.ty.specifier == .bool) {
+        if (res.ty.is(.bool)) {
             res.ty = float_ty;
             try res.un(p, .bool_to_float);
         } else if (res.ty.isInt()) {
@@ -3174,7 +3174,7 @@ const Result = struct {
     }
 
     fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
-        if (res.ty.specifier == .bool) {
+        if (res.ty.is(.bool)) {
             res.ty = ptr_ty;
             try res.un(p, .bool_to_pointer);
         } else if (res.ty.isInt()) {
@@ -3184,7 +3184,7 @@ const Result = struct {
     }
 
     fn toVoid(res: *Result, p: *Parser) Error!void {
-        if (res.ty.specifier != .void) {
+        if (!res.ty.is(.void)) {
             res.ty = .{ .specifier = .void };
             res.node = try p.addNode(.{
                 .tag = .to_void,
@@ -3530,7 +3530,7 @@ fn assignExpr(p: *Parser) Error!Result {
     var unqual_ty = lhs.ty.unwrapTypeof();
     unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
-    if (lhs.ty.specifier == .bool) {
+    if (lhs.ty.is(.bool)) {
         // this is ridiculous but it's what clang does
         if (rhs.ty.isInt() or rhs.ty.isFloat() or rhs.ty.isPtr()) {
             try rhs.boolCast(p, unqual_ty);
@@ -3905,7 +3905,7 @@ fn castExpr(p: *Parser) Error!Result {
                 // compound literal
                 if (ty.isFunc()) {
                     try p.err(.func_init);
-                } else if (ty.specifier == .variable_len_array) {
+                } else if (ty.is(.variable_len_array)) {
                     try p.err(.vla_init);
                 }
                 var init_list_expr = try p.initializer(ty);
@@ -3914,7 +3914,7 @@ fn castExpr(p: *Parser) Error!Result {
             }
             var operand = try p.castExpr();
             try operand.expect(p);
-            if (ty.specifier == .void) {
+            if (ty.is(.void)) {
                 // everything can cast to void
             } else if (ty.isInt() or ty.isFloat() or ty.isPtr()) {
                 if (ty.isFloat() and operand.ty.isPtr())
@@ -4350,7 +4350,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
             if (arg_count < params.len) {
                 const p_ty = params[arg_count].ty;
-                if (p_ty.specifier == .bool) {
+                if (p_ty.is(.bool)) {
                     // this is ridiculous but it's what clang does
                     if (arg.ty.isInt() or arg.ty.isFloat() or arg.ty.isPtr()) {
                         try arg.boolCast(p, p_ty);
@@ -4405,7 +4405,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 }
             } else {
                 if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.pp.comp));
-                if (arg.ty.specifier == .float) try arg.floatCast(p, .{ .specifier = .double });
+                if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
             }
             try arg.saveValue(p);
             try p.list_buf.append(arg.node);
@@ -4420,13 +4420,13 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         .expected = @intCast(u32, params.len),
         .actual = @intCast(u32, arg_count),
     } };
-    if (ty.specifier == .func and params.len != arg_count) {
+    if (ty.is(.func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments, first_after, extra);
     }
-    if (ty.specifier == .old_style_func and params.len != arg_count) {
+    if (ty.is(.old_style_func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments_old, first_after, extra);
     }
-    if (ty.specifier == .var_args_func and arg_count < params.len) {
+    if (ty.is(.var_args_func) and arg_count < params.len) {
         try p.errExtra(.expected_at_least_arguments, first_after, extra);
     }
 

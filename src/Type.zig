@@ -227,6 +227,17 @@ alignment: u29 = 0,
 specifier: Specifier,
 qual: Qualifiers = .{},
 
+/// Determine if type matches the given specifier, recursing into typeof
+/// types if necessary.
+pub fn is(ty: Type, specifier: Specifier) bool {
+    std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
+    return switch (ty.specifier) {
+        .typeof_type => ty.data.sub_type.is(specifier),
+        .typeof_expr => ty.data.vla.elem.is(specifier),
+        else => ty.specifier == specifier,
+    };
+}
+
 pub fn isCallable(ty: Type) ?Type {
     return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => ty,

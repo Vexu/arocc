@@ -46,6 +46,12 @@ void qux(int x) {
     p = arr3;
     p = vla2;
     p = vla3;
+
+    typeof(_Bool) b = 10;
+    b = 5;
+    typeof(b) b2 = 5;
+    b2 = 10;
+    b = (typeof(b2))10;
 }
 
 #define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
