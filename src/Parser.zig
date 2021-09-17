@@ -231,7 +231,7 @@ fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range
     return Tree.Node.Range{ .start = start, .end = end };
 }
 
-fn findTypedef(p: *Parser, name_tok: TokenIndex) !?Scope.Symbol {
+fn findTypedef(p: *Parser, name_tok: TokenIndex, no_type_yet: bool) !?Scope.Symbol {
     const name = p.tokSlice(name_tok);
     var i = p.scopes.items.len;
     while (i > 0) {
@@ -239,14 +239,17 @@ fn findTypedef(p: *Parser, name_tok: TokenIndex) !?Scope.Symbol {
         switch (p.scopes.items[i]) {
             .typedef => |t| if (mem.eql(u8, t.name, name)) return t,
             .@"struct" => |s| if (mem.eql(u8, s.name, name)) {
+                if (no_type_yet) return null;
                 try p.errStr(.must_use_struct, name_tok, name);
                 return s;
             },
             .@"union" => |u| if (mem.eql(u8, u.name, name)) {
+                if (no_type_yet) return null;
                 try p.errStr(.must_use_union, name_tok, name);
                 return u;
             },
             .@"enum" => |e| if (mem.eql(u8, e.name, name)) {
+                if (no_type_yet) return null;
                 try p.errStr(.must_use_enum, name_tok, name);
                 return e;
             },
@@ -1075,7 +1078,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 continue;
             },
             .identifier => {
-                const typedef = (try p.findTypedef(p.tok_i)) orelse break;
+                const typedef = (try p.findTypedef(p.tok_i, ty.specifier != .none)) orelse break;
                 const new_spec = Type.Builder.fromType(typedef.ty);
 
                 const err_start = p.pp.comp.diag.list.items.len;
