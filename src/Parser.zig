@@ -2101,14 +2101,14 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
         return true; // do not do further coercion
     }
 
-    if (target.is(.array)) {
+    if (target.get(.array)) |arr_ty| {
         assert(item.ty.specifier == .array);
         var len = item.ty.data.array.len;
         if (p.nodeIs(item.node, .string_literal_expr)) {
             // the null byte of a string can be dropped
-            if (len - 1 > target.arrayLen())
+            if (len - 1 > arr_ty.arrayLen())
                 try p.errTok(.str_init_too_long, tok);
-        } else if (len > target.arrayLen()) {
+        } else if (len > arr_ty.arrayLen()) {
             try p.errStr(
                 .arr_init_too_long,
                 tok,

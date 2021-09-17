@@ -239,11 +239,7 @@ qual: Qualifiers = .{},
 /// types if necessary.
 pub fn is(ty: Type, specifier: Specifier) bool {
     std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
-    return switch (ty.specifier) {
-        .typeof_type => ty.data.sub_type.is(specifier),
-        .typeof_expr => ty.data.expr.ty.is(specifier),
-        else => ty.specifier == specifier,
-    };
+    return ty.get(specifier) != null;
 }
 
 pub fn isCallable(ty: Type) ?Type {
