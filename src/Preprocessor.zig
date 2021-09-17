@@ -35,6 +35,33 @@ const Macro = union(enum) {
         var_args: bool,
         loc: Source.Location,
     };
+
+    fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
+        if (std.meta.activeTag(a) != b) return false;
+        switch (a) {
+            .empty, .self => {},
+            .simple => {
+                const a_s = a.simple;
+                const b_s = b.simple;
+                if (a_s.tokens.len != b_s.tokens.len) return false;
+                for (a_s.tokens) |t, i| if (!tokEql(pp, t, b_s.tokens[i])) return false;
+            },
+            .func => {
+                const a_f = a.func;
+                const b_f = b.func;
+                if (a_f.var_args != b_f.var_args) return false;
+                if (a_f.params.len != b_f.params.len) return false;
+                if (a_f.tokens.len != b_f.tokens.len) return false;
+                for (a_f.params) |p, i| if (!mem.eql(u8, p, b_f.params[i])) return false;
+                for (a_f.tokens) |t, i| if (!tokEql(pp, t, b_f.tokens[i])) return false;
+            },
+        }
+        return true;
+    }
+
+    fn tokEql(pp: *Preprocessor, a: RawToken, b: RawToken) bool {
+        return mem.eql(u8, pp.tokSliceSafe(a), pp.tokSliceSafe(b));
+    }
 };
 
 comp: *Compilation,
@@ -905,7 +932,8 @@ fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
 /// Defines a new macro and warns if it is a duplicate
 fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
     const name_str = pp.tokSliceSafe(name_tok);
-    if (try pp.defines.fetchPut(name_str, macro)) |_| {
+    const gop = try pp.defines.getOrPut(name_str);
+    if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
         try pp.comp.diag.add(.{
             .tag = .macro_redefined,
             .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start },
@@ -913,6 +941,7 @@ fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
         });
         // TODO add a previous definition note
     }
+    gop.value_ptr.* = macro;
 }
 
 /// Handle a #define directive.
