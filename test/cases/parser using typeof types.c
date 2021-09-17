@@ -38,6 +38,10 @@ void extra_record_inits(void) {
     typeof(u) u2 = { 1 , 2 };
 }
 
+void incomplete_array(void) {
+    typeof(int[]) arr = {1, 2, 3};
+    typeof(arr) arr2 = {1, 2, 3};
+}
 
 #define EXPECTED_ERRORS "parser using typeof types.c:26:14: warning: array index 5 is past the end of the array" \
     "parser using typeof types.c:27:15: warning: array index 5 is past the end of the array" \

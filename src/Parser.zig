@@ -986,10 +986,15 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr.node;
-        if (init_d.d.ty.is(.incomplete_array)) {
-            // Modifying .data is exceptionally allowed for .incomplete_array.
-            init_d.d.ty.data.array.len = init_list_expr.ty.data.array.len;
-            init_d.d.ty.specifier = .array;
+        if (init_d.d.ty.get(.incomplete_array)) |incomplete_arr_type| {
+            const arr_ty = try p.arena.create(Type.Array);
+            arr_ty.* = .{ .elem = incomplete_arr_type.data.array.elem, .len = init_list_expr.ty.arrayLen() };
+            init_d.d.ty = .{
+                .specifier = .array,
+                .data = .{ .array = arr_ty },
+                .qual = incomplete_arr_type.qual,
+                .alignment = incomplete_arr_type.alignment,
+            };
         }
     }
     const name = init_d.d.name;
@@ -2229,9 +2234,15 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
         };
 
-        if (init_ty.is(.incomplete_array)) {
-            arr_init_node.ty.specifier = .array;
-            arr_init_node.ty.data.array.len = start;
+        if (init_ty.get(.incomplete_array)) |incomplete_arr_type| {
+            const arr_ty = try p.arena.create(Type.Array);
+            arr_ty.* = .{ .elem = incomplete_arr_type.data.array.elem, .len = start };
+            arr_init_node.ty = .{
+                .specifier = .array,
+                .data = .{ .array = arr_ty },
+                .qual = incomplete_arr_type.qual,
+                .alignment = incomplete_arr_type.alignment,
+            };
         } else if (start < max_items) {
             const elem = try p.addNode(.{
                 .tag = .array_filler_expr,
