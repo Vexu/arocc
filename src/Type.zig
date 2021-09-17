@@ -637,6 +637,15 @@ pub fn unwrapTypeof(ty: Type) Type {
     };
 }
 
+pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
+    std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
+    return switch (ty.specifier) {
+        .typeof_type => ty.data.sub_type.get(specifier),
+        .typeof_expr => ty.data.expr.ty.get(specifier),
+        else => if (ty.specifier == specifier) ty else null,
+    };
+}
+
 pub fn eql(a_param: Type, b_param: Type, check_qualifiers: bool) bool {
     const a = a_param.unwrapTypeof();
     const b = b_param.unwrapTypeof();

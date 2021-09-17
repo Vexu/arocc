@@ -28,6 +28,21 @@ void array_index_warning(void) {
     (void)static_arr2[5];
 }
 
+void extra_record_inits(void) {
+    struct S {int x; };
+    typeof(struct S) s = { 1, 2 };
+    typeof(s) s2 = { 1, 2 };
+
+    union U { int x; };
+    typeof(union U) u = { 1, 2 };
+    typeof(u) u2 = { 1 , 2 };
+}
+
+
 #define EXPECTED_ERRORS "parser using typeof types.c:26:14: warning: array index 5 is past the end of the array" \
     "parser using typeof types.c:27:15: warning: array index 5 is past the end of the array" \
-    "parser using typeof types.c:28:22: warning: array index 5 is past the end of the array"
+    "parser using typeof types.c:28:22: warning: array index 5 is past the end of the array" \
+    "parser using typeof types.c:33:31: warning: excess elements in struct initializer" \
+    "parser using typeof types.c:34:25: warning: excess elements in struct initializer" \
+    "parser using typeof types.c:37:30: warning: excess elements in struct initializer" \
+    "parser using typeof types.c:38:26: warning: excess elements in struct initializer"
