@@ -275,9 +275,8 @@ pub fn isVoidStar(ty: Type) bool {
 }
 
 pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
-    _ = comp;
     return switch (ty.specifier) {
-        .char => return false, // TODO check comp for char signedness
+        .char => return getCharSignedness(comp) == .unsigned,
         .uchar, .ushort, .uint, .ulong, .ulong_long => return true,
         else => false,
     };
@@ -343,21 +342,41 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
 }
 
 pub fn wideChar(comp: *Compilation) Type {
-    _ = comp;
-    // TODO get target from compilation
-    return .{ .specifier = .int };
+    const os = comp.target.os.tag;
+    return switch (comp.target.cpu.arch) {
+        .xcore => .{ .specifier = .uchar },
+        .ve => .{ .specifier = .uint },
+        .arm, .armeb, .thumb, .thumbeb => .{
+            .specifier = if (os != .windows and os != .netbsd and os != .openbsd) .uint else .int,
+        },
+        .aarch64, .aarch64_be, .aarch64_32 => .{
+            .specifier = if (!os.isDarwin() and os != .netbsd) .uint else .int,
+        },
+        .x86_64, .i386 => .{ .specifier = if (os == .windows) .ushort else .int },
+        else => .{ .specifier = .int },
+    };
 }
 
 pub fn ptrDiffT(comp: *Compilation) Type {
-    _ = comp;
-    // TODO get target from compilation
-    return .{ .specifier = .long };
+    if (comp.target.os.tag == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
+        return .{ .specifier = .long_long };
+
+    return switch (comp.target.cpu.arch.ptrBitWidth()) {
+        32 => .{ .specifier = .int },
+        64 => .{ .specifier = .long },
+        else => unreachable,
+    };
 }
 
 pub fn sizeT(comp: *Compilation) Type {
-    _ = comp;
-    // TODO get target from compilation
-    return .{ .specifier = .ulong };
+    if (comp.target.os.tag == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
+        return .{ .specifier = .ulong_long };
+
+    return switch (comp.target.cpu.arch.ptrBitWidth()) {
+        32 => .{ .specifier = .uint },
+        64 => .{ .specifier = .ulong },
+        else => unreachable,
+    };
 }
 
 pub fn hasIncompleteSize(ty: Type) bool {
@@ -409,6 +428,26 @@ pub fn getField(ty: Type, name: []const u8) ?FieldAndIndex {
         else => unreachable,
     }
     return null;
+}
+
+pub fn getCharSignedness(comp: *Compilation) std.builtin.Signedness {
+    switch (comp.target.cpu.arch) {
+        .aarch64,
+        .aarch64_32,
+        .aarch64_be,
+        .arm,
+        .armeb,
+        .thumb,
+        .thumbeb,
+        => return if (comp.target.os.tag.isDarwin() or comp.target.os.tag == .windows) .signed else .unsigned,
+        .powerpc, .powerpc64 => return if (comp.target.os.tag.isDarwin()) .signed else .unsigned,
+        .powerpc64le,
+        .s390x,
+        .xcore,
+        .arc,
+        => return .unsigned,
+        else => return .signed,
+    }
 }
 
 /// Size of type as reported by sizeof

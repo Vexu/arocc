@@ -260,17 +260,17 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         else => {},
     };
 
-    if (comp.target.cpu.arch.endian() == .Little) try w.writeAll(
+    try w.writeAll(
         \\#define __ORDER_LITTLE_ENDIAN__ 1234
         \\#define __ORDER_BIG_ENDIAN__ 4321
         \\#define __ORDER_PDP_ENDIAN__ 3412
+        \\
+    );
+    if (comp.target.cpu.arch.endian() == .Little) try w.writeAll(
         \\#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
         \\#define __LITTLE_ENDIAN__ 1
         \\
     ) else try w.writeAll(
-        \\#define __ORDER_LITTLE_ENDIAN__ 1234
-        \\#define __ORDER_BIG_ENDIAN__ 4321
-        \\#define __ORDER_PDP_ENDIAN__ 3412
         \\#define __BYTE_ORDER__ __ORDER_BIG_ENDIAN__;
         \\#define __BIG_ENDIAN__ 1
         \\
@@ -280,7 +280,39 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try generateDateAndTime(w);
 
     // types
+    if (Type.getCharSignedness(comp) == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
     try w.writeAll("#define __CHAR_BIT__ 8\n");
+
+    // int maxs
+    try comp.generateIntMax(w, "__SCHAR_MAX__", .{ .specifier = .schar });
+    try comp.generateIntMax(w, "__SHRT_MAX__", .{ .specifier = .short });
+    try comp.generateIntMax(w, "__INT_MAX__", .{ .specifier = .int });
+    try comp.generateIntMax(w, "__LONG_MAX__", .{ .specifier = .long });
+    try comp.generateIntMax(w, "__LONG_LONG_MAX__", .{ .specifier = .long_long });
+    try comp.generateIntMax(w, "__WCHAR_MAX__", Type.wideChar(comp));
+    // try comp.generateIntMax(w, "__WINT_MAX__", Type.wideChar(comp));
+    // try comp.generateIntMax(w, "__INTMAX_MAX__", Type.wideChar(comp));
+    try comp.generateIntMax(w, "__SIZE_MAX__", Type.sizeT(comp));
+    // try comp.generateIntMax(w, "__UINTMAX_MAX__", Type.wideChar(comp));
+    try comp.generateIntMax(w, "__PTRDIFF_MAX__", Type.ptrDiffT(comp));
+    // try comp.generateIntMax(w, "__INTPTR_MAX__", Type.wideChar(comp));
+    // try comp.generateIntMax(w, "__UINTPTR_MAX__", Type.sizeT(comp));
+
+    // sizeof types
+    try comp.generateSizeofType(w, "__SIZEOF_FLOAT__", .{ .specifier = .float });
+    try comp.generateSizeofType(w, "__SIZEOF_DOUBLE__", .{ .specifier = .double });
+    try comp.generateSizeofType(w, "__SIZEOF_LONG_DOUBLE__", .{ .specifier = .long_double });
+    try comp.generateSizeofType(w, "__SIZEOF_SHORT__", .{ .specifier = .short });
+    try comp.generateSizeofType(w, "__SIZEOF_INT__", .{ .specifier = .int });
+    try comp.generateSizeofType(w, "__SIZEOF_LONG__", .{ .specifier = .long });
+    try comp.generateSizeofType(w, "__SIZEOF_LONG_LONG__", .{ .specifier = .long_long });
+    try comp.generateSizeofType(w, "__SIZEOF_POINTER__", .{ .specifier = .pointer });
+    try comp.generateSizeofType(w, "__SIZEOF_PTRDIFF_T__", Type.ptrDiffT(comp));
+    try comp.generateSizeofType(w, "__SIZEOF_SIZE_T__", Type.sizeT(comp));
+    try comp.generateSizeofType(w, "__SIZEOF_WCHAR_T__", Type.wideChar(comp));
+    // try comp.generateSizeofType(w, "__SIZEOF_WINT_T__", .{ .specifier = .pointer });
+
+    // various int types
     try generateTypeMacro(w, "__PTRDIFF_TYPE__", Type.ptrDiffT(comp));
     try generateTypeMacro(w, "__SIZE_TYPE__", Type.sizeT(comp));
     try generateTypeMacro(w, "__WCHAR_TYPE__", Type.wideChar(comp));
@@ -304,6 +336,20 @@ fn generateTypeMacro(w: anytype, name: []const u8, ty: Type) !void {
     try w.print("#define {s} ", .{name});
     try ty.print(w);
     try w.writeByte('\n');
+}
+
+fn generateIntMax(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {
+    const bit_count = @intCast(u8, ty.sizeof(comp).? * 8);
+    const unsigned = ty.isUnsignedInt(comp);
+    const max = if (bit_count == 128)
+        @as(u128, if (unsigned) std.math.maxInt(u128) else std.math.maxInt(u128))
+    else
+        (@as(u64, 1) << @truncate(u6, bit_count - @boolToInt(!unsigned))) - 1;
+    try w.print("#define {s} {d}\n", .{ name, max });
+}
+
+fn generateSizeofType(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {
+    try w.print("#define {s} {d}\n", .{ name, ty.sizeof(comp).? });
 }
 
 pub fn defineSystemIncludes(comp: *Compilation) !void {
