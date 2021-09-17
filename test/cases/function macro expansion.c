@@ -1,4 +1,4 @@
-#define EXPECTED_TOKENS "HI THERE" HI_THERE "HI THERE"
+#define EXPECTED_TOKENS "HI THERE" HI_THERE "HI THERE" 1, (2, 3)
 
 
 #define HE HI
@@ -10,3 +10,8 @@
 CAT(HE, LLO)
 XCAT(HE, LLO)
 CALL(CAT)
+
+#define FOO(a, b) BAR(a, b)
+#define BAR(a, b) a, b
+
+FOO(1, (2, 3))

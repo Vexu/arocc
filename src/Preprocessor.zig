@@ -831,7 +831,7 @@ fn vaArgSlice(args: []const Token, index: usize) []const Token {
             .r_paren => parens -= 1,
             else => if (parens != 0) continue,
         }
-        if (args[i].id == .comma) commas_seen += 1;
+        if (parens == 0 and args[i].id == .comma) commas_seen += 1;
         if (commas_seen == index) return args[i + 1 ..];
     }
     return args[i..];
@@ -849,13 +849,13 @@ fn argSlice(args: []const Token, index: u32) []const Token {
             .r_paren => parens -= 1,
             else => if (parens != 0) continue,
         }
-        if (args[i].id == .comma) {
+        if (parens == 0 and args[i].id == .comma) {
             if (index == 0) return args[0..i];
             commas_seen += 1;
             continue;
         }
         if (commas_seen == index) for (args[i..]) |a_2, j| {
-            if (a_2.id == .comma) {
+            if (parens == 0 and a_2.id == .comma) {
                 return args[i..][0..j];
             }
         } else return args[i..];
