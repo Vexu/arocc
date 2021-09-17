@@ -43,10 +43,15 @@ void incomplete_array(void) {
     typeof(arr) arr2 = {1, 2, 3};
 }
 
+void voidparams(typeof(const void), ...);
+
+
 #define EXPECTED_ERRORS "parser using typeof types.c:26:14: warning: array index 5 is past the end of the array" \
     "parser using typeof types.c:27:15: warning: array index 5 is past the end of the array" \
     "parser using typeof types.c:28:22: warning: array index 5 is past the end of the array" \
     "parser using typeof types.c:33:31: warning: excess elements in struct initializer" \
     "parser using typeof types.c:34:25: warning: excess elements in struct initializer" \
     "parser using typeof types.c:37:30: warning: excess elements in struct initializer" \
-    "parser using typeof types.c:38:26: warning: excess elements in struct initializer"
+    "parser using typeof types.c:38:26: warning: excess elements in struct initializer" \
+    "parser using typeof types.c:46:35: error: 'void' must be the only parameter if specified" \
+    "parser using typeof types.c:46:35: error: 'void' parameter cannot be qualified"

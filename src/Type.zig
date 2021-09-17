@@ -383,6 +383,14 @@ pub fn arrayLen(ty: Type) usize {
     };
 }
 
+pub fn anyQual(ty: Type) bool {
+    return switch (ty.specifier) {
+        .typeof_type => ty.qual.any() or ty.data.sub_type.anyQual(),
+        .typeof_expr => ty.qual.any() or ty.data.expr.ty.anyQual(),
+        else => ty.qual.any(),
+    };
+}
+
 pub fn eitherLongDouble(a: Type, b: Type) ?Type {
     const unwrapped_a = a.unwrapTypeof();
     if (unwrapped_a.specifier == .long_double or unwrapped_a.specifier == .complex_long_double) return a;
@@ -718,7 +726,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             const elem_ty = inner.data.sub_type.*;
             if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
             if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
+            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .variable_len_array => {
             try inner.data.expr.ty.combine(outer, p, source_tok);
@@ -726,7 +734,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             const elem_ty = inner.data.expr.ty;
             if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
             if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
+            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .array, .static_array, .incomplete_array => {
             try inner.data.array.elem.combine(outer, p, source_tok);
@@ -735,7 +743,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
             if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
             if (elem_ty.specifier == .static_array and elem_ty.isArray()) try p.errTok(.static_non_outermost_array, source_tok);
-            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
+            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .func, .var_args_func, .old_style_func => {
             try inner.data.func.return_type.combine(outer, p, source_tok);

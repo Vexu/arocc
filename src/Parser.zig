@@ -1825,7 +1825,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             if (p.param_buf.items.len == param_buf_top) {
                 if (p.tok_ids[p.tok_i] != .r_paren) {
                     try p.err(.void_only_param);
-                    if (param_ty.qual.any()) try p.err(.void_param_qualified);
+                    if (param_ty.anyQual()) try p.err(.void_param_qualified);
                     return error.ParsingFailed;
                 }
                 return &[0]Type.Func.Param{};
@@ -3943,7 +3943,7 @@ fn castExpr(p: *Parser) Error!Result {
             } else {
                 try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
             }
-            if (ty.qual.any()) try p.errStr(.qual_cast, l_paren, try p.typeStr(ty));
+            if (ty.anyQual()) try p.errStr(.qual_cast, l_paren, try p.typeStr(ty));
             operand.ty = ty;
             operand.ty.qual = .{};
             try operand.un(p, .cast_expr);
@@ -4920,7 +4920,7 @@ fn genericSelection(p: *Parser) Error!Result {
     while (true) {
         const start = p.tok_i;
         if (try p.typeName()) |ty| {
-            if (ty.qual.any()) {
+            if (ty.anyQual()) {
                 try p.errTok(.generic_qual_type, start);
             }
             _ = try p.expectToken(.colon);
