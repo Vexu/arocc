@@ -54,20 +54,20 @@ pub fn deinit(comp: *Compilation) void {
 }
 
 fn generateDateAndTime(w: anytype) !void {
+    // TODO take timezone into account here once it is supported in Zig std
     const timestamp = std.math.clamp(std.time.timestamp(), 0, std.math.maxInt(i64));
     const epoch_seconds = EpochSeconds{ .secs = @intCast(u64, timestamp) };
     const epoch_day = epoch_seconds.getEpochDay();
     const day_seconds = epoch_seconds.getDaySeconds();
     const year_day = epoch_day.calculateYearDay();
-
     const month_day = year_day.calculateMonthDay();
 
-    const MonthNames = [_][]const u8{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    const month_names = [_][]const u8{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
     std.debug.assert(std.time.epoch.Month.jan.numeric() == 1);
 
-    const monthName = MonthNames[month_day.month.numeric() - 1];
+    const month_name = month_names[month_day.month.numeric() - 1];
     try w.print("#define __DATE__ \"{s} {d: >2} {d}\"\n", .{
-        monthName,
+        month_name,
         month_day.day_index + 1,
         year_day.year,
     });
@@ -76,16 +76,32 @@ fn generateDateAndTime(w: anytype) !void {
         day_seconds.getMinutesIntoHour(),
         day_seconds.getSecondsIntoMinute(),
     });
+
+    const day_names = [_][]const u8{ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    // days since Thu Oct 1 1970
+    const day_name = day_names[(epoch_day.day + 3) % 7];
+    try w.print("#define __TIMESTAMP__ \"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"\n", .{
+        day_name,
+        month_name,
+        month_day.day_index + 1,
+        day_seconds.getHoursIntoDay(),
+        day_seconds.getMinutesIntoHour(),
+        day_seconds.getSecondsIntoMinute(),
+        year_day.year,
+    });
 }
 
 /// Generate builtin macros that will be available to each source file.
 pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     var buf = std.ArrayList(u8).init(comp.gpa);
     defer buf.deinit();
+    const w = buf.writer();
 
-    try buf.appendSlice(
+    // standard macros
+    try w.writeAll(
         \\#define __VERSION__ "Aro 
     ++ @import("lib.zig").version_str ++ "\"\n" ++
+        \\#define __Aro__
         \\#define __STDC__ 1
         \\#define __STDC_HOSTED__ 1
         \\#define __STDC_NO_ATOMICS__ 1
@@ -94,52 +110,164 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         \\#define __STDC_NO_VLA__ 1
         \\
     );
-    try generateDateAndTime(buf.writer());
-
     if (comp.langopts.standard.StdCVersionMacro()) |stdc_version| {
-        try buf.writer().print("#define __STDC_VERSION__ {s}\n", .{stdc_version});
+        try w.print("#define __STDC_VERSION__ {s}\n", .{stdc_version});
     }
 
+    // os macros
     switch (comp.target.os.tag) {
-        .linux => try buf.appendSlice(
-            \\#define unix 1
-            \\#define __unix 1
-            \\#define __unix__ 1
+        .linux => try w.writeAll(
             \\#define linux 1
             \\#define __linux 1
             \\#define __linux__ 1
             \\
         ),
-        .windows => if (comp.target.cpu.arch.ptrBitWidth() == 32)
-            try buf.appendSlice("#define _WIN32 1\n")
-        else
-            try buf.appendSlice(
-                \\#define _WIN32 1
-                \\#define _WIN64 1
-                \\
-            ),
+        .windows => if (comp.target.cpu.arch.ptrBitWidth() == 32) try w.writeAll(
+            \\#define WIN32 1
+            \\#define _WIN32 1
+            \\#define __WIN32 1
+            \\#define __WIN32__ 1
+            \\
+        ) else try w.writeAll(
+            \\#define WIN32 1
+            \\#define WIN64 1
+            \\#define _WIN32 1
+            \\#define _WIN64 1
+            \\#define __WIN32 1
+            \\#define __WIN64 1
+            \\#define __WIN32__ 1
+            \\#define __WIN64__ 1
+            \\
+        ),
+        .freebsd => try w.print("#define __FreeBSD__ {d}\n", .{comp.target.os.version_range.semver.min.major}),
+        .netbsd => try w.writeAll("#define __NetBSD__ 1\n"),
+        .openbsd => try w.writeAll("#define __OpenBSD__ 1\n"),
+        .dragonfly => try w.writeAll("#define __DragonFly__ 1\n"),
+        .solaris => try w.writeAll(
+            \\#define sun 1
+            \\#define __sun 1
+            \\
+        ),
+        .macos => try w.writeAll(
+            \\#define __APPLE__ 1
+            \\#define __MACH__ 1
+            \\
+        ),
         else => {},
     }
 
+    // unix and other additional os macros
+    switch (comp.target.os.tag) {
+        .freebsd,
+        .netbsd,
+        .openbsd,
+        .dragonfly,
+        .linux,
+        => try w.writeAll(
+            \\#define unix 1
+            \\#define __unix 1
+            \\#define __unix__ 1
+            \\
+        ),
+        else => {},
+    }
+    if (comp.target.abi == .android) {
+        try w.writeAll("#define __ANDROID__ 1\n");
+    }
+
+    // architecture macros
     switch (comp.target.cpu.arch) {
-        .x86_64 => try buf.appendSlice(
+        .x86_64 => try w.writeAll(
             \\#define __amd64__ 1
             \\#define __amd64 1
             \\#define __x86_64 1
             \\#define __x86_64__ 1
             \\
         ),
+        .i386 => try w.writeAll(
+            \\#define i386 1
+            \\#define __i386 1
+            \\#define __i386__ 1
+            \\
+        ),
+        .mips,
+        .mipsel,
+        .mips64,
+        .mips64el,
+        => try w.writeAll(
+            \\#define __mips__ 1
+            \\#define mips 1
+            \\
+        ),
+        .powerpc,
+        .powerpcle,
+        => try w.writeAll(
+            \\#define __powerpc__ 1
+            \\#define __POWERPC__ 1
+            \\#define __ppc__ 1
+            \\#define __PPC__ 1
+            \\#define _ARCH_PPC 1
+            \\
+        ),
+        .powerpc64,
+        .powerpc64le,
+        => try w.writeAll(
+            \\#define __powerpc 1
+            \\#define __powerpc__ 1
+            \\#define __powerpc64__ 1
+            \\#define __POWERPC__ 1
+            \\#define __ppc__ 1
+            \\#define __ppc64__ 1
+            \\#define __PPC__ 1
+            \\#define __PPC64__ 1
+            \\#define _ARCH_PPC 1
+            \\#define _ARCH_PPC64 1
+            \\
+        ),
+        .sparcv9 => try w.writeAll(
+            \\#define __sparc__ 1
+            \\#define __sparc 1
+            \\#define __sparc_v9__ 1
+            \\
+        ),
+        .sparc, .sparcel => try w.writeAll(
+            \\#define __sparc__ 1
+            \\#define __sparc 1
+            \\
+        ),
+        .arm, .armeb => try w.writeAll(
+            \\#define __arm__ 1
+            \\#define __arm 1
+            \\
+        ),
+        .thumb, .thumbeb => try w.writeAll(
+            \\#define __arm__ 1
+            \\#define __arm 1
+            \\#define __thumb__ 1
+            \\
+        ),
+        .aarch64, .aarch64_be => try w.writeAll("#define __aarch64__ 1\n"),
         else => {},
     }
 
-    try buf.appendSlice(if (comp.target.cpu.arch.endian() == .Little)
+    if (comp.target.os.tag != .windows) switch (comp.target.cpu.arch.ptrBitWidth()) {
+        64 => try w.writeAll(
+            \\#define _LP64 1
+            \\#define __LP64__ 1
+            \\
+        ),
+        32 => try w.writeAll("#define _ILP32 1\n"),
+        else => {},
+    };
+
+    if (comp.target.cpu.arch.endian() == .Little) try w.writeAll(
         \\#define __ORDER_LITTLE_ENDIAN__ 1234
         \\#define __ORDER_BIG_ENDIAN__ 4321
         \\#define __ORDER_PDP_ENDIAN__ 3412
         \\#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
         \\#define __LITTLE_ENDIAN__ 1
         \\
-    else
+    ) else try w.writeAll(
         \\#define __ORDER_LITTLE_ENDIAN__ 1234
         \\#define __ORDER_BIG_ENDIAN__ 4321
         \\#define __ORDER_PDP_ENDIAN__ 3412
@@ -148,7 +276,11 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         \\
     );
 
-    const w = buf.writer();
+    // timestamps
+    try generateDateAndTime(w);
+
+    // types
+    try w.writeAll("#define __CHAR_BIT__ 8\n");
     try generateTypeMacro(w, "__PTRDIFF_TYPE__", Type.ptrDiffT(comp));
     try generateTypeMacro(w, "__SIZE_TYPE__", Type.sizeT(comp));
     try generateTypeMacro(w, "__WCHAR_TYPE__", Type.wideChar(comp));
