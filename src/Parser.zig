@@ -988,7 +988,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         init_d.initializer = init_list_expr.node;
         if (init_d.d.ty.get(.incomplete_array)) |incomplete_arr_type| {
             const arr_ty = try p.arena.create(Type.Array);
-            arr_ty.* = .{ .elem = incomplete_arr_type.data.array.elem, .len = init_list_expr.ty.arrayLen() };
+            arr_ty.* = .{ .elem = incomplete_arr_type.data.array.elem, .len = init_list_expr.ty.arrayLen().? };
             init_d.d.ty = .{
                 .specifier = .array,
                 .data = .{ .array = arr_ty },
@@ -1941,7 +1941,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     } else @intCast(u64, val),
                     .unavailable => unreachable,
                 };
-                const max_len = cur_ty.arrayLen();
+                const max_len = cur_ty.arrayLen() orelse std.math.maxInt(usize);
                 if (index_unchecked >= max_len) {
                     try p.errExtra(.oob_array_designator, l_bracket + 1, .{ .unsigned = index_unchecked });
                     return error.ParsingFailed;
@@ -2034,7 +2034,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         if (index != 0) index = il.*.list.items[index - 1].index;
 
         const arr_ty = ty.*;
-        const max_elems = arr_ty.arrayLen();
+        const max_elems = arr_ty.arrayLen() orelse std.math.maxInt(usize);
         if (max_elems == 0) {
             if (p.tok_ids[p.tok_i] != .l_brace) {
                 try p.err(.empty_aggregate_init_braces);
@@ -2103,12 +2103,13 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
 
     if (target.get(.array)) |arr_ty| {
         assert(item.ty.specifier == .array);
-        var len = item.ty.data.array.len;
+        var len = item.ty.arrayLen().?;
+        const array_len = arr_ty.arrayLen().?;
         if (p.nodeIs(item.node, .string_literal_expr)) {
             // the null byte of a string can be dropped
-            if (len - 1 > arr_ty.arrayLen())
+            if (len - 1 > array_len)
                 try p.errTok(.str_init_too_long, tok);
-        } else if (len > arr_ty.arrayLen()) {
+        } else if (len > array_len) {
             try p.errStr(
                 .arr_init_too_long,
                 tok,
@@ -2211,7 +2212,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
 
         const elem_ty = init_ty.elemType();
 
-        const max_items = init_ty.arrayLen();
+        const max_items = init_ty.arrayLen() orelse std.math.maxInt(usize);
         var start: u64 = 0;
         for (il.list.items) |*init| {
             if (init.index > start) {
@@ -4458,11 +4459,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !void {
-    const unwrapped = arr_ty.unwrapTypeof();
-    const len = switch (unwrapped.specifier) {
-        .array, .static_array, .decayed_array, .decayed_static_array => unwrapped.data.array.len,
-        else => return,
-    };
+    const len = arr_ty.arrayLen() orelse return;
 
     switch (index.val) {
         .unsigned => |val| if (std.math.compare(val, .gte, len))

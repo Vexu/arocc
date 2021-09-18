@@ -370,12 +370,12 @@ pub fn elemType(ty: Type) Type {
     };
 }
 
-pub fn arrayLen(ty: Type) usize {
+pub fn arrayLen(ty: Type) ?usize {
     return switch (ty.specifier) {
-        .array => ty.data.array.len,
-        .typeof_type => ty.data.sub_type.arrayLen(),
-        .typeof_expr => ty.data.expr.ty.arrayLen(),
-        else => std.math.maxInt(usize),
+        .array, .static_array, .decayed_array, .decayed_static_array => ty.data.array.len,
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.arrayLen(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.arrayLen(),
+        else => null,
     };
 }
 
