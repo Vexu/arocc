@@ -237,7 +237,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                             if (tokenizer.buf[tokenizer.index] == '\n') break;
                         }
                         var slice = tokenizer.buf[start..tokenizer.index];
-                        slice = mem.trim(u8, slice, " \t\x0B\x0C");
+                        slice = mem.trim(u8, slice, " \r\t\x0B\x0C");
                         if (mem.eql(u8, slice, "once")) {
                             const prev = try pp.pragma_once.fetchPut(tokenizer.source, {});
                             if (prev != null and !seen_pragma_once) {
