@@ -72,9 +72,12 @@ generated: std.ArrayList(u8),
 token_buf: RawTokenList,
 char_buf: std.ArrayList(u8),
 pragma_once: std.AutoHashMap(Source.Id, void),
-// It is safe to have pointers to entries of defines since it
-// cannot be modified while we are expanding a macro.
-expansion_log: std.AutoHashMap(*Macro, void),
+/// The expansion_stack memorizes which macros are being
+/// expanded in the current scope in order to avoid
+/// infinite recursion.
+/// It is safe to have pointers to entries of defines since it
+/// cannot be modified while we are expanding a macro.
+expansion_stack: std.ArrayList(*Macro),
 include_depth: u8 = 0,
 
 pub fn init(comp: *Compilation) Preprocessor {
@@ -86,7 +89,7 @@ pub fn init(comp: *Compilation) Preprocessor {
         .token_buf = RawTokenList.init(comp.gpa),
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .pragma_once = std.AutoHashMap(Source.Id, void).init(comp.gpa),
-        .expansion_log = std.AutoHashMap(*Macro, void).init(comp.gpa),
+        .expansion_stack = std.ArrayList(*Macro).init(comp.gpa),
     };
 }
 
@@ -98,7 +101,7 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.token_buf.deinit();
     pp.char_buf.deinit();
     pp.pragma_once.deinit();
-    pp.expansion_log.deinit();
+    pp.expansion_stack.deinit();
 }
 
 /// Preprocess a source file.
@@ -517,7 +520,6 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
         .empty => return,
         .self => {},
         .simple => {
-            pp.expansion_log.clearRetainingCapacity();
             var buf = ExpandBuf.init(pp.comp.gpa);
             defer buf.deinit();
 
@@ -535,7 +537,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
             }
             return;
         },
-        .func => |macro| blk: {
+        .func => blk: {
             const start = tokenizer.index;
             const l_paren = tokenizer.next();
             if (l_paren.id != .l_paren) {
@@ -543,7 +545,6 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
                 tokenizer.index = start;
                 break :blk;
             }
-            pp.expansion_log.clearRetainingCapacity();
             var buf = ExpandBuf.init(pp.comp.gpa);
             defer buf.deinit();
 
@@ -572,9 +573,8 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
                 try buf.append(tokFromRaw(tok));
             }
             var start_index: usize = 0;
-            // Mark that we have seen this macro.
-            try pp.expansion_log.putNoClobber(some, {});
-            try pp.expandFunc(&buf, &start_index, macro);
+
+            try pp.expandFunc(&buf, &start_index, some);
 
             // Add the resulting tokens to the token list and mark that they were expanded.
             try pp.tokens.ensureCapacity(pp.comp.gpa, pp.tokens.len + buf.items.len);
@@ -593,13 +593,11 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
 /// Try to expand a macro in the `source` buffer at `start_index`.
 fn expandExtra(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize) Error!void {
     if (pp.defines.getPtr(pp.expandedSlice(source.items[start_index.*]))) |some| {
-        if (pp.expansion_log.get(some)) |_| {
+        if (mem.indexOfScalar(*Macro, pp.expansion_stack.items, some)) |_| {
             // If we have already expanded this macro, do not recursively expand it.
             start_index.* += 1;
             return;
         }
-        // Mark that we have seen this macro.
-        try pp.expansion_log.putNoClobber(some, {});
 
         switch (some.*) {
             .empty => _ = source.orderedRemove(start_index.*), // Simply remove the token.
@@ -627,6 +625,7 @@ fn expandExtra(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize) Error
                 }
 
                 // Try to expand the resulting tokens.
+                try pp.expansion_stack.append(some);
                 i = 0;
                 while (i < buf.items.len) {
                     if (buf.items[i].id.isMacroIdentifier()) {
@@ -635,18 +634,19 @@ fn expandExtra(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize) Error
                         i += 1;
                     }
                 }
+                _ = pp.expansion_stack.pop();
                 // Mark all the tokens before adding them to the source buffer.
                 for (buf.items) |*tok| try pp.markExpandedFrom(tok, macro.loc);
                 try source.insertSlice(start_index.*, buf.items);
                 start_index.* += buf.items.len;
             },
-            .func => |macro| return pp.expandFunc(source, start_index, macro),
+            .func => return pp.expandFunc(source, start_index, some),
         }
     } else start_index.* += 1; // go over normal identifiers
 }
 
 /// Try to expand a function like macro in the `source` buffer at `start_index`.
-fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro: Macro.Func) Error!void {
+fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro: *Macro) Error!void {
     const name_tok = source.items[start_index.*];
     const l_paren_index = start_index.* + 1;
     if (source.items.len <= l_paren_index or source.items[l_paren_index].id != .l_paren) {
@@ -679,13 +679,13 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
     if (args_count == 0 and args.len != 0) args_count = 1;
 
     // Validate argument count.
-    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, macro.params.len), .actual = args_count } };
-    if (macro.var_args and args_count < macro.params.len) {
+    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, macro.func.params.len), .actual = args_count } };
+    if (macro.func.var_args and args_count < macro.func.params.len) {
         try pp.comp.diag.add(.{ .tag = .expected_at_least_arguments, .loc = name_tok.loc, .extra = extra });
         start_index.* += 1;
         return;
     }
-    if (!macro.var_args and args_count != macro.params.len) {
+    if (!macro.func.var_args and args_count != macro.func.params.len) {
         try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = name_tok.loc, .extra = extra });
         start_index.* += 1;
         return;
@@ -693,16 +693,16 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
 
     var buf = ExpandBuf.init(pp.comp.gpa);
     defer buf.deinit();
-    try buf.ensureCapacity(macro.tokens.len);
+    try buf.ensureCapacity(macro.func.tokens.len);
 
     // 1. Stringification and 2. Parameter replacement
     var tok_i: usize = 0;
-    while (tok_i < macro.tokens.len) : (tok_i += 1) {
-        const raw = macro.tokens[tok_i];
+    while (tok_i < macro.func.tokens.len) : (tok_i += 1) {
+        const raw = macro.func.tokens[tok_i];
         switch (raw.id) {
             .stringify_param, .stringify_va_args => {
                 const target_arg = if (raw.id == .stringify_va_args)
-                    vaArgSlice(args, macro.params.len)
+                    vaArgSlice(args, macro.func.params.len)
                 else
                     argSlice(args, raw.end);
                 pp.char_buf.items.len = 0; // Safe since we can only be stringifying one parameter at a time.
@@ -733,7 +733,7 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
             },
             .macro_param, .keyword_va_args => {
                 const target_arg = if (raw.id == .keyword_va_args)
-                    vaArgSlice(args, macro.params.len)
+                    vaArgSlice(args, macro.func.params.len)
                 else
                     argSlice(args, raw.end);
 
@@ -784,8 +784,8 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
             else => tok_i += 1,
         }
     }
-
     // 5. Expand resulting tokens
+    try pp.expansion_stack.append(macro);
     tok_i = 0;
     while (tok_i < buf.items.len) {
         if (buf.items[tok_i].id.isMacroIdentifier()) {
@@ -794,9 +794,10 @@ fn expandFunc(pp: *Preprocessor, source: *ExpandBuf, start_index: *usize, macro:
             tok_i += 1;
         }
     }
+    _ = pp.expansion_stack.pop();
 
     // Mark all the tokens before adding them to the source buffer.
-    for (buf.items) |*tok| try pp.markExpandedFrom(tok, macro.loc);
+    for (buf.items) |*tok| try pp.markExpandedFrom(tok, macro.func.loc);
 
     // Move tokens after the call out of the way.
     const input_len = args.len + 3; // +3 for identifier, ( and )
