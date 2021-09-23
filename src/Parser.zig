@@ -986,14 +986,17 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr.node;
-        if (init_d.d.ty.get(.incomplete_array)) |incomplete_arr_type| {
+        if (init_d.d.ty.specifier == .incomplete_array) {
+            // Modifying .data is exceptionally allowed for .incomplete_array.
+            init_d.d.ty.data.array.len = init_list_expr.ty.data.array.len;
+            init_d.d.ty.specifier = .array;
+        } else if (init_d.d.ty.is(.incomplete_array)) {
             const arr_ty = try p.arena.create(Type.Array);
-            arr_ty.* = .{ .elem = incomplete_arr_type.data.array.elem, .len = init_list_expr.ty.arrayLen().? };
+            arr_ty.* = .{ .elem = init_d.d.ty.elemType(), .len = init_list_expr.ty.arrayLen().? };
             init_d.d.ty = .{
                 .specifier = .array,
                 .data = .{ .array = arr_ty },
-                .qual = incomplete_arr_type.qual,
-                .alignment = incomplete_arr_type.alignment,
+                .alignment = init_d.d.ty.alignment,
             };
         }
     }
@@ -2124,7 +2127,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     if (target.is(.void)) return; // Do not do type coercion on excess items
 
     // item does not need to be qualified
-    var unqual_ty = target.unwrapTypeof();
+    var unqual_ty = target.canonicalize(.standard);
     unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
     try item.lvalConversion(p);
@@ -2235,14 +2238,16 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
         };
 
-        if (init_ty.get(.incomplete_array)) |incomplete_arr_type| {
+        if (init_ty.specifier == .incomplete_array) {
+            arr_init_node.ty.specifier = .array;
+            arr_init_node.ty.data.array.len = start;
+        } else if (init_ty.is(.incomplete_array)) {
             const arr_ty = try p.arena.create(Type.Array);
-            arr_ty.* = .{ .elem = incomplete_arr_type.data.array.elem, .len = start };
+            arr_ty.* = .{ .elem = init_ty.elemType(), .len = start };
             arr_init_node.ty = .{
                 .specifier = .array,
                 .data = .{ .array = arr_ty },
-                .qual = incomplete_arr_type.qual,
-                .alignment = incomplete_arr_type.alignment,
+                .alignment = init_ty.alignment,
             };
         } else if (start < max_items) {
             const elem = try p.addNode(.{
@@ -3538,7 +3543,7 @@ fn assignExpr(p: *Parser) Error!Result {
     }
 
     // rhs does not need to be qualified
-    var unqual_ty = lhs.ty.unwrapTypeof();
+    var unqual_ty = lhs.ty.canonicalize(.standard);
     unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
     if (lhs.ty.is(.bool)) {

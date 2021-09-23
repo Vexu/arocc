@@ -323,10 +323,17 @@ pub fn isVoidStar(ty: Type) bool {
     };
 }
 
+fn isTypeof(ty: Type) bool {
+    return switch (ty.specifier) {
+        .typeof_type, .typeof_expr, .decayed_typeof_type, .decayed_typeof_expr => true,
+        else => false,
+    };
+}
+
 pub fn isConst(ty: Type) bool {
     return switch (ty.specifier) {
-        .typeof_type => ty.qual.@"const" or ty.data.sub_type.isConst(),
-        .typeof_expr => ty.qual.@"const" or ty.data.expr.ty.isConst(),
+        .typeof_type, .decayed_typeof_type => ty.qual.@"const" or ty.data.sub_type.isConst(),
+        .typeof_expr, .decayed_typeof_expr => ty.qual.@"const" or ty.data.expr.ty.isConst(),
         else => ty.qual.@"const",
     };
 }
@@ -361,11 +368,15 @@ pub fn isRecord(ty: Type) bool {
 
 pub fn elemType(ty: Type) Type {
     return switch (ty.specifier) {
-        .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.unwrapTypeof(),
-        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem.unwrapTypeof(),
-        .variable_len_array, .decayed_variable_len_array => ty.data.expr.ty.unwrapTypeof(),
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.elemType(),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.elemType(),
+        .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.*,
+        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem,
+        .variable_len_array, .decayed_variable_len_array => ty.data.expr.ty,
+        .typeof_type, .decayed_typeof_type, .typeof_expr, .decayed_typeof_expr => {
+            const unwrapped = ty.canonicalize(.preserve_quals);
+            var elem = unwrapped.elemType();
+            elem.qual = elem.qual.mergeAll(unwrapped.qual);
+            return elem;
+        },
         else => unreachable,
     };
 }
@@ -633,12 +644,38 @@ pub fn alignof(ty: Type, comp: *Compilation) u29 {
     };
 }
 
-pub fn unwrapTypeof(ty: Type) Type {
-    return switch (ty.specifier) {
-        .typeof_type => ty.data.sub_type.unwrapTypeof(),
-        .typeof_expr => ty.data.expr.ty.unwrapTypeof(),
-        else => ty,
-    };
+/// Canonicalize a possibly-typeof() type. If the type is not a typeof() type, simply
+/// return it. Otherwise, determine the actual qualified type.
+/// The `qual_handling` parameter can be used to return the full set of qualifiers
+/// added by typeof() operations, which is useful when determining the elemType of
+/// arrays and pointers.
+pub fn canonicalize(ty: Type, qual_handling: enum { standard, preserve_quals }) Type {
+    if (!ty.isTypeof()) return ty;
+
+    var cur = ty;
+    var qual = cur.qual;
+    while (true) {
+        switch (cur.specifier) {
+            .typeof_type => cur = cur.data.sub_type.*,
+            .typeof_expr => cur = cur.data.expr.ty,
+            .decayed_typeof_type => {
+                cur = cur.data.sub_type.*;
+                cur.decayArray();
+            },
+            .decayed_typeof_expr => {
+                cur = cur.data.expr.ty;
+                cur.decayArray();
+            },
+            else => break,
+        }
+        qual = qual.mergeAll(cur.qual);
+    }
+    if ((cur.isArray() or cur.isPtr()) and qual_handling == .standard) {
+        cur.qual = .{};
+    } else {
+        cur.qual = qual;
+    }
+    return cur;
 }
 
 pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
@@ -651,8 +688,8 @@ pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
 }
 
 pub fn eql(a_param: Type, b_param: Type, check_qualifiers: bool) bool {
-    const a = a_param.unwrapTypeof();
-    const b = b_param.unwrapTypeof();
+    const a = a_param.canonicalize(.standard);
+    const b = b_param.canonicalize(.standard);
 
     if (a.alignment != b.alignment) return false;
     if (a.isPtr()) {
@@ -676,7 +713,7 @@ pub fn eql(a_param: Type, b_param: Type, check_qualifiers: bool) bool {
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
-        => if (!a.elemType().eql(b.elemType(), check_qualifiers)) return false,
+        => if (!a_param.elemType().eql(b_param.elemType(), check_qualifiers)) return false,
 
         .func,
         .var_args_func,
@@ -1004,9 +1041,6 @@ pub const Builder = struct {
             },
         }
         try b.qual.finish(p, &ty);
-        if (b.typeof) |typeof| {
-            ty.qual = ty.qual.mergeAll(typeof.qual);
-        }
         if (b.align_tok) |align_tok| {
             const default = ty.alignof(p.pp.comp);
             if (ty.isFunc()) {
@@ -1263,7 +1297,7 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
             return false;
         },
         .typeof_type, .typeof_expr => {
-            const actual = ty.unwrapTypeof();
+            const actual = ty.canonicalize(.standard);
             return actual.printPrologue(w);
         },
         else => {},
