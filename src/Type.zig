@@ -399,26 +399,20 @@ pub fn anyQual(ty: Type) bool {
 }
 
 pub fn eitherLongDouble(a: Type, b: Type) ?Type {
-    const unwrapped_a = a.unwrapTypeof();
-    if (unwrapped_a.specifier == .long_double or unwrapped_a.specifier == .complex_long_double) return a;
-    const unwrapped_b = b.unwrapTypeof();
-    if (unwrapped_b.specifier == .long_double or unwrapped_b.specifier == .complex_long_double) return b;
+    if (a.is(.long_double) or a.is(.complex_long_double)) return a;
+    if (b.is(.long_double) or b.is(.complex_long_double)) return b;
     return null;
 }
 
 pub fn eitherDouble(a: Type, b: Type) ?Type {
-    const unwrapped_a = a.unwrapTypeof();
-    if (unwrapped_a.specifier == .double or unwrapped_a.specifier == .complex_double) return a;
-    const unwrapped_b = b.unwrapTypeof();
-    if (unwrapped_b.specifier == .double or unwrapped_b.specifier == .complex_double) return b;
+    if (a.is(.double) or a.is(.complex_double)) return a;
+    if (b.is(.double) or b.is(.complex_double)) return b;
     return null;
 }
 
 pub fn eitherFloat(a: Type, b: Type) ?Type {
-    const unwrapped_a = a.unwrapTypeof();
-    if (unwrapped_a.specifier == .float or unwrapped_a.specifier == .complex_float) return a;
-    const unwrapped_b = b.unwrapTypeof();
-    if (unwrapped_b.specifier == .float or unwrapped_b.specifier == .complex_float) return b;
+    if (a.is(.float) or a.is(.complex_float)) return a;
+    if (b.is(.float) or b.is(.complex_float)) return b;
     return null;
 }
 
