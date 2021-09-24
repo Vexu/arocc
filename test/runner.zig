@@ -25,10 +25,13 @@ pub fn main() !void {
         return error.InvalidArguments;
     }
 
-    var path_buf = std.ArrayList(u8).init(gpa);
-    defer path_buf.deinit();
-    var cases = std.ArrayList(struct { start: usize, end: usize }).init(gpa);
-    defer cases.deinit();
+    var buf = std.ArrayList(u8).init(gpa);
+    var cases = std.ArrayList([]const u8).init(gpa);
+    defer {
+        for (cases.items) |path| gpa.free(path);
+        cases.deinit();
+        buf.deinit();
+    }
 
     // collect all cases
     {
@@ -42,10 +45,9 @@ pub fn main() !void {
                 continue;
             }
 
-            const start = path_buf.items.len;
-            try path_buf.writer().print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
-
-            try cases.append(.{ .start = start, .end = path_buf.items.len });
+            defer buf.items.len = 0;
+            try buf.writer().print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
+            try cases.append(try gpa.dupe(u8, buf.items));
         }
     }
 
@@ -85,8 +87,7 @@ pub fn main() !void {
     var ok_count: u32 = 0;
     var fail_count: u32 = 0;
     var skip_count: u32 = 0;
-    for (cases.items) |range| {
-        const path = path_buf.items[range.start..range.end];
+    for (cases.items) |path| {
         comp.langopts.standard = .default;
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
@@ -94,7 +95,7 @@ pub fn main() !void {
             continue;
         };
         defer {
-            _ = comp.sources.swapRemove(path);
+            _ = comp.sources.swapRemove(file.path);
             gpa.free(file.path);
             gpa.free(file.buf);
         }
@@ -271,11 +272,10 @@ pub fn main() !void {
                     progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
                     break;
                 }
-                const start = path_buf.items.len;
-                defer path_buf.items.len = start;
+                defer buf.items.len = 0;
                 // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-                std.debug.assert((try std.zig.string_literal.parseAppend(&path_buf, pp.tokSliceSafe(str))) == .success);
-                const expected_error = path_buf.items[start..];
+                std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSliceSafe(str))) == .success);
+                const expected_error = buf.items;
 
                 const index = std.mem.indexOf(u8, m.buf.items, expected_error);
                 if (index == null or m.buf.items[index.? + expected_error.len] != '\n') {
@@ -313,11 +313,10 @@ pub fn main() !void {
                 continue;
             }
 
-            const start = path_buf.items.len;
-            defer path_buf.items.len = start;
+            defer buf.items.len = 0;
             // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-            std.debug.assert((try std.zig.string_literal.parseAppend(&path_buf, pp.tokSliceSafe(macro.simple.tokens[0]))) == .success);
-            const expected_output = path_buf.items[start..];
+            std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSliceSafe(macro.simple.tokens[0]))) == .success);
+            const expected_output = buf.items;
 
             const obj_name = "test_object.o";
             {
