@@ -48,6 +48,14 @@ pub const Qualifiers = packed struct {
         };
     }
 
+    /// register is a storage class and not actually a qualifier
+    /// so it is not preserved by typeof()
+    pub fn inheritFromTypeof(quals: Qualifiers) Qualifiers {
+        var res = quals;
+        res.register = false;
+        return res;
+    }
+
     pub const Builder = struct {
         @"const": ?TokenIndex = null,
         atomic: ?TokenIndex = null,
@@ -91,9 +99,9 @@ pub const Array = struct {
     elem: Type,
 };
 
-pub const VLA = struct {
-    expr: NodeIndex,
-    elem: Type,
+pub const Expr = struct {
+    node: NodeIndex,
+    ty: Type,
 };
 
 // TODO improve memory usage
@@ -190,7 +198,7 @@ pub const Specifier = enum {
     decayed_static_array,
     incomplete_array,
     decayed_incomplete_array,
-    // data.vla
+    // data.expr
     variable_len_array,
     decayed_variable_len_array,
 
@@ -200,6 +208,16 @@ pub const Specifier = enum {
 
     // data.enum
     @"enum",
+
+    /// typeof(type-name)
+    typeof_type,
+    /// decayed array created with typeof(type-name)
+    decayed_typeof_type,
+
+    /// typeof(expression)
+    typeof_expr,
+    /// decayed array created with typeof(expression)
+    decayed_typeof_expr,
 };
 
 /// All fields of Type except data may be mutated
@@ -207,7 +225,7 @@ data: union {
     sub_type: *Type,
     func: *Func,
     array: *Array,
-    vla: *VLA,
+    expr: *Expr,
     @"enum": *Enum,
     record: *Record,
     none: void,
@@ -217,10 +235,19 @@ alignment: u29 = 0,
 specifier: Specifier,
 qual: Qualifiers = .{},
 
+/// Determine if type matches the given specifier, recursing into typeof
+/// types if necessary.
+pub fn is(ty: Type, specifier: Specifier) bool {
+    std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
+    return ty.get(specifier) != null;
+}
+
 pub fn isCallable(ty: Type) ?Type {
     return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => ty,
         .pointer => if (ty.data.sub_type.isFunc()) ty.data.sub_type.* else null,
+        .typeof_type => ty.data.sub_type.isCallable(),
+        .typeof_expr => ty.data.expr.ty.isCallable(),
         else => null,
     };
 }
@@ -228,6 +255,8 @@ pub fn isCallable(ty: Type) ?Type {
 pub fn isFunc(ty: Type) bool {
     return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => true,
+        .typeof_type => ty.data.sub_type.isFunc(),
+        .typeof_expr => ty.data.expr.ty.isFunc(),
         else => false,
     };
 }
@@ -235,13 +264,25 @@ pub fn isFunc(ty: Type) bool {
 pub fn isArray(ty: Type) bool {
     return switch (ty.specifier) {
         .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => true,
+        .typeof_type => ty.data.sub_type.isArray(),
+        .typeof_expr => ty.data.expr.ty.isArray(),
         else => false,
     };
 }
 
 pub fn isPtr(ty: Type) bool {
     return switch (ty.specifier) {
-        .pointer, .decayed_array, .decayed_static_array, .decayed_incomplete_array, .decayed_variable_len_array, .decayed_unspecified_variable_len_array => true,
+        .pointer,
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
+        => true,
+        .typeof_type => ty.data.sub_type.isPtr(),
+        .typeof_expr => ty.data.expr.ty.isPtr(),
         else => false,
     };
 }
@@ -249,6 +290,8 @@ pub fn isPtr(ty: Type) bool {
 pub fn isInt(ty: Type) bool {
     return switch (ty.specifier) {
         .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
+        .typeof_type => ty.data.sub_type.isInt(),
+        .typeof_expr => ty.data.expr.ty.isInt(),
         else => false,
     };
 }
@@ -256,6 +299,8 @@ pub fn isInt(ty: Type) bool {
 pub fn isFloat(ty: Type) bool {
     return switch (ty.specifier) {
         .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double => true,
+        .typeof_type => ty.data.sub_type.isFloat(),
+        .typeof_expr => ty.data.expr.ty.isFloat(),
         else => false,
     };
 }
@@ -263,6 +308,8 @@ pub fn isFloat(ty: Type) bool {
 pub fn isReal(ty: Type) bool {
     return switch (ty.specifier) {
         .complex_float, .complex_double, .complex_long_double => false,
+        .typeof_type => ty.data.sub_type.isReal(),
+        .typeof_expr => ty.data.expr.ty.isReal(),
         else => true,
     };
 }
@@ -270,7 +317,24 @@ pub fn isReal(ty: Type) bool {
 pub fn isVoidStar(ty: Type) bool {
     return switch (ty.specifier) {
         .pointer => ty.data.sub_type.specifier == .void,
+        .typeof_type => ty.data.sub_type.isVoidStar(),
+        .typeof_expr => ty.data.expr.ty.isVoidStar(),
         else => false,
+    };
+}
+
+fn isTypeof(ty: Type) bool {
+    return switch (ty.specifier) {
+        .typeof_type, .typeof_expr, .decayed_typeof_type, .decayed_typeof_expr => true,
+        else => false,
+    };
+}
+
+pub fn isConst(ty: Type) bool {
+    return switch (ty.specifier) {
+        .typeof_type, .decayed_typeof_type => ty.qual.@"const" or ty.data.sub_type.isConst(),
+        .typeof_expr, .decayed_typeof_expr => ty.qual.@"const" or ty.data.expr.ty.isConst(),
+        else => ty.qual.@"const",
     };
 }
 
@@ -278,6 +342,8 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
     return switch (ty.specifier) {
         .char => return getCharSignedness(comp) == .unsigned,
         .uchar, .ushort, .uint, .ulong, .ulong_long => return true,
+        .typeof_type => ty.data.sub_type.isUnsignedInt(comp),
+        .typeof_expr => ty.data.expr.ty.isUnsignedInt(comp),
         else => false,
     };
 }
@@ -285,6 +351,8 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
 pub fn isEnumOrRecord(ty: Type) bool {
     return switch (ty.specifier) {
         .@"enum", .@"struct", .@"union" => true,
+        .typeof_type => ty.data.sub_type.isEnumOrRecord(),
+        .typeof_expr => ty.data.expr.ty.isEnumOrRecord(),
         else => false,
     };
 }
@@ -292,6 +360,8 @@ pub fn isEnumOrRecord(ty: Type) bool {
 pub fn isRecord(ty: Type) bool {
     return switch (ty.specifier) {
         .@"struct", .@"union" => true,
+        .typeof_type => ty.data.sub_type.isRecord(),
+        .typeof_expr => ty.data.expr.ty.isRecord(),
         else => false,
     };
 }
@@ -300,26 +370,49 @@ pub fn elemType(ty: Type) Type {
     return switch (ty.specifier) {
         .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.*,
         .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem,
-        .variable_len_array, .decayed_variable_len_array => ty.data.vla.elem,
+        .variable_len_array, .decayed_variable_len_array => ty.data.expr.ty,
+        .typeof_type, .decayed_typeof_type, .typeof_expr, .decayed_typeof_expr => {
+            const unwrapped = ty.canonicalize(.preserve_quals);
+            var elem = unwrapped.elemType();
+            elem.qual = elem.qual.mergeAll(unwrapped.qual);
+            return elem;
+        },
         else => unreachable,
     };
 }
 
+pub fn arrayLen(ty: Type) ?usize {
+    return switch (ty.specifier) {
+        .array, .static_array, .decayed_array, .decayed_static_array => ty.data.array.len,
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.arrayLen(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.arrayLen(),
+        else => null,
+    };
+}
+
+pub fn anyQual(ty: Type) bool {
+    return switch (ty.specifier) {
+        .typeof_type => ty.qual.any() or ty.data.sub_type.anyQual(),
+        .typeof_expr => ty.qual.any() or ty.data.expr.ty.anyQual(),
+        else => ty.qual.any(),
+    };
+}
+
 pub fn eitherLongDouble(a: Type, b: Type) ?Type {
-    if (a.specifier == .long_double or a.specifier == .complex_long_double) return a;
-    if (b.specifier == .long_double or b.specifier == .complex_long_double) return b;
+    if (a.is(.long_double) or a.is(.complex_long_double)) return a;
+    if (b.is(.long_double) or b.is(.complex_long_double)) return b;
     return null;
 }
 
 pub fn eitherDouble(a: Type, b: Type) ?Type {
-    if (a.specifier == .double or a.specifier == .complex_double) return a;
-    if (b.specifier == .double or b.specifier == .complex_double) return b;
+    if (a.is(.double) or a.is(.complex_double)) return a;
+    if (b.is(.double) or b.is(.complex_double)) return b;
     return null;
 }
 
 pub fn eitherFloat(a: Type, b: Type) ?Type {
-    if (a.specifier == .float or a.specifier == .complex_float) return a;
-    if (b.specifier == .float or b.specifier == .complex_float) return b;
+    if (a.is(.float) or a.is(.complex_float)) return a;
+    if (b.is(.float) or b.is(.complex_float)) return b;
     return null;
 }
 
@@ -336,6 +429,8 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
             .ulong => .ulong,
             .long_long => .long_long,
             .ulong_long => .ulong_long,
+            .typeof_type => return ty.data.sub_type.integerPromotion(comp),
+            .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
             else => unreachable, // not an integer type
         },
     };
@@ -384,6 +479,8 @@ pub fn hasIncompleteSize(ty: Type) bool {
         .void, .incomplete_array => true,
         .@"enum" => ty.data.@"enum".isIncomplete(),
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
+        .typeof_type => ty.data.sub_type.hasIncompleteSize(),
+        .typeof_expr => ty.data.expr.ty.hasIncompleteSize(),
         else => false,
     };
 }
@@ -404,6 +501,8 @@ pub fn hasUnboundVLA(ty: Type) bool {
             .decayed_incomplete_array,
             .decayed_variable_len_array,
             => cur = cur.elemType(),
+            .typeof_type, .decayed_typeof_type => cur = cur.data.sub_type.*,
+            .typeof_expr, .decayed_typeof_expr => cur = cur.data.expr.ty,
             else => return false,
         }
     }
@@ -490,6 +589,8 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .array => ty.data.array.elem.sizeof(comp).? * ty.data.array.len,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.sizeof(comp),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.sizeof(comp),
     };
 }
 
@@ -532,10 +633,58 @@ pub fn alignof(ty: Type, comp: *Compilation) u29 {
         .array => ty.data.array.elem.alignof(comp),
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else ty.data.record.alignment,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) 0 else ty.data.@"enum".tag_ty.alignof(comp),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
     };
 }
 
-pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
+/// Canonicalize a possibly-typeof() type. If the type is not a typeof() type, simply
+/// return it. Otherwise, determine the actual qualified type.
+/// The `qual_handling` parameter can be used to return the full set of qualifiers
+/// added by typeof() operations, which is useful when determining the elemType of
+/// arrays and pointers.
+pub fn canonicalize(ty: Type, qual_handling: enum { standard, preserve_quals }) Type {
+    if (!ty.isTypeof()) return ty;
+
+    var cur = ty;
+    var qual = cur.qual;
+    while (true) {
+        switch (cur.specifier) {
+            .typeof_type => cur = cur.data.sub_type.*,
+            .typeof_expr => cur = cur.data.expr.ty,
+            .decayed_typeof_type => {
+                cur = cur.data.sub_type.*;
+                cur.decayArray();
+            },
+            .decayed_typeof_expr => {
+                cur = cur.data.expr.ty;
+                cur.decayArray();
+            },
+            else => break,
+        }
+        qual = qual.mergeAll(cur.qual);
+    }
+    if ((cur.isArray() or cur.isPtr()) and qual_handling == .standard) {
+        cur.qual = .{};
+    } else {
+        cur.qual = qual;
+    }
+    return cur;
+}
+
+pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
+    std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
+    return switch (ty.specifier) {
+        .typeof_type => ty.data.sub_type.get(specifier),
+        .typeof_expr => ty.data.expr.ty.get(specifier),
+        else => if (ty.specifier == specifier) ty else null,
+    };
+}
+
+pub fn eql(a_param: Type, b_param: Type, check_qualifiers: bool) bool {
+    const a = a_param.canonicalize(.standard);
+    const b = b_param.canonicalize(.standard);
+
     if (a.alignment != b.alignment) return false;
     if (a.isPtr()) {
         if (!b.isPtr()) return false;
@@ -558,7 +707,7 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
-        => if (!a.elemType().eql(b.elemType(), check_qualifiers)) return false,
+        => if (!a_param.elemType().eql(b_param.elemType(), check_qualifiers)) return false,
 
         .func,
         .var_args_func,
@@ -579,7 +728,7 @@ pub fn eql(a: Type, b: Type, check_qualifiers: bool) bool {
             if (a.data.array.len != b.data.array.len) return false;
             if (!a.data.array.elem.eql(b.data.array.elem, check_qualifiers)) return false;
         },
-        .variable_len_array => if (!a.data.vla.elem.eql(b.data.vla.elem, check_qualifiers)) return false,
+        .variable_len_array => if (!a.data.expr.ty.eql(b.data.expr.ty, check_qualifiers)) return false,
 
         .@"struct", .@"union" => if (a.data.record != b.data.record) return false,
         .@"enum" => if (a.data.@"enum" != b.data.@"enum") return false,
@@ -604,15 +753,15 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             const elem_ty = inner.data.sub_type.*;
             if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
             if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
+            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .variable_len_array => {
-            try inner.data.vla.elem.combine(outer, p, source_tok);
+            try inner.data.expr.ty.combine(outer, p, source_tok);
 
-            const elem_ty = inner.data.vla.elem;
+            const elem_ty = inner.data.expr.ty;
             if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
             if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
+            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .array, .static_array, .incomplete_array => {
             try inner.data.array.elem.combine(outer, p, source_tok);
@@ -621,7 +770,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
             if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
             if (elem_ty.specifier == .static_array and elem_ty.isArray()) try p.errTok(.static_non_outermost_array, source_tok);
-            if (elem_ty.qual.any() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
+            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .func, .var_args_func, .old_style_func => {
             try inner.data.func.return_type.combine(outer, p, source_tok);
@@ -633,6 +782,8 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
         => unreachable, // type should not be able to decay before being combined
         else => inner.* = outer,
     }
@@ -703,11 +854,15 @@ pub const Builder = struct {
         decayed_static_array: *Array,
         incomplete_array: *Array,
         decayed_incomplete_array: *Array,
-        variable_len_array: *VLA,
-        decayed_variable_len_array: *VLA,
+        variable_len_array: *Expr,
+        decayed_variable_len_array: *Expr,
         @"struct": *Record,
         @"union": *Record,
         @"enum": *Enum,
+        typeof_type: *Type,
+        decayed_typeof_type: *Type,
+        typeof_expr: *Expr,
+        decayed_typeof_expr: *Expr,
 
         pub fn str(spec: Builder.Specifier) ?[]const u8 {
             return switch (spec) {
@@ -844,11 +999,11 @@ pub const Builder = struct {
             },
             .variable_len_array => |data| {
                 ty.specifier = .variable_len_array;
-                ty.data = .{ .vla = data };
+                ty.data = .{ .expr = data };
             },
             .decayed_variable_len_array => |data| {
                 ty.specifier = .decayed_variable_len_array;
-                ty.data = .{ .vla = data };
+                ty.data = .{ .expr = data };
             },
             .@"struct" => |data| {
                 ty.specifier = .@"struct";
@@ -862,11 +1017,24 @@ pub const Builder = struct {
                 ty.specifier = .@"enum";
                 ty.data = .{ .@"enum" = data };
             },
+            .typeof_type => |data| {
+                ty.specifier = .typeof_type;
+                ty.data = .{ .sub_type = data };
+            },
+            .decayed_typeof_type => |data| {
+                ty.specifier = .decayed_typeof_type;
+                ty.data = .{ .sub_type = data };
+            },
+            .typeof_expr => |data| {
+                ty.specifier = .typeof_expr;
+                ty.data = .{ .expr = data };
+            },
+            .decayed_typeof_expr => |data| {
+                ty.specifier = .decayed_typeof_expr;
+                ty.data = .{ .expr = data };
+            },
         }
         try b.qual.finish(p, &ty);
-        if (b.typeof) |typeof| {
-            ty.qual = ty.qual.mergeAll(typeof.qual);
-        }
         if (b.align_tok) |align_tok| {
             const default = ty.alignof(p.pp.comp);
             if (ty.isFunc()) {
@@ -1061,11 +1229,16 @@ pub const Builder = struct {
             .decayed_static_array => .{ .decayed_static_array = ty.data.array },
             .incomplete_array => .{ .incomplete_array = ty.data.array },
             .decayed_incomplete_array => .{ .decayed_incomplete_array = ty.data.array },
-            .variable_len_array => .{ .variable_len_array = ty.data.vla },
-            .decayed_variable_len_array => .{ .decayed_variable_len_array = ty.data.vla },
+            .variable_len_array => .{ .variable_len_array = ty.data.expr },
+            .decayed_variable_len_array => .{ .decayed_variable_len_array = ty.data.expr },
             .@"struct" => .{ .@"struct" = ty.data.record },
             .@"union" => .{ .@"union" = ty.data.record },
             .@"enum" => .{ .@"enum" = ty.data.@"enum" },
+
+            .typeof_type => .{ .typeof_type = ty.data.sub_type },
+            .decayed_typeof_type => .{ .decayed_typeof_type = ty.data.sub_type },
+            .typeof_expr => .{ .typeof_expr = ty.data.expr },
+            .decayed_typeof_expr => .{ .decayed_typeof_expr = ty.data.expr },
         };
     }
 };
@@ -1093,6 +1266,8 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
         => {
             const elem_ty = ty.elemType();
             const simple = try elem_ty.printPrologue(w);
@@ -1114,6 +1289,10 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
             const simple = try elem_ty.printPrologue(w);
             if (simple) try w.writeByte(' ');
             return false;
+        },
+        .typeof_type, .typeof_expr => {
+            const actual = ty.canonicalize(.standard);
+            return actual.printPrologue(w);
         },
         else => {},
     }
@@ -1138,6 +1317,8 @@ fn printEpilogue(ty: Type, w: anytype) @TypeOf(w).Error!void {
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
         => {
             const elem_ty = ty.elemType();
             if (elem_ty.isFunc() or elem_ty.isArray()) try w.writeByte(')');
@@ -1187,7 +1368,7 @@ fn printEpilogue(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try ty.qual.dump(w);
             if (ty.alignment != 0) try w.print(" _Alignas({d})", .{ty.alignment});
             try w.writeAll("<expr>]");
-            try ty.data.vla.elem.printEpilogue(w);
+            try ty.data.expr.ty.printEpilogue(w);
         },
         else => {},
     }
@@ -1251,7 +1432,17 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
         .variable_len_array, .decayed_variable_len_array => {
             if (ty.specifier == .decayed_variable_len_array) try w.writeByte('d');
             try w.writeAll("[<expr>]");
-            try ty.data.vla.elem.dump(w);
+            try ty.data.expr.ty.dump(w);
+        },
+        .typeof_type, .decayed_typeof_type => {
+            try w.writeAll("typeof(");
+            try ty.data.sub_type.dump(w);
+            try w.writeAll(")");
+        },
+        .typeof_expr, .decayed_typeof_expr => {
+            try w.writeAll("typeof(<expr>: ");
+            try ty.data.expr.ty.dump(w);
+            try w.writeAll(")");
         },
         else => try w.writeAll(Builder.fromType(ty).str().?),
     }
