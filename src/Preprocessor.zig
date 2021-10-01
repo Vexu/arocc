@@ -715,9 +715,14 @@ fn nextBufToken(tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_i
 
 fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool) Error!(?MacroArguments) {
     const name_tok = buf.items[start_idx.*];
+    const initial_tokenizer_index = tokenizer.index;
+    const old_end = end_idx.*;
+
     const l_paren_tok = try nextBufToken(tokenizer, buf, start_idx, end_idx, extend_buf);
     if (l_paren_tok.id != .l_paren) {
-        // Not a macro function call, go over normal identifier.
+        // Not a macro function call, go over normal identifier, rewind
+        tokenizer.index = initial_tokenizer_index;
+        end_idx.* = old_end;
         return null;
     }
 
@@ -752,7 +757,8 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
                 }
             },
             .eof => {
-                // TODO: this should error
+                tokenizer.index = initial_tokenizer_index;
+                end_idx.* = old_end;
                 try pp.comp.diag.add(.{ .tag = .unterminated_macro_arg_list, .loc = name_tok.loc });
                 return null;
             },
@@ -766,16 +772,17 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
 }
 
 fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: usize, end_idx: usize, extend_buf: bool) Error!void {
-    _ = tokenizer;
     var moving_end_idx = end_idx;
+    var advance_index: usize = 0;
     // rescan loop
     var do_rescan = true;
     while (do_rescan) {
         do_rescan = false;
-        //std.debug.print("Scanning ", .{});
-        //try pp.debugTokenBuf(buf.*);
         // expansion loop
-        var idx: usize = start_idx;
+        var idx: usize = start_idx + advance_index;
+        //std.debug.print("Scanning ", .{});
+        //try pp.debugTokenBuf(buf.items[start_idx+advance_index .. moving_end_idx]);
+
         while (idx < moving_end_idx) {
             const macro_entry = pp.defines.getPtr(pp.expandedSlice(buf.items[idx]));
             if (macro_entry != null and shouldExpand(buf.items[idx], macro_entry.?)) {
@@ -803,6 +810,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                     },
                     .func => |func_macro| {
                         var macro_scan_idx = idx;
+                        // to be saved in case this doesn't turn out to be a call
                         if (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf)) |args| {
                             defer {
                                 for (args.items) |item| {
@@ -810,6 +818,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                                 }
                                 args.deinit();
                             }
+
                             var args_count = @intCast(u32, args.items.len);
                             // if the macro has zero arguments g() args_count is still 1
                             if (args_count == 1 and func_macro.params.len == 0) args_count = 0;
@@ -827,6 +836,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                             }
 
                             if (validated) {
+                                //std.debug.print("Expanding func: {s}\n", .{pp.expandedSlice(buf.items[idx])});
                                 var expanded_args = MacroArguments.init(pp.comp.gpa);
                                 defer expanded_args.deinit();
                                 try expanded_args.ensureCapacity(args.items.len);
@@ -871,9 +881,20 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
             else {
                 idx += 1;
             }
-            //std.debug.print("After expansion: ", .{});
-            //try pp.debugTokenBuf(buf.*);
+
+            if (idx-start_idx == advance_index+1 and !do_rescan) {
+                advance_index += 1;
+                //std.debug.print("Advancing start index by {}\n", .{advance_index});
+            }
+
         } // end of replacement phase
+
+        if (do_rescan) {
+            //std.debug.print("After expansion: ", .{});
+            //try pp.debugTokenBuf(buf.items);
+        } else {
+            //std.debug.print("No expansions done\n", .{});
+        }
 
         // last phase before rescan: remove placeholder tokens
         // NOTE: only do this if there were expansion (i.e. do_rescan is true)
@@ -892,6 +913,9 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
         }
     }
     // end of scanning phase
+
+    // trim excess buffer
+    buf.shrinkAndFree(moving_end_idx);
 }
 
 fn expandMacro2(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!void {
@@ -901,7 +925,7 @@ fn expandMacro2(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!v
 
     try pp.expandMacroExhaustive(tokenizer, &buf, 0, 1, true);
     //std.debug.print("Result: ", .{});
-    //try pp.debugTokenBuf(buf);
+    //try pp.debugTokenBuf(buf.items);
     try pp.tokens.ensureCapacity(pp.comp.gpa, pp.tokens.len + buf.items.len);
     for (buf.items) |*r| {
         pp.tokens.appendAssumeCapacity(r.*);
@@ -1636,20 +1660,20 @@ fn printDefineMap(pp: *Preprocessor) !void {
     std.debug.print("\n", .{});
 }
 
-fn debugTokenBuf(pp: *Preprocessor, buf: ExpandBuf) !void {
+fn debugTokenBuf(pp: *Preprocessor, buf: []const Token) !void {
     _ = pp;
     var i: u64 = 0;
-    while (i < buf.items.len) : (i += 1) {
-        const slice = pp.expandedSlice(buf.items[i]);
+    while (i < buf.len) : (i += 1) {
+        const slice = pp.expandedSlice(buf[i]);
         if (std.mem.eql(u8, slice, " ")) {
             std.debug.print("⎵", .{});
         } else if (std.mem.eql(u8, slice, "")) {
-            std.debug.print("({})", .{buf.items[i].id});
+            std.debug.print("({}) ", .{buf[i].id});
         }else {
             std.debug.print("{s} ", .{slice});
         }
     }
-    std.debug.print("[{} tokens]\n", .{buf.items.len});
+    std.debug.print("[{} tokens]\n", .{buf.len});
 }
 
 fn addTestSource(pp: *Preprocessor, path: []const u8, content: []const u8) !Source {
