@@ -579,17 +579,26 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
                 const raw_prev = func_macro.tokens[tok_i - 1];
                 const raw_next = func_macro.tokens[tok_i + 1];
 
-                const prev = switch (raw_prev.id) {
-                    .macro_param => args.items[raw_prev.end],
-                    .keyword_va_args => variable_arguments.items,
-                    else => ([1]Token{tokFromRaw(raw_prev)})[0..],
+                const placeholder_token = Token{
+                    .id = .empty_arg,
+                    .loc = .{
+                        .id = raw_prev.source,
+                        .byte_offset = raw_prev.start
+                    }
                 };
 
-                const next = switch (raw_next.id) {
+                var prev = switch (raw_prev.id) {
+                    .macro_param => args.items[raw_prev.end],
+                    .keyword_va_args => variable_arguments.items,
+                    else => &[1]Token{tokFromRaw(raw_prev)},
+                };
+                prev = if (prev.len > 0) prev else &[1]Token{placeholder_token};
+                var next = switch (raw_next.id) {
                     .macro_param => args.items[raw_next.end],
                     .keyword_va_args => variable_arguments.items,
-                    else => ([1]Token{tokFromRaw(raw_next)})[0..],
+                    else => &[1]Token{tokFromRaw(raw_next)},
                 };
+                next = if (next.len > 0) next else &[1]Token{placeholder_token};
 
                 var pastedToken = try pp.pasteTokens(prev[prev.len-1], next[0]);
                 var pasteBuf = ExpandBuf.init(pp.comp.gpa);
@@ -1281,6 +1290,16 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
 
 /// Concat two tokens and add the result to pp.generated
 fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
+    if (lhs.id == .empty_arg and rhs.id == .empty_arg) {
+        return lhs;
+    }
+    if (lhs.id == .empty_arg) {
+        return rhs;
+    }
+    else if (rhs.id == .empty_arg) {
+        return lhs;
+    }
+
     const start = pp.generated.items.len;
     const end = start + pp.expandedSlice(lhs).len + pp.expandedSlice(rhs).len;
     try pp.generated.ensureCapacity(end + 1); // +1 for a newline
