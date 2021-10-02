@@ -712,12 +712,20 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
     const initial_tokenizer_index = tokenizer.index;
     const old_end = end_idx.*;
 
-    const l_paren_tok = try nextBufToken(tokenizer, buf, start_idx, end_idx, extend_buf);
-    if (l_paren_tok.id != .l_paren) {
-        // Not a macro function call, go over normal identifier, rewind
-        tokenizer.index = initial_tokenizer_index;
-        end_idx.* = old_end;
-        return null;
+    var lparen_found = false;
+    while (!lparen_found) {
+        const l_paren_tok = try nextBufToken(tokenizer, buf, start_idx, end_idx, extend_buf);
+        if (l_paren_tok.id == .nl) {
+            continue;
+        }
+        if (l_paren_tok.id != .l_paren) {
+            // Not a macro function call, go over normal identifier, rewind
+            tokenizer.index = initial_tokenizer_index;
+            end_idx.* = old_end;
+            return null;
+        }
+
+        lparen_found = true;
     }
 
     // collect the arguments.
