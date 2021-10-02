@@ -641,6 +641,8 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
                     for (pp.expandedSlice(tok)) |c| {
                         if (c == '"')
                             try char_buf.appendSlice("\\\"")
+                        else if (c == '\\')
+                            try char_buf.appendSlice("\\\\")
                         else
                             try char_buf.append(c);
                     }
