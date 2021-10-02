@@ -1,4 +1,4 @@
-#define EXPECTED_TOKENS "2 , 3 , 4 , 5 , 6" baz bar 3 , 4
+#define EXPECTED_TOKENS "2,3,4,5,6" baz bar 3 , 4
 
 
 #define foo(a,...) #__VA_ARGS__

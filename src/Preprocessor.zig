@@ -637,8 +637,7 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
 
                 // TODO pretty print these
                 try char_buf.append('"');
-                for (arg) |tok, i| {
-                    if (i != 0) try char_buf.append(' ');
+                for (arg) |tok| {
                     for (pp.expandedSlice(tok)) |c| {
                         if (c == '"')
                             try char_buf.appendSlice("\\\"")
