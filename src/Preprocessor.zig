@@ -521,8 +521,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro.Simple) Error!Ex
     while (i < simple_macro.tokens.len) : (i += 1) {
         const raw = simple_macro.tokens[i];
         if (raw.id == .hash_hash) {
-            _ = buf.pop();
-            const lhs = tokFromRaw(simple_macro.tokens[i - 1]);
+            const lhs = buf.pop();
             const rhs = tokFromRaw(simple_macro.tokens[i + 1]);
             i += 1;
             buf.appendAssumeCapacity(try pp.pasteTokens(lhs, rhs));
@@ -560,60 +559,54 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
             }
         }
     }
-    //for (expanded_variable_arguments.items) |tok| {
-    //    std.debug.print("{s} ", .{pp.expandedSlice(tok)});
-    //}
-    //std.debug.print("\n", .{});
 
     // token concatenation and expansion phase
     var tok_i: usize = 0;
     while (tok_i < func_macro.tokens.len) : (tok_i += 1) {
         const raw = func_macro.tokens[tok_i];
         switch (raw.id) {
-            .hash_hash_from_param => {
-                var new_tok = raw;
-                new_tok.id = .hash_hash;
-                try buf.append(tokFromRaw(new_tok));
-             },
             .hash_hash => {
-                const raw_prev = func_macro.tokens[tok_i - 1];
                 const raw_next = func_macro.tokens[tok_i + 1];
-
                 const placeholder_token = Token{
                     .id = .empty_arg,
                     .loc = .{
-                        .id = raw_prev.source,
-                        .byte_offset = raw_prev.start
+                        .id = raw_next.source,
+                        .byte_offset = raw_next.start
                     }
                 };
 
-                var prev = switch (raw_prev.id) {
-                    .macro_param => args.items[raw_prev.end],
-                    .keyword_va_args => variable_arguments.items,
-                    else => &[1]Token{tokFromRaw(raw_prev)},
-                };
-                prev = if (prev.len > 0) prev else &[1]Token{placeholder_token};
+                const prev = buf.pop();
                 var next = switch (raw_next.id) {
-                    .macro_param => args.items[raw_next.end],
+                    .macro_param, .macro_param_no_expand => args.items[raw_next.end],
                     .keyword_va_args => variable_arguments.items,
                     else => &[1]Token{tokFromRaw(raw_next)},
                 };
                 next = if (next.len > 0) next else &[1]Token{placeholder_token};
 
-                var pastedToken = try pp.pasteTokens(prev[prev.len-1], next[0]);
-                var pasteBuf = ExpandBuf.init(pp.comp.gpa);
-                defer pasteBuf.deinit();
-                try pasteBuf.ensureCapacity(prev.len + next.len - 1);
-                pasteBuf.appendSliceAssumeCapacity(prev[0 .. prev.len-1]);
-                pasteBuf.appendAssumeCapacity(pastedToken);
-                pasteBuf.appendSliceAssumeCapacity(next[1 .. ]);
-                // TODO: more work than necessary, but easy
-                try buf.replaceRange(buf.items.len - prev.len, prev.len, pasteBuf.items);
+                var pastedToken = try pp.pasteTokens(prev, next[0]);
+                try buf.append(pastedToken);
+                try buf.appendSlice(next[1 .. ]);
                 // skip next token
                 tok_i += 1;
             },
+            .macro_param_no_expand => {
+                const placeholder_token = Token{
+                    .id = .empty_arg,
+                    .loc = .{
+                        .id = raw.source,
+                        .byte_offset = raw.start
+                    }
+                };
+                var slice = switch (raw.id) {
+                    .macro_param_no_expand => args.items[raw.end],
+                    .keyword_va_args => variable_arguments.items,
+                    else => &[1]Token{tokFromRaw(raw)},
+                };
+                slice = if (slice.len > 0) slice else &[1]Token{placeholder_token};
+
+                try buf.appendSlice(slice);
+            },
             .macro_param => {
-                // TODO: raw.end contains the index of the param
                 const arg = expanded_args.items[raw.end];
 
                 if (arg.len == 0) {
@@ -1498,6 +1491,10 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                     continue;
                 }
                 tokenizer.index = start;
+                // convert the previous token to .macro_param_no_expand if it was .macro_param
+                if (pp.token_buf.items[pp.token_buf.items.len - 1].id == .macro_param) {
+                    pp.token_buf.items[pp.token_buf.items.len - 1].id = .macro_param_no_expand;
+                }
                 try pp.token_buf.append(tok);
             },
             else => {
@@ -1508,6 +1505,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                     const s = pp.tokSliceSafe(tok);
                     for (params.items) |param, i| {
                         if (mem.eql(u8, param, s)) {
+                            // NOTE: it doesn't matter to assign .macro_param_no_expand
+                            // here in case a ## was the previous token, because
+                            // ## processing will eat this token with the same semantics
                             tok.id = .macro_param;
                             tok.end = @intCast(u32, i);
                             break;
