@@ -705,20 +705,18 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
     const initial_tokenizer_index = tokenizer.index;
     const old_end = end_idx.*;
 
-    var lparen_found = false;
-    while (!lparen_found) {
-        const l_paren_tok = try nextBufToken(tokenizer, buf, start_idx, end_idx, extend_buf);
-        if (l_paren_tok.id == .nl) {
-            continue;
+    while (true) {
+        const tok = try nextBufToken(tokenizer, buf, start_idx, end_idx, extend_buf);
+        switch (tok.id) {
+            .nl => {},
+            .l_paren => break,
+            else => {
+                // Not a macro function call, go over normal identifier, rewind
+                tokenizer.index = initial_tokenizer_index;
+                end_idx.* = old_end;
+                return null;
+            },
         }
-        if (l_paren_tok.id != .l_paren) {
-            // Not a macro function call, go over normal identifier, rewind
-            tokenizer.index = initial_tokenizer_index;
-            end_idx.* = old_end;
-            return null;
-        }
-
-        lparen_found = true;
     }
 
     // collect the arguments.
@@ -772,125 +770,6 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
     // rescan loop
     var do_rescan = true;
     while (do_rescan) {
-        do_rescan = false;
-        // expansion loop
-        var idx: usize = start_idx + advance_index;
-        //std.debug.print("Scanning ", .{});
-        //try pp.debugTokenBuf(buf.items[start_idx+advance_index .. moving_end_idx]);
-
-        while (idx < moving_end_idx) {
-            const macro_entry = pp.defines.getPtr(pp.expandedSlice(buf.items[idx]));
-            if (macro_entry != null and shouldExpand(buf.items[idx], macro_entry.?)) {
-                switch (macro_entry.?.*) {
-                    .empty => {
-                        idx += 1;
-                    },
-                    .simple => |simple_macro| {
-                        //std.debug.print("Expanding {s}\n", .{pp.expandedSlice(buf.items[idx])});
-                        const res = try pp.expandObjMacro(&simple_macro);
-                        defer res.deinit();
-                        var expansion_loc = simple_macro.loc;
-                        expansion_loc.next = buf.items[idx].loc.next;
-                        for (res.items) |*tok| {
-                            if (buf.items[idx].loc.next) |ln| {
-                                try pp.markExpandedFrom(tok, ln.*);
-                            }
-                            try pp.markExpandedFrom(tok, simple_macro.loc);
-                        }
-
-                        try buf.replaceRange(idx, 1, res.items);
-                        idx += res.items.len;
-                        moving_end_idx += (res.items.len - 1);
-                        do_rescan = true;
-                    },
-                    .func => |func_macro| {
-                        var macro_scan_idx = idx;
-                        // to be saved in case this doesn't turn out to be a call
-                        if (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf)) |args| {
-                            defer {
-                                for (args.items) |item| {
-                                    pp.comp.gpa.free(item);
-                                }
-                                args.deinit();
-                            }
-
-                            var args_count = @intCast(u32, args.items.len);
-                            // if the macro has zero arguments g() args_count is still 1
-                            if (args_count == 1 and func_macro.params.len == 0) args_count = 0;
-
-                            // Validate argument count.
-                            const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, func_macro.params.len), .actual = args_count } };
-                            var validated = true;
-                            if (func_macro.var_args and args_count < func_macro.params.len) {
-                                try pp.comp.diag.add(.{ .tag = .expected_at_least_arguments, .loc = buf.items[idx].loc, .extra = extra });
-                                validated = false;
-                            }
-                            if (!func_macro.var_args and args_count != func_macro.params.len) {
-                                try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = buf.items[idx].loc, .extra = extra });
-                                validated = false;
-                            }
-
-                            if (validated) {
-                                //std.debug.print("Expanding func: {s}\n", .{pp.expandedSlice(buf.items[idx])});
-                                var expanded_args = MacroArguments.init(pp.comp.gpa);
-                                defer expanded_args.deinit();
-                                try expanded_args.ensureCapacity(args.items.len);
-                                for (args.items) |arg| {
-                                    var expand_buf = ExpandBuf.init(pp.comp.gpa);
-                                    try expand_buf.appendSlice(arg);
-
-                                    try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false);
-
-                                    expanded_args.appendAssumeCapacity(expand_buf.toOwnedSlice());
-                                }
-
-                                var res = try pp.expandFuncMacro(&func_macro, &args, &expanded_args);
-                                defer res.deinit();
-                                for (expanded_args.items) |arg| {
-                                    pp.comp.gpa.free(arg);
-                                }
-                                var expansion_loc = func_macro.loc;
-                                expansion_loc.next = buf.items[idx].loc.next;
-                                for (res.items) |*tok| {
-                                    if (buf.items[idx].loc.next) |ln| {
-                                        try pp.markExpandedFrom(tok, ln.*);
-                                    }
-                                    try pp.markExpandedFrom(tok, func_macro.loc);
-                                }
-
-                                try buf.replaceRange(idx, macro_scan_idx-idx+1, res.items);
-                                // TODO: moving_end_idx += res.items.len - (macro_scan_idx-idx+1)
-                                // doesn't work when the RHS is negative (unsigned!)
-                                moving_end_idx = moving_end_idx + res.items.len - (macro_scan_idx-idx+1);
-                                idx += res.items.len;
-                                do_rescan = true;
-                            } else {
-                                idx += 1;
-                            }
-                        } else {
-                            idx += 1;
-                        }
-                    },
-                }
-            }
-            else {
-                idx += 1;
-            }
-
-            if (idx-start_idx == advance_index+1 and !do_rescan) {
-                advance_index += 1;
-                //std.debug.print("Advancing start index by {}\n", .{advance_index});
-            }
-
-        } // end of replacement phase
-
-        //if (do_rescan) {
-        //    std.debug.print("After expansion: ", .{});
-        //    try pp.debugTokenBuf(buf.items);
-        //} else {
-        //    std.debug.print("No expansions done\n", .{});
-        //}
-
         // last phase before rescan: remove placeholder tokens
         // NOTE: only do this if there were expansion (i.e. do_rescan is true)
         if (do_rescan) {
@@ -906,6 +785,117 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                 }
             }
         }
+
+        do_rescan = false;
+        // expansion loop
+        var idx: usize = start_idx + advance_index;
+        //std.debug.print("Scanning ", .{});
+        //try pp.debugTokenBuf(buf.items[start_idx+advance_index .. moving_end_idx]);
+
+        while (idx < moving_end_idx) {
+            const macro_entry = pp.defines.getPtr(pp.expandedSlice(buf.items[idx]));
+            if (macro_entry == null or !shouldExpand(buf.items[idx], macro_entry.?)) {
+                idx += 1;
+                continue;
+            }
+            switch (macro_entry.?.*) {
+                .empty => {
+                    idx += 1;
+                },
+                .simple => |simple_macro| {
+                    //std.debug.print("Expanding {s}\n", .{pp.expandedSlice(buf.items[idx])});
+                    const res = try pp.expandObjMacro(&simple_macro);
+                    defer res.deinit();
+                    var expansion_loc = simple_macro.loc;
+                    expansion_loc.next = buf.items[idx].loc.next;
+                    for (res.items) |*tok| {
+                        if (buf.items[idx].loc.next) |ln| {
+                            try pp.markExpandedFrom(tok, ln.*);
+                        }
+                        try pp.markExpandedFrom(tok, simple_macro.loc);
+                    }
+
+                    try buf.replaceRange(idx, 1, res.items);
+                    idx += res.items.len;
+                    moving_end_idx += (res.items.len - 1);
+                    do_rescan = true;
+                },
+                .func => |func_macro| {
+                    var macro_scan_idx = idx;
+                    // to be saved in case this doesn't turn out to be a call
+                    const args = (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf)) orelse {
+                        idx += 1;
+                        continue;
+                    };
+                    defer {
+                        for (args.items) |item| {
+                            pp.comp.gpa.free(item);
+                        }
+                        args.deinit();
+                    }
+
+                    var args_count = @intCast(u32, args.items.len);
+                    // if the macro has zero arguments g() args_count is still 1
+                    if (args_count == 1 and func_macro.params.len == 0) args_count = 0;
+
+                    // Validate argument count.
+                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, func_macro.params.len), .actual = args_count } };
+                    if (func_macro.var_args and args_count < func_macro.params.len) {
+                        try pp.comp.diag.add(.{ .tag = .expected_at_least_arguments, .loc = buf.items[idx].loc, .extra = extra });
+                        idx += 1;
+                        continue;
+                    }
+                    if (!func_macro.var_args and args_count != func_macro.params.len) {
+                        try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = buf.items[idx].loc, .extra = extra });
+                        idx += 1;
+                        continue;
+                    }
+                    //std.debug.print("Expanding func: {s}\n", .{pp.expandedSlice(buf.items[idx])});
+                    var expanded_args = MacroArguments.init(pp.comp.gpa);
+                    defer expanded_args.deinit();
+                    try expanded_args.ensureCapacity(args.items.len);
+                    for (args.items) |arg| {
+                        var expand_buf = ExpandBuf.init(pp.comp.gpa);
+                        try expand_buf.appendSlice(arg);
+
+                        try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false);
+
+                        expanded_args.appendAssumeCapacity(expand_buf.toOwnedSlice());
+                    }
+
+                    var res = try pp.expandFuncMacro(&func_macro, &args, &expanded_args);
+                    defer res.deinit();
+                    for (expanded_args.items) |arg| {
+                        pp.comp.gpa.free(arg);
+                    }
+                    var expansion_loc = func_macro.loc;
+                    expansion_loc.next = buf.items[idx].loc.next;
+                    for (res.items) |*tok| {
+                        if (buf.items[idx].loc.next) |ln| {
+                            try pp.markExpandedFrom(tok, ln.*);
+                        }
+                        try pp.markExpandedFrom(tok, func_macro.loc);
+                    }
+
+                    try buf.replaceRange(idx, macro_scan_idx-idx+1, res.items);
+                    // TODO: moving_end_idx += res.items.len - (macro_scan_idx-idx+1)
+                    // doesn't work when the RHS is negative (unsigned!)
+                    moving_end_idx = moving_end_idx + res.items.len - (macro_scan_idx-idx+1);
+                    idx += res.items.len;
+                    do_rescan = true;
+                },
+            }
+            if (idx-start_idx == advance_index+1 and !do_rescan) {
+                advance_index += 1;
+                //std.debug.print("Advancing start index by {}\n", .{advance_index});
+            }
+        } // end of replacement phase
+        //if (do_rescan) {
+        //    std.debug.print("After expansion: ", .{});
+        //    try pp.debugTokenBuf(buf.items);
+        //} else {
+        //    std.debug.print("No expansions done\n", .{});
+        //}
     }
     // end of scanning phase
 
@@ -959,9 +949,6 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
 
 /// Concat two tokens and add the result to pp.generated
 fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
-    if (lhs.id == .empty_arg and rhs.id == .empty_arg) {
-        return lhs;
-    }
     if (lhs.id == .empty_arg) {
         return rhs;
     }
