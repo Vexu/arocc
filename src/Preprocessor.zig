@@ -542,13 +542,10 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
         while (i < expanded_args.items.len) : (i += 1) {
             try variable_arguments.appendSlice(args.items[i]);
             try expanded_variable_arguments.appendSlice(expanded_args.items[i]);
-            if (i != expanded_args.items.len-1 ) {
-                const comma = Token{
-                    .id = .comma,
-                    .loc = .{
-                        .id = .generated,
-                    }
-                };
+            if (i != expanded_args.items.len - 1) {
+                const comma = Token{ .id = .comma, .loc = .{
+                    .id = .generated,
+                } };
                 try variable_arguments.append(comma);
                 try expanded_variable_arguments.append(comma);
             }
@@ -562,13 +559,7 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
         switch (raw.id) {
             .hash_hash => {
                 const raw_next = func_macro.tokens[tok_i + 1];
-                const placeholder_token = Token{
-                    .id = .empty_arg,
-                    .loc = .{
-                        .id = raw_next.source,
-                        .byte_offset = raw_next.start
-                    }
-                };
+                const placeholder_token = Token{ .id = .empty_arg, .loc = .{ .id = raw_next.source, .byte_offset = raw_next.start } };
 
                 const prev = buf.pop();
                 var next = switch (raw_next.id) {
@@ -580,18 +571,12 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
 
                 var pastedToken = try pp.pasteTokens(prev, next[0]);
                 try buf.append(pastedToken);
-                try buf.appendSlice(next[1 .. ]);
+                try buf.appendSlice(next[1..]);
                 // skip next token
                 tok_i += 1;
             },
             .macro_param_no_expand => {
-                const placeholder_token = Token{
-                    .id = .empty_arg,
-                    .loc = .{
-                        .id = raw.source,
-                        .byte_offset = raw.start
-                    }
-                };
+                const placeholder_token = Token{ .id = .empty_arg, .loc = .{ .id = raw.source, .byte_offset = raw.start } };
                 var slice = switch (raw.id) {
                     .macro_param_no_expand => args.items[raw.end],
                     .keyword_va_args => variable_arguments.items,
@@ -606,10 +591,7 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
 
                 if (arg.len == 0) {
                     // needed for the following token pasting phase
-                    try buf.append(.{
-                        .id = .empty_arg,
-                        .loc = .{ .id = raw.source, .byte_offset = raw.start }
-                    });
+                    try buf.append(.{ .id = .empty_arg, .loc = .{ .id = raw.source, .byte_offset = raw.start } });
                 } else {
                     for (arg) |tok| {
                         try buf.ensureCapacity(buf.items.len + arg.len);
@@ -655,7 +637,7 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
             },
             else => {
                 try buf.append(tokFromRaw(raw));
-            }
+            },
         }
     }
 
@@ -666,7 +648,7 @@ fn shouldExpand(tok: Token, macro: *Macro) bool {
     const macro_loc = switch (macro.*) {
         .simple => |smacro| smacro.loc,
         .func => |smacro| smacro.loc,
-        else => unreachable
+        else => unreachable,
     };
     var maybe_loc = tok.loc.next;
     while (maybe_loc) |loc| {
@@ -732,7 +714,7 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
             .comma => {
                 if (parens == 0) {
                     try args.append(curArgument.toOwnedSlice());
-                } else{
+                } else {
                     try curArgument.append(tok);
                 }
             },
@@ -757,7 +739,7 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
             },
             else => {
                 try curArgument.append(tok);
-            }
+            },
         }
     }
 
@@ -872,15 +854,15 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                         try pp.markExpandedFrom(tok, func_macro.loc);
                     }
 
-                    try buf.replaceRange(idx, macro_scan_idx-idx+1, res.items);
+                    try buf.replaceRange(idx, macro_scan_idx - idx + 1, res.items);
                     // TODO: moving_end_idx += res.items.len - (macro_scan_idx-idx+1)
                     // doesn't work when the RHS is negative (unsigned!)
-                    moving_end_idx = moving_end_idx + res.items.len - (macro_scan_idx-idx+1);
+                    moving_end_idx = moving_end_idx + res.items.len - (macro_scan_idx - idx + 1);
                     idx += res.items.len;
                     do_rescan = true;
                 },
             }
-            if (idx-start_idx == advance_index+1 and !do_rescan) {
+            if (idx - start_idx == advance_index + 1 and !do_rescan) {
                 advance_index += 1;
             }
         } // end of replacement phase
@@ -939,8 +921,7 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
 fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
     if (lhs.id == .empty_arg) {
         return rhs;
-    }
-    else if (rhs.id == .empty_arg) {
+    } else if (rhs.id == .empty_arg) {
         return lhs;
     }
 
