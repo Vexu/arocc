@@ -789,9 +789,6 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
         do_rescan = false;
         // expansion loop
         var idx: usize = start_idx + advance_index;
-        //std.debug.print("Scanning ", .{});
-        //try pp.debugTokenBuf(buf.items[start_idx+advance_index .. moving_end_idx]);
-
         while (idx < moving_end_idx) {
             const macro_entry = pp.defines.getPtr(pp.expandedSlice(buf.items[idx]));
             if (macro_entry == null or !shouldExpand(buf.items[idx], macro_entry.?)) {
@@ -803,7 +800,6 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                     idx += 1;
                 },
                 .simple => |simple_macro| {
-                    //std.debug.print("Expanding {s}\n", .{pp.expandedSlice(buf.items[idx])});
                     const res = try pp.expandObjMacro(&simple_macro);
                     defer res.deinit();
                     var expansion_loc = simple_macro.loc;
@@ -850,7 +846,6 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                         idx += 1;
                         continue;
                     }
-                    //std.debug.print("Expanding func: {s}\n", .{pp.expandedSlice(buf.items[idx])});
                     var expanded_args = MacroArguments.init(pp.comp.gpa);
                     defer expanded_args.deinit();
                     try expanded_args.ensureCapacity(args.items.len);
@@ -887,15 +882,8 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
             }
             if (idx-start_idx == advance_index+1 and !do_rescan) {
                 advance_index += 1;
-                //std.debug.print("Advancing start index by {}\n", .{advance_index});
             }
         } // end of replacement phase
-        //if (do_rescan) {
-        //    std.debug.print("After expansion: ", .{});
-        //    try pp.debugTokenBuf(buf.items);
-        //} else {
-        //    std.debug.print("No expansions done\n", .{});
-        //}
     }
     // end of scanning phase
 
@@ -1287,46 +1275,4 @@ fn printInBetween(slice: []const u8, w: anytype) !void {
         } else break;
     }
     try w.writeAll(in_between);
-}
-
-fn printDefineMap(pp: *Preprocessor) !void {
-    var kiter = pp.defines.keyIterator();
-    var k = kiter.next();
-    while (k != null) : (k = kiter.next()) {
-        const valptr = pp.defines.getPtr(k.?.*);
-        std.debug.print("{s}: [{*}]\n", .{ k.?.*, valptr });
-    }
-    std.debug.print("\n", .{});
-}
-
-fn debugTokenBuf(pp: *Preprocessor, buf: []const Token) !void {
-    _ = pp;
-    var i: u64 = 0;
-    while (i < buf.len) : (i += 1) {
-        const slice = pp.expandedSlice(buf[i]);
-        if (std.mem.eql(u8, slice, " ")) {
-            std.debug.print("⎵", .{});
-        } else if (std.mem.eql(u8, slice, "")) {
-            std.debug.print("({}) ", .{buf[i].id});
-        }else {
-            std.debug.print("{s} ", .{slice});
-        }
-    }
-    std.debug.print("[{} tokens]\n", .{buf.len});
-}
-
-fn addTestSource(pp: *Preprocessor, path: []const u8, content: []const u8) !Source {
-    const duped_path = try pp.comp.gpa.dupe(u8, path);
-    errdefer pp.comp.gpa.free(duped_path);
-    const duped_content = try pp.comp.gpa.dupe(u8, content);
-    errdefer pp.comp.gpa.free(duped_content);
-
-    const source = Source{
-        .id = @intToEnum(Source.Id, pp.comp.sources.count() + 2),
-        .path = duped_path,
-        .buf = duped_content,
-    };
-
-    try pp.comp.sources.put(duped_path, source);
-    return source;
 }
