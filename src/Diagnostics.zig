@@ -330,7 +330,7 @@ pub fn fatal(diag: *Diagnostics, path: []const u8, lcs: Source.LCS, comptime fmt
 }
 
 pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) Compilation.Error {
-    if (std.builtin.os.tag == .windows or !diag.color) {
+    if (@import("builtin").os.tag == .windows or !diag.color) {
         std.debug.print("fatal error: " ++ fmt ++ "\n", args);
     } else {
         const RED = "\x1b[31;1m";
@@ -870,7 +870,7 @@ const MsgWriter = struct {
     }
 
     fn location(m: *MsgWriter, path: []const u8, lcs: Source.LCS) void {
-        if (std.builtin.os.tag == .windows or !m.color) {
+        if (@import("builtin").os.tag == .windows or !m.color) {
             m.print("{s}:{d}:{d}: ", .{ path, lcs.line, lcs.col });
         } else {
             const BOLD = "\x1b[0m\x1b[1m";
@@ -879,7 +879,7 @@ const MsgWriter = struct {
     }
 
     fn start(m: *MsgWriter, kind: Kind) void {
-        if (std.builtin.os.tag == .windows or !m.color) {
+        if (@import("builtin").os.tag == .windows or !m.color) {
             m.print("{s}: ", .{@tagName(kind)});
         } else {
             const PURPLE = "\x1b[35;1m";
@@ -899,7 +899,7 @@ const MsgWriter = struct {
     }
 
     fn end(m: *MsgWriter, lcs: ?Source.LCS) void {
-        if (std.builtin.os.tag == .windows or !m.color) {
+        if (@import("builtin").os.tag == .windows or !m.color) {
             if (lcs == null) {
                 m.write("\n");
                 return;

@@ -11,11 +11,11 @@ const Parser = @import("Parser.zig");
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub fn main() u8 {
-    const gpa = if (std.builtin.link_libc)
+    const gpa = if (@import("builtin").link_libc)
         std.heap.raw_c_allocator
     else
         &general_purpose_allocator.allocator;
-    defer if (!std.builtin.link_libc) {
+    defer if (!@import("builtin").link_libc) {
         _ = general_purpose_allocator.deinit();
     };
 
