@@ -102,16 +102,14 @@ pub const Token = struct {
 
         /// Special token to speed up preprocessing, `loc.end` will be an index to the param list.
         macro_param,
+        /// Special token to signal that the argument must be replaced without expansion (e.g. in concatenation)
+        macro_param_no_expand,
         /// Special token to speed up preprocessing, `loc.end` will be an index to the param list.
         stringify_param,
         /// Same as stringify_param, but for var args
         stringify_va_args,
         /// Special token for when empty argument is passed to macro token.
         empty_arg,
-        /// Special token used to prevent ## passed as arguments from being concatenated
-        hash_hash_from_param,
-        /// Special token used to expand arguments before other tokens.
-        identifier_from_param,
 
         keyword_auto,
         keyword_break,
@@ -293,7 +291,6 @@ pub const Token = struct {
             return switch (id) {
                 .invalid,
                 .identifier,
-                .identifier_from_param,
                 .string_literal,
                 .string_literal_utf_16,
                 .string_literal_utf_8,
@@ -321,6 +318,7 @@ pub const Token = struct {
                 .nl,
                 .eof,
                 .macro_param,
+                .macro_param_no_expand,
                 .stringify_param,
                 .stringify_va_args,
                 .empty_arg,
@@ -373,7 +371,7 @@ pub const Token = struct {
                 .angle_bracket_angle_bracket_right_equal => ">>=",
                 .tilde => "~",
                 .hash => "#",
-                .hash_hash, .hash_hash_from_param => "##",
+                .hash_hash => "##",
 
                 .keyword_auto => "auto",
                 .keyword_break => "break",
