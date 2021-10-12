@@ -138,12 +138,12 @@ pub fn main() !void {
         });
 
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
-            if (macro != .simple or macro.simple.tokens.len != 1 or macro.simple.tokens[0].id != .integer_literal) {
+            if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .integer_literal) {
                 fail_count += 1;
                 progress.log("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
                 continue;
             }
-            const tok_slice = pp.tokSliceSafe(macro.simple.tokens[0]);
+            const tok_slice = pp.tokSliceSafe(macro.tokens[0]);
             const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
             progress.log("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
             skip_count += tests_skipped;
@@ -152,14 +152,13 @@ pub fn main() !void {
         if (pp.defines.get("EXPECTED_TOKENS")) |macro| {
             comp.renderErrors();
 
-            const expected_tokens = switch (macro) {
-                .simple => |simple| simple.tokens,
-                else => {
-                    fail_count += 1;
-                    progress.log("invalid EXPECTED_TOKENS {}\n", .{macro});
-                    continue;
-                },
-            };
+            if (macro.is_func) {
+                fail_count += 1;
+                progress.log("invalid EXPECTED_TOKENS {}\n", .{macro});
+                continue;
+            }
+
+            const expected_tokens = macro.tokens;
 
             if (pp.tokens.len - 1 != expected_tokens.len) {
                 fail_count += 1;
@@ -214,15 +213,15 @@ pub fn main() !void {
 
             try actual.dump(&tree, test_fn.decl.node, gpa);
 
-            if (types.simple.tokens.len != actual.types.items.len) {
+            if (types.tokens.len != actual.types.items.len) {
                 fail_count += 1;
                 progress.log("EXPECTED_TYPES count of {d} does not match function statement length of {d}\n", .{
-                    types.simple.tokens.len,
+                    types.tokens.len,
                     actual.types.items.len,
                 });
                 break;
             }
-            for (types.simple.tokens) |str, i| {
+            for (types.tokens) |str, i| {
                 if (str.id != .string_literal) {
                     fail_count += 1;
                     progress.log("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
@@ -247,13 +246,13 @@ pub fn main() !void {
             defer m.deinit();
             aro.Diagnostics.renderExtra(&comp, &m);
 
-            if (macro != .simple) {
+            if (macro.is_func) {
                 fail_count += 1;
                 progress.log("invalid EXPECTED_ERRORS {}\n", .{macro});
                 continue;
             }
 
-            if (macro.simple.tokens.len != expected_count) {
+            if (macro.tokens.len != expected_count) {
                 fail_count += 1;
                 progress.log(
                     \\EXPECTED_ERRORS missing errors, expected {d} found {d},
@@ -261,11 +260,11 @@ pub fn main() !void {
                     \\{s}
                     \\
                     \\
-                , .{ macro.simple.tokens.len, expected_count, m.buf.items });
+                , .{ macro.tokens.len, expected_count, m.buf.items });
                 continue;
             }
 
-            for (macro.simple.tokens) |str| {
+            for (macro.tokens) |str| {
                 if (str.id != .string_literal) {
                     fail_count += 1;
                     progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
@@ -300,13 +299,13 @@ pub fn main() !void {
         if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
             if (comp.diag.errors != 0) break :blk;
 
-            if (macro != .simple) {
+            if (macro.is_func) {
                 fail_count += 1;
                 progress.log("invalid EXPECTED_OUTPUT {}\n", .{macro});
                 continue;
             }
 
-            if (macro.simple.tokens.len != 1 or macro.simple.tokens[0].id != .string_literal) {
+            if (macro.tokens.len != 1 or macro.tokens[0].id != .string_literal) {
                 fail_count += 1;
                 progress.log("EXPECTED_OUTPUT takes exactly one string", .{});
                 continue;
@@ -314,7 +313,7 @@ pub fn main() !void {
 
             defer buf.items.len = 0;
             // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-            std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSliceSafe(macro.simple.tokens[0]))) == .success);
+            std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSliceSafe(macro.tokens[0]))) == .success);
             const expected_output = buf.items;
 
             const obj_name = "test_object.o";
