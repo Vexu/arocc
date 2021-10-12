@@ -19,7 +19,6 @@ const max_include_depth = 200;
 
 const Macro = union(enum) {
     /// #define FOO
-    empty,
     /// #define FOO a + b
     simple: Simple,
     /// #define FOO(a,b) ((a)+(b))
@@ -40,7 +39,6 @@ const Macro = union(enum) {
     fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
         if (std.meta.activeTag(a) != b) return false;
         switch (a) {
-            .empty => {},
             .simple => {
                 const a_s = a.simple;
                 const b_s = b.simple;
@@ -57,6 +55,7 @@ const Macro = union(enum) {
                 for (a_f.tokens) |t, i| if (!tokEql(pp, t, b_f.tokens[i])) return false;
             },
         }
+
         return true;
     }
 
@@ -679,7 +678,6 @@ fn shouldExpand(tok: Token, macro: *Macro) bool {
     const macro_loc = switch (macro.*) {
         .simple => |smacro| smacro.loc,
         .func => |smacro| smacro.loc,
-        else => unreachable,
     };
     var maybe_loc = tok.loc.next;
     while (maybe_loc) |loc| {
@@ -809,9 +807,6 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                 continue;
             }
             switch (macro_entry.?.*) {
-                .empty => {
-                    idx += 1;
-                },
                 .simple => |simple_macro| {
                     const res = try pp.expandObjMacro(&simple_macro);
                     defer res.deinit();
@@ -1025,7 +1020,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     var first = tokenizer.next();
     first.id.simplifyMacroKeyword();
     if (first.id == .nl or first.id == .eof) {
-        return pp.defineMacro(macro_name, .empty);
+        return pp.defineMacro(macro_name, Macro{ .simple = .{ .tokens = undefined, .loc = undefined } });
     } else if (first.start == macro_name.end) {
         if (first.id == .l_paren) return pp.defineFn(tokenizer, macro_name, first);
         try pp.err(first, .whitespace_after_macro_name);

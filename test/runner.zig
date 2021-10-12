@@ -154,7 +154,6 @@ pub fn main() !void {
 
             const expected_tokens = switch (macro) {
                 .simple => |simple| simple.tokens,
-                .empty => &[_]aro.Tokenizer.Token{},
                 else => {
                     fail_count += 1;
                     progress.log("invalid EXPECTED_TOKENS {}\n", .{macro});
