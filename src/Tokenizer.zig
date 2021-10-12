@@ -110,6 +110,8 @@ pub const Token = struct {
         stringify_va_args,
         /// Special token for when empty argument is passed to macro token.
         empty_arg,
+        /// Special token for implementing __has_attribute
+        macro_param_has_attribute,
 
         keyword_auto,
         keyword_break,
@@ -336,6 +338,7 @@ pub const Token = struct {
                 .stringify_param,
                 .stringify_va_args,
                 .empty_arg,
+                .macro_param_has_attribute,
                 => "",
 
                 .bang => "!",

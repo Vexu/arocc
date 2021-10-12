@@ -30,11 +30,15 @@ const Macro = struct {
     /// Is a function type macro
     is_func: bool,
 
+    /// Is a predefined macro
+    is_builtin: bool = false,
+
     /// Location of macro in the source
     loc: Source.Location,
 
     fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
         if (a.tokens.len != b.tokens.len) return false;
+        if (a.is_builtin != b.is_builtin) return false;
         for (a.tokens) |t, i| if (!tokEql(pp, t, b.tokens[i])) return false;
 
         if (a.is_func and b.is_func) {
@@ -71,6 +75,26 @@ pub fn init(comp: *Compilation) Preprocessor {
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .pragma_once = std.AutoHashMap(Source.Id, void).init(comp.gpa),
     };
+}
+
+const FeatureCheckMacros = struct {
+    const has_attribute = Macro{
+        .params = &[1][]const u8{"X"},
+        .tokens = &[1]RawToken{.{
+            .id = .macro_param_has_attribute,
+            .source = .generated,
+            .start = 0,
+            .end = 0,
+        }},
+        .var_args = false,
+        .is_func = true,
+        .loc = .{ .id = .generated },
+        .is_builtin = true,
+    };
+};
+
+pub fn addBuiltinMacros(pp: *Preprocessor) !void {
+    try pp.defines.put("__has_attribute", FeatureCheckMacros.has_attribute);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -369,34 +393,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
             } else {
                 tok.id = .zero;
             }
-        } else if (tok.id == .keyword_has_attribute and pp.defines.get(pp.tokSliceSafe(tok)) == null) {
-            const l_paren = tokenizer.next();
-            if (l_paren.id != .l_paren) {
-                const extra = Diagnostics.Message.Extra{ .tok_id = .{ .expected = .l_paren, .actual = tok.id } };
-                try pp.comp.diag.add(.{
-                    .tag = .missing_token,
-                    .loc = .{ .id = l_paren.source, .byte_offset = l_paren.start },
-                    .extra = extra,
-                });
-                return false;
-            }
-            const attr_tok = tokenizer.next();
-            if (!attr_tok.id.isMacroIdentifier()) {
-                try pp.err(attr_tok, .feature_check_requires_identifier);
-                return false;
-            }
-            const r_paren = tokenizer.next();
-            if (r_paren.id != .r_paren) {
-                try pp.err(r_paren, .missing_paren_param_list);
-                try pp.err(l_paren, .to_match_paren);
-                return false;
-            }
-            const attr_name = pp.tokSliceSafe(attr_tok);
-            if (AttrTag.fromString(attr_name) == null) {
-                tok.id = .zero;
-            } else {
-                tok.id = .one;
-            }
         }
         try pp.expandMacro(tokenizer, tok);
     }
@@ -545,7 +541,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
     return buf;
 }
 
-fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro, args: *const MacroArguments, expanded_args: *const MacroArguments) Error!ExpandBuf {
+fn expandFuncMacro(pp: *Preprocessor, loc: Source.Location, func_macro: *const Macro, args: *const MacroArguments, expanded_args: *const MacroArguments) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
     try buf.ensureCapacity(func_macro.tokens.len);
 
@@ -652,6 +648,28 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro, args: *const Mac
                     },
                 });
             },
+            .macro_param_has_attribute => {
+                const arg = expanded_args.items[0];
+                if (arg.len == 0) {
+                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = @intCast(u32, arg.len) } };
+                    try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra });
+                    try buf.append(.{ .id = .zero, .loc = loc });
+                    break;
+                }
+                const actual = arg[0];
+                if (actual.id != .identifier) {
+                    try pp.comp.diag.add(.{ .tag = .feature_check_requires_identifier, .loc = actual.loc });
+                    try buf.append(.{ .id = .zero, .loc = actual.loc });
+                    break;
+                }
+                const attr_name = pp.expandedSlice(actual);
+
+                const result_id: RawToken.Id = if (AttrTag.fromString(attr_name) == null) .zero else .one;
+                try buf.append(.{
+                    .id = result_id,
+                    .loc = loc,
+                });
+            },
             else => {
                 try buf.append(tokFromRaw(raw));
             },
@@ -706,6 +724,14 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
             .nl => {},
             .l_paren => break,
             else => {
+                if (name_tok.id.isFeatureCheck()) {
+                    const extra = Diagnostics.Message.Extra{ .tok_id = .{ .expected = .l_paren, .actual = name_tok.id } };
+                    try pp.comp.diag.add(.{
+                        .tag = .missing_token,
+                        .loc = tok.loc,
+                        .extra = extra,
+                    });
+                }
                 // Not a macro function call, go over normal identifier, rewind
                 tokenizer.index = initial_tokenizer_index;
                 end_idx.* = old_end;
@@ -785,7 +811,8 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
         // expansion loop
         var idx: usize = start_idx + advance_index;
         while (idx < moving_end_idx) {
-            const macro_entry = pp.defines.getPtr(pp.expandedSlice(buf.items[idx]));
+            const macro_tok = buf.items[idx];
+            const macro_entry = pp.defines.getPtr(pp.expandedSlice(macro_tok));
             if (macro_entry == null or !shouldExpand(buf.items[idx], macro_entry.?)) {
                 idx += 1;
                 continue;
@@ -833,7 +860,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                         expanded_args.appendAssumeCapacity(expand_buf.toOwnedSlice());
                     }
 
-                    var res = try pp.expandFuncMacro(macro, &args, &expanded_args);
+                    var res = try pp.expandFuncMacro(macro_tok.loc, macro, &args, &expanded_args);
                     defer res.deinit();
                     for (expanded_args.items) |arg| {
                         pp.comp.gpa.free(arg);
@@ -974,7 +1001,7 @@ fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
     const gop = try pp.defines.getOrPut(name_str);
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
         try pp.comp.diag.add(.{
-            .tag = .macro_redefined,
+            .tag = if (gop.value_ptr.is_builtin) .builtin_macro_redefined else .macro_redefined,
             .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start },
             .extra = .{ .str = name_str },
         });
@@ -994,9 +1021,6 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     if (!macro_name.id.isMacroIdentifier()) {
         try pp.err(macro_name, .macro_name_must_be_identifier);
         return skipToNl(tokenizer);
-    }
-    if (macro_name.id.isFeatureCheck()) {
-        try pp.err(macro_name, .builtin_macro_redefined);
     }
 
     // Check for function macros and empty defines.
