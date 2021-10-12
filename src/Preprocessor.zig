@@ -20,16 +20,16 @@ const max_include_depth = 200;
 const Macro = struct {
     /// Parameters of the function type macro
     params: []const []const u8,
-    
+
     /// Token constituting the macro body
     tokens: []const RawToken,
-    
+
     /// If the function type macro has variable number of arguments
     var_args: bool,
-    
+
     /// Is a function type macro
     is_func: bool,
-    
+
     /// Location of macro in the source
     loc: Source.Location,
 
