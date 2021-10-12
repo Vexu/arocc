@@ -17,15 +17,21 @@ const DefineMap = std.StringHashMap(Macro);
 const RawTokenList = std.ArrayList(RawToken);
 const max_include_depth = 200;
 
-/// #define FOO
-/// #define FOO a + b
-/// #define FOO(a,b) ((a)+(b))
 const Macro = struct {
+    /// Parameters of the function type macro
     params: []const []const u8,
+    
+    /// Token constituting the macro body
     tokens: []const RawToken,
+    
+    /// If the function type macro has variable number of arguments
     var_args: bool,
-    loc: Source.Location,
+    
+    /// Is a function type macro
     is_func: bool,
+    
+    /// Location of macro in the source
+    loc: Source.Location,
 
     fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
         if (a.tokens.len != b.tokens.len) return false;
