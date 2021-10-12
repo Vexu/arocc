@@ -17,46 +17,32 @@ const DefineMap = std.StringHashMap(Macro);
 const RawTokenList = std.ArrayList(RawToken);
 const max_include_depth = 200;
 
-const Macro = union(enum) {
-    /// #define FOO
-    empty,
-    /// #define FOO a + b
-    simple: Simple,
-    /// #define FOO(a,b) ((a)+(b))
-    func: Func,
+const Macro = struct {
+    /// Parameters of the function type macro
+    params: []const []const u8,
 
-    const Simple = struct {
-        tokens: []const RawToken,
-        loc: Source.Location,
-    };
+    /// Token constituting the macro body
+    tokens: []const RawToken,
 
-    const Func = struct {
-        params: []const []const u8,
-        tokens: []const RawToken,
-        var_args: bool,
-        loc: Source.Location,
-    };
+    /// If the function type macro has variable number of arguments
+    var_args: bool,
+
+    /// Is a function type macro
+    is_func: bool,
+
+    /// Location of macro in the source
+    loc: Source.Location,
 
     fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
-        if (std.meta.activeTag(a) != b) return false;
-        switch (a) {
-            .empty => {},
-            .simple => {
-                const a_s = a.simple;
-                const b_s = b.simple;
-                if (a_s.tokens.len != b_s.tokens.len) return false;
-                for (a_s.tokens) |t, i| if (!tokEql(pp, t, b_s.tokens[i])) return false;
-            },
-            .func => {
-                const a_f = a.func;
-                const b_f = b.func;
-                if (a_f.var_args != b_f.var_args) return false;
-                if (a_f.params.len != b_f.params.len) return false;
-                if (a_f.tokens.len != b_f.tokens.len) return false;
-                for (a_f.params) |p, i| if (!mem.eql(u8, p, b_f.params[i])) return false;
-                for (a_f.tokens) |t, i| if (!tokEql(pp, t, b_f.tokens[i])) return false;
-            },
+        if (a.tokens.len != b.tokens.len) return false;
+        for (a.tokens) |t, i| if (!tokEql(pp, t, b.tokens[i])) return false;
+
+        if (a.is_func and b.is_func) {
+            if (a.var_args != b.var_args) return false;
+            if (a.params.len != b.params.len) return false;
+            for (a.params) |p, i| if (!mem.eql(u8, p, b.params[i])) return false;
         }
+
         return true;
     }
 
@@ -538,7 +524,7 @@ fn skipToNl(tokenizer: *Tokenizer) void {
 const ExpandBuf = std.ArrayList(Token);
 const MacroArguments = std.ArrayList([]const Token);
 
-fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro.Simple) Error!ExpandBuf {
+fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
     try buf.ensureCapacity(simple_macro.tokens.len);
 
@@ -559,7 +545,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro.Simple) Error!Ex
     return buf;
 }
 
-fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *const MacroArguments, expanded_args: *const MacroArguments) Error!ExpandBuf {
+fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro, args: *const MacroArguments, expanded_args: *const MacroArguments) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
     try buf.ensureCapacity(func_macro.tokens.len);
 
@@ -676,11 +662,7 @@ fn expandFuncMacro(pp: *Preprocessor, func_macro: *const Macro.Func, args: *cons
 }
 
 fn shouldExpand(tok: Token, macro: *Macro) bool {
-    const macro_loc = switch (macro.*) {
-        .simple => |smacro| smacro.loc,
-        .func => |smacro| smacro.loc,
-        else => unreachable,
-    };
+    const macro_loc = macro.*.loc;
     var maybe_loc = tok.loc.next;
     while (maybe_loc) |loc| {
         if (loc.id == macro_loc.id and loc.byte_offset == macro_loc.byte_offset) {
@@ -808,28 +790,8 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                 idx += 1;
                 continue;
             }
-            switch (macro_entry.?.*) {
-                .empty => {
-                    idx += 1;
-                },
-                .simple => |simple_macro| {
-                    const res = try pp.expandObjMacro(&simple_macro);
-                    defer res.deinit();
-                    var expansion_loc = simple_macro.loc;
-                    expansion_loc.next = buf.items[idx].loc.next;
-                    for (res.items) |*tok| {
-                        if (buf.items[idx].loc.next) |ln| {
-                            try pp.markExpandedFrom(tok, ln.*);
-                        }
-                        try pp.markExpandedFrom(tok, simple_macro.loc);
-                    }
-
-                    try buf.replaceRange(idx, 1, res.items);
-                    idx += res.items.len;
-                    moving_end_idx += (res.items.len - 1);
-                    do_rescan = true;
-                },
-                .func => |func_macro| {
+            if (macro_entry) |macro| {
+                if (macro.is_func) {
                     var macro_scan_idx = idx;
                     // to be saved in case this doesn't turn out to be a call
                     const args = (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf)) orelse {
@@ -845,16 +807,16 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
 
                     var args_count = @intCast(u32, args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
-                    if (args_count == 1 and func_macro.params.len == 0) args_count = 0;
+                    if (args_count == 1 and macro.params.len == 0) args_count = 0;
 
                     // Validate argument count.
-                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, func_macro.params.len), .actual = args_count } };
-                    if (func_macro.var_args and args_count < func_macro.params.len) {
+                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = @intCast(u32, macro.params.len), .actual = args_count } };
+                    if (macro.var_args and args_count < macro.params.len) {
                         try pp.comp.diag.add(.{ .tag = .expected_at_least_arguments, .loc = buf.items[idx].loc, .extra = extra });
                         idx += 1;
                         continue;
                     }
-                    if (!func_macro.var_args and args_count != func_macro.params.len) {
+                    if (!macro.var_args and args_count != macro.params.len) {
                         try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = buf.items[idx].loc, .extra = extra });
                         idx += 1;
                         continue;
@@ -871,18 +833,18 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                         expanded_args.appendAssumeCapacity(expand_buf.toOwnedSlice());
                     }
 
-                    var res = try pp.expandFuncMacro(&func_macro, &args, &expanded_args);
+                    var res = try pp.expandFuncMacro(macro, &args, &expanded_args);
                     defer res.deinit();
                     for (expanded_args.items) |arg| {
                         pp.comp.gpa.free(arg);
                     }
-                    var expansion_loc = func_macro.loc;
+                    var expansion_loc = macro.loc;
                     expansion_loc.next = buf.items[idx].loc.next;
                     for (res.items) |*tok| {
                         if (buf.items[idx].loc.next) |ln| {
                             try pp.markExpandedFrom(tok, ln.*);
                         }
-                        try pp.markExpandedFrom(tok, func_macro.loc);
+                        try pp.markExpandedFrom(tok, macro.loc);
                     }
 
                     try buf.replaceRange(idx, macro_scan_idx - idx + 1, res.items);
@@ -891,7 +853,23 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                     moving_end_idx = moving_end_idx + res.items.len - (macro_scan_idx - idx + 1);
                     idx += res.items.len;
                     do_rescan = true;
-                },
+                } else {
+                    const res = try pp.expandObjMacro(macro);
+                    defer res.deinit();
+                    var expansion_loc = macro.loc;
+                    expansion_loc.next = buf.items[idx].loc.next;
+                    for (res.items) |*tok| {
+                        if (buf.items[idx].loc.next) |ln| {
+                            try pp.markExpandedFrom(tok, ln.*);
+                        }
+                        try pp.markExpandedFrom(tok, macro.loc);
+                    }
+
+                    try buf.replaceRange(idx, 1, res.items);
+                    idx += res.items.len;
+                    moving_end_idx += (res.items.len - 1);
+                    do_rescan = true;
+                }
             }
             if (idx - start_idx == advance_index + 1 and !do_rescan) {
                 advance_index += 1;
@@ -1025,7 +1003,13 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     var first = tokenizer.next();
     first.id.simplifyMacroKeyword();
     if (first.id == .nl or first.id == .eof) {
-        return pp.defineMacro(macro_name, .empty);
+        return pp.defineMacro(macro_name, .{
+            .params = undefined,
+            .tokens = undefined,
+            .var_args = false,
+            .loc = undefined,
+            .is_func = false,
+        });
     } else if (first.start == macro_name.end) {
         if (first.id == .l_paren) return pp.defineFn(tokenizer, macro_name, first);
         try pp.err(first, .whitespace_after_macro_name);
@@ -1056,10 +1040,13 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     }
 
     const list = try pp.arena.allocator.dupe(RawToken, pp.token_buf.items);
-    try pp.defineMacro(macro_name, .{ .simple = .{
+    try pp.defineMacro(macro_name, .{
         .loc = .{ .id = macro_name.source, .byte_offset = macro_name.start },
         .tokens = list,
-    } });
+        .params = undefined,
+        .is_func = false,
+        .var_args = false,
+    });
 }
 
 /// Handle a function like #define directive.
@@ -1163,12 +1150,13 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 
     const param_list = try pp.arena.allocator.dupe([]const u8, params.items);
     const token_list = try pp.arena.allocator.dupe(RawToken, pp.token_buf.items);
-    try pp.defineMacro(macro_name, .{ .func = .{
+    try pp.defineMacro(macro_name, .{
+        .is_func = true,
         .params = param_list,
         .var_args = var_args,
         .tokens = token_list,
         .loc = .{ .id = macro_name.source, .byte_offset = macro_name.start },
-    } });
+    });
 }
 
 // Handle a #include directive.
