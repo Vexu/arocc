@@ -559,7 +559,7 @@ fn decl(p: *Parser) Error!bool {
             .l_brace => {},
             else => if (init_d.d.old_style_func == null) {
                 try p.err(.expected_fn_body);
-                break :fn_def;
+                return true;
             },
         }
         if (p.return_type != null) try p.err(.func_not_in_root);
@@ -655,11 +655,15 @@ fn decl(p: *Parser) Error!bool {
             }
         }
 
-        const body = try p.compoundStmt(true);
+        const body = (try p.compoundStmt(true)) orelse {
+            assert(init_d.d.old_style_func != null);
+            try p.err(.expected_fn_body);
+            return true;
+        };
         const node = try p.addNode(.{
             .ty = init_d.d.ty,
             .tag = try decl_spec.validateFnDef(p),
-            .data = .{ .decl = .{ .name = init_d.d.name, .node = body.? } },
+            .data = .{ .decl = .{ .name = init_d.d.name, .node = body } },
         });
         try p.decl_buf.append(node);
 
