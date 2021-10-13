@@ -925,6 +925,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
 
 // mark that this token has been expanded from `loc`
 fn markExpandedFrom(pp: *Preprocessor, tok: *Token, loc: Source.Location) !void {
+    if (loc.id == .generated) return;
     const new_loc = try pp.arena.allocator.create(Source.Location);
     new_loc.* = loc;
     new_loc.next = tok.loc.next;
