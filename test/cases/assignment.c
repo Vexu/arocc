@@ -43,6 +43,11 @@ void foo(void) {
         int *z = y;
         z = y;
     }
+    {
+        char *x = 0;
+        const char *y = x;
+        y = x;
+    }
 }
 
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
