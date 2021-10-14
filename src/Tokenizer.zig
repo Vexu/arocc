@@ -112,6 +112,8 @@ pub const Token = struct {
         empty_arg,
         /// Special token for implementing __has_attribute
         macro_param_has_attribute,
+        /// Special token for implementing __has_warning
+        macro_param_has_warning,
 
         keyword_auto,
         keyword_break,
@@ -178,6 +180,7 @@ pub const Token = struct {
         keyword_line,
         keyword_va_args,
         keyword_has_attribute,
+        keyword_has_warning,
 
         // gcc keywords
         keyword_const1,
@@ -199,7 +202,10 @@ pub const Token = struct {
         /// Return true if token is a feature check operator
         pub fn isFeatureCheck(id: Id) bool {
             // TODO: implement __has_c_attribute, __has_builtin, and __has_include
-            return id == .keyword_has_attribute;
+            return switch (id) {
+                .keyword_has_attribute, .keyword_has_warning => true,
+                else => false,
+            };
         }
 
         /// Return true if token is identifier or keyword.
@@ -209,6 +215,7 @@ pub const Token = struct {
                 .keyword_define,
                 .keyword_defined,
                 .keyword_has_attribute,
+                .keyword_has_warning,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -289,6 +296,7 @@ pub const Token = struct {
                 .keyword_define,
                 .keyword_defined,
                 .keyword_has_attribute,
+                .keyword_has_warning,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -339,6 +347,7 @@ pub const Token = struct {
                 .stringify_va_args,
                 .empty_arg,
                 .macro_param_has_attribute,
+                .macro_param_has_warning,
                 => "",
 
                 .bang => "!",
@@ -439,6 +448,7 @@ pub const Token = struct {
                 .keyword_define => "define",
                 .keyword_defined => "defined",
                 .keyword_has_attribute => "__has_attribute",
+                .keyword_has_warning => "__has_warning",
                 .keyword_undef => "undef",
                 .keyword_ifdef => "ifdef",
                 .keyword_ifndef => "ifndef",
@@ -567,6 +577,7 @@ pub const Token = struct {
         .{ "define", .keyword_define },
         .{ "defined", .keyword_defined },
         .{ "__has_attribute", .keyword_has_attribute },
+        .{ "__has_warning", .keyword_has_warning },
         .{ "undef", .keyword_undef },
         .{ "ifdef", .keyword_ifdef },
         .{ "ifndef", .keyword_ifndef },
