@@ -369,7 +369,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .@"fatal error", .@"error" => errors += 1,
             .warning => warnings += 1,
             .note => {},
-            .off => unreachable,
+            .off => continue, // happens if an error is added before it is disabled
         }
 
         var lcs: ?Source.LCS = null;
