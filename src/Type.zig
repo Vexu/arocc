@@ -49,6 +49,14 @@ pub const Qualifiers = packed struct {
         };
     }
 
+    /// Checks if a has all the qualifiers of b
+    pub fn hasQuals(a: Qualifiers, b: Qualifiers) bool {
+        if (b.@"const" and !a.@"const") return false;
+        if (b.@"volatile" and !a.@"volatile") return false;
+        if (b.atomic and !a.atomic) return false;
+        return true;
+    }
+
     /// register is a storage class and not actually a qualifier
     /// so it is not preserved by typeof()
     pub fn inheritFromTypeof(quals: Qualifiers) Qualifiers {
