@@ -2346,7 +2346,9 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
                 try p.errStr(.incompatible_ptr_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
                 try item.ptrCast(p, unqual_ty);
             } else if (!unqual_ty.eql(item.ty, true)) {
-                try p.errStr(.ptr_init_discards_quals, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+                if (!unqual_ty.elemType().qual.hasQuals(item.ty.elemType().qual)) {
+                    try p.errStr(.ptr_init_discards_quals, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+                }
                 try item.ptrCast(p, unqual_ty);
             }
         } else {
@@ -3793,7 +3795,9 @@ fn assignExpr(p: *Parser) Error!Result {
                 try p.errStr(.incompatible_ptr_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
                 try rhs.ptrCast(p, unqual_ty);
             } else if (!unqual_ty.eql(rhs.ty, true)) {
-                try p.errStr(.ptr_assign_discards_quals, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
+                if (!unqual_ty.elemType().qual.hasQuals(rhs.ty.elemType().qual)) {
+                    try p.errStr(.ptr_assign_discards_quals, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
+                }
                 try rhs.ptrCast(p, unqual_ty);
             }
         } else {
