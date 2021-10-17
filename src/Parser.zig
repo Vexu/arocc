@@ -4185,6 +4185,7 @@ fn castExpr(p: *Parser) Error!Result {
 
 /// unExpr
 ///  : primaryExpr suffixExpr*
+///  | '&&' IDENTIFIER
 ///  | ('&' | '*' | '+' | '-' | '~' | '!' | '++' | '--') castExpr
 ///  | keyword_sizeof unExpr
 ///  | keyword_sizeof '(' typeName ')'
@@ -4192,6 +4193,28 @@ fn castExpr(p: *Parser) Error!Result {
 fn unExpr(p: *Parser) Error!Result {
     const tok = p.tok_i;
     switch (p.tok_ids[tok]) {
+        .ampersand_ampersand => {
+            const address_tok = p.tok_i;
+            p.tok_i += 1;
+            const name_tok = try p.expectToken(.identifier);
+            try p.errTok(.gnu_label_as_value, address_tok);
+
+            const str = p.tokSlice(name_tok);
+            if (p.findLabel(str) == null) {
+                try p.labels.append(.{ .unresolved_goto = name_tok });
+            }
+            const elem_ty = try p.arena.create(Type);
+            elem_ty.* = .{ .specifier = .void };
+            const result_ty = Type{ .specifier = .pointer, .data = .{ .sub_type = elem_ty } };
+            return Result{
+                .node = try p.addNode(.{
+                    .tag = .addr_of_label,
+                    .data = .{ .decl_ref = name_tok },
+                    .ty = result_ty,
+                }),
+                .ty = result_ty,
+            };
+        },
         .ampersand => {
             p.tok_i += 1;
             var operand = try p.castExpr();

@@ -244,6 +244,7 @@ pub const Tag = enum {
     builtin_macro_redefined,
     missing_token,
     feature_check_requires_identifier,
+    gnu_label_as_value,
 };
 
 const Options = struct {
@@ -278,6 +279,7 @@ const Options = struct {
     @"unknown-attributes": Kind = .warning,
     @"ignored-attributes": Kind = .warning,
     @"builtin-macro-redefined": Kind = .warning,
+    @"gnu-label-as-value": Kind = .off,
 };
 
 list: std.ArrayList(Message),
@@ -609,6 +611,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                 msg.extra.tok_id.expected.symbol(),
                 msg.extra.tok_id.actual.symbol(),
             }),
+            .gnu_label_as_value => m.write("use of GNU address-of-label extension"),
         }
         m.end(lcs);
 
@@ -865,6 +868,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .unknown_attribute => diag.options.@"unknown-attributes",
         .ignored_attribute => diag.options.@"ignored-attributes",
         .builtin_macro_redefined => diag.options.@"builtin-macro-redefined",
+        .gnu_label_as_value => diag.options.@"gnu-label-as-value",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;

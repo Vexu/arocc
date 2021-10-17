@@ -289,6 +289,8 @@ pub const Tag = enum(u8) {
     cast_expr,
     /// &un
     addr_of_expr,
+    /// &&decl_ref
+    addr_of_label,
     /// *un
     deref_expr,
     /// +un
@@ -792,7 +794,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(for_stmt.body, level + delta, w);
             }
         },
-        .goto_stmt => {
+        .goto_stmt, .addr_of_label => {
             try w.writeByteNTimes(' ', level + half);
             try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
         },
