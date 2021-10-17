@@ -13,6 +13,6 @@ int x = __has_attribute;
 #define EXPECTED_ERRORS \
 	"builtin macro errors.c:1:21: error: builtin feature check macro requires a parenthesized identifier" \
 	"builtin macro errors.c:4:21: error: missing '(', after '__has_attribute'" \
-	"builtin macro errors.c:7:28: error: missing ')' in macro parameter list" \
-	"builtin macro errors.c:7:20: note: to match this '('" \
+	"builtin macro errors.c:7:5: error: unterminated function macro argument list" \
+	"builtin macro errors.c:7:20: error: cannot call non function type 'int'" \
 	"builtin macro errors.c:10:9: warning: redefining builtin macro"
