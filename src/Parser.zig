@@ -2942,6 +2942,10 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) bool {
             const data = p.nodes.items(.data)[@enumToInt(node)];
             return p.nodeIsNoreturn(p.data.items[data.range.end - 1]);
         },
+        .labeled_stmt => {
+            const data = p.nodes.items(.data)[@enumToInt(node)];
+            return p.nodeIsNoreturn(data.decl.node);
+        },
         else => return false,
     }
 }
