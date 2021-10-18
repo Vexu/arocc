@@ -78,38 +78,36 @@ pub fn init(comp: *Compilation) Preprocessor {
 }
 
 const FeatureCheckMacros = struct {
-    const has_attribute = Macro{
-        .params = &[1][]const u8{"X"},
-        .tokens = &[1]RawToken{.{
-            .id = .macro_param_has_attribute,
-            .source = .generated,
-            .start = 0,
-            .end = 0,
-        }},
-        .var_args = false,
-        .is_func = true,
-        .loc = .{ .id = .generated },
-        .is_builtin = true,
-    };
+    const args = [1][]const u8{"X"};
 
-    const has_warning = Macro{
-        .params = &[1][]const u8{"X"},
-        .tokens = &[1]RawToken{.{
-            .id = .macro_param_has_warning,
-            .source = .generated,
-            .start = 0,
-            .end = 0,
-        }},
-        .var_args = false,
-        .is_func = true,
-        .loc = .{ .id = .generated },
-        .is_builtin = true,
-    };
+    const has_attribute = [1]RawToken{.{
+        .id = .macro_param_has_attribute,
+        .source = .generated,
+        .start = 0,
+        .end = 0,
+    }};
+    const has_warning = [1]RawToken{.{
+        .id = .macro_param_has_warning,
+        .source = .generated,
+        .start = 0,
+        .end = 0,
+    }};
 };
 
+fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, tokens: []const RawToken) !void {
+    try pp.defines.put(name, .{
+        .params = &FeatureCheckMacros.args,
+        .tokens = tokens,
+        .var_args = false,
+        .is_func = true,
+        .loc = .{ .id = .generated },
+        .is_builtin = true,
+    });
+}
+
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
-    try pp.defines.put("__has_attribute", FeatureCheckMacros.has_attribute);
-    try pp.defines.put("__has_warning", FeatureCheckMacros.has_warning);
+    try pp.addBuiltinMacro("__has_attribute", &FeatureCheckMacros.has_attribute);
+    try pp.addBuiltinMacro("__has_warning", &FeatureCheckMacros.has_warning);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
