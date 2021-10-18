@@ -92,6 +92,13 @@ const FeatureCheckMacros = struct {
         .start = 0,
         .end = 0,
     }};
+
+    const is_identifier = [1]RawToken{.{
+        .id = .macro_param_is_identifier,
+        .source = .generated,
+        .start = 0,
+        .end = 0,
+    }};
 };
 
 fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, tokens: []const RawToken) !void {
@@ -108,6 +115,7 @@ fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, tokens: []const RawToken
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_attribute", &FeatureCheckMacros.has_attribute);
     try pp.addBuiltinMacro("__has_warning", &FeatureCheckMacros.has_warning);
+    try pp.addBuiltinMacro("__is_identifier", &FeatureCheckMacros.is_identifier);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -585,6 +593,14 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const warning_name = actual_param[2..];
             return if (Diagnostics.warningExists(warning_name)) .one else .zero;
         },
+        .macro_param_is_identifier => {
+            if (param_toks.len > 1) {
+                const extra = Diagnostics.Message.Extra{ .tok_id = .{ .expected = .r_paren, .actual = param_toks[1].id } };
+                try pp.comp.diag.add(.{ .tag = .missing_tok_builtin, .loc = param_toks[1].loc, .extra = extra });
+                return .zero;
+            }
+            return if (param_toks[0].id == .identifier) .one else .zero;
+        },
         else => unreachable,
     }
 }
@@ -696,7 +712,7 @@ fn expandFuncMacro(pp: *Preprocessor, loc: Source.Location, func_macro: *const M
                     },
                 });
             },
-            .macro_param_has_attribute, .macro_param_has_warning => {
+            .macro_param_has_attribute, .macro_param_has_warning, .macro_param_is_identifier => {
                 const arg = expanded_args.items[0];
                 if (arg.len == 0) {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
@@ -765,7 +781,8 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
             .l_paren => break,
             else => {
                 if (is_builtin) {
-                    try pp.comp.diag.add(.{ .tag = .missing_lparen_builtin, .loc = tok.loc });
+                    const extra = Diagnostics.Message.Extra{ .tok_id = .{ .expected = .l_paren, .actual = tok.id } };
+                    try pp.comp.diag.add(.{ .tag = .missing_tok_builtin, .loc = tok.loc, .extra = extra });
                 }
                 // Not a macro function call, go over normal identifier, rewind
                 tokenizer.index = initial_tokenizer_index;
