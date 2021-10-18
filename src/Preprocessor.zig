@@ -78,23 +78,36 @@ pub fn init(comp: *Compilation) Preprocessor {
 }
 
 const FeatureCheckMacros = struct {
-    const has_attribute = Macro{
-        .params = &[1][]const u8{"X"},
-        .tokens = &[1]RawToken{.{
-            .id = .macro_param_has_attribute,
-            .source = .generated,
-            .start = 0,
-            .end = 0,
-        }},
+    const args = [1][]const u8{"X"};
+
+    const has_attribute = [1]RawToken{.{
+        .id = .macro_param_has_attribute,
+        .source = .generated,
+        .start = 0,
+        .end = 0,
+    }};
+    const has_warning = [1]RawToken{.{
+        .id = .macro_param_has_warning,
+        .source = .generated,
+        .start = 0,
+        .end = 0,
+    }};
+};
+
+fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, tokens: []const RawToken) !void {
+    try pp.defines.put(name, .{
+        .params = &FeatureCheckMacros.args,
+        .tokens = tokens,
         .var_args = false,
         .is_func = true,
         .loc = .{ .id = .generated },
         .is_builtin = true,
-    };
-};
+    });
+}
 
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
-    try pp.defines.put("__has_attribute", FeatureCheckMacros.has_attribute);
+    try pp.addBuiltinMacro("__has_attribute", &FeatureCheckMacros.has_attribute);
+    try pp.addBuiltinMacro("__has_warning", &FeatureCheckMacros.has_warning);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -388,7 +401,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
                     try pp.err(first, .to_match_paren);
                 }
             }
-            if (macro_tok.id.isFeatureCheck() or pp.defines.get(pp.tokSliceSafe(macro_tok)) != null) {
+            if (pp.defines.get(pp.tokSliceSafe(macro_tok)) != null) {
                 tok.id = .one;
             } else {
                 tok.id = .zero;
@@ -541,6 +554,41 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
     return buf;
 }
 
+fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token) Error!RawToken.Id {
+    switch (builtin) {
+        .macro_param_has_attribute => {
+            if (param_toks.len != 1 or param_toks[0].id != .identifier) {
+                try pp.comp.diag.add(.{ .tag = .feature_check_requires_identifier, .loc = param_toks[0].loc });
+                return .zero;
+            }
+            const attr_name = pp.expandedSlice(param_toks[0]);
+            return if (AttrTag.fromString(attr_name) == null) .zero else .one;
+        },
+        .macro_param_has_warning => {
+            const char_top = pp.char_buf.items.len;
+            defer pp.char_buf.items.len = char_top;
+
+            for (param_toks) |tok| {
+                if (tok.id != .string_literal) {
+                    const extra = Diagnostics.Message.Extra{ .str = "__has_warning" };
+                    try pp.comp.diag.add(.{ .tag = .expected_str_literal_in, .loc = tok.loc, .extra = extra });
+                    return .zero;
+                }
+                const str = pp.expandedSlice(tok);
+                try pp.char_buf.appendSlice(str[1 .. str.len - 1]);
+            }
+            const actual_param = pp.char_buf.items[char_top..];
+            if (!mem.startsWith(u8, actual_param, "-W")) {
+                try pp.comp.diag.add(.{ .tag = .malformed_warning_check, .loc = param_toks[0].loc });
+                return .zero;
+            }
+            const warning_name = actual_param[2..];
+            return if (Diagnostics.warningExists(warning_name)) .one else .zero;
+        },
+        else => unreachable,
+    }
+}
+
 fn expandFuncMacro(pp: *Preprocessor, loc: Source.Location, func_macro: *const Macro, args: *const MacroArguments, expanded_args: *const MacroArguments) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
     try buf.ensureCapacity(func_macro.tokens.len);
@@ -648,23 +696,15 @@ fn expandFuncMacro(pp: *Preprocessor, loc: Source.Location, func_macro: *const M
                     },
                 });
             },
-            .macro_param_has_attribute => {
+            .macro_param_has_attribute, .macro_param_has_warning => {
                 const arg = expanded_args.items[0];
                 if (arg.len == 0) {
-                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = @intCast(u32, arg.len) } };
+                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
                     try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra });
                     try buf.append(.{ .id = .zero, .loc = loc });
                     break;
                 }
-                const actual = arg[0];
-                if (actual.id != .identifier) {
-                    try pp.comp.diag.add(.{ .tag = .feature_check_requires_identifier, .loc = actual.loc });
-                    try buf.append(.{ .id = .zero, .loc = actual.loc });
-                    break;
-                }
-                const attr_name = pp.expandedSlice(actual);
-
-                const result_id: RawToken.Id = if (AttrTag.fromString(attr_name) == null) .zero else .one;
+                const result_id = try pp.handleBuiltinMacro(raw.id, arg);
                 try buf.append(.{
                     .id = result_id,
                     .loc = loc,
@@ -713,7 +753,7 @@ fn nextBufToken(tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_i
     }
 }
 
-fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool) Error!(?MacroArguments) {
+fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool, is_builtin: bool) Error!(?MacroArguments) {
     const name_tok = buf.items[start_idx.*];
     const initial_tokenizer_index = tokenizer.index;
     const old_end = end_idx.*;
@@ -724,13 +764,8 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
             .nl => {},
             .l_paren => break,
             else => {
-                if (name_tok.id.isFeatureCheck()) {
-                    const extra = Diagnostics.Message.Extra{ .tok_id = .{ .expected = .l_paren, .actual = name_tok.id } };
-                    try pp.comp.diag.add(.{
-                        .tag = .missing_token,
-                        .loc = tok.loc,
-                        .extra = extra,
-                    });
+                if (is_builtin) {
+                    try pp.comp.diag.add(.{ .tag = .missing_lparen_builtin, .loc = tok.loc });
                 }
                 // Not a macro function call, go over normal identifier, rewind
                 tokenizer.index = initial_tokenizer_index;
@@ -821,7 +856,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                 if (macro.is_func) {
                     var macro_scan_idx = idx;
                     // to be saved in case this doesn't turn out to be a call
-                    const args = (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf)) orelse {
+                    const args = (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf, macro.is_builtin)) orelse {
                         idx += 1;
                         continue;
                     };

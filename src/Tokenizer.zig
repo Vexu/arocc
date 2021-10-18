@@ -112,6 +112,8 @@ pub const Token = struct {
         empty_arg,
         /// Special token for implementing __has_attribute
         macro_param_has_attribute,
+        /// Special token for implementing __has_warning
+        macro_param_has_warning,
 
         keyword_auto,
         keyword_break,
@@ -177,7 +179,6 @@ pub const Token = struct {
         keyword_pragma,
         keyword_line,
         keyword_va_args,
-        keyword_has_attribute,
 
         // gcc keywords
         keyword_const1,
@@ -196,19 +197,12 @@ pub const Token = struct {
         keyword_attribute1,
         keyword_attribute2,
 
-        /// Return true if token is a feature check operator
-        pub fn isFeatureCheck(id: Id) bool {
-            // TODO: implement __has_c_attribute, __has_builtin, and __has_include
-            return id == .keyword_has_attribute;
-        }
-
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
                 .keyword_include,
                 .keyword_define,
                 .keyword_defined,
-                .keyword_has_attribute,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -288,7 +282,6 @@ pub const Token = struct {
                 .keyword_include,
                 .keyword_define,
                 .keyword_defined,
-                .keyword_has_attribute,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -339,6 +332,7 @@ pub const Token = struct {
                 .stringify_va_args,
                 .empty_arg,
                 .macro_param_has_attribute,
+                .macro_param_has_warning,
                 => "",
 
                 .bang => "!",
@@ -438,7 +432,6 @@ pub const Token = struct {
                 .keyword_include => "include",
                 .keyword_define => "define",
                 .keyword_defined => "defined",
-                .keyword_has_attribute => "__has_attribute",
                 .keyword_undef => "undef",
                 .keyword_ifdef => "ifdef",
                 .keyword_ifndef => "ifndef",
@@ -566,7 +559,6 @@ pub const Token = struct {
         .{ "include", .keyword_include },
         .{ "define", .keyword_define },
         .{ "defined", .keyword_defined },
-        .{ "__has_attribute", .keyword_has_attribute },
         .{ "undef", .keyword_undef },
         .{ "ifdef", .keyword_ifdef },
         .{ "ifndef", .keyword_ifndef },
