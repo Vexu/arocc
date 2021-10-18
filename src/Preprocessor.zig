@@ -401,7 +401,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
                     try pp.err(first, .to_match_paren);
                 }
             }
-            if (macro_tok.id.isFeatureCheck() or pp.defines.get(pp.tokSliceSafe(macro_tok)) != null) {
+            if (pp.defines.get(pp.tokSliceSafe(macro_tok)) != null) {
                 tok.id = .one;
             } else {
                 tok.id = .zero;
@@ -753,7 +753,7 @@ fn nextBufToken(tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_i
     }
 }
 
-fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool) Error!(?MacroArguments) {
+fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool, is_builtin: bool) Error!(?MacroArguments) {
     const name_tok = buf.items[start_idx.*];
     const initial_tokenizer_index = tokenizer.index;
     const old_end = end_idx.*;
@@ -764,13 +764,8 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
             .nl => {},
             .l_paren => break,
             else => {
-                if (name_tok.id.isFeatureCheck()) {
-                    const extra = Diagnostics.Message.Extra{ .tok_id = .{ .expected = .l_paren, .actual = name_tok.id } };
-                    try pp.comp.diag.add(.{
-                        .tag = .missing_token,
-                        .loc = tok.loc,
-                        .extra = extra,
-                    });
+                if (is_builtin) {
+                    try pp.comp.diag.add(.{ .tag = .missing_lparen_builtin, .loc = tok.loc });
                 }
                 // Not a macro function call, go over normal identifier, rewind
                 tokenizer.index = initial_tokenizer_index;
@@ -861,7 +856,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                 if (macro.is_func) {
                     var macro_scan_idx = idx;
                     // to be saved in case this doesn't turn out to be a call
-                    const args = (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf)) orelse {
+                    const args = (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf, macro.is_builtin)) orelse {
                         idx += 1;
                         continue;
                     };

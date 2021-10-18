@@ -179,8 +179,6 @@ pub const Token = struct {
         keyword_pragma,
         keyword_line,
         keyword_va_args,
-        keyword_has_attribute,
-        keyword_has_warning,
 
         // gcc keywords
         keyword_const1,
@@ -199,23 +197,12 @@ pub const Token = struct {
         keyword_attribute1,
         keyword_attribute2,
 
-        /// Return true if token is a feature check operator
-        pub fn isFeatureCheck(id: Id) bool {
-            // TODO: implement __has_c_attribute, __has_builtin, and __has_include
-            return switch (id) {
-                .keyword_has_attribute, .keyword_has_warning => true,
-                else => false,
-            };
-        }
-
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
                 .keyword_include,
                 .keyword_define,
                 .keyword_defined,
-                .keyword_has_attribute,
-                .keyword_has_warning,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -295,8 +282,6 @@ pub const Token = struct {
                 .keyword_include,
                 .keyword_define,
                 .keyword_defined,
-                .keyword_has_attribute,
-                .keyword_has_warning,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -447,8 +432,6 @@ pub const Token = struct {
                 .keyword_include => "include",
                 .keyword_define => "define",
                 .keyword_defined => "defined",
-                .keyword_has_attribute => "__has_attribute",
-                .keyword_has_warning => "__has_warning",
                 .keyword_undef => "undef",
                 .keyword_ifdef => "ifdef",
                 .keyword_ifndef => "ifndef",
@@ -576,8 +559,6 @@ pub const Token = struct {
         .{ "include", .keyword_include },
         .{ "define", .keyword_define },
         .{ "defined", .keyword_defined },
-        .{ "__has_attribute", .keyword_has_attribute },
-        .{ "__has_warning", .keyword_has_warning },
         .{ "undef", .keyword_undef },
         .{ "ifdef", .keyword_ifdef },
         .{ "ifndef", .keyword_ifndef },
