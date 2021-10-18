@@ -221,9 +221,8 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
 }
 
 fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macros: Source) !void {
-    var pp = Preprocessor.init(comp);
+    var pp = try Preprocessor.init(comp);
     defer pp.deinit();
-    try pp.addBuiltinMacros();
 
     try pp.preprocess(builtin);
     try pp.preprocess(user_macros);

@@ -122,9 +122,8 @@ pub fn main() !void {
         progress.refresh();
 
         comp.diag.errors = 0;
-        var pp = aro.Preprocessor.init(&comp);
+        var pp = try aro.Preprocessor.init(&comp);
         defer pp.deinit();
-        try pp.addBuiltinMacros();
 
         try pp.preprocess(builtin_macros);
         try pp.preprocess(test_runner_macros);

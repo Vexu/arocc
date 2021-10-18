@@ -65,8 +65,8 @@ char_buf: std.ArrayList(u8),
 pragma_once: std.AutoHashMap(Source.Id, void),
 include_depth: u8 = 0,
 
-pub fn init(comp: *Compilation) Preprocessor {
-    return .{
+pub fn init(comp: *Compilation) mem.Allocator.Error!Preprocessor {
+    var pp = Preprocessor{
         .comp = comp,
         .arena = std.heap.ArenaAllocator.init(comp.gpa),
         .defines = DefineMap.init(comp.gpa),
@@ -75,6 +75,9 @@ pub fn init(comp: *Compilation) Preprocessor {
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .pragma_once = std.AutoHashMap(Source.Id, void).init(comp.gpa),
     };
+    errdefer pp.deinit();
+    try pp.addBuiltinMacros();
+    return pp;
 }
 
 const FeatureCheckMacros = struct {
@@ -101,7 +104,7 @@ const FeatureCheckMacros = struct {
     }};
 };
 
-fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, tokens: []const RawToken) !void {
+fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, tokens: []const RawToken) mem.Allocator.Error!void {
     try pp.defines.put(name, .{
         .params = &FeatureCheckMacros.args,
         .tokens = tokens,
@@ -112,7 +115,7 @@ fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, tokens: []const RawToken
     });
 }
 
-pub fn addBuiltinMacros(pp: *Preprocessor) !void {
+fn addBuiltinMacros(pp: *Preprocessor) mem.Allocator.Error!void {
     try pp.addBuiltinMacro("__has_attribute", &FeatureCheckMacros.has_attribute);
     try pp.addBuiltinMacro("__has_warning", &FeatureCheckMacros.has_warning);
     try pp.addBuiltinMacro("__is_identifier", &FeatureCheckMacros.is_identifier);
