@@ -9,3 +9,6 @@ x
 y
 
 #define __restrict restrict
+
+#define empty
+empty

@@ -894,7 +894,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
 
                     try buf.replaceRange(idx, 1, res.items);
                     idx += res.items.len;
-                    moving_end_idx += (res.items.len - 1);
+                    moving_end_idx = moving_end_idx + res.items.len - 1;
                     do_rescan = true;
                 }
             }

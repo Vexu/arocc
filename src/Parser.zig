@@ -1164,7 +1164,16 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         }
     }
     const name = init_d.d.name;
-    if (decl_spec.storage_class != .typedef and init_d.d.ty.hasIncompleteSize()) {
+    if (decl_spec.storage_class != .typedef and init_d.d.ty.hasIncompleteSize()) incomplete: {
+        const specifier = init_d.d.ty.canonicalize(.standard).specifier;
+        if (decl_spec.storage_class == .@"extern") switch (specifier) {
+            .@"struct", .@"union", .@"enum" => break :incomplete,
+            .incomplete_array => {
+                init_d.d.ty.decayArray();
+                break :incomplete;
+            },
+            else => {},
+        };
         try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
         return init_d;
     }
@@ -2342,7 +2351,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
             try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(item.ty, " to ", target));
             try item.ptrCast(p, unqual_ty);
         } else if (item.ty.isPtr()) {
-            if (!unqual_ty.eql(item.ty, false)) {
+            if (!item.ty.isVoidStar() and !unqual_ty.isVoidStar() and !unqual_ty.eql(item.ty, false)) {
                 try p.errStr(.incompatible_ptr_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
                 try item.ptrCast(p, unqual_ty);
             } else if (!unqual_ty.eql(item.ty, true)) {
@@ -3051,10 +3060,12 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
     } else if (ret_ty.isPtr()) {
-        if (e.ty.isInt()) {
+        if (e.isZero()) {
+            try e.nullCast(p, ret_ty);
+        } else if (e.ty.isInt()) {
             try p.errStr(.implicit_int_to_ptr, e_tok, try p.typePairStrExtra(e.ty, " to ", ret_ty));
             try e.intCast(p, ret_ty);
-        } else if (!ret_ty.eql(e.ty, false)) {
+        } else if (!e.ty.isVoidStar() and !ret_ty.isVoidStar() and !ret_ty.eql(e.ty, false)) {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
     } else if (ret_ty.isRecord()) {
@@ -3381,14 +3392,15 @@ const Result = struct {
         } else if (!res.ty.eql(int_ty, true)) {
             res.ty = int_ty;
             try res.un(p, .int_cast);
-            const is_unsigned = int_ty.isUnsignedInt(p.pp.comp);
-            if (is_unsigned and res.val == .signed) {
-                const copy = res.val.signed;
-                res.val = .{ .unsigned = @bitCast(u64, copy) };
-            } else if (!is_unsigned and res.val == .unsigned) {
-                const copy = res.val.unsigned;
-                res.val = .{ .signed = @bitCast(i64, copy) };
-            }
+        }
+
+        const is_unsigned = int_ty.isUnsignedInt(p.pp.comp);
+        if (is_unsigned and res.val == .signed) {
+            const copy = res.val.signed;
+            res.val = .{ .unsigned = @bitCast(u64, copy) };
+        } else if (!is_unsigned and res.val == .unsigned) {
+            const copy = res.val.unsigned;
+            res.val = .{ .signed = @bitCast(i64, copy) };
         }
     }
 
@@ -4638,7 +4650,9 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                         try p.errTok(.parameter_here, params[arg_count].name_tok);
                     }
                 } else if (p_ty.isPtr()) {
-                    if (arg.ty.isInt()) {
+                    if (arg.isZero()) {
+                        try arg.nullCast(p, p_ty);
+                    } else if (arg.ty.isInt()) {
                         try p.errStr(
                             .implicit_int_to_ptr,
                             param_tok,
@@ -4646,7 +4660,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                         );
                         try p.errTok(.parameter_here, params[arg_count].name_tok);
                         try arg.intCast(p, p_ty);
-                    } else if (!p_ty.eql(arg.ty, false)) {
+                    } else if (!arg.ty.isVoidStar() and !p_ty.isVoidStar() and !p_ty.eql(arg.ty, false)) {
                         try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
                         try p.errTok(.parameter_here, params[arg_count].name_tok);
                     }

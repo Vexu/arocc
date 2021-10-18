@@ -664,9 +664,10 @@ pub fn alignof(ty: Type, comp: *Compilation) u29 {
 /// added by typeof() operations, which is useful when determining the elemType of
 /// arrays and pointers.
 pub fn canonicalize(ty: Type, qual_handling: enum { standard, preserve_quals }) Type {
-    if (!ty.isTypeof()) return ty;
-
     var cur = ty;
+    if (cur.specifier == .attributed) cur = cur.data.attributed.base;
+    if (!cur.isTypeof()) return cur;
+
     var qual = cur.qual;
     while (true) {
         switch (cur.specifier) {
