@@ -4565,12 +4565,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
         .period => {
             p.tok_i += 1;
             const name = try p.expectToken(.identifier);
-            // TODO validate type
+            const field_ty = try p.getFieldAccessField(lhs.ty, name, false);
             return Result{
-                .ty = lhs.ty,
+                .ty = field_ty,
                 .node = try p.addNode(.{
                     .tag = .member_access_expr,
-                    .ty = lhs.ty,
+                    .ty = field_ty,
                     .data = .{ .member = .{ .lhs = lhs.node, .name = name } },
                 }),
             };
@@ -4578,18 +4578,54 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
         .arrow => {
             p.tok_i += 1;
             const name = try p.expectToken(.identifier);
-            // TODO validate type / deref
+            const field_ty = try p.getFieldAccessField(lhs.ty, name, true);
             return Result{
-                .ty = lhs.ty,
+                .ty = field_ty,
                 .node = try p.addNode(.{
                     .tag = .member_access_ptr_expr,
-                    .ty = lhs.ty,
+                    .ty = field_ty,
                     .data = .{ .member = .{ .lhs = lhs.node, .name = name } },
                 }),
             };
         },
         else => return Result{},
     }
+}
+
+fn getFieldAccessField(
+    p: *Parser,
+    expr_ty: Type,
+    field_name_tok: TokenIndex,
+    is_arrow: bool,
+) !Type {
+    const is_ptr = expr_ty.get(.pointer) != null;
+    const expr_base_ty = if (is_ptr) expr_ty.elemType() else expr_ty;
+    const record_ty = expr_base_ty.canonicalize(.standard);
+
+    switch (record_ty.specifier) {
+        .@"struct", .@"union" => {},
+        else => {
+            try p.errStr(.expected_record_ty, field_name_tok, try p.typeStr(expr_ty));
+            return error.ParsingFailed;
+        },
+    }
+    if (is_arrow and !is_ptr) try p.errStr(.member_expr_not_ptr, field_name_tok, try p.typeStr(expr_ty));
+    if (!is_arrow and is_ptr) try p.errStr(.member_expr_ptr, field_name_tok, try p.typeStr(expr_ty));
+
+    // TODO deal with anonymous structs
+    const field_name = p.tokSlice(field_name_tok);
+    const field = record_ty.getField(field_name) orelse {
+        const strings_top = p.strings.items.len;
+        defer p.strings.items.len = strings_top;
+
+        try p.strings.writer().print("'{s}' in '", .{field_name});
+        try expr_ty.print(p.strings.writer());
+        try p.strings.append('\'');
+
+        try p.errStr(.no_such_member, field_name_tok, try p.arena.dupe(u8, p.strings.items[strings_top..]));
+        return error.ParsingFailed;
+    };
+    return field.f.ty;
 }
 
 fn callExpr(p: *Parser, lhs: Result) Error!Result {
