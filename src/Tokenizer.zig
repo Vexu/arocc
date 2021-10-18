@@ -114,6 +114,8 @@ pub const Token = struct {
         macro_param_has_attribute,
         /// Special token for implementing __has_warning
         macro_param_has_warning,
+        /// Special token for implementing __is_identifier
+        macro_param_is_identifier,
 
         keyword_auto,
         keyword_break,
@@ -333,6 +335,7 @@ pub const Token = struct {
                 .empty_arg,
                 .macro_param_has_attribute,
                 .macro_param_has_warning,
+                .macro_param_is_identifier,
                 => "",
 
                 .bang => "!",
