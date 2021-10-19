@@ -452,30 +452,58 @@ pub const Tag = enum(u8) {
 };
 
 pub fn isLval(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: ValueMap, node: NodeIndex) bool {
+    var is_const: bool = undefined;
+    return isLvalExtra(nodes, extra, value_map, node, &is_const);
+}
+
+pub fn isLvalExtra(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: ValueMap, node: NodeIndex, is_const: *bool) bool {
+    is_const.* = false;
     switch (nodes.items(.tag)[@enumToInt(node)]) {
-        .compound_literal_expr => return true,
+        .compound_literal_expr => {
+            is_const.* = nodes.items(.ty)[@enumToInt(node)].isConst();
+            return true;
+        },
         .string_literal_expr => return true,
-        .member_access_ptr_expr => return true,
-        .array_access_expr => return true,
-        .decl_ref_expr => return true,
+        .member_access_ptr_expr => {
+            const lhs_expr = nodes.items(.data)[@enumToInt(node)].member.lhs;
+            const ptr_ty = nodes.items(.ty)[@enumToInt(lhs_expr)];
+            if (ptr_ty.isPtr()) is_const.* = ptr_ty.elemType().isConst();
+            return true;
+        },
+        .array_access_expr => {
+            const lhs_expr = nodes.items(.data)[@enumToInt(node)].bin.lhs;
+            if (lhs_expr != .none) {
+                const array_ty = nodes.items(.ty)[@enumToInt(lhs_expr)];
+                if (array_ty.isPtr() or array_ty.isArray()) is_const.* = array_ty.elemType().isConst();
+            }
+            return true;
+        },
+        .decl_ref_expr => {
+            const decl_ty = nodes.items(.ty)[@enumToInt(node)];
+            is_const.* = decl_ty.isConst();
+            return true;
+        },
         .deref_expr => {
             const data = nodes.items(.data)[@enumToInt(node)];
-            return !nodes.items(.ty)[@enumToInt(data.un)].isFunc();
+            const operand_ty = nodes.items(.ty)[@enumToInt(data.un)];
+            if (operand_ty.isFunc()) return false;
+            if (operand_ty.isPtr() or operand_ty.isArray()) is_const.* = operand_ty.elemType().isConst();
+            return true;
         },
         .member_access_expr => {
             const data = nodes.items(.data)[@enumToInt(node)];
-            return isLval(nodes, extra, value_map, data.member.lhs);
+            return isLvalExtra(nodes, extra, value_map, data.member.lhs, is_const);
         },
         .paren_expr => {
             const data = nodes.items(.data)[@enumToInt(node)];
-            return isLval(nodes, extra, value_map, data.un);
+            return isLvalExtra(nodes, extra, value_map, data.un, is_const);
         },
         .builtin_choose_expr => {
             const data = nodes.items(.data)[@enumToInt(node)];
 
             if (value_map.get(data.if3.cond)) |val| {
                 const offset = @boolToInt(val == 0);
-                return isLval(nodes, extra, value_map, extra[data.if3.body + offset]);
+                return isLvalExtra(nodes, extra, value_map, extra[data.if3.body + offset], is_const);
             }
             return false;
         },

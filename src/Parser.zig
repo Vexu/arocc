@@ -2070,7 +2070,9 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
     _ = try p.initializerItem(&il, init_ty);
 
     const res = try p.convertInitList(il, init_ty);
-    return Result{ .ty = p.nodes.items(.ty)[@enumToInt(res)], .node = res };
+    var res_ty = p.nodes.items(.ty)[@enumToInt(res)];
+    res_ty.qual = init_ty.qual;
+    return Result{ .ty = res_ty, .node = res };
 }
 
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?
@@ -2322,7 +2324,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     unqual_ty.qual = .{};
     const e_msg = " from incompatible type ";
     try item.lvalConversion(p);
-    if (target.is(.bool)) {
+    if (unqual_ty.is(.bool)) {
         // this is ridiculous but it's what clang does
         if (item.ty.isInt() or item.ty.isFloat() or item.ty.isPtr()) {
             try item.boolCast(p, unqual_ty);
@@ -3284,7 +3286,8 @@ const Result = struct {
 
                 if (a_int or b_int) try p.errStr(.comparison_ptr_int, tok, try p.typePairStr(a.ty, b.ty));
                 if (a_ptr and b_ptr) {
-                    if (!a.ty.eql(b.ty, false)) try p.errStr(.comparison_distinct_ptr, tok, try p.typePairStr(a.ty, b.ty));
+                    if (!a.ty.isVoidStar() and !b.ty.isVoidStar() and !a.ty.eql(b.ty, false))
+                        try p.errStr(.comparison_distinct_ptr, tok, try p.typePairStr(a.ty, b.ty));
                 } else if (a_ptr) {
                     try b.ptrCast(p, a.ty);
                 } else {
@@ -3722,7 +3725,8 @@ fn assignExpr(p: *Parser) Error!Result {
     try rhs.expect(p);
     try rhs.lvalConversion(p);
 
-    if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, lhs.node) or lhs.ty.isConst()) {
+    var is_const: bool = undefined;
+    if (!Tree.isLvalExtra(p.nodes.slice(), p.data.items, p.value_map, lhs.node, &is_const) or is_const) {
         try p.errTok(.not_assignable, tok);
         return error.ParsingFailed;
     }
@@ -4257,6 +4261,7 @@ fn unExpr(p: *Parser) Error!Result {
             } else if (!operand.ty.isFunc()) {
                 try p.errTok(.indirection_ptr, tok);
             }
+            operand.ty.qual = .{};
             try operand.un(p, .deref_expr);
             return operand;
         },

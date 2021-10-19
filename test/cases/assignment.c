@@ -48,6 +48,17 @@ void foo(void) {
         const char *y = x;
         y = x;
     }
+    (int){1} = 1;
+    (const int){2} = 1;
+    const struct {
+        int a;
+    } *j;
+    j->a = 1;
+    const int k[3];
+    k[2] = 1;
+    const int *l;
+    *l = 1;
+    foo = 0;
 }
 
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
@@ -64,3 +75,8 @@ void foo(void) {
     "assignment.c:39:11: warning: incompatible pointer types assigning to 'int *' from incompatible type 'char *'" \
     "assignment.c:43:18: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers" \
     "assignment.c:44:11: warning: assigning to 'int *' from incompatible type 'const int *' discards qualifiers" \
+    "assignment.c:52:20: error: expression is not assignable" \
+    "assignment.c:56:10: error: expression is not assignable" \
+    "assignment.c:58:10: error: expression is not assignable" \
+    "assignment.c:60:8: error: expression is not assignable" \
+    "assignment.c:61:9: error: expression is not assignable" \
