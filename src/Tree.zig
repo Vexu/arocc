@@ -210,6 +210,8 @@ pub const Tag = enum(u8) {
     for_stmt,
     /// goto first;
     goto_stmt,
+    /// goto *un;
+    computed_goto_stmt,
     // continue; first and second unused
     continue_stmt,
     // break; first and second unused
@@ -904,6 +906,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .cast_expr,
         .addr_of_expr,
+        .computed_goto_stmt,
         .deref_expr,
         .plus_expr,
         .negate_expr,
