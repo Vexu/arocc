@@ -251,6 +251,7 @@ pub const Tag = enum {
     member_expr_ptr,
     no_such_member,
     malformed_warning_check,
+    invalid_computed_goto,
 };
 
 const Options = struct {
@@ -629,6 +630,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .member_expr_ptr => m.print("member reference type '{s}' is a pointer; did you mean to use '->'?", .{msg.extra.str}),
             .no_such_member => m.print("no member named {s}", .{msg.extra.str}),
             .malformed_warning_check => m.write("__has_warning expected option name (e.g. \"-Wundef\")"),
+            .invalid_computed_goto => m.write("computed goto in function with no address-of-label expressions"),
         }
         m.end(lcs);
 
@@ -827,6 +829,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .member_expr_not_ptr,
         .member_expr_ptr,
         .no_such_member,
+        .invalid_computed_goto,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

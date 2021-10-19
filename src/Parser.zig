@@ -95,9 +95,14 @@ attr_buf: std.ArrayList(Attribute),
 // configuration and miscellaneous info
 no_eval: bool = false,
 in_macro: bool = false,
+contains_address_of_label: bool = false,
 return_type: ?Type = null,
 func_name: TokenIndex = 0,
 label_count: u32 = 0,
+/// location of first computed goto in function currently being parsed
+/// if a computed goto is used, the function must contain an
+/// address-of-label expression (tracked with contains_address_of_label)
+computed_goto_tok: ?TokenIndex = null,
 
 fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
     if (p.tok_ids[p.tok_i] == id) {
@@ -673,8 +678,13 @@ fn decl(p: *Parser) Error!bool {
                 if (item == .unresolved_goto)
                     try p.errStr(.undeclared_label, item.unresolved_goto, p.tokSlice(item.unresolved_goto));
             }
+            if (p.computed_goto_tok) |goto_tok| {
+                if (!p.contains_address_of_label) try p.errTok(.invalid_computed_goto, goto_tok);
+            }
             p.labels.items.len = 0;
             p.label_count = 0;
+            p.contains_address_of_label = false;
+            p.computed_goto_tok = null;
         }
         return true;
     }
@@ -2536,7 +2546,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
 ///  | keyword_while '(' expr ')' stmt
 ///  | keyword_do stmt while '(' expr ')' ';'
 ///  | keyword_for '(' (decl | expr? ';') expr? ';' expr? ')' stmt
-///  | keyword_goto IDENTIFIER ';'
+///  | keyword_goto (IDENTIFIER | ('*' expr)) ';'
 ///  | keyword_continue ';'
 ///  | keyword_break ';'
 ///  | keyword_return expr? ';'
@@ -2712,7 +2722,36 @@ fn stmt(p: *Parser) Error!NodeIndex {
             .body = (try p.addList(&.{ init.node, cond.node, incr.node })).start,
         } } });
     }
-    if (p.eatToken(.keyword_goto)) |_| {
+    if (p.eatToken(.keyword_goto)) |goto_tok| {
+        if (p.eatToken(.asterisk)) |_| {
+            const expr_tok = p.tok_i;
+            var e = try p.expr();
+            try e.expect(p);
+            try e.lvalConversion(p);
+            p.computed_goto_tok = goto_tok;
+            if (!e.ty.isPtr()) {
+                if (!e.ty.isInt()) {
+                    try p.errStr(.incompatible_param, expr_tok, try p.typeStr(e.ty));
+                    return error.ParsingFailed;
+                }
+                const elem_ty = try p.arena.create(Type);
+                elem_ty.* = .{ .specifier = .void, .qual = .{ .@"const" = true } };
+                const result_ty = Type{
+                    .specifier = .pointer,
+                    .data = .{ .sub_type = elem_ty },
+                };
+                if (e.isZero()) {
+                    try e.nullCast(p, result_ty);
+                } else {
+                    try p.errStr(.implicit_int_to_ptr, expr_tok, try p.typePairStrExtra(e.ty, " to ", result_ty));
+                    try e.ptrCast(p, result_ty);
+                }
+            }
+
+            try e.un(p, .computed_goto_stmt);
+            _ = try p.expectToken(.semicolon);
+            return e.node;
+        }
         const name_tok = try p.expectToken(.identifier);
         const str = p.tokSlice(name_tok);
         if (p.findLabel(str) == null) {
@@ -4214,6 +4253,7 @@ fn unExpr(p: *Parser) Error!Result {
             p.tok_i += 1;
             const name_tok = try p.expectToken(.identifier);
             try p.errTok(.gnu_label_as_value, address_tok);
+            p.contains_address_of_label = true;
 
             const str = p.tokSlice(name_tok);
             if (p.findLabel(str) == null) {
