@@ -869,13 +869,13 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                 idx += 1;
                 continue;
             }
-            if (macro_entry) |macro| {
+            if (macro_entry) |macro| macro_handler: {
                 if (macro.is_func) {
                     var macro_scan_idx = idx;
                     // to be saved in case this doesn't turn out to be a call
                     const args = (try pp.collectMacroFuncArguments(tokenizer, buf, &macro_scan_idx, &moving_end_idx, extend_buf, macro.is_builtin)) orelse {
                         idx += 1;
-                        continue;
+                        break :macro_handler;
                     };
                     defer {
                         for (args.items) |item| {
