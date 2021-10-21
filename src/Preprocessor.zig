@@ -130,6 +130,9 @@ pub fn deinit(pp: *Preprocessor) void {
 
 /// Preprocess a source file.
 pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
+    const initial_options = pp.comp.diag.options;
+    defer pp.comp.diag.options = initial_options;
+
     var tokenizer = Tokenizer{
         .buf = source.buf,
         .comp = pp.comp,
@@ -1247,6 +1250,33 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     try pp.preprocess(new_source);
 }
 
+fn gccDiagnostic(pp: *Preprocessor, pragma_toks: []const RawToken) !bool {
+    if (pragma_toks.len == 0) return false;
+    if (std.meta.stringToEnum(Pragmas.PragmaGCC.Diagnostics, pp.tokSlice(pragma_toks[0]))) |diagnostic| {
+        switch (diagnostic) {
+            .ignored, .warning, .@"error", .fatal => {
+                const text = pp.pasteStringsUnsafe(RawToken, pragma_toks[1..]) catch |err| switch (err) {
+                    error.ExpectedStringLiteral => return false,
+                    else => |e| return e,
+                };
+                if (!mem.startsWith(u8, text, "-W")) return false;
+                const new_kind = switch (diagnostic) {
+                    .ignored => Diagnostics.Kind.off,
+                    .warning => Diagnostics.Kind.warning,
+                    .@"error" => Diagnostics.Kind.@"error",
+                    .fatal => Diagnostics.Kind.@"fatal error",
+                    else => unreachable,
+                };
+
+                try pp.comp.diag.set(text[2..], new_kind);
+                return true;
+            },
+            .push, .pop => {},
+        }
+    }
+    return false;
+}
+
 /// Handle a GCC pragma. Return true if the pragma is recognized (even if there are errors)
 /// return false if the pragma is unknown
 fn gccPragma(pp: *Preprocessor, pragma_toks: []const RawToken) !bool {
@@ -1267,7 +1297,7 @@ fn gccPragma(pp: *Preprocessor, pragma_toks: []const RawToken) !bool {
                 try pp.comp.diag.add(.{ .tag = diagnostic_tag, .loc = tokFromRaw(pragma_toks[0]).loc, .extra = extra });
                 return true;
             },
-            .diagnostic => {},
+            .diagnostic => if (try pp.gccDiagnostic(pragma_toks[1..])) return true,
         }
     }
     return false;
@@ -1282,6 +1312,15 @@ const Pragmas = enum {
         warning,
         @"error",
         diagnostic,
+
+        const Diagnostics = enum {
+            ignored,
+            warning,
+            @"error",
+            fatal,
+            push,
+            pop,
+        };
     };
 };
 const PragmaState = struct {
