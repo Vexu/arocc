@@ -6,13 +6,13 @@
 
 #pragma GCC warning "A warning"
 
-#pragma GCC warning "Another" " warning"
+#pragma GCC warning ("Another" " warning")
 
 #pragma GCC error
 
 #pragma GCC error non_string
 
-#pragma GCC error "An error"
+#pragma GCC error ("An error")
 
 #pragma GCC error "Another" " error"
 
