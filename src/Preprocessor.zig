@@ -146,7 +146,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
     const until_else = 0;
     const until_endif = 1;
     const until_endif_seen_else = 2;
-    var seen_pragma_once = false;
+    var pragma_state: PragmaState = .{};
 
     var start_of_line = true;
     while (true) {
@@ -258,28 +258,9 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                         try pp.expectNl(&tokenizer);
                     },
                     .keyword_include => try pp.include(&tokenizer),
-                    .keyword_pragma => {
-                        // #pragma tokens...
-                        const start = tokenizer.index;
-                        while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
-                            if (tokenizer.buf[tokenizer.index] == '\n') break;
-                        }
-                        var slice = tokenizer.buf[start..tokenizer.index];
-                        slice = mem.trim(u8, slice, TRAILING_WS);
-                        if (mem.eql(u8, slice, "once")) {
-                            const prev = try pp.pragma_once.fetchPut(tokenizer.source, {});
-                            if (prev != null and !seen_pragma_once) {
-                                return;
-                            } else {
-                                seen_pragma_once = true;
-                            }
-                        } else {
-                            try pp.comp.diag.add(.{
-                                .tag = .unsupported_pragma,
-                                .loc = .{ .id = tok.source, .byte_offset = tok.start },
-                                .extra = .{ .str = slice },
-                            });
-                        }
+                    .keyword_pragma => pp.pragma(&tokenizer, tok, &pragma_state) catch |err| switch (err) {
+                        error.PragmaOnce => return,
+                        else => |e| return e,
                     },
                     .keyword_line => {
                         // #line number "file"
@@ -562,6 +543,26 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
     return buf;
 }
 
+/// Join a series of string literal tokens into a single string without
+/// leading or trailing quotes.
+/// The returned slice is invalidated if pp.char_buf changes.
+fn pasteStringsUnsafe(pp: *Preprocessor, comptime TokType: type, toks: []const TokType) ![]const u8 {
+    if (toks.len == 0) return error.ExpectedStringLiteral;
+    const char_top = pp.char_buf.items.len;
+    defer pp.char_buf.items.len = char_top;
+
+    for (toks) |tok| {
+        if (tok.id != .string_literal) return error.ExpectedStringLiteral;
+        const str = switch (TokType) {
+            Token => pp.expandedSlice(tok),
+            RawToken => pp.tokSlice(tok),
+            else => unreachable,
+        };
+        try pp.char_buf.appendSlice(str[1 .. str.len - 1]);
+    }
+    return pp.char_buf.items[char_top..];
+}
+
 fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token) Error!RawToken.Id {
     switch (builtin) {
         .macro_param_has_attribute => {
@@ -573,19 +574,14 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             return if (AttrTag.fromString(attr_name) == null) .zero else .one;
         },
         .macro_param_has_warning => {
-            const char_top = pp.char_buf.items.len;
-            defer pp.char_buf.items.len = char_top;
-
-            for (param_toks) |tok| {
-                if (tok.id != .string_literal) {
+            const actual_param = pp.pasteStringsUnsafe(Token, param_toks) catch |err| switch (err) {
+                error.ExpectedStringLiteral => {
                     const extra = Diagnostics.Message.Extra{ .str = "__has_warning" };
-                    try pp.comp.diag.add(.{ .tag = .expected_str_literal_in, .loc = tok.loc, .extra = extra });
+                    try pp.comp.diag.add(.{ .tag = .expected_str_literal_in, .loc = param_toks[0].loc, .extra = extra });
                     return .zero;
-                }
-                const str = pp.expandedSlice(tok);
-                try pp.char_buf.appendSlice(str[1 .. str.len - 1]);
-            }
-            const actual_param = pp.char_buf.items[char_top..];
+                },
+                else => |e| return e,
+            };
             if (!mem.startsWith(u8, actual_param, "-W")) {
                 try pp.comp.diag.add(.{ .tag = .malformed_warning_check, .loc = param_toks[0].loc });
                 return .zero;
@@ -1249,6 +1245,83 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     if (pp.include_depth > max_include_depth) return;
 
     try pp.preprocess(new_source);
+}
+
+/// Handle a GCC pragma. Return true if the pragma is recognized (even if there are errors)
+/// return false if the pragma is unknown
+fn gccPragma(pp: *Preprocessor, pragma_toks: []const RawToken) !bool {
+    if (pragma_toks.len == 0) return false;
+    if (std.meta.stringToEnum(Pragmas.PragmaGCC, pp.tokSlice(pragma_toks[0]))) |gcc_pragma| {
+        switch (gcc_pragma) {
+            .warning, .@"error" => {
+                const text = pp.pasteStringsUnsafe(RawToken, pragma_toks[1..]) catch |err| switch (err) {
+                    error.ExpectedStringLiteral => {
+                        const extra = Diagnostics.Message.Extra{ .str = std.meta.tagName(gcc_pragma) };
+                        try pp.comp.diag.add(.{ .tag = .pragma_requires_string_literal, .loc = tokFromRaw(pragma_toks[0]).loc, .extra = extra });
+                        return true;
+                    },
+                    else => |e| return e,
+                };
+                const extra = Diagnostics.Message.Extra{ .str = try pp.arena.allocator.dupe(u8, text) };
+                const diagnostic_tag: Diagnostics.Tag = if (gcc_pragma == .warning) .pragma_warning_message else .pragma_error_message;
+                try pp.comp.diag.add(.{ .tag = diagnostic_tag, .loc = tokFromRaw(pragma_toks[0]).loc, .extra = extra });
+                return true;
+            },
+            .diagnostic => {},
+        }
+    }
+    return false;
+}
+
+const Pragmas = enum {
+    once,
+    GCC,
+    clang,
+
+    const PragmaGCC = enum {
+        warning,
+        @"error",
+        diagnostic,
+    };
+};
+const PragmaState = struct {
+    seen_pragma_once: bool = false,
+};
+
+/// Handle a pragma directive
+fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, tok: RawToken, pragma_state: *PragmaState) !void {
+    const tok_buf_start = pp.token_buf.items.len;
+    defer pp.token_buf.items.len = tok_buf_start;
+
+    while (true) {
+        const next_tok = tokenizer.next();
+        if (next_tok.id == .nl) break;
+        try pp.token_buf.append(next_tok);
+    }
+    const pragma_toks = pp.token_buf.items[tok_buf_start..];
+    if (pragma_toks.len > 0) {
+        if (std.meta.stringToEnum(Pragmas, pp.tokSlice(pragma_toks[0]))) |pragma_type| {
+            switch (pragma_type) {
+                .once => {
+                    const prev = try pp.pragma_once.fetchPut(tokenizer.source, {});
+                    if (prev != null and !pragma_state.seen_pragma_once) {
+                        return error.PragmaOnce;
+                    } else {
+                        pragma_state.seen_pragma_once = true;
+                    }
+                    return;
+                },
+                .GCC => if (try pp.gccPragma(pragma_toks[1..])) return,
+                .clang => {},
+            }
+        }
+    }
+    const str = if (pragma_toks.len == 0) "" else tokenizer.buf[pragma_toks[0].start..pragma_toks[pragma_toks.len - 1].end];
+    try pp.comp.diag.add(.{
+        .tag = .unsupported_pragma,
+        .loc = .{ .id = tok.source, .byte_offset = tok.start },
+        .extra = .{ .str = str },
+    });
 }
 
 fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
