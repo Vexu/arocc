@@ -64,6 +64,7 @@ token_buf: RawTokenList,
 char_buf: std.ArrayList(u8),
 pragma_once: std.AutoHashMap(Source.Id, void),
 include_depth: u8 = 0,
+poisoned_identifiers: std.StringHashMap(void),
 
 pub fn init(comp: *Compilation) Preprocessor {
     return .{
@@ -74,6 +75,7 @@ pub fn init(comp: *Compilation) Preprocessor {
         .token_buf = RawTokenList.init(comp.gpa),
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .pragma_once = std.AutoHashMap(Source.Id, void).init(comp.gpa),
+        .poisoned_identifiers = std.StringHashMap(void).init(comp.gpa),
     };
 }
 
@@ -126,6 +128,7 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.token_buf.deinit();
     pp.char_buf.deinit();
     pp.pragma_once.deinit();
+    pp.poisoned_identifiers.deinit();
 }
 
 /// Preprocess a source file.
@@ -292,6 +295,9 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                 return;
             },
             else => {
+                if (tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSliceSafe(tok)) != null) {
+                    try pp.err(tok, .poisoned_identifier);
+                }
                 // Add the token to the buffer doing any necessary expansions.
                 start_of_line = false;
                 tok.id.simplifyMacroKeyword();
@@ -610,7 +616,13 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
     }
 }
 
-fn expandFuncMacro(pp: *Preprocessor, loc: Source.Location, func_macro: *const Macro, args: *const MacroArguments, expanded_args: *const MacroArguments) Error!ExpandBuf {
+fn expandFuncMacro(
+    pp: *Preprocessor,
+    loc: Source.Location,
+    func_macro: *const Macro,
+    args: *const MacroArguments,
+    expanded_args: *const MacroArguments,
+) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
     try buf.ensureCapacity(func_macro.tokens.len);
 
@@ -753,11 +765,15 @@ fn shouldExpand(tok: Token, macro: *Macro) bool {
     return true;
 }
 
-fn nextBufToken(tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool) Error!Token {
+fn nextBufToken(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool) Error!Token {
     start_idx.* += 1;
     if (start_idx.* == buf.items.len and start_idx.* == end_idx.*) {
         if (extend_buf) {
-            const new_tok = tokFromRaw(tokenizer.next());
+            const raw_tok = tokenizer.next();
+            if (raw_tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSliceSafe(raw_tok)) != null) {
+                try pp.err(raw_tok, .poisoned_identifier);
+            }
+            const new_tok = tokFromRaw(raw_tok);
             end_idx.* += 1;
             try buf.append(new_tok);
             return new_tok;
@@ -774,13 +790,21 @@ fn nextBufToken(tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_i
     }
 }
 
-fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool, is_builtin: bool) Error!(?MacroArguments) {
+fn collectMacroFuncArguments(
+    pp: *Preprocessor,
+    tokenizer: *Tokenizer,
+    buf: *ExpandBuf,
+    start_idx: *usize,
+    end_idx: *usize,
+    extend_buf: bool,
+    is_builtin: bool,
+) Error!(?MacroArguments) {
     const name_tok = buf.items[start_idx.*];
     const initial_tokenizer_index = tokenizer.index;
     const old_end = end_idx.*;
 
     while (true) {
-        const tok = try nextBufToken(tokenizer, buf, start_idx, end_idx, extend_buf);
+        const tok = try nextBufToken(pp, tokenizer, buf, start_idx, end_idx, extend_buf);
         switch (tok.id) {
             .nl => {},
             .l_paren => break,
@@ -805,7 +829,7 @@ fn collectMacroFuncArguments(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *Exp
     defer curArgument.deinit();
     var done = false;
     while (!done) {
-        var tok = try nextBufToken(tokenizer, buf, start_idx, end_idx, extend_buf);
+        var tok = try nextBufToken(pp, tokenizer, buf, start_idx, end_idx, extend_buf);
         switch (tok.id) {
             .comma => {
                 if (parens == 0) {
@@ -1304,6 +1328,18 @@ fn gccPragma(pp: *Preprocessor, pragma_toks: []const RawToken) !bool {
                 return true;
             },
             .diagnostic => if (try pp.gccDiagnostic(pragma_toks[1..])) return true,
+            .poison => {
+                for (pragma_toks[1..]) |tok| {
+                    if (!tok.id.isMacroIdentifier()) {
+                        try pp.err(tok, .pragma_poison_identifier);
+                        return true;
+                    }
+                    const str = pp.tokSliceSafe(tok);
+                    if (pp.defines.get(str) != null) try pp.err(tok, .pragma_poison_macro);
+                    try pp.poisoned_identifiers.put(str, {});
+                }
+                return true;
+            },
         }
     }
     return false;
@@ -1318,6 +1354,7 @@ const Pragmas = enum {
         warning,
         @"error",
         diagnostic,
+        poison,
 
         const Diagnostics = enum {
             ignored,
