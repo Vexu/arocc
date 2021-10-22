@@ -260,6 +260,7 @@ pub const Tag = enum {
     pragma_poison_identifier,
     pragma_poison_macro,
     newline_eof,
+    empty_translation_unit,
 };
 
 const Options = struct {
@@ -298,6 +299,7 @@ const Options = struct {
     @"malformed-warning-check": Kind = .warning,
     @"#pragma-messages": Kind = .warning,
     @"newline-eof": Kind = .off,
+    @"empty-translation-unit": Kind = .off,
 };
 
 list: std.ArrayList(Message),
@@ -649,6 +651,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .pragma_poison_identifier => m.write("can only poison identifier tokens"),
             .pragma_poison_macro => m.write("poisoning existing macro"),
             .newline_eof => m.write("no newline at end of file"),
+            .empty_translation_unit => m.write("ISO C requires a translation unit to contain at least one declaration"),
         }
         m.end(lcs);
 
@@ -920,6 +923,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .malformed_warning_check => diag.options.@"malformed-warning-check",
         .pragma_warning_message => diag.options.@"#pragma-messages",
         .newline_eof => diag.options.@"newline-eof",
+        .empty_translation_unit => diag.options.@"empty-translation-unit",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;
