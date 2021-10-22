@@ -133,9 +133,6 @@ pub fn deinit(pp: *Preprocessor) void {
 
 /// Preprocess a source file.
 pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
-    const initial_options = pp.comp.diag.options;
-    defer pp.comp.diag.options = initial_options;
-
     var tokenizer = Tokenizer{
         .buf = source.buf,
         .comp = pp.comp,

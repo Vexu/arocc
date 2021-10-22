@@ -87,8 +87,10 @@ pub fn main() !void {
     var ok_count: u32 = 0;
     var fail_count: u32 = 0;
     var skip_count: u32 = 0;
+    const initial_options = comp.diag.options;
     for (cases.items) |path| {
         comp.langopts.standard = .default;
+        comp.diag.options = initial_options;
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
             progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
