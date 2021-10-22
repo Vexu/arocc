@@ -11,6 +11,7 @@ pub const Message = struct {
     tag: Tag,
     loc: Source.Location = .{},
     extra: Extra = .{ .none = {} },
+    kind: Kind = undefined,
 
     pub const Extra = union {
         str: []const u8,
@@ -252,6 +253,9 @@ pub const Tag = enum {
     no_such_member,
     malformed_warning_check,
     invalid_computed_goto,
+    pragma_warning_message,
+    pragma_error_message,
+    pragma_requires_string_literal,
 };
 
 const Options = struct {
@@ -288,6 +292,7 @@ const Options = struct {
     @"builtin-macro-redefined": Kind = .warning,
     @"gnu-label-as-value": Kind = .off,
     @"malformed-warning-check": Kind = .warning,
+    @"#pragma-messages": Kind = .warning,
 };
 
 list: std.ArrayList(Message),
@@ -317,6 +322,7 @@ pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
     try diag.add(.{
         .tag = .unknown_warning,
         .extra = .{ .str = name },
+        .kind = .warning,
     });
 }
 
@@ -340,7 +346,9 @@ pub fn deinit(diag: *Diagnostics) void {
 pub fn add(diag: *Diagnostics, msg: Message) Compilation.Error!void {
     const kind = diag.tagKind(msg.tag);
     if (kind == .off) return;
-    try diag.list.append(msg);
+    var copy = msg;
+    copy.kind = kind;
+    try diag.list.append(copy);
     if (kind == .@"fatal error" or (kind == .@"error" and diag.fatal_errors))
         return error.FatalError;
 }
@@ -381,8 +389,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
     var errors: u32 = 0;
     var warnings: u32 = 0;
     for (comp.diag.list.items) |msg| {
-        const kind = comp.diag.tagKind(msg.tag);
-        switch (kind) {
+        switch (msg.kind) {
             .@"fatal error", .@"error" => errors += 1,
             .warning => warnings += 1,
             .note => {},
@@ -405,7 +412,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             m.location(source.path, lcs.?);
         }
 
-        m.start(kind);
+        m.start(msg.kind);
         switch (msg.tag) {
             .todo => m.print("TODO: {s}", .{msg.extra.str}),
             .error_directive => m.print("{s}", .{msg.extra.str}),
@@ -631,6 +638,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .no_such_member => m.print("no member named {s}", .{msg.extra.str}),
             .malformed_warning_check => m.write("__has_warning expected option name (e.g. \"-Wundef\")"),
             .invalid_computed_goto => m.write("computed goto in function with no address-of-label expressions"),
+            .pragma_warning_message, .pragma_error_message => m.write(msg.extra.str),
+            .pragma_requires_string_literal => m.print("pragma {s} requires string literal", .{msg.extra.str}),
         }
         m.end(lcs);
 
@@ -830,6 +839,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .member_expr_ptr,
         .no_such_member,
         .invalid_computed_goto,
+        .pragma_requires_string_literal,
+        .pragma_error_message,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
@@ -895,6 +906,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .builtin_macro_redefined => diag.options.@"builtin-macro-redefined",
         .gnu_label_as_value => diag.options.@"gnu-label-as-value",
         .malformed_warning_check => diag.options.@"malformed-warning-check",
+        .pragma_warning_message => diag.options.@"#pragma-messages",
     };
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;
