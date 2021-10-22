@@ -289,6 +289,11 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
             .nl => start_of_line = true,
             .eof => {
                 if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
+                // The following check needs to occur here and not at the top of the function
+                // because a pragma may change the level during preprocessing
+                if (source.buf.len > 0 and source.buf[source.buf.len - 1] != '\n') {
+                    try pp.err(tok, .newline_eof);
+                }
                 return;
             },
             else => {
