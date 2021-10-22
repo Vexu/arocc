@@ -449,6 +449,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.err(.expected_external_decl);
         p.tok_i += 1;
     }
+    const root_decls = p.decl_buf.toOwnedSlice();
+    if (root_decls.len == 0) {
+        try p.errTok(.empty_translation_unit, p.tok_i - 1);
+    }
     return Tree{
         .comp = pp.comp,
         .tokens = pp.tokens.slice(),
@@ -456,7 +460,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .generated = pp.generated.items,
         .nodes = p.nodes.toOwnedSlice(),
         .data = p.data.toOwnedSlice(),
-        .root_decls = p.decl_buf.toOwnedSlice(),
+        .root_decls = root_decls,
         .strings = p.strings.toOwnedSlice(),
         .value_map = p.value_map,
     };
