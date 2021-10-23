@@ -262,6 +262,10 @@ pub const Tag = enum {
     newline_eof,
     empty_translation_unit,
     omitting_parameter_name,
+    non_int_bitfield,
+    negative_bitwidth,
+    zero_width_named_field,
+    bitfield_too_big,
 };
 
 const Options = struct {
@@ -654,6 +658,10 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .newline_eof => m.write("no newline at end of file"),
             .empty_translation_unit => m.write("ISO C requires a translation unit to contain at least one declaration"),
             .omitting_parameter_name => m.write("omitting the parameter name in a function definition is a C2x extension"),
+            .non_int_bitfield => m.print("bit-field has non-integer type '{s}'", .{msg.extra.str}),
+            .negative_bitwidth => m.print("bit-field has negative width ({d})", .{msg.extra.signed}),
+            .zero_width_named_field => m.write("named bit-field has zero width"),
+            .bitfield_too_big => m.write("width of bit-field exceeds width of its type"),
         }
         m.end(lcs);
 
@@ -857,6 +865,10 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .pragma_error_message,
         .poisoned_identifier,
         .pragma_poison_identifier,
+        .non_int_bitfield,
+        .negative_bitwidth,
+        .zero_width_named_field,
+        .bitfield_too_big,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
