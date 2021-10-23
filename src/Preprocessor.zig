@@ -166,7 +166,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
         var tok = tokenizer.next();
         switch (tok.id) {
             .hash => if (start_of_line) {
-                const directive = tokenizer.next();
+                const directive = tokenizer.nextNoWS();
                 switch (directive.id) {
                     .keyword_error => {
                         // #error tokens..
@@ -277,10 +277,10 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                     },
                     .keyword_line => {
                         // #line number "file"
-                        const digits = tokenizer.next();
+                        const digits = tokenizer.nextNoWS();
                         if (digits.id != .integer_literal) try pp.err(digits, .line_simple_digit);
                         if (digits.id == .eof or digits.id == .nl) continue;
-                        const name = tokenizer.next();
+                        const name = tokenizer.nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
                         try pp.expectNl(&tokenizer);
@@ -296,7 +296,11 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                     },
                 }
             },
-            .nl => start_of_line = true,
+            .whitespace => if (pp.comp.only_preprocess) try pp.tokens.append(pp.comp.gpa, tokFromRaw(tok)),
+            .nl => {
+                start_of_line = true;
+                if (pp.comp.only_preprocess) try pp.tokens.append(pp.comp.gpa, tokFromRaw(tok));
+            },
             .eof => {
                 if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
                 // The following check needs to occur here and not at the top of the function
@@ -359,7 +363,7 @@ fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
 
 /// Consume next token, error if it is not an identifier.
 fn expectMacroName(pp: *Preprocessor, tokenizer: *Tokenizer) Error!?[]const u8 {
-    const macro_name = tokenizer.next();
+    const macro_name = tokenizer.nextNoWS();
     if (!macro_name.id.isMacroIdentifier()) {
         try pp.err(macro_name, .macro_name_missing);
         skipToNl(tokenizer);
@@ -374,6 +378,7 @@ fn expectNl(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     while (true) {
         const tok = tokenizer.next();
         if (tok.id == .nl or tok.id == .eof) return;
+        if (tok.id == .whitespace) continue;
         if (!sent_err) {
             sent_err = true;
             try pp.err(tok, .extra_tokens_directive_end);
@@ -388,34 +393,32 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
 
     while (true) {
         var tok = tokenizer.next();
-        if (tok.id == .nl or tok.id == .eof) {
-            if (pp.tokens.len == start) {
-                try pp.err(tok, .expected_value_in_expr);
-                try pp.expectNl(tokenizer);
-                return false;
-            }
-            tok.id = .eof;
-            try pp.tokens.append(pp.comp.gpa, tokFromRaw(tok));
-            break;
-        } else if (tok.id == .keyword_defined) {
-            const first = tokenizer.next();
-            const macro_tok = if (first.id == .l_paren)
-                tokenizer.next()
-            else
-                first;
-            if (!macro_tok.id.isMacroIdentifier()) try pp.err(macro_tok, .macro_name_missing);
-            if (first.id == .l_paren) {
-                const r_paren = tokenizer.next();
-                if (r_paren.id != .r_paren) {
-                    try pp.err(r_paren, .closing_paren);
-                    try pp.err(first, .to_match_paren);
+        switch (tok.id) {
+            .nl, .eof => {
+                if (pp.tokens.len == start) {
+                    try pp.err(tok, .expected_value_in_expr);
+                    try pp.expectNl(tokenizer);
+                    return false;
                 }
-            }
-            if (pp.defines.get(pp.tokSliceSafe(macro_tok)) != null) {
-                tok.id = .one;
-            } else {
-                tok.id = .zero;
-            }
+                tok.id = .eof;
+                try pp.tokens.append(pp.comp.gpa, tokFromRaw(tok));
+                break;
+            },
+            .keyword_defined => {
+                const first = tokenizer.nextNoWS();
+                const macro_tok = if (first.id == .l_paren) tokenizer.nextNoWS() else first;
+                if (!macro_tok.id.isMacroIdentifier()) try pp.err(macro_tok, .macro_name_missing);
+                if (first.id == .l_paren) {
+                    const r_paren = tokenizer.nextNoWS();
+                    if (r_paren.id != .r_paren) {
+                        try pp.err(r_paren, .closing_paren);
+                        try pp.err(first, .to_match_paren);
+                    }
+                }
+                tok.id = if (pp.defines.get(pp.tokSliceSafe(macro_tok)) != null) .one else .zero;
+            },
+            .whitespace => continue,
+            else => {},
         }
         try pp.expandMacro(tokenizer, tok);
     }
@@ -522,11 +525,11 @@ fn skip(
     while (tokenizer.index < tokenizer.buf.len) {
         if (line_start) {
             const dir_start = tokenizer.index;
-            const hash = tokenizer.next();
+            const hash = tokenizer.nextNoWS();
             if (hash.id == .nl) continue;
             line_start = false;
             if (hash.id != .hash) continue;
-            const directive = tokenizer.next();
+            const directive = tokenizer.nextNoWS();
             switch (directive.id) {
                 .keyword_else => {
                     if (ifs_seen != 0) continue;
@@ -594,13 +597,20 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
     var i: usize = 0;
     while (i < simple_macro.tokens.len) : (i += 1) {
         const raw = simple_macro.tokens[i];
-        if (raw.id == .hash_hash) {
-            const lhs = buf.pop();
-            const rhs = tokFromRaw(simple_macro.tokens[i + 1]);
-            i += 1;
-            buf.appendAssumeCapacity(try pp.pasteTokens(lhs, rhs));
-        } else {
-            buf.appendAssumeCapacity(tokFromRaw(raw));
+        switch (raw.id) {
+            .hash_hash => {
+                var lhs = buf.pop();
+                if (lhs.id == .whitespace) lhs = buf.pop();
+                var rhs = tokFromRaw(simple_macro.tokens[i + 1]);
+                i += 1;
+                if (rhs.id == .whitespace) {
+                    rhs = tokFromRaw(simple_macro.tokens[i + 1]);
+                    i += 1;
+                }
+                buf.appendAssumeCapacity(try pp.pasteTokens(lhs, rhs));
+            },
+            .whitespace => if (pp.comp.only_preprocess) buf.appendAssumeCapacity(tokFromRaw(raw)),
+            else => buf.appendAssumeCapacity(tokFromRaw(raw)),
         }
     }
 
@@ -622,6 +632,7 @@ fn pasteStringsUnsafe(pp: *Preprocessor, toks: []const Token) ![]const u8 {
     if (unwrapped.len == 0) return error.ExpectedStringLiteral;
 
     for (unwrapped) |tok| {
+        if (tok.id == .whitespace) continue;
         if (tok.id != .string_literal) return error.ExpectedStringLiteral;
         const str = pp.expandedSlice(tok);
         try pp.char_buf.appendSlice(str[1 .. str.len - 1]);
@@ -632,11 +643,22 @@ fn pasteStringsUnsafe(pp: *Preprocessor, toks: []const Token) ![]const u8 {
 fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token) Error!RawToken.Id {
     switch (builtin) {
         .macro_param_has_attribute => {
-            if (param_toks.len != 1 or param_toks[0].id != .identifier) {
-                try pp.comp.diag.add(.{ .tag = .feature_check_requires_identifier, .loc = param_toks[0].loc });
+            var invalid: ?Token = null;
+            var identifier: ?Token = null;
+            for (param_toks) |tok| switch (tok.id) {
+                .identifier, .extended_identifier => {
+                    if (identifier) |_| invalid = tok else identifier = tok;
+                },
+                .whitespace => continue,
+                else => invalid = tok,
+            };
+            if (identifier == null and invalid == null) invalid = param_toks[0];
+            if (invalid) |some| {
+                try pp.comp.diag.add(.{ .tag = .feature_check_requires_identifier, .loc = some.loc });
                 return .zero;
             }
-            const attr_name = pp.expandedSlice(param_toks[0]);
+
+            const attr_name = pp.expandedSlice(identifier.?);
             return if (AttrTag.fromString(attr_name) == null) .zero else .one;
         },
         .macro_param_has_warning => {
@@ -663,11 +685,22 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             return if (Diagnostics.warningExists(warning_name)) .one else .zero;
         },
         .macro_param_is_identifier => {
-            if (param_toks.len > 1) {
-                try pp.comp.diag.add(.{ .tag = .missing_tok_builtin, .loc = param_toks[1].loc, .extra = .{ .tok_id_expected = .r_paren } });
+            var invalid: ?Token = null;
+            var identifier: ?Token = null;
+            for (param_toks) |tok| switch (tok.id) {
+                .whitespace => continue,
+                else => {
+                    if (identifier) |_| invalid = tok else identifier = tok;
+                },
+            };
+            if (identifier == null and invalid == null) invalid = param_toks[0];
+            if (invalid) |some| {
+                try pp.comp.diag.add(.{ .tag = .missing_tok_builtin, .loc = some.loc, .extra = .{ .tok_id_expected = .r_paren } });
                 return .zero;
             }
-            return if (param_toks[0].id == .identifier) .one else .zero;
+
+            const id = identifier.?.id;
+            return if (id == .identifier or id == .extended_identifier) .one else .zero;
         },
         else => unreachable,
     }
@@ -709,22 +742,28 @@ fn expandFuncMacro(
         const raw = func_macro.tokens[tok_i];
         switch (raw.id) {
             .hash_hash => {
-                const raw_next = func_macro.tokens[tok_i + 1];
-                const placeholder_token = Token{ .id = .empty_arg, .loc = .{ .id = raw_next.source, .byte_offset = raw_next.start } };
+                // TODO this is messy and probably incorrect
+                var prev = buf.pop();
+                if (prev.id == .whitespace) prev = buf.pop();
+                const next = while (true) {
+                    const raw_next = func_macro.tokens[tok_i + 1];
+                    // skip next token
+                    tok_i += 1;
+                    const placeholder_token = Token{ .id = .empty_arg, .loc = .{ .id = raw_next.source, .byte_offset = raw_next.start } };
 
-                const prev = buf.pop();
-                var next = switch (raw_next.id) {
-                    .macro_param, .macro_param_no_expand => args.items[raw_next.end],
-                    .keyword_va_args => variable_arguments.items,
-                    else => &[1]Token{tokFromRaw(raw_next)},
-                };
-                next = if (next.len > 0) next else &[1]Token{placeholder_token};
+                    var next = switch (raw_next.id) {
+                        .whitespace => continue,
+                        .macro_param, .macro_param_no_expand => args.items[raw_next.end],
+                        .keyword_va_args => variable_arguments.items,
+                        else => &[1]Token{tokFromRaw(raw_next)},
+                    };
+                    while (next.len > 0 and next[0].id == .whitespace) next = next[1..];
+                    break if (next.len > 0) next else &[1]Token{placeholder_token};
+                } else unreachable;
 
                 var pastedToken = try pp.pasteTokens(prev, next[0]);
                 try buf.append(pastedToken);
                 try buf.appendSlice(next[1..]);
-                // skip next token
-                tok_i += 1;
             },
             .macro_param_no_expand => {
                 const placeholder_token = Token{ .id = .empty_arg, .loc = .{ .id = raw.source, .byte_offset = raw.start } };
@@ -761,10 +800,19 @@ fn expandFuncMacro(
                     args.items[raw.end];
 
                 pp.char_buf.clearRetainingCapacity();
-                // TODO pretty print these
+
                 try pp.char_buf.append('"');
+                var ws_state: enum { start, need, not_needed } = .start;
                 for (arg) |tok| {
-                    if (tok.id == .invalid) continue;
+                    if (tok.id == .nl) continue;
+                    if (tok.id == .whitespace) {
+                        if (ws_state == .start) continue;
+                        ws_state = .need;
+                        continue;
+                    }
+                    if (ws_state == .need) try pp.char_buf.append(' ');
+                    ws_state = .not_needed;
+
                     for (pp.expandedSlice(tok)) |c| {
                         if (c == '"')
                             try pp.char_buf.appendSlice("\\\"")
@@ -801,9 +849,8 @@ fn expandFuncMacro(
                     .loc = loc,
                 });
             },
-            else => {
-                try buf.append(tokFromRaw(raw));
-            },
+            .whitespace => if (pp.comp.only_preprocess) try buf.append(tokFromRaw(raw)),
+            else => try buf.append(tokFromRaw(raw)),
         }
     }
 
@@ -864,7 +911,7 @@ fn collectMacroFuncArguments(
     while (true) {
         const tok = try nextBufToken(pp, tokenizer, buf, start_idx, end_idx, extend_buf);
         switch (tok.id) {
-            .nl => {},
+            .nl, .whitespace => {},
             .l_paren => break,
             else => {
                 if (is_builtin) {
@@ -1055,6 +1102,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
     try pp.expandMacroExhaustive(tokenizer, &buf, 0, 1, true);
     try pp.tokens.ensureCapacity(pp.comp.gpa, pp.tokens.len + buf.items.len);
     for (buf.items) |*r| {
+        if (r.id == .whitespace and !pp.comp.only_preprocess) continue;
         pp.tokens.appendAssumeCapacity(r.*);
     }
 }
@@ -1113,8 +1161,8 @@ fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
         .index = @intCast(u32, start),
         .source = .generated,
     };
-    const pasted_token = tmp_tokenizer.next();
-    const next = tmp_tokenizer.next().id;
+    const pasted_token = tmp_tokenizer.nextNoWS();
+    const next = tmp_tokenizer.nextNoWS().id;
     if (next != .nl and next != .eof) {
         try pp.comp.diag.add(.{
             .tag = .pasting_formed_invalid,
@@ -1150,7 +1198,7 @@ fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
 /// Handle a #define directive.
 fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     // Get macro name and validate it.
-    const macro_name = tokenizer.next();
+    const macro_name = tokenizer.nextNoWS();
     if (macro_name.id == .keyword_defined) {
         try pp.err(macro_name, .defined_as_macro_name);
         return skipToNl(tokenizer);
@@ -1162,22 +1210,23 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
 
     // Check for function macros and empty defines.
     var first = tokenizer.next();
-    first.id.simplifyMacroKeyword();
-    if (first.id == .nl or first.id == .eof) {
-        return pp.defineMacro(macro_name, .{
+    switch (first.id) {
+        .nl, .eof => return pp.defineMacro(macro_name, .{
             .params = undefined,
             .tokens = undefined,
             .var_args = false,
             .loc = undefined,
             .is_func = false,
-        });
-    } else if (first.start == macro_name.end) {
-        if (first.id == .l_paren) return pp.defineFn(tokenizer, macro_name, first);
-        try pp.err(first, .whitespace_after_macro_name);
-    } else if (first.id == .hash_hash) {
+        }),
+        .whitespace => first = tokenizer.next(),
+        .l_paren => return pp.defineFn(tokenizer, macro_name, first),
+        else => try pp.err(first, .whitespace_after_macro_name),
+    }
+    if (first.id == .hash_hash) {
         try pp.err(first, .hash_hash_at_start);
         return skipToNl(tokenizer);
     }
+    first.id.simplifyMacroKeyword();
 
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
     try pp.token_buf.append(first);
@@ -1188,7 +1237,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         tok.id.simplifyMacroKeyword();
         switch (tok.id) {
             .hash_hash => {
-                const next = tokenizer.next();
+                const next = tokenizer.nextNoWS();
                 switch (next.id) {
                     .nl, .eof => {
                         try pp.err(tok, .hash_hash_at_end);
@@ -1228,17 +1277,18 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
     var var_args = false;
     while (true) {
         var tok = tokenizer.next();
+        if (tok.id == .whitespace) continue;
         if (tok.id == .r_paren) break;
         if (params.items.len != 0) {
             if (tok.id != .comma) {
                 try pp.err(tok, .invalid_token_param_list);
                 return skipToNl(tokenizer);
-            } else tok = tokenizer.next();
+            } else tok = tokenizer.nextNoWS();
         }
         if (tok.id == .eof) return pp.err(tok, .unterminated_macro_param_list);
         if (tok.id == .ellipsis) {
             var_args = true;
-            const r_paren = tokenizer.next();
+            const r_paren = tokenizer.nextNoWS();
             if (r_paren.id != .r_paren) {
                 try pp.err(r_paren, .missing_paren_param_list);
                 try pp.err(l_paren, .to_match_paren);
@@ -1260,8 +1310,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
         var tok = tokenizer.next();
         switch (tok.id) {
             .nl, .eof => break,
+            .whitespace => if (pp.token_buf.items.len != 0) try pp.token_buf.append(tok),
             .hash => {
-                const param = tokenizer.next();
+                const param = tokenizer.nextNoWS();
                 blk: {
                     if (var_args and param.id == .keyword_va_args) {
                         tok.id = .stringify_va_args;
@@ -1290,10 +1341,10 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                     return skipToNl(tokenizer);
                 }
                 const start = tokenizer.index;
-                const next = tokenizer.next();
+                const next = tokenizer.nextNoWS();
                 if (next.id == .nl or next.id == .eof) {
                     try pp.err(tok, .hash_hash_at_end);
-                    return skipToNl(tokenizer);
+                    return;
                 }
                 tokenizer.index = start;
                 // convert the previous token to .macro_param_no_expand if it was .macro_param
@@ -1352,7 +1403,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
 
 /// Handle a pragma directive
 fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken) !void {
-    const name_tok = tokenizer.next();
+    const name_tok = tokenizer.nextNoWS();
     if (name_tok.id == .nl or name_tok.id == .eof) return;
 
     const name = pp.tokSlice(name_tok);
@@ -1362,6 +1413,7 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken) !void 
     try pp.tokens.append(pp.comp.gpa, tokFromRaw(name_tok));
     while (true) {
         const next_tok = tokenizer.next();
+        if (next_tok.id == .whitespace) continue;
         if (next_tok.id == .eof) {
             try pp.tokens.append(pp.comp.gpa, .{
                 .id = .nl,
@@ -1389,7 +1441,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
     const start = pp.tokens.len;
     defer pp.tokens.len = start;
 
-    var first = tokenizer.next();
+    var first = tokenizer.nextNoWS();
     if (first.id == .angle_bracket_left) to_end: {
         // The tokenizer does not handle <foo> include strings so do it here.
         while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
@@ -1424,7 +1476,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
         },
     }
     // Error on extra tokens.
-    const nl = tokenizer.next();
+    const nl = tokenizer.nextNoWS();
     if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
         skipToNl(tokenizer);
         try pp.err(first, .extra_tokens_directive_end);
@@ -1444,70 +1496,43 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
 
 /// Pretty print tokens and try to preserve whitespace.
 pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
-    var i: usize = 0;
-    var cur: Token = pp.tokens.get(i);
-    while (true) {
-        if (cur.id == .eof) break;
+    var i: u32 = 0;
+    while (true) : (i += 1) {
+        var cur: Token = pp.tokens.get(i);
+        switch (cur.id) {
+            .eof => break,
+            .nl => try w.writeAll("\n"),
+            .keyword_pragma => {
+                const pragma_name = pp.expandedSlice(pp.tokens.get(i + 1));
+                const end_idx = mem.indexOfScalarPos(Token.Id, pp.tokens.items(.id), i, .nl) orelse i + 1;
+                const pragma_len = @intCast(u32, end_idx) - i;
 
-        i += 1;
-        const next = pp.tokens.get(i);
-        if (cur.id == .nl) {
-            cur = next;
-            continue;
-        }
-
-        if (cur.id == .keyword_pragma) {
-            const pragma_name = pp.expandedSlice(next);
-            const end_idx = mem.indexOfScalarPos(Token.Id, pp.tokens.items(.id), i, .nl) orelse i + 1;
-            const pragma_len = @intCast(u32, end_idx) - i;
-
-            if (pp.comp.getPragma(pragma_name)) |prag| {
-                if (!prag.shouldPreserveTokens(pp, @intCast(u32, i))) {
-                    i += pragma_len;
-                    cur = pp.tokens.get(i);
-                    continue;
+                if (pp.comp.getPragma(pragma_name)) |prag| {
+                    if (!prag.shouldPreserveTokens(pp, i + 1)) {
+                        i += pragma_len;
+                        cur = pp.tokens.get(i);
+                        continue;
+                    }
                 }
-            }
-            try w.writeByte('#');
+                try w.writeAll("#pragma");
+                i += 1;
+                while (true) : (i += 1) {
+                    cur = pp.tokens.get(i);
+                    if (cur.id == .nl) {
+                        try w.writeByte('\n');
+                        break;
+                    }
+                    try w.writeByte(' ');
+                    const slice = pp.expandedSlice(cur);
+                    try w.writeAll(slice);
+                }
+            },
+            else => {
+                const slice = pp.expandedSlice(cur);
+                try w.writeAll(slice);
+            },
         }
-        const slice = pp.expandedSlice(cur);
-        try w.writeAll(slice);
-
-        if (next.id == .eof or next.id == .keyword_pragma or next.id == .nl) {
-            try w.writeByte('\n');
-        } else if (next.loc.next != null or next.loc.id == .generated) {
-            // next was expanded from a macro
-            try w.writeByte(' ');
-        } else if (next.loc.id == cur.loc.id) {
-            // TODO fix this
-            // const source = pp.comp.getSource(cur.loc.id).buf;
-            // const cur_end = cur.loc.byte_offset + slice.len;
-            // try printInBetween(source[cur_end..next.loc.byte_offset], w);
-            try w.writeByte(' ');
-        } else {
-            // next was included from another file
-            try w.writeByte('\n');
-        }
-        cur = next;
     }
-}
-
-fn printInBetween(slice: []const u8, w: anytype) !void {
-    var in_between = slice;
-    while (true) {
-        if (mem.indexOfScalar(u8, in_between, '#') orelse mem.indexOf(u8, in_between, "//")) |some| {
-            try w.writeAll(in_between[0..some]);
-            in_between = in_between[some..];
-            const nl = mem.indexOfScalar(u8, in_between, '\n') orelse in_between.len;
-            in_between = in_between[nl..];
-        } else if (mem.indexOf(u8, in_between, "/*")) |some| {
-            try w.writeAll(in_between[0..some]);
-            in_between = in_between[some..];
-            const nl = mem.indexOf(u8, in_between, "*/") orelse in_between.len;
-            in_between = in_between[nl + 2 ..];
-        } else break;
-    }
-    try w.writeAll(in_between);
 }
 
 test "Preserve pragma tokens sometimes" {
@@ -1519,6 +1544,7 @@ test "Preserve pragma tokens sometimes" {
 
             var comp = Compilation.init(allocator);
             defer comp.deinit();
+            comp.only_preprocess = true;
 
             try comp.addDefaultPragmaHandlers();
 
@@ -1558,11 +1584,10 @@ test "Preserve pragma tokens sometimes" {
             try std.testing.expectEqualStrings(expected, output);
         }
     };
-    // TODO: space between `x` and `;` is an artifact of token prettyprinting
     const preserve_gcc_diagnostic =
         \\#pragma GCC diagnostic error "-Wnewline-eof"
         \\#pragma GCC warning error "-Wnewline-eof"
-        \\int x ;
+        \\int x;
         \\#pragma GCC ignored error "-Wnewline-eof"
         \\
     ;
@@ -1570,11 +1595,11 @@ test "Preserve pragma tokens sometimes" {
 
     const omit_once =
         \\#pragma once
-        \\int x ;
+        \\int x;
         \\#pragma once
         \\
     ;
-    try Test.check(omit_once, "int x ;\n");
+    try Test.check(omit_once, "int x;\n");
 
     const omit_poison =
         \\#pragma GCC poison foobar

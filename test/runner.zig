@@ -40,6 +40,7 @@ pub fn main() !void {
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
+            if (entry.kind == .Directory) continue;
             if (entry.kind != .File) {
                 print("skipping non file entry '{s}'\n", .{entry.name});
                 continue;
@@ -90,7 +91,7 @@ pub fn main() !void {
     var fail_count: u32 = 0;
     var skip_count: u32 = 0;
     const initial_options = comp.diag.options;
-    for (cases.items) |path| {
+    next_test: for (cases.items) |path| {
         comp.langopts.standard = .default;
         comp.diag.options = initial_options;
         const file = comp.addSource(path) catch |err| {
@@ -172,27 +173,30 @@ pub fn main() !void {
                 continue;
             }
 
-            const expected_tokens = macro.tokens;
-
-            if (pp.tokens.len - 1 != expected_tokens.len) {
-                fail_count += 1;
-                progress.log(
-                    "EXPECTED_TOKENS count differs: expected {d} found {d}\n",
-                    .{ expected_tokens.len, pp.tokens.len - 1 },
-                );
-                continue;
+            {
+                var count: u32 = 0;
+                for (macro.tokens) |tok| switch (tok.id) {
+                    .whitespace => {},
+                    else => count += 1,
+                };
+                if (pp.tokens.len - 1 != count) {
+                    fail_count += 1;
+                    progress.log(
+                        "EXPECTED_TOKENS count differs: expected {d} found {d}\n",
+                        .{ count, pp.tokens.len - 1 },
+                    );
+                    continue;
+                }
             }
 
             var i: usize = 0;
-            while (true) : (i += 1) {
-                const tok = pp.tokens.get(i);
-                if (tok.id == .eof) {
-                    if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
-                    break;
-                }
+            for (macro.tokens) |expected_tok| {
+                if (expected_tok.id == .whitespace) continue;
+                const actual_tok = pp.tokens.get(i);
+                i += 1;
 
-                const expected = pp.tokSliceSafe(expected_tokens[i]);
-                const actual = pp.expandedSlice(tok);
+                const expected = pp.tokSliceSafe(expected_tok);
+                const actual = pp.expandedSlice(actual_tok);
                 if (!std.mem.eql(u8, expected, actual)) {
                     fail_count += 1;
                     progress.log(
@@ -201,7 +205,7 @@ pub fn main() !void {
                     );
                     break;
                 }
-            }
+            } else if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
             continue;
         }
 
@@ -225,20 +229,17 @@ pub fn main() !void {
 
             try actual.dump(&tree, test_fn.decl.node, gpa);
 
-            if (types.tokens.len != actual.types.items.len) {
-                fail_count += 1;
-                progress.log("EXPECTED_TYPES count of {d} does not match function statement length of {d}\n", .{
-                    types.tokens.len,
-                    actual.types.items.len,
-                });
-                break;
-            }
-            for (types.tokens) |str, i| {
+            var i: usize = 0;
+            for (types.tokens) |str| {
+                if (str.id == .whitespace) continue;
                 if (str.id != .string_literal) {
                     fail_count += 1;
                     progress.log("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
-                    break;
+                    continue :next_test;
                 }
+                defer i += 1;
+                if (i >= actual.types.items.len) continue;
+
                 const expected_type = std.mem.trim(u8, pp.tokSliceSafe(str), "\"");
                 const actual_type = actual.types.items[i];
                 if (!std.mem.eql(u8, expected_type, actual_type)) {
@@ -247,8 +248,16 @@ pub fn main() !void {
                         expected_type,
                         actual_type,
                     });
-                    break;
+                    continue :next_test;
                 }
+            }
+            if (i != actual.types.items.len) {
+                fail_count += 1;
+                progress.log(
+                    "EXPECTED_TYPES count differs: expected {d} found {d}\n",
+                    .{ i, actual.types.items.len },
+                );
+                continue;
             }
         }
 
@@ -264,24 +273,17 @@ pub fn main() !void {
                 continue;
             }
 
-            if (macro.tokens.len != expected_count) {
-                fail_count += 1;
-                progress.log(
-                    \\EXPECTED_ERRORS missing errors, expected {d} found {d},
-                    \\=== actual output ===
-                    \\{s}
-                    \\
-                    \\
-                , .{ macro.tokens.len, expected_count, m.buf.items });
-                continue;
-            }
-
+            var count: usize = 0;
             for (macro.tokens) |str| {
+                if (str.id == .whitespace) continue;
                 if (str.id != .string_literal) {
                     fail_count += 1;
                     progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
-                    break;
+                    continue :next_test;
                 }
+                defer count += 1;
+                if (count >= expected_count) continue;
+
                 defer buf.items.len = 0;
                 // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
                 std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSliceSafe(str))) == .success);
@@ -300,9 +302,22 @@ pub fn main() !void {
                         \\
                         \\
                     , .{ expected_error, m.buf.items });
-                    break;
+                    continue :next_test;
                 }
-            } else ok_count += 1;
+            }
+
+            if (count != expected_count) {
+                fail_count += 1;
+                progress.log(
+                    \\EXPECTED_ERRORS missing errors, expected {d} found {d},
+                    \\=== actual output ===
+                    \\{s}
+                    \\
+                    \\
+                , .{ count, expected_count, m.buf.items });
+                continue;
+            }
+            ok_count += 1;
             continue;
         }
 

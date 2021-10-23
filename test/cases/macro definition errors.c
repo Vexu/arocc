@@ -7,9 +7,10 @@
 #define seven(a) #b
 #define eight(a) ##
 #define nine(a) a ##
+#define ten##
 
 #if defined one || defined two || defined three || defined four || defined five \
-     || defined six || defined seven || defined eight || defined nine
+     || defined six || defined seven || defined eight || defined nine || defined ten
 #error failed
 #endif
 
@@ -23,3 +24,5 @@
     "macro definition errors.c:7:19: error: '#' is not followed by a macro parameter" \
     "macro definition errors.c:8:18: error: '##' cannot appear at the start of a macro expansion" \
     "macro definition errors.c:9:19: error: '##' cannot appear at the end of a macro expansion" \
+    "macro definition errors.c:10:12: warning: ISO C99 requires whitespace after the macro name [-Wc99-extensions]" \
+    "macro definition errors.c:10:12: error: '##' cannot appear at the start of a macro expansion" \

@@ -16,6 +16,7 @@ pub const Token = struct {
     pub const Id = enum(u8) {
         invalid,
         nl,
+        whitespace,
         eof,
         /// identifier containing solely basic character set characters
         identifier,
@@ -338,6 +339,7 @@ pub const Token = struct {
                 .integer_literal_ll,
                 .integer_literal_llu,
                 .macro_string,
+                .whitespace,
                 => null,
 
                 .zero => "0",
@@ -685,6 +687,7 @@ pub fn next(self: *Tokenizer) Token {
     var state: enum {
         start,
         cr,
+        whitespace,
         back_slash,
         back_slash_cr,
         u,
@@ -743,7 +746,7 @@ pub fn next(self: *Tokenizer) Token {
     var start = self.index;
     var id: Token.Id = .eof;
 
-    var string = false;
+    var return_state = state;
     var counter: u32 = 0;
     var codepoint_len: u3 = undefined;
     while (self.index < self.buf.len) : (self.index += codepoint_len) {
@@ -841,15 +844,13 @@ pub fn next(self: *Tokenizer) Token {
                 '0' => state = .zero,
                 '1'...'9' => state = .integer_literal,
                 '\\' => state = .back_slash,
-                '\t', '\x0B', '\x0C', ' ' => start = self.index + 1,
-                else => {
-                    if (c > 0x7F and Token.mayAppearInIdent(self.comp, c, .start)) {
-                        state = .extended_identifier;
-                    } else {
-                        id = .invalid;
-                        self.index += codepoint_len;
-                        break;
-                    }
+                '\t', '\x0B', '\x0C', ' ' => state = .whitespace,
+                else => if (c > 0x7F and Token.mayAppearInIdent(self.comp, c, .start)) {
+                    state = .extended_identifier;
+                } else {
+                    id = .invalid;
+                    self.index += codepoint_len;
+                    break;
                 },
             },
             .cr => switch (c) {
@@ -863,10 +864,18 @@ pub fn next(self: *Tokenizer) Token {
                     break;
                 },
             },
+            .whitespace => switch (c) {
+                '\t', '\x0B', '\x0C', ' ' => {},
+                '\\' => state = .back_slash,
+                else => {
+                    id = .whitespace;
+                    break;
+                },
+            },
             .back_slash => switch (c) {
                 '\n' => {
                     start = self.index + 1;
-                    state = .start;
+                    state = .whitespace;
                 },
                 '\r' => state = .back_slash_cr,
                 '\t', '\x0B', '\x0C', ' ' => {
@@ -880,7 +889,7 @@ pub fn next(self: *Tokenizer) Token {
             .back_slash_cr => switch (c) {
                 '\n' => {
                     start = self.index + 1;
-                    state = .start;
+                    state = .whitespace;
                 },
                 else => {
                     start = self.index;
@@ -944,7 +953,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .string_literal => switch (c) {
                 '\\' => {
-                    string = true;
+                    return_state = .string_literal;
                     state = .escape_sequence;
                 },
                 '"' => {
@@ -959,7 +968,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .char_literal_start => switch (c) {
                 '\\' => {
-                    string = false;
+                    return_state = .char_literal;
                     state = .escape_sequence;
                 },
 
@@ -973,7 +982,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .char_literal => switch (c) {
                 '\\' => {
-                    string = false;
+                    return_state = .char_literal;
                     state = .escape_sequence;
                 },
                 '\'' => {
@@ -988,7 +997,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .escape_sequence => switch (c) {
                 '\'', '"', '?', '\\', 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v', '\n' => {
-                    state = if (string) .string_literal else .char_literal;
+                    state = return_state;
                 },
                 '\r' => state = .cr_escape,
                 '0'...'7' => {
@@ -1010,9 +1019,7 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .cr_escape => switch (c) {
-                '\n' => {
-                    state = if (string) .string_literal else .char_literal;
-                },
+                '\n' => state = return_state,
                 else => {
                     id = .invalid;
                     break;
@@ -1021,28 +1028,24 @@ pub fn next(self: *Tokenizer) Token {
             .octal_escape => switch (c) {
                 '0'...'7' => {
                     counter += 1;
-                    if (counter == 3) {
-                        state = if (string) .string_literal else .char_literal;
-                    }
+                    if (counter == 3) state = return_state;
                 },
                 else => {
                     codepoint_len = 0;
-                    state = if (string) .string_literal else .char_literal;
+                    state = return_state;
                 },
             },
             .hex_escape => switch (c) {
                 '0'...'9', 'a'...'f', 'A'...'F' => {},
                 else => {
                     codepoint_len = 0;
-                    state = if (string) .string_literal else .char_literal;
+                    state = return_state;
                 },
             },
             .unicode_escape => switch (c) {
                 '0'...'9', 'a'...'f', 'A'...'F' => {
                     counter -= 1;
-                    if (counter == 0) {
-                        state = if (string) .string_literal else .char_literal;
-                    }
+                    if (counter == 0) state = return_state;
                 },
                 else => {
                     id = .invalid;
@@ -1136,9 +1139,7 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .angle_bracket_left => switch (c) {
-                '<' => {
-                    state = .angle_bracket_angle_bracket_left;
-                },
+                '<' => state = .angle_bracket_angle_bracket_left,
                 '=' => {
                     id = .angle_bracket_left_equal;
                     self.index += 1;
@@ -1161,9 +1162,7 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .angle_bracket_right => switch (c) {
-                '>' => {
-                    state = .angle_bracket_angle_bracket_right;
-                },
+                '>' => state = .angle_bracket_angle_bracket_right,
                 '=' => {
                     id = .angle_bracket_right_equal;
                     self.index += 1;
@@ -1197,12 +1196,8 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .period => switch (c) {
-                '.' => {
-                    state = .period2;
-                },
-                '0'...'9' => {
-                    state = .float_fraction;
-                },
+                '.' => state = .period2,
+                '0'...'9' => state = .float_fraction,
                 else => {
                     id = .period;
                     break;
@@ -1269,12 +1264,8 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .slash => switch (c) {
-                '/' => {
-                    state = .line_comment;
-                },
-                '*' => {
-                    state = .multi_line_comment;
-                },
+                '/' => state = .line_comment,
+                '*' => state = .multi_line_comment,
                 '=' => {
                     id = .slash_equal;
                     self.index += 1;
@@ -1317,14 +1308,12 @@ pub fn next(self: *Tokenizer) Token {
             },
             .integer_literal_oct => switch (c) {
                 '0'...'7' => {},
-                else => {
-                    if (c <= 0x7F) {
-                        state = .integer_suffix;
-                        self.index -= 1;
-                    } else {
-                        id = .integer_literal;
-                        break;
-                    }
+                else => if (c <= 0x7F) {
+                    state = .integer_suffix;
+                    self.index -= 1;
+                } else {
+                    id = .integer_literal;
+                    break;
                 },
             },
             .integer_literal_binary_first => switch (c) {
@@ -1336,14 +1325,12 @@ pub fn next(self: *Tokenizer) Token {
             },
             .integer_literal_binary => switch (c) {
                 '0', '1' => {},
-                else => {
-                    if (c <= 0x7F) {
-                        state = .integer_suffix;
-                        self.index -= 1;
-                    } else {
-                        id = .integer_literal;
-                        break;
-                    }
+                else => if (c <= 0x7F) {
+                    state = .integer_suffix;
+                    self.index -= 1;
+                } else {
+                    id = .integer_literal;
+                    break;
                 },
             },
             .integer_literal_hex_first => switch (c) {
@@ -1359,28 +1346,24 @@ pub fn next(self: *Tokenizer) Token {
                 '0'...'9', 'a'...'f', 'A'...'F' => {},
                 '.' => state = .float_fraction_hex,
                 'p', 'P' => state = .float_exponent,
-                else => {
-                    if (c <= 0x7F) {
-                        state = .integer_suffix;
-                        self.index -= 1;
-                    } else {
-                        id = .integer_literal;
-                        break;
-                    }
+                else => if (c <= 0x7F) {
+                    state = .integer_suffix;
+                    self.index -= 1;
+                } else {
+                    id = .integer_literal;
+                    break;
                 },
             },
             .integer_literal => switch (c) {
                 '0'...'9' => {},
                 '.' => state = .float_fraction,
                 'e', 'E' => state = .float_exponent,
-                else => {
-                    if (c <= 0x7F) {
-                        state = .integer_suffix;
-                        self.index -= 1;
-                    } else {
-                        id = .integer_literal;
-                        break;
-                    }
+                else => if (c <= 0x7F) {
+                    state = .integer_suffix;
+                    self.index -= 1;
+                } else {
+                    id = .integer_literal;
+                    break;
                 },
             },
             .integer_suffix => switch (c) {
@@ -1435,14 +1418,12 @@ pub fn next(self: *Tokenizer) Token {
             .float_fraction => switch (c) {
                 '0'...'9' => {},
                 'e', 'E' => state = .float_exponent,
-                else => {
-                    if (c <= 0x7F) {
-                        self.index -= 1;
-                        state = .float_suffix;
-                    } else {
-                        id = .float_literal;
-                        break;
-                    }
+                else => if (c <= 0x7F) {
+                    self.index -= 1;
+                    state = .float_suffix;
+                } else {
+                    id = .float_literal;
+                    break;
                 },
             },
             .float_fraction_hex => switch (c) {
@@ -1511,6 +1492,7 @@ pub fn next(self: *Tokenizer) Token {
             .integer_literal_hex_first,
             => id = .invalid,
 
+            .whitespace => id = .whitespace,
             .float_exponent_digits => id = if (counter == 0) .invalid else .float_literal,
             .float_fraction,
             .float_fraction_hex,
@@ -1553,6 +1535,14 @@ pub fn next(self: *Tokenizer) Token {
         .end = self.index,
         .source = self.source,
     };
+}
+
+pub fn nextNoWS(self: *Tokenizer) Token {
+    var tok = self.next();
+    if (tok.id != .whitespace) return tok;
+    tok = self.next();
+    assert(tok.id != .whitespace);
+    return tok;
 }
 
 test "operators" {
@@ -1858,8 +1848,12 @@ fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) !void {
         .source = .unused,
         .comp = &comp,
     };
-    for (expected_tokens) |expected_token_id| {
+    var i: usize = 0;
+    while (i < expected_tokens.len) {
         const token = tokenizer.next();
+        if (token.id == .whitespace) continue;
+        const expected_token_id = expected_tokens[i];
+        i += 1;
         if (!std.meta.eql(token.id, expected_token_id)) {
             std.debug.print("expected {s}, found {s}\n", .{ @tagName(expected_token_id), @tagName(token.id) });
             return error.TokensDoNotEqual;
