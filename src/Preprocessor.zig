@@ -1379,7 +1379,7 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, tok: RawToken, pragma_state:
 
     while (true) {
         const next_tok = tokenizer.next();
-        if (next_tok.id == .nl) break;
+        if (next_tok.id == .nl or next_tok.id == .eof) break;
         try pp.token_buf.append(next_tok);
     }
     const pragma_toks = pp.token_buf.items[tok_buf_start..];
