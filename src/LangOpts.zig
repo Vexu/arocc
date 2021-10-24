@@ -77,7 +77,9 @@ pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!voi
 
 pub fn suppress(langopts: LangOpts, tag: DiagnosticTag) bool {
     return switch (tag) {
-        .static_assert_missing_message => langopts.standard.atLeast(.c2x),
+        .omitting_parameter_name,
+        .static_assert_missing_message,
+        => langopts.standard.atLeast(.c2x),
         .alignof_expr => langopts.standard.isExplicitGNU(),
         else => false,
     };
