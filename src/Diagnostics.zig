@@ -261,6 +261,7 @@ pub const Tag = enum {
     pragma_poison_macro,
     newline_eof,
     empty_translation_unit,
+    omitting_parameter_name,
 };
 
 const Options = struct {
@@ -652,6 +653,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .pragma_poison_macro => m.write("poisoning existing macro"),
             .newline_eof => m.write("no newline at end of file"),
             .empty_translation_unit => m.write("ISO C requires a translation unit to contain at least one declaration"),
+            .omitting_parameter_name => m.write("omitting the parameter name in a function definition is a C2x extension"),
         }
         m.end(lcs);
 
@@ -901,7 +903,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .array_before => diag.options.@"array-bounds",
         .implicit_int_to_ptr => diag.options.@"int-conversion",
         .pointer_mismatch => diag.options.@"pointer-type-mismatch",
-        .static_assert_missing_message => diag.options.@"c2x-extension",
+        .omitting_parameter_name,
+        .static_assert_missing_message,
+        => diag.options.@"c2x-extension",
         .incompatible_ptr_init,
         .incompatible_ptr_assign,
         => diag.options.@"incompatible-pointer-types",
