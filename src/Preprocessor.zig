@@ -261,7 +261,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                         try pp.expectNl(&tokenizer);
                     },
                     .keyword_include => try pp.include(&tokenizer),
-                    .keyword_pragma => pp.pragma(&tokenizer, tok, &pragma_state) catch |err| switch (err) {
+                    .keyword_pragma => pp.pragma(&tokenizer, directive, &pragma_state) catch |err| switch (err) {
                         error.PragmaOnce => return,
                         else => |e| return e,
                     },
@@ -1372,40 +1372,40 @@ const PragmaState = struct {
     seen_pragma_once: bool = false,
 };
 
+fn pragmaOnce(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_state: *PragmaState) !void {
+    const nl_eof = tokenizer.next();
+    if (nl_eof.id != .nl and nl_eof.id != .eof) {
+        try pp.comp.addDiagnostic(.{
+            .tag = .extra_tokens_directive_end,
+            .loc = .{ .id = nl_eof.source, .byte_offset = nl_eof.start },
+        });
+        skipToNl(tokenizer);
+    }
+    const prev = try pp.pragma_once.fetchPut(tokenizer.source, {});
+    if (prev != null and !pragma_state.seen_pragma_once) {
+        return error.PragmaOnce;
+    }
+    pragma_state.seen_pragma_once = true;
+}
+
 /// Handle a pragma directive
-fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, tok: RawToken, pragma_state: *PragmaState) !void {
-    const tok_buf_start = pp.token_buf.items.len;
-    defer pp.token_buf.items.len = tok_buf_start;
+fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, pragma_state: *PragmaState) !void {
+    const name_tok = tokenizer.next();
+    if (name_tok.id == .nl or name_tok.id == .eof) return;
+
+    const name = pp.tokSlice(name_tok);
+    if (mem.eql(u8, name, "once")) {
+        return pp.pragmaOnce(tokenizer, pragma_state);
+    }
+    try pp.tokens.append(pp.comp.gpa, tokFromRaw(pragma_tok));
+    try pp.tokens.append(pp.comp.gpa, tokFromRaw(name_tok));
 
     while (true) {
         const next_tok = tokenizer.next();
         if (next_tok.id == .nl or next_tok.id == .eof) break;
         try pp.token_buf.append(next_tok);
+        try pp.tokens.append(pp.comp.gpa, tokFromRaw(next_tok));
     }
-    const pragma_toks = pp.token_buf.items[tok_buf_start..];
-    if (pragma_toks.len > 0) {
-        if (std.meta.stringToEnum(Pragmas, pp.tokSlice(pragma_toks[0]))) |pragma_type| {
-            switch (pragma_type) {
-                .once => {
-                    const prev = try pp.pragma_once.fetchPut(tokenizer.source, {});
-                    if (prev != null and !pragma_state.seen_pragma_once) {
-                        return error.PragmaOnce;
-                    } else {
-                        pragma_state.seen_pragma_once = true;
-                    }
-                    return;
-                },
-                .GCC => if (try pp.gccPragma(pragma_toks[1..])) return,
-                .clang => {},
-            }
-        }
-    }
-    const str = if (pragma_toks.len == 0) "" else tokenizer.buf[pragma_toks[0].start..pragma_toks[pragma_toks.len - 1].end];
-    try pp.comp.addDiagnostic(.{
-        .tag = .unsupported_pragma,
-        .loc = .{ .id = tok.source, .byte_offset = tok.start },
-        .extra = .{ .str = str },
-    });
 }
 
 fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
@@ -1473,6 +1473,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
         if (cur.id == .eof) break;
 
         const slice = pp.expandedSlice(cur);
+        if (cur.id == .keyword_pragma) try w.writeByte('#');
         try w.writeAll(slice);
 
         i += 1;
@@ -1512,4 +1513,41 @@ fn printInBetween(slice: []const u8, w: anytype) !void {
         } else break;
     }
     try w.writeAll(in_between);
+}
+
+test "Preserve pragma tokens" {
+    var buf = std.ArrayList(u8).init(std.testing.allocator);
+    defer buf.deinit();
+
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+
+    var pp = Preprocessor.init(&comp);
+    defer pp.deinit();
+
+    const test_text = "#pragma GCC diagnostic error \"-Wnewline-eof\"\n";
+    const test_runner_macros = blk: {
+        const duped_path = try std.testing.allocator.dupe(u8, "<test_runner>");
+        errdefer comp.gpa.free(duped_path);
+
+        const contents = try std.testing.allocator.dupe(u8, test_text);
+        errdefer comp.gpa.free(contents);
+
+        const source = Source{
+            .id = @intToEnum(Source.Id, comp.sources.count() + 2),
+            .path = duped_path,
+            .buf = contents,
+        };
+        try comp.sources.put(duped_path, source);
+        break :blk source;
+    };
+
+    try pp.preprocess(test_runner_macros);
+
+    try pp.tokens.append(pp.comp.gpa, .{
+        .id = .eof,
+        .loc = .{ .id = test_runner_macros.id, .byte_offset = @intCast(u32, test_runner_macros.buf.len) },
+    });
+    try pp.prettyPrintTokens(buf.writer());
+    try std.testing.expectEqualStrings(test_text, buf.items);
 }
