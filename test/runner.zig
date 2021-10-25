@@ -58,6 +58,8 @@ pub fn main() !void {
     var comp = aro.Compilation.init(gpa);
     defer comp.deinit();
 
+    try comp.addDefaultPragmaHandlers();
+
     try comp.defineSystemIncludes();
 
     const test_runner_macros = blk: {
@@ -195,8 +197,6 @@ pub fn main() !void {
         }
 
         const expected_types = pp.defines.get("EXPECTED_TYPES");
-        if (expected_types) |_| pp.comp.diag.options.@"unused-value" = .off;
-        defer pp.comp.diag.options.@"unused-value" = .warning;
 
         var tree = try aro.Parser.parse(&pp);
         defer tree.deinit();

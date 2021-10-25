@@ -264,7 +264,7 @@ pub const Tag = enum {
     omitting_parameter_name,
 };
 
-const Options = struct {
+pub const Options = struct {
     @"unsupported-pragma": Kind = .warning,
     @"c99-extensions": Kind = .warning,
     @"implicit-int": Kind = .warning,
@@ -644,7 +644,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .member_expr_not_ptr => m.print("member reference type '{s}' is not a pointer; did you mean to use '.'?", .{msg.extra.str}),
             .member_expr_ptr => m.print("member reference type '{s}' is a pointer; did you mean to use '->'?", .{msg.extra.str}),
             .no_such_member => m.print("no member named {s}", .{msg.extra.str}),
-            .malformed_warning_check => m.write("__has_warning expected option name (e.g. \"-Wundef\")"),
+            .malformed_warning_check => m.print("{s} expected option name (e.g. \"-Wundef\")", .{msg.extra.str}),
             .invalid_computed_goto => m.write("computed goto in function with no address-of-label expressions"),
             .pragma_warning_message, .pragma_error_message => m.write(msg.extra.str),
             .pragma_requires_string_literal => m.print("pragma {s} requires string literal", .{msg.extra.str}),

@@ -5,11 +5,11 @@ const Allocator = mem.Allocator;
 const EpochSeconds = std.time.epoch.EpochSeconds;
 const Diagnostics = @import("Diagnostics.zig");
 const LangOpts = @import("LangOpts.zig");
-const Preprocessor = @import("Preprocessor.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const Type = @import("Type.zig");
+const Pragma = @import("Pragma.zig");
 
 const Compilation = @This();
 
@@ -26,6 +26,7 @@ system_include_dirs: std.ArrayList([]const u8),
 output_name: ?[]const u8 = null,
 builtin_header_path: ?[]u8 = null,
 target: std.Target = @import("builtin").target,
+pragma_handlers: std.StringArrayHashMap(*Pragma),
 only_preprocess: bool = false,
 only_compile: bool = false,
 verbose_ast: bool = false,
@@ -38,10 +39,14 @@ pub fn init(gpa: *Allocator) Compilation {
         .diag = Diagnostics.init(gpa),
         .include_dirs = std.ArrayList([]const u8).init(gpa),
         .system_include_dirs = std.ArrayList([]const u8).init(gpa),
+        .pragma_handlers = std.StringArrayHashMap(*Pragma).init(gpa),
     };
 }
 
 pub fn deinit(comp: *Compilation) void {
+    for (comp.pragma_handlers.values()) |pragma| {
+        pragma.deinit(pragma, comp);
+    }
     for (comp.sources.values()) |source| {
         comp.gpa.free(source.path);
         comp.gpa.free(source.buf);
@@ -50,6 +55,7 @@ pub fn deinit(comp: *Compilation) void {
     comp.diag.deinit();
     comp.include_dirs.deinit();
     comp.system_include_dirs.deinit();
+    comp.pragma_handlers.deinit();
     if (comp.builtin_header_path) |some| comp.gpa.free(some);
 }
 
@@ -444,6 +450,44 @@ pub fn fatal(comp: *Compilation, tok: Token, comptime fmt: []const u8, args: any
 pub fn addDiagnostic(comp: *Compilation, msg: Diagnostics.Message) Error!void {
     if (comp.langopts.suppress(msg.tag)) return;
     return comp.diag.add(msg);
+}
+
+pub fn addPragmaHandler(comp: *Compilation, name: []const u8, handler: *Pragma) Allocator.Error!void {
+    try comp.pragma_handlers.putNoClobber(name, handler);
+}
+
+pub fn addDefaultPragmaHandlers(comp: *Compilation) Allocator.Error!void {
+    const GCC = @import("pragmas/gcc.zig");
+    var gcc = try GCC.init(comp.gpa);
+    errdefer gcc.deinit(gcc, comp);
+
+    const Once = @import("pragmas/once.zig");
+    var once = try Once.init(comp.gpa);
+    errdefer once.deinit(once, comp);
+
+    try comp.addPragmaHandler("GCC", gcc);
+    try comp.addPragmaHandler("once", once);
+}
+
+pub fn getPragma(comp: *Compilation, name: []const u8) ?*Pragma {
+    return comp.pragma_handlers.get(name);
+}
+
+const PragmaEvent = enum {
+    before_preprocess,
+    before_parse,
+    after_parse,
+};
+
+pub fn pragmaEvent(comp: *Compilation, event: PragmaEvent) void {
+    for (comp.pragma_handlers.values()) |pragma| {
+        const maybe_func = switch (event) {
+            .before_preprocess => pragma.beforePreprocess,
+            .before_parse => pragma.beforeParse,
+            .after_parse => pragma.afterParse,
+        };
+        if (maybe_func) |func| func(pragma, comp);
+    }
 }
 
 pub const renderErrors = Diagnostics.render;

@@ -99,6 +99,7 @@ contains_address_of_label: bool = false,
 return_type: ?Type = null,
 func_name: TokenIndex = 0,
 label_count: u32 = 0,
+current_pragma: u32 = 0,
 /// location of first computed goto in function currently being parsed
 /// if a computed goto is used, the function must contain an
 /// address-of-label expression (tracked with contains_address_of_label)
@@ -390,8 +391,27 @@ fn nodeIs(p: *Parser, node: NodeIndex, tag: Tree.Tag) bool {
     }
 }
 
+fn pragma(p: *Parser) !bool {
+    var found_pragma = false;
+    while (p.eatToken(.keyword_pragma) != null) {
+        found_pragma = true;
+        defer p.current_pragma += 1;
+
+        const name_tok = p.tok_i;
+        const name = p.tokSlice(name_tok);
+        const pragma_len = p.pp.pragma_lens.items[p.current_pragma];
+        defer p.tok_i += pragma_len;
+        if (p.pp.comp.getPragma(name)) |prag| {
+            try prag.parserCB(p, p.tok_i, pragma_len);
+        }
+    }
+    return found_pragma;
+}
+
 /// root : (decl | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
+    pp.comp.pragmaEvent(.before_parse);
+
     var arena = std.heap.ArenaAllocator.init(pp.comp.gpa);
     errdefer arena.deinit();
     var p = Parser{
@@ -431,6 +451,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
 
     while (p.eatToken(.eof) == null) {
+        if (try p.pragma()) continue;
         if (p.staticAssert() catch |er| switch (er) {
             error.ParsingFailed => {
                 p.nextExternDecl();
@@ -445,7 +466,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             },
             else => |e| return e,
         }) continue;
-
         try p.err(.expected_external_decl);
         p.tok_i += 1;
     }
@@ -453,6 +473,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     if (root_decls.len == 0) {
         try p.errTok(.empty_translation_unit, p.tok_i - 1);
     }
+    pp.comp.pragmaEvent(.after_parse);
     return Tree{
         .comp = pp.comp,
         .tokens = pp.tokens.slice(),
@@ -533,6 +554,7 @@ fn skipTo(p: *Parser, id: Token.Id) void {
 ///  : declSpec (initDeclarator ( ',' initDeclarator)*)? ';'
 ///  | declSpec declarator decl* compoundStmt
 fn decl(p: *Parser) Error!bool {
+    _ = try p.pragma();
     const first_tok = p.tok_i;
     const attr_buf_top = p.attr_buf.items.len;
     defer p.attr_buf.items.len = attr_buf_top;
@@ -1477,6 +1499,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
 /// recordDeclarator : declarator (':' constExpr)?
 fn recordDecls(p: *Parser) Error!void {
     while (true) {
+        if (try p.pragma()) continue;
         if (try p.staticAssert()) continue;
         const base_ty = (try p.specQual()) orelse return;
 
@@ -1651,6 +1674,7 @@ const EnumFieldAndNode = struct { field: Type.Enum.Field, node: NodeIndex };
 
 /// enumerator : IDENTIFIER ('=' constExpr)
 fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
+    _ = try p.pragma();
     const name_tok = p.eatToken(.identifier) orelse {
         if (p.tok_ids[p.tok_i] == .r_brace) return null;
         try p.err(.expected_identifier);
@@ -2926,7 +2950,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
     var noreturn_index: ?TokenIndex = null;
     var noreturn_label_count: u32 = 0;
 
-    while (p.eatToken(.r_brace) == null) {
+    while (p.eatToken(.r_brace) == null) : (_ = try p.pragma()) {
         if (p.staticAssert() catch |er| switch (er) {
             error.ParsingFailed => {
                 try p.nextStmt(l_brace);
