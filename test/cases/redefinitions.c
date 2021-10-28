@@ -27,6 +27,12 @@ int func5(int a) {
     return a;
 }
 
+int func5(int a) {
+    return 10;
+}
+
+int func5(int a);
+
 #define TESTS_SKIPPED 1
 // int f(int (*)(), double (*)[3]);
 // int f(int (*)(char *), double (*)[]);
@@ -51,4 +57,6 @@ int func5(int a) {
     "redefinitions.c:23:5: error: redefinition of 'func4' with a different type" \
     "redefinitions.c:22:5: note: previous definition is here" \
     "redefinitions.c:26:9: error: redefinition of 'a'" \
-    "redefinitions.c:25:15: note: previous definition is here"
+    "redefinitions.c:25:15: note: previous definition is here" \
+    "redefinitions.c:30:5: error: redefinition of 'func5'" \
+    "redefinitions.c:25:5: note: previous definition is here"
