@@ -573,12 +573,18 @@ fn decl(p: *Parser) Error!bool {
         }
         if (p.return_type != null) try p.err(.func_not_in_root);
 
-        // TODO check redefinition
-        try p.scopes.append(.{ .def = .{
-            .name = p.tokSlice(init_d.d.name),
-            .ty = init_d.d.ty,
-            .name_tok = init_d.d.name,
-        } });
+        if (p.findSymbol(init_d.d.name, .definition)) |sym| {
+            if (sym == .def) {
+                try p.errStr(.redefinition, init_d.d.name, p.tokSlice(init_d.d.name));
+                try p.errTok(.previous_definition, sym.def.name_tok);
+            }
+        } else {
+            try p.scopes.append(.{ .def = .{
+                .name = p.tokSlice(init_d.d.name),
+                .ty = init_d.d.ty,
+                .name_tok = init_d.d.name,
+            } });
+        }
 
         const return_type = p.return_type;
         const func_name = p.func_name;
