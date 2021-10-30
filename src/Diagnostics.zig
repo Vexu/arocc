@@ -663,6 +663,15 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .zero_width_named_field => m.write("named bit-field has zero width"),
             .bitfield_too_big => m.write("width of bit-field exceeds width of its type"),
         }
+
+        if (comp.diag.tagOption(msg.tag)) |opt| {
+            if (msg.kind == .@"error") {
+                m.print(" [-Werror={s}]", .{opt});
+            } else {
+                m.print(" [-W{s}]", .{opt});
+            }
+        }
+
         m.end(lcs);
 
         if (msg.loc.id != .unused) {
@@ -692,6 +701,61 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
 
     comp.diag.list.items.len = 0;
     comp.diag.errors += errors;
+}
+
+fn tagOption(diag: *Diagnostics, tag: Tag) ?[]const u8 {
+    _ = diag;
+    return switch (tag) {
+        .unsupported_pragma => "unsupported-pragma",
+        .whitespace_after_macro_name => "c99-extensions",
+        .missing_type_specifier => "implicit-int",
+        .duplicate_decl_spec => "duplicate-decl-specifier",
+        .missing_declaration => "missing-declaration",
+        .extern_initializer => "extern-initializer",
+        .implicit_func_decl => "implicit-function-declaration",
+        .unused_value => "unused-value",
+        .unreachable_code => "unreachable-code",
+        .unknown_warning => "unknown-warning-option",
+        .empty_record => "empty-struct",
+        .alignof_expr => "gnu-alignof-expression",
+        .macro_redefined => "macro-redefined",
+        .generic_qual_type => "generic-qual-type",
+        .multichar_literal => "multichar",
+        .comparison_ptr_int => "pointer-integer-compare",
+        .comparison_distinct_ptr => "compare-distinct-pointer-types",
+        .implicit_ptr_to_int => "literal-conversion",
+        .qual_cast => "cast-qualifiers",
+        .array_after => "array-bounds",
+        .array_before => "array-bounds",
+        .implicit_int_to_ptr => "int-conversion",
+        .pointer_mismatch => "pointer-type-mismatch",
+        .omitting_parameter_name,
+        .static_assert_missing_message,
+        => "c2x-extension",
+        .incompatible_ptr_init,
+        .incompatible_ptr_assign,
+        => "incompatible-pointer-types",
+        .ptr_init_discards_quals,
+        .ptr_assign_discards_quals,
+        => "incompatible-pointer-types-discards-qualifiers",
+        .excess_scalar_init,
+        .excess_str_init,
+        .excess_struct_init,
+        .excess_array_init,
+        .str_init_too_long,
+        => "excess-initializers",
+        .division_by_zero => "division-by-zero",
+        .initializer_overrides => "initializer-overrides",
+        .unknown_attribute => "unknown-attributes",
+        .ignored_attribute => "ignored-attributes",
+        .builtin_macro_redefined => "builtin-macro-redefined",
+        .gnu_label_as_value => "gnu-label-as-value",
+        .malformed_warning_check => "malformed-warning-check",
+        .pragma_warning_message => "#pragma-messages",
+        .newline_eof => "newline-eof",
+        .empty_translation_unit => "empty-translation-unit",
+        else => null,
+    };
 }
 
 pub const Kind = enum { @"fatal error", @"error", note, warning, off };

@@ -279,7 +279,7 @@ pub fn main() !void {
                 const expected_error = buf.items;
 
                 const index = std.mem.indexOf(u8, m.buf.items, expected_error);
-                if (index == null or m.buf.items[index.? + expected_error.len] != '\n') {
+                if (index == null) {
                     fail_count += 1;
                     progress.log(
                         \\
