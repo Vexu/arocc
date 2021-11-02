@@ -31,6 +31,13 @@ pub fn main() u8 {
     var comp = Compilation.init(gpa);
     defer comp.deinit();
 
+    comp.addDefaultPragmaHandlers() catch |err| switch (err) {
+        error.OutOfMemory => {
+            std.debug.print("out of memory\n", .{});
+            return 1;
+        },
+    };
+
     handleArgs(&comp, args) catch |err| switch (err) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
@@ -295,7 +302,9 @@ test {
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
     _ = @import("InitList.zig");
+    _ = @import("LangOpts.zig");
     _ = @import("Parser.zig");
+    _ = @import("Pragma.zig");
     _ = @import("Preprocessor.zig");
     _ = @import("Source.zig");
     _ = @import("Tokenizer.zig");
