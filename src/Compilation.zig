@@ -391,11 +391,12 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
     const contents = try file.reader().readAllAlloc(comp.gpa, std.math.maxInt(u32));
     errdefer comp.gpa.free(contents);
 
-    const source = Source{
+    var source = Source{
         .id = @intToEnum(Source.Id, comp.sources.count() + 2),
         .path = duped_path,
         .buf = contents,
     };
+    source.checkUtf8();
 
     try comp.sources.put(duped_path, source);
 
