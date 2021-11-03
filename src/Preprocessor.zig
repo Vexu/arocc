@@ -135,6 +135,14 @@ pub fn deinit(pp: *Preprocessor) void {
 
 /// Preprocess a source file.
 pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
+    if (source.invalid_utf8_loc) |loc| {
+        try pp.comp.addDiagnostic(.{
+            .tag = .invalid_utf8,
+            .loc = loc,
+        });
+        return error.FatalError;
+    }
+
     pp.preprocess_count += 1;
     var tokenizer = Tokenizer{
         .buf = source.buf,

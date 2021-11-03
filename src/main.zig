@@ -222,7 +222,9 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
     for (source_files.items) |source| {
         processSource(comp, source, builtin, user_macros) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
-            error.FatalError => {},
+            error.FatalError => {
+                comp.renderErrors();
+            },
         };
     }
 }

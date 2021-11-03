@@ -133,6 +133,15 @@ pub fn main() !void {
         try pp.preprocess(builtin_macros);
         try pp.preprocess(test_runner_macros);
         pp.preprocess(file) catch |err| {
+            if (!std.unicode.utf8ValidateSlice(file.buf)) {
+                // non-utf8 files are not preprocessed, so we can't use EXPECTED_ERRORS; instead we
+                // check that the most recent error is .invalid_utf8
+                if (comp.diag.list.items.len > 0 and comp.diag.list.items[comp.diag.list.items.len - 1].tag == .invalid_utf8) {
+                    _ = comp.diag.list.pop();
+                    continue;
+                }
+            }
+
             fail_count += 1;
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
