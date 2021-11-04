@@ -63,3 +63,16 @@ If a test case is currently broken, it should be commented and a `TESTS_SKIPPED`
 
 // <something broken here>
 ```
+---
+## Running fuzz tests
+Fuzz testing requires [AFLplusplus](https://github.com/AFLplusplus/AFLplusplus). Run `zig build fuzz` to build the fuzz target,
+then `afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/fuzz`
+
+A Dockerfile is provided to make it easier to get started with fuzzing:
+
+```sh-session
+docker build -t aro-fuzz test/docker/fuzz
+docker run --rm -it -v $PWD:/arocc -w /arocc aro-fuzz
+zig build fuzz
+afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/fuzz
+```
