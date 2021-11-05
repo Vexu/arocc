@@ -3753,12 +3753,14 @@ fn expr(p: *Parser) Error!Result {
     var expr_start = p.tok_i;
     var err_start = p.pp.comp.diag.list.items.len;
     var lhs = try p.assignExpr();
+    if (p.tok_ids[p.tok_i] == .comma) try lhs.expect(p);
     while (p.eatToken(.comma)) |_| {
         try lhs.maybeWarnUnused(p, expr_start, err_start);
         expr_start = p.tok_i;
         err_start = p.pp.comp.diag.list.items.len;
 
         const rhs = try p.assignExpr();
+        try rhs.expect(p);
         lhs.val = rhs.val;
         lhs.ty = rhs.ty;
         try lhs.bin(p, .comma_expr, rhs);

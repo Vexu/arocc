@@ -34,6 +34,8 @@ void foo(void) {
     int *ptr;
     char idx;
     ptr = ptr + idx;
+    ,(void)1;
+    (void)2,;
 }
 
 int bar(void) {
@@ -55,4 +57,6 @@ int bar(void) {
     "binary expressions.c:21:17: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
     "binary expressions.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
     "binary expressions.c:24:24: warning: pointer type mismatch ('int *' and 'float *')" \
-    "binary expressions.c:32:5: error: expected statement"
+    "binary expressions.c:32:5: error: expected statement" \
+    "binary expressions.c:37:5: error: expected expression" \
+    "binary expressions.c:38:13: error: expected expression" \
