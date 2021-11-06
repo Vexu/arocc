@@ -550,6 +550,12 @@ fn skipToNl(tokenizer: *Tokenizer) void {
 
 const ExpandBuf = std.ArrayList(Token);
 const MacroArguments = std.ArrayList([]const Token);
+fn deinitMacroArguments(allocator: *Allocator, args: *const MacroArguments) void {
+    for (args.items) |item| {
+        allocator.free(item);
+    }
+    args.deinit();
+}
 
 fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
@@ -847,7 +853,7 @@ fn collectMacroFuncArguments(
     // collect the arguments.
     var parens: u32 = 0;
     var args = MacroArguments.init(pp.comp.gpa);
-    errdefer args.deinit();
+    errdefer deinitMacroArguments(pp.comp.gpa, &args);
     var curArgument = std.ArrayList(Token).init(pp.comp.gpa);
     defer curArgument.deinit();
     var done = false;
@@ -875,6 +881,7 @@ fn collectMacroFuncArguments(
                 }
             },
             .eof => {
+                deinitMacroArguments(pp.comp.gpa, &args);
                 tokenizer.index = initial_tokenizer_index;
                 end_idx.* = old_end;
                 try pp.comp.addDiagnostic(.{ .tag = .unterminated_macro_arg_list, .loc = name_tok.loc });
@@ -953,7 +960,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                         continue;
                     }
                     var expanded_args = MacroArguments.init(pp.comp.gpa);
-                    defer expanded_args.deinit();
+                    defer deinitMacroArguments(pp.comp.gpa, &expanded_args);
                     try expanded_args.ensureCapacity(args.items.len);
                     for (args.items) |arg| {
                         var expand_buf = ExpandBuf.init(pp.comp.gpa);
@@ -966,9 +973,6 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
 
                     var res = try pp.expandFuncMacro(macro_tok.loc, macro, &args, &expanded_args);
                     defer res.deinit();
-                    for (expanded_args.items) |arg| {
-                        pp.comp.gpa.free(arg);
-                    }
                     var expansion_loc = macro.loc;
                     expansion_loc.next = buf.items[idx].loc.next;
                     for (res.items) |*tok| {
