@@ -1242,6 +1242,12 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 tok = param;
             },
             .hash_hash => {
+                // if ## appears at the beginning, the token buf is still empty
+                // in this case, error out
+                if (pp.token_buf.items.len == 0) {
+                    try pp.err(tok, .hash_hash_at_start);
+                    continue;
+                }
                 const start = tokenizer.index;
                 const next = tokenizer.next();
                 if (next.id == .nl or next.id == .eof) {
