@@ -273,7 +273,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                         error.StopPreprocessing => return,
                         error.UnknownPragma => {
                             const pragma_len = pp.pragma_lens.items[pp.pragma_lens.items.len - 1];
-                            const name_tok = pp.tokens.get(pp.tokens.len - 1 - pragma_len);
+                            const name_tok = pp.tokens.get(pp.tokens.len - pragma_len);
                             const name = pp.expandedSlice(name_tok);
                             try pp.comp.addDiagnostic(.{
                                 .tag = .unsupported_pragma,
