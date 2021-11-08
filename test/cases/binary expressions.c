@@ -42,6 +42,8 @@ int bar(void) {
     return 1U < 2U;
 }
 
+int baz = 0xFFFFFFFFFF + 1u;
+
 #define TESTS_SKIPPED 3
 
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \

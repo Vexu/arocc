@@ -49,7 +49,7 @@ const Scope = union(enum) {
 
         const ResultContext = struct {
             pub fn eql(_: ResultContext, a: Result, b: Result) bool {
-                return a.eql(b);
+                return a.as_u64() == b.as_u64();
             }
             pub fn hash(_: ResultContext, a: Result) u64 {
                 return a.hash();
@@ -2249,8 +2249,14 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             defer tmp_il.deinit(p.pp.comp.gpa);
             saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
         } else if (p.tok_ids[p.tok_i] == .l_brace) {
-            // TODO warn scalar braces
-            saw = try p.initializerItem(cur_il, cur_ty);
+            if (cur_ty.isArray()) {
+                cur_il = try cur_il.find(p.pp.comp.gpa, count);
+                cur_ty = cur_ty.elemType();
+                saw = try p.initializerItem(cur_il, cur_ty);
+            } else {
+                // TODO warn scalar braces
+                saw = try p.initializerItem(cur_il, cur_ty);
+            }
         } else if (try p.findScalarInitializer(&cur_il, &cur_ty)) {
             saw = try p.initializerItem(cur_il, cur_ty);
         } else if (designation) {
@@ -3583,14 +3589,17 @@ const Result = struct {
         }
 
         // cast to the unsigned type with greater rank
-        if (a_unsigned and (@enumToInt(a_promoted.specifier) >= @enumToInt(b_promoted.specifier))) {
-            try a.intCast(p, a_promoted);
-            try b.intCast(p, a_promoted);
-            return;
+        const a_larger = @enumToInt(a_promoted.specifier) > @enumToInt(b_promoted.specifier);
+        const b_larger = @enumToInt(b_promoted.specifier) > @enumToInt(b_promoted.specifier);
+        if (a_unsigned) {
+            const target = if (a_larger) a_promoted else b_promoted;
+            try a.intCast(p, target);
+            try b.intCast(p, target);
         } else {
-            assert(b_unsigned and (@enumToInt(b_promoted.specifier) >= @enumToInt(a_promoted.specifier)));
-            try a.intCast(p, b_promoted);
-            try b.intCast(p, b_promoted);
+            assert(b_unsigned);
+            const target = if (b_larger) b_promoted else a_promoted;
+            try a.intCast(p, target);
+            try b.intCast(p, target);
         }
     }
 
