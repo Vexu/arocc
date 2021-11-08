@@ -756,10 +756,10 @@ pub fn eql(a_param: Type, b_param: Type, check_qualifiers: bool) bool {
         .static_array,
         .incomplete_array,
         => {
-            if (a.data.array.len != b.data.array.len) return false;
-            if (!a.data.array.elem.eql(b.data.array.elem, check_qualifiers)) return false;
+            if (!std.meta.eql(a.arrayLen(), b.arrayLen())) return false;
+            if (!a.elemType().eql(b.elemType(), check_qualifiers)) return false;
         },
-        .variable_len_array => if (!a.data.expr.ty.eql(b.data.expr.ty, check_qualifiers)) return false,
+        .variable_len_array => if (!a.elemType().eql(b.elemType(), check_qualifiers)) return false,
 
         .@"struct", .@"union" => if (a.data.record != b.data.record) return false,
         .@"enum" => if (a.data.@"enum" != b.data.@"enum") return false,
