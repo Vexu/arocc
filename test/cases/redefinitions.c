@@ -33,6 +33,10 @@ int func5(int a) {
 
 int func5(int a);
 
+int arr[2];
+int x = 0;
+arr[x];
+
 #define TESTS_SKIPPED 1
 // int f(int (*)(), double (*)[3]);
 // int f(int (*)(char *), double (*)[]);
@@ -59,4 +63,8 @@ int func5(int a);
     "redefinitions.c:26:9: error: redefinition of 'a'" \
     "redefinitions.c:25:15: note: previous definition is here" \
     "redefinitions.c:30:5: error: redefinition of 'func5'" \
-    "redefinitions.c:25:5: note: previous definition is here"
+    "redefinitions.c:25:5: note: previous definition is here" \
+    "redefinitions.c:38:1: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]" \
+    "redefinitions.c:38:4: error: variable length arrays not allowed at file scope" \
+    "redefinitions.c:38:1: error: redefinition of 'arr' with a different type" \
+    "redefinitions.c:36:5: note: previous definition is here"
