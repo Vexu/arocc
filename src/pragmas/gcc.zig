@@ -61,13 +61,14 @@ fn deinit(pragma: *Pragma, comp: *Compilation) void {
     comp.gpa.destroy(self);
 }
 
-fn diagnosticHandler(pp: *Preprocessor, start_idx: TokenIndex, len: u32) !void {
-    if (len == 1) return error.UnknownPragma;
+fn diagnosticHandler(pp: *Preprocessor, start_idx: TokenIndex) !void {
     const diagnostic_tok = pp.tokens.get(start_idx);
+    if (diagnostic_tok.id == .nl) return;
+
     if (std.meta.stringToEnum(Directive.Diagnostics, pp.expandedSlice(diagnostic_tok))) |diagnostic| {
         switch (diagnostic) {
             .ignored, .warning, .@"error", .fatal => {
-                const str = Pragma.pasteTokens(pp, start_idx + 1, len - 1) catch |err| switch (err) {
+                const str = Pragma.pasteTokens(pp, start_idx + 1) catch |err| switch (err) {
                     error.ExpectedStringLiteral => {
                         return pp.comp.addDiagnostic(.{
                             .tag = .pragma_requires_string_literal,
@@ -100,13 +101,14 @@ fn diagnosticHandler(pp: *Preprocessor, start_idx: TokenIndex, len: u32) !void {
     return error.UnknownPragma;
 }
 
-fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex, len: u32) Pragma.Error!void {
-    if (len == 1) return;
+fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pragma.Error!void {
     const directive_tok = pp.tokens.get(start_idx + 1);
+    if (directive_tok.id == .nl) return;
+
     if (std.meta.stringToEnum(Directive, pp.expandedSlice(directive_tok))) |gcc_pragma| {
         switch (gcc_pragma) {
             .warning, .@"error" => {
-                const text = Pragma.pasteTokens(pp, start_idx + 2, len - 2) catch |err| switch (err) {
+                const text = Pragma.pasteTokens(pp, start_idx + 2) catch |err| switch (err) {
                     error.ExpectedStringLiteral => {
                         return pp.comp.addDiagnostic(.{
                             .tag = .pragma_requires_string_literal,
@@ -120,11 +122,13 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex, len
                 const diagnostic_tag: Diagnostics.Tag = if (gcc_pragma == .warning) .pragma_warning_message else .pragma_error_message;
                 return pp.comp.addDiagnostic(.{ .tag = diagnostic_tag, .loc = directive_tok.loc, .extra = extra });
             },
-            .diagnostic => return diagnosticHandler(pp, start_idx + 2, len - 2),
+            .diagnostic => return diagnosticHandler(pp, start_idx + 2),
             .poison => {
                 var i: usize = 2;
-                while (i < len) : (i += 1) {
+                while (true) : (i += 1) {
                     const tok = pp.tokens.get(start_idx + i);
+                    if (tok.id == .nl) break;
+
                     if (!tok.id.isMacroIdentifier()) {
                         return pp.comp.addDiagnostic(.{
                             .tag = .pragma_poison_identifier,
@@ -147,22 +151,22 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex, len
     return error.UnknownPragma;
 }
 
-fn parserHandler(_: *Pragma, p: *Parser, start_idx: TokenIndex, len: u32) Compilation.Error!void {
-    if (len == 1) return;
+fn parserHandler(_: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation.Error!void {
     const directive_tok = p.pp.tokens.get(start_idx + 1);
+    if (directive_tok.id == .nl) return;
     const name = p.pp.expandedSlice(directive_tok);
     if (mem.eql(u8, name, "diagnostic")) {
-        return diagnosticHandler(p.pp, start_idx + 2, len - 2) catch |err| switch (err) {
+        return diagnosticHandler(p.pp, start_idx + 2) catch |err| switch (err) {
             error.UnknownPragma => {}, // handled during preprocessing
             else => |e| return e,
         };
     }
 }
 
-fn preserveTokens(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex, len: u32) bool {
-    if (len >= 2) {
-        const directive = pp.tokens.get(start_idx + 1);
-        const name = pp.expandedSlice(directive);
+fn preserveTokens(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) bool {
+    const next = pp.tokens.get(start_idx + 1);
+    if (next.id != .nl) {
+        const name = pp.expandedSlice(next);
         if (mem.eql(u8, name, "poison")) {
             return false;
         }

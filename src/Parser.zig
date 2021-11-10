@@ -99,7 +99,6 @@ contains_address_of_label: bool = false,
 return_type: ?Type = null,
 func_name: TokenIndex = 0,
 label_count: u32 = 0,
-current_pragma: u32 = 0,
 /// location of first computed goto in function currently being parsed
 /// if a computed goto is used, the function must contain an
 /// address-of-label expression (tracked with contains_address_of_label)
@@ -395,14 +394,15 @@ fn pragma(p: *Parser) !bool {
     var found_pragma = false;
     while (p.eatToken(.keyword_pragma) != null) {
         found_pragma = true;
-        defer p.current_pragma += 1;
 
         const name_tok = p.tok_i;
         const name = p.tokSlice(name_tok);
-        const pragma_len = p.pp.pragma_lens.items[p.current_pragma];
-        defer p.tok_i += pragma_len;
+
+        const end_idx = mem.indexOfScalarPos(Token.Id, p.tok_ids, p.tok_i, .nl).?;
+        const pragma_len = @intCast(TokenIndex, end_idx) - p.tok_i;
+        defer p.tok_i += pragma_len + 1; // skip past .nl as well
         if (p.pp.comp.getPragma(name)) |prag| {
-            try prag.parserCB(p, p.tok_i, pragma_len);
+            try prag.parserCB(p, p.tok_i);
         }
     }
     return found_pragma;
@@ -487,6 +487,12 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     };
 }
 
+fn skipToPragmaSentinel(p: *Parser) void {
+    while (true) : (p.tok_i += 1) {
+        if (p.tok_ids[p.tok_i] == .nl) return;
+    }
+}
+
 fn nextExternDecl(p: *Parser) void {
     var parens: u32 = 0;
     while (true) : (p.tok_i += 1) {
@@ -524,6 +530,7 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_typeof1,
             .keyword_typeof2,
             => if (parens == 0) return,
+            .keyword_pragma => p.skipToPragmaSentinel(),
             .eof => return,
             else => {},
         }
@@ -542,6 +549,7 @@ fn skipTo(p: *Parser, id: Token.Id) void {
             .r_paren, .r_brace, .r_bracket => if (parens != 0) {
                 parens -= 1;
             },
+            .keyword_pragma => p.skipToPragmaSentinel(),
             .eof => return,
             else => {},
         }
@@ -3121,6 +3129,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_typeof1,
             .keyword_typeof2,
             => if (parens == 0) return,
+            .keyword_pragma => p.skipToPragmaSentinel(),
             else => {},
         }
     }
