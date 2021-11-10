@@ -67,10 +67,6 @@ char_buf: std.ArrayList(u8),
 preprocess_count: u32 = 0,
 include_depth: u8 = 0,
 poisoned_identifiers: std.StringHashMap(void),
-/// length of the nth pragma. Length is counted as the number of tokens
-/// after the `pragma` keyword. It is always greater than zero, as no tokens
-/// will be saved for a bare `#pragma` with no name.
-pragma_lens: std.ArrayList(u32),
 
 pub fn init(comp: *Compilation) Preprocessor {
     const pp = Preprocessor{
@@ -81,7 +77,6 @@ pub fn init(comp: *Compilation) Preprocessor {
         .token_buf = RawTokenList.init(comp.gpa),
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .poisoned_identifiers = std.StringHashMap(void).init(comp.gpa),
-        .pragma_lens = std.ArrayList(u32).init(comp.gpa),
     };
     comp.pragmaEvent(.before_preprocess);
     return pp;
@@ -136,7 +131,6 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.token_buf.deinit();
     pp.char_buf.deinit();
     pp.poisoned_identifiers.deinit();
-    pp.pragma_lens.deinit();
 }
 
 /// Preprocess a source file.
@@ -271,16 +265,6 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                     .keyword_include => try pp.include(&tokenizer),
                     .keyword_pragma => pp.pragma(&tokenizer, directive) catch |err| switch (err) {
                         error.StopPreprocessing => return,
-                        error.UnknownPragma => {
-                            const pragma_len = pp.pragma_lens.items[pp.pragma_lens.items.len - 1];
-                            const name_tok = pp.tokens.get(pp.tokens.len - pragma_len);
-                            const name = pp.expandedSlice(name_tok);
-                            try pp.comp.addDiagnostic(.{
-                                .tag = .unsupported_pragma,
-                                .loc = name_tok.loc,
-                                .extra = .{ .str = name },
-                            });
-                        },
                         else => |e| return e,
                     },
                     .keyword_line => {
@@ -1325,15 +1309,27 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken) !void 
     try pp.tokens.append(pp.comp.gpa, tokFromRaw(name_tok));
     while (true) {
         const next_tok = tokenizer.next();
-        if (next_tok.id == .nl or next_tok.id == .eof) break;
+        if (next_tok.id == .eof) {
+            try pp.tokens.append(pp.comp.gpa, .{
+                .id = .nl,
+                .loc = .{ .id = .generated },
+            });
+            break;
+        }
         try pp.tokens.append(pp.comp.gpa, tokFromRaw(next_tok));
+        if (next_tok.id == .nl) break;
     }
-    const pragma_len = @intCast(u32, pp.tokens.len - pragma_start);
-    try pp.pragma_lens.append(pragma_len);
-    if (pp.comp.getPragma(name)) |prag| {
-        return prag.preprocessorCB(pp, pragma_start, pragma_len);
+    if (pp.comp.getPragma(name)) |prag| unknown: {
+        return prag.preprocessorCB(pp, pragma_start) catch |err| switch (err) {
+            error.UnknownPragma => break :unknown,
+            else => |e| return e,
+        };
     }
-    return error.UnknownPragma;
+    return pp.comp.addDiagnostic(.{
+        .tag = .unsupported_pragma,
+        .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start },
+        .extra = .{ .str = name },
+    });
 }
 
 fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
@@ -1397,35 +1393,34 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
 pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
     var i: usize = 0;
     var cur: Token = pp.tokens.get(i);
-    var cur_pragma: usize = 0;
-    var pragma_end: ?usize = null;
     while (true) {
         if (cur.id == .eof) break;
 
-        const slice = pp.expandedSlice(cur);
         i += 1;
         const next = pp.tokens.get(i);
+        if (cur.id == .nl) {
+            cur = next;
+            continue;
+        }
 
         if (cur.id == .keyword_pragma) {
-            defer cur_pragma += 1;
             const pragma_name = pp.expandedSlice(next);
-            const pragma_len = pp.pragma_lens.items[cur_pragma];
+            const end_idx = mem.indexOfScalarPos(Token.Id, pp.tokens.items(.id), i, .nl).?;
+            const pragma_len = @intCast(u32, end_idx) - i;
+
             if (pp.comp.getPragma(pragma_name)) |prag| {
-                if (!prag.shouldPreserveTokens(pp, @intCast(u32, i), pragma_len)) {
+                if (!prag.shouldPreserveTokens(pp, @intCast(u32, i))) {
                     i += pragma_len;
                     cur = pp.tokens.get(i);
                     continue;
                 }
             }
             try w.writeByte('#');
-            pragma_end = i + pragma_len;
         }
+        const slice = pp.expandedSlice(cur);
         try w.writeAll(slice);
 
-        if (pragma_end != null and pragma_end.? == i) {
-            try w.writeByte('\n');
-            pragma_end = null;
-        } else if (next.id == .eof or next.id == .keyword_pragma) {
+        if (next.id == .eof or next.id == .keyword_pragma or next.id == .nl) {
             try w.writeByte('\n');
         } else if (next.loc.next != null or next.loc.id == .generated) {
             // next was expanded from a macro

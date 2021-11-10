@@ -37,10 +37,11 @@ fn deinit(pragma: *Pragma, comp: *Compilation) void {
     comp.gpa.destroy(self);
 }
 
-fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex, len: u32) Pragma.Error!void {
+fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pragma.Error!void {
     var self = @fieldParentPtr(Once, "pragma", pragma);
     const name_tok = pp.tokens.get(start_idx);
-    if (len != 1) {
+    const next = pp.tokens.get(start_idx + 1);
+    if (next.id != .nl) {
         try pp.comp.addDiagnostic(.{
             .tag = .extra_tokens_directive_end,
             .loc = name_tok.loc,
