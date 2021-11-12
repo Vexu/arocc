@@ -1010,21 +1010,19 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
 }
 
 const MsgWriter = struct {
-    // TODO Impl is private
-    held: @typeInfo(@TypeOf(std.Thread.Mutex.acquire)).Fn.return_type.?,
     w: std.fs.File.Writer,
     color: bool,
 
     fn init(color: bool) MsgWriter {
+        std.debug.getStderrMutex().lock();
         return .{
-            .held = std.debug.getStderrMutex().acquire(),
             .w = std.io.getStdErr().writer(),
             .color = color,
         };
     }
 
-    fn deinit(m: *MsgWriter) void {
-        m.held.release();
+    fn deinit(_: *MsgWriter) void {
+        std.debug.getStderrMutex().unlock();
     }
 
     fn print(m: *MsgWriter, comptime fmt: []const u8, args: anytype) void {
