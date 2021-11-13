@@ -65,3 +65,6 @@ fn_def: 'fn (argc: int, argv: **const char) int'
 
 ```
 <sup>types are printed in Zig style as C types are more confusing than necessary, actual error messages contain proper C like types</sup>
+
+# Community links
+- IRC channel `#arocc` on [Libera.Chat](https://libera.chat/)
