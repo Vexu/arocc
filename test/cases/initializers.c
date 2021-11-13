@@ -29,6 +29,7 @@ void foo(void) {
         } c;
     } arr2[2] = {1, [0].c.b = 2, 3, 4, 5, 6, 7, 8};
     struct {} empty[2] = {1};
+    int j[] = c; // TODO improve the error message
 }
 
 #define TESTS_SKIPPED 2
@@ -56,4 +57,5 @@ void foo(void) {
     "initializers.c:21:44: warning: excess elements in array initializer" \
     "initializers.c:23:37: warning: excess elements in array initializer" \
     "initializers.c:30:43: warning: excess elements in array initializer" \
-    "initializers.c:31:27: error: initializer for aggregate with no elements requires explicit braces"
+    "initializers.c:31:27: error: initializer for aggregate with no elements requires explicit braces" \
+    "initializers.c:32:15: error: initializing 'int []' from incompatible type 'int *'" \

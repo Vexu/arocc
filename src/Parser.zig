@@ -1185,7 +1185,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
     var init_d = InitDeclarator{
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
-    if (p.eatToken(.equal)) |eq| {
+    if (p.eatToken(.equal)) |eq| init: {
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
             try p.errTok(.illegal_initializer, eq);
         } else if (init_d.d.ty.is(.variable_len_array)) {
@@ -1197,6 +1197,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr.node;
+        if (!init_list_expr.ty.isArray()) break :init;
         if (init_d.d.ty.specifier == .incomplete_array) {
             // Modifying .data is exceptionally allowed for .incomplete_array.
             init_d.d.ty.data.array.len = init_list_expr.ty.data.array.len;
@@ -1222,6 +1223,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
             },
             else => {},
         };
+        // if there was an initializer expression it must have contained an error
+        if (init_d.initializer != .none) break :incomplete;
         try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
         return init_d;
     }
