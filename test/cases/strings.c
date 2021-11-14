@@ -9,6 +9,7 @@ int a = 'abcde';
 _Static_assert(1, "\uD800");
 _Static_assert(1, "\U0000DFFF");
 _Static_assert(1, "\UFFFFFFFF");
+_Static_assert(1, "\u0060");
 
 #define EXPECTED_ERRORS "strings.c:2:30: error: escape sequence out of range" \
     "strings.c:4:20: error: invalid universal character" \

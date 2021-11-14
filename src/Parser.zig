@@ -5124,7 +5124,7 @@ fn parseNumberEscape(p: *Parser, tok: TokenIndex, base: u8, slice: []const u8, i
 fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8, i: *usize) !void {
     const c = std.fmt.parseInt(u21, slice[i.* + 1 ..][0..count], 16) catch 0x110000; // count validated by tokenizer
     i.* += count + 1;
-    if (!std.unicode.utf8ValidCodepoint(c) or (c < 0xa0 and c != '$' and c != '@' and c != '¸')) {
+    if (!std.unicode.utf8ValidCodepoint(c) or (c < 0xa0 and c != '$' and c != '@' and c != '`')) {
         try p.errExtra(.invalid_universal_character, tok, .{ .unsigned = i.* - count - 2 });
         return;
     }
