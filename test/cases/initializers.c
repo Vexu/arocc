@@ -30,6 +30,10 @@ void foo(void) {
     } arr2[2] = {1, [0].c.b = 2, 3, 4, 5, 6, 7, 8};
     struct {} empty[2] = {1};
     int j[] = c; // TODO improve the error message
+
+    struct S s = {};
+    enum E e1 = 1, e2 = 2 + e1;
+    union U u = {.x = 1};
 }
 
 #define TESTS_SKIPPED 2
@@ -59,3 +63,6 @@ void foo(void) {
     "initializers.c:30:43: warning: excess elements in array initializer" \
     "initializers.c:31:27: error: initializer for aggregate with no elements requires explicit braces" \
     "initializers.c:32:15: error: initializing 'int []' from incompatible type 'int *'" \
+    "initializers.c:34:14: error: variable has incomplete type 'struct S'" \
+    "initializers.c:35:12: error: variable has incomplete type 'enum E'" \
+    "initializers.c:36:13: error: variable has incomplete type 'union U'" \

@@ -1194,6 +1194,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
     if (p.eatToken(.equal)) |eq| init: {
+        if (init_d.d.ty.hasIncompleteSize() and !init_d.d.ty.isArray()) {
+            try p.errStr(.variable_incomplete_ty, init_d.d.name, try p.typeStr(init_d.d.ty));
+            return error.ParsingFailed;
+        }
+
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
             try p.errTok(.illegal_initializer, eq);
         } else if (init_d.d.ty.is(.variable_len_array)) {
@@ -2549,6 +2554,8 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         }
         return try p.addNode(arr_init_node);
     } else if (init_ty.get(.@"struct")) |struct_ty| {
+        assert(!struct_ty.hasIncompleteSize());
+
         const list_buf_top = p.list_buf.items.len;
         defer p.list_buf.items.len = list_buf_top;
 
