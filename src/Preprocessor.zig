@@ -780,7 +780,7 @@ fn shouldExpand(tok: Token, macro: *Macro) bool {
 
 fn nextBufToken(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandBuf, start_idx: *usize, end_idx: *usize, extend_buf: bool) Error!Token {
     start_idx.* += 1;
-    if (start_idx.* == buf.items.len and start_idx.* == end_idx.*) {
+    if (start_idx.* == buf.items.len and start_idx.* >= end_idx.*) {
         if (extend_buf) {
             const raw_tok = tokenizer.next();
             if (raw_tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSliceSafe(raw_tok)) != null) {

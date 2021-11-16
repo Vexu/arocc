@@ -1,0 +1,6 @@
+#define EXPECTED_TOKENS FIRST 42
+
+#define FIRST(x) x
+#define SECOND FIRST
+#define THIRD SECOND( FIRST
+THIRD 42)
