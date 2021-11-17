@@ -938,6 +938,8 @@ pub const Builder = struct {
                 .complex_double => "_Complex double",
                 .complex_long_double => "_Complex long double",
 
+                .attributed => |attributed| Builder.fromType(attributed.base).str(),
+
                 else => null,
             };
         }
