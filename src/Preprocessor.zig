@@ -420,6 +420,13 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         try pp.expandMacro(tokenizer, tok);
     }
 
+    if (!pp.tokens.items(.id)[start].validPreprocessorExprStart()) {
+        try pp.comp.addDiagnostic(.{
+            .tag = .invalid_preproc_expr_start,
+            .loc = pp.tokens.items(.loc)[0],
+        });
+        return false;
+    }
     // validate the tokens in the expression
     for (pp.tokens.items(.id)[start..]) |*id, i| {
         switch (id.*) {
@@ -441,6 +448,36 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
             => {
                 try pp.comp.addDiagnostic(.{
                     .tag = .float_literal_in_pp_expr,
+                    .loc = pp.tokens.items(.loc)[i],
+                });
+                return false;
+            },
+            .plus_plus,
+            .minus_minus,
+            .plus_equal,
+            .minus_equal,
+            .asterisk_equal,
+            .slash_equal,
+            .percent_equal,
+            .angle_bracket_angle_bracket_left_equal,
+            .angle_bracket_angle_bracket_right_equal,
+            .ampersand_equal,
+            .caret_equal,
+            .pipe_equal,
+            .l_bracket,
+            .r_bracket,
+            .l_brace,
+            .r_brace,
+            .ellipsis,
+            .semicolon,
+            .hash,
+            .hash_hash,
+            .equal,
+            .arrow,
+            .period,
+            => {
+                try pp.comp.addDiagnostic(.{
+                    .tag = .invalid_preproc_operator,
                     .loc = pp.tokens.items(.loc)[i],
                 });
                 return false;

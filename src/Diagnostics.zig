@@ -270,6 +270,8 @@ pub const Tag = enum {
     invalid_utf8,
     implicitly_unsigned_literal,
     deref_incomplete_ty_ptr,
+    invalid_preproc_operator,
+    invalid_preproc_expr_start,
 };
 
 pub const Options = struct {
@@ -671,6 +673,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .bitfield_too_big => m.write("width of bit-field exceeds width of its type"),
             .invalid_utf8 => m.write("source file is not valid UTF-8"),
             .implicitly_unsigned_literal => m.write("integer literal is too large to be represented in a signed integer type, interpreting as unsigned"),
+            .invalid_preproc_operator => m.write("token is not a valid binary operator in a preprocessor subexpression"),
+            .invalid_preproc_expr_start => m.write("invalid token at start of a preprocessor expression"),
         }
 
         if (comp.diag.tagOption(msg.tag)) |opt| {
@@ -946,6 +950,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .division_by_zero_macro,
         .invalid_utf8,
         .deref_incomplete_ty_ptr,
+        .invalid_preproc_operator,
+        .invalid_preproc_expr_start,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
