@@ -71,9 +71,14 @@ void vectors(void) {
     typedef int int_vec32_t3 __attribute__ ((vector_size (32)));
 }
 
+void diagnostics(void) {
+    int __attribute__((aligned(4))) x;
+    x(0);
+}
 
 #define EXPECTED_ERRORS "attributes.c:8:26: warning: Attribute 'noreturn' ignored in variable context" \
     "attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored" \
     "attributes.c:27:20: warning: Attribute 'deprecated' ignored in label context" \
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
-    "attributes.c:40:20: error: attribute cannot be applied to a statement"
+    "attributes.c:40:20: error: attribute cannot be applied to a statement" \
+    "attributes.c:76:6: error: cannot call non function type 'int'" \
