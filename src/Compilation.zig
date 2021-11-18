@@ -382,6 +382,10 @@ pub fn getSource(comp: *Compilation, id: Source.Id) Source {
 pub fn addSource(comp: *Compilation, path: []const u8) !Source {
     if (comp.sources.get(path)) |some| return some;
 
+    if (mem.indexOfScalar(u8, path, 0) != null) {
+        return error.FileNotFound;
+    }
+
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
