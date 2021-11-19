@@ -1910,7 +1910,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         var max_bits = p.pp.comp.target.cpu.arch.ptrBitWidth();
         if (max_bits > 61) max_bits = 61;
         const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
-        const max_elems = max_bytes / (outer.sizeof(p.pp.comp) orelse 1);
+        const max_elems = max_bytes / std.math.max(1, outer.sizeof(p.pp.comp) orelse 1);
 
         switch (size.val) {
             .unavailable => if (size.node != .none) {
