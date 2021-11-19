@@ -4381,6 +4381,7 @@ fn unExpr(p: *Parser) Error!Result {
             return operand;
         },
         .asterisk => {
+            const asterisk_loc = p.tok_i;
             p.tok_i += 1;
             var operand = try p.castExpr();
             try operand.expect(p);
@@ -4389,6 +4390,9 @@ fn unExpr(p: *Parser) Error!Result {
                 operand.ty = operand.ty.elemType();
             } else if (!operand.ty.isFunc()) {
                 try p.errTok(.indirection_ptr, tok);
+            }
+            if (operand.ty.hasIncompleteSize()) {
+                try p.errStr(.deref_incomplete_ty_ptr, asterisk_loc, try p.typeStr(operand.ty));
             }
             operand.ty.qual = .{};
             try operand.un(p, .deref_expr);
@@ -4742,6 +4746,10 @@ fn getFieldAccessField(
             try p.errStr(.expected_record_ty, field_name_tok, try p.typeStr(expr_ty));
             return error.ParsingFailed;
         },
+    }
+    if (record_ty.hasIncompleteSize()) {
+        try p.errStr(.deref_incomplete_ty_ptr, field_name_tok - 2, try p.typeStr(expr_base_ty));
+        return error.ParsingFailed;
     }
     if (is_arrow and !is_ptr) try p.errStr(.member_expr_not_ptr, field_name_tok, try p.typeStr(expr_ty));
     if (!is_arrow and is_ptr) try p.errStr(.member_expr_ptr, field_name_tok, try p.typeStr(expr_ty));
