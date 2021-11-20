@@ -5261,6 +5261,14 @@ fn integerLiteral(p: *Parser) Error!Result {
         res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
         return res;
     }
+    switch (id) {
+        .integer_literal, .integer_literal_l, .integer_literal_ll => {
+            if (val > std.math.maxInt(i64)) {
+                try p.err(.implicitly_unsigned_literal);
+            }
+        },
+        else => {},
+    }
 
     if (base == 10) {
         switch (id) {
