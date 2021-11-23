@@ -3,6 +3,7 @@ const assert = std.debug.assert;
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const LangOpts = @import("LangOpts.zig");
+const CharInfo = @import("CharInfo.zig");
 
 const Tokenizer = @This();
 
@@ -546,6 +547,22 @@ pub const Token = struct {
         };
     }
 
+    /// Check if codepoint may appear in specified context
+    /// does not check basic character set chars because the tokenizer handles them separately to keep the common
+    /// case on the fast path
+    pub fn mayAppearInIdent(comp: *const Compilation, codepoint: u21, where: enum { start, inside }) bool {
+        return switch (where) {
+            .start => if (comp.langopts.standard.atLeast(.c11))
+                CharInfo.isC11IdChar(codepoint) and !CharInfo.isC11DisallowedInitialIdChar(codepoint)
+            else
+                CharInfo.isC99IdChar(codepoint) and !CharInfo.isC99DisallowedInitialIDChar(codepoint),
+            .inside => if (comp.langopts.standard.atLeast(.c11))
+                CharInfo.isC11IdChar(codepoint)
+            else
+                CharInfo.isC99IdChar(codepoint),
+        };
+    }
+
     const all_kws = std.ComptimeStringMap(Id, .{
         .{ "auto", .keyword_auto },
         .{ "break", .keyword_break },
@@ -699,8 +716,10 @@ pub fn next(self: *Tokenizer) Token {
 
     var string = false;
     var counter: u32 = 0;
-    while (self.index < self.buf.len) : (self.index += 1) {
-        const c = self.buf[self.index];
+    var codepoint_len: u3 = undefined;
+    while (self.index < self.buf.len) : (self.index += codepoint_len) {
+        codepoint_len = std.unicode.utf8ByteSequenceLength(self.buf[self.index]) catch unreachable;
+        const c = std.unicode.utf8Decode(self.buf[self.index .. self.index + codepoint_len]) catch unreachable;
         switch (state) {
             .start => switch (c) {
                 '\n' => {
@@ -795,9 +814,13 @@ pub fn next(self: *Tokenizer) Token {
                 '\\' => state = .back_slash,
                 '\t', '\x0B', '\x0C', ' ' => start = self.index + 1,
                 else => {
-                    id = .invalid;
-                    self.index += 1;
-                    break;
+                    if (c > 0x7F and Token.mayAppearInIdent(self.comp, c, .start)) {
+                        state = .identifier;
+                    } else {
+                        id = .invalid;
+                        self.index += codepoint_len;
+                        break;
+                    }
                 },
             },
             .cr => switch (c) {
@@ -848,7 +871,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .string_literal;
                 },
                 else => {
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = .identifier;
                 },
             },
@@ -858,7 +881,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .string_literal;
                 },
                 else => {
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = .identifier;
                 },
             },
@@ -872,7 +895,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .string_literal;
                 },
                 else => {
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = .identifier;
                 },
             },
@@ -886,7 +909,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .string_literal;
                 },
                 else => {
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = .identifier;
                 },
             },
@@ -974,14 +997,14 @@ pub fn next(self: *Tokenizer) Token {
                     }
                 },
                 else => {
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = if (string) .string_literal else .char_literal;
                 },
             },
             .hex_escape => switch (c) {
                 '0'...'9', 'a'...'f', 'A'...'F' => {},
                 else => {
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = if (string) .string_literal else .char_literal;
                 },
             },
@@ -997,15 +1020,17 @@ pub fn next(self: *Tokenizer) Token {
                         id = .invalid;
                         break;
                     }
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = if (string) .string_literal else .char_literal;
                 },
             },
             .identifier => switch (c) {
                 'a'...'z', 'A'...'Z', '_', '0'...'9', '$' => {},
                 else => {
-                    id = Token.getTokenId(self.comp, self.buf[start..self.index]);
-                    break;
+                    if (c <= 0x7F or !Token.mayAppearInIdent(self.comp, c, .inside)) {
+                        id = Token.getTokenId(self.comp, self.buf[start..self.index]);
+                        break;
+                    }
                 },
             },
             .equal => switch (c) {
@@ -1165,7 +1190,7 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 else => {
                     id = .period;
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     break;
                 },
             },
@@ -1256,14 +1281,14 @@ pub fn next(self: *Tokenizer) Token {
                 '.' => state = .float_fraction,
                 else => {
                     state = .integer_suffix;
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                 },
             },
             .integer_literal_oct => switch (c) {
                 '0'...'7' => {},
                 else => {
                     state = .integer_suffix;
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                 },
             },
             .integer_literal_binary_first => switch (c) {
@@ -1277,7 +1302,7 @@ pub fn next(self: *Tokenizer) Token {
                 '0', '1' => {},
                 else => {
                     state = .integer_suffix;
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                 },
             },
             .integer_literal_hex_first => switch (c) {
@@ -1295,7 +1320,7 @@ pub fn next(self: *Tokenizer) Token {
                 'p', 'P' => state = .float_exponent,
                 else => {
                     state = .integer_suffix;
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                 },
             },
             .integer_literal => switch (c) {
@@ -1304,7 +1329,7 @@ pub fn next(self: *Tokenizer) Token {
                 'e', 'E' => state = .float_exponent,
                 else => {
                     state = .integer_suffix;
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                 },
             },
             .integer_suffix => switch (c) {
@@ -1360,7 +1385,7 @@ pub fn next(self: *Tokenizer) Token {
                 '0'...'9' => {},
                 'e', 'E' => state = .float_exponent,
                 else => {
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = .float_suffix;
                 },
             },
@@ -1375,7 +1400,7 @@ pub fn next(self: *Tokenizer) Token {
             .float_exponent => switch (c) {
                 '+', '-' => state = .float_exponent_digits,
                 else => {
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = .float_exponent_digits;
                 },
             },
@@ -1386,7 +1411,7 @@ pub fn next(self: *Tokenizer) Token {
                         id = .invalid;
                         break;
                     }
-                    self.index -= 1;
+                    self.index -= codepoint_len;
                     state = .float_suffix;
                 },
             },
@@ -1745,6 +1770,18 @@ test "comments" {
         .nl,
         .hash,
         .identifier,
+    });
+}
+
+test "extended identifiers" {
+    try expectTokens(
+        \\𝓪𝓻𝓸𝓬𝓬 u𝓪𝓻𝓸𝓬𝓬 u8𝓪𝓻𝓸𝓬𝓬 U𝓪𝓻𝓸𝓬𝓬 L𝓪𝓻𝓸𝓬𝓬
+    , &.{
+        .extended_identifier,
+        .extended_identifier,
+        .extended_identifier,
+        .extended_identifier,
+        .extended_identifier,
     });
 }
 
