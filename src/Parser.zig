@@ -650,7 +650,7 @@ fn decl(p: *Parser) Error!bool {
                         _ = try p.expectToken(.semicolon);
                         continue :param_loop;
                     };
-
+                    if (d.ty.hasIncompleteSize() and !d.ty.is(.void)) try p.errStr(.parameter_incomplete_ty, d.name, try p.typeStr(d.ty));
                     if (d.ty.isFunc()) {
                         // Params declared as functions are converted to function pointers.
                         const elem_ty = try p.arena.create(Type);
@@ -690,6 +690,7 @@ fn decl(p: *Parser) Error!bool {
         } else {
             for (init_d.d.ty.data.func.params) |param| {
                 if (param.ty.hasUnboundVLA()) try p.errTok(.unbound_vla, param.name_tok);
+                if (param.ty.hasIncompleteSize() and !param.ty.is(.void)) try p.errStr(.parameter_incomplete_ty, param.name_tok, try p.typeStr(param.ty));
 
                 if (param.name.len == 0) {
                     try p.errTok(.omitting_parameter_name, param.name_tok);
