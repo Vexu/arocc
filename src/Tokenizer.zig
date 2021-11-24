@@ -17,7 +17,10 @@ pub const Token = struct {
         invalid,
         nl,
         eof,
+        /// identifier containing solely basic character set characters
         identifier,
+        /// identifier with at least one extended character
+        extended_identifier,
 
         // string literals with prefixes
         string_literal,
@@ -260,6 +263,7 @@ pub const Token = struct {
                 .keyword_static_assert,
                 .keyword_thread_local,
                 .identifier,
+                .extended_identifier,
                 .keyword_typeof,
                 .keyword_typeof1,
                 .keyword_typeof2,
@@ -303,6 +307,7 @@ pub const Token = struct {
             return switch (id) {
                 .invalid,
                 .identifier,
+                .extended_identifier,
                 .string_literal,
                 .string_literal_utf_16,
                 .string_literal_utf_8,
@@ -464,7 +469,7 @@ pub const Token = struct {
         pub fn symbol(id: Id) []const u8 {
             return id.lexeme() orelse switch (id) {
                 .macro_string, .invalid => unreachable,
-                .identifier => "an identifier",
+                .identifier, .extended_identifier => "an identifier",
                 .string_literal,
                 .string_literal_utf_16,
                 .string_literal_utf_8,
@@ -524,6 +529,7 @@ pub const Token = struct {
                 .tilde,
                 .bang,
                 .identifier,
+                .extended_identifier,
                 .one,
                 .zero,
                 => true,
@@ -536,8 +542,8 @@ pub const Token = struct {
     /// belong to the implementation namespace, so we always convert them
     /// to keywords.
     /// TODO: add `.keyword_asm` here as GNU extension once that is supported.
-    pub fn getTokenId(comp: *const Compilation, str: []const u8) Token.Id {
-        const kw = all_kws.get(str) orelse return .identifier;
+    pub fn getTokenId(comp: *const Compilation, str: []const u8, default: Token.Id) Token.Id {
+        const kw = all_kws.get(str) orelse return default;
         const standard = comp.langopts.standard;
         return switch (kw) {
             .keyword_inline => if (standard.isGNU() or standard.atLeast(.c99)) kw else .identifier,
@@ -672,6 +678,7 @@ pub fn next(self: *Tokenizer) Token {
         hex_escape,
         unicode_escape,
         identifier,
+        extended_identifier,
         equal,
         bang,
         pipe,
@@ -709,6 +716,14 @@ pub fn next(self: *Tokenizer) Token {
         float_exponent,
         float_exponent_digits,
         float_suffix,
+
+        fn identifierType(tok_state: @This()) Token.Id {
+            return switch (tok_state) {
+                .u, .u8, .U, .L, .identifier => .identifier,
+                .extended_identifier => .extended_identifier,
+                else => unreachable,
+            };
+        }
     } = .start;
 
     var start = self.index;
@@ -815,7 +830,7 @@ pub fn next(self: *Tokenizer) Token {
                 '\t', '\x0B', '\x0C', ' ' => start = self.index + 1,
                 else => {
                     if (c > 0x7F and Token.mayAppearInIdent(self.comp, c, .start)) {
-                        state = .identifier;
+                        state = .extended_identifier;
                     } else {
                         id = .invalid;
                         self.index += codepoint_len;
@@ -1024,12 +1039,14 @@ pub fn next(self: *Tokenizer) Token {
                     state = if (string) .string_literal else .char_literal;
                 },
             },
-            .identifier => switch (c) {
+            .identifier, .extended_identifier => switch (c) {
                 'a'...'z', 'A'...'Z', '_', '0'...'9', '$' => {},
                 else => {
                     if (c <= 0x7F or !Token.mayAppearInIdent(self.comp, c, .inside)) {
-                        id = Token.getTokenId(self.comp, self.buf[start..self.index]);
+                        id = Token.getTokenId(self.comp, self.buf[start..self.index], state.identifierType());
                         break;
+                    } else {
+                        state = .extended_identifier;
                     }
                 },
             },
@@ -1435,8 +1452,8 @@ pub fn next(self: *Tokenizer) Token {
     } else if (self.index == self.buf.len) {
         switch (state) {
             .start, .line_comment => {},
-            .u, .u8, .U, .L, .identifier => {
-                id = Token.getTokenId(self.comp, self.buf[start..self.index]);
+            .u, .u8, .U, .L, .identifier, .extended_identifier => {
+                id = Token.getTokenId(self.comp, self.buf[start..self.index], state.identifierType());
             },
             .cr,
             .back_slash,

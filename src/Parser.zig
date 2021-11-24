@@ -15,6 +15,7 @@ const Diagnostics = @import("Diagnostics.zig");
 const NodeList = std.ArrayList(NodeIndex);
 const InitList = @import("InitList.zig");
 const Attribute = @import("Attribute.zig");
+const CharInfo = @import("CharInfo.zig");
 
 const Parser = @This();
 
@@ -104,7 +105,66 @@ label_count: u32 = 0,
 /// address-of-label expression (tracked with contains_address_of_label)
 computed_goto_tok: ?TokenIndex = null,
 
+fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
+    if (codepoint <= 0x7F) return false;
+    var diagnosed = false;
+    if (!CharInfo.isC99IdChar(codepoint)) {
+        try comp.addDiagnostic(.{
+            .tag = .c99_compat,
+            .loc = loc,
+        });
+        diagnosed = true;
+    }
+    if (CharInfo.isInvisible(codepoint)) {
+        try comp.addDiagnostic(.{
+            .tag = .unicode_zero_width,
+            .loc = loc,
+            .extra = .{ .codepoints = .{ .actual = codepoint, .resembles = 0 } },
+        });
+        diagnosed = true;
+    }
+    if (CharInfo.homoglyph(codepoint)) |resembles| {
+        try comp.addDiagnostic(.{
+            .tag = .unicode_homoglyph,
+            .loc = loc,
+            .extra = .{ .codepoints = .{ .actual = codepoint, .resembles = resembles } },
+        });
+        diagnosed = true;
+    }
+    return diagnosed;
+}
+
+fn eatIdentifier(p: *Parser) !?TokenIndex {
+    if (p.tok_ids[p.tok_i] == .identifier) {
+        defer p.tok_i += 1;
+        return p.tok_i;
+    } else if (p.tok_ids[p.tok_i] == .extended_identifier) {
+        defer p.tok_i += 1;
+        const slice = p.tokSlice(p.tok_i);
+        var it = std.unicode.Utf8View.initUnchecked(slice).iterator();
+        var loc = p.pp.tokens.items(.loc)[p.tok_i];
+        while (it.nextCodepoint()) |c| {
+            if (try checkIdentifierCodepoint(p.pp.comp, c, loc)) break;
+            loc.byte_offset += std.unicode.utf8CodepointSequenceLength(c) catch unreachable;
+        }
+        return p.tok_i;
+    }
+    return null;
+}
+
+fn expectIdentifier(p: *Parser) Error!TokenIndex {
+    if (p.tok_ids[p.tok_i] != .identifier and p.tok_ids[p.tok_i] != .extended_identifier) {
+        try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{
+            .expected = .identifier,
+            .actual = p.tok_ids[p.tok_i],
+        } });
+        return error.ParsingFailed;
+    }
+    return (try p.eatIdentifier()) orelse unreachable;
+}
+
 fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
+    assert(id != .identifier and id != .extended_identifier); // use eatIdentifier
     if (p.tok_ids[p.tok_i] == id) {
         defer p.tok_i += 1;
         return p.tok_i;
@@ -112,6 +172,7 @@ fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
 }
 
 fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
+    assert(expected != .identifier and expected != .extended_identifier); // use expectIdentifier
     const actual = p.tok_ids[p.tok_i];
     if (actual != expected) {
         try p.errExtra(
@@ -526,6 +587,7 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_union,
             .keyword_alignas,
             .identifier,
+            .extended_identifier,
             .keyword_typeof,
             .keyword_typeof1,
             .keyword_typeof2,
@@ -576,7 +638,7 @@ fn decl(p: *Parser) Error!bool {
             return false;
         }
         switch (p.tok_ids[first_tok]) {
-            .asterisk, .l_paren, .identifier => {},
+            .asterisk, .l_paren, .identifier, .extended_identifier => {},
             else => return false,
         }
         var spec: Type.Builder = .{};
@@ -1071,7 +1133,7 @@ const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = .none };
 ///  | attrIdentifier '(' identifier (',' expr)+ ')'
 ///  | attrIdentifier '(' (expr (',' expr)*)? ')'
 fn attribute(p: *Parser) Error!Attribute {
-    const name_tok = try p.expectToken(.identifier);
+    const name_tok = try p.expectIdentifier();
     switch (p.tok_ids[p.tok_i]) {
         .comma, .r_paren => { // will be consumed in attributeList
             return Attribute{ .name = name_tok };
@@ -1080,7 +1142,7 @@ fn attribute(p: *Parser) Error!Attribute {
             p.tok_i += 1;
             if (p.eatToken(.r_paren)) |_| return Attribute{ .name = name_tok };
 
-            const maybe_ident = p.eatToken(.identifier);
+            const maybe_ident = try p.eatIdentifier();
             if (maybe_ident != null and p.eatToken(.r_paren) != null) {
                 const arg_node = try p.addNode(.{
                     .tag = .attr_arg_ident,
@@ -1348,7 +1410,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 try ty.combine(p, .{ .@"enum" = try p.enumSpec() }, tag_tok);
                 continue;
             },
-            .identifier => {
+            .identifier, .extended_identifier => {
                 const typedef = (try p.findTypedef(p.tok_i, ty.specifier != .none)) orelse break;
                 const new_spec = Type.Builder.fromType(typedef.ty);
 
@@ -1397,7 +1459,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             },
             else => break,
         }
-        p.tok_i += 1;
+        if (try p.eatIdentifier()) |_| {} else p.tok_i += 1;
     }
     return p.tok_i != start;
 }
@@ -1430,7 +1492,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     defer p.attr_buf.items.len = attr_buf_top;
     try p.attributeSpecifier(.record);
 
-    const maybe_ident = p.eatToken(.identifier);
+    const maybe_ident = try p.eatIdentifier();
     const l_brace = p.eatToken(.l_brace) orelse {
         const ident = maybe_ident orelse {
             try p.err(.ident_or_l_brace);
@@ -1622,7 +1684,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
     defer p.attr_buf.items.len = attr_buf_top;
     try p.attributeSpecifier(.record);
 
-    const maybe_ident = p.eatToken(.identifier);
+    const maybe_ident = try p.eatIdentifier();
     const l_brace = p.eatToken(.l_brace) orelse {
         const ident = maybe_ident orelse {
             try p.err(.ident_or_l_brace);
@@ -1715,7 +1777,7 @@ const EnumFieldAndNode = struct { field: Type.Enum.Field, node: NodeIndex };
 /// enumerator : IDENTIFIER ('=' constExpr)
 fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
     _ = try p.pragma();
-    const name_tok = p.eatToken(.identifier) orelse {
+    const name_tok = (try p.eatIdentifier()) orelse {
         if (p.tok_ids[p.tok_i] == .r_brace) return null;
         try p.err(.expected_identifier);
         // TODO skip to }
@@ -1831,9 +1893,9 @@ fn declarator(
     const start = p.tok_i;
     var d = Declarator{ .name = 0, .ty = try p.pointer(base_type) };
 
-    if (kind != .abstract and p.tok_ids[p.tok_i] == .identifier) {
-        d.name = p.tok_i;
-        p.tok_i += 1;
+    const maybe_ident = p.tok_i;
+    if (kind != .abstract and (try p.eatIdentifier()) != null) {
+        d.name = maybe_ident;
         d.ty = try p.directDeclarator(d.ty, &d, kind);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
@@ -1973,7 +2035,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
         } else if (p.tok_ids[p.tok_i] == .r_paren) {
             specifier = .old_style_func;
-        } else if (p.tok_ids[p.tok_i] == .identifier) {
+        } else if (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) {
             d.old_style_func = p.tok_i;
             const param_buf_top = p.param_buf.items.len;
             const scopes_top = p.scopes.items.len;
@@ -1987,7 +2049,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
 
             specifier = .old_style_func;
             while (true) {
-                const name_tok = try p.expectToken(.identifier);
+                const name_tok = try p.expectIdentifier();
                 if (p.findSymbol(name_tok, .definition)) |scope| {
                     try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
                     try p.errTok(.previous_definition, scope.param.name_tok);
@@ -2232,7 +2294,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 cur_ty = cur_ty.elemType();
                 designation = true;
             } else if (p.eatToken(.period)) |period| {
-                const identifier = try p.expectToken(.identifier);
+                const identifier = try p.expectIdentifier();
                 if (!cur_ty.isRecord()) {
                     try p.errStr(.invalid_field_designator, period, try p.typeStr(cur_ty));
                     return error.ParsingFailed;
@@ -2834,7 +2896,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
             _ = try p.expectToken(.semicolon);
             return e.node;
         }
-        const name_tok = try p.expectToken(.identifier);
+        const name_tok = try p.expectIdentifier();
         const str = p.tokSlice(name_tok);
         if (p.findLabel(str) == null) {
             try p.labels.append(.{ .unresolved_goto = name_tok });
@@ -2900,8 +2962,8 @@ fn stmt(p: *Parser) Error!NodeIndex {
 /// | keyword_case constExpr ':' stmt
 /// | keyword_default ':' stmt
 fn labeledStmt(p: *Parser) Error!?NodeIndex {
-    if (p.tok_ids[p.tok_i] == .identifier and p.tok_ids[p.tok_i + 1] == .colon) {
-        const name_tok = p.tok_i;
+    if ((p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) and p.tok_ids[p.tok_i + 1] == .colon) {
+        const name_tok = p.expectIdentifier() catch unreachable;
         const str = p.tokSlice(name_tok);
         if (p.findLabel(str)) |some| {
             try p.errStr(.duplicate_label, name_tok, str);
@@ -2919,7 +2981,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             }
         }
 
-        p.tok_i += 2;
+        p.tok_i += 1;
         const attr_buf_top = p.attr_buf.items.len;
         defer p.attr_buf.items.len = attr_buf_top;
         try p.attributeSpecifier(.label);
@@ -4353,7 +4415,7 @@ fn unExpr(p: *Parser) Error!Result {
         .ampersand_ampersand => {
             const address_tok = p.tok_i;
             p.tok_i += 1;
-            const name_tok = try p.expectToken(.identifier);
+            const name_tok = try p.expectIdentifier();
             try p.errTok(.gnu_label_as_value, address_tok);
             p.contains_address_of_label = true;
 
@@ -4715,7 +4777,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
         },
         .period => {
             p.tok_i += 1;
-            const name = try p.expectToken(.identifier);
+            const name = try p.expectIdentifier();
             const field_ty = try p.getFieldAccessField(lhs.ty, name, false);
             return Result{
                 .ty = field_ty,
@@ -4728,7 +4790,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
         },
         .arrow => {
             p.tok_i += 1;
-            const name = try p.expectToken(.identifier);
+            const name = try p.expectIdentifier();
             const field_ty = try p.getFieldAccessField(lhs.ty, name, true);
             return Result{
                 .ty = field_ty,
@@ -4940,9 +5002,8 @@ fn primaryExpr(p: *Parser) Error!Result {
         return e;
     }
     switch (p.tok_ids[p.tok_i]) {
-        .identifier => {
-            const name_tok = p.tok_i;
-            p.tok_i += 1;
+        .identifier, .extended_identifier => {
+            const name_tok = p.expectIdentifier() catch unreachable;
             const sym = p.findSymbol(name_tok, .reference) orelse {
                 if (p.tok_ids[p.tok_i] == .l_paren) {
                     // implicitly declare simple functions as like `puts("foo")`;
