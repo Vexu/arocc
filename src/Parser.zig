@@ -453,13 +453,16 @@ fn nodeIs(p: *Parser, node: NodeIndex, tag: Tree.Tag) bool {
 
 fn pragma(p: *Parser) !bool {
     var found_pragma = false;
-    while (p.eatToken(.keyword_pragma) != null) {
+    while (p.eatToken(.keyword_pragma)) |pragma_tok| {
         found_pragma = true;
 
         const name_tok = p.tok_i;
         const name = p.tokSlice(name_tok);
 
-        const end_idx = mem.indexOfScalarPos(Token.Id, p.tok_ids, p.tok_i, .nl).?;
+        const end_idx = mem.indexOfScalarPos(Token.Id, p.tok_ids, p.tok_i, .nl) orelse {
+            try p.errTok(.pragma_inside_macro, pragma_tok);
+            return error.ParsingFailed;
+        };
         const pragma_len = @intCast(TokenIndex, end_idx) - p.tok_i;
         defer p.tok_i += pragma_len + 1; // skip past .nl as well
         if (p.pp.comp.getPragma(name)) |prag| {
@@ -512,7 +515,11 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
 
     while (p.eatToken(.eof) == null) {
-        if (try p.pragma()) continue;
+        const found_pragma = p.pragma() catch |err| switch (err) {
+            error.ParsingFailed => break,
+            else => |e| return e,
+        };
+        if (found_pragma) continue;
         if (p.staticAssert() catch |er| switch (er) {
             error.ParsingFailed => {
                 p.nextExternDecl();
@@ -551,6 +558,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 fn skipToPragmaSentinel(p: *Parser) void {
     while (true) : (p.tok_i += 1) {
         if (p.tok_ids[p.tok_i] == .nl) return;
+        if (p.tok_ids[p.tok_i] == .eof) {
+            p.tok_i -= 1;
+            return;
+        }
     }
 }
 
