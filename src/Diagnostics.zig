@@ -280,6 +280,7 @@ pub const Tag = enum {
     c99_compat,
     unicode_zero_width,
     unicode_homoglyph,
+    pragma_inside_macro,
 };
 
 pub const Options = struct {
@@ -695,6 +696,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                 msg.extra.codepoints.actual,
                 msg.extra.codepoints.resembles,
             }),
+            .pragma_inside_macro => m.write("#pragma directive in macro expansion"),
         }
 
         if (comp.diag.tagOption(msg.tag)) |opt| {
@@ -976,6 +978,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .deref_incomplete_ty_ptr,
         .invalid_preproc_operator,
         .invalid_preproc_expr_start,
+        .pragma_inside_macro,
         => .@"error",
         .to_match_paren,
         .to_match_brace,
