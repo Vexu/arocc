@@ -4377,6 +4377,10 @@ fn unExpr(p: *Parser) Error!Result {
             };
         },
         .ampersand => {
+            if (p.in_macro) {
+                try p.err(.invalid_preproc_operator);
+                return error.ParsingFailed;
+            }
             p.tok_i += 1;
             var operand = try p.castExpr();
             try operand.expect(p);
