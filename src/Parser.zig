@@ -4404,7 +4404,7 @@ fn unExpr(p: *Parser) Error!Result {
             } else if (!operand.ty.isFunc()) {
                 try p.errTok(.indirection_ptr, tok);
             }
-            if (operand.ty.hasIncompleteSize()) {
+            if (operand.ty.hasIncompleteSize() and !operand.ty.is(.void)) {
                 try p.errStr(.deref_incomplete_ty_ptr, asterisk_loc, try p.typeStr(operand.ty));
             }
             operand.ty.qual = .{};
