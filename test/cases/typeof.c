@@ -107,6 +107,12 @@ void test_my_other_func(void) {
     f = my_other_func(42);
 }
 
+void sizeof_decayed(int x) {
+    char vla[x];
+    typeof(vla) vla2;
+    -vla2;
+}
+
 #define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
     "typeof.c:28:7: error: expression is not assignable" \
     "typeof.c:30:7: error: expression is not assignable" \
@@ -120,4 +126,5 @@ void test_my_other_func(void) {
     "typeof.c:71:13: error: expression is not assignable" \
     "typeof.c:74:13: error: expression is not assignable" \
     "typeof.c:77:13: error: expression is not assignable" \
-    "typeof.c:98:29: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers"
+    "typeof.c:98:29: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers" \
+    "typeof.c:113:5: error: invalid argument type 'char *' to unary expression" \

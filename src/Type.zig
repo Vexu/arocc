@@ -602,13 +602,15 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .array => ty.data.array.elem.sizeof(comp).? * ty.data.array.len,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.sizeof(comp),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.sizeof(comp),
+        .typeof_type => ty.data.sub_type.sizeof(comp),
+        .typeof_expr => ty.data.expr.ty.sizeof(comp),
         .attributed => ty.data.attributed.base.sizeof(comp),
     };
 }
