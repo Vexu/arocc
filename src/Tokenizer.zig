@@ -542,8 +542,8 @@ pub const Token = struct {
     /// belong to the implementation namespace, so we always convert them
     /// to keywords.
     /// TODO: add `.keyword_asm` here as GNU extension once that is supported.
-    pub fn getTokenId(comp: *const Compilation, str: []const u8, default: Token.Id) Token.Id {
-        const kw = all_kws.get(str) orelse return default;
+    pub fn getTokenId(comp: *const Compilation, str: []const u8) Token.Id {
+        const kw = all_kws.get(str) orelse return .identifier;
         const standard = comp.langopts.standard;
         return switch (kw) {
             .keyword_inline => if (standard.isGNU() or standard.atLeast(.c99)) kw else .identifier,
@@ -716,14 +716,6 @@ pub fn next(self: *Tokenizer) Token {
         float_exponent,
         float_exponent_digits,
         float_suffix,
-
-        fn identifierType(tok_state: @This()) Token.Id {
-            return switch (tok_state) {
-                .u, .u8, .U, .L, .identifier => .identifier,
-                .extended_identifier => .extended_identifier,
-                else => unreachable,
-            };
-        }
     } = .start;
 
     var start = self.index;
@@ -1043,11 +1035,10 @@ pub fn next(self: *Tokenizer) Token {
                 'a'...'z', 'A'...'Z', '_', '0'...'9', '$' => {},
                 else => {
                     if (c <= 0x7F or !Token.mayAppearInIdent(self.comp, c, .inside)) {
-                        id = Token.getTokenId(self.comp, self.buf[start..self.index], state.identifierType());
+                        id = if (state == .identifier) Token.getTokenId(self.comp, self.buf[start..self.index]) else .extended_identifier;
                         break;
-                    } else {
-                        state = .extended_identifier;
                     }
+                    state = .extended_identifier;
                 },
             },
             .equal => switch (c) {
@@ -1452,9 +1443,8 @@ pub fn next(self: *Tokenizer) Token {
     } else if (self.index == self.buf.len) {
         switch (state) {
             .start, .line_comment => {},
-            .u, .u8, .U, .L, .identifier, .extended_identifier => {
-                id = Token.getTokenId(self.comp, self.buf[start..self.index], state.identifierType());
-            },
+            .u, .u8, .U, .L, .identifier => id = Token.getTokenId(self.comp, self.buf[start..self.index]),
+            .extended_identifier => id = .extended_identifier,
             .cr,
             .back_slash,
             .back_slash_cr,
