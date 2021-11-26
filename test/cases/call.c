@@ -29,6 +29,11 @@ void foo(void) {
     var(1, 1.f, (char)1, a);
 }
 
+enum E;
+void bar(enum E e) {
+    baz(e);
+}
+
 #define EXPECTED_ERRORS "call.c:16:7: error: passing 'void' to parameter of incompatible type" \
     "call.c:5:21: note: passing argument to parameter here" \
     "call.c:19:7: warning: implicit pointer to integer conversion from 'int *' to 'int'" \
@@ -40,4 +45,6 @@ void foo(void) {
     "call.c:25:8: error: passing 'float' to parameter of incompatible type" \
     "call.c:8:20: note: passing argument to parameter here" \
     "call.c:28:7: error: passing 'int' to parameter of incompatible type" \
-    "call.c:9:25: note: passing argument to parameter here"
+    "call.c:9:25: note: passing argument to parameter here" \
+    "call.c:33:17: error: parameter has incomplete type 'enum E'" \
+    "call.c:34:5: warning: implicit declaration of function 'baz' is invalid in C99" \

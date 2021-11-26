@@ -4876,6 +4876,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             var arg = try p.assignExpr();
             try arg.expect(p);
             try arg.lvalConversion(p);
+            if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
 
             if (arg_count < params.len) {
                 const p_ty = params[arg_count].ty;
