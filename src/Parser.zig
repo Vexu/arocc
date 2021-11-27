@@ -1753,7 +1753,8 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
         p.enum_buf.items.len = enum_buf_top;
     }
 
-    while (try p.enumerator()) |field_and_node| {
+    var e = Enumerator.init(p);
+    while (try p.enumerator(&e)) |field_and_node| {
         try p.enum_buf.append(field_and_node.field);
         try p.list_buf.append(field_and_node.node);
         if (p.eatToken(.comma) == null) break;
@@ -1783,25 +1784,48 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
     return enum_ty;
 }
 
+const Enumerator = struct {
+    res: Result,
+
+    fn init(p: *Parser) Enumerator {
+        return .{ .res = .{
+            .ty = .{ .specifier = if (p.pp.comp.langopts.short_enums) .schar else .int },
+            .val = .{ .signed = 0 },
+        } };
+    }
+
+    /// Increment enumerator value adjusting type if needed.
+    fn incr(e: *Enumerator, p: *Parser) !void {
+        e.res.node = .none;
+        _ = p;
+        switch (e.res.val) {
+            .unavailable => unreachable,
+            .signed => |*v| v.* += 1,
+            .unsigned => |*v| v.* += 1,
+        }
+        // TODO adjust type if value does not fit current
+    }
+
+    /// Set enumerator value to specified value, adjusting type if needed.
+    fn set(e: *Enumerator, p: *Parser, res: Result) !void {
+        _ = p;
+        e.res = res;
+        // TODO adjust res type to try to fit with the previous type
+    }
+};
+
 const EnumFieldAndNode = struct { field: Type.Enum.Field, node: NodeIndex };
 
 /// enumerator : IDENTIFIER ('=' constExpr)
-fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
+fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     _ = try p.pragma();
     const name_tok = (try p.eatIdentifier()) orelse {
         if (p.tok_ids[p.tok_i] == .r_brace) return null;
         try p.err(.expected_identifier);
-        // TODO skip to }
+        p.skipTo(.r_brace);
         return error.ParsingFailed;
     };
     const name = p.tokSlice(name_tok);
-    // TODO get from enumSpec
-    var res: Result = .{
-        .ty = .{ .specifier = .int },
-        .val = .{
-            .unsigned = 0,
-        },
-    };
     const attr_buf_top = p.attr_buf.items.len;
     defer p.attr_buf.items.len = attr_buf_top;
     try p.attributeSpecifier(.@"enum");
@@ -1810,38 +1834,41 @@ fn enumerator(p: *Parser) Error!?EnumFieldAndNode {
         const specified = try p.constExpr();
         if (specified.val == .unavailable) {
             try p.errTok(.enum_val_unavailable, name_tok + 2);
+            try e.incr(p);
         } else {
-            res = specified;
+            try e.set(p, specified);
         }
+    } else {
+        try e.incr(p);
     }
 
     if (p.findSymbol(name_tok, .definition)) |scope| switch (scope) {
-        .enumeration => |e| {
+        .enumeration => |sym| {
             try p.errStr(.redefinition, name_tok, name);
-            try p.errTok(.previous_definition, e.name_tok);
+            try p.errTok(.previous_definition, sym.name_tok);
         },
-        .decl, .def, .param => |s| {
+        .decl, .def, .param => |sym| {
             try p.errStr(.redefinition_different_sym, name_tok, name);
-            try p.errTok(.previous_definition, s.name_tok);
+            try p.errTok(.previous_definition, sym.name_tok);
         },
         else => unreachable,
     };
 
     try p.scopes.append(.{ .enumeration = .{
         .name = name,
-        .value = res,
+        .value = e.res,
         .name_tok = name_tok,
     } });
     return EnumFieldAndNode{ .field = .{
         .name = name,
-        .ty = res.ty,
-        .value = res.as_u64(),
+        .ty = e.res.ty,
+        .value = e.res.as_u64(),
     }, .node = try p.addNode(.{
         .tag = .enum_field_decl,
-        .ty = res.ty,
+        .ty = e.res.ty,
         .data = .{ .decl = .{
             .name = name_tok,
-            .node = res.node,
+            .node = e.res.node,
         } },
     }) };
 }
