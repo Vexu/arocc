@@ -26,9 +26,10 @@ void foo(void) {
     (void)(1 ? (volatile int*)2 : (const void*)3);
     (void)(1 ? (const int *)1 : 0);
     (void)(1 ? 0 : (const int *)1);
-    // struct Foo { int a; } b, c;
-    // (void)(1 ? b : c);
-    // (void)(1 ? b : 1);
+    struct Foo { int a; } b;
+    const struct Foo c;
+    (void)(1 ? b : c);
+    (void)(1 ? b : 1);
     ?:;
     (void)(1 * (int)sizeof(int));
     int *ptr;
@@ -59,6 +60,7 @@ int baz = 0xFFFFFFFFFF + 1u;
     "binary expressions.c:21:17: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
     "binary expressions.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
     "binary expressions.c:24:24: warning: pointer type mismatch ('int *' and 'float *')" \
-    "binary expressions.c:32:5: error: expected statement" \
-    "binary expressions.c:37:5: error: expected expression" \
-    "binary expressions.c:38:13: error: expected expression" \
+    "binary expressions.c:32:18: error: invalid operands to binary expression ('struct Foo' and 'int')" \
+    "binary expressions.c:33:5: error: expected statement" \
+    "binary expressions.c:38:5: error: expected expression" \
+    "binary expressions.c:39:13: error: expected expression" \

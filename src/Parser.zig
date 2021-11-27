@@ -580,6 +580,8 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_register,
             .keyword_thread_local,
             .keyword_inline,
+            .keyword_inline1,
+            .keyword_inline2,
             .keyword_noreturn,
             .keyword_void,
             .keyword_bool,
@@ -1109,7 +1111,7 @@ fn declSpec(p: *Parser, is_param: bool) Error!?DeclSpec {
                 }
                 d.thread_local = p.tok_i;
             },
-            .keyword_inline => {
+            .keyword_inline, .keyword_inline1, .keyword_inline2 => {
                 if (d.@"inline" != null) {
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "inline");
                 }
@@ -1526,6 +1528,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     };
 
     // Get forward declared type or create a new one
+    var defined = false;
     const record_ty: *Type.Record = if (maybe_ident) |ident| record_ty: {
         if (try p.findTag(p.tok_ids[kind_tok], ident, .definition)) |prev| {
             if (!prev.ty.data.record.isIncomplete()) {
@@ -1533,6 +1536,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
                 try p.errStr(.redefinition, ident, p.tokSlice(ident));
                 try p.errTok(.previous_definition, prev.name_tok);
             } else {
+                defined = true;
                 break :record_ty prev.ty.data.record;
             }
         }
@@ -1544,8 +1548,8 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     };
 
     // declare a symbol for the type
-    if (maybe_ident) |ident| {
-        const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = ident };
+    if (maybe_ident != null and !defined) {
+        const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = maybe_ident.? };
         try p.scopes.append(if (is_struct) .{ .@"struct" = sym } else .{ .@"union" = sym });
     }
 
@@ -1715,6 +1719,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
     };
 
     // Get forward declared type or create a new one
+    var defined = false;
     const enum_ty: *Type.Enum = if (maybe_ident) |ident| enum_ty: {
         if (try p.findTag(.keyword_enum, ident, .definition)) |prev| {
             if (!prev.ty.data.@"enum".isIncomplete()) {
@@ -1722,6 +1727,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
                 try p.errStr(.redefinition, ident, p.tokSlice(ident));
                 try p.errTok(.previous_definition, prev.name_tok);
             } else {
+                defined = true;
                 break :enum_ty prev.ty.data.@"enum";
             }
         }
@@ -1733,11 +1739,11 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
     };
 
     // declare a symbol for the type
-    if (maybe_ident) |ident| {
+    if (maybe_ident != null and !defined) {
         try p.scopes.append(.{ .@"enum" = .{
             .name = enum_ty.name,
             .ty = ty,
-            .name_tok = ident,
+            .name_tok = maybe_ident.?,
         } });
     }
 
@@ -3219,6 +3225,8 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_register,
             .keyword_thread_local,
             .keyword_inline,
+            .keyword_inline1,
+            .keyword_inline2,
             .keyword_noreturn,
             .keyword_void,
             .keyword_bool,
@@ -3378,7 +3386,8 @@ const Result = struct {
         if (res.ty.is(.void) or res.node == .none) return;
         // don't warn about unused result if the expression contained errors
         if (p.pp.comp.diag.list.items.len > err_start) return;
-        switch (p.nodes.items(.tag)[@enumToInt(res.node)]) {
+        var cur_node = res.node;
+        while (true) switch (p.nodes.items(.tag)[@enumToInt(cur_node)]) {
             .invalid, // So that we don't need to check for node == 0
             .assign_expr,
             .mul_assign_expr,
@@ -3398,8 +3407,9 @@ const Result = struct {
             .post_inc_expr,
             .post_dec_expr,
             => return,
-            else => {},
-        }
+            .comma_expr => cur_node = p.nodes.items(.data)[@enumToInt(cur_node)].bin.rhs,
+            else => break,
+        };
         try p.errTok(.unused_value, expr_start);
     }
 
@@ -3543,7 +3553,9 @@ const Result = struct {
                     return true;
                 }
                 if (a_ptr and b_ptr) return a.adjustCondExprPtrs(tok, b, p);
-                // TODO struct/record
+                if (a.ty.isRecord() and b.ty.isRecord() and a.ty.eql(b.ty, false)) {
+                    return true;
+                }
                 return a.invalidBinTy(tok, b, p);
             },
             .add => {
@@ -4037,7 +4049,7 @@ fn assignExpr(p: *Parser) Error!Result {
             try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(rhs.ty, " to ", lhs.ty));
             try rhs.ptrCast(p, unqual_ty);
         } else if (rhs.ty.isPtr()) {
-            if (!unqual_ty.eql(rhs.ty, false)) {
+            if (!unqual_ty.isVoidStar() and !rhs.ty.isVoidStar() and !unqual_ty.eql(rhs.ty, false)) {
                 try p.errStr(.incompatible_ptr_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
                 try rhs.ptrCast(p, unqual_ty);
             } else if (!unqual_ty.eql(rhs.ty, true)) {

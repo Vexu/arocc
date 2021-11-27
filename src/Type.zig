@@ -266,6 +266,7 @@ pub fn isCallable(ty: Type) ?Type {
         .pointer => if (ty.data.sub_type.isFunc()) ty.data.sub_type.* else null,
         .typeof_type => ty.data.sub_type.isCallable(),
         .typeof_expr => ty.data.expr.ty.isCallable(),
+        .attributed => ty.data.attributed.base.isCallable(),
         else => null,
     };
 }
@@ -275,6 +276,7 @@ pub fn isFunc(ty: Type) bool {
         .func, .var_args_func, .old_style_func => true,
         .typeof_type => ty.data.sub_type.isFunc(),
         .typeof_expr => ty.data.expr.ty.isFunc(),
+        .attributed => ty.data.attributed.base.isFunc(),
         else => false,
     };
 }
@@ -284,6 +286,7 @@ pub fn isArray(ty: Type) bool {
         .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => true,
         .typeof_type => ty.data.sub_type.isArray(),
         .typeof_expr => ty.data.expr.ty.isArray(),
+        .attributed => ty.data.attributed.base.isArray(),
         else => false,
     };
 }
@@ -301,6 +304,7 @@ pub fn isPtr(ty: Type) bool {
         => true,
         .typeof_type => ty.data.sub_type.isPtr(),
         .typeof_expr => ty.data.expr.ty.isPtr(),
+        .attributed => ty.data.attributed.base.isPtr(),
         else => false,
     };
 }
@@ -310,6 +314,7 @@ pub fn isInt(ty: Type) bool {
         .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
         .typeof_type => ty.data.sub_type.isInt(),
         .typeof_expr => ty.data.expr.ty.isInt(),
+        .attributed => ty.data.attributed.base.isInt(),
         else => false,
     };
 }
@@ -319,6 +324,7 @@ pub fn isFloat(ty: Type) bool {
         .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double => true,
         .typeof_type => ty.data.sub_type.isFloat(),
         .typeof_expr => ty.data.expr.ty.isFloat(),
+        .attributed => ty.data.attributed.base.isFloat(),
         else => false,
     };
 }
@@ -328,6 +334,7 @@ pub fn isReal(ty: Type) bool {
         .complex_float, .complex_double, .complex_long_double => false,
         .typeof_type => ty.data.sub_type.isReal(),
         .typeof_expr => ty.data.expr.ty.isReal(),
+        .attributed => ty.data.attributed.base.isReal(),
         else => true,
     };
 }
@@ -337,6 +344,7 @@ pub fn isVoidStar(ty: Type) bool {
         .pointer => ty.data.sub_type.specifier == .void,
         .typeof_type => ty.data.sub_type.isVoidStar(),
         .typeof_expr => ty.data.expr.ty.isVoidStar(),
+        .attributed => ty.data.attributed.base.isVoidStar(),
         else => false,
     };
 }
@@ -352,6 +360,7 @@ pub fn isConst(ty: Type) bool {
     return switch (ty.specifier) {
         .typeof_type, .decayed_typeof_type => ty.qual.@"const" or ty.data.sub_type.isConst(),
         .typeof_expr, .decayed_typeof_expr => ty.qual.@"const" or ty.data.expr.ty.isConst(),
+        .attributed => ty.data.attributed.base.isConst(),
         else => ty.qual.@"const",
     };
 }
@@ -362,6 +371,7 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
         .uchar, .ushort, .uint, .ulong, .ulong_long => return true,
         .typeof_type => ty.data.sub_type.isUnsignedInt(comp),
         .typeof_expr => ty.data.expr.ty.isUnsignedInt(comp),
+        .attributed => ty.data.attributed.base.isUnsignedInt(comp),
         else => false,
     };
 }
@@ -371,6 +381,7 @@ pub fn isEnumOrRecord(ty: Type) bool {
         .@"enum", .@"struct", .@"union" => true,
         .typeof_type => ty.data.sub_type.isEnumOrRecord(),
         .typeof_expr => ty.data.expr.ty.isEnumOrRecord(),
+        .attributed => ty.data.attributed.base.isEnumOrRecord(),
         else => false,
     };
 }
@@ -380,6 +391,7 @@ pub fn isRecord(ty: Type) bool {
         .@"struct", .@"union" => true,
         .typeof_type => ty.data.sub_type.isRecord(),
         .typeof_expr => ty.data.expr.ty.isRecord(),
+        .attributed => ty.data.attributed.base.isRecord(),
         else => false,
     };
 }
@@ -389,7 +401,7 @@ pub fn elemType(ty: Type) Type {
         .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.*,
         .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem,
         .variable_len_array, .decayed_variable_len_array => ty.data.expr.ty,
-        .typeof_type, .decayed_typeof_type, .typeof_expr, .decayed_typeof_expr => {
+        .typeof_type, .decayed_typeof_type, .typeof_expr, .decayed_typeof_expr, .attributed => {
             const unwrapped = ty.canonicalize(.preserve_quals);
             var elem = unwrapped.elemType();
             elem.qual = elem.qual.mergeAll(unwrapped.qual);
@@ -404,6 +416,7 @@ pub fn arrayLen(ty: Type) ?usize {
         .array, .static_array, .decayed_array, .decayed_static_array => ty.data.array.len,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.arrayLen(),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.arrayLen(),
+        .attributed => ty.data.attributed.base.arrayLen(),
         else => null,
     };
 }
@@ -499,6 +512,7 @@ pub fn hasIncompleteSize(ty: Type) bool {
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .typeof_type => ty.data.sub_type.hasIncompleteSize(),
         .typeof_expr => ty.data.expr.ty.hasIncompleteSize(),
+        .attributed => ty.data.attributed.base.hasIncompleteSize(),
         else => false,
     };
 }
@@ -521,6 +535,7 @@ pub fn hasUnboundVLA(ty: Type) bool {
             => cur = cur.elemType(),
             .typeof_type, .decayed_typeof_type => cur = cur.data.sub_type.*,
             .typeof_expr, .decayed_typeof_expr => cur = cur.data.expr.ty,
+            .attributed => cur = cur.data.attributed.base,
             else => return false,
         }
     }
@@ -710,6 +725,7 @@ pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
     return switch (ty.specifier) {
         .typeof_type => ty.data.sub_type.get(specifier),
         .typeof_expr => ty.data.expr.ty.get(specifier),
+        .attributed => ty.data.attributed.base.get(specifier),
         else => if (ty.specifier == specifier) ty else null,
     };
 }
@@ -1343,6 +1359,10 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
             return false;
         },
         .typeof_type, .typeof_expr => {
+            const actual = ty.canonicalize(.standard);
+            return actual.printPrologue(w);
+        },
+        .attributed => {
             const actual = ty.canonicalize(.standard);
             return actual.printPrologue(w);
         },

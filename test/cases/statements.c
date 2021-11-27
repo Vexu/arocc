@@ -15,6 +15,8 @@ void foo(void) {
     enum FOO {BAR, BAZ} y = BAR;
     if (y) return;
     if (!BAZ) return;
+    int a, b;
+    for (a=1,b=1;;);
 }
 
 #define EXPECTED_ERRORS "statements.c:3:9: error: statement requires expression with scalar type ('void' invalid)" \

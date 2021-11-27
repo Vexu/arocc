@@ -189,6 +189,8 @@ pub const Token = struct {
         // gcc keywords
         keyword_const1,
         keyword_const2,
+        keyword_inline1,
+        keyword_inline2,
         keyword_volatile1,
         keyword_volatile2,
         keyword_restrict1,
@@ -452,6 +454,8 @@ pub const Token = struct {
                 .keyword_va_args => "__VA_ARGS__",
                 .keyword_const1 => "__const",
                 .keyword_const2 => "__const__",
+                .keyword_inline1 => "__inline",
+                .keyword_inline2 => "__inline__",
                 .keyword_volatile1 => "__volatile",
                 .keyword_volatile2 => "__volatile__",
                 .keyword_restrict1 => "__restrict",
@@ -638,6 +642,8 @@ pub const Token = struct {
         // gcc keywords
         .{ "__const", .keyword_const1 },
         .{ "__const__", .keyword_const2 },
+        .{ "__inline", .keyword_inline1 },
+        .{ "__inline__", .keyword_inline2 },
         .{ "__volatile", .keyword_volatile1 },
         .{ "__volatile__", .keyword_volatile2 },
         .{ "__restrict", .keyword_restrict1 },
