@@ -1,4 +1,5 @@
-//std=c89
+#pragma Aro_test version c89
+
 void foo(void) {
 	int inline = 5;
 	int restrict = 10;

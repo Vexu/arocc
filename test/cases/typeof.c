@@ -1,4 +1,5 @@
-//std=gnu17
+#pragma Aro_test version gnu17
+
 int foo(void) {
     return 42.0;
 }

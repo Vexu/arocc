@@ -1,4 +1,5 @@
-//std=c17
+#pragma Aro_test version c17
+
 #if !__is_identifier(typeof)
 #error typeof should be an identifier in c17
 #endif

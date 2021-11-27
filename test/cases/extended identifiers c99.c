@@ -1,4 +1,4 @@
-//std=c99
+#pragma Aro_test version c99
 
 #define Ǻ 42
 int fǿǿ(void) {

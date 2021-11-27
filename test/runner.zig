@@ -6,6 +6,7 @@ const Tree = aro.Tree;
 const Token = Tree.Token;
 const NodeIndex = Tree.NodeIndex;
 const AllocatorError = std.mem.Allocator.Error;
+const Pragma = aro.Pragma;
 
 const predefined_macros =
     \\#define EXPECT(x) _Static_assert(x, "unexpected result")
@@ -40,6 +41,7 @@ pub fn main() !void {
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
+            if (entry.kind == .Directory) continue;
             if (entry.kind != .File) {
                 print("skipping non file entry '{s}'\n", .{entry.name});
                 continue;
@@ -59,6 +61,11 @@ pub fn main() !void {
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
+    {
+        var test_pragma = try TestPragma.init(comp.gpa, &comp);
+        errdefer test_pragma.deinit(test_pragma, &comp);
+        try comp.addPragmaHandler("Aro_test", test_pragma);
+    }
 
     try comp.defineSystemIncludes();
 
@@ -102,14 +109,6 @@ pub fn main() !void {
             _ = comp.sources.swapRemove(file.path);
             gpa.free(file.path);
             gpa.free(file.buf);
-        }
-
-        if (std.mem.startsWith(u8, file.buf, "//std=")) {
-            const suffix = file.buf["//std=".len..];
-            var it = std.mem.tokenize(u8, suffix, " \r\n");
-            if (it.next()) |standard| {
-                try comp.langopts.setStandard(standard);
-            }
         }
 
         const builtin_macros = try comp.generateBuiltinMacros();
@@ -478,5 +477,53 @@ const StmtTypeDumper = struct {
             },
             else => unreachable,
         }
+    }
+};
+
+const TestPragma = struct {
+    pragma: Pragma = .{
+        .deinit = deinit,
+        .preprocessorHandler = preprocessorHandler,
+    },
+    comp: *aro.Compilation,
+
+    const Directive = enum {
+        version,
+    };
+
+    pub fn init(allocator: *std.mem.Allocator, comp: *aro.Compilation) !*Pragma {
+        var test_pragma = try allocator.create(TestPragma);
+        test_pragma.* = .{ .comp = comp };
+        return &test_pragma.pragma;
+    }
+
+    fn deinit(pragma: *Pragma, comp: *aro.Compilation) void {
+        var self = @fieldParentPtr(TestPragma, "pragma", pragma);
+        comp.gpa.destroy(self);
+    }
+
+    fn preprocessorHandler(pragma: *Pragma, pp: *aro.Preprocessor, start_idx: aro.Tree.TokenIndex) Pragma.Error!void {
+        var test_pragma = @fieldParentPtr(TestPragma, "pragma", pragma);
+        const directive_tok = pp.tokens.get(start_idx + 1);
+        if (directive_tok.id == .nl) return;
+
+        if (std.meta.stringToEnum(Directive, pp.expandedSlice(directive_tok))) |directive| {
+            switch (directive) {
+                .version => {
+                    const version = pp.tokens.get(start_idx + 2);
+                    if (version.id != .identifier) return error.UnknownPragma;
+                    test_pragma.comp.langopts.setStandard(pp.expandedSlice(version)) catch return error.UnknownPragma;
+
+                    if (pp.tokens.get(start_idx + 3).id != .nl) {
+                        try pp.comp.addDiagnostic(.{
+                            .tag = .extra_tokens_directive_end,
+                            .loc = pp.tokens.get(start_idx).loc,
+                        });
+                    }
+                    return;
+                },
+            }
+        }
+        return error.UnknownPragma;
     }
 };

@@ -1,4 +1,4 @@
-//std=c11
+#pragma Aro_test version c11
 
 #pragma GCC diagnostic warning "-Wc99-compat"
 
