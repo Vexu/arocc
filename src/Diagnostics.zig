@@ -1084,11 +1084,12 @@ const MsgWriter = struct {
     }
 
     fn location(m: *MsgWriter, path: []const u8, lcs: Source.LCS) void {
+        const prefix = if (std.fs.path.dirname(path) == null) "." ++ std.fs.path.sep_str else "";
         if (@import("builtin").os.tag == .windows or !m.color) {
-            m.print("{s}:{d}:{d}: ", .{ path, lcs.line, lcs.col });
+            m.print("{s}{s}:{d}:{d}: ", .{ prefix, path, lcs.line, lcs.col });
         } else {
             const BOLD = "\x1b[0m\x1b[1m";
-            m.print(BOLD ++ "{s}:{d}:{d}: ", .{ path, lcs.line, lcs.col });
+            m.print(BOLD ++ "{s}{s}:{d}:{d}: ", .{ prefix, path, lcs.line, lcs.col });
         }
     }
 

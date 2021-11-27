@@ -74,6 +74,11 @@ enum forward_enum {
     forward_enum_a = sizeof(forward_enum *),
 };
 
+void baz(void) {
+    struct a {int a;} a;
+    (void) a.a;
+}
+
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
     "containers.c:15:12: error: variable has incomplete type 'struct Foo'" \

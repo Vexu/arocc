@@ -271,6 +271,8 @@ pub const Token = struct {
                 .keyword_typeof2,
                 .keyword_const1,
                 .keyword_const2,
+                .keyword_inline1,
+                .keyword_inline2,
                 .keyword_volatile1,
                 .keyword_volatile2,
                 .keyword_restrict1,

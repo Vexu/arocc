@@ -37,6 +37,8 @@ void foo(void) {
     ptr = ptr + idx;
     ,(void)1;
     (void)2,;
+    (void)(ptr == 0);
+    (void)(0 == ptr);
 }
 
 int bar(void) {
@@ -44,8 +46,6 @@ int bar(void) {
 }
 
 int baz = 0xFFFFFFFFFF + 1u;
-
-#define TESTS_SKIPPED 3
 
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \

@@ -329,6 +329,7 @@ fn findTypedef(p: *Parser, name_tok: TokenIndex, no_type_yet: bool) !?Scope.Symb
                 try p.errStr(.must_use_enum, name_tok, name);
                 return e;
             },
+            .def, .decl => |d| if (mem.eql(u8, d.name, name)) return null,
             else => {},
         }
     }
@@ -3408,6 +3409,7 @@ const Result = struct {
             .post_dec_expr,
             => return,
             .comma_expr => cur_node = p.nodes.items(.data)[@enumToInt(cur_node)].bin.rhs,
+            .paren_expr => cur_node = p.nodes.items(.data)[@enumToInt(cur_node)].un,
             else => break,
         };
         try p.errTok(.unused_value, expr_start);
@@ -3519,8 +3521,9 @@ const Result = struct {
                 if (!a_scalar or !b_scalar or (a_float and b_ptr) or (b_float and a_ptr))
                     return a.invalidBinTy(tok, b, p);
 
-                if (a_int or b_int) try p.errStr(.comparison_ptr_int, tok, try p.typePairStr(a.ty, b.ty));
-                if (a_ptr and b_ptr) {
+                if ((a_int or b_int) and !(a.isZero() or b.isZero())) {
+                    try p.errStr(.comparison_ptr_int, tok, try p.typePairStr(a.ty, b.ty));
+                } else if (a_ptr and b_ptr) {
                     if (!a.ty.isVoidStar() and !b.ty.isVoidStar() and !a.ty.eql(b.ty, false))
                         try p.errStr(.comparison_distinct_ptr, tok, try p.typePairStr(a.ty, b.ty));
                 } else if (a_ptr) {
