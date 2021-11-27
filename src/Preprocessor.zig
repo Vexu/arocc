@@ -710,6 +710,7 @@ fn expandFuncMacro(
         const raw = func_macro.tokens[tok_i];
         switch (raw.id) {
             .hash_hash => {
+                if (tok_i + 1 == func_macro.tokens.len) break; // missing rhs due to previous error
                 const raw_next = func_macro.tokens[tok_i + 1];
                 const placeholder_token = Token{ .id = .empty_arg, .loc = .{ .id = raw_next.source, .byte_offset = raw_next.start } };
 
