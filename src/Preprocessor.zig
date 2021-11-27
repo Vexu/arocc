@@ -1177,6 +1177,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         try pp.err(first, .whitespace_after_macro_name);
     } else if (first.id == .hash_hash) {
         try pp.err(first, .hash_hash_at_start);
+        return skipToNl(tokenizer);
     }
 
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
@@ -1189,9 +1190,16 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         switch (tok.id) {
             .hash_hash => {
                 const next = tokenizer.next();
-                if (next.id == .nl or next.id == .eof) {
-                    try pp.err(tok, .hash_hash_at_end);
-                    break;
+                switch (next.id) {
+                    .nl, .eof => {
+                        try pp.err(tok, .hash_hash_at_end);
+                        return;
+                    },
+                    .hash_hash => {
+                        try pp.err(next, .hash_hash_at_end);
+                        return;
+                    },
+                    else => {},
                 }
                 try pp.token_buf.append(tok);
                 try pp.token_buf.append(next);
@@ -1223,10 +1231,10 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
         var tok = tokenizer.next();
         if (tok.id == .r_paren) break;
         if (params.items.len != 0) {
-            if (tok.id != .comma)
-                try pp.err(tok, .invalid_token_param_list)
-            else
-                tok = tokenizer.next();
+            if (tok.id != .comma) {
+                try pp.err(tok, .invalid_token_param_list);
+                return skipToNl(tokenizer);
+            } else tok = tokenizer.next();
         }
         if (tok.id == .eof) return pp.err(tok, .unterminated_macro_param_list);
         if (tok.id == .ellipsis) {
@@ -1235,12 +1243,13 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
             if (r_paren.id != .r_paren) {
                 try pp.err(r_paren, .missing_paren_param_list);
                 try pp.err(l_paren, .to_match_paren);
+                return skipToNl(tokenizer);
             }
             break;
         }
         if (!tok.id.isMacroIdentifier()) {
             try pp.err(tok, .invalid_token_param_list);
-            continue;
+            return skipToNl(tokenizer);
         }
 
         try params.append(pp.tokSliceSafe(tok));
@@ -1272,20 +1281,20 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                     }
                 }
                 try pp.err(param, .hash_not_followed_param);
-                tok = param;
+                return skipToNl(tokenizer);
             },
             .hash_hash => {
                 // if ## appears at the beginning, the token buf is still empty
                 // in this case, error out
                 if (pp.token_buf.items.len == 0) {
                     try pp.err(tok, .hash_hash_at_start);
-                    continue;
+                    return skipToNl(tokenizer);
                 }
                 const start = tokenizer.index;
                 const next = tokenizer.next();
                 if (next.id == .nl or next.id == .eof) {
                     try pp.err(tok, .hash_hash_at_end);
-                    continue;
+                    return skipToNl(tokenizer);
                 }
                 tokenizer.index = start;
                 // convert the previous token to .macro_param_no_expand if it was .macro_param
