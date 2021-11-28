@@ -462,6 +462,7 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
             .ulong_long => .ulong_long,
             .typeof_type => return ty.data.sub_type.integerPromotion(comp),
             .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
+            .attributed => return ty.data.attributed.base.integerPromotion(comp),
             else => unreachable, // not an integer type
         },
     };
