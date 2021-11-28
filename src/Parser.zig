@@ -474,7 +474,7 @@ fn pragma(p: *Parser) !bool {
     return found_pragma;
 }
 
-/// root : (decl | staticAssert)*
+/// root : (decl | assembly ';' | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     pp.comp.pragmaEvent(.before_parse);
 
@@ -549,6 +549,13 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
                 else => |e| return e,
             }) continue;
         }
+        if (p.assembly(.global) catch |er| switch (er) {
+            error.ParsingFailed => {
+                p.nextExternDecl();
+                continue;
+            },
+            else => |e| return e,
+        }) |_| continue;
         try p.err(.expected_external_decl);
         p.tok_i += 1;
     }
@@ -687,7 +694,6 @@ fn decl(p: *Parser) Error!bool {
 
     // Check for function definition.
     if (init_d.d.func_declarator != null and init_d.initializer == .none and init_d.d.ty.isFunc()) fn_def: {
-        try p.attributeSpecifier(.function);
         switch (p.tok_ids[p.tok_i]) {
             .comma, .semicolon => break :fn_def,
             .l_brace => {},
@@ -835,7 +841,6 @@ fn decl(p: *Parser) Error!bool {
     while (true) {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         const tag = try decl_spec.validate(p, &init_d.d.ty, init_d.initializer != .none);
-        try p.attributeSpecifier(.variable);
         const attrs = p.attr_buf.items[attr_buf_top..];
         if (attrs.len > 0) {
             var attributed_type = try p.arena.create(Type.Attributed);
@@ -1290,7 +1295,7 @@ fn attributeList(p: *Parser, context: Attribute.ParseContext) Error!void {
     }
 }
 
-/// attributeSpecifier : (keyword_attribute2 '( '(' attributeList ')' ')')*
+/// attributeSpecifier : (keyword_attribute '( '(' attributeList ')' ')')*
 fn attributeSpecifier(p: *Parser, context: Attribute.ParseContext) Error!void {
     while (p.tok_ids[p.tok_i] == .keyword_attribute1 or p.tok_ids[p.tok_i] == .keyword_attribute2) {
         p.tok_i += 1;
@@ -1304,11 +1309,13 @@ fn attributeSpecifier(p: *Parser, context: Attribute.ParseContext) Error!void {
     }
 }
 
-/// initDeclarator : declarator ('=' initializer)?
+/// initDeclarator : declarator assembly? attributeSpecifier? ('=' initializer)?
 fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
     var init_d = InitDeclarator{
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
+    _ = try p.assembly(.decl); // TODO use somehow
+    try p.attributeSpecifier(if (init_d.d.ty.isFunc()) .function else .variable);
     if (p.eatToken(.equal)) |eq| init: {
         if (init_d.d.ty.hasIncompleteSize() and !init_d.d.ty.isArray()) {
             try p.errStr(.variable_incomplete_ty, init_d.d.name, try p.typeStr(init_d.d.ty));
@@ -2795,6 +2802,65 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
     }
 }
 
+/// assembly : keyword_asm asmQual* '(' asmStr ')'
+fn assembly(p: *Parser, kind: enum { global, decl, stmt }) Error!?NodeIndex {
+    switch (p.tok_ids[p.tok_i]) {
+        .keyword_asm, .keyword_asm1, .keyword_asm2 => p.tok_i += 1,
+        else => return null,
+    }
+
+    var @"volatile" = false;
+    var @"inline" = false;
+    var goto = false;
+    while (true) : (p.tok_i += 1) switch (p.tok_ids[p.tok_i]) {
+        .keyword_volatile, .keyword_volatile1, .keyword_volatile2 => {
+            if (kind != .stmt) try p.errStr(.meaningless_asm_qual, p.tok_i, "volatile");
+            if (@"volatile") try p.errStr(.duplicate_asm_qual, p.tok_i, "volatile");
+            @"volatile" = true;
+        },
+        .keyword_inline, .keyword_inline1, .keyword_inline2 => {
+            if (kind != .stmt) try p.errStr(.meaningless_asm_qual, p.tok_i, "inline");
+            if (@"inline") try p.errStr(.duplicate_asm_qual, p.tok_i, "inline");
+            @"inline" = true;
+        },
+        .keyword_goto => {
+            if (kind != .stmt) try p.errStr(.meaningless_asm_qual, p.tok_i, "goto");
+            if (goto) try p.errStr(.duplicate_asm_qual, p.tok_i, "goto");
+            goto = true;
+        },
+        else => break,
+    };
+
+    const l_paren = try p.expectToken(.l_paren);
+    if (kind != .stmt) {
+        _ = try p.asmStr();
+    } else {
+        return p.todo("assembly statements");
+    }
+    try p.expectClosing(l_paren, .r_paren);
+
+    if (kind != .decl) _ = try p.expectToken(.semicolon);
+    return .none;
+}
+
+/// Same as stringLiteral but errors on unicode and wide string literals
+fn asmStr(p: *Parser) Error!NodeIndex {
+    var i = p.tok_i;
+    while (true) : (i += 1) switch (p.tok_ids[i]) {
+        .string_literal => {},
+        .string_literal_utf_16, .string_literal_utf_8, .string_literal_utf_32 => {
+            try p.errStr(.invalid_asm_str, p.tok_i, "unicode");
+            return error.ParsingFailed;
+        },
+        .string_literal_wide => {
+            try p.errStr(.invalid_asm_str, p.tok_i, "wide");
+            return error.ParsingFailed;
+        },
+        else => break,
+    };
+    return (try p.stringLiteral()).node;
+}
+
 // ====== statements ======
 
 /// stmt
@@ -2809,6 +2875,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
 ///  | keyword_continue ';'
 ///  | keyword_break ';'
 ///  | keyword_return expr? ';'
+///  | assembly ';'
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.labeledStmt()) |some| return some;
@@ -3033,6 +3100,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         return try p.addNode(.{ .tag = .break_stmt, .data = undefined });
     }
     if (try p.returnStmt()) |some| return some;
+    if (try p.assembly(.stmt)) |some| return some;
 
     const expr_start = p.tok_i;
     const err_start = p.pp.comp.diag.list.items.len;

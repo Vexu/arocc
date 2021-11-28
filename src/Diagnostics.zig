@@ -281,6 +281,9 @@ pub const Tag = enum {
     unicode_zero_width,
     unicode_homoglyph,
     pragma_inside_macro,
+    meaningless_asm_qual,
+    duplicate_asm_qual,
+    invalid_asm_str,
 };
 
 pub const Options = struct {
@@ -697,6 +700,9 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                 msg.extra.codepoints.resembles,
             }),
             .pragma_inside_macro => m.write("#pragma directive in macro expansion"),
+            .meaningless_asm_qual => m.print("meaningless '{s}' on assembly outside function", .{msg.extra.str}),
+            .duplicate_asm_qual => m.print("duplicate asm qualifier '{s}'", .{msg.extra.str}),
+            .invalid_asm_str => m.print("cannot use {s} string literal in assembly", .{msg.extra.str}),
         }
 
         if (comp.diag.tagOption(msg.tag)) |opt| {
@@ -979,6 +985,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .invalid_preproc_operator,
         .invalid_preproc_expr_start,
         .pragma_inside_macro,
+        .meaningless_asm_qual,
+        .duplicate_asm_qual,
+        .invalid_asm_str,
         => .@"error",
         .to_match_paren,
         .to_match_brace,

@@ -81,7 +81,10 @@ void math(void) {
     (void) (x / 2);
 }
 
-extern int abs (int __x) __attribute__ ((__nothrow__ )) __attribute__ ((__const__)) ;
+extern int abs (int __x) __attribute__((__nothrow__ )) __attribute__((__const__));
+
+typedef int X();
+X x __attribute__((cold));
 
 #define EXPECTED_ERRORS "attributes.c:8:26: warning: Attribute 'noreturn' ignored in variable context" \
     "attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored" \

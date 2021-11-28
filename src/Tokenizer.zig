@@ -198,13 +198,15 @@ pub const Token = struct {
         keyword_alignof1,
         keyword_alignof2,
         keyword_typeof,
+        keyword_attribute1,
+        keyword_attribute2,
         keyword_extension,
+        keyword_asm,
+        keyword_asm1,
+        keyword_asm2,
 
         // gcc builtins
         builtin_choose_expr,
-
-        keyword_attribute1,
-        keyword_attribute2,
 
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
@@ -284,6 +286,9 @@ pub const Token = struct {
                 .keyword_attribute1,
                 .keyword_attribute2,
                 .keyword_extension,
+                .keyword_asm,
+                .keyword_asm1,
+                .keyword_asm2,
                 => return true,
                 else => return false,
             }
@@ -472,6 +477,9 @@ pub const Token = struct {
                 .keyword_attribute1 => "__attribute",
                 .keyword_attribute2 => "__attribute__",
                 .keyword_extension => "__extension__",
+                .keyword_asm => "asm",
+                .keyword_asm1 => "__asm",
+                .keyword_asm2 => "__asm__",
             };
         }
 
@@ -550,7 +558,6 @@ pub const Token = struct {
     /// double underscore and underscore + capital letter identifiers
     /// belong to the implementation namespace, so we always convert them
     /// to keywords.
-    /// TODO: add `.keyword_asm` here as GNU extension once that is supported.
     pub fn getTokenId(comp: *const Compilation, str: []const u8) Token.Id {
         const kw = all_kws.get(str) orelse return .identifier;
         const standard = comp.langopts.standard;
@@ -558,6 +565,7 @@ pub const Token = struct {
             .keyword_inline => if (standard.isGNU() or standard.atLeast(.c99)) kw else .identifier,
             .keyword_restrict => if (standard.atLeast(.c99)) kw else .identifier,
             .keyword_typeof => if (standard.isGNU()) kw else .identifier,
+            .keyword_asm => if (standard.isGNU()) kw else .identifier,
             else => kw,
         };
     }
@@ -659,6 +667,9 @@ pub const Token = struct {
         .{ "__attribute", .keyword_attribute1 },
         .{ "__attribute__", .keyword_attribute2 },
         .{ "__extension__", .keyword_extension },
+        .{ "asm", .keyword_asm },
+        .{ "__asm", .keyword_asm1 },
+        .{ "__asm__", .keyword_asm2 },
 
         // gcc builtins
         .{ "__builtin_choose_expr", .builtin_choose_expr },
