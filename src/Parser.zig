@@ -96,6 +96,7 @@ attr_buf: std.ArrayList(Attribute),
 // configuration and miscellaneous info
 no_eval: bool = false,
 in_macro: bool = false,
+extension_suppressed: bool = false,
 contains_address_of_label: bool = false,
 return_type: ?Type = null,
 func_name: TokenIndex = 0,
@@ -535,6 +536,19 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             },
             else => |e| return e,
         }) continue;
+        if (p.eatToken(.keyword_extension)) |_| {
+            const saved_extension = p.extension_suppressed;
+            defer p.extension_suppressed = saved_extension;
+            p.extension_suppressed = true;
+
+            if (p.decl() catch |er| switch (er) {
+                error.ParsingFailed => {
+                    p.nextExternDecl();
+                    continue;
+                },
+                else => |e| return e,
+            }) continue;
+        }
         try p.err(.expected_external_decl);
         p.tok_i += 1;
     }
@@ -605,9 +619,14 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_typeof,
             .keyword_typeof1,
             .keyword_typeof2,
+            .keyword_extension,
             => if (parens == 0) return,
             .keyword_pragma => p.skipToPragmaSentinel(),
             .eof => return,
+            .semicolon => if (parens == 0) {
+                p.tok_i += 1;
+                return;
+            },
             else => {},
         }
     }
@@ -1147,7 +1166,27 @@ const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = .none };
 ///  | attrIdentifier '(' identifier (',' expr)+ ')'
 ///  | attrIdentifier '(' (expr (',' expr)*)? ')'
 fn attribute(p: *Parser) Error!Attribute {
-    const name_tok = try p.expectIdentifier();
+    const name_tok = p.tok_i;
+    switch (p.tok_ids[p.tok_i]) {
+        .identifier, .keyword_const, .keyword_const1, .keyword_const2 => {},
+        .extended_identifier => {
+            const slice = p.tokSlice(p.tok_i);
+            var it = std.unicode.Utf8View.initUnchecked(slice).iterator();
+            var loc = p.pp.tokens.items(.loc)[p.tok_i];
+            while (it.nextCodepoint()) |c| {
+                if (try checkIdentifierCodepoint(p.pp.comp, c, loc)) break;
+                loc.byte_offset += std.unicode.utf8CodepointSequenceLength(c) catch unreachable;
+            }
+        },
+        else => {
+            try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{
+                .expected = .identifier,
+                .actual = p.tok_ids[p.tok_i],
+            } });
+            return error.ParsingFailed;
+        },
+    }
+    p.tok_i += 1;
     switch (p.tok_ids[p.tok_i]) {
         .comma, .r_paren => { // will be consumed in attributeList
             return Attribute{ .name = name_tok };
@@ -1597,86 +1636,114 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
 /// recordDecl
 ///  : specQual (recordDeclarator (',' recordDeclarator)*)? ;
 ///  | staticAssert
-/// recordDeclarator : declarator (':' constExpr)?
 fn recordDecls(p: *Parser) Error!void {
     while (true) {
         if (try p.pragma()) continue;
         if (try p.staticAssert()) continue;
-        const base_ty = (try p.specQual()) orelse return;
+        if (p.eatToken(.keyword_extension)) |_| {
+            const saved_extension = p.extension_suppressed;
+            defer p.extension_suppressed = saved_extension;
+            p.extension_suppressed = true;
 
-        while (true) {
-            // 0 means unnamed
-            var name_tok: TokenIndex = 0;
-            var ty = base_ty;
-            var bits_node: NodeIndex = .none;
-            var bits: u32 = 0;
-            const first_tok = p.tok_i;
-            if (try p.declarator(ty, .record)) |d| {
-                name_tok = d.name;
-                ty = d.ty;
+            if (p.recordDeclarator() catch |e| switch (e) {
+                error.ParsingFailed => {
+                    p.nextExternDecl();
+                    continue;
+                },
+                else => |err| return err,
+            }) continue;
+            try p.err(.expected_type);
+            p.nextExternDecl();
+            continue;
+        }
+        if (p.recordDeclarator() catch |e| switch (e) {
+            error.ParsingFailed => {
+                p.nextExternDecl();
+                continue;
+            },
+            else => |err| return err,
+        }) continue;
+        break;
+    }
+}
+
+/// recordDeclarator : keyword_extension? declarator (':' constExpr)?
+fn recordDeclarator(p: *Parser) Error!bool {
+    const base_ty = (try p.specQual()) orelse return false;
+
+    while (true) {
+        // 0 means unnamed
+        var name_tok: TokenIndex = 0;
+        var ty = base_ty;
+        var bits_node: NodeIndex = .none;
+        var bits: u32 = 0;
+        const first_tok = p.tok_i;
+        if (try p.declarator(ty, .record)) |d| {
+            name_tok = d.name;
+            ty = d.ty;
+        }
+        if (p.eatToken(.colon)) |_| bits: {
+            const res = try p.constExpr();
+            if (!ty.isInt()) {
+                try p.errStr(.non_int_bitfield, first_tok, try p.typeStr(ty));
+                break :bits;
             }
-            if (p.eatToken(.colon)) |_| bits: {
-                const res = try p.constExpr();
-                if (!ty.isInt()) {
-                    try p.errStr(.non_int_bitfield, first_tok, try p.typeStr(ty));
-                    break :bits;
-                }
 
-                if (res.val == .unavailable) {
-                    try p.errTok(.expected_integer_constant_expr, first_tok);
-                    break :bits;
-                } else if (res.val == .signed and res.val.signed < 0) {
-                    try p.errExtra(.negative_bitwidth, first_tok, .{ .signed = res.val.signed });
-                    break :bits;
-                }
-
-                const width = res.as_u64();
-                if (width == 0 and name_tok != 0) {
-                    try p.errTok(.zero_width_named_field, name_tok);
-                    break :bits;
-                } else if (width > ty.bitSizeof(p.pp.comp).?) {
-                    try p.errTok(.bitfield_too_big, name_tok);
-                    break :bits;
-                }
-
-                bits = @truncate(u32, width);
-                bits_node = res.node;
+            if (res.val == .unavailable) {
+                try p.errTok(.expected_integer_constant_expr, first_tok);
+                break :bits;
+            } else if (res.val == .signed and res.val.signed < 0) {
+                try p.errExtra(.negative_bitwidth, first_tok, .{ .signed = res.val.signed });
+                break :bits;
             }
-            if (name_tok == 0 and bits_node == .none) unnamed: {
-                if (ty.is(.@"enum")) break :unnamed;
-                if (ty.isRecord() and ty.data.record.name[0] == '(') {
-                    // An anonymous record appears as indirect fields on the parent
-                    try p.record_buf.append(.{
-                        .name = try p.getAnonymousName(first_tok),
-                        .ty = ty,
-                        .bit_width = 0,
-                    });
-                    const node = try p.addNode(.{
-                        .tag = .indirect_record_field_decl,
-                        .ty = ty,
-                        .data = undefined,
-                    });
-                    try p.decl_buf.append(node);
-                    break; // must be followed by a semicolon
-                }
-                try p.err(.missing_declaration);
-            } else {
+
+            const width = res.as_u64();
+            if (width == 0 and name_tok != 0) {
+                try p.errTok(.zero_width_named_field, name_tok);
+                break :bits;
+            } else if (width > ty.bitSizeof(p.pp.comp).?) {
+                try p.errTok(.bitfield_too_big, name_tok);
+                break :bits;
+            }
+
+            bits = @truncate(u32, width);
+            bits_node = res.node;
+        }
+        if (name_tok == 0 and bits_node == .none) unnamed: {
+            if (ty.is(.@"enum")) break :unnamed;
+            if (ty.isRecord() and ty.data.record.name[0] == '(') {
+                // An anonymous record appears as indirect fields on the parent
                 try p.record_buf.append(.{
-                    .name = if (name_tok != 0) p.tokSlice(name_tok) else try p.getAnonymousName(first_tok),
+                    .name = try p.getAnonymousName(first_tok),
                     .ty = ty,
-                    .bit_width = bits,
+                    .bit_width = 0,
                 });
                 const node = try p.addNode(.{
-                    .tag = .record_field_decl,
+                    .tag = .indirect_record_field_decl,
                     .ty = ty,
-                    .data = .{ .decl = .{ .name = name_tok, .node = bits_node } },
+                    .data = undefined,
                 });
                 try p.decl_buf.append(node);
+                break; // must be followed by a semicolon
             }
-            if (p.eatToken(.comma) == null) break;
+            try p.err(.missing_declaration);
+        } else {
+            try p.record_buf.append(.{
+                .name = if (name_tok != 0) p.tokSlice(name_tok) else try p.getAnonymousName(first_tok),
+                .ty = ty,
+                .bit_width = bits,
+            });
+            const node = try p.addNode(.{
+                .tag = .record_field_decl,
+                .ty = ty,
+                .data = .{ .decl = .{ .name = name_tok, .node = bits_node } },
+            });
+            try p.decl_buf.append(node);
         }
-        _ = try p.expectToken(.semicolon);
+        if (p.eatToken(.comma) == null) break;
     }
+    _ = try p.expectToken(.semicolon);
+    return true;
 }
 
 /// specQual : (typeSpec | typeQual | alignSpec)+
@@ -3093,7 +3160,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
     } else return null;
 }
 
-/// compoundStmt : '{' ( decl| staticAssert | stmt)* '}'
+/// compoundStmt : '{' ( decl | keyword_extension decl | staticAssert | stmt)* '}'
 fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
     const l_brace = p.eatToken(.l_brace) orelse return null;
 
@@ -3123,6 +3190,20 @@ fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
             },
             else => |e| return e,
         }) continue;
+        if (p.eatToken(.keyword_extension)) |ext| {
+            const saved_extension = p.extension_suppressed;
+            defer p.extension_suppressed = saved_extension;
+            p.extension_suppressed = true;
+
+            if (p.decl() catch |er| switch (er) {
+                error.ParsingFailed => {
+                    try p.nextStmt(l_brace);
+                    continue;
+                },
+                else => |e| return e,
+            }) continue;
+            p.tok_i = ext;
+        }
         const s = p.stmt() catch |er| switch (er) {
             error.ParsingFailed => {
                 try p.nextStmt(l_brace);
@@ -3248,6 +3329,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_typeof,
             .keyword_typeof1,
             .keyword_typeof2,
+            .keyword_extension,
             => if (parens == 0) return,
             .keyword_pragma => p.skipToPragmaSentinel(),
             else => {},
@@ -4461,7 +4543,7 @@ fn castExpr(p: *Parser) Error!Result {
 /// unExpr
 ///  : primaryExpr suffixExpr*
 ///  | '&&' IDENTIFIER
-///  | ('&' | '*' | '+' | '-' | '~' | '!' | '++' | '--') castExpr
+///  | ('&' | '*' | '+' | '-' | '~' | '!' | '++' | '--' | keyword_extension) castExpr
 ///  | keyword_sizeof unExpr
 ///  | keyword_sizeof '(' typeName ')'
 ///  | keyword_alignof '(' typeName ')'
@@ -4710,6 +4792,16 @@ fn unExpr(p: *Parser) Error!Result {
             res.val = .{ .unsigned = res.ty.alignof(p.pp.comp) };
             try res.un(p, .alignof_expr);
             return res;
+        },
+        .keyword_extension => {
+            p.tok_i += 1;
+            const saved_extension = p.extension_suppressed;
+            defer p.extension_suppressed = saved_extension;
+            p.extension_suppressed = true;
+
+            var child = try p.castExpr();
+            try child.expect(p);
+            return child;
         },
         else => {
             var lhs = try p.primaryExpr();

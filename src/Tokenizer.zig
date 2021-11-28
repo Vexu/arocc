@@ -198,6 +198,7 @@ pub const Token = struct {
         keyword_alignof1,
         keyword_alignof2,
         keyword_typeof,
+        keyword_extension,
 
         // gcc builtins
         builtin_choose_expr,
@@ -282,6 +283,7 @@ pub const Token = struct {
                 .builtin_choose_expr,
                 .keyword_attribute1,
                 .keyword_attribute2,
+                .keyword_extension,
                 => return true,
                 else => return false,
             }
@@ -469,6 +471,7 @@ pub const Token = struct {
                 .builtin_choose_expr => "__builtin_choose_expr",
                 .keyword_attribute1 => "__attribute",
                 .keyword_attribute2 => "__attribute__",
+                .keyword_extension => "__extension__",
             };
         }
 
@@ -653,12 +656,12 @@ pub const Token = struct {
         .{ "__alignof", .keyword_alignof1 },
         .{ "__alignof__", .keyword_alignof2 },
         .{ "typeof", .keyword_typeof },
+        .{ "__attribute", .keyword_attribute1 },
+        .{ "__attribute__", .keyword_attribute2 },
+        .{ "__extension__", .keyword_extension },
 
         // gcc builtins
         .{ "__builtin_choose_expr", .builtin_choose_expr },
-
-        .{ "__attribute", .keyword_attribute1 },
-        .{ "__attribute__", .keyword_attribute2 },
     });
 };
 
