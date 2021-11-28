@@ -76,6 +76,11 @@ void diagnostics(void) {
     x(0);
 }
 
+void math(void) {
+    int __attribute__((aligned(4))) x = 0;
+    (void) (x / 2);
+}
+
 #define EXPECTED_ERRORS "attributes.c:8:26: warning: Attribute 'noreturn' ignored in variable context" \
     "attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored" \
     "attributes.c:27:20: warning: Attribute 'deprecated' ignored in label context" \
