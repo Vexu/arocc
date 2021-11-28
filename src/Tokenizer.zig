@@ -843,7 +843,7 @@ pub fn next(self: *Tokenizer) Token {
                     break;
                 },
                 else => {
-                    id = .invalid;
+                    id = .nl;
                     break;
                 },
             },
@@ -867,8 +867,8 @@ pub fn next(self: *Tokenizer) Token {
                     state = .start;
                 },
                 else => {
-                    id = .invalid;
-                    break;
+                    start = self.index;
+                    state = .start;
                 },
             },
             .u => switch (c) {
@@ -1451,9 +1451,8 @@ pub fn next(self: *Tokenizer) Token {
             .start, .line_comment => {},
             .u, .u8, .U, .L, .identifier => id = Token.getTokenId(self.comp, self.buf[start..self.index]),
             .extended_identifier => id = .extended_identifier,
-            .cr,
-            .back_slash,
-            .back_slash_cr,
+            .cr => id = .nl,
+            .back_slash, .back_slash_cr => {},
             .period2,
             .string_literal,
             .char_literal_start,
