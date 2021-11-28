@@ -1472,19 +1472,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             },
             .identifier, .extended_identifier => {
                 const typedef = (try p.findTypedef(p.tok_i, ty.specifier != .none)) orelse break;
-                const new_spec = Type.Builder.fromType(typedef.ty);
-
-                const err_start = p.pp.comp.diag.list.items.len;
-                ty.combine(p, new_spec, p.tok_i) catch {
-                    // Remove new error messages
-                    // TODO improve/make threadsafe?
-                    p.pp.comp.diag.list.items.len = err_start;
-                    break;
-                };
-                ty.typedef = .{
-                    .tok = typedef.name_tok,
-                    .ty = typedef.ty,
-                };
+                if (!(try ty.combineTypedef(p, typedef.ty, typedef.name_tok))) break;
             },
             .keyword_alignas => {
                 if (ty.align_tok != null) try p.errStr(.duplicate_decl_spec, p.tok_i, "alignment");
@@ -1519,7 +1507,8 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             },
             else => break,
         }
-        if (try p.eatIdentifier()) |_| {} else p.tok_i += 1;
+        // consume single token specifiers here
+        p.tok_i += 1;
     }
     return p.tok_i != start;
 }

@@ -152,7 +152,7 @@ pub const Record = struct {
     pub const Field = struct {
         name: []const u8,
         ty: Type,
-        bit_width: u32,
+        bit_width: u32 = 0,
     };
 
     pub fn isIncomplete(r: Record) bool {
@@ -850,6 +850,9 @@ pub const Builder = struct {
     alignment: u29 = 0,
     align_tok: ?TokenIndex = null,
     typeof: ?Type = null,
+    /// When true an error is returned instead of adding a diagnostic message.
+    /// Used for trying to combine typedef types.
+    error_on_invalid: bool = false,
 
     pub const Specifier = union(enum) {
         none,
@@ -1106,10 +1109,16 @@ pub const Builder = struct {
         return ty;
     }
 
-    pub fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) Compilation.Error!void {
+    fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) !void {
+        if (b.error_on_invalid) return error.CannotCombine;
         const prev_ty = b.finish(p) catch unreachable;
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = try p.typeStr(prev_ty) });
         if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
+    }
+
+    fn duplicateSpec(b: *Builder, p: *Parser, spec: []const u8) !void {
+        if (b.error_on_invalid) return error.CannotCombine;
+        try p.errStr(.duplicate_decl_spec, p.tok_i, spec);
     }
 
     pub fn combineFromTypeof(b: *Builder, p: *Parser, new: Type, source_tok: TokenIndex) Compilation.Error!void {
@@ -1127,8 +1136,33 @@ pub const Builder = struct {
         };
     }
 
+    /// Try to combine type from typedef, returns true if successful.
+    pub fn combineTypedef(b: *Builder, p: *Parser, typedef_ty: Type, name_tok: TokenIndex) Compilation.Error!bool {
+        b.error_on_invalid = true;
+        defer b.error_on_invalid = false;
+
+        const new_spec = fromType(typedef_ty);
+        b.combineExtra(p, new_spec, 0) catch |err| switch (err) {
+            error.FatalError => unreachable, // we do not add any diagnostics
+            error.OutOfMemory => unreachable, // we do not add any diagnostics
+            error.CannotCombine => return false,
+        };
+        b.typedef = .{ .tok = name_tok, .ty = typedef_ty };
+        return true;
+    }
+
     pub fn combine(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) Compilation.Error!void {
-        if (b.typeof != null) try p.errStr(.invalid_typeof, source_tok, @tagName(new));
+        b.combineExtra(p, new, source_tok) catch |err| switch (err) {
+            error.CannotCombine => unreachable,
+            else => |e| return e,
+        };
+    }
+
+    fn combineExtra(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) !void {
+        if (b.typeof != null) {
+            if (b.error_on_invalid) return error.CannotCombine;
+            try p.errStr(.invalid_typeof, source_tok, @tagName(new));
+        }
 
         switch (new) {
             else => switch (b.specifier) {
@@ -1152,7 +1186,7 @@ pub const Builder = struct {
                 .slong_int,
                 .slong_long,
                 .slong_long_int,
-                => return p.errStr(.duplicate_decl_spec, p.tok_i, "signed"),
+                => return b.duplicateSpec(p, "signed"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .unsigned => b.specifier = switch (b.specifier) {
@@ -1172,14 +1206,14 @@ pub const Builder = struct {
                 .ulong_int,
                 .ulong_long,
                 .ulong_long_int,
-                => return p.errStr(.duplicate_decl_spec, p.tok_i, "unsigned"),
+                => return b.duplicateSpec(p, "unsigned"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .char => b.specifier = switch (b.specifier) {
                 .none => .char,
                 .unsigned => .uchar,
                 .signed => .schar,
-                .char, .schar, .uchar => return p.errStr(.duplicate_decl_spec, p.tok_i, "char"),
+                .char, .schar, .uchar => return b.duplicateSpec(p, "char"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .short => b.specifier = switch (b.specifier) {
@@ -1213,7 +1247,7 @@ pub const Builder = struct {
                 .long_long_int,
                 .slong_long_int,
                 .ulong_long_int,
-                => return p.errStr(.duplicate_decl_spec, p.tok_i, "int"),
+                => return b.duplicateSpec(p, "int"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .long => b.specifier = switch (b.specifier) {
@@ -1224,13 +1258,13 @@ pub const Builder = struct {
                 .int => .long_int,
                 .sint => .slong_int,
                 .ulong => .ulong_long,
-                .long_long, .ulong_long => return p.errStr(.duplicate_decl_spec, p.tok_i, "long"),
+                .long_long, .ulong_long => return b.duplicateSpec(p, "long"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .float => b.specifier = switch (b.specifier) {
                 .none => .float,
                 .complex => .complex_float,
-                .complex_float, .float => return p.errStr(.duplicate_decl_spec, p.tok_i, "float"),
+                .complex_float, .float => return b.duplicateSpec(p, "float"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .double => b.specifier = switch (b.specifier) {
@@ -1242,7 +1276,7 @@ pub const Builder = struct {
                 .complex_long_double,
                 .complex_double,
                 .double,
-                => return p.errStr(.duplicate_decl_spec, p.tok_i, "double"),
+                => return b.duplicateSpec(p, "double"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .complex => b.specifier = switch (b.specifier) {
@@ -1256,7 +1290,7 @@ pub const Builder = struct {
                 .complex_float,
                 .complex_double,
                 .complex_long_double,
-                => return p.errStr(.duplicate_decl_spec, p.tok_i, "_Complex"),
+                => return b.duplicateSpec(p, "_Complex"),
                 else => return b.cannotCombine(p, source_tok),
             },
         }
