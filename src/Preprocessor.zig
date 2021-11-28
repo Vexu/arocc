@@ -765,6 +765,7 @@ fn expandFuncMacro(
                 // TODO pretty print these
                 try pp.char_buf.append('"');
                 for (arg) |tok| {
+                    if (tok.id == .invalid) continue;
                     for (pp.expandedSlice(tok)) |c| {
                         if (c == '"')
                             try pp.char_buf.appendSlice("\\\"")
