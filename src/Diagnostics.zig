@@ -327,6 +327,12 @@ pub const Options = struct {
     @"c99-compat": Kind = .off,
     @"unicode-zero-width": Kind = .warning,
     @"unicode-homoglyph": Kind = .warning,
+
+    @"fatal error": Kind = .@"fatal error",
+    @"error": Kind = .@"error",
+    warning: Kind = .warning,
+    note: Kind = .note,
+    off: Kind = .off,
 };
 
 list: std.ArrayList(Message),
@@ -347,6 +353,8 @@ pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
         diag.fatal_errors = to != .off;
         return;
     }
+    if (!diag.isValidOption(name))
+        return;
     inline for (std.meta.fields(Options)) |f| {
         if (mem.eql(u8, f.name, name)) {
             @field(diag.options, f.name) = to;
@@ -705,11 +713,13 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .invalid_asm_str => m.print("cannot use {s} string literal in assembly", .{msg.extra.str}),
         }
 
-        if (comp.diag.tagOption(msg.tag)) |opt| {
-            if (msg.kind == .@"error") {
-                m.print(" [-Werror={s}]", .{opt});
+        const option = comp.diag.tagOption(msg.tag);
+        if (comp.diag.isValidOption(option)) {
+            const kind = comp.diag.tagKind(msg.tag);
+            if (kind == .@"error") {
+                m.print(" [-Werror={s}]", .{option});
             } else {
-                m.print(" [-W{s}]", .{opt});
+                m.print(" [-W{s}]", .{option});
             }
         }
 
@@ -744,69 +754,20 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
     comp.diag.errors += errors;
 }
 
-fn tagOption(diag: *Diagnostics, tag: Tag) ?[]const u8 {
+fn isValidOption(diag: *Diagnostics, opt: []const u8) bool {
     _ = diag;
-    return switch (tag) {
-        .unsupported_pragma => "unsupported-pragma",
-        .whitespace_after_macro_name => "c99-extensions",
-        .missing_type_specifier => "implicit-int",
-        .duplicate_decl_spec => "duplicate-decl-specifier",
-        .missing_declaration => "missing-declaration",
-        .extern_initializer => "extern-initializer",
-        .implicit_func_decl => "implicit-function-declaration",
-        .unused_value => "unused-value",
-        .unreachable_code => "unreachable-code",
-        .unknown_warning => "unknown-warning-option",
-        .empty_record => "empty-struct",
-        .alignof_expr => "gnu-alignof-expression",
-        .macro_redefined => "macro-redefined",
-        .generic_qual_type => "generic-qual-type",
-        .multichar_literal => "multichar",
-        .comparison_ptr_int => "pointer-integer-compare",
-        .comparison_distinct_ptr => "compare-distinct-pointer-types",
-        .implicit_ptr_to_int => "literal-conversion",
-        .qual_cast => "cast-qualifiers",
-        .array_after => "array-bounds",
-        .array_before => "array-bounds",
-        .implicit_int_to_ptr => "int-conversion",
-        .pointer_mismatch => "pointer-type-mismatch",
-        .omitting_parameter_name,
-        .static_assert_missing_message,
-        => "c2x-extension",
-        .incompatible_ptr_init,
-        .incompatible_ptr_assign,
-        => "incompatible-pointer-types",
-        .ptr_init_discards_quals,
-        .ptr_assign_discards_quals,
-        => "incompatible-pointer-types-discards-qualifiers",
-        .excess_scalar_init,
-        .excess_str_init,
-        .excess_struct_init,
-        .excess_array_init,
-        .str_init_too_long,
-        => "excess-initializers",
-        .division_by_zero => "division-by-zero",
-        .initializer_overrides => "initializer-overrides",
-        .unknown_attribute => "unknown-attributes",
-        .ignored_attribute => "ignored-attributes",
-        .builtin_macro_redefined => "builtin-macro-redefined",
-        .gnu_label_as_value => "gnu-label-as-value",
-        .malformed_warning_check => "malformed-warning-check",
-        .pragma_warning_message => "#pragma-messages",
-        .newline_eof => "newline-eof",
-        .empty_translation_unit => "empty-translation-unit",
-        .implicitly_unsigned_literal => "implicitly-unsigned-literal",
-        .c99_compat => "c99-compat",
-        .unicode_zero_width => "unicode-zero-width",
-        .unicode_homoglyph => "unicode-homoglyph",
-        else => null,
-    };
+    const invalid_opts = &[_][]const u8{ "fatal error", "error", "warning", "note", "off" };
+    for (invalid_opts) |inv| {
+        if (mem.eql(u8, inv, opt))
+            return false;
+    }
+
+    return true;
 }
 
-pub const Kind = enum { @"fatal error", @"error", note, warning, off };
-
-fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
-    var kind: Kind = switch (tag) {
+fn tagOption(diag: *Diagnostics, tag: Tag) []const u8 {
+    _ = diag;
+    return switch (tag) {
         .todo,
         .error_directive,
         .elif_without_if,
@@ -988,7 +949,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .meaningless_asm_qual,
         .duplicate_asm_qual,
         .invalid_asm_str,
-        => .@"error",
+        => "error",
         .to_match_paren,
         .to_match_brace,
         .to_match_bracket,
@@ -999,7 +960,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .previous_definition,
         .parameter_here,
         .previous_initializer,
-        => .note,
+        => "note",
         .invalid_old_style_params,
         .expected_arguments_old,
         .useless_static,
@@ -1010,60 +971,72 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
         .align_ignored,
         .zero_align_ignored,
         .pragma_poison_macro,
-        => .warning,
-        .unsupported_pragma => diag.options.@"unsupported-pragma",
-        .whitespace_after_macro_name => diag.options.@"c99-extensions",
-        .missing_type_specifier => diag.options.@"implicit-int",
-        .duplicate_decl_spec => diag.options.@"duplicate-decl-specifier",
-        .missing_declaration => diag.options.@"missing-declaration",
-        .extern_initializer => diag.options.@"extern-initializer",
-        .implicit_func_decl => diag.options.@"implicit-function-declaration",
-        .unused_value => diag.options.@"unused-value",
-        .unreachable_code => diag.options.@"unreachable-code",
-        .unknown_warning => diag.options.@"unknown-warning-option",
-        .empty_record => diag.options.@"empty-struct",
-        .alignof_expr => diag.options.@"gnu-alignof-expression",
-        .macro_redefined => diag.options.@"macro-redefined",
-        .generic_qual_type => diag.options.@"generic-qual-type",
-        .multichar_literal => diag.options.multichar,
-        .comparison_ptr_int => diag.options.@"pointer-integer-compare",
-        .comparison_distinct_ptr => diag.options.@"compare-distinct-pointer-types",
-        .implicit_ptr_to_int => diag.options.@"literal-conversion",
-        .qual_cast => diag.options.@"cast-qualifiers",
-        .array_after => diag.options.@"array-bounds",
-        .array_before => diag.options.@"array-bounds",
-        .implicit_int_to_ptr => diag.options.@"int-conversion",
-        .pointer_mismatch => diag.options.@"pointer-type-mismatch",
+        => "warning",
+        .unsupported_pragma => "unsupported-pragma",
+        .whitespace_after_macro_name => "c99-extensions",
+        .missing_type_specifier => "implicit-int",
+        .duplicate_decl_spec => "duplicate-decl-specifier",
+        .missing_declaration => "missing-declaration",
+        .extern_initializer => "extern-initializer",
+        .implicit_func_decl => "implicit-function-declaration",
+        .unused_value => "unused-value",
+        .unreachable_code => "unreachable-code",
+        .unknown_warning => "unknown-warning-option",
+        .empty_record => "empty-struct",
+        .alignof_expr => "gnu-alignof-expression",
+        .macro_redefined => "macro-redefined",
+        .generic_qual_type => "generic-qual-type",
+        .multichar_literal => "multichar",
+        .comparison_ptr_int => "pointer-integer-compare",
+        .comparison_distinct_ptr => "compare-distinct-pointer-types",
+        .implicit_ptr_to_int => "literal-conversion",
+        .qual_cast => "cast-qualifiers",
+        .array_after => "array-bounds",
+        .array_before => "array-bounds",
+        .implicit_int_to_ptr => "int-conversion",
+        .pointer_mismatch => "pointer-type-mismatch",
         .omitting_parameter_name,
         .static_assert_missing_message,
-        => diag.options.@"c2x-extension",
+        => "c2x-extension",
         .incompatible_ptr_init,
         .incompatible_ptr_assign,
-        => diag.options.@"incompatible-pointer-types",
+        => "incompatible-pointer-types",
         .ptr_init_discards_quals,
         .ptr_assign_discards_quals,
-        => diag.options.@"incompatible-pointer-types-discards-qualifiers",
+        => "incompatible-pointer-types-discards-qualifiers",
         .excess_scalar_init,
         .excess_str_init,
         .excess_struct_init,
         .excess_array_init,
         .str_init_too_long,
-        => diag.options.@"excess-initializers",
-        .division_by_zero => diag.options.@"division-by-zero",
-        .initializer_overrides => diag.options.@"initializer-overrides",
-        .unknown_attribute => diag.options.@"unknown-attributes",
-        .ignored_attribute => diag.options.@"ignored-attributes",
-        .builtin_macro_redefined => diag.options.@"builtin-macro-redefined",
-        .gnu_label_as_value => diag.options.@"gnu-label-as-value",
-        .malformed_warning_check => diag.options.@"malformed-warning-check",
-        .pragma_warning_message => diag.options.@"#pragma-messages",
-        .newline_eof => diag.options.@"newline-eof",
-        .empty_translation_unit => diag.options.@"empty-translation-unit",
-        .implicitly_unsigned_literal => diag.options.@"implicitly-unsigned-literal",
-        .c99_compat => diag.options.@"c99-compat",
-        .unicode_zero_width => diag.options.@"unicode-zero-width",
-        .unicode_homoglyph => diag.options.@"unicode-homoglyph",
+        => "excess-initializers",
+        .division_by_zero => "division-by-zero",
+        .initializer_overrides => "initializer-overrides",
+        .unknown_attribute => "unknown-attributes",
+        .ignored_attribute => "ignored-attributes",
+        .builtin_macro_redefined => "builtin-macro-redefined",
+        .gnu_label_as_value => "gnu-label-as-value",
+        .malformed_warning_check => "malformed-warning-check",
+        .pragma_warning_message => "#pragma-messages",
+        .newline_eof => "newline-eof",
+        .empty_translation_unit => "empty-translation-unit",
+        .implicitly_unsigned_literal => "implicitly-unsigned-literal",
+        .c99_compat => "c99-compat",
+        .unicode_zero_width => "unicode-zero-width",
+        .unicode_homoglyph => "unicode-homoglyph",
     };
+}
+
+pub const Kind = enum { @"fatal error", @"error", note, warning, off };
+
+fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
+    const option = diag.tagOption(tag);
+    var kind: Kind = .off;
+    inline for (std.meta.fields(Options)) |f| {
+        if (mem.eql(u8, f.name, option)) {
+            kind = @field(diag.options, f.name);
+        }
+    }
     if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
     return kind;
 }
