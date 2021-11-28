@@ -2,8 +2,6 @@
 
 #pragma once
 
-#define __builtin_va_list int /* TODO implement va_list builtins */
-
 typedef __builtin_va_list va_list;
 #define va_start(ap, param)
 #define va_end(ap)

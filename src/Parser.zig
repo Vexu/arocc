@@ -474,6 +474,81 @@ fn pragma(p: *Parser) !bool {
     return found_pragma;
 }
 
+fn defineVaList(p: *Parser) !void {
+    const Kind = enum { char_ptr, void_ptr, aarch64_va_list, x86_64_va_list };
+    const kind: Kind = switch (p.pp.comp.target.cpu.arch) {
+        .aarch64 => switch (p.pp.comp.target.os.tag) {
+            .windows => @as(Kind, .char_ptr),
+            .ios, .macos, .tvos, .watchos => .char_ptr,
+            else => .aarch64_va_list,
+        },
+        .sparc, .wasm32, .wasm64, .bpfel, .bpfeb, .riscv32, .riscv64, .avr, .spirv32, .spirv64 => .void_ptr,
+        .powerpc => switch (p.pp.comp.target.os.tag) {
+            .ios, .macos, .tvos, .watchos, .aix => @as(Kind, .char_ptr),
+            else => return, // unknown
+        },
+        .i386 => .char_ptr,
+        .x86_64 => switch (p.pp.comp.target.os.tag) {
+            .windows => @as(Kind, .char_ptr),
+            else => .x86_64_va_list,
+        },
+        else => return, // unknown
+    };
+
+    var ty: Type = undefined;
+    switch (kind) {
+        .char_ptr => ty = .{ .specifier = .char },
+        .void_ptr => ty = .{ .specifier = .void },
+        .aarch64_va_list => {
+            const record_ty = try p.arena.create(Type.Record);
+            record_ty.* = .{
+                .name = "__va_list_tag",
+                .fields = try p.arena.alloc(Type.Record.Field, 5),
+                .size = 32,
+                .alignment = 8,
+            };
+            const void_ty = try p.arena.create(Type);
+            void_ty.* = .{ .specifier = .void };
+            const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
+            record_ty.fields[0] = .{ .name = "__stack", .ty = void_ptr };
+            record_ty.fields[1] = .{ .name = "__gr_top", .ty = void_ptr };
+            record_ty.fields[2] = .{ .name = "__vr_top", .ty = void_ptr };
+            record_ty.fields[3] = .{ .name = "__gr_offs", .ty = .{ .specifier = .int } };
+            record_ty.fields[4] = .{ .name = "__vr_offs", .ty = .{ .specifier = .int } };
+            ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
+        },
+        .x86_64_va_list => {
+            const record_ty = try p.arena.create(Type.Record);
+            record_ty.* = .{
+                .name = "__va_list_tag",
+                .fields = try p.arena.alloc(Type.Record.Field, 4),
+                .size = 24,
+                .alignment = 8,
+            };
+            const void_ty = try p.arena.create(Type);
+            void_ty.* = .{ .specifier = .void };
+            const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
+            record_ty.fields[0] = .{ .name = "gp_offset", .ty = .{ .specifier = .uint } };
+            record_ty.fields[1] = .{ .name = "fp_offset", .ty = .{ .specifier = .uint } };
+            record_ty.fields[2] = .{ .name = "overflow_arg_area", .ty = void_ptr };
+            record_ty.fields[3] = .{ .name = "reg_save_area", .ty = void_ptr };
+            ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
+        },
+    }
+    if (kind == .char_ptr or kind == .void_ptr) {
+        const elem_ty = try p.arena.create(Type);
+        elem_ty.* = ty;
+        ty = Type{ .specifier = .pointer, .data = .{ .sub_type = elem_ty } };
+    } else {
+        const arr_ty = try p.arena.create(Type.Array);
+        arr_ty.* = .{ .len = 1, .elem = ty };
+        ty = Type{ .specifier = .array, .data = .{ .array = arr_ty } };
+    }
+
+    const sym = Scope.Symbol{ .name = "__builtin_va_list", .ty = ty, .name_tok = 0 };
+    try p.scopes.append(.{ .typedef = sym });
+}
+
 /// root : (decl | assembly ';' | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     pp.comp.pragmaEvent(.before_parse);
@@ -515,6 +590,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
     // NodeIndex 0 must be invalid
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
+    try p.defineVaList();
 
     while (p.eatToken(.eof) == null) {
         const found_pragma = p.pragma() catch |err| switch (err) {
