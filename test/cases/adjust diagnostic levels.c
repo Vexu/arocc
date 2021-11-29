@@ -12,7 +12,7 @@
 // #pragma GCC diagnostic push
 // #pragma GCC diagnostic pop
 
-#define EXPECTED_ERRORS "adjust diagnostic levels.c:2:9: warning: 'FOO' macro redefined" \
-	"adjust diagnostic levels.c:6:9: error: 'BAR' macro redefined"
+#define EXPECTED_ERRORS "adjust diagnostic levels.c:2:9: warning: 'FOO' macro redefined [-Wmacro-redefined]" \
+	"adjust diagnostic levels.c:6:9: error: 'BAR' macro redefined [-Wmacro-redefined]"
 
 #define TESTS_SKIPPED 2

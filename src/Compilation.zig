@@ -452,11 +452,6 @@ pub fn fatal(comp: *Compilation, tok: Token, comptime fmt: []const u8, args: any
     return comp.diag.fatal(source.path, lcs, fmt, args);
 }
 
-pub fn addDiagnostic(comp: *Compilation, msg: Diagnostics.Message) Error!void {
-    if (comp.langopts.suppress(msg.tag)) return;
-    return comp.diag.add(msg);
-}
-
 pub fn addPragmaHandler(comp: *Compilation, name: []const u8, handler: *Pragma) Allocator.Error!void {
     try comp.pragma_handlers.putNoClobber(name, handler);
 }
