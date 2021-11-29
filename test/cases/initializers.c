@@ -35,6 +35,7 @@ void foo(void) {
     enum E e1 = 1, e2 = 2 + e1;
     union U u = {.x = 1};
     void v[1] = {1};
+    (void){};
 }
 
 #define TESTS_SKIPPED 2
@@ -68,3 +69,4 @@ void foo(void) {
     "initializers.c:35:12: error: variable has incomplete type 'enum E'" \
     "initializers.c:36:13: error: variable has incomplete type 'union U'" \
     "initializers.c:37:11: error: array has incomplete element type 'void'" \
+    "initializers.c:38:11: error: variable has incomplete type 'void'" \
