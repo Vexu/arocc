@@ -591,7 +591,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
     try p.defineVaList();
 
-    while (p.eatToken(.eof) == null) {
+    while (p.tok_i < p.tok_ids.len and p.eatToken(.eof) == null) {
         const found_pragma = p.pragma() catch |err| switch (err) {
             error.ParsingFailed => break,
             else => |e| return e,
