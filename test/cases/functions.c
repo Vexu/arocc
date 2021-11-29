@@ -57,7 +57,7 @@ enum EE e;
 
 #define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing" \
     "functions.c:20:14: error: illegal initializer (only variables can be initialized)" \
-    "functions.c:18:2: warning: non-void function 'foooo' does not return a value" \
+    "functions.c:18:2: warning: non-void function 'foooo' does not return a value [-Wreturn-type]" \
     "functions.c:22:13: error: variable length array must be bound in function definition" \
     "functions.c:42:35: error: parameter has incomplete type 'struct S'" \
     "functions.c:44:10: error: parameter has incomplete type 'struct S'" \

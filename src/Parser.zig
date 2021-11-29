@@ -3480,9 +3480,12 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     if (e.node == .none) {
         if (!ret_ty.is(.void)) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func_name));
         return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
+    } else if (ret_ty.is(.void)) {
+        try p.errStr(.void_func_returns_value, e_tok, p.tokSlice(p.func_name));
+        return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
     }
-    try e.lvalConversion(p);
 
+    try e.lvalConversion(p);
     // Return type conversion is done as if it was assignment
     if (ret_ty.is(.bool)) {
         // this is ridiculous but it's what clang does
@@ -3519,10 +3522,8 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
         if (!ret_ty.eql(e.ty, false)) {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
-    } else {
-        // should be unreachable
-        try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
-    }
+    } else unreachable;
+
     try e.saveValue(p);
     return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
 }
