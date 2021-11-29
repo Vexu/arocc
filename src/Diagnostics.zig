@@ -98,6 +98,7 @@ pub const Options = struct {
     @"c99-compat": ?Kind = null,
     @"unicode-zero-width": ?Kind = null,
     @"unicode-homoglyph": ?Kind = null,
+    @"return-type": ?Kind = null,
 };
 
 const messages = struct {
@@ -806,6 +807,7 @@ const messages = struct {
     const func_should_return = struct {
         const msg = "non-void function '{s}' should return a value";
         const extra = .str;
+        const opt = "return-type";
         const kind = .@"error";
     };
     const incompatible_return = struct {
@@ -822,7 +824,14 @@ const messages = struct {
     const func_does_not_return = struct {
         const msg = "non-void function '{s}' does not return a value";
         const extra = .str;
+        const opt = "return-type";
         const kind = .warning;
+    };
+    const void_func_returns_value = struct {
+        const msg = "void function '{s}' should not return a value";
+        const extra = .str;
+        const opt = "return-type";
+        const kind = .@"error";
     };
     const incompatible_param = struct {
         const msg = "passing '{s}' to parameter of incompatible type";
