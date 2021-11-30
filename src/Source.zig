@@ -10,7 +10,7 @@ pub const Id = enum(u32) {
 pub const Location = struct {
     id: Id = .unused,
     byte_offset: u32 = 0,
-    next: ?*Location = null,
+    line: u32 = 0,
 };
 
 path: []const u8,
@@ -18,25 +18,19 @@ buf: []const u8,
 id: Id,
 invalid_utf8_loc: ?Location = null,
 
-pub const LCS = struct { line: u32, col: u32, str: []const u8 };
+const LineCol = struct { line: []const u8, col: u32 };
 
-pub fn lineColString(source: Source, byte_offset: u32) LCS {
-    var line: u32 = 1;
-    var col: u32 = 1;
-    var i: u32 = 0;
-    while (i < byte_offset) : (i += 1) {
-        if (source.buf[i] == '\n') {
-            line += 1;
-            col = 1;
-        } else {
-            col += 1;
+pub fn lineCol(source: Source, byte_offset: u32) LineCol {
+    var start = byte_offset;
+    while (true) : (start -= 1) {
+        if (start == 0) break;
+        if (start < source.buf.len and source.buf[start] == '\n') {
+            start += 1;
+            break;
         }
     }
-    const start = i - (col - 1);
-    while (i < source.buf.len) : (i += 1) {
-        if (source.buf[i] == '\n') break;
-    }
-    return .{ .line = line, .col = col, .str = source.buf[start..i] };
+    const col = byte_offset - start + 1; // TODO unicode awareness
+    return .{ .line = std.mem.sliceTo(source.buf[start..], '\n'), .col = col };
 }
 
 /// Returns the first offset, if any, in buf where an invalid utf8 sequence

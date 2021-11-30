@@ -10,9 +10,62 @@ const Tree = @This();
 pub const Token = struct {
     id: Id,
     /// This location contains the actual token slice which might be generated.
-    /// If it is generated then the next location will be the location of the concatenation.
-    /// Any subsequent locations mark where the token was expanded from. 
+    /// If it is generated then there is guaranteed to be at least one
+    /// expansion location.
     loc: Source.Location,
+    expansion_locs: ?[*]Source.Location = null,
+
+    pub fn expansionSlice(tok: Token) []const Source.Location {
+        const locs = tok.expansion_locs orelse return &[0]Source.Location{};
+        var i: usize = 0;
+        while (locs[i].id != .unused) : (i += 1) {}
+        return locs[0..i];
+    }
+
+    pub fn addExpansionLocation(tok: *Token, gpa: *std.mem.Allocator, new: []const Source.Location) !void {
+        if (new.len == 0 or tok.id == .whitespace) return;
+        var list = std.ArrayList(Source.Location).init(gpa);
+        defer {
+            std.mem.set(Source.Location, list.items.ptr[list.items.len..list.capacity], .{});
+            // add a sentinel since the allocator is not guaranteed
+            // to return the exact desired size
+            list.items.ptr[list.capacity - 1].byte_offset = 1;
+            tok.expansion_locs = list.items.ptr;
+        }
+
+        if (tok.expansion_locs) |locs| {
+            var i: usize = 0;
+            while (locs[i].id != .unused) : (i += 1) {}
+            list.items = locs[0..i];
+            while (locs[i].byte_offset != 1) : (i += 1) {}
+            list.capacity = i + 1;
+        }
+
+        const min_len = std.math.max(list.items.len + new.len + 1, 4);
+        const wanted_len = std.math.ceilPowerOfTwo(usize, min_len) catch
+            return error.OutOfMemory;
+        try list.ensureTotalCapacity(wanted_len);
+
+        for (new) |new_loc| {
+            if (new_loc.id == .generated) continue;
+            list.appendAssumeCapacity(new_loc);
+        }
+    }
+
+    pub fn free(expansion_locs: ?[*]Source.Location, gpa: *std.mem.Allocator) void {
+        const locs = expansion_locs orelse return;
+        var i: usize = 0;
+        while (locs[i].id != .unused) : (i += 1) {}
+        while (locs[i].byte_offset != 1) : (i += 1) {}
+        gpa.free(locs[0 .. i + 1]);
+    }
+
+    pub fn dupe(tok: Token, gpa: *std.mem.Allocator) !Token {
+        var copy = tok;
+        copy.expansion_locs = null;
+        try copy.addExpansionLocation(gpa, tok.expansionSlice());
+        return copy;
+    }
 
     pub const List = std.MultiArrayList(Token);
     pub const Id = Tokenizer.Token.Id;

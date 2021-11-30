@@ -216,6 +216,7 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
                     else => unreachable,
                 },
                 .loc = p.pp.tokens.items(.loc)[opening],
+                .expansion_locs = p.pp.tokens.items(.expansion_locs)[opening],
             });
         }
         return e;
@@ -232,6 +233,7 @@ pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diag
     try p.pp.comp.diag.add(.{
         .tag = tag,
         .loc = p.pp.tokens.items(.loc)[tok_i],
+        .expansion_locs = p.pp.tokens.items(.expansion_locs)[tok_i],
         .extra = extra,
     });
 }
@@ -241,6 +243,7 @@ pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.E
     try p.pp.comp.diag.add(.{
         .tag = tag,
         .loc = p.pp.tokens.items(.loc)[tok_i],
+        .expansion_locs = p.pp.tokens.items(.expansion_locs)[tok_i],
     });
 }
 
@@ -1591,7 +1594,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
 fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
     const loc = p.pp.tokens.items(.loc)[kind_tok];
     const source = p.pp.comp.getSource(loc.id);
-    const lcs = source.lineColString(loc.byte_offset);
+    const col = source.lineCol(loc.byte_offset).col;
 
     const kind_str = switch (p.tok_ids[kind_tok]) {
         .keyword_struct, .keyword_union, .keyword_enum => p.tokSlice(kind_tok),
@@ -1601,7 +1604,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
     return std.fmt.allocPrint(
         p.arena,
         "(anonymous {s} at {s}:{d}:{d})",
-        .{ kind_str, source.path, lcs.line, lcs.col },
+        .{ kind_str, source.path, loc.line, col },
     );
 }
 

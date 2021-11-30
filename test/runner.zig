@@ -410,21 +410,21 @@ const MsgWriter = struct {
         m.buf.writer().writeAll(msg) catch {};
     }
 
-    pub fn location(m: *MsgWriter, path: []const u8, lcs: aro.Source.LCS) void {
-        m.print("{s}:{d}:{d}: ", .{ path, lcs.line, lcs.col });
+    pub fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
+        m.print("{s}:{d}:{d}: ", .{ path, line, col });
     }
 
     pub fn start(m: *MsgWriter, kind: aro.Diagnostics.Kind) void {
         m.print("{s}: ", .{@tagName(kind)});
     }
 
-    pub fn end(m: *MsgWriter, lcs: ?aro.Source.LCS) void {
-        if (lcs == null) {
+    pub fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32) void {
+        const line = maybe_line orelse {
             m.write("\n");
             return;
-        }
-        m.print("\n{s}\n", .{lcs.?.str});
-        m.print("{s: >[1]}^\n", .{ "", lcs.?.col - 1 });
+        };
+        m.print("\n{s}\n", .{line});
+        m.print("{s: >[1]}^\n", .{ "", col - 1 });
     }
 };
 
