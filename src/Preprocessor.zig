@@ -153,7 +153,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
 
     // Estimate how many new tokens this source will contain.
     const estimated_token_count = source.buf.len / 8;
-    try pp.tokens.ensureCapacity(pp.comp.gpa, pp.tokens.len + estimated_token_count);
+    try pp.tokens.ensureTotalCapacity(pp.comp.gpa, pp.tokens.len + estimated_token_count);
 
     var if_level: u8 = 0;
     var if_kind = std.PackedIntArray(u2, 256).init([1]u2{0} ** 256);
@@ -283,6 +283,22 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!void {
                         const name = tokenizer.nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
+                        try pp.expectNl(&tokenizer);
+                    },
+                    .integer_literal => {
+                        // # number "file" flags
+                        const name = tokenizer.nextNoWS();
+                        if (name.id == .eof or name.id == .nl) continue;
+                        if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
+
+                        const flag_1 = tokenizer.nextNoWS();
+                        if (flag_1.id == .eof or flag_1.id == .nl) continue;
+                        const flag_2 = tokenizer.nextNoWS();
+                        if (flag_2.id == .eof or flag_2.id == .nl) continue;
+                        const flag_3 = tokenizer.nextNoWS();
+                        if (flag_3.id == .eof or flag_3.id == .nl) continue;
+                        const flag_4 = tokenizer.nextNoWS();
+                        if (flag_4.id == .eof or flag_4.id == .nl) continue;
                         try pp.expectNl(&tokenizer);
                     },
                     .nl => {},
@@ -591,7 +607,7 @@ fn deinitMacroArguments(allocator: *Allocator, args: *const MacroArguments) void
 
 fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
-    try buf.ensureCapacity(simple_macro.tokens.len);
+    try buf.ensureTotalCapacity(simple_macro.tokens.len);
 
     // Add all of the simple_macros tokens to the new buffer handling any concats.
     var i: usize = 0;
@@ -714,7 +730,7 @@ fn expandFuncMacro(
     expanded_args: *const MacroArguments,
 ) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
-    try buf.ensureCapacity(func_macro.tokens.len);
+    try buf.ensureTotalCapacity(func_macro.tokens.len);
 
     var expanded_variable_arguments = ExpandBuf.init(pp.comp.gpa);
     defer expanded_variable_arguments.deinit();
@@ -784,15 +800,12 @@ fn expandFuncMacro(
                     try buf.append(.{ .id = .empty_arg, .loc = .{ .id = raw.source, .byte_offset = raw.start } });
                 } else {
                     for (arg) |tok| {
-                        try buf.ensureCapacity(buf.items.len + arg.len);
+                        try buf.ensureUnusedCapacity(arg.len);
                         buf.appendAssumeCapacity(tok);
                     }
                 }
             },
-            .keyword_va_args => {
-                try buf.ensureCapacity(buf.items.len + expanded_variable_arguments.items.len);
-                buf.appendSliceAssumeCapacity(expanded_variable_arguments.items);
-            },
+            .keyword_va_args => try buf.appendSlice(expanded_variable_arguments.items),
             .stringify_param, .stringify_va_args => {
                 const arg = if (raw.id == .stringify_va_args)
                     variable_arguments.items
@@ -1036,7 +1049,7 @@ fn expandMacroExhaustive(pp: *Preprocessor, tokenizer: *Tokenizer, buf: *ExpandB
                     }
                     var expanded_args = MacroArguments.init(pp.comp.gpa);
                     defer deinitMacroArguments(pp.comp.gpa, &expanded_args);
-                    try expanded_args.ensureCapacity(args.items.len);
+                    try expanded_args.ensureTotalCapacity(args.items.len);
                     for (args.items) |arg| {
                         var expand_buf = ExpandBuf.init(pp.comp.gpa);
                         try expand_buf.appendSlice(arg);
@@ -1100,7 +1113,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!vo
     try buf.append(tokFromRaw(raw));
 
     try pp.expandMacroExhaustive(tokenizer, &buf, 0, 1, true);
-    try pp.tokens.ensureCapacity(pp.comp.gpa, pp.tokens.len + buf.items.len);
+    try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, buf.items.len);
     for (buf.items) |*r| {
         if (r.id == .whitespace and !pp.comp.only_preprocess) continue;
         pp.tokens.appendAssumeCapacity(r.*);
@@ -1148,7 +1161,7 @@ fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
 
     const start = pp.generated.items.len;
     const end = start + pp.expandedSlice(lhs).len + pp.expandedSlice(rhs).len;
-    try pp.generated.ensureCapacity(end + 1); // +1 for a newline
+    try pp.generated.ensureTotalCapacity(end + 1); // +1 for a newline
     // We cannot use the same slices here since they might be invalidated by `ensureCapacity`
     pp.generated.appendSliceAssumeCapacity(pp.expandedSlice(lhs));
     pp.generated.appendSliceAssumeCapacity(pp.expandedSlice(rhs));
