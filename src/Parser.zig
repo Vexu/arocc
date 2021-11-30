@@ -758,8 +758,11 @@ fn decl(p: *Parser) Error!bool {
     };
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
         _ = try p.expectToken(.semicolon);
-        if (decl_spec.ty.is(.@"enum")) return true;
-        if (decl_spec.ty.isRecord() and decl_spec.ty.data.record.name[0] != '(') return true;
+        if (decl_spec.ty.is(.@"enum") or
+            (decl_spec.ty.isRecord() and !decl_spec.ty.isAnonymousRecord() and
+            !decl_spec.ty.isTypeof())) // we follow GCC and clang's behavior here
+            return true;
+
         try p.errTok(.missing_declaration, first_tok);
         return true;
     };
@@ -1779,7 +1782,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         }
         if (name_tok == 0 and bits_node == .none) unnamed: {
             if (ty.is(.@"enum")) break :unnamed;
-            if (ty.isRecord() and ty.data.record.name[0] == '(') {
+            if (ty.isAnonymousRecord()) {
                 // An anonymous record appears as indirect fields on the parent
                 try p.record_buf.append(.{
                     .name = try p.getAnonymousName(first_tok),
