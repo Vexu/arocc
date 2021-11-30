@@ -40,6 +40,7 @@ pub fn main() !void {
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
+            if (entry.kind == .Directory) continue;
             if (entry.kind != .File) {
                 print("skipping non file entry '{s}'\n", .{entry.name});
                 continue;
@@ -90,9 +91,10 @@ pub fn main() !void {
     var fail_count: u32 = 0;
     var skip_count: u32 = 0;
     const initial_options = comp.diag.options;
-    for (cases.items) |path| {
+    next_test: for (cases.items) |path| {
         comp.langopts.standard = .default;
         comp.diag.options = initial_options;
+        comp.only_preprocess = false;
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
             progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
@@ -110,6 +112,8 @@ pub fn main() !void {
             if (it.next()) |standard| {
                 try comp.langopts.setStandard(standard);
             }
+        } else if (std.mem.startsWith(u8, file.buf, "//test preprocess")) {
+            comp.only_preprocess = true;
         }
 
         const builtin_macros = try comp.generateBuiltinMacros();
@@ -146,10 +150,33 @@ pub fn main() !void {
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
-        try pp.tokens.append(pp.comp.gpa, .{
+        try pp.tokens.append(gpa, .{
             .id = .eof,
             .loc = .{ .id = file.id, .byte_offset = @intCast(u32, file.buf.len) },
         });
+
+        if (std.mem.startsWith(u8, file.buf, "//test preprocess")) {
+            comp.renderErrors();
+
+            const expected_output = blk: {
+                const expaned_path = try std.fs.path.join(gpa, &.{ args[1], "expanded", std.fs.path.basename(path) });
+                defer gpa.free(expaned_path);
+
+                break :blk try std.fs.cwd().readFileAlloc(gpa, expaned_path, std.math.maxInt(u32));
+            };
+            defer gpa.free(expected_output);
+
+            var output = std.ArrayList(u8).init(gpa);
+            defer output.deinit();
+
+            try pp.prettyPrintTokens(output.writer());
+
+            if (std.testing.expectEqualStrings(expected_output, output.items))
+                ok_count += 1
+            else |_|
+                fail_count += 1;
+            continue;
+        }
 
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .integer_literal) {
@@ -161,48 +188,6 @@ pub fn main() !void {
             const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
             progress.log("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
             skip_count += tests_skipped;
-        }
-
-        if (pp.defines.get("EXPECTED_TOKENS")) |macro| {
-            comp.renderErrors();
-
-            if (macro.is_func) {
-                fail_count += 1;
-                progress.log("invalid EXPECTED_TOKENS {}\n", .{macro});
-                continue;
-            }
-
-            const expected_tokens = macro.tokens;
-
-            if (pp.tokens.len - 1 != expected_tokens.len) {
-                fail_count += 1;
-                progress.log(
-                    "EXPECTED_TOKENS count differs: expected {d} found {d}\n",
-                    .{ expected_tokens.len, pp.tokens.len - 1 },
-                );
-                continue;
-            }
-
-            var i: usize = 0;
-            while (true) : (i += 1) {
-                const tok = pp.tokens.get(i);
-                if (tok.id == .eof) {
-                    if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
-                    break;
-                }
-
-                const expected = pp.tokSliceSafe(expected_tokens[i]);
-                const actual = pp.expandedSlice(tok);
-                if (!std.mem.eql(u8, expected, actual)) {
-                    fail_count += 1;
-                    progress.log(
-                        "unexpected token found: expected '{s}' found '{s}'\n",
-                        .{ expected, actual },
-                    );
-                    break;
-                }
-            }
-            continue;
         }
 
         const expected_types = pp.defines.get("EXPECTED_TYPES");
@@ -225,20 +210,17 @@ pub fn main() !void {
 
             try actual.dump(&tree, test_fn.decl.node, gpa);
 
-            if (types.tokens.len != actual.types.items.len) {
-                fail_count += 1;
-                progress.log("EXPECTED_TYPES count of {d} does not match function statement length of {d}\n", .{
-                    types.tokens.len,
-                    actual.types.items.len,
-                });
-                break;
-            }
-            for (types.tokens) |str, i| {
+            var i: usize = 0;
+            for (types.tokens) |str| {
+                if (str.id == .whitespace) continue;
                 if (str.id != .string_literal) {
                     fail_count += 1;
                     progress.log("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
-                    break;
+                    continue :next_test;
                 }
+                defer i += 1;
+                if (i >= actual.types.items.len) continue;
+
                 const expected_type = std.mem.trim(u8, pp.tokSliceSafe(str), "\"");
                 const actual_type = actual.types.items[i];
                 if (!std.mem.eql(u8, expected_type, actual_type)) {
@@ -247,8 +229,16 @@ pub fn main() !void {
                         expected_type,
                         actual_type,
                     });
-                    break;
+                    continue :next_test;
                 }
+            }
+            if (i != actual.types.items.len) {
+                fail_count += 1;
+                progress.log(
+                    "EXPECTED_TYPES count differs: expected {d} found {d}\n",
+                    .{ i, actual.types.items.len },
+                );
+                continue;
             }
         }
 
@@ -264,24 +254,17 @@ pub fn main() !void {
                 continue;
             }
 
-            if (macro.tokens.len != expected_count) {
-                fail_count += 1;
-                progress.log(
-                    \\EXPECTED_ERRORS missing errors, expected {d} found {d},
-                    \\=== actual output ===
-                    \\{s}
-                    \\
-                    \\
-                , .{ macro.tokens.len, expected_count, m.buf.items });
-                continue;
-            }
-
+            var count: usize = 0;
             for (macro.tokens) |str| {
+                if (str.id == .whitespace) continue;
                 if (str.id != .string_literal) {
                     fail_count += 1;
                     progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
-                    break;
+                    continue :next_test;
                 }
+                defer count += 1;
+                if (count >= expected_count) continue;
+
                 defer buf.items.len = 0;
                 // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
                 std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSliceSafe(str))) == .success);
@@ -300,9 +283,22 @@ pub fn main() !void {
                         \\
                         \\
                     , .{ expected_error, m.buf.items });
-                    break;
+                    continue :next_test;
                 }
-            } else ok_count += 1;
+            }
+
+            if (count != expected_count) {
+                fail_count += 1;
+                progress.log(
+                    \\EXPECTED_ERRORS missing errors, expected {d} found {d},
+                    \\=== actual output ===
+                    \\{s}
+                    \\
+                    \\
+                , .{ count, expected_count, m.buf.items });
+                continue;
+            }
+            ok_count += 1;
             continue;
         }
 
@@ -339,15 +335,15 @@ pub fn main() !void {
                 try obj.finish(out_file);
             }
 
-            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, comp.gpa);
+            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
             defer child.deinit();
 
             child.stdout_behavior = .Pipe;
 
             try child.spawn();
 
-            const stdout = try child.stdout.?.reader().readAllAlloc(comp.gpa, std.math.maxInt(u16));
-            defer comp.gpa.free(stdout);
+            const stdout = try child.stdout.?.reader().readAllAlloc(gpa, std.math.maxInt(u16));
+            defer gpa.free(stdout);
 
             switch (try child.wait()) {
                 .Exited => |code| if (code != 0) {

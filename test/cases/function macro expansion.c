@@ -1,5 +1,4 @@
-#define EXPECTED_TOKENS "HI THERE" HI_THERE "HI THERE" 1, (2, 3)
-
+//test preprocess
 
 #define HE HI
 #define LLO _THERE

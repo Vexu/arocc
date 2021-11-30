@@ -1,5 +1,4 @@
-#define EXPECTED_TOKENS a 1 define
-
+//test preprocess
 
 #define x a
 x

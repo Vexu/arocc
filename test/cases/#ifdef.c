@@ -1,5 +1,4 @@
-#define EXPECTED_TOKENS long int
-
+//test preprocess
 
 #define FOO
 #ifdef FOO

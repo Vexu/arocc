@@ -1,4 +1,4 @@
-#define EXPECTED_TOKENS x x
+//test preprocess
 
 #define A(x) x
 #define B(x) A(x)

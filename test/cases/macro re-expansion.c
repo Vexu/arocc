@@ -1,4 +1,5 @@
-#define EXPECTED_TOKENS z[0] z[0] z[0] z[0] z[0] h(s) 1 13 z[0] z[0] Z1 1 TAU(2) 1 TAU(1) 1 z[0]
+//test preprocess
+
 #define f(a) a
 #define z z[0]
 
