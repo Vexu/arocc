@@ -68,6 +68,8 @@ char_buf: std.ArrayList(u8),
 /// Can be used to distinguish multiple preprocessings of the same file
 preprocess_count: u32 = 0,
 include_depth: u8 = 0,
+counter: u32 = 0,
+expansion_source_loc: Source.Location = undefined,
 poisoned_identifiers: std.StringHashMap(void),
 /// Memory is retained to avoid allocation on every single token.
 top_expansion_buf: ExpandBuf,
@@ -103,23 +105,39 @@ const FeatureCheckMacros = struct {
         .id = .macro_param_is_identifier,
         .source = .generated,
     }};
+
+    const file = [1]RawToken{.{
+        .id = .macro_file,
+        .source = .generated,
+    }};
+    const line = [1]RawToken{.{
+        .id = .macro_line,
+        .source = .generated,
+    }};
+    const counter = [1]RawToken{.{
+        .id = .macro_counter,
+        .source = .generated,
+    }};
 };
 
-fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, tokens: []const RawToken) !void {
+fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: []const RawToken) !void {
     try pp.defines.put(name, .{
         .params = &FeatureCheckMacros.args,
         .tokens = tokens,
         .var_args = false,
-        .is_func = true,
+        .is_func = is_func,
         .loc = .{ .id = .generated },
         .is_builtin = true,
     });
 }
 
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
-    try pp.addBuiltinMacro("__has_attribute", &FeatureCheckMacros.has_attribute);
-    try pp.addBuiltinMacro("__has_warning", &FeatureCheckMacros.has_warning);
-    try pp.addBuiltinMacro("__is_identifier", &FeatureCheckMacros.is_identifier);
+    try pp.addBuiltinMacro("__has_attribute", true, &FeatureCheckMacros.has_attribute);
+    try pp.addBuiltinMacro("__has_warning", true, &FeatureCheckMacros.has_warning);
+    try pp.addBuiltinMacro("__is_identifier", true, &FeatureCheckMacros.is_identifier);
+    try pp.addBuiltinMacro("__FILE__", false, &FeatureCheckMacros.file);
+    try pp.addBuiltinMacro("__LINE__", false, &FeatureCheckMacros.line);
+    try pp.addBuiltinMacro("__COUNTER__", false, &FeatureCheckMacros.counter);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -628,6 +646,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
     var i: usize = 0;
     while (i < simple_macro.tokens.len) : (i += 1) {
         const raw = simple_macro.tokens[i];
+        const tok = tokFromRaw(raw);
         switch (raw.id) {
             .hash_hash => {
                 var rhs = tokFromRaw(simple_macro.tokens[i + 1]);
@@ -638,8 +657,28 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 }
                 try pp.pasteTokens(&buf, &.{rhs});
             },
-            .whitespace => if (pp.comp.only_preprocess) buf.appendAssumeCapacity(tokFromRaw(raw)),
-            else => buf.appendAssumeCapacity(tokFromRaw(raw)),
+            .whitespace => if (pp.comp.only_preprocess) buf.appendAssumeCapacity(tok),
+            .macro_file => {
+                const start = pp.generated.items.len;
+                const source = pp.comp.getSource(pp.expansion_source_loc.id);
+                try pp.generated.writer().print("\"{s}\"\n", .{source.path});
+
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+            },
+            .macro_line => {
+                const start = pp.generated.items.len;
+                try pp.generated.writer().print("{d}\n", .{pp.expansion_source_loc.line});
+
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .integer_literal, tok));
+            },
+            .macro_counter => {
+                defer pp.counter += 1;
+                const start = pp.generated.items.len;
+                try pp.generated.writer().print("{d}\n", .{pp.counter});
+
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .integer_literal, tok));
+            },
+            else => buf.appendAssumeCapacity(tok),
         }
     }
 
@@ -1114,11 +1153,13 @@ fn expandMacroExhaustive(
 /// Try to expand a macro after a possible candidate has been read from the `tokenizer`
 /// into the `raw` token passed as argument
 fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) Error!void {
+    const source_tok = tokFromRaw(raw);
     if (!raw.id.isMacroIdentifier()) {
-        return pp.tokens.append(pp.comp.gpa, tokFromRaw(raw));
+        return pp.tokens.append(pp.comp.gpa, source_tok);
     }
     pp.top_expansion_buf.items.len = 0;
-    try pp.top_expansion_buf.append(tokFromRaw(raw));
+    try pp.top_expansion_buf.append(source_tok);
+    pp.expansion_source_loc = source_tok.loc;
 
     try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true);
     try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, pp.top_expansion_buf.items.len);
