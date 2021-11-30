@@ -126,6 +126,8 @@ pub const Token = struct {
         macro_line,
         /// Special token for implementing __COUNTER__
         macro_counter,
+        /// Special token for implementing _Pragma
+        macro_param_pragma_operator,
 
         keyword_auto,
         keyword_break,
@@ -362,6 +364,7 @@ pub const Token = struct {
                 .macro_file,
                 .macro_line,
                 .macro_counter,
+                .macro_param_pragma_operator,
                 => "",
 
                 .bang => "!",
