@@ -3,12 +3,12 @@ To add a new test, add a new file to [test/cases](tests/cases) or expand an exis
 
 ---
 ## Testing preprocessor
-The output of the preprocessor can be tested by defining a `EXPECTED_TOKENS` macro.
+The output of the preprocessor can be tested by adding `//test preprocessor` on
+the first line of the file and then placing the expected result in [test/cases/expaneded](test/cases/expaned).
 
 **example:**
 ```c
-#define EXPECTED_TOKENS "HI THERE" HI_THERE "HI THERE"
-
+//test preprocessor
 
 #define HE HI
 #define LLO _THERE
@@ -20,6 +20,7 @@ CAT(HE, LLO)
 XCAT(HE, LLO)
 CALL(CAT)
 ```
+
 ---
 ## Setting the C standard
 The C standard to use for a test can be set with the following comment as the first line

@@ -1,4 +1,4 @@
-#define EXPECTED_TOKENS REC_0_HOOK ()
+//test preprocess
 
 #define REC_EMPTY
 #define REC_DEFER(op) op REC_EMPTY

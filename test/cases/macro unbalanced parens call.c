@@ -1,4 +1,4 @@
-#define EXPECTED_TOKENS FIRST 42
+//test preprocess
 
 #define FIRST(x) x
 #define SECOND FIRST

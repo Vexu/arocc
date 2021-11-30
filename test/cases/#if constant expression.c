@@ -1,5 +1,4 @@
-#define EXPECTED_TOKENS long
-
+//test preprocess
 
 #if defined FOO & !defined(BAZ)
 void

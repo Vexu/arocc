@@ -94,6 +94,7 @@ pub fn main() !void {
     next_test: for (cases.items) |path| {
         comp.langopts.standard = .default;
         comp.diag.options = initial_options;
+        comp.only_preprocess = false;
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
             progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
@@ -111,6 +112,8 @@ pub fn main() !void {
             if (it.next()) |standard| {
                 try comp.langopts.setStandard(standard);
             }
+        } else if (std.mem.startsWith(u8, file.buf, "//test preprocess")) {
+            comp.only_preprocess = true;
         }
 
         const builtin_macros = try comp.generateBuiltinMacros();
@@ -147,10 +150,33 @@ pub fn main() !void {
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
-        try pp.tokens.append(pp.comp.gpa, .{
+        try pp.tokens.append(gpa, .{
             .id = .eof,
             .loc = .{ .id = file.id, .byte_offset = @intCast(u32, file.buf.len) },
         });
+
+        if (std.mem.startsWith(u8, file.buf, "//test preprocess")) {
+            comp.renderErrors();
+
+            const expected_output = blk: {
+                const expaned_path = try std.fs.path.join(gpa, &.{ args[1], "expanded", std.fs.path.basename(path) });
+                defer gpa.free(expaned_path);
+
+                break :blk try std.fs.cwd().readFileAlloc(gpa, expaned_path, std.math.maxInt(u32));
+            };
+            defer gpa.free(expected_output);
+
+            var output = std.ArrayList(u8).init(gpa);
+            defer output.deinit();
+
+            try pp.prettyPrintTokens(output.writer());
+
+            if (std.testing.expectEqualStrings(expected_output, output.items))
+                ok_count += 1
+            else |_|
+                fail_count += 1;
+            continue;
+        }
 
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .integer_literal) {
@@ -162,51 +188,6 @@ pub fn main() !void {
             const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
             progress.log("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
             skip_count += tests_skipped;
-        }
-
-        if (pp.defines.get("EXPECTED_TOKENS")) |macro| {
-            comp.renderErrors();
-
-            if (macro.is_func) {
-                fail_count += 1;
-                progress.log("invalid EXPECTED_TOKENS {}\n", .{macro});
-                continue;
-            }
-
-            {
-                var count: u32 = 0;
-                for (macro.tokens) |tok| switch (tok.id) {
-                    .whitespace => {},
-                    else => count += 1,
-                };
-                if (pp.tokens.len - 1 != count) {
-                    fail_count += 1;
-                    progress.log(
-                        "EXPECTED_TOKENS count differs: expected {d} found {d}\n",
-                        .{ count, pp.tokens.len - 1 },
-                    );
-                    continue;
-                }
-            }
-
-            var i: usize = 0;
-            for (macro.tokens) |expected_tok| {
-                if (expected_tok.id == .whitespace) continue;
-                const actual_tok = pp.tokens.get(i);
-                i += 1;
-
-                const expected = pp.tokSliceSafe(expected_tok);
-                const actual = pp.expandedSlice(actual_tok);
-                if (!std.mem.eql(u8, expected, actual)) {
-                    fail_count += 1;
-                    progress.log(
-                        "unexpected token found: expected '{s}' found '{s}'\n",
-                        .{ expected, actual },
-                    );
-                    break;
-                }
-            } else if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
-            continue;
         }
 
         const expected_types = pp.defines.get("EXPECTED_TYPES");
@@ -354,15 +335,15 @@ pub fn main() !void {
                 try obj.finish(out_file);
             }
 
-            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, comp.gpa);
+            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
             defer child.deinit();
 
             child.stdout_behavior = .Pipe;
 
             try child.spawn();
 
-            const stdout = try child.stdout.?.reader().readAllAlloc(comp.gpa, std.math.maxInt(u16));
-            defer comp.gpa.free(stdout);
+            const stdout = try child.stdout.?.reader().readAllAlloc(gpa, std.math.maxInt(u16));
+            defer gpa.free(stdout);
 
             switch (try child.wait()) {
                 .Exited => |code| if (code != 0) {

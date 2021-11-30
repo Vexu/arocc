@@ -1,4 +1,4 @@
-#define EXPECTED_TOKENS F(1)
+//test preprocess
 
 #define F(x) G(x)
 #define G(x) F(x)
