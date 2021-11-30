@@ -120,6 +120,12 @@ pub const Token = struct {
         macro_param_has_warning,
         /// Special token for implementing __is_identifier
         macro_param_is_identifier,
+        /// Special token for implementing __FILE__
+        macro_file,
+        /// Special token for implementing __LINE__
+        macro_line,
+        /// Special token for implementing __COUNTER__
+        macro_counter,
 
         keyword_auto,
         keyword_break,
@@ -353,6 +359,9 @@ pub const Token = struct {
                 .macro_param_has_attribute,
                 .macro_param_has_warning,
                 .macro_param_is_identifier,
+                .macro_file,
+                .macro_line,
+                .macro_counter,
                 => "",
 
                 .bang => "!",
