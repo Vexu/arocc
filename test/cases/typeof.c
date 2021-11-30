@@ -113,6 +113,13 @@ void sizeof_decayed(int x) {
     -vla2;
 }
 
+union U { int x; };
+void empty_typeof_declaration(void) {
+    typeof(union U) u = { 1 };
+    typeof(u);
+    union U;
+}
+
 #define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
     "typeof.c:28:7: error: expression is not assignable" \
     "typeof.c:30:7: error: expression is not assignable" \
@@ -128,3 +135,4 @@ void sizeof_decayed(int x) {
     "typeof.c:77:13: error: expression is not assignable" \
     "typeof.c:98:29: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers" \
     "typeof.c:113:5: error: invalid argument type 'char *' to unary expression" \
+    "typeof.c:119:5: warning: declaration does not declare anything [-Wmissing-declaration]" \

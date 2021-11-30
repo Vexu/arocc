@@ -349,7 +349,7 @@ pub fn isVoidStar(ty: Type) bool {
     };
 }
 
-fn isTypeof(ty: Type) bool {
+pub fn isTypeof(ty: Type) bool {
     return switch (ty.specifier) {
         .typeof_type, .typeof_expr, .decayed_typeof_type, .decayed_typeof_expr => true,
         else => false,
@@ -392,6 +392,18 @@ pub fn isRecord(ty: Type) bool {
         .typeof_type => ty.data.sub_type.isRecord(),
         .typeof_expr => ty.data.expr.ty.isRecord(),
         .attributed => ty.data.attributed.base.isRecord(),
+        else => false,
+    };
+}
+
+pub fn isAnonymousRecord(ty: Type) bool {
+    return switch (ty.specifier) {
+        // anonymous records can be recognized by their names which are in
+        // the format "(anonymous TAG at path:line:col)".
+        .@"struct", .@"union" => ty.data.record.name[0] == '(',
+        .typeof_type => ty.data.sub_type.isAnonymousRecord(),
+        .typeof_expr => ty.data.expr.ty.isAnonymousRecord(),
+        .attributed => ty.data.attributed.base.isAnonymousRecord(),
         else => false,
     };
 }
