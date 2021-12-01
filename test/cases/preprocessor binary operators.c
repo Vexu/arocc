@@ -72,6 +72,6 @@ error "failed"
 	"preprocessor binary operators.c:42:5: error: expected expression" \
 	"preprocessor binary operators.c:46:5: error: string literal in preprocessor expression" \
 	"preprocessor binary operators.c:50:5: error: string literal in preprocessor expression" \
-	"preprocessor binary operators.c:53:9: error: token is not a valid binary operator in a preprocessor subexpression" \
-	"preprocessor binary operators.c:53:9: error: invalid token at start of a preprocessor expression" \
+	"preprocessor binary operators.c:53:13: error: token is not a valid binary operator in a preprocessor subexpression" \
+	"preprocessor binary operators.c:53:13: error: invalid token at start of a preprocessor expression" \
 	"preprocessor binary operators.c:62:9: error: token is not a valid binary operator in a preprocessor subexpression" \
