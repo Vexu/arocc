@@ -917,14 +917,7 @@ fn decl(p: *Parser) Error!bool {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         const tag = try decl_spec.validate(p, &init_d.d.ty, init_d.initializer != .none);
         const attrs = p.attr_buf.items[attr_buf_top..];
-        if (attrs.len > 0) {
-            var attributed_type = try p.arena.create(Type.Attributed);
-            attributed_type.* = .{
-                .attributes = try p.arena.dupe(Attribute, attrs),
-                .base = init_d.d.ty,
-            };
-            init_d.d.ty = .{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
-        }
+        init_d.d.ty = try init_d.d.ty.withAttributes(p.arena, attrs);
 
         const node = try p.addNode(.{ .ty = init_d.d.ty, .tag = tag, .data = .{
             .decl = .{ .name = init_d.d.name, .node = init_d.initializer },
@@ -3193,12 +3186,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
                 // but only if they close a compound statement)
                 try p.errTok(.invalid_fallthrough, expr_start);
             }
-            var attributed_type = try p.arena.create(Type.Attributed);
-            attributed_type.* = .{
-                .attributes = try p.arena.dupe(Attribute, attrs),
-                .base = null_node.ty,
-            };
-            null_node.ty = .{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
+            null_node.ty = try null_node.ty.withAttributes(p.arena, attrs);
         }
         return p.addNode(null_node);
     }

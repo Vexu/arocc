@@ -116,6 +116,16 @@ pub const Expr = struct {
 pub const Attributed = struct {
     attributes: []Attribute,
     base: Type,
+
+    fn create(allocator: *std.mem.Allocator, base: Type, attributes: []const Attribute) !*Attributed {
+        var attributed_type = try allocator.create(Attributed);
+        errdefer allocator.destroy(attributed_type);
+        attributed_type.* = .{
+            .attributes = try allocator.dupe(Attribute, attributes),
+            .base = base,
+        };
+        return attributed_type;
+    }
 };
 
 // TODO improve memory usage
@@ -258,6 +268,12 @@ qual: Qualifiers = .{},
 pub fn is(ty: Type, specifier: Specifier) bool {
     std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
     return ty.get(specifier) != null;
+}
+
+pub fn withAttributes(self: Type, allocator: *std.mem.Allocator, attributes: []const Attribute) !Type {
+    if (attributes.len == 0) return self;
+    const attributed_type = try Type.Attributed.create(allocator, self, attributes);
+    return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
 }
 
 pub fn isCallable(ty: Type) ?Type {
