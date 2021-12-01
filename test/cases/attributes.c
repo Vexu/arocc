@@ -86,6 +86,12 @@ extern int abs (int __x) __attribute__((__nothrow__ )) __attribute__((__const__)
 typedef int X();
 X x __attribute__((cold));
 
+typedef struct {
+  __attribute__((__aligned__(__alignof__(long long)))) long long __clang_max_align_nonce1, __attribute__((packed)) nonce2, nonce3;
+  long double __clang_max_align_nonce2
+      __attribute__((__aligned__(__alignof__(long double))));
+} max_align_t;
+
 #define EXPECTED_ERRORS "attributes.c:8:26: warning: Attribute 'noreturn' ignored in variable context" \
     "attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored" \
     "attributes.c:27:20: warning: Attribute 'deprecated' ignored in label context" \

@@ -1733,9 +1733,16 @@ fn recordDecls(p: *Parser) Error!void {
 
 /// recordDeclarator : keyword_extension? declarator (':' constExpr)?
 fn recordDeclarator(p: *Parser) Error!bool {
+    const attr_buf_top = p.attr_buf.items.len;
+    defer p.attr_buf.items.len = attr_buf_top;
     const base_ty = (try p.specQual()) orelse return false;
 
     while (true) {
+        const this_decl_top = p.attr_buf.items.len;
+        defer p.attr_buf.items.len = this_decl_top;
+
+        try p.attributeSpecifier(.record);
+
         // 0 means unnamed
         var name_tok: TokenIndex = 0;
         var ty = base_ty;
@@ -1746,6 +1753,10 @@ fn recordDeclarator(p: *Parser) Error!bool {
             name_tok = d.name;
             ty = d.ty;
         }
+        try p.attributeSpecifier(.record);
+        const attrs = p.attr_buf.items[attr_buf_top..];
+        ty = try ty.withAttributes(p.arena, attrs);
+
         if (p.eatToken(.colon)) |_| bits: {
             const res = try p.constExpr();
             if (!ty.isInt()) {
@@ -2110,9 +2121,6 @@ fn declarator(
 ///  | '[' '*' ']'
 ///  | '(' paramDecls? ')'
 fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: DeclaratorKind) Error!Type {
-    const attr_buf_top = p.attr_buf.items.len;
-    defer p.attr_buf.items.len = attr_buf_top;
-
     if (p.eatToken(.l_bracket)) |l_bracket| {
         var res_ty = Type{
             // so that we can get any restrict type that might be present
