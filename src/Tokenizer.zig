@@ -1539,9 +1539,7 @@ pub fn next(self: *Tokenizer) Token {
 
 pub fn nextNoWS(self: *Tokenizer) Token {
     var tok = self.next();
-    if (tok.id != .whitespace) return tok;
-    tok = self.next();
-    assert(tok.id != .whitespace);
+    while (tok.id == .whitespace) tok = self.next();
     return tok;
 }
 
