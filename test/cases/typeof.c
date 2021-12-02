@@ -120,6 +120,11 @@ void empty_typeof_declaration(void) {
     union U;
 }
 
+void initializers(void) {
+    typeof(union U) u = {.x = 1};
+    typeof(u) u2 = {.x = 1};
+}
+
 #define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
     "typeof.c:28:7: error: expression is not assignable" \
     "typeof.c:30:7: error: expression is not assignable" \

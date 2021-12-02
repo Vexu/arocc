@@ -570,6 +570,9 @@ pub fn getField(ty: Type, name: []const u8) ?FieldAndIndex {
                 if (std.mem.eql(u8, name, f.name)) return FieldAndIndex{ .f = f, .i = i };
             }
         },
+        .typeof_type => return ty.data.sub_type.getField(name),
+        .typeof_expr => return ty.data.expr.ty.getField(name),
+        .attributed => return ty.data.attributed.base.getField(name),
         else => unreachable,
     }
     return null;
