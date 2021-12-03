@@ -630,15 +630,13 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
         const raw = simple_macro.tokens[i];
         switch (raw.id) {
             .hash_hash => {
-                var lhs = buf.pop();
-                if (lhs.id == .whitespace) lhs = buf.pop();
                 var rhs = tokFromRaw(simple_macro.tokens[i + 1]);
                 i += 1;
-                if (rhs.id == .whitespace) {
+                while (rhs.id == .whitespace) {
                     rhs = tokFromRaw(simple_macro.tokens[i + 1]);
                     i += 1;
                 }
-                buf.appendAssumeCapacity(try pp.pasteTokens(lhs, rhs));
+                try pp.pasteTokens(&buf, &.{rhs});
             },
             .whitespace => if (pp.comp.only_preprocess) buf.appendAssumeCapacity(tokFromRaw(raw)),
             else => buf.appendAssumeCapacity(tokFromRaw(raw)),
@@ -774,55 +772,35 @@ fn expandFuncMacro(
     while (tok_i < func_macro.tokens.len) : (tok_i += 1) {
         const raw = func_macro.tokens[tok_i];
         switch (raw.id) {
-            .hash_hash => {
-                // TODO this is messy and probably incorrect
-                var prev = buf.pop();
-                if (prev.id == .whitespace) prev = buf.pop();
-                const next = while (true) {
-                    const raw_next = func_macro.tokens[tok_i + 1];
-                    // skip next token
-                    tok_i += 1;
-                    const placeholder_token = Token{ .id = .empty_arg, .loc = .{ .id = raw_next.source, .byte_offset = raw_next.start } };
+            .hash_hash => while (tok_i + 1 < func_macro.tokens.len) {
+                const raw_next = func_macro.tokens[tok_i + 1];
+                tok_i += 1;
 
-                    var next = switch (raw_next.id) {
-                        .whitespace => continue,
-                        .macro_param, .macro_param_no_expand => args.items[raw_next.end],
-                        .keyword_va_args => variable_arguments.items,
-                        else => &[1]Token{tokFromRaw(raw_next)},
-                    };
-                    while (next.len > 0 and next[0].id == .whitespace) next = next[1..];
-                    break if (next.len > 0) next else &[1]Token{placeholder_token};
-                } else unreachable;
+                const next = switch (raw_next.id) {
+                    .whitespace => continue,
+                    .hash_hash => continue,
+                    .macro_param, .macro_param_no_expand => args.items[raw_next.end],
+                    .keyword_va_args => variable_arguments.items,
+                    else => &[1]Token{tokFromRaw(raw_next)},
+                };
 
-                var pastedToken = try pp.pasteTokens(prev, next[0]);
-                try buf.append(pastedToken);
-                try buf.appendSlice(next[1..]);
+                try pp.pasteTokens(&buf, next);
+                if (next.len != 0) break;
             },
             .macro_param_no_expand => {
-                const placeholder_token = Token{ .id = .empty_arg, .loc = .{ .id = raw.source, .byte_offset = raw.start } };
-                var slice = switch (raw.id) {
-                    .macro_param_no_expand => args.items[raw.end],
-                    .keyword_va_args => variable_arguments.items,
-                    else => &[1]Token{tokFromRaw(raw)},
-                };
-                slice = if (slice.len > 0) slice else &[1]Token{placeholder_token};
-
-                try buf.appendSlice(slice);
+                const slice = args.items[raw.end];
+                const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
+                try bufCopyTokens(&buf, slice, &.{raw_loc});
             },
             .macro_param => {
                 const arg = expanded_args.items[raw.end];
-
-                if (arg.len == 0) {
-                    // needed for the following token pasting phase
-                    try buf.append(.{ .id = .empty_arg, .loc = .{ .id = raw.source, .byte_offset = raw.start } });
-                } else {
-                    for (arg) |tok| {
-                        try buf.ensureUnusedCapacity(arg.len);
-                        buf.appendAssumeCapacity(tok);
-                    }
-                }
+                const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
+                try bufCopyTokens(&buf, arg, &.{raw_loc});
             },
-            .keyword_va_args => try buf.appendSlice(expanded_variable_arguments.items),
+            .keyword_va_args => {
+                const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
+                try bufCopyTokens(&buf, expanded_variable_arguments.items, &.{raw_loc});
+            },
             .stringify_param, .stringify_va_args => {
                 const arg = if (raw.id == .stringify_va_args)
                     variable_arguments.items
@@ -857,13 +835,7 @@ fn expandFuncMacro(
                 const start = pp.generated.items.len;
                 try pp.generated.appendSlice(pp.char_buf.items);
 
-                try buf.append(.{
-                    .id = .string_literal,
-                    .loc = .{ // location of token slice in the generated buffer
-                        .id = .generated,
-                        .byte_offset = @intCast(u32, start),
-                    },
-                });
+                try buf.append(try pp.makeGeneratedToken(start, .string_literal, tokFromRaw(raw)));
             },
             .macro_param_has_attribute, .macro_param_has_warning, .macro_param_is_identifier => {
                 const arg = expanded_args.items[0];
@@ -1032,22 +1004,6 @@ fn expandMacroExhaustive(
     // rescan loop
     var do_rescan = true;
     while (do_rescan) {
-        // last phase before rescan: remove placeholder tokens
-        // NOTE: only do this if there were expansion (i.e. do_rescan is true)
-        if (do_rescan) {
-            var i: usize = start_idx;
-            while (i < buf.items.len) {
-                const tok = &buf.items[i];
-                switch (tok.id) {
-                    .empty_arg => {
-                        _ = buf.orderedRemove(i);
-                        moving_end_idx -= 1;
-                    },
-                    else => i += 1,
-                }
-            }
-        }
-
         do_rescan = false;
         // expansion loop
         var idx: usize = start_idx + advance_index;
@@ -1198,12 +1154,24 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
 }
 
 /// Concat two tokens and add the result to pp.generated
-fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
-    if (lhs.id == .empty_arg) {
-        return rhs;
-    } else if (rhs.id == .empty_arg) {
-        return lhs;
-    }
+fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token) Error!void {
+    const lhs = while (lhs_toks.popOrNull()) |lhs| {
+        if (lhs.id == .whitespace)
+            Token.free(lhs.expansion_locs, pp.comp.gpa)
+        else
+            break lhs;
+    } else {
+        return bufCopyTokens(lhs_toks, rhs_toks, &.{});
+    };
+
+    var rhs_rest: u32 = 1;
+    const rhs = for (rhs_toks) |rhs| {
+        if (rhs.id != .whitespace) break rhs;
+        rhs_rest += 1;
+    } else {
+        return lhs_toks.appendAssumeCapacity(lhs);
+    };
+    defer Token.free(lhs.expansion_locs, pp.comp.gpa);
 
     const start = pp.generated.items.len;
     const end = start + pp.expandedSlice(lhs).len + pp.expandedSlice(rhs).len;
@@ -1230,13 +1198,18 @@ fn pasteTokens(pp: *Preprocessor, lhs: Token, rhs: Token) Error!Token {
         });
     }
 
-    return Token{
-        .id = pasted_token.id,
-        .loc = .{ // location of token slice in the generated buffer
-            .id = .generated,
-            .byte_offset = @intCast(u32, start),
-        },
-    };
+    try lhs_toks.append(try pp.makeGeneratedToken(start, pasted_token.id, lhs));
+    try bufCopyTokens(lhs_toks, rhs_toks[rhs_rest..], &.{});
+}
+
+fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: Token) !Token {
+    var pasted_token = Token{ .id = id, .loc = .{
+        .id = .generated,
+        .byte_offset = @intCast(u32, start),
+    } };
+    try pasted_token.addExpansionLocation(pp.comp.gpa, &.{source.loc});
+    try pasted_token.addExpansionLocation(pp.comp.gpa, source.expansionSlice());
+    return pasted_token;
 }
 
 /// Defines a new macro and warns if it is a duplicate
