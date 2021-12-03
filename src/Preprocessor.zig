@@ -1302,12 +1302,11 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     first.id.simplifyMacroKeyword();
 
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
-    try pp.token_buf.append(first);
 
     var end_index: u32 = undefined;
     // Collect the token body and validate any ## found.
+    var tok = first;
     while (true) {
-        var tok = tokenizer.next();
         tok.id.simplifyMacroKeyword();
         switch (tok.id) {
             .hash_hash => {
@@ -1332,6 +1331,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
             },
             else => try pp.token_buf.append(tok),
         }
+        tok = tokenizer.next();
     }
 
     const list = try pp.arena.allocator.dupe(RawToken, pp.token_buf.items);
