@@ -46,12 +46,9 @@ fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void
     defer pp.deinit();
     try pp.addBuiltinMacros();
 
-    try pp.preprocess(builtin);
-    try pp.preprocess(user_source);
-    try pp.tokens.append(pp.comp.gpa, .{
-        .id = .eof,
-        .loc = .{ .id = user_source.id, .byte_offset = @intCast(u32, user_source.buf.len) },
-    });
+    _ = try pp.preprocess(builtin);
+    const eof = try pp.preprocess(user_source);
+    try pp.tokens.append(pp.comp.gpa, eof);
 
     var tree = try Parser.parse(&pp);
     defer tree.deinit();

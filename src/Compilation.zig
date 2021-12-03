@@ -407,7 +407,7 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
     return source;
 }
 
-pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_cwd: bool) !Source {
+pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_cwd: bool) !?Source {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
     if (search_cwd) blk: {
@@ -443,13 +443,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
             else => {},
         }
     }
-    return comp.fatal(tok, "'{s}' not found", .{filename});
-}
-
-pub fn fatal(comp: *Compilation, tok: Token, comptime fmt: []const u8, args: anytype) Error {
-    const source = comp.getSource(tok.source);
-    const lcs = source.lineColString(tok.start);
-    return comp.diag.fatal(source.path, lcs, fmt, args);
+    return null;
 }
 
 pub fn addPragmaHandler(comp: *Compilation, name: []const u8, handler: *Pragma) Allocator.Error!void {

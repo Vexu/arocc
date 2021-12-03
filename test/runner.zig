@@ -15,7 +15,7 @@ var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub fn main() !void {
     const gpa = &general_purpose_allocator.allocator;
-    defer _ = general_purpose_allocator.deinit();
+    defer if (general_purpose_allocator.deinit()) std.process.exit(1);
 
     var args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
@@ -134,9 +134,9 @@ pub fn main() !void {
         defer pp.deinit();
         try pp.addBuiltinMacros();
 
-        try pp.preprocess(builtin_macros);
-        try pp.preprocess(test_runner_macros);
-        pp.preprocess(file) catch |err| {
+        _ = try pp.preprocess(builtin_macros);
+        _ = try pp.preprocess(test_runner_macros);
+        const eof = pp.preprocess(file) catch |err| {
             if (!std.unicode.utf8ValidateSlice(file.buf)) {
                 // non-utf8 files are not preprocessed, so we can't use EXPECTED_ERRORS; instead we
                 // check that the most recent error is .invalid_utf8
@@ -150,10 +150,7 @@ pub fn main() !void {
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
-        try pp.tokens.append(gpa, .{
-            .id = .eof,
-            .loc = .{ .id = file.id, .byte_offset = @intCast(u32, file.buf.len) },
-        });
+        try pp.tokens.append(gpa, eof);
 
         if (std.mem.startsWith(u8, file.buf, "//test preprocess")) {
             comp.renderErrors();
@@ -410,21 +407,21 @@ const MsgWriter = struct {
         m.buf.writer().writeAll(msg) catch {};
     }
 
-    pub fn location(m: *MsgWriter, path: []const u8, lcs: aro.Source.LCS) void {
-        m.print("{s}:{d}:{d}: ", .{ path, lcs.line, lcs.col });
+    pub fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
+        m.print("{s}:{d}:{d}: ", .{ path, line, col });
     }
 
     pub fn start(m: *MsgWriter, kind: aro.Diagnostics.Kind) void {
         m.print("{s}: ", .{@tagName(kind)});
     }
 
-    pub fn end(m: *MsgWriter, lcs: ?aro.Source.LCS) void {
-        if (lcs == null) {
+    pub fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32) void {
+        const line = maybe_line orelse {
             m.write("\n");
             return;
-        }
-        m.print("\n{s}\n", .{lcs.?.str});
-        m.print("{s: >[1]}^\n", .{ "", lcs.?.col - 1 });
+        };
+        m.print("\n{s}\n", .{line});
+        m.print("{s: >[1]}^\n", .{ "", col - 1 });
     }
 };
 

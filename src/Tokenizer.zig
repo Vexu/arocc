@@ -10,8 +10,9 @@ const Tokenizer = @This();
 pub const Token = struct {
     id: Id,
     source: Source.Id,
-    start: u32,
-    end: u32,
+    start: u32 = 0,
+    end: u32 = 0,
+    line: u32 = 0,
 
     pub const Id = enum(u8) {
         invalid,
@@ -113,8 +114,6 @@ pub const Token = struct {
         stringify_param,
         /// Same as stringify_param, but for var args
         stringify_va_args,
-        /// Special token for when empty argument is passed to macro token.
-        empty_arg,
         /// Special token for implementing __has_attribute
         macro_param_has_attribute,
         /// Special token for implementing __has_warning
@@ -351,7 +350,6 @@ pub const Token = struct {
                 .macro_param_no_expand,
                 .stringify_param,
                 .stringify_va_args,
-                .empty_arg,
                 .macro_param_has_attribute,
                 .macro_param_has_warning,
                 .macro_param_is_identifier,
@@ -682,6 +680,7 @@ buf: []const u8,
 index: u32 = 0,
 source: Source.Id,
 comp: *const Compilation,
+line: u32 = 1,
 
 pub fn next(self: *Tokenizer) Token {
     var state: enum {
@@ -757,6 +756,7 @@ pub fn next(self: *Tokenizer) Token {
                 '\n' => {
                     id = .nl;
                     self.index += 1;
+                    self.line += 1;
                     break;
                 },
                 '\r' => state = .cr,
@@ -857,10 +857,12 @@ pub fn next(self: *Tokenizer) Token {
                 '\n' => {
                     id = .nl;
                     self.index += 1;
+                    self.line += 1;
                     break;
                 },
                 else => {
                     id = .nl;
+                    self.line += 1;
                     break;
                 },
             },
@@ -876,6 +878,7 @@ pub fn next(self: *Tokenizer) Token {
                 '\n' => {
                     start = self.index + 1;
                     state = .whitespace;
+                    self.line += 1;
                 },
                 '\r' => state = .back_slash_cr,
                 '\t', '\x0B', '\x0C', ' ' => {
@@ -890,10 +893,12 @@ pub fn next(self: *Tokenizer) Token {
                 '\n' => {
                     start = self.index + 1;
                     state = .whitespace;
+                    self.line += 1;
                 },
                 else => {
                     start = self.index;
                     state = .start;
+                    self.line += 1;
                 },
             },
             .u => switch (c) {
@@ -996,8 +1001,12 @@ pub fn next(self: *Tokenizer) Token {
                 else => {},
             },
             .escape_sequence => switch (c) {
-                '\'', '"', '?', '\\', 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v', '\n' => {
+                '\'', '"', '?', '\\', 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v' => {
                     state = return_state;
+                },
+                '\n' => {
+                    state = return_state;
+                    self.line += 1;
                 },
                 '\r' => state = .cr_escape,
                 '0'...'7' => {
@@ -1019,7 +1028,10 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .cr_escape => switch (c) {
-                '\n' => state = return_state,
+                '\n' => {
+                    state = return_state;
+                    self.line += 1;
+                },
                 else => {
                     id = .invalid;
                     break;
@@ -1533,6 +1545,7 @@ pub fn next(self: *Tokenizer) Token {
         .id = id,
         .start = start,
         .end = self.index,
+        .line = self.line,
         .source = self.source,
     };
 }

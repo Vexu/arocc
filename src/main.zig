@@ -240,13 +240,10 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     defer pp.deinit();
     try pp.addBuiltinMacros();
 
-    try pp.preprocess(builtin);
-    try pp.preprocess(user_macros);
-    try pp.preprocess(source);
-    try pp.tokens.append(pp.comp.gpa, .{
-        .id = .eof,
-        .loc = .{ .id = source.id, .byte_offset = @intCast(u32, source.buf.len) },
-    });
+    _ = try pp.preprocess(builtin);
+    _ = try pp.preprocess(user_macros);
+    const eof = try pp.preprocess(source);
+    try pp.tokens.append(pp.comp.gpa, eof);
 
     if (comp.only_preprocess) {
         comp.renderErrors();
