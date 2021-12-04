@@ -82,7 +82,7 @@ fn sectionString(sec: Object.Section) []const u8 {
 pub fn getSection(elf: *Elf, section_kind: Object.Section) !*std.ArrayList(u8) {
     const section_name = sectionString(section_kind);
     const section = elf.sections.get(section_name) orelse blk: {
-        const section = try elf.arena.allocator.create(Section);
+        const section = try elf.arena.allocator().create(Section);
         section.* = .{
             .data = std.ArrayList(u8).init(elf.arena.child_allocator),
             .type = std.elf.SHT_PROGBITS,
@@ -128,7 +128,7 @@ pub fn declareSymbol(
     };
     const name = if (maybe_name) |some| some else blk: {
         defer elf.unnamed_symbol_mangle += 1;
-        break :blk try std.fmt.allocPrint(&elf.arena.allocator, ".L.{d}", .{elf.unnamed_symbol_mangle});
+        break :blk try std.fmt.allocPrint(elf.arena.allocator(), ".L.{d}", .{elf.unnamed_symbol_mangle});
     };
 
     const gop = if (linkage == .Internal)
@@ -137,7 +137,7 @@ pub fn declareSymbol(
         try elf.global_symbols.getOrPut(elf.arena.child_allocator, name);
 
     if (!gop.found_existing) {
-        gop.value_ptr.* = try elf.arena.allocator.create(Symbol);
+        gop.value_ptr.* = try elf.arena.allocator().create(Symbol);
         elf.strtab_len += name.len + 1; // +1 for null byte
     }
     gop.value_ptr.*.* = .{

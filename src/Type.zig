@@ -117,7 +117,7 @@ pub const Attributed = struct {
     attributes: []Attribute,
     base: Type,
 
-    fn create(allocator: *std.mem.Allocator, base: Type, attributes: []const Attribute) !*Attributed {
+    fn create(allocator: std.mem.Allocator, base: Type, attributes: []const Attribute) !*Attributed {
         var attributed_type = try allocator.create(Attributed);
         errdefer allocator.destroy(attributed_type);
         attributed_type.* = .{
@@ -144,7 +144,7 @@ pub const Enum = struct {
         return e.fields.len == std.math.maxInt(usize);
     }
 
-    pub fn create(allocator: *std.mem.Allocator, name: []const u8) !*Enum {
+    pub fn create(allocator: std.mem.Allocator, name: []const u8) !*Enum {
         var e = try allocator.create(Enum);
         e.name = name;
         e.fields.len = std.math.maxInt(usize);
@@ -169,7 +169,7 @@ pub const Record = struct {
         return r.fields.len == std.math.maxInt(usize);
     }
 
-    pub fn create(allocator: *std.mem.Allocator, name: []const u8) !*Record {
+    pub fn create(allocator: std.mem.Allocator, name: []const u8) !*Record {
         var r = try allocator.create(Record);
         r.name = name;
         r.fields.len = std.math.maxInt(usize);
@@ -270,7 +270,7 @@ pub fn is(ty: Type, specifier: Specifier) bool {
     return ty.get(specifier) != null;
 }
 
-pub fn withAttributes(self: Type, allocator: *std.mem.Allocator, attributes: []const Attribute) !Type {
+pub fn withAttributes(self: Type, allocator: std.mem.Allocator, attributes: []const Attribute) !Type {
     if (attributes.len == 0) return self;
     const attributed_type = try Type.Attributed.create(allocator, self, attributes);
     return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
