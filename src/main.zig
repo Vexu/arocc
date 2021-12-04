@@ -253,6 +253,7 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
 }
 
 fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macros: Source) !void {
+    comp.generated_buf.items.len = 0;
     var pp = Preprocessor.init(comp);
     defer pp.deinit();
     try pp.addBuiltinMacros();

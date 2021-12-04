@@ -31,6 +31,7 @@ only_preprocess: bool = false,
 only_compile: bool = false,
 verbose_ast: bool = false,
 langopts: LangOpts = .{},
+generated_buf: std.ArrayList(u8),
 
 pub fn init(gpa: *Allocator) Compilation {
     return .{
@@ -40,6 +41,7 @@ pub fn init(gpa: *Allocator) Compilation {
         .include_dirs = std.ArrayList([]const u8).init(gpa),
         .system_include_dirs = std.ArrayList([]const u8).init(gpa),
         .pragma_handlers = std.StringArrayHashMap(*Pragma).init(gpa),
+        .generated_buf = std.ArrayList(u8).init(gpa),
     };
 }
 
@@ -57,6 +59,7 @@ pub fn deinit(comp: *Compilation) void {
     comp.system_include_dirs.deinit();
     comp.pragma_handlers.deinit();
     if (comp.builtin_header_path) |some| comp.gpa.free(some);
+    comp.generated_buf.deinit();
 }
 
 fn generateDateAndTime(w: anytype) !void {
@@ -376,6 +379,11 @@ pub fn defineSystemIncludes(comp: *Compilation) !void {
 }
 
 pub fn getSource(comp: *Compilation, id: Source.Id) Source {
+    if (id == .generated) return .{
+        .path = "<scratch space>",
+        .buf = comp.generated_buf.items,
+        .id = .generated,
+    };
     return comp.sources.values()[@enumToInt(id) - 2];
 }
 

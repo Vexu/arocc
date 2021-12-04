@@ -214,10 +214,7 @@ fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
     if (p.tok_ids[tok].lexeme()) |some| return some;
     const loc = p.pp.tokens.items(.loc)[tok];
     var tmp_tokenizer = Tokenizer{
-        .buf = if (loc.id == .generated)
-            p.pp.generated.items
-        else
-            p.pp.comp.getSource(loc.id).buf,
+        .buf = p.pp.comp.getSource(loc.id).buf,
         .comp = p.pp.comp,
         .index = loc.byte_offset,
         .source = .generated,
@@ -664,7 +661,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .comp = pp.comp,
         .tokens = pp.tokens.slice(),
         .arena = arena,
-        .generated = pp.generated.items,
+        .generated = pp.comp.generated_buf.items,
         .nodes = p.nodes.toOwnedSlice(),
         .data = p.data.toOwnedSlice(),
         .root_decls = root_decls,

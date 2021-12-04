@@ -577,10 +577,7 @@ pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
     var tmp_tokenizer = Tokenizer{
-        .buf = if (loc.id == .generated)
-            tree.generated
-        else
-            tree.comp.getSource(loc.id).buf,
+        .buf = tree.comp.getSource(loc.id).buf,
         .comp = tree.comp,
         .index = loc.byte_offset,
         .source = .generated,
