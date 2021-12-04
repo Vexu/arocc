@@ -143,12 +143,13 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
             var it = std.unicode.Utf8View.initUnchecked(slice).iterator();
             var loc = p.pp.tokens.items(.loc)[p.tok_i];
 
-            if (mem.indexOfScalar(u8, p.tokSlice(p.tok_i), '$')) |i| {
+            if (mem.indexOfScalar(u8, slice, '$')) |i| {
                 loc.byte_offset += @intCast(u32, i);
                 try p.pp.comp.diag.add(.{
                     .tag = .dollar_in_identifier_extension,
                     .loc = loc,
                 });
+                loc = p.pp.tokens.items(.loc)[p.tok_i];
             }
 
             while (it.nextCodepoint()) |c| {
@@ -165,7 +166,7 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
     if (!p.pp.comp.langopts.dollars_in_identifiers) {
         if (p.tok_ids[p.tok_i] == .invalid and p.tokSlice(p.tok_i)[0] == '$') {
             try p.err(.dollars_in_identifiers);
-            defer p.tok_i += 2;
+            p.tok_i += 1;
             return error.ParsingFailed;
         }
     }
@@ -1269,34 +1270,10 @@ const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = .none };
 fn attribute(p: *Parser) Error!Attribute {
     const name_tok = p.tok_i;
     switch (p.tok_ids[p.tok_i]) {
-        .identifier, .keyword_const, .keyword_const1, .keyword_const2 => {},
-        .extended_identifier => {
-            const slice = p.tokSlice(p.tok_i);
-            var it = std.unicode.Utf8View.initUnchecked(slice).iterator();
-            var loc = p.pp.tokens.items(.loc)[p.tok_i];
-
-            if (mem.indexOfScalar(u8, p.tokSlice(p.tok_i), '$')) |i| {
-                loc.byte_offset += @intCast(u32, i);
-                try p.pp.comp.diag.add(.{
-                    .tag = .dollar_in_identifier_extension,
-                    .loc = loc,
-                });
-            }
-
-            while (it.nextCodepoint()) |c| {
-                if (try checkIdentifierCodepoint(p.pp.comp, c, loc)) break;
-                loc.byte_offset += std.unicode.utf8CodepointSequenceLength(c) catch unreachable;
-            }
-        },
-        else => {
-            try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{
-                .expected = .identifier,
-                .actual = p.tok_ids[p.tok_i],
-            } });
-            return error.ParsingFailed;
-        },
+        .keyword_const, .keyword_const1, .keyword_const2 => p.tok_i += 1,
+        else => _ = try p.expectIdentifier(),
     }
-    p.tok_i += 1;
+
     switch (p.tok_ids[p.tok_i]) {
         .comma, .r_paren => { // will be consumed in attributeList
             return Attribute{ .name = name_tok };
@@ -1362,13 +1339,6 @@ fn attribute(p: *Parser) Error!Attribute {
                 .name = name_tok,
                 .params = try p.addNode(node),
             };
-        },
-        .invalid => {
-            if (!p.pp.comp.langopts.dollars_in_identifiers and p.tokSlice(p.tok_i)[0] == '$') {
-                try p.err(.dollars_in_identifiers);
-                p.tok_i += 2;
-            }
-            return error.ParsingFailed;
         },
         else => return error.ParsingFailed,
     }
