@@ -11,7 +11,6 @@ pub const Message = struct {
     tag: Tag,
     kind: Kind = undefined,
     loc: Source.Location = .{},
-    expansion_locs: ?[*]Source.Location = null,
     extra: Extra = .{ .none = {} },
 
     pub const Extra = union {
@@ -1277,6 +1276,15 @@ const messages = struct {
         const msg = "illegal character '$' in identifier";
         const kind = .@"error";
     };
+    const expanded_from_here = struct {
+        const msg = "expanded from here";
+        const kind = .note;
+    };
+    const skipping_macro_backtrace = struct {
+        const msg = "(skipping {d} expansions in backtrace; use -fmacro-backtrace-limit=0 to see all)";
+        const extra = .unsigned;
+        const kind = .note;
+    };
 };
 
 list: std.ArrayList(Message),
@@ -1284,6 +1292,7 @@ color: bool = true,
 fatal_errors: bool = false,
 options: Options = .{},
 errors: u32 = 0,
+macro_backtrace_limit: u32 = 6,
 
 pub fn warningExists(name: []const u8) bool {
     inline for (std.meta.fields(Options)) |f| {
@@ -1306,7 +1315,7 @@ pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
     try diag.add(.{
         .tag = .unknown_warning,
         .extra = .{ .str = name },
-    });
+    }, &.{});
 }
 
 pub fn setAll(diag: *Diagnostics, to: Kind) void {
@@ -1326,12 +1335,51 @@ pub fn deinit(diag: *Diagnostics) void {
     diag.list.deinit();
 }
 
-pub fn add(diag: *Diagnostics, msg: Message) Compilation.Error!void {
+pub fn add(diag: *Diagnostics, msg: Message, expansion_locs: []const Source.Location) Compilation.Error!void {
     const kind = diag.tagKind(msg.tag);
     if (kind == .off) return;
     var copy = msg;
     copy.kind = kind;
+
+    if (expansion_locs.len != 0) copy.loc = expansion_locs[expansion_locs.len - 1];
     try diag.list.append(copy);
+    if (expansion_locs.len != 0) {
+        // Add macro backtrace notes in reverse order omitting from the middle if needed.
+        var i = expansion_locs.len - 1;
+        const half = diag.macro_backtrace_limit / 2;
+        const limit = if (i < diag.macro_backtrace_limit) 0 else i - half;
+        try diag.list.ensureUnusedCapacity(if (limit == 0) expansion_locs.len else diag.macro_backtrace_limit + 1);
+        while (i > limit) {
+            i -= 1;
+            diag.list.appendAssumeCapacity(.{
+                .tag = .expanded_from_here,
+                .kind = .note,
+                .loc = expansion_locs[i],
+            });
+        }
+        if (limit != 0) {
+            diag.list.appendAssumeCapacity(.{
+                .tag = .skipping_macro_backtrace,
+                .kind = .note,
+                .extra = .{ .unsigned = expansion_locs.len - diag.macro_backtrace_limit },
+            });
+            i = half - 1;
+            while (i > 0) {
+                i -= 1;
+                diag.list.appendAssumeCapacity(.{
+                    .tag = .expanded_from_here,
+                    .kind = .note,
+                    .loc = expansion_locs[i],
+                });
+            }
+        }
+
+        diag.list.appendAssumeCapacity(.{
+            .tag = .expanded_from_here,
+            .kind = .note,
+            .loc = msg.loc,
+        });
+    }
     if (kind == .@"fatal error" or (kind == .@"error" and diag.fatal_errors))
         return error.FatalError;
 }
@@ -1387,7 +1435,6 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .off => continue, // happens if an error is added before it is disabled
         }
 
-        var expansion_locs = msg.expansion_locs;
         var line: ?[]const u8 = null;
         var col = switch (msg.tag) {
             .escape_sequence_overflow,
@@ -1396,24 +1443,12 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             => @truncate(u32, msg.extra.unsigned),
             else => 0,
         };
-        switch (msg.loc.id) {
-            .unused => {},
-            .generated => {
-                const loc = expansion_locs.?[0];
-                expansion_locs = expansion_locs.? + 1;
-                const source = comp.getSource(loc.id);
-                const line_col = source.lineCol(loc.byte_offset);
-                line = line_col.line;
-                col += line_col.col;
-                m.location(source.path, loc.line, col);
-            },
-            _ => {
-                const source = comp.getSource(msg.loc.id);
-                const line_col = source.lineCol(msg.loc.byte_offset);
-                line = line_col.line;
-                col += line_col.col;
-                m.location(source.path, msg.loc.line, col);
-            },
+        if (msg.loc.id != .unused) {
+            const source = comp.getSource(msg.loc.id);
+            const line_col = source.lineCol(msg.loc.byte_offset);
+            line = line_col.line;
+            col += line_col.col;
+            m.location(source.path, msg.loc.line, col);
         }
 
         m.start(msg.kind);
@@ -1453,17 +1488,6 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
         }
 
         m.end(line, col);
-
-        var tmp_tok: Tree.Token = undefined;
-        tmp_tok.expansion_locs = expansion_locs orelse continue;
-        for (tmp_tok.expansionSlice()) |loc| {
-            const source = comp.getSource(loc.id);
-            const line_col = source.lineCol(loc.byte_offset);
-            m.location(source.path, loc.line, line_col.col);
-            m.start(.note);
-            m.write("expanded from here");
-            m.end(line_col.line, line_col.col);
-        }
     }
     const w_s: []const u8 = if (warnings == 1) "" else "s";
     const e_s: []const u8 = if (errors == 1) "" else "s";
@@ -1528,7 +1552,7 @@ const MsgWriter = struct {
     }
 
     fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
-        const prefix = if (std.fs.path.dirname(path) == null) "." ++ std.fs.path.sep_str else "";
+        const prefix = if (std.fs.path.dirname(path) == null and path[0] != '<') "." ++ std.fs.path.sep_str else "";
         if (@import("builtin").os.tag == .windows or !m.color) {
             m.print("{s}{s}:{d}:{d}: ", .{ prefix, path, line, col });
         } else {

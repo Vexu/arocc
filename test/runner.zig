@@ -95,6 +95,7 @@ pub fn main() !void {
         comp.langopts.standard = .default;
         comp.diag.options = initial_options;
         comp.only_preprocess = false;
+        comp.generated_buf.items.len = 0;
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
             progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
@@ -181,7 +182,7 @@ pub fn main() !void {
                 progress.log("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
                 continue;
             }
-            const tok_slice = pp.tokSliceSafe(macro.tokens[0]);
+            const tok_slice = pp.tokSlice(macro.tokens[0]);
             const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
             progress.log("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
             skip_count += tests_skipped;
@@ -218,7 +219,7 @@ pub fn main() !void {
                 defer i += 1;
                 if (i >= actual.types.items.len) continue;
 
-                const expected_type = std.mem.trim(u8, pp.tokSliceSafe(str), "\"");
+                const expected_type = std.mem.trim(u8, pp.tokSlice(str), "\"");
                 const actual_type = actual.types.items[i];
                 if (!std.mem.eql(u8, expected_type, actual_type)) {
                     fail_count += 1;
@@ -264,7 +265,7 @@ pub fn main() !void {
 
                 defer buf.items.len = 0;
                 // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-                std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSliceSafe(str))) == .success);
+                std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSlice(str))) == .success);
                 const expected_error = buf.items;
 
                 const index = std.mem.indexOf(u8, m.buf.items, expected_error);
@@ -318,7 +319,7 @@ pub fn main() !void {
 
             defer buf.items.len = 0;
             // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-            std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSliceSafe(macro.tokens[0]))) == .success);
+            std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSlice(macro.tokens[0]))) == .success);
             const expected_output = buf.items;
 
             const obj_name = "test_object.o";

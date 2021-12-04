@@ -74,16 +74,17 @@ fn diagnosticHandler(pp: *Preprocessor, start_idx: TokenIndex) Pragma.Error!void
                             .tag = .pragma_requires_string_literal,
                             .loc = diagnostic_tok.loc,
                             .extra = .{ .str = "pragma diagnostic" },
-                        });
+                        }, diagnostic_tok.expansionSlice());
                     },
                     else => |e| return e,
                 };
                 if (!mem.startsWith(u8, str, "-W")) {
+                    const next = pp.tokens.get(start_idx + 1);
                     return pp.comp.diag.add(.{
                         .tag = .malformed_warning_check,
-                        .loc = pp.tokens.get(start_idx + 1).loc,
+                        .loc = next.loc,
                         .extra = .{ .str = "pragma diagnostic" },
-                    });
+                    }, next.expansionSlice());
                 }
                 const new_kind = switch (diagnostic) {
                     .ignored => Diagnostics.Kind.off,
@@ -114,13 +115,16 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
                             .tag = .pragma_requires_string_literal,
                             .loc = directive_tok.loc,
                             .extra = .{ .str = @tagName(gcc_pragma) },
-                        });
+                        }, directive_tok.expansionSlice());
                     },
                     else => |e| return e,
                 };
                 const extra = Diagnostics.Message.Extra{ .str = try pp.arena.allocator.dupe(u8, text) };
                 const diagnostic_tag: Diagnostics.Tag = if (gcc_pragma == .warning) .pragma_warning_message else .pragma_error_message;
-                return pp.comp.diag.add(.{ .tag = diagnostic_tag, .loc = directive_tok.loc, .extra = extra });
+                return pp.comp.diag.add(
+                    .{ .tag = diagnostic_tag, .loc = directive_tok.loc, .extra = extra },
+                    directive_tok.expansionSlice(),
+                );
             },
             .diagnostic => return diagnosticHandler(pp, start_idx + 2),
             .poison => {
@@ -133,14 +137,14 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
                         return pp.comp.diag.add(.{
                             .tag = .pragma_poison_identifier,
                             .loc = tok.loc,
-                        });
+                        }, tok.expansionSlice());
                     }
                     const str = pp.expandedSlice(tok);
                     if (pp.defines.get(str) != null) {
                         try pp.comp.diag.add(.{
                             .tag = .pragma_poison_macro,
                             .loc = tok.loc,
-                        });
+                        }, tok.expansionSlice());
                     }
                     try pp.poisoned_identifiers.put(str, {});
                 }
