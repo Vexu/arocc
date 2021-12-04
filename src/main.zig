@@ -64,9 +64,9 @@ const usage =
     \\  -fshort-enums           Use the narrowest possible integer type for enums.
     \\  -fno-short-enums        Use "int" as the tag type for enums.
     \\  -fdollars-in-identifiers        
-    \\                          Use the narrowest possible integer type for enums.
+    \\                          Allow '$' in identifiers
     \\  -fno-dollars-in-identifiers     
-    \\                          Use "int" as the tag type for enums.
+    \\                          Disallow '$' in identifiers
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  -o <file>               Write output to <file>

@@ -159,7 +159,6 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
         },
         else => return null,
     }
-
     p.tok_i += 1;
 
     // Handle illegal '$' characters in identifiers
