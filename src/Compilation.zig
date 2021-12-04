@@ -18,7 +18,7 @@ pub const Error = error{
     FatalError,
 } || Allocator.Error;
 
-gpa: *Allocator,
+gpa: Allocator,
 sources: std.StringArrayHashMap(Source),
 diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
@@ -33,7 +33,7 @@ verbose_ast: bool = false,
 langopts: LangOpts = .{},
 generated_buf: std.ArrayList(u8),
 
-pub fn init(gpa: *Allocator) Compilation {
+pub fn init(gpa: Allocator) Compilation {
     return .{
         .gpa = gpa,
         .sources = std.StringArrayHashMap(Source).init(gpa),
@@ -421,9 +421,9 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
     if (search_cwd) blk: {
         const source = comp.getSource(tok.source);
         const path = if (std.fs.path.dirname(source.path)) |some|
-            std.fs.path.join(&fib.allocator, &.{ some, filename }) catch break :blk
+            std.fs.path.join(fib.allocator(), &.{ some, filename }) catch break :blk
         else
-            std.fs.path.join(&fib.allocator, &.{ ".", filename }) catch break :blk;
+            std.fs.path.join(fib.allocator(), &.{ ".", filename }) catch break :blk;
         if (comp.addSource(path)) |some|
             return some
         else |err| switch (err) {
@@ -433,7 +433,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
     }
     for (comp.include_dirs.items) |dir| {
         fib.end_index = 0;
-        const path = std.fs.path.join(&fib.allocator, &.{ dir, filename }) catch continue;
+        const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
         if (comp.addSource(path)) |some|
             return some
         else |err| switch (err) {
@@ -443,7 +443,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
     }
     for (comp.system_include_dirs.items) |dir| {
         fib.end_index = 0;
-        const path = std.fs.path.join(&fib.allocator, &.{ dir, filename }) catch continue;
+        const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
         if (comp.addSource(path)) |some|
             return some
         else |err| switch (err) {

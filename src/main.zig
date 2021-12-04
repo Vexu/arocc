@@ -14,14 +14,14 @@ pub fn main() u8 {
     const gpa = if (@import("builtin").link_libc)
         std.heap.raw_c_allocator
     else
-        &general_purpose_allocator.allocator;
+        general_purpose_allocator.allocator();
     defer if (!@import("builtin").link_libc) {
         _ = general_purpose_allocator.deinit();
     };
 
     var arena_instance = std.heap.ArenaAllocator.init(gpa);
     defer arena_instance.deinit();
-    const arena = &arena_instance.allocator;
+    const arena = arena_instance.allocator();
 
     const args = process.argsAlloc(arena) catch {
         std.debug.print("out of memory\n", .{});

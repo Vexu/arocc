@@ -1324,7 +1324,7 @@ pub fn setAll(diag: *Diagnostics, to: Kind) void {
     }
 }
 
-pub fn init(gpa: *Allocator) Diagnostics {
+pub fn init(gpa: Allocator) Diagnostics {
     return .{
         .color = std.io.getStdErr().supportsAnsiEscapeCodes(),
         .list = std.ArrayList(Message).init(gpa),

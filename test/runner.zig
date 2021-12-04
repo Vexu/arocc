@@ -14,7 +14,7 @@ const predefined_macros =
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub fn main() !void {
-    const gpa = &general_purpose_allocator.allocator;
+    const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit()) std.process.exit(1);
 
     var args = try std.process.argsAlloc(gpa);
@@ -390,7 +390,7 @@ pub fn main() !void {
 const MsgWriter = struct {
     buf: std.ArrayList(u8),
 
-    fn init(gpa: *std.mem.Allocator) MsgWriter {
+    fn init(gpa: std.mem.Allocator) MsgWriter {
         return .{
             .buf = std.ArrayList(u8).init(gpa),
         };
@@ -429,14 +429,14 @@ const MsgWriter = struct {
 const StmtTypeDumper = struct {
     types: std.ArrayList([]const u8),
 
-    fn deinit(self: *StmtTypeDumper, allocator: *std.mem.Allocator) void {
+    fn deinit(self: *StmtTypeDumper, allocator: std.mem.Allocator) void {
         for (self.types.items) |t| {
             allocator.free(t);
         }
         self.types.deinit();
     }
 
-    fn init(allocator: *std.mem.Allocator) StmtTypeDumper {
+    fn init(allocator: std.mem.Allocator) StmtTypeDumper {
         return .{
             .types = std.ArrayList([]const u8).init(allocator),
         };
@@ -451,7 +451,7 @@ const StmtTypeDumper = struct {
         try self.types.append(m.buf.toOwnedSlice());
     }
 
-    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, decl_idx: NodeIndex, allocator: *std.mem.Allocator) AllocatorError!void {
+    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, decl_idx: NodeIndex, allocator: std.mem.Allocator) AllocatorError!void {
         var m = MsgWriter.init(allocator);
         defer m.deinit();
 

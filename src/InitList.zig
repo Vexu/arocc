@@ -28,14 +28,14 @@ node: NodeIndex = .none,
 tok: TokenIndex = 0,
 
 /// Deinitialize freeing all memory.
-pub fn deinit(il: *InitList, gpa: *Allocator) void {
+pub fn deinit(il: *InitList, gpa: Allocator) void {
     for (il.list.items) |*item| item.list.deinit(gpa);
     il.list.deinit(gpa);
     il.* = undefined;
 }
 
 /// Insert initializer at index, returning previous entry if one exists.
-pub fn put(il: *InitList, gpa: *Allocator, index: usize, node: NodeIndex, tok: TokenIndex) !?TokenIndex {
+pub fn put(il: *InitList, gpa: Allocator, index: usize, node: NodeIndex, tok: TokenIndex) !?TokenIndex {
     const items = il.list.items;
     var left: usize = 0;
     var right: usize = items.len;
@@ -79,7 +79,7 @@ pub fn put(il: *InitList, gpa: *Allocator, index: usize, node: NodeIndex, tok: T
 }
 
 /// Find item at index, create new if one does not exist.
-pub fn find(il: *InitList, gpa: *Allocator, index: usize) !*InitList {
+pub fn find(il: *InitList, gpa: Allocator, index: usize) !*InitList {
     const items = il.list.items;
     var left: usize = 0;
     var right: usize = items.len;

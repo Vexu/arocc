@@ -77,7 +77,7 @@ tok_ids: []const Token.Id,
 tok_i: TokenIndex = 0,
 
 // values of the incomplete Tree
-arena: *Allocator,
+arena: Allocator,
 nodes: Tree.Node.List = .{},
 data: NodeList,
 strings: std.ArrayList(u8),
@@ -574,7 +574,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     errdefer arena.deinit();
     var p = Parser{
         .pp = pp,
-        .arena = &arena.allocator,
+        .arena = arena.allocator(),
         .tok_ids = pp.tokens.items(.id),
         .strings = std.ArrayList(u8).init(pp.comp.gpa),
         .value_map = Tree.ValueMap.init(pp.comp.gpa),

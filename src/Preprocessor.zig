@@ -536,7 +536,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
         .pp = pp,
         .tok_ids = pp.tokens.items(.id),
         .tok_i = @intCast(u32, start),
-        .arena = &pp.arena.allocator,
+        .arena = pp.arena.allocator(),
         .in_macro = true,
         .data = undefined,
         .strings = undefined,
@@ -623,7 +623,7 @@ fn skipToNl(tokenizer: *Tokenizer) void {
 
 const ExpandBuf = std.ArrayList(Token);
 const MacroArguments = std.ArrayList([]const Token);
-fn deinitMacroArguments(allocator: *Allocator, args: *const MacroArguments) void {
+fn deinitMacroArguments(allocator: Allocator, args: *const MacroArguments) void {
     for (args.items) |item| {
         for (item) |tok| Token.free(tok.expansion_locs, allocator);
         allocator.free(item);
@@ -1234,7 +1234,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
         try pp.comp.diag.add(.{
             .tag = .pasting_formed_invalid,
             .loc = lhs.loc,
-            .extra = .{ .str = try pp.arena.allocator.dupe(u8, pp.comp.generated_buf.items[start..end]) },
+            .extra = .{ .str = try pp.arena.allocator().dupe(u8, pp.comp.generated_buf.items[start..end]) },
         }, lhs.expansionSlice());
     }
 
@@ -1335,7 +1335,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         tok = tokenizer.next();
     }
 
-    const list = try pp.arena.allocator.dupe(RawToken, pp.token_buf.items);
+    const list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
     try pp.defineMacro(macro_name, .{
         .loc = .{
             .id = macro_name.source,
@@ -1465,8 +1465,8 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
         }
     }
 
-    const param_list = try pp.arena.allocator.dupe([]const u8, params.items);
-    const token_list = try pp.arena.allocator.dupe(RawToken, pp.token_buf.items);
+    const param_list = try pp.arena.allocator().dupe([]const u8, params.items);
+    const token_list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
     try pp.defineMacro(macro_name, .{
         .is_func = true,
         .params = param_list,

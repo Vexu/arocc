@@ -50,7 +50,7 @@ fn afterParse(pragma: *Pragma, comp: *Compilation) void {
     comp.diag.options = self.original_options;
 }
 
-pub fn init(allocator: *mem.Allocator) !*Pragma {
+pub fn init(allocator: mem.Allocator) !*Pragma {
     var gcc = try allocator.create(GCC);
     gcc.* = .{};
     return &gcc.pragma;
@@ -119,7 +119,7 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
                     },
                     else => |e| return e,
                 };
-                const extra = Diagnostics.Message.Extra{ .str = try pp.arena.allocator.dupe(u8, text) };
+                const extra = Diagnostics.Message.Extra{ .str = try pp.arena.allocator().dupe(u8, text) };
                 const diagnostic_tag: Diagnostics.Tag = if (gcc_pragma == .warning) .pragma_warning_message else .pragma_error_message;
                 return pp.comp.diag.add(
                     .{ .tag = diagnostic_tag, .loc = directive_tok.loc, .extra = extra },

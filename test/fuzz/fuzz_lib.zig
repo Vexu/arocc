@@ -17,7 +17,7 @@ export fn compile_c_buf(buf: [*]const u8, len: c_int) void {
 
 fn compileSlice(buf: []const u8) !void {
     var fixed_allocator = std.heap.FixedBufferAllocator.init(fixed_buffer_mem[0..]);
-    const allocator = &fixed_allocator.allocator;
+    var allocator = fixed_allocator.allocator();
 
     var comp = Compilation.init(allocator);
     defer comp.deinit();

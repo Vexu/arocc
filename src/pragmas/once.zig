@@ -18,7 +18,7 @@ pragma: Pragma = .{
 pragma_once: std.AutoHashMap(Source.Id, void),
 preprocess_count: u32 = 0,
 
-pub fn init(allocator: *mem.Allocator) !*Pragma {
+pub fn init(allocator: mem.Allocator) !*Pragma {
     var once = try allocator.create(Once);
     once.* = .{
         .pragma_once = std.AutoHashMap(Source.Id, void).init(allocator),

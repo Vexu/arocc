@@ -22,7 +22,7 @@ pub const Token = struct {
         return locs[0..i];
     }
 
-    pub fn addExpansionLocation(tok: *Token, gpa: *std.mem.Allocator, new: []const Source.Location) !void {
+    pub fn addExpansionLocation(tok: *Token, gpa: std.mem.Allocator, new: []const Source.Location) !void {
         if (new.len == 0 or tok.id == .whitespace) return;
         var list = std.ArrayList(Source.Location).init(gpa);
         defer {
@@ -52,7 +52,7 @@ pub const Token = struct {
         }
     }
 
-    pub fn free(expansion_locs: ?[*]Source.Location, gpa: *std.mem.Allocator) void {
+    pub fn free(expansion_locs: ?[*]Source.Location, gpa: std.mem.Allocator) void {
         const locs = expansion_locs orelse return;
         var i: usize = 0;
         while (locs[i].id != .unused) : (i += 1) {}
@@ -60,7 +60,7 @@ pub const Token = struct {
         gpa.free(locs[0 .. i + 1]);
     }
 
-    pub fn dupe(tok: Token, gpa: *std.mem.Allocator) !Token {
+    pub fn dupe(tok: Token, gpa: std.mem.Allocator) !Token {
         var copy = tok;
         copy.expansion_locs = null;
         try copy.addExpansionLocation(gpa, tok.expansionSlice());
