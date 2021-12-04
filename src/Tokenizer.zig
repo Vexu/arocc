@@ -583,6 +583,8 @@ pub const Token = struct {
     /// does not check basic character set chars because the tokenizer handles them separately to keep the common
     /// case on the fast path
     pub fn mayAppearInIdent(comp: *const Compilation, codepoint: u21, where: enum { start, inside }) bool {
+        if (codepoint == '$') return comp.langopts.dollars_in_identifiers;
+        if (codepoint < 0x7F) return false;
         return switch (where) {
             .start => if (comp.langopts.standard.atLeast(.c11))
                 CharInfo.isC11IdChar(codepoint) and !CharInfo.isC11DisallowedInitialIdChar(codepoint)
@@ -780,7 +782,7 @@ pub fn next(self: *Tokenizer) Token {
                 'u' => state = .u,
                 'U' => state = .U,
                 'L' => state = .L,
-                'a'...'t', 'v'...'z', 'A'...'K', 'M'...'T', 'V'...'Z', '_', '$' => state = .identifier,
+                'a'...'t', 'v'...'z', 'A'...'K', 'M'...'T', 'V'...'Z', '_' => state = .identifier,
                 '=' => state = .equal,
                 '!' => state = .bang,
                 '|' => state = .pipe,
@@ -854,7 +856,7 @@ pub fn next(self: *Tokenizer) Token {
                 '1'...'9' => state = .integer_literal,
                 '\\' => state = .back_slash,
                 '\t', '\x0B', '\x0C', ' ' => state = .whitespace,
-                else => if (c > 0x7F and Token.mayAppearInIdent(self.comp, c, .start)) {
+                else => if (Token.mayAppearInIdent(self.comp, c, .start)) {
                     state = .extended_identifier;
                 } else {
                     id = .invalid;
@@ -1074,9 +1076,9 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .identifier, .extended_identifier => switch (c) {
-                'a'...'z', 'A'...'Z', '_', '0'...'9', '$' => {},
+                'a'...'z', 'A'...'Z', '_', '0'...'9' => {},
                 else => {
-                    if (c <= 0x7F or !Token.mayAppearInIdent(self.comp, c, .inside)) {
+                    if (!Token.mayAppearInIdent(self.comp, c, .inside)) {
                         id = if (state == .identifier) Token.getTokenId(self.comp, self.buf[start..self.index]) else .extended_identifier;
                         break;
                     }
