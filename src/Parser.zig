@@ -113,7 +113,7 @@ fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Loca
         try comp.diag.add(.{
             .tag = .c99_compat,
             .loc = loc,
-        });
+        }, &.{});
         diagnosed = true;
     }
     if (CharInfo.isInvisible(codepoint)) {
@@ -121,7 +121,7 @@ fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Loca
             .tag = .unicode_zero_width,
             .loc = loc,
             .extra = .{ .actual_codepoint = codepoint },
-        });
+        }, &.{});
         diagnosed = true;
     }
     if (CharInfo.homoglyph(codepoint)) |resembles| {
@@ -129,7 +129,7 @@ fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Loca
             .tag = .unicode_homoglyph,
             .loc = loc,
             .extra = .{ .codepoints = .{ .actual = codepoint, .resembles = resembles } },
-        });
+        }, &.{});
         diagnosed = true;
     }
     return diagnosed;
@@ -148,7 +148,7 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
                 try p.pp.comp.diag.add(.{
                     .tag = .dollar_in_identifier_extension,
                     .loc = loc,
-                });
+                }, &.{});
                 loc = p.pp.tokens.items(.loc)[p.tok_i];
             }
 
@@ -229,6 +229,7 @@ fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
 fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
     _ = p.expectToken(id) catch |e| {
         if (e == error.ParsingFailed) {
+            const tok = p.pp.tokens.get(opening);
             try p.pp.comp.diag.add(.{
                 .tag = switch (id) {
                     .r_paren => .to_match_paren,
@@ -236,9 +237,8 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
                     .r_bracket => .to_match_brace,
                     else => unreachable,
                 },
-                .loc = p.pp.tokens.items(.loc)[opening],
-                .expansion_locs = p.pp.tokens.items(.expansion_locs)[opening],
-            });
+                .loc = tok.loc,
+            }, tok.expansionSlice());
         }
         return e;
     };
@@ -251,21 +251,21 @@ pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, str: []const 
 
 pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diagnostics.Message.Extra) Compilation.Error!void {
     @setCold(true);
+    const tok = p.pp.tokens.get(tok_i);
     try p.pp.comp.diag.add(.{
         .tag = tag,
-        .loc = p.pp.tokens.items(.loc)[tok_i],
-        .expansion_locs = p.pp.tokens.items(.expansion_locs)[tok_i],
+        .loc = tok.loc,
         .extra = extra,
-    });
+    }, tok.expansionSlice());
 }
 
 pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.Error!void {
     @setCold(true);
+    const tok = p.pp.tokens.get(tok_i);
     try p.pp.comp.diag.add(.{
         .tag = tag,
-        .loc = p.pp.tokens.items(.loc)[tok_i],
-        .expansion_locs = p.pp.tokens.items(.expansion_locs)[tok_i],
-    });
+        .loc = tok.loc,
+    }, tok.expansionSlice());
 }
 
 pub fn err(p: *Parser, tag: Diagnostics.Tag) Compilation.Error!void {

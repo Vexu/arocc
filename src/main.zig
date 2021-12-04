@@ -61,12 +61,14 @@ const usage =
     \\  -E                      Only run the preprocessor
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
-    \\  -fshort-enums           Use the narrowest possible integer type for enums.
-    \\  -fno-short-enums        Use "int" as the tag type for enums.
     \\  -fdollars-in-identifiers        
     \\                          Allow '$' in identifiers
     \\  -fno-dollars-in-identifiers     
     \\                          Disallow '$' in identifiers
+    \\  -fmacro-backtrace-limit=<limit>
+    \\                          Set limit on how many macro expansion traces are shown in errors (default 6)
+    \\  -fshort-enums           Use the narrowest possible integer type for enums
+    \\  -fno-short-enums        Use "int" as the tag type for enums
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  -o <file>               Write output to <file>
@@ -143,14 +145,21 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                 comp.diag.color = true;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
                 comp.diag.color = false;
-            } else if (mem.eql(u8, arg, "-fshort-enums")) {
-                comp.langopts.short_enums = true;
-            } else if (mem.eql(u8, arg, "-fno-short-enums")) {
-                comp.langopts.short_enums = false;
             } else if (mem.eql(u8, arg, "-fdollars-in-identifiers")) {
                 comp.langopts.dollars_in_identifiers = true;
             } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
                 comp.langopts.dollars_in_identifiers = false;
+            } else if (mem.startsWith(u8, arg, "-fmacro-backtrace-limit=")) {
+                const limit_str = arg["-fmacro-backtrace-limit=".len..];
+                var limit = std.fmt.parseInt(u32, limit_str, 10) catch
+                    return comp.diag.fatalNoSrc("-fmacro-backtrace-limit takes a number argument", .{});
+
+                if (limit == 0) limit = std.math.maxInt(u32);
+                comp.diag.macro_backtrace_limit = limit;
+            } else if (mem.eql(u8, arg, "-fshort-enums")) {
+                comp.langopts.short_enums = true;
+            } else if (mem.eql(u8, arg, "-fno-short-enums")) {
+                comp.langopts.short_enums = false;
             } else if (mem.startsWith(u8, arg, "-I")) {
                 var path = arg["-I".len..];
                 if (path.len == 0) {

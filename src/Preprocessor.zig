@@ -158,7 +158,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
         try pp.comp.diag.add(.{
             .tag = .invalid_utf8,
             .loc = loc,
-        });
+        }, &.{});
         return error.FatalError;
     }
 
@@ -199,7 +199,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
                             .tag = .error_directive,
                             .loc = .{ .id = tok.source, .byte_offset = tok.start, .line = directive.line },
                             .extra = .{ .str = slice },
-                        });
+                        }, &.{});
                     },
                     .keyword_if => {
                         if (@addWithOverflow(u8, if_level, 1, &if_level))
@@ -396,7 +396,7 @@ fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
             .byte_offset = raw.start,
             .line = raw.line,
         },
-    });
+    }, &.{});
 }
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
@@ -471,10 +471,11 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
     }
 
     if (!pp.tokens.items(.id)[start].validPreprocessorExprStart()) {
+        const tok = pp.tokens.get(0);
         try pp.comp.diag.add(.{
             .tag = .invalid_preproc_expr_start,
-            .loc = pp.tokens.items(.loc)[0],
-        });
+            .loc = tok.loc,
+        }, tok.expansionSlice());
         return false;
     }
     // validate the tokens in the expression
@@ -486,20 +487,22 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
             .string_literal_utf_32,
             .string_literal_wide,
             => {
+                const tok = pp.tokens.get(i);
                 try pp.comp.diag.add(.{
                     .tag = .string_literal_in_pp_expr,
-                    .loc = pp.tokens.items(.loc)[i],
-                });
+                    .loc = tok.loc,
+                }, tok.expansionSlice());
                 return false;
             },
             .float_literal,
             .float_literal_f,
             .float_literal_l,
             => {
+                const tok = pp.tokens.get(i);
                 try pp.comp.diag.add(.{
                     .tag = .float_literal_in_pp_expr,
-                    .loc = pp.tokens.items(.loc)[i],
-                });
+                    .loc = tok.loc,
+                }, tok.expansionSlice());
                 return false;
             },
             .plus_plus,
@@ -526,10 +529,11 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) Error!bool {
             .arrow,
             .period,
             => {
+                const tok = pp.tokens.get(i);
                 try pp.comp.diag.add(.{
                     .tag = .invalid_preproc_operator,
-                    .loc = pp.tokens.items(.loc)[i],
-                });
+                    .loc = tok.loc,
+                }, tok.expansionSlice());
                 return false;
             },
             else => if (id.isMacroIdentifier()) {
@@ -722,7 +726,10 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             };
             if (identifier == null and invalid == null) invalid = param_toks[0];
             if (invalid) |some| {
-                try pp.comp.diag.add(.{ .tag = .feature_check_requires_identifier, .loc = some.loc });
+                try pp.comp.diag.add(
+                    .{ .tag = .feature_check_requires_identifier, .loc = some.loc },
+                    some.expansionSlice(),
+                );
                 return .zero;
             }
 
@@ -736,7 +743,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                         .tag = .expected_str_literal_in,
                         .loc = param_toks[0].loc,
                         .extra = .{ .str = "__has_warning" },
-                    });
+                    }, param_toks[0].expansionSlice());
                     return .zero;
                 },
                 else => |e| return e,
@@ -746,7 +753,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                     .tag = .malformed_warning_check,
                     .loc = param_toks[0].loc,
                     .extra = .{ .str = "__has_warning" },
-                });
+                }, param_toks[0].expansionSlice());
                 return .zero;
             }
             const warning_name = actual_param[2..];
@@ -767,7 +774,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                     .tag = .missing_tok_builtin,
                     .loc = some.loc,
                     .extra = .{ .tok_id_expected = .r_paren },
-                });
+                }, some.expansionSlice());
                 return .zero;
             }
 
@@ -880,7 +887,7 @@ fn expandFuncMacro(
                 const arg = expanded_args.items[0];
                 if (arg.len == 0) {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra });
+                    try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
                     try buf.append(.{ .id = .zero, .loc = loc });
                     break;
                 }
@@ -974,7 +981,7 @@ fn collectMacroFuncArguments(
                         .tag = .missing_tok_builtin,
                         .loc = tok.loc,
                         .extra = .{ .tok_id_expected = .l_paren },
-                    });
+                    }, tok.expansionSlice());
                 }
                 // Not a macro function call, go over normal identifier, rewind
                 tokenizer.* = saved_tokenizer;
@@ -1018,7 +1025,10 @@ fn collectMacroFuncArguments(
                 deinitMacroArguments(pp.comp.gpa, &args);
                 tokenizer.* = saved_tokenizer;
                 end_idx.* = old_end;
-                try pp.comp.diag.add(.{ .tag = .unterminated_macro_arg_list, .loc = name_tok.loc });
+                try pp.comp.diag.add(
+                    .{ .tag = .unterminated_macro_arg_list, .loc = name_tok.loc },
+                    name_tok.expansionSlice(),
+                );
                 return null;
             },
             else => {
@@ -1084,12 +1094,18 @@ fn expandMacroExhaustive(
                         .arguments = .{ .expected = @intCast(u32, macro.params.len), .actual = args_count },
                     };
                     if (macro.var_args and args_count < macro.params.len) {
-                        try pp.comp.diag.add(.{ .tag = .expected_at_least_arguments, .loc = buf.items[idx].loc, .extra = extra });
+                        try pp.comp.diag.add(
+                            .{ .tag = .expected_at_least_arguments, .loc = buf.items[idx].loc, .extra = extra },
+                            buf.items[idx].expansionSlice(),
+                        );
                         idx += 1;
                         continue;
                     }
                     if (!macro.var_args and args_count != macro.params.len) {
-                        try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = buf.items[idx].loc, .extra = extra });
+                        try pp.comp.diag.add(
+                            .{ .tag = .expected_arguments, .loc = buf.items[idx].loc, .extra = extra },
+                            buf.items[idx].expansionSlice(),
+                        );
                         idx += 1;
                         continue;
                     }
@@ -1236,7 +1252,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
             .tag = .pasting_formed_invalid,
             .loc = .{ .id = lhs.loc.id, .byte_offset = lhs.loc.byte_offset },
             .extra = .{ .str = try pp.arena.allocator.dupe(u8, pp.generated.items[start..end]) },
-        });
+        }, lhs.expansionSlice());
     }
 
     try lhs_toks.append(try pp.makeGeneratedToken(start, pasted_token.id, lhs));
@@ -1262,7 +1278,7 @@ fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
             .tag = if (gop.value_ptr.is_builtin) .builtin_macro_redefined else .macro_redefined,
             .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line },
             .extra = .{ .str = name_str },
-        });
+        }, &.{});
         // TODO add a previous definition note
     }
     gop.value_ptr.* = macro;
@@ -1527,7 +1543,7 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken) !void 
         .tag = .unsupported_pragma,
         .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line },
         .extra = .{ .str = name },
-    });
+    }, &.{});
 }
 
 fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
@@ -1552,7 +1568,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
         try pp.comp.diag.add(.{
             .tag = .header_str_closing,
             .loc = .{ .id = first.source, .byte_offset = first.start },
-        });
+        }, &.{});
         try pp.err(first, .header_str_match);
     }
     // Try to expand if the argument is a macro.
