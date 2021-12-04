@@ -136,21 +136,41 @@ fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Loca
 }
 
 fn eatIdentifier(p: *Parser) !?TokenIndex {
-    if (p.tok_ids[p.tok_i] == .identifier) {
-        defer p.tok_i += 1;
-        return p.tok_i;
-    } else if (p.tok_ids[p.tok_i] == .extended_identifier) {
-        defer p.tok_i += 1;
-        const slice = p.tokSlice(p.tok_i);
-        var it = std.unicode.Utf8View.initUnchecked(slice).iterator();
-        var loc = p.pp.tokens.items(.loc)[p.tok_i];
-        while (it.nextCodepoint()) |c| {
-            if (try checkIdentifierCodepoint(p.pp.comp, c, loc)) break;
-            loc.byte_offset += std.unicode.utf8CodepointSequenceLength(c) catch unreachable;
-        }
-        return p.tok_i;
+    switch (p.tok_ids[p.tok_i]) {
+        .identifier => {},
+        .extended_identifier => {
+            const slice = p.tokSlice(p.tok_i);
+            var it = std.unicode.Utf8View.initUnchecked(slice).iterator();
+            var loc = p.pp.tokens.items(.loc)[p.tok_i];
+
+            if (mem.indexOfScalar(u8, p.tokSlice(p.tok_i), '$')) |i| {
+                loc.byte_offset += @intCast(u32, i);
+                try p.pp.comp.diag.add(.{
+                    .tag = .dollar_in_identifier_extension,
+                    .loc = loc,
+                });
+            }
+
+            while (it.nextCodepoint()) |c| {
+                if (try checkIdentifierCodepoint(p.pp.comp, c, loc)) break;
+                loc.byte_offset += std.unicode.utf8CodepointSequenceLength(c) catch unreachable;
+            }
+        },
+        else => return null,
     }
-    return null;
+
+    p.tok_i += 1;
+
+    // Handle illegal '$' characters in identifiers
+    if (!p.pp.comp.langopts.dollars_in_identifiers) {
+        if (p.tok_ids[p.tok_i] == .invalid and p.tokSlice(p.tok_i)[0] == '$') {
+            try p.err(.dollars_in_identifiers);
+            defer p.tok_i += 2;
+            return error.ParsingFailed;
+        }
+    }
+
+    return p.tok_i - 1;
 }
 
 fn expectIdentifier(p: *Parser) Error!TokenIndex {
@@ -161,6 +181,7 @@ fn expectIdentifier(p: *Parser) Error!TokenIndex {
         } });
         return error.ParsingFailed;
     }
+
     return (try p.eatIdentifier()) orelse unreachable;
 }
 
@@ -1253,6 +1274,15 @@ fn attribute(p: *Parser) Error!Attribute {
             const slice = p.tokSlice(p.tok_i);
             var it = std.unicode.Utf8View.initUnchecked(slice).iterator();
             var loc = p.pp.tokens.items(.loc)[p.tok_i];
+
+            if (mem.indexOfScalar(u8, p.tokSlice(p.tok_i), '$')) |i| {
+                loc.byte_offset += @intCast(u32, i);
+                try p.pp.comp.diag.add(.{
+                    .tag = .dollar_in_identifier_extension,
+                    .loc = loc,
+                });
+            }
+
             while (it.nextCodepoint()) |c| {
                 if (try checkIdentifierCodepoint(p.pp.comp, c, loc)) break;
                 loc.byte_offset += std.unicode.utf8CodepointSequenceLength(c) catch unreachable;
@@ -1332,6 +1362,13 @@ fn attribute(p: *Parser) Error!Attribute {
                 .name = name_tok,
                 .params = try p.addNode(node),
             };
+        },
+        .invalid => {
+            if (!p.pp.comp.langopts.dollars_in_identifiers and p.tokSlice(p.tok_i)[0] == '$') {
+                try p.err(.dollars_in_identifiers);
+                p.tok_i += 2;
+            }
+            return error.ParsingFailed;
         },
         else => return error.ParsingFailed,
     }

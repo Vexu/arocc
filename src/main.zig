@@ -63,6 +63,10 @@ const usage =
     \\  -fno-color-diagnostics  Disable colors in diagnostics
     \\  -fshort-enums           Use the narrowest possible integer type for enums.
     \\  -fno-short-enums        Use "int" as the tag type for enums.
+    \\  -fdollars-in-identifiers        
+    \\                          Use the narrowest possible integer type for enums.
+    \\  -fno-dollars-in-identifiers     
+    \\                          Use "int" as the tag type for enums.
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  -o <file>               Write output to <file>
@@ -143,6 +147,10 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                 comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {
                 comp.langopts.short_enums = false;
+            } else if (mem.eql(u8, arg, "-fdollars-in-identifiers")) {
+                comp.langopts.dollars_in_identifiers = true;
+            } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
+                comp.langopts.dollars_in_identifiers = false;
             } else if (mem.startsWith(u8, arg, "-I")) {
                 var path = arg["-I".len..];
                 if (path.len == 0) {

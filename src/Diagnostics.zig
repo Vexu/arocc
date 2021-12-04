@@ -99,6 +99,7 @@ pub const Options = struct {
     @"unicode-zero-width": ?Kind = null,
     @"unicode-homoglyph": ?Kind = null,
     @"return-type": ?Kind = null,
+    @"dollar-in-identifier-extension": ?Kind = null,
 };
 
 const messages = struct {
@@ -1265,6 +1266,16 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const dollar_in_identifier_extension = struct {
+        const msg = "'$' in identifier";
+        const opt = "dollar-in-identifier-extension";
+        const kind = .off;
+        const suppress_language_option = "dollars_in_identifiers";
+    };
+    const dollars_in_identifiers = struct {
+        const msg = "illegal character '$' in identifier";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayList(Message),
@@ -1464,6 +1475,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
             }
             if (@hasDecl(info, "suppress_version")) if (comp.langopts.standard.atLeast(info.suppress_version)) return .off;
             if (@hasDecl(info, "suppress_gnu")) if (comp.langopts.standard.isExplicitGNU()) return .off;
+            if (@hasDecl(info, "suppress_language_option")) if (!@field(comp.langopts, info.suppress_language_option)) return .off;
             if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
             return kind;
         }
