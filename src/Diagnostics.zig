@@ -100,6 +100,7 @@ pub const Options = struct {
     @"unicode-homoglyph": ?Kind = null,
     @"return-type": ?Kind = null,
     @"dollar-in-identifier-extension": ?Kind = null,
+    @"unknown-pragmas": ?Kind = null,
 };
 
 const messages = struct {
@@ -1288,6 +1289,15 @@ const messages = struct {
     const pragma_operator_string_literal = struct {
         const msg = "_Pragma requires exactly one string literal token";
         const kind = .@"error";
+    };
+    const unknown_pragmas = struct {
+        const msg = "pragma expected 'error', 'warning', 'diagnostic', 'poison'";
+        const kind = .@"warning";
+    };
+    const unknown_pragmas_directive = struct {
+        const msg = "pragma diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'";
+        const opt = "unknown-pragmas";
+        const kind = .@"warning";
     };
 };
 
