@@ -9,7 +9,7 @@ void foo(void) {
     int x = 1;
     PRAGMA(GCC diagnostic error "-Wpointer-integer-compare")
     (void)(x == (int *)2);
-    _Pragma("GCC diagnostic warning \"-Wpointer-integer-compare\"")
+    _Pragma("GCC diagnostic warning \"-Wpointer-integer-compare\"" )
     (void)(x == (int *)2);
 }
 
@@ -21,7 +21,7 @@ _Pragma()
     "pragma operator.c:4:27: note: expanded from here" \
     "pragma operator.c:4:19: note: expanded from here" \
     "<scratch space>:4:13: note: expanded from here" \
-    "pragma operator.c:16:1: error: _Pragma requires exactly one string literal token" \
+    "pragma operator.c:16:9: error: _Pragma requires exactly one string literal token" \
     "pragma operator.c:17:1: warning: unsupported #pragma directive 'Not'" \
     "pragma operator.c:4:27: note: expanded from here" \
     "pragma operator.c:4:19: note: expanded from here" \

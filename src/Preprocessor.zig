@@ -110,6 +110,11 @@ const FeatureCheckMacros = struct {
         .source = .generated,
     }};
 
+    const pragma_operator = [1]RawToken{.{
+        .id = .macro_param_pragma_operator,
+        .source = .generated,
+    }};
+
     const file = [1]RawToken{.{
         .id = .macro_file,
         .source = .generated,
@@ -120,10 +125,6 @@ const FeatureCheckMacros = struct {
     }};
     const counter = [1]RawToken{.{
         .id = .macro_counter,
-        .source = .generated,
-    }};
-    const pragma_operator = [1]RawToken{.{
-        .id = .macro_param_pragma_operator,
         .source = .generated,
     }};
 };
@@ -163,14 +164,14 @@ pub fn deinit(pp: *Preprocessor) void {
 
 /// Preprocess a source file, returns eof token.
 pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
-    return pp.preprocessImpl(source) catch |err| switch (err) {
-        // this cannot occur in the main file so it is guaranteed to be ignored
-        error.StopPreprocessing => return @as(Token, undefined),
+    return pp.preprocessExtra(source) catch |err| switch (err) {
+        // This cannot occur in the main file and is handled in `include`.
+        error.StopPreprocessing => unreachable,
         else => |e| return e,
     };
 }
 
-fn preprocessImpl(pp: *Preprocessor, source: Source) MacroError!Token {
+fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
     if (source.invalid_utf8_loc) |loc| {
         try pp.comp.diag.add(.{
             .tag = .invalid_utf8,
@@ -796,7 +797,7 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
     try pp.char_buf.appendSlice("\"\n");
 }
 
-fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token) Error!bool {
+fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token, src_loc: Source.Location) Error!bool {
     switch (builtin) {
         .macro_param_has_attribute => {
             var invalid: ?Token = null;
@@ -806,9 +807,12 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                     if (identifier) |_| invalid = tok else identifier = tok;
                 },
                 .whitespace => continue,
-                else => invalid = tok,
+                else => {
+                    invalid = tok;
+                    break;
+                },
             };
-            if (identifier == null and invalid == null) invalid = param_toks[0];
+            if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
                 try pp.comp.diag.add(
                     .{ .tag = .feature_check_requires_identifier, .loc = some.loc },
@@ -852,7 +856,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                     if (identifier) |_| invalid = tok else identifier = tok;
                 },
             };
-            if (identifier == null and invalid == null) invalid = param_toks[0];
+            if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
                 try pp.comp.diag.add(.{
                     .tag = .missing_tok_builtin,
@@ -955,24 +959,33 @@ fn expandFuncMacro(
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
                     try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
                     break :blk false;
-                } else try pp.handleBuiltinMacro(raw.id, arg);
+                } else try pp.handleBuiltinMacro(raw.id, arg, loc);
                 const start = pp.comp.generated_buf.items.len;
                 try pp.comp.generated_buf.writer().print("{}\n", .{@boolToInt(result)});
                 try buf.append(try pp.makeGeneratedToken(start, .integer_literal, tokFromRaw(raw)));
             },
             .macro_param_pragma_operator => {
                 const param_toks = expanded_args.items[0];
-                // clang and gcc require exactly one token (so, no parentheses or string pasting)
+                // Clang and GCC require exactly one token (so, no parentheses or string pasting)
                 // even though their error messages indicate otherwise. Ours is slightly more
                 // descriptive.
-                if (param_toks.len == 1 and param_toks[0].id == .string_literal) {
-                    try pp.pragmaOperator(param_toks[0], loc);
-                } else {
-                    try pp.comp.diag.add(.{
-                        .tag = .pragma_operator_string_literal,
-                        .loc = loc,
-                    }, &.{});
-                }
+                var invalid: ?Token = null;
+                var string: ?Token = null;
+                for (param_toks) |tok| switch (tok.id) {
+                    .string_literal => {
+                        if (string) |_| invalid = tok else string = tok;
+                    },
+                    .whitespace => continue,
+                    else => {
+                        invalid = tok;
+                        break;
+                    },
+                };
+                if (string == null and invalid == null) invalid = .{ .loc = loc, .id = .eof };
+                if (invalid) |some| try pp.comp.diag.add(
+                    .{ .tag = .pragma_operator_string_literal, .loc = some.loc },
+                    some.expansionSlice(),
+                ) else try pp.pragmaOperator(string.?, loc);
             },
             .whitespace => if (pp.comp.only_preprocess) try buf.append(tokFromRaw(raw)),
             else => try buf.append(tokFromRaw(raw)),
@@ -1583,7 +1596,10 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     defer pp.include_depth -= 1;
     if (pp.include_depth > max_include_depth) return;
 
-    _ = try pp.preprocess(new_source);
+    _ = pp.preprocessExtra(new_source) catch |err| switch (err) {
+        error.StopPreprocessing => {},
+        else => |e| return e,
+    };
 }
 
 /// tokens that are part of a pragma directive can happen in 3 ways:
