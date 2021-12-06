@@ -69,10 +69,16 @@ If a test case is currently broken, it should be commented and a `TESTS_SKIPPED`
 Fuzz testing requires [AFLplusplus](https://github.com/AFLplusplus/AFLplusplus). Run `zig build fuzz` to build the fuzz target,
 then `afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/fuzz`
 
-A Dockerfile is provided to make it easier to get started with fuzzing:
+A Dockerfile is provided to make it easier to get started with fuzzing. It requires two build args,
+`ZIG_VERSION` and `ZIG_SIG`. `ZIG_VERSION` should be the release filename from https://ziglang.org/download/, *without*
+the `.tar.xz` extension. `ZIG_ZIG` should be the SHA256 signature for the file.
 
 ```sh-session
-docker build -t aro-fuzz test/docker/fuzz
+docker build -t aro-fuzz \
+    --build-arg ZIG_VERSION=zig-linux-x86_64-0.9.0-dev.1903+2af94e76a \
+    --build-arg ZIG_SIG=79f0c9dceb254b55c0765e50a96a8f8b8e51ab63b06c80248fe90f0f69597410 \
+    test/docker/fuzz
+
 docker run --rm -it -v $PWD:/arocc -w /arocc aro-fuzz
 zig build fuzz
 afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/fuzz
