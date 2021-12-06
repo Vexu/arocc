@@ -1285,6 +1285,10 @@ const messages = struct {
         const extra = .unsigned;
         const kind = .note;
     };
+    const pragma_operator_string_literal = struct {
+        const msg = "_Pragma requires exactly one string literal token";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayList(Message),
