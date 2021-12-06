@@ -56,9 +56,12 @@ RUN export CC=gcc-10 && export CXX=g++-10 && make clean && \
 
 WORKDIR /
 
-RUN wget https://ziglang.org/builds/zig-linux-x86_64-0.9.0-dev.1625+d3a099c14.tar.xz && \
-    echo 9f71f95abbef1cf4be8656c80401a4d35781c19a07b4383fc2a18cc5822ea0ea zig-linux-x86_64-0.9.0-dev.1625+d3a099c14.tar.xz | sha256sum --check --strict && \
-    tar -xvf zig-linux-x86_64-0.9.0-dev.1625+d3a099c14.tar.xz && \
-    rm zig-linux-x86_64-0.9.0-dev.1625+d3a099c14.tar.xz
+ARG ZIG_VERSION
+ARG ZIG_SIG
 
-ENV PATH="/zig-linux-x86_64-0.9.0-dev.1625+d3a099c14:$PATH"
+RUN wget https://ziglang.org/builds/$ZIG_VERSION.tar.xz && \
+    echo $ZIG_SIG $ZIG_VERSION.tar.xz | sha256sum --check --strict && \
+    tar -xvf $ZIG_VERSION.tar.xz && \
+    rm $ZIG_VERSION.tar.xz
+
+ENV PATH="/$ZIG_VERSION:$PATH"
