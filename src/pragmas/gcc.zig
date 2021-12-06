@@ -99,6 +99,7 @@ fn diagnosticHandler(pp: *Preprocessor, start_idx: TokenIndex) Pragma.Error!void
             .push, .pop => {},
         }
     }
+
     return error.UnknownPragma;
 }
 
@@ -126,7 +127,16 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
                     directive_tok.expansionSlice(),
                 );
             },
-            .diagnostic => return diagnosticHandler(pp, start_idx + 2),
+            .diagnostic => return diagnosticHandler(pp, start_idx + 2) catch |err| switch (err) {
+                error.UnknownPragma => {
+                    const tok = pp.tokens.get(start_idx + 2);
+                    return pp.comp.diag.add(.{
+                        .tag = .unknown_gcc_pragma_directive,
+                        .loc = tok.loc,
+                    }, tok.expansionSlice());
+                },
+                else => |e| return e,
+            },
             .poison => {
                 var i: usize = 2;
                 while (true) : (i += 1) {
@@ -151,8 +161,12 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
                 return;
             },
         }
+    } else {
+        return pp.comp.diag.add(.{
+            .tag = .unknown_gcc_pragma,
+            .loc = directive_tok.loc,
+        }, directive_tok.expansionSlice());
     }
-    return error.UnknownPragma;
 }
 
 fn parserHandler(_: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation.Error!void {
