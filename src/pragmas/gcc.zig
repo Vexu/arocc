@@ -131,7 +131,7 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
                 error.UnknownPragma => {
                     const tok = pp.tokens.get(start_idx + 2);
                     return pp.comp.diag.add(.{
-                        .tag = .unknown_pragmas_directive,
+                        .tag = .unknown_gcc_pragma_directive,
                         .loc = tok.loc,
                     }, tok.expansionSlice());
                 },
@@ -163,7 +163,7 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
         }
     } else {
         return pp.comp.diag.add(.{
-            .tag = .unknown_pragmas,
+            .tag = .unknown_gcc_pragma,
             .loc = directive_tok.loc,
         }, directive_tok.expansionSlice());
     }

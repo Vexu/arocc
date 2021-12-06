@@ -1290,12 +1290,12 @@ const messages = struct {
         const msg = "_Pragma requires exactly one string literal token";
         const kind = .@"error";
     };
-    const unknown_pragmas = struct {
-        const msg = "pragma expected 'error', 'warning', 'diagnostic', 'poison'";
+    const unknown_gcc_pragma = struct {
+        const msg = "pragma GCC expected 'error', 'warning', 'diagnostic', 'poison'";
         const kind = .@"warning";
     };
-    const unknown_pragmas_directive = struct {
-        const msg = "pragma diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'";
+    const unknown_gcc_pragma_directive = struct {
+        const msg = "pragma GCC diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'";
         const opt = "unknown-pragmas";
         const kind = .@"warning";
     };
