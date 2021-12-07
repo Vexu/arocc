@@ -467,8 +467,13 @@ pub fn addDefaultPragmaHandlers(comp: *Compilation) Allocator.Error!void {
     var once = try Once.init(comp.gpa);
     errdefer once.deinit(once, comp);
 
+    const Message = @import("pragmas/message.zig");
+    var message = try Message.init(comp.gpa);
+    errdefer message.deinit(message, comp);
+
     try comp.addPragmaHandler("GCC", gcc);
     try comp.addPragmaHandler("once", once);
+    try comp.addPragmaHandler("message", message);
 }
 
 pub fn getPragma(comp: *Compilation, name: []const u8) ?*Pragma {
