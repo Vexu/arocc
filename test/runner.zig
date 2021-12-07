@@ -7,10 +7,6 @@ const Token = Tree.Token;
 const NodeIndex = Tree.NodeIndex;
 const AllocatorError = std.mem.Allocator.Error;
 
-const predefined_macros =
-    \\#define EXPECT(x) _Static_assert(x, "unexpected result")
-;
-
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub fn main() !void {
@@ -63,22 +59,6 @@ pub fn main() !void {
 
     try comp.defineSystemIncludes();
 
-    const test_runner_macros = blk: {
-        const duped_path = try gpa.dupe(u8, "<test_runner>");
-        errdefer comp.gpa.free(duped_path);
-
-        const contents = try gpa.dupe(u8, predefined_macros);
-        errdefer comp.gpa.free(contents);
-
-        const source = aro.Source{
-            .id = @intToEnum(aro.Source.Id, comp.sources.count() + 2),
-            .path = duped_path,
-            .buf = contents,
-        };
-        try comp.sources.put(duped_path, source);
-        break :blk source;
-    };
-
     // apparently we can't use setAstCwd without libc on windows yet
     const win = @import("builtin").os.tag == .windows;
     var tmp_dir = if (!win) std.testing.tmpDir(.{});
@@ -96,16 +76,17 @@ pub fn main() !void {
         comp.diag.options = initial_options;
         comp.only_preprocess = false;
         comp.generated_buf.items.len = 0;
+        for (comp.sources.values()) |src| {
+            gpa.free(src.path);
+            gpa.free(src.buf);
+        }
+        comp.sources.clearRetainingCapacity();
+
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
             progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
-        defer {
-            _ = comp.sources.swapRemove(file.path);
-            gpa.free(file.path);
-            gpa.free(file.buf);
-        }
 
         if (std.mem.startsWith(u8, file.buf, "//std=")) {
             const suffix = file.buf["//std=".len..];
@@ -118,11 +99,6 @@ pub fn main() !void {
         }
 
         const builtin_macros = try comp.generateBuiltinMacros();
-        defer {
-            _ = comp.sources.swapRemove(builtin_macros.path);
-            gpa.free(builtin_macros.path);
-            gpa.free(builtin_macros.buf);
-        }
 
         const case = std.mem.sliceTo(std.fs.path.basename(path), '.');
         var case_node = root_node.start(case, 0);
@@ -136,7 +112,6 @@ pub fn main() !void {
         try pp.addBuiltinMacros();
 
         _ = try pp.preprocess(builtin_macros);
-        _ = try pp.preprocess(test_runner_macros);
         const eof = pp.preprocess(file) catch |err| {
             if (!std.unicode.utf8ValidateSlice(file.buf)) {
                 // non-utf8 files are not preprocessed, so we can't use EXPECTED_ERRORS; instead we

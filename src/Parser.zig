@@ -5518,21 +5518,36 @@ fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8,
 }
 
 fn charLiteral(p: *Parser) Error!Result {
-    const lit_tok = p.tok_i;
+    defer p.tok_i += 1;
     const ty: Type = switch (p.tok_ids[p.tok_i]) {
         .char_literal => .{ .specifier = .int },
-        else => return p.todo("unicode char literals"),
+        .char_literal_wide => Type.wideChar(p.pp.comp),
+        .char_literal_utf_16 => .{ .specifier = .ushort },
+        .char_literal_utf_32 => .{ .specifier = .ulong },
+        else => unreachable,
     };
-    p.tok_i += 1;
+    const max: u32 = switch (p.tok_ids[p.tok_i]) {
+        .char_literal => std.math.maxInt(u8),
+        .char_literal_wide => std.math.maxInt(u32), // TODO correct
+        .char_literal_utf_16 => std.math.maxInt(u16),
+        .char_literal_utf_32 => std.math.maxInt(u32),
+        else => unreachable,
+    };
+    var multichar: u8 = switch (p.tok_ids[p.tok_i]) {
+        .char_literal => 0,
+        .char_literal_wide => 4,
+        .char_literal_utf_16 => 2,
+        .char_literal_utf_32 => 2,
+        else => unreachable,
+    };
 
     var val: u32 = 0;
     var overflow_reported = false;
-    var multichar: u8 = 0;
-    var slice = p.tokSlice(lit_tok);
+    var slice = p.tokSlice(p.tok_i);
     slice = slice[0 .. slice.len - 1];
     var i = mem.indexOf(u8, slice, "\'").? + 1;
     while (i < slice.len) : (i += 1) {
-        var c = slice[i];
+        var c: u32 = slice[i];
         switch (c) {
             '\\' => {
                 i += 1;
@@ -5548,27 +5563,63 @@ fn charLiteral(p: *Parser) Error!Result {
                     'e' => c = 0x1B,
                     'f' => c = 0x0C,
                     'v' => c = 0x0B,
-                    'x' => c = try p.parseNumberEscape(lit_tok, 16, slice, &i),
-                    '0'...'7' => c = try p.parseNumberEscape(lit_tok, 8, slice, &i),
+                    'x' => c = try p.parseNumberEscape(p.tok_i, 16, slice, &i),
+                    '0'...'7' => c = try p.parseNumberEscape(p.tok_i, 8, slice, &i),
                     'u', 'U' => return p.todo("unicode escapes in char literals"),
                     else => unreachable,
                 }
             },
-            else => {},
-        }
-        if (@mulWithOverflow(u32, val, 0xff, &val) and !overflow_reported) {
-            try p.errExtra(.char_lit_too_wide, lit_tok, .{ .unsigned = i });
-            overflow_reported = true;
-        }
-        val += c;
-        switch (multichar) {
-            0 => multichar = 1,
-            1 => {
-                multichar = 2;
-                try p.errTok(.multichar_literal, lit_tok);
+            // These are safe since the source is checked to be valid utf8.
+            0b1100_0000...0b1101_1111 => {
+                c &= 0b00011111;
+                c <<= 6;
+                c |= slice[i + 1] & 0b00111111;
+                i += 1;
+            },
+            0b1110_0000...0b1110_1111 => {
+                c &= 0b00001111;
+                c <<= 6;
+                c |= slice[i + 1] & 0b00111111;
+                c <<= 6;
+                c |= slice[i + 2] & 0b00111111;
+                i += 2;
+            },
+            0b1111_0000...0b1111_0111 => {
+                c &= 0b00000111;
+                c <<= 6;
+                c |= slice[i + 1] & 0b00111111;
+                c <<= 6;
+                c |= slice[i + 2] & 0b00111111;
+                c <<= 6;
+                c |= slice[i + 3] & 0b00111111;
+                i += 3;
             },
             else => {},
         }
+        if (c > max) try p.err(.char_too_large);
+        switch (multichar) {
+            0, 2, 4 => multichar += 1,
+            1 => {
+                multichar = 99;
+                try p.err(.multichar_literal);
+            },
+            3 => {
+                try p.err(.unicode_multichar_literal);
+                return error.ParsingFailed;
+            },
+            5 => {
+                try p.err(.wide_multichar_literal);
+                val = 0;
+                multichar = 6;
+            },
+            6 => val = 0,
+            else => {},
+        }
+        if (@mulWithOverflow(u32, val, max, &val) and !overflow_reported) {
+            try p.errExtra(.char_lit_too_wide, p.tok_i, .{ .unsigned = i });
+            overflow_reported = true;
+        }
+        val += c;
     }
 
     return Result{

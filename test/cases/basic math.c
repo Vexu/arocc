@@ -1,1 +1,1 @@
-EXPECT(1 + 1u == 2);
+_Static_assert(1 + 1u == 2, "unexpected result");

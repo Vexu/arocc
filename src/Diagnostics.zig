@@ -683,9 +683,21 @@ const messages = struct {
         const opt = "multichar";
         const kind = .warning;
     };
+    const unicode_multichar_literal = struct {
+        const msg = "Unicode character literals may not contain multiple characters";
+        const kind = .@"error";
+    };
+    const wide_multichar_literal = struct {
+        const msg = "extraneous characters in character constant ignored";
+        const kind = .warning;
+    };
     const char_lit_too_wide = struct {
         const msg = "character constant too long for its type";
         const kind = .warning;
+    };
+    const char_too_large = struct {
+        const msg = "character too large for enclosing character literal type";
+        const kind = .@"error";
     };
     const must_use_struct = struct {
         const msg = "must use 'struct' tag to refer to type '{s}'";

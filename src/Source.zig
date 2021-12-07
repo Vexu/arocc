@@ -29,7 +29,14 @@ pub fn lineCol(source: Source, byte_offset: u32) LineCol {
             break;
         }
     }
-    const col = byte_offset - start + 1; // TODO unicode awareness
+    const col = col: {
+        var i: usize = start;
+        var col: u32 = 1;
+        while (i < byte_offset) : (col += 1) { // TODO this is still incorrect, but better
+            i += std.unicode.utf8ByteSequenceLength(source.buf[i]) catch unreachable;
+        }
+        break :col col;
+    };
     return .{ .line = std.mem.sliceTo(source.buf[start..], '\n'), .col = col };
 }
 
