@@ -37,6 +37,10 @@ void foo(void) {
     void v[1] = {1};
     (void){};
 }
+void bar(void) {
+    int x = 1;
+    int arr[] = {[x] = 2};
+}
 
 #define TESTS_SKIPPED 2
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
@@ -70,3 +74,4 @@ void foo(void) {
     "initializers.c:36:13: error: variable has incomplete type 'union U'" \
     "initializers.c:37:11: error: array has incomplete element type 'void'" \
     "initializers.c:38:11: error: variable has incomplete type 'void'" \
+    "initializers.c:42:19: error: expression is not an integer constant expression" \

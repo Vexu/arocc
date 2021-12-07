@@ -2462,6 +2462,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     try p.errStr(.invalid_array_designator, l_bracket, try p.typeStr(cur_ty));
                     return error.ParsingFailed;
                 }
+                const expr_tok = p.tok_i;
                 const index_res = try p.constExpr();
                 try p.expectClosing(l_bracket, .r_bracket);
 
@@ -2471,7 +2472,10 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                         try p.errExtra(.negative_array_designator, l_bracket + 1, .{ .signed = val });
                         return error.ParsingFailed;
                     } else @intCast(u64, val),
-                    .unavailable => unreachable,
+                    .unavailable => {
+                        try p.errTok(.expected_integer_constant_expr, expr_tok);
+                        return error.ParsingFailed;
+                    },
                 };
                 const max_len = cur_ty.arrayLen() orelse std.math.maxInt(usize);
                 if (index_unchecked >= max_len) {
