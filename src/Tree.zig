@@ -203,6 +203,8 @@ pub const Tag = enum(u8) {
     @"var",
     extern_var,
     static_var,
+    // same as static_var, used for __func__, __FUNCTION__ and __PRETTY_FUNCTION__
+    implicit_static_var,
     threadlocal_var,
     threadlocal_extern_var,
     threadlocal_static_var,
@@ -500,6 +502,7 @@ pub const Tag = enum(u8) {
             .null_to_pointer,
             .array_filler_expr,
             .default_init_expr,
+            .implicit_static_var,
             => true,
             else => false,
         };
@@ -681,6 +684,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .@"var",
         .extern_var,
         .static_var,
+        .implicit_static_var,
         .threadlocal_var,
         .threadlocal_extern_var,
         .threadlocal_static_var,

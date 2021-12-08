@@ -133,6 +133,13 @@ pub const Token = struct {
         /// Special token for implementing _Pragma
         macro_param_pragma_operator,
 
+        /// Special identifier for implementing __func__
+        macro_func,
+        /// Special identifier for implementing __FUNCTION__
+        macro_function,
+        /// Special identifier for implementing __PRETTY_FUNCTION__
+        macro_pretty_func,
+
         keyword_auto,
         keyword_break,
         keyword_case,
@@ -235,6 +242,9 @@ pub const Token = struct {
                 .keyword_pragma,
                 .keyword_line,
                 .keyword_va_args,
+                .macro_func,
+                .macro_function,
+                .macro_pretty_func,
                 .keyword_auto,
                 .keyword_break,
                 .keyword_case,
@@ -373,6 +383,10 @@ pub const Token = struct {
                 .macro_param_pragma_operator,
                 => "",
 
+                .macro_func => "__func__",
+                .macro_function => "__FUNCTION__",
+                .macro_pretty_func => "__PRETTY_FUNCTION__",
+
                 .bang => "!",
                 .bang_equal => "!=",
                 .pipe => "|",
@@ -502,9 +516,14 @@ pub const Token = struct {
         }
 
         pub fn symbol(id: Id) []const u8 {
-            return id.lexeme() orelse switch (id) {
+            return switch (id) {
                 .macro_string, .invalid => unreachable,
-                .identifier, .extended_identifier => "an identifier",
+                .identifier,
+                .extended_identifier,
+                .macro_func,
+                .macro_function,
+                .macro_pretty_func,
+                => "an identifier",
                 .string_literal,
                 .string_literal_utf_16,
                 .string_literal_utf_8,
@@ -527,7 +546,7 @@ pub const Token = struct {
                 .integer_literal_ll,
                 .integer_literal_llu,
                 => "an integer literal",
-                else => unreachable, // handled in lexeme
+                else => id.lexeme().?,
             };
         }
 
@@ -671,6 +690,9 @@ pub const Token = struct {
         .{ "pragma", .keyword_pragma },
         .{ "line", .keyword_line },
         .{ "__VA_ARGS__", .keyword_va_args },
+        .{ "__func__", .macro_func },
+        .{ "__FUNCTION__", .macro_function },
+        .{ "__PRETTY_FUNCTION__", .macro_pretty_func },
 
         // gcc keywords
         .{ "__const", .keyword_const1 },

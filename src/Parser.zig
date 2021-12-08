@@ -98,13 +98,19 @@ no_eval: bool = false,
 in_macro: bool = false,
 extension_suppressed: bool = false,
 contains_address_of_label: bool = false,
-return_type: ?Type = null,
-func_name: TokenIndex = 0,
 label_count: u32 = 0,
 /// location of first computed goto in function currently being parsed
 /// if a computed goto is used, the function must contain an
 /// address-of-label expression (tracked with contains_address_of_label)
 computed_goto_tok: ?TokenIndex = null,
+
+/// Various variables that are different for each function.
+func: struct {
+    ty: ?Type = null,
+    name: TokenIndex = 0,
+    ident: ?Result = null,
+    pretty_ident: ?Result = null,
+} = .{},
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
     if (codepoint <= 0x7F) return false;
@@ -766,7 +772,7 @@ fn decl(p: *Parser) Error!bool {
     try p.attributeSpecifier(.any);
 
     var decl_spec = if (try p.declSpec(false)) |some| some else blk: {
-        if (p.return_type != null) {
+        if (p.func.ty != null) {
             p.tok_i = first_tok;
             return false;
         }
@@ -798,7 +804,7 @@ fn decl(p: *Parser) Error!bool {
                 return true;
             },
         }
-        if (p.return_type != null) try p.err(.func_not_in_root);
+        if (p.func.ty != null) try p.err(.func_not_in_root);
 
         if (p.findSymbol(init_d.d.name, .definition)) |sym| {
             if (sym == .def) {
@@ -813,14 +819,12 @@ fn decl(p: *Parser) Error!bool {
             } });
         }
 
-        const return_type = p.return_type;
-        const func_name = p.func_name;
-        p.return_type = init_d.d.ty.data.func.return_type;
-        p.func_name = init_d.d.name;
-        defer {
-            p.return_type = return_type;
-            p.func_name = func_name;
-        }
+        const func = p.func;
+        p.func = .{
+            .ty = init_d.d.ty,
+            .name = init_d.d.name,
+        };
+        defer p.func = func;
 
         const scopes_top = p.scopes.items.len;
         defer p.scopes.items.len = scopes_top;
@@ -917,7 +921,7 @@ fn decl(p: *Parser) Error!bool {
         try p.decl_buf.append(node);
 
         // check gotos
-        if (return_type == null) {
+        if (func.ty == null) {
             for (p.labels.items) |item| {
                 if (item == .unresolved_goto)
                     try p.errStr(.undeclared_label, item.unresolved_goto, p.tokSlice(item.unresolved_goto));
@@ -1083,7 +1087,7 @@ pub const DeclSpec = struct {
         if (ty.isFunc() and d.storage_class != .typedef) {
             switch (d.storage_class) {
                 .none, .@"extern" => {},
-                .static => |tok_i| if (p.return_type != null) try p.errTok(.static_func_not_global, tok_i),
+                .static => |tok_i| if (p.func.ty != null) try p.errTok(.static_func_not_global, tok_i),
                 .typedef => unreachable,
                 .auto, .register => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
             }
@@ -1106,7 +1110,7 @@ pub const DeclSpec = struct {
             if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
             if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
             switch (d.storage_class) {
-                .auto, .register => if (p.return_type == null) try p.err(.illegal_storage_on_global),
+                .auto, .register => if (p.func.ty == null) try p.err(.illegal_storage_on_global),
                 .typedef => return .typedef,
                 else => {},
             }
@@ -2167,7 +2171,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
 
         switch (size.val) {
             .unavailable => if (size.node != .none) {
-                if (p.return_type == null and kind != .param) try p.errTok(.variable_len_array_file_scope, l_bracket);
+                if (p.func.ty == null and kind != .param) try p.errTok(.variable_len_array_file_scope, l_bracket);
                 const expr_ty = try p.arena.create(Type.Expr);
                 expr_ty.node = size.node;
                 res_ty.data = .{ .expr = expr_ty };
@@ -3370,8 +3374,12 @@ fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
         if (some != p.tok_i - 1 and noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
     }
     if (is_fn_body and (p.decl_buf.items.len == decl_buf_top or !p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]))) {
-        if (!p.return_type.?.is(.void)) try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func_name));
-        try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.return_type.?, .data = undefined }));
+        if (!p.func.ty.?.returnType().is(.void)) try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func.name));
+        try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.func.ty.?.returnType(), .data = undefined }));
+    }
+    if (is_fn_body) {
+        if (p.func.ident) |some| try p.decl_buf.insert(decl_buf_top, some.node);
+        if (p.func.pretty_ident) |some| try p.decl_buf.insert(decl_buf_top, some.node);
     }
 
     var node: Tree.Node = .{
@@ -3487,13 +3495,13 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     const e_tok = p.tok_i;
     var e = try p.expr();
     _ = try p.expectToken(.semicolon);
-    const ret_ty = p.return_type.?;
+    const ret_ty = p.func.ty.?.returnType();
 
     if (e.node == .none) {
-        if (!ret_ty.is(.void)) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func_name));
+        if (!ret_ty.is(.void)) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func.name));
         return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
     } else if (ret_ty.is(.void)) {
-        try p.errStr(.void_func_returns_value, e_tok, p.tokSlice(p.func_name));
+        try p.errStr(.void_func_returns_value, e_tok, p.tokSlice(p.func.name));
         return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
     }
 
@@ -5251,7 +5259,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
     var call_node: Tree.Node = .{
         .tag = .call_expr_one,
-        .ty = ty.data.func.return_type,
+        .ty = ty.returnType(),
         .data = .{ .bin = .{ .lhs = func.node, .rhs = .none } },
     };
     const args = p.list_buf.items[list_buf_top..];
@@ -5354,6 +5362,68 @@ fn primaryExpr(p: *Parser) Error!Result {
                 else => unreachable,
             }
         },
+        .macro_func, .macro_function => {
+            defer p.tok_i += 1;
+            var ty: Type = undefined;
+            var tok = p.tok_i;
+            if (p.func.ident) |some| {
+                ty = some.ty;
+                tok = p.nodes.items(.data)[@enumToInt(some.node)].decl.name;
+            } else if (p.func.ty) |_| {
+                const start = p.strings.items.len;
+                try p.strings.appendSlice(p.tokSlice(p.func.name));
+                try p.strings.append(0);
+                const predef = try p.makePredefinedIdentifier(start);
+                ty = predef.ty;
+                p.func.ident = predef;
+            } else {
+                const start = p.strings.items.len;
+                try p.strings.append(0);
+                const predef = try p.makePredefinedIdentifier(start);
+                ty = predef.ty;
+                p.func.ident = predef;
+                try p.decl_buf.append(predef.node);
+            }
+            if (p.func.ty == null) try p.err(.predefined_top_level);
+            return Result{
+                .ty = ty,
+                .node = try p.addNode(.{
+                    .tag = .decl_ref_expr,
+                    .ty = ty,
+                    .data = .{ .decl_ref = tok },
+                }),
+            };
+        },
+        .macro_pretty_func => {
+            defer p.tok_i += 1;
+            var ty: Type = undefined;
+            if (p.func.pretty_ident) |some| {
+                ty = some.ty;
+            } else if (p.func.ty) |func_ty| {
+                const start = p.strings.items.len;
+                try Type.printNamed(func_ty, p.tokSlice(p.func.name), p.strings.writer());
+                try p.strings.append(0);
+                const predef = try p.makePredefinedIdentifier(start);
+                ty = predef.ty;
+                p.func.pretty_ident = predef;
+            } else {
+                const start = p.strings.items.len;
+                try p.strings.appendSlice("top level\x00");
+                const predef = try p.makePredefinedIdentifier(start);
+                ty = predef.ty;
+                p.func.pretty_ident = predef;
+                try p.decl_buf.append(predef.node);
+            }
+            if (p.func.ty == null) try p.err(.predefined_top_level);
+            return Result{
+                .ty = ty,
+                .node = try p.addNode(.{
+                    .tag = .decl_ref_expr,
+                    .ty = ty,
+                    .data = .{ .decl_ref = p.tok_i },
+                }),
+            };
+        },
         .string_literal,
         .string_literal_utf_16,
         .string_literal_utf_8,
@@ -5402,6 +5472,28 @@ fn primaryExpr(p: *Parser) Error!Result {
         .keyword_generic => return p.genericSelection(),
         else => return Result{},
     }
+}
+
+fn makePredefinedIdentifier(p: *Parser, start: usize) !Result {
+    const len = p.strings.items.len - start;
+
+    const elem_ty = .{ .specifier = .char, .qual = .{ .@"const" = true } };
+    const arr_ty = try p.arena.create(Type.Array);
+    arr_ty.* = .{ .elem = elem_ty, .len = len };
+    const ty: Type = .{ .specifier = .array, .data = .{ .array = arr_ty } };
+
+    const str_lit = try p.addNode(.{
+        .tag = .string_literal_expr,
+        .ty = ty,
+        .data = .{ .str = .{ .index = @intCast(u32, start), .len = @intCast(u32, len) } },
+    });
+    return Result{
+        .ty = ty,
+        .node = try p.addNode(.{ .tag = .implicit_static_var, .ty = ty, .data = .{ .decl = .{
+            .name = p.tok_i,
+            .node = str_lit,
+        } } }),
+    };
 }
 
 fn stringLiteral(p: *Parser) Error!Result {

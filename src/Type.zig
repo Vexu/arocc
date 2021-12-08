@@ -439,6 +439,19 @@ pub fn elemType(ty: Type) Type {
     };
 }
 
+pub fn returnType(ty: Type) Type {
+    return switch (ty.specifier) {
+        .func, .var_args_func, .old_style_func => ty.data.func.return_type,
+        .typeof_type, .decayed_typeof_type, .typeof_expr, .decayed_typeof_expr, .attributed => {
+            const unwrapped = ty.canonicalize(.preserve_quals);
+            var elem = unwrapped.elemType();
+            elem.qual = elem.qual.mergeAll(unwrapped.qual);
+            return elem;
+        },
+        else => unreachable,
+    };
+}
+
 pub fn arrayLen(ty: Type) ?usize {
     return switch (ty.specifier) {
         .array, .static_array, .decayed_array, .decayed_static_array => ty.data.array.len,
@@ -1383,6 +1396,13 @@ pub fn print(ty: Type, w: anytype) @TypeOf(w).Error!void {
     try ty.printEpilogue(w);
 }
 
+pub fn printNamed(ty: Type, name: []const u8, w: anytype) @TypeOf(w).Error!void {
+    const simple = try ty.printPrologue(w);
+    if (simple) try w.writeByte(' ');
+    try w.writeAll(name);
+    try ty.printEpilogue(w);
+}
+
 /// return true if `ty` is simple
 fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
     if (ty.qual.atomic) {
@@ -1467,7 +1487,6 @@ fn printEpilogue(ty: Type, w: anytype) @TypeOf(w).Error!void {
             for (ty.data.func.params) |param, i| {
                 if (i != 0) try w.writeAll(", ");
                 _ = try param.ty.printPrologue(w);
-                if (param.name.len != 0) try w.writeAll(param.name);
                 try param.ty.printEpilogue(w);
             }
             if (ty.specifier != .func) {

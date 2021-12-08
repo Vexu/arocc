@@ -101,6 +101,7 @@ pub const Options = struct {
     @"return-type": ?Kind = null,
     @"dollar-in-identifier-extension": ?Kind = null,
     @"unknown-pragmas": ?Kind = null,
+    @"predefined-identifier-outside-function": ?Kind = null,
 };
 
 const messages = struct {
@@ -1309,12 +1310,17 @@ const messages = struct {
     };
     const unknown_gcc_pragma = struct {
         const msg = "pragma GCC expected 'error', 'warning', 'diagnostic', 'poison'";
-        const kind = .@"warning";
+        const kind = .warning;
     };
     const unknown_gcc_pragma_directive = struct {
         const msg = "pragma GCC diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'";
         const opt = "unknown-pragmas";
-        const kind = .@"warning";
+        const kind = .warning;
+    };
+    const predefined_top_level = struct {
+        const msg = "predefined identifier is only valid inside function";
+        const opt = "predefined-identifier-outside-function";
+        const kind = .warning;
     };
 };
 
