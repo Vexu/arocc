@@ -50,6 +50,23 @@ void baz(void) {
     signed char h[2] = (char []){1,2};
 }
 
+void qux(void) {
+    struct S {
+        int a;
+        char b[2];
+        float c;
+    } s = {1, {'a', 'b'}, 2.5};
+
+    union U {
+        int a;
+        char b[2];
+        float c;
+    } u = {{'a', 'b'}};
+
+    int a = {{1}};
+}
+
+
 #define TESTS_SKIPPED 2
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
@@ -85,3 +102,5 @@ void baz(void) {
     "initializers.c:42:19: error: expression is not an integer constant expression" \
     "initializers.c:49:19: error: array initializer must be an initializer list or wide string literal" \
     "initializers.c:50:24: error: cannot initialize array of type 'signed char [2]' with array of type 'char [2]'"\
+    "initializers.c:64:18: warning: excess elements in scalar initializer [-Wexcess-initializers]" \
+    "initializers.c:66:14: warning: too many braces around scalar initializer [-Wmany-braces-around-scalar-init]" \

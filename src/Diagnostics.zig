@@ -102,6 +102,7 @@ pub const Options = struct {
     @"dollar-in-identifier-extension": ?Kind = null,
     @"unknown-pragmas": ?Kind = null,
     @"predefined-identifier-outside-function": ?Kind = null,
+    @"many-braces-around-scalar-init": ?Kind = null,
 };
 
 const messages = struct {
@@ -1330,6 +1331,11 @@ const messages = struct {
         const msg = "first argument to va_arg, is of type '{s}' and not 'va_list'";
         const extra = .str;
         const kind = .@"error";
+    };
+    const too_many_scalar_init_braces = struct {
+        const msg = "too many braces around scalar initializer";
+        const opt = "many-braces-around-scalar-init";
+        const kind = .warning;
     };
 };
 
