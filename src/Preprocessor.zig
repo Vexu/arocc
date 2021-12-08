@@ -11,6 +11,7 @@ const Parser = @import("Parser.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Token = @import("Tree.zig").Token;
 const AttrTag = @import("Attribute.zig").Tag;
+const features = @import("features.zig");
 
 const Preprocessor = @This();
 const DefineMap = std.StringHashMap(Macro);
@@ -93,7 +94,7 @@ pub fn init(comp: *Compilation) Preprocessor {
     return pp;
 }
 
-const FeatureCheckMacros = struct {
+const builtin_macros = struct {
     const args = [1][]const u8{"X"};
 
     const has_attribute = [1]RawToken{.{
@@ -102,6 +103,14 @@ const FeatureCheckMacros = struct {
     }};
     const has_warning = [1]RawToken{.{
         .id = .macro_param_has_warning,
+        .source = .generated,
+    }};
+    const has_feature = [1]RawToken{.{
+        .id = .macro_param_has_feature,
+        .source = .generated,
+    }};
+    const has_extension = [1]RawToken{.{
+        .id = .macro_param_has_extension,
         .source = .generated,
     }};
 
@@ -131,7 +140,7 @@ const FeatureCheckMacros = struct {
 
 fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: []const RawToken) !void {
     try pp.defines.put(name, .{
-        .params = &FeatureCheckMacros.args,
+        .params = &builtin_macros.args,
         .tokens = tokens,
         .var_args = false,
         .is_func = is_func,
@@ -141,14 +150,16 @@ fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: [
 }
 
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
-    try pp.addBuiltinMacro("__has_attribute", true, &FeatureCheckMacros.has_attribute);
-    try pp.addBuiltinMacro("__has_warning", true, &FeatureCheckMacros.has_warning);
-    try pp.addBuiltinMacro("__is_identifier", true, &FeatureCheckMacros.is_identifier);
-    try pp.addBuiltinMacro("_Pragma", true, &FeatureCheckMacros.pragma_operator);
+    try pp.addBuiltinMacro("__has_attribute", true, &builtin_macros.has_attribute);
+    try pp.addBuiltinMacro("__has_warning", true, &builtin_macros.has_warning);
+    try pp.addBuiltinMacro("__has_feature", true, &builtin_macros.has_feature);
+    try pp.addBuiltinMacro("__has_extension", true, &builtin_macros.has_extension);
+    try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
+    try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
 
-    try pp.addBuiltinMacro("__FILE__", false, &FeatureCheckMacros.file);
-    try pp.addBuiltinMacro("__LINE__", false, &FeatureCheckMacros.line);
-    try pp.addBuiltinMacro("__COUNTER__", false, &FeatureCheckMacros.counter);
+    try pp.addBuiltinMacro("__FILE__", false, &builtin_macros.file);
+    try pp.addBuiltinMacro("__LINE__", false, &builtin_macros.line);
+    try pp.addBuiltinMacro("__COUNTER__", false, &builtin_macros.counter);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -799,7 +810,10 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
 
 fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token, src_loc: Source.Location) Error!bool {
     switch (builtin) {
-        .macro_param_has_attribute => {
+        .macro_param_has_attribute,
+        .macro_param_has_feature,
+        .macro_param_has_extension,
+        => {
             var invalid: ?Token = null;
             var identifier: ?Token = null;
             for (param_toks) |tok| switch (tok.id) {
@@ -821,8 +835,13 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                 return false;
             }
 
-            const attr_name = pp.expandedSlice(identifier.?);
-            return AttrTag.fromString(attr_name) != null;
+            const ident_str = pp.expandedSlice(identifier.?);
+            return switch (builtin) {
+                .macro_param_has_attribute => AttrTag.fromString(ident_str) != null,
+                .macro_param_has_feature => features.hasFeature(pp.comp, ident_str),
+                .macro_param_has_extension => features.hasExtension(pp.comp, ident_str),
+                else => unreachable,
+            };
         },
         .macro_param_has_warning => {
             const actual_param = pp.pasteStringsUnsafe(param_toks) catch |err| switch (err) {
@@ -952,6 +971,8 @@ fn expandFuncMacro(
             },
             .macro_param_has_attribute,
             .macro_param_has_warning,
+            .macro_param_has_feature,
+            .macro_param_has_extension,
             .macro_param_is_identifier,
             => {
                 const arg = expanded_args.items[0];

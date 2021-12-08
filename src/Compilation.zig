@@ -498,3 +498,18 @@ pub fn pragmaEvent(comp: *Compilation, event: PragmaEvent) void {
 }
 
 pub const renderErrors = Diagnostics.render;
+
+pub fn isTlsSupported(comp: *Compilation) bool {
+    if (comp.target.isDarwin()) {
+        var supported = false;
+        switch (comp.target.os.tag) {
+            .macos => supported = !(comp.target.os.isAtLeast(.macos, .{ .major = 10, .minor = 7 }) orelse false),
+            else => {},
+        }
+        return supported;
+    }
+    return switch (comp.target.cpu.arch) {
+        .tce, .tcele, .bpfel, .bpfeb, .msp430, .nvptx, .nvptx64, .i386, .arm, .armeb, .thumb, .thumbeb => false,
+        else => true,
+    };
+}
