@@ -106,6 +106,7 @@ pub const Options = struct {
     @"predefined-identifier-outside-function": ?Kind = null,
     @"many-braces-around-scalar-init": ?Kind = null,
     uninitialized: ?Kind = null,
+    @"gnu-statement-expression": ?Kind = null,
 };
 
 const messages = struct {
@@ -1345,6 +1346,16 @@ const messages = struct {
         const extra = .str;
         const opt = "uninitialized";
         const kind = .off;
+    };
+    const gnu_statement_expression = struct {
+        const msg = "use of GNU statement expression extension";
+        const opt = "gnu-statement-expression";
+        const kind = .off;
+        const suppress_gnu = true;
+    };
+    const stmt_expr_not_allowed_file_scope = struct {
+        const msg = "statement expression not allowed at file scope";
+        const kind = .@"error";
     };
 };
 

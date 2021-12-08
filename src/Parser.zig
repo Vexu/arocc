@@ -911,7 +911,7 @@ fn decl(p: *Parser) Error!bool {
             }
         }
 
-        const body = (try p.compoundStmt(true)) orelse {
+        const body = (try p.compoundStmt(true, null)) orelse {
             assert(init_d.d.old_style_func != null);
             try p.err(.expected_fn_body);
             return true;
@@ -3031,7 +3031,7 @@ fn asmStr(p: *Parser) Error!NodeIndex {
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.labeledStmt()) |some| return some;
-    if (try p.compoundStmt(false)) |some| return some;
+    if (try p.compoundStmt(false, null)) |some| return some;
     if (p.eatToken(.keyword_if)) |_| {
         const start_scopes_len = p.scopes.items.len;
         defer p.scopes.items.len = start_scopes_len;
@@ -3375,8 +3375,13 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
     } else return null;
 }
 
+const StmtExprState = struct {
+    last_expr_tok: TokenIndex = 0,
+    last_expr_res: Result = .{ .ty = .{ .specifier = .void } },
+};
+
 /// compoundStmt : '{' ( decl | keyword_extension decl | staticAssert | stmt)* '}'
-fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
+fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) Error!?NodeIndex {
     const l_brace = p.eatToken(.l_brace) orelse return null;
 
     const decl_buf_top = p.decl_buf.items.len;
@@ -3391,6 +3396,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
     var noreturn_label_count: u32 = 0;
 
     while (p.eatToken(.r_brace) == null) : (_ = try p.pragma()) {
+        if (stmt_expr_state) |state| state.* = .{};
         if (p.staticAssert() catch |er| switch (er) {
             error.ParsingFailed => {
                 try p.nextStmt(l_brace);
@@ -3419,6 +3425,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
             }) continue;
             p.tok_i = ext;
         }
+        const stmt_tok = p.tok_i;
         const s = p.stmt() catch |er| switch (er) {
             error.ParsingFailed => {
                 try p.nextStmt(l_brace);
@@ -3427,6 +3434,15 @@ fn compoundStmt(p: *Parser, is_fn_body: bool) Error!?NodeIndex {
             else => |e| return e,
         };
         if (s == .none) continue;
+        if (stmt_expr_state) |state| {
+            state.* = .{
+                .last_expr_tok = stmt_tok,
+                .last_expr_res = .{
+                    .node = s,
+                    .ty = p.nodes.items(.ty)[@enumToInt(s)],
+                },
+            };
+        }
         try p.decl_buf.append(s);
 
         if (noreturn_index == null and p.nodeIsNoreturn(s)) {
@@ -3687,8 +3703,11 @@ const Result = struct {
 
     fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex, err_start: usize) Error!void {
         if (res.ty.is(.void) or res.node == .none) return;
-        // don't warn about unused result if the expression contained errors
-        if (p.pp.comp.diag.list.items.len > err_start) return;
+        // don't warn about unused result if the expression contained errors besides other unused results
+        var i = err_start;
+        while (i < p.pp.comp.diag.list.items.len) : (i += 1) {
+            if (p.pp.comp.diag.list.items[i].tag != .unused_value) return;
+        }
         var cur_node = res.node;
         while (true) switch (p.nodes.items(.tag)[@enumToInt(cur_node)]) {
             .invalid, // So that we don't need to check for node == 0
@@ -3710,6 +3729,20 @@ const Result = struct {
             .post_inc_expr,
             .post_dec_expr,
             => return,
+            .stmt_expr => {
+                const body = p.nodes.items(.data)[@enumToInt(cur_node)].un;
+                switch (p.nodes.items(.tag)[@enumToInt(body)]) {
+                    .compound_stmt_two => {
+                        const body_stmt = p.nodes.items(.data)[@enumToInt(body)].bin;
+                        cur_node = if (body_stmt.rhs != .none) body_stmt.rhs else body_stmt.lhs;
+                    },
+                    .compound_stmt => {
+                        const data = p.nodes.items(.data)[@enumToInt(body)];
+                        cur_node = p.data.items[data.range.end - 1];
+                    },
+                    else => unreachable,
+                }
+            },
             .comma_expr => cur_node = p.nodes.items(.data)[@enumToInt(cur_node)].bin.rhs,
             .paren_expr => cur_node = p.nodes.items(.data)[@enumToInt(cur_node)].un,
             else => break,
@@ -4703,14 +4736,47 @@ fn mulExpr(p: *Parser) Error!Result {
     return lhs;
 }
 
+/// This will always be the last message, if present
+fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
+    if (last_expr_tok == 0) return;
+    if (p.pp.comp.diag.list.items.len == 0) return;
+
+    const last_expr_loc = p.pp.tokens.items(.loc)[last_expr_tok];
+    const last_msg = p.pp.comp.diag.list.items[p.pp.comp.diag.list.items.len - 1];
+
+    if (last_msg.tag == .unused_value and last_msg.loc.eql(last_expr_loc)) {
+        p.pp.comp.diag.list.items.len = p.pp.comp.diag.list.items.len - 1;
+    }
+}
+
 /// castExpr
-///  :  '(' typeName ')' castExpr
+///  :  '(' compoundStmt ')'
+///  |  '(' typeName ')' castExpr
 ///  | '(' typeName ')' '{' initializerItems '}'
 ///  | __builtin_choose_expr '(' constExpr ',' assignExpr ',' assignExpr ')'
 ///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
+        if (p.tok_ids[p.tok_i] == .l_brace) {
+            try p.err(.gnu_statement_expression);
+            if (p.func.ty == null) {
+                try p.err(.stmt_expr_not_allowed_file_scope);
+                return error.ParsingFailed;
+            }
+            var stmt_expr_state: StmtExprState = .{};
+            const body_node = (try p.compoundStmt(false, &stmt_expr_state)).?; // compoundStmt only returns null if .l_brace isn't the first token
+            p.removeUnusedWarningForTok(stmt_expr_state.last_expr_tok);
+
+            var res = Result{
+                .node = body_node,
+                .ty = stmt_expr_state.last_expr_res.ty,
+                .val = stmt_expr_state.last_expr_res.val,
+            };
+            try p.expectClosing(l_paren, .r_paren);
+            try res.un(p, .stmt_expr);
+            return res;
+        }
         if (try p.typeName()) |ty| {
             try p.expectClosing(l_paren, .r_paren);
             if (p.tok_ids[p.tok_i] == .l_brace) {
