@@ -1348,6 +1348,7 @@ pub fn next(self: *Tokenizer) Token {
                     self.line += 1;
                     state = .multi_line_comment;
                 },
+                '*' => {},
                 else => state = .multi_line_comment,
             },
             .zero => switch (c) {
