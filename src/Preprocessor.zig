@@ -1291,7 +1291,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true);
     try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, pp.top_expansion_buf.items.len);
     for (pp.top_expansion_buf.items) |*tok| {
-        if (tok.id == .whitespace and !pp.comp.only_preprocess) {
+        if ((tok.id == .whitespace or tok.id == .nl) and !pp.comp.only_preprocess) {
             Token.free(tok.expansion_locs, pp.comp.gpa);
             continue;
         }
