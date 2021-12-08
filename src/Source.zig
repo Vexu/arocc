@@ -11,6 +11,10 @@ pub const Location = struct {
     id: Id = .unused,
     byte_offset: u32 = 0,
     line: u32 = 0,
+
+    pub fn eql(a: Location, b: Location) bool {
+        return a.id == b.id and a.byte_offset == b.byte_offset and a.line == b.line;
+    }
 };
 
 path: []const u8,

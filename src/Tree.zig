@@ -406,6 +406,8 @@ pub const Tag = enum(u8) {
     builtin_choose_expr,
     /// __builtin_va_arg(un)
     builtin_va_arg,
+    /// ({ un })
+    stmt_expr,
 
     // ====== Initializer expressions ======
 
@@ -1102,7 +1104,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(expr, level + delta, w);
             }
         },
-        .generic_association_expr, .generic_default_expr => {
+        .generic_association_expr, .generic_default_expr, .stmt_expr => {
             try tree.dumpNode(data.un, level + delta, w);
         },
         .array_to_pointer,
