@@ -2635,13 +2635,18 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
 fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bool {
     if (!target.isArray()) return false;
 
-    if (!item.ty.isArray()) {
-        const e_msg = " from incompatible type ";
-        try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
+    const is_str_lit = p.nodeIs(item.node, .string_literal_expr);
+    if (!is_str_lit and !p.nodeIs(item.node, .compound_literal_expr)) {
+        try p.errTok(.array_init_str, tok);
         return true; // do not do further coercion
     }
 
-    if (!target.elemType().eql(item.ty.elemType(), false)) {
+    const target_spec = target.elemType().canonicalize(.standard).specifier;
+    const item_spec = item.ty.elemType().canonicalize(.standard).specifier;
+
+    const compatible = target.elemType().eql(item.ty.elemType(), false) or
+        (is_str_lit and item_spec == .char and (target_spec == .uchar or target_spec == .schar));
+    if (!compatible) {
         const e_msg = " with array of type ";
         try p.errStr(.incompatible_array_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
         return true; // do not do further coercion
@@ -2651,7 +2656,7 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
         assert(item.ty.specifier == .array);
         var len = item.ty.arrayLen().?;
         const array_len = arr_ty.arrayLen().?;
-        if (p.nodeIs(item.node, .string_literal_expr)) {
+        if (is_str_lit) {
             // the null byte of a string can be dropped
             if (len - 1 > array_len)
                 try p.errTok(.str_init_too_long, tok);
