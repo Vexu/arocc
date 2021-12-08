@@ -404,6 +404,8 @@ pub const Tag = enum(u8) {
     generic_default_expr,
     /// __builtin_choose_expr(lhs, data[0], data[1])
     builtin_choose_expr,
+    /// __builtin_va_arg(un)
+    builtin_va_arg,
 
     // ====== Initializer expressions ======
 
@@ -971,6 +973,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .post_inc_expr,
         .post_dec_expr,
         .paren_expr,
+        .builtin_va_arg,
         => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("operand:\n");

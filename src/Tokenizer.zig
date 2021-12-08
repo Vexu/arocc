@@ -224,8 +224,9 @@ pub const Token = struct {
         keyword_asm1,
         keyword_asm2,
 
-        // gcc builtins
+        // builtins that require special parsing
         builtin_choose_expr,
+        builtin_va_arg,
 
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
@@ -305,6 +306,7 @@ pub const Token = struct {
                 .keyword_alignof1,
                 .keyword_alignof2,
                 .builtin_choose_expr,
+                .builtin_va_arg,
                 .keyword_attribute1,
                 .keyword_attribute2,
                 .keyword_extension,
@@ -506,6 +508,7 @@ pub const Token = struct {
                 .keyword_typeof1 => "__typeof",
                 .keyword_typeof2 => "__typeof__",
                 .builtin_choose_expr => "__builtin_choose_expr",
+                .builtin_va_arg => "__builtin_va_arg",
                 .keyword_attribute1 => "__attribute",
                 .keyword_attribute2 => "__attribute__",
                 .keyword_extension => "__extension__",
@@ -523,6 +526,8 @@ pub const Token = struct {
                 .macro_func,
                 .macro_function,
                 .macro_pretty_func,
+                .builtin_choose_expr,
+                .builtin_va_arg,
                 => "an identifier",
                 .string_literal,
                 .string_literal_utf_16,
@@ -713,8 +718,9 @@ pub const Token = struct {
         .{ "__asm", .keyword_asm1 },
         .{ "__asm__", .keyword_asm2 },
 
-        // gcc builtins
+        // builtins that require special parsing
         .{ "__builtin_choose_expr", .builtin_choose_expr },
+        .{ "__builtin_va_arg", .builtin_va_arg },
     });
 };
 

@@ -5,7 +5,7 @@
 typedef __builtin_va_list va_list;
 #define va_start(ap, param)
 #define va_end(ap)
-#define va_arg(ap, type)
+#define va_arg(ap, type) __builtin_va_arg(ap, type)
 
 /* GCC and Clang always define __va_copy */
 #define __va_copy(d,s)

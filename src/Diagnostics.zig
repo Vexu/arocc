@@ -1326,6 +1326,11 @@ const messages = struct {
         const opt = "predefined-identifier-outside-function";
         const kind = .warning;
     };
+    const incompatible_va_arg = struct {
+        const msg = "first argument to va_arg, is of type '{s}' and not 'va_list'";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayList(Message),

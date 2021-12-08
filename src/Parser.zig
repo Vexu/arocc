@@ -111,6 +111,7 @@ func: struct {
     ident: ?Result = null,
     pretty_ident: ?Result = null,
 } = .{},
+va_list_ty: Type = undefined,
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
     if (codepoint <= 0x7F) return false;
@@ -570,6 +571,9 @@ fn defineVaList(p: *Parser) !void {
 
     const sym = Scope.Symbol{ .name = "__builtin_va_list", .ty = ty, .name_tok = 0 };
     try p.scopes.append(.{ .typedef = sym });
+
+    if (ty.isArray()) ty.decayArray();
+    p.va_list_ty = ty;
 }
 
 /// root : (decl | assembly ';' | staticAssert)*
@@ -4642,6 +4646,7 @@ fn mulExpr(p: *Parser) Error!Result {
 ///  :  '(' typeName ')' castExpr
 ///  | '(' typeName ')' '{' initializerItems '}'
 ///  | __builtin_choose_expr '(' constExpr ',' assignExpr ',' assignExpr ')'
+///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| {
@@ -4689,10 +4694,77 @@ fn castExpr(p: *Parser) Error!Result {
     }
     switch (p.tok_ids[p.tok_i]) {
         .builtin_choose_expr => return p.builtinChooseExpr(),
+        .builtin_va_arg => return p.builtinVaArg(),
         // TODO: other special-cased builtins
         else => {},
     }
     return p.unExpr();
+}
+
+fn builtinChooseExpr(p: *Parser) Error!Result {
+    p.tok_i += 1;
+    const l_paren = try p.expectToken(.l_paren);
+    const cond_tok = p.tok_i;
+    var cond = try p.constExpr();
+    if (cond.val == .unavailable) {
+        try p.errTok(.builtin_choose_cond, cond_tok);
+        return error.ParsingFailed;
+    }
+
+    _ = try p.expectToken(.comma);
+
+    var then_expr = if (cond.getBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
+    try then_expr.expect(p);
+
+    _ = try p.expectToken(.comma);
+
+    var else_expr = if (!cond.getBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
+    try else_expr.expect(p);
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    if (cond.getBool()) {
+        cond.val = then_expr.val;
+        cond.ty = then_expr.ty;
+    } else {
+        cond.val = else_expr.val;
+        cond.ty = else_expr.ty;
+    }
+    cond.node = try p.addNode(.{
+        .tag = .builtin_choose_expr,
+        .ty = cond.ty,
+        .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ then_expr.node, else_expr.node })).start } },
+    });
+    return cond;
+}
+
+fn builtinVaArg(p: *Parser) Error!Result {
+    p.tok_i += 1;
+
+    const l_paren = try p.expectToken(.l_paren);
+    const va_list_tok = p.tok_i;
+    var va_list = try p.assignExpr();
+    try va_list.expect(p);
+    try va_list.lvalConversion(p);
+
+    _ = try p.expectToken(.comma);
+
+    const ty = (try p.typeName()) orelse {
+        try p.err(.expected_type);
+        return error.ParsingFailed;
+    };
+    try p.expectClosing(l_paren, .r_paren);
+
+    if (!va_list.ty.eql(p.va_list_ty, true)) {
+        try p.errStr(.incompatible_va_arg, va_list_tok, try p.typeStr(va_list.ty));
+        return error.ParsingFailed;
+    }
+
+    return Result{ .ty = ty, .node = try p.addNode(.{
+        .tag = .builtin_va_arg,
+        .ty = ty,
+        .data = .{ .un = va_list.node },
+    }) };
 }
 
 /// unExpr
@@ -4969,43 +5041,6 @@ fn unExpr(p: *Parser) Error!Result {
             return lhs;
         },
     }
-}
-
-fn builtinChooseExpr(p: *Parser) Error!Result {
-    p.tok_i += 1;
-    const l_paren = try p.expectToken(.l_paren);
-    const cond_tok = p.tok_i;
-    var cond = try p.constExpr();
-    if (cond.val == .unavailable) {
-        try p.errTok(.builtin_choose_cond, cond_tok);
-        return error.ParsingFailed;
-    }
-
-    _ = try p.expectToken(.comma);
-
-    var then_expr = if (cond.getBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
-    try then_expr.expect(p);
-
-    _ = try p.expectToken(.comma);
-
-    var else_expr = if (!cond.getBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
-    try else_expr.expect(p);
-
-    try p.expectClosing(l_paren, .r_paren);
-
-    if (cond.getBool()) {
-        cond.val = then_expr.val;
-        cond.ty = then_expr.ty;
-    } else {
-        cond.val = else_expr.val;
-        cond.ty = else_expr.ty;
-    }
-    cond.node = try p.addNode(.{
-        .tag = .builtin_choose_expr,
-        .ty = cond.ty,
-        .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ then_expr.node, else_expr.node })).start } },
-    });
-    return cond;
 }
 
 /// suffixExpr
