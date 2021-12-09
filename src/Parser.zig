@@ -2641,22 +2641,14 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
 fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
     if (ty.isArray()) {
         var index = il.*.list.items.len;
-        if (index != 0) index = il.*.list.items[index - 1].index;
+        if (index != 0) index = il.*.list.items[index - 1].index + 1;
 
         const arr_ty = ty.*;
         const max_elems = arr_ty.arrayLen() orelse std.math.maxInt(usize);
-        if (max_elems == 0) {
-            if (p.tok_ids[p.tok_i] != .l_brace) {
-                try p.err(.empty_aggregate_init_braces);
-                return error.ParsingFailed;
-            }
-            return false;
-        }
         const elem_ty = arr_ty.elemType();
-        const arr_il = il.*;
         if (index < max_elems) {
             ty.* = elem_ty;
-            il.* = try arr_il.find(p.pp.comp.gpa, index);
+            il.* = try il.*.find(p.pp.comp.gpa, index);
             return true;
         }
         return false;
@@ -2665,29 +2657,13 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         if (index != 0) index = il.*.list.items[index - 1].index + 1;
 
         const max_elems = struct_ty.data.record.fields.len;
-        if (max_elems == 0) {
-            if (p.tok_ids[p.tok_i] != .l_brace) {
-                try p.err(.empty_aggregate_init_braces);
-                return error.ParsingFailed;
-            }
-            return false;
-        }
-        const struct_il = il.*;
         if (index < max_elems) {
-            const field = struct_ty.data.record.fields[index];
-            ty.* = field.ty;
-            il.* = try struct_il.find(p.pp.comp.gpa, index);
+            ty.* = struct_ty.data.record.fields[index].ty;
+            il.* = try il.*.find(p.pp.comp.gpa, index);
             return true;
         }
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
-        if (union_ty.data.record.fields.len == 0) {
-            if (p.tok_ids[p.tok_i] != .l_brace) {
-                try p.err(.empty_aggregate_init_braces);
-                return error.ParsingFailed;
-            }
-            return false;
-        }
         ty.* = union_ty.data.record.fields[0].ty;
         il.* = try il.*.find(p.pp.comp.gpa, 0);
         return true;
