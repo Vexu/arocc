@@ -1413,6 +1413,13 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
             decl_spec.storage_class = .none;
         }
 
+        const scopes_len = p.scopes.items.len;
+        defer p.scopes.items.len = scopes_len;
+        try p.scopes.append(.{ .decl = .{
+            .name = p.tokSlice(init_d.d.name),
+            .ty = init_d.d.ty,
+            .name_tok = init_d.d.name,
+        } });
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr.node;
         if (!init_list_expr.ty.isArray()) break :init;

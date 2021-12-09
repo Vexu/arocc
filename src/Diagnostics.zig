@@ -103,6 +103,7 @@ pub const Options = struct {
     @"unknown-pragmas": ?Kind = null,
     @"predefined-identifier-outside-function": ?Kind = null,
     @"many-braces-around-scalar-init": ?Kind = null,
+    uninitialized: ?Kind = null,
 };
 
 const messages = struct {
@@ -1336,6 +1337,12 @@ const messages = struct {
         const msg = "too many braces around scalar initializer";
         const opt = "many-braces-around-scalar-init";
         const kind = .warning;
+    };
+    const uninitialized_in_own_init = struct {
+        const msg = "variable '{s}' is uninitialized when used within its own initialization";
+        const extra = .str;
+        const opt = "uninitialized";
+        const kind = .off;
     };
 };
 
