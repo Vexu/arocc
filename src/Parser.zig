@@ -815,13 +815,12 @@ fn decl(p: *Parser) Error!bool {
                 try p.errStr(.redefinition, init_d.d.name, p.tokSlice(init_d.d.name));
                 try p.errTok(.previous_definition, sym.def.name_tok);
             }
-        } else {
-            try p.scopes.append(.{ .def = .{
-                .name = p.tokSlice(init_d.d.name),
-                .ty = init_d.d.ty,
-                .name_tok = init_d.d.name,
-            } });
         }
+        try p.scopes.append(.{ .def = .{
+            .name = p.tokSlice(init_d.d.name),
+            .ty = init_d.d.ty,
+            .name_tok = init_d.d.name,
+        } });
 
         const func = p.func;
         p.func = .{
@@ -3285,12 +3284,12 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             p.label_count += 1;
             try p.labels.append(.{ .label = name_tok });
             var i: usize = 0;
-            while (i < p.labels.items.len) : (i += 1) {
+            while (i < p.labels.items.len) {
                 if (p.labels.items[i] == .unresolved_goto and
                     mem.eql(u8, p.tokSlice(p.labels.items[i].unresolved_goto), str))
                 {
                     _ = p.labels.swapRemove(i);
-                }
+                } else i += 1;
             }
         }
 

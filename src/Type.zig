@@ -809,9 +809,16 @@ pub fn eql(a_param: Type, b_param: Type, check_qualifiers: bool) bool {
         => {
             // TODO validate this
             if (a.data.func.params.len != b.data.func.params.len) return false;
-            if (!a.data.func.return_type.eql(b.data.func.return_type, check_qualifiers)) return false;
+            // return type cannot have qualifiers
+            if (!a.data.func.return_type.eql(b.data.func.return_type, false)) return false;
             for (a.data.func.params) |param, i| {
-                if (!param.ty.eql(b.data.func.params[i].ty, check_qualifiers)) return false;
+                var a_unqual = param.ty;
+                a_unqual.qual.@"const" = false;
+                a_unqual.qual.@"volatile" = false;
+                var b_unqual = b.data.func.params[i].ty;
+                b_unqual.qual.@"const" = false;
+                b_unqual.qual.@"volatile" = false;
+                if (!a_unqual.eql(b_unqual, check_qualifiers)) return false;
             }
         },
 

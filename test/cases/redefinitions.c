@@ -37,6 +37,15 @@ int arr[2];
 int x = 0;
 arr[x];
 
+int f1(const int);
+int f1(int a) {
+    return a;
+}
+int f2(const int*);
+int f2(int *a) {
+    return *a;
+}
+
 #define TESTS_SKIPPED 1
 // int f(int (*)(), double (*)[3]);
 // int f(int (*)(char *), double (*)[]);
@@ -67,4 +76,6 @@ arr[x];
     "redefinitions.c:38:1: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]" \
     "redefinitions.c:38:4: error: variable length arrays not allowed at file scope" \
     "redefinitions.c:38:1: error: redefinition of 'arr' with a different type" \
-    "redefinitions.c:36:5: note: previous definition is here"
+    "redefinitions.c:36:5: note: previous definition is here" \
+    "redefinitions.c:45:5: error: redefinition of 'f2' with a different type" \
+    "redefinitions.c:44:5: note: previous definition is here" \

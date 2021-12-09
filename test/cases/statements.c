@@ -19,6 +19,13 @@ void foo(void) {
     for (a=1,b=1;;);
 }
 
+void bar(int arg) {
+    if (arg) goto next;
+    if (arg == 2) goto next;
+    if (arg == 3) goto next;
+    next: return;
+}
+
 #define EXPECTED_ERRORS "statements.c:3:9: error: statement requires expression with scalar type ('void' invalid)" \
     "statements.c:4:13: error: statement requires expression with integer type ('float' invalid)" \
     "statements.c:5:10: warning: expression result unused" \
