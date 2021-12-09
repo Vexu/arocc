@@ -18,26 +18,57 @@ buf: []const u8,
 id: Id,
 invalid_utf8_loc: ?Location = null,
 
-const LineCol = struct { line: []const u8, col: u32 };
+const LineCol = struct { line: []const u8, col: u32, width: u32 };
 
 pub fn lineCol(source: Source, byte_offset: u32) LineCol {
     var start = byte_offset;
     while (true) : (start -= 1) {
-        if (start == 0) break;
+        if (start == 0) {
+            if (source.buf[start] == '\n') start += 1;
+            break;
+        }
         if (start < source.buf.len and source.buf[start] == '\n') {
             start += 1;
             break;
         }
     }
-    const col = col: {
-        var i: usize = start;
-        var col: u32 = 1;
-        while (i < byte_offset) : (col += 1) { // TODO this is still incorrect, but better
-            i += std.unicode.utf8ByteSequenceLength(source.buf[i]) catch unreachable;
-        }
-        break :col col;
+    var i: usize = start;
+    var col: u32 = 1;
+    var width: u32 = 1;
+
+    while (i < byte_offset) : (col += 1) { // TODO this is still incorrect, but better
+        const len = std.unicode.utf8ByteSequenceLength(source.buf[i]) catch unreachable;
+        const cp = std.unicode.utf8Decode(source.buf[i..][0..len]) catch unreachable;
+        width += codepointWidth(cp);
+        i += len;
+    }
+    return .{ .line = std.mem.sliceTo(source.buf[start..], '\n'), .col = col, .width = width };
+}
+
+fn codepointWidth(cp: u32) u32 {
+    return switch (cp) {
+        0x1100...0x115F,
+        0x2329,
+        0x232A,
+        0x2E80...0x303F,
+        0x3040...0x3247,
+        0x3250...0x4DBF,
+        0x4E00...0xA4C6,
+        0xA960...0xA97C,
+        0xAC00...0xD7A3,
+        0xF900...0xFAFF,
+        0xFE10...0xFE19,
+        0xFE30...0xFE6B,
+        0xFF01...0xFF60,
+        0xFFE0...0xFFE6,
+        0x1B000...0x1B001,
+        0x1F200...0x1F251,
+        0x20000...0x3FFFD,
+        0x1F300...0x1F5FF,
+        0x1F900...0x1F9FF,
+        => 2,
+        else => 1,
     };
-    return .{ .line = std.mem.sliceTo(source.buf[start..], '\n'), .col = col };
 }
 
 /// Returns the first offset, if any, in buf where an invalid utf8 sequence

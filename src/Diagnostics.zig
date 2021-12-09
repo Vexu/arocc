@@ -1505,11 +1505,13 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             => @truncate(u32, msg.extra.unsigned),
             else => 0,
         };
+        var width = col;
         if (msg.loc.id != .unused) {
             const source = comp.getSource(msg.loc.id);
             const line_col = source.lineCol(msg.loc.byte_offset);
             line = line_col.line;
             col += line_col.col;
+            width += line_col.width;
             m.location(source.path, msg.loc.line, col);
         }
 
@@ -1549,7 +1551,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             }
         }
 
-        m.end(line, col);
+        m.end(line, width);
     }
     const w_s: []const u8 = if (warnings == 1) "" else "s";
     const e_s: []const u8 = if (errors == 1) "" else "s";

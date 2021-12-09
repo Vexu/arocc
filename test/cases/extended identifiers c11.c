@@ -33,6 +33,8 @@ struct cents {
     int ¢;
 };
 
+int あああ =  "あああ" * 1;
+
 #define EXPECTED_ERRORS "extended identifiers c11.c:12:9: warning: using this character in an identifier is incompatible with C99" \
     "extended identifiers c11.c:22:10: warning: using this character in an identifier is incompatible with C99" \
     "extended identifiers c11.c:22:10: warning: identifier contains Unicode character <U+00AD> that is invisible in some environments" \
@@ -41,3 +43,5 @@ struct cents {
     "extended identifiers c11.c:29:8: error: expected identifier or '{'" \
     "extended identifiers c11.c:33:9: warning: declaration does not declare anything" \
     "extended identifiers c11.c:33:9: error: expected ';', found invalid bytes" \
+    "extended identifiers c11.c:36:18: error: invalid operands to binary expression ('char *' and 'int')" \
+    "extended identifiers c11.c:36:12: warning: implicit pointer to integer conversion from 'char *' to 'int' [-Wliteral-conversion]" \
