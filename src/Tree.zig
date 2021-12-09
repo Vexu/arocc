@@ -601,46 +601,52 @@ pub fn dump(tree: Tree, writer: anytype) @TypeOf(writer).Error!void {
 fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Error!void {
     const delta = 2;
     const half = delta / 2;
-    const win = @import("builtin").os.tag == .windows;
-    const TYPE = if (win) "" else "\x1b[35;1m";
-    const TAG = if (win) "" else "\x1b[36;1m";
-    const IMPLICIT = if (win) "" else "\x1b[34;1m";
-    const NAME = if (win) "" else "\x1b[91;1m";
-    const LITERAL = if (win) "" else "\x1b[32;1m";
-    const ATTRIBUTE = if (win) "" else "\x1b[93;1m";
-    const RESET = if (win) "" else "\x1b[0m";
+    const util = @import("util.zig");
+    const TYPE = util.Color.purple;
+    const TAG = util.Color.cyan;
+    const IMPLICIT = util.Color.blue;
+    const NAME = util.Color.red;
+    const LITERAL = util.Color.green;
+    const ATTRIBUTE = util.Color.yellow;
     std.debug.assert(node != .none);
 
     const tag = tree.nodes.items(.tag)[@enumToInt(node)];
     const data = tree.nodes.items(.data)[@enumToInt(node)];
     const ty = tree.nodes.items(.ty)[@enumToInt(node)];
     try w.writeByteNTimes(' ', level);
-    if (tag.isImplicit()) {
-        try w.print(IMPLICIT ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
-    } else {
-        try w.print(TAG ++ "{s}: " ++ TYPE ++ "'", .{@tagName(tag)});
-    }
+
+    util.setColor(if (tag.isImplicit()) IMPLICIT else TAG, w);
+    try w.print("{s}: ", .{@tagName(tag)});
+    util.setColor(TYPE, w);
+    try w.writeByte('\'');
     try ty.dump(w);
-    try w.writeAll("'");
+    try w.writeByte('\'');
+
     if (isLval(tree.nodes, tree.data, tree.value_map, node)) {
-        try w.writeAll(ATTRIBUTE ++ " lvalue");
+        util.setColor(ATTRIBUTE, w);
+        try w.writeAll(" lvalue");
     }
     if (tree.value_map.get(node)) |val| {
+        util.setColor(LITERAL, w);
         if (ty.isUnsignedInt(tree.comp))
-            try w.print(LITERAL ++ " (value: {d})" ++ RESET, .{val})
+            try w.print(" (value: {d})", .{val})
         else
-            try w.print(LITERAL ++ " (value: {d})" ++ RESET, .{@bitCast(i64, val)});
+            try w.print(" (value: {d})", .{@bitCast(i64, val)});
     }
-    try w.writeAll("\n" ++ RESET);
+    try w.writeAll("\n");
+    util.setColor(.reset, w);
+
     if (ty.specifier == .attributed) {
+        util.setColor(ATTRIBUTE, w);
         for (ty.data.attributed.attributes) |attr| {
             const attr_name = tree.tokSlice(attr.name);
             try w.writeByteNTimes(' ', level + half);
-            try w.print(ATTRIBUTE ++ "attr: {s}\n" ++ RESET, .{attr_name});
+            try w.print("attr: {s}\n", .{attr_name});
             if (attr.params != .none) {
                 try tree.dumpNode(attr.params, level + delta, w);
             }
         }
+        util.setColor(.reset, w);
     }
 
     switch (tag) {
@@ -665,7 +671,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .noreturn_inline_static_fn_proto,
         => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+            util.setColor(.reset, w);
         },
         .fn_def,
         .static_fn_def,
@@ -677,7 +686,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .noreturn_inline_static_fn_def,
         => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+            util.setColor(.reset, w);
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("body:\n");
             try tree.dumpNode(data.decl.node, level + delta, w);
@@ -692,7 +704,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .threadlocal_static_var,
         => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+            util.setColor(.reset, w);
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("init:\n");
@@ -701,7 +716,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .enum_field_decl => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+            util.setColor(.reset, w);
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("value:\n");
@@ -711,7 +729,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .record_field_decl => {
             if (data.decl.name != 0) {
                 try w.writeByteNTimes(' ', level + half);
-                try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+                try w.writeAll("name: ");
+                util.setColor(NAME, w);
+                try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+                util.setColor(.reset, w);
             }
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
@@ -746,7 +767,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .union_init_expr => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("field index: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.union_init.field_index});
+            try w.writeAll("field index: ");
+            util.setColor(LITERAL, w);
+            try w.print("{d}\n", .{data.union_init.field_index});
+            util.setColor(.reset, w);
             if (data.union_init.node != .none) {
                 try tree.dumpNode(data.union_init.node, level + delta, w);
             }
@@ -756,7 +780,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .labeled_stmt => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl.name)});
+            try w.writeAll("label: ");
+            util.setColor(LITERAL, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+            util.setColor(.reset, w);
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("stmt:\n");
@@ -882,7 +909,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .goto_stmt, .addr_of_label => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("label: " ++ LITERAL ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
+            try w.writeAll("label: ");
+            util.setColor(LITERAL, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl_ref)});
+            util.setColor(.reset, w);
         },
         .continue_stmt, .break_stmt, .implicit_return, .null_stmt => {},
         .return_stmt => {
@@ -894,13 +924,17 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .string_literal_expr => {
             try w.writeByteNTimes(' ', level + half);
-            try w.writeAll("data: " ++ LITERAL);
+            try w.writeAll("data: ");
+            util.setColor(LITERAL, w);
             try dumpStr(tree.strings[data.str.index..][0..data.str.len], tag, w);
-            try w.writeAll("\n" ++ RESET);
+            try w.writeByte('\n');
+            util.setColor(.reset, w);
         },
         .attr_arg_ident => {
             try w.writeByteNTimes(' ', level + half);
-            try w.print(ATTRIBUTE ++ "name: {s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
+            util.setColor(ATTRIBUTE, w);
+            try w.print("name: {s}\n", .{tree.tokSlice(data.decl_ref)});
+            util.setColor(.reset, w);
         },
         .call_expr => {
             try w.writeByteNTimes(' ', level + half);
@@ -981,23 +1015,38 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .decl_ref_expr => {
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl_ref)});
+            util.setColor(.reset, w);
         },
         .enumeration_ref => {
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.decl_ref)});
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl_ref)});
+            util.setColor(.reset, w);
         },
         .int_literal => {
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.int});
+            try w.writeAll("value: ");
+            util.setColor(LITERAL, w);
+            try w.print("{d}\n", .{data.int});
+            util.setColor(.reset, w);
         },
         .float_literal => {
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.float});
+            try w.writeAll("value: ");
+            util.setColor(LITERAL, w);
+            try w.print("{d}\n", .{data.float});
+            util.setColor(.reset, w);
         },
         .double_literal => {
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("value: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.double});
+            try w.writeAll("value: ");
+            util.setColor(LITERAL, w);
+            try w.print("{d}\n", .{data.double});
+            util.setColor(.reset, w);
         },
         .member_access_expr, .member_access_ptr_expr => {
             if (data.member.lhs != .none) {
@@ -1006,7 +1055,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(data.member.lhs, level + delta, w);
             }
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("name: " ++ NAME ++ "{s}\n" ++ RESET, .{tree.tokSlice(data.member.name)});
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.member.name)});
+            util.setColor(.reset, w);
         },
         .array_access_expr => {
             if (data.bin.lhs != .none) {
@@ -1073,7 +1125,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .array_filler_expr => {
             try w.writeByteNTimes(' ', level + 1);
-            try w.print("count: " ++ LITERAL ++ "{d}\n" ++ RESET, .{data.int});
+            try w.writeAll("count: ");
+            util.setColor(LITERAL, w);
+            try w.print("{d}\n", .{data.int});
+            util.setColor(.reset, w);
         },
         .default_init_expr => {},
     }

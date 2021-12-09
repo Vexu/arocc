@@ -4,6 +4,8 @@ const Allocator = mem.Allocator;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
 const Tree = @import("Tree.zig");
+const util = @import("util.zig");
+const is_windows = @import("builtin").os.tag == .windows;
 
 const Diagnostics = @This();
 
@@ -1385,7 +1387,7 @@ pub fn setAll(diag: *Diagnostics, to: Kind) void {
 
 pub fn init(gpa: Allocator) Diagnostics {
     return .{
-        .color = std.io.getStdErr().supportsAnsiEscapeCodes(),
+        .color = std.io.getStdErr().supportsAnsiEscapeCodes() or (is_windows and std.io.getStdErr().isTty()),
         .list = std.ArrayList(Message).init(gpa),
     };
 }
@@ -1463,14 +1465,15 @@ pub fn fatal(
 }
 
 pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) Compilation.Error {
-    if (@import("builtin").os.tag == .windows or !diag.color) {
+    if (!diag.color) {
         std.debug.print("fatal error: " ++ fmt ++ "\n", args);
     } else {
-        const RED = "\x1b[31;1m";
-        const RESET = "\x1b[0m";
-        const BOLD = RESET ++ "\x1b[1m";
-
-        std.debug.print(RED ++ "fatal error: " ++ BOLD ++ fmt ++ "\n" ++ RESET, args);
+        const std_err = std.io.getStdErr().writer();
+        util.setColor(.red, std_err);
+        std_err.writeAll("fatal error: ") catch {};
+        util.setColor(.white, std_err);
+        std_err.print(fmt ++ "\n", args) catch {};
+        util.setColor(.reset, std_err);
     }
     return error.FatalError;
 }
@@ -1612,31 +1615,32 @@ const MsgWriter = struct {
 
     fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
         const prefix = if (std.fs.path.dirname(path) == null and path[0] != '<') "." ++ std.fs.path.sep_str else "";
-        if (@import("builtin").os.tag == .windows or !m.color) {
+        if (!m.color) {
             m.print("{s}{s}:{d}:{d}: ", .{ prefix, path, line, col });
         } else {
-            const BOLD = "\x1b[0m\x1b[1m";
-            m.print(BOLD ++ "{s}{s}:{d}:{d}: ", .{ prefix, path, line, col });
+            util.setColor(.white, m.w);
+            m.print("{s}{s}:{d}:{d}: ", .{ prefix, path, line, col });
         }
     }
 
     fn start(m: *MsgWriter, kind: Kind) void {
-        if (@import("builtin").os.tag == .windows or !m.color) {
+        if (!m.color) {
             m.print("{s}: ", .{@tagName(kind)});
         } else {
-            const PURPLE = "\x1b[35;1m";
-            const CYAN = "\x1b[36;1m";
-            const RED = "\x1b[31;1m";
-            const BOLD = "\x1b[0m\x1b[1m";
-
-            const msg_kind_str = switch (kind) {
-                .@"fatal error" => RED ++ "fatal error: " ++ BOLD,
-                .@"error" => RED ++ "error: " ++ BOLD,
-                .note => CYAN ++ "note: " ++ BOLD,
-                .warning => PURPLE ++ "warning: " ++ BOLD,
+            switch (kind) {
+                .@"fatal error", .@"error" => util.setColor(.red, m.w),
+                .note => util.setColor(.cyan, m.w),
+                .warning => util.setColor(.purple, m.w),
                 .off => unreachable,
-            };
-            m.write(msg_kind_str);
+            }
+            m.write(switch (kind) {
+                .@"fatal error" => "fatal error: ",
+                .@"error" => "error: ",
+                .note => "note: ",
+                .warning => "warning: ",
+                .off => unreachable,
+            });
+            util.setColor(.white, m.w);
         }
     }
 
@@ -1645,15 +1649,15 @@ const MsgWriter = struct {
             m.write("\n");
             return;
         };
-        if (@import("builtin").os.tag == .windows or !m.color) {
+        if (!m.color) {
             m.print("\n{s}\n", .{line});
             m.print("{s: >[1]}^\n", .{ "", col - 1 });
         } else {
-            const GREEN = "\x1b[32;1m";
-            const RESET = "\x1b[0m";
-
-            m.print("\n" ++ RESET ++ "{s}\n", .{line});
-            m.print("{s: >[1]}" ++ GREEN ++ "^" ++ RESET ++ "\n", .{ "", col - 1 });
+            util.setColor(.reset, m.w);
+            m.print("\n{s}\n{s: >[2]}", .{ line, "", col - 1 });
+            util.setColor(.green, m.w);
+            m.write("^\n");
+            util.setColor(.reset, m.w);
         }
     }
 };
