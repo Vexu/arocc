@@ -67,8 +67,22 @@ void qux(void) {
     int arr[][3] = {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}};
 }
 
+#pragma GCC diagnostic warning "-Wuninitialized"
+struct S {
+    int val;
+};
+struct node { struct node *prev, *next; int value; };
 
-#define TESTS_SKIPPED 2
+void self_referential(void) {
+    int x = x;
+    int y = y + 1; // should warn -Wuninitialized
+    struct S s1 = { .val = s1.val }; // should warn -Wuninitialized
+    struct S s2 = (struct S){ s2.val }; // should warn -Wuninitialized
+    struct S s3 = (struct S){ .val = s3.val }; // should warn -Wuninitialized
+    struct node ll[] = {{0, ll + 1, 42}, {ll, ll + 2, 5}, {ll, 0, 99}};
+}
+
+#define TESTS_SKIPPED 6
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
     "initializers.c:4:14: error: initializing 'int *' from incompatible type 'float'" \
@@ -105,3 +119,7 @@ void qux(void) {
     "initializers.c:50:24: error: cannot initialize array of type 'signed char [2]' with array of type 'char [2]'"\
     "initializers.c:64:18: warning: excess elements in scalar initializer [-Wexcess-initializers]" \
     "initializers.c:66:14: warning: too many braces around scalar initializer [-Wmany-braces-around-scalar-init]" \
+    /* "initializers.c:77:13: warning: variable 'y' is uninitialized when used within its own initialization" */ \
+    /* "initializers.c:78:28: warning: variable 's1' is uninitialized when used within its own initialization" */ \
+    /* "initializers.c:79:31: warning: variable 's2' is uninitialized when used within its own initialization" */ \
+    /* "initializers.c:80:38: warning: variable 's3' is uninitialized when used within its own initialization" */ \
