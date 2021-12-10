@@ -123,7 +123,7 @@ pub const Node = struct {
         },
         member: struct {
             lhs: NodeIndex,
-            name: TokenIndex,
+            index: u32,
         },
         union_init: struct {
             field_index: u32,
@@ -1049,15 +1049,18 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             util.setColor(.reset, w);
         },
         .member_access_expr, .member_access_ptr_expr => {
-            if (data.member.lhs != .none) {
-                try w.writeByteNTimes(' ', level + 1);
-                try w.writeAll("lhs:\n");
-                try tree.dumpNode(data.member.lhs, level + delta, w);
-            }
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("lhs:\n");
+            try tree.dumpNode(data.member.lhs, level + delta, w);
+
+            var lhs_ty = tree.nodes.items(.ty)[@enumToInt(data.member.lhs)];
+            if (lhs_ty.isPtr()) lhs_ty = lhs_ty.elemType();
+            lhs_ty = lhs_ty.canonicalize(.standard);
+
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");
             util.setColor(NAME, w);
-            try w.print("{s}\n", .{tree.tokSlice(data.member.name)});
+            try w.print("{s}\n", .{lhs_ty.data.record.fields[data.member.index].name});
             util.setColor(.reset, w);
         },
         .array_access_expr => {

@@ -163,6 +163,12 @@ pub const Record = struct {
         name: []const u8,
         ty: Type,
         bit_width: u32 = 0,
+
+        pub fn isAnonymous(f: Field) bool {
+            // anonymous fields can be recognized by their names which are in
+            // the format "(anonymous record field at path:line:col)".
+            return f.name[0] == '(';
+        }
     };
 
     pub fn isIncomplete(r: Record) bool {
@@ -605,6 +611,30 @@ pub fn getField(ty: Type, name: []const u8) ?FieldAndIndex {
         else => unreachable,
     }
     return null;
+}
+
+pub fn hasField(ty: Type, name: []const u8) bool {
+    switch (ty.specifier) {
+        .@"struct" => {
+            std.debug.assert(!ty.data.record.isIncomplete());
+            for (ty.data.record.fields) |f| {
+                if (f.isAnonymous() and f.ty.hasField(name)) return true;
+                if (std.mem.eql(u8, name, f.name)) return true;
+            }
+        },
+        .@"union" => {
+            std.debug.assert(!ty.data.record.isIncomplete());
+            for (ty.data.record.fields) |f| {
+                if (f.isAnonymous() and f.ty.hasField(name)) return true;
+                if (std.mem.eql(u8, name, f.name)) return true;
+            }
+        },
+        .typeof_type => return ty.data.sub_type.hasField(name),
+        .typeof_expr => return ty.data.expr.ty.hasField(name),
+        .attributed => return ty.data.attributed.base.hasField(name),
+        else => unreachable,
+    }
+    return false;
 }
 
 pub fn getCharSignedness(comp: *Compilation) std.builtin.Signedness {
