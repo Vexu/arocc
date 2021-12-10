@@ -81,7 +81,7 @@ const usage =
     \\  -W<warning>             Enable the specified warning
     \\  -Wno-<warning>          Disable the specified warning
     \\
-    \\Depub options:
+    \\Debug options:
     \\  --verbose-ast           Dump produced AST to stdout
     \\
     \\
