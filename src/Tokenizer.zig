@@ -119,6 +119,8 @@ pub const Token = struct {
         stringify_param,
         /// Same as stringify_param, but for var args
         stringify_va_args,
+        /// Special macro whitespace, always equal to a single space
+        macro_ws,
         /// Special token for implementing __has_attribute
         macro_param_has_attribute,
         /// Special token for implementing __has_warning
@@ -392,6 +394,7 @@ pub const Token = struct {
                 .macro_counter,
                 .macro_param_pragma_operator,
                 => "",
+                .macro_ws => " ",
 
                 .macro_func => "__func__",
                 .macro_function => "__FUNCTION__",

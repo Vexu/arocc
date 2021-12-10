@@ -185,7 +185,7 @@ pub fn main() !void {
 
             var i: usize = 0;
             for (types.tokens) |str| {
-                if (str.id == .whitespace) continue;
+                if (str.id == .macro_ws) continue;
                 if (str.id != .string_literal) {
                     fail_count += 1;
                     progress.log("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
@@ -229,7 +229,7 @@ pub fn main() !void {
 
             var count: usize = 0;
             for (macro.tokens) |str| {
-                if (str.id == .whitespace) continue;
+                if (str.id == .macro_ws) continue;
                 if (str.id != .string_literal) {
                     fail_count += 1;
                     progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});

@@ -73,6 +73,7 @@ char_buf: std.ArrayList(u8),
 /// Can be used to distinguish multiple preprocessings of the same file
 preprocess_count: u32 = 0,
 generated_line: u32 = 1,
+add_expansion_nl: u32 = 0,
 include_depth: u8 = 0,
 counter: u32 = 0,
 expansion_source_loc: Source.Location = undefined,
@@ -723,7 +724,7 @@ fn pasteStringsUnsafe(pp: *Preprocessor, toks: []const Token) ![]const u8 {
     if (unwrapped.len == 0) return error.ExpectedStringLiteral;
 
     for (unwrapped) |tok| {
-        if (tok.id == .whitespace) continue;
+        if (tok.id == .macro_ws) continue;
         if (tok.id != .string_literal) return error.ExpectedStringLiteral;
         const str = pp.expandedSlice(tok);
         try pp.char_buf.appendSlice(str[1 .. str.len - 1]);
@@ -790,8 +791,7 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
     try pp.char_buf.append('"');
     var ws_state: enum { start, need, not_needed } = .start;
     for (tokens) |tok| {
-        if (tok.id == .nl) continue;
-        if (tok.id == .whitespace) {
+        if (tok.id == .macro_ws) {
             if (ws_state == .start) continue;
             ws_state = .need;
             continue;
@@ -799,10 +799,25 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
         if (ws_state == .need) try pp.char_buf.append(' ');
         ws_state = .not_needed;
 
+        // backslashes not inside strings are not escaped
+        const is_str = switch (tok.id) {
+            .string_literal,
+            .string_literal_utf_16,
+            .string_literal_utf_8,
+            .string_literal_utf_32,
+            .string_literal_wide,
+            .char_literal,
+            .char_literal_utf_16,
+            .char_literal_utf_32,
+            .char_literal_wide,
+            => true,
+            else => false,
+        };
+
         for (pp.expandedSlice(tok)) |c| {
             if (c == '"')
                 try pp.char_buf.appendSlice("\\\"")
-            else if (c == '\\')
+            else if (c == '\\' and is_str)
                 try pp.char_buf.appendSlice("\\\\")
             else
                 try pp.char_buf.append(c);
@@ -823,7 +838,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                 .identifier, .extended_identifier => {
                     if (identifier) |_| invalid = tok else identifier = tok;
                 },
-                .whitespace => continue,
+                .macro_ws => continue,
                 else => {
                     invalid = tok;
                     break;
@@ -873,7 +888,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             var invalid: ?Token = null;
             var identifier: ?Token = null;
             for (param_toks) |tok| switch (tok.id) {
-                .whitespace => continue,
+                .macro_ws => continue,
                 else => {
                     if (identifier) |_| invalid = tok else identifier = tok;
                 },
@@ -934,7 +949,7 @@ fn expandFuncMacro(
                 tok_i += 1;
 
                 const next = switch (raw_next.id) {
-                    .whitespace => continue,
+                    .macro_ws => continue,
                     .hash_hash => continue,
                     .macro_param, .macro_param_no_expand => args.items[raw_next.end],
                     .keyword_va_args => variable_arguments.items,
@@ -999,7 +1014,7 @@ fn expandFuncMacro(
                     .string_literal => {
                         if (string) |_| invalid = tok else string = tok;
                     },
-                    .whitespace => continue,
+                    .macro_ws => continue,
                     else => {
                         invalid = tok;
                         break;
@@ -1011,7 +1026,6 @@ fn expandFuncMacro(
                     some.expansionSlice(),
                 ) else try pp.pragmaOperator(string.?, loc);
             },
-            .whitespace => if (pp.comp.only_preprocess) try buf.append(tokFromRaw(raw)),
             else => try buf.append(tokFromRaw(raw)),
         }
     }
@@ -1059,6 +1073,8 @@ fn nextBufToken(
                 pp.poisoned_identifiers.get(pp.tokSlice(raw_tok)) != null)
                 try pp.err(raw_tok, .poisoned_identifier);
 
+            if (raw_tok.id == .nl) pp.add_expansion_nl += 1;
+
             const new_tok = tokFromRaw(raw_tok);
             end_idx.* += 1;
             try buf.append(new_tok);
@@ -1087,7 +1103,7 @@ fn collectMacroFuncArguments(
     while (true) {
         const tok = try nextBufToken(pp, tokenizer, buf, start_idx, end_idx, extend_buf);
         switch (tok.id) {
-            .nl, .whitespace => {},
+            .nl, .whitespace, .macro_ws => {},
             .l_paren => break,
             else => {
                 if (is_builtin) {
@@ -1144,6 +1160,9 @@ fn collectMacroFuncArguments(
                     name_tok.expansionSlice(),
                 );
                 return null;
+            },
+            .nl, .whitespace => {
+                try curArgument.append(.{ .id = .macro_ws, .loc = .{ .id = .generated } });
             },
             else => {
                 try curArgument.append(try tok.dupe(pp.comp.gpa));
@@ -1294,11 +1313,17 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true);
     try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, pp.top_expansion_buf.items.len);
     for (pp.top_expansion_buf.items) |*tok| {
-        if ((tok.id == .whitespace or tok.id == .nl) and !pp.comp.only_preprocess) {
+        if (tok.id == .macro_ws and !pp.comp.only_preprocess) {
             Token.free(tok.expansion_locs, pp.comp.gpa);
             continue;
         }
         pp.tokens.appendAssumeCapacity(tok.*);
+    }
+    if (pp.comp.only_preprocess) {
+        try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, pp.add_expansion_nl);
+        while (pp.add_expansion_nl > 0) : (pp.add_expansion_nl -= 1) {
+            pp.tokens.appendAssumeCapacity(.{ .id = .nl, .loc = .{ .id = .generated } });
+        }
     }
 }
 
@@ -1324,7 +1349,7 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
 /// Concat two tokens and add the result to pp.generated
 fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token) Error!void {
     const lhs = while (lhs_toks.popOrNull()) |lhs| {
-        if (lhs.id == .whitespace)
+        if (lhs.id == .macro_ws)
             Token.free(lhs.expansion_locs, pp.comp.gpa)
         else
             break lhs;
@@ -1334,7 +1359,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
 
     var rhs_rest: u32 = 1;
     const rhs = for (rhs_toks) |rhs| {
-        if (rhs.id != .whitespace) break rhs;
+        if (rhs.id != .macro_ws) break rhs;
         rhs_rest += 1;
     } else {
         return lhs_toks.appendAssumeCapacity(lhs);
@@ -1432,6 +1457,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
 
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
 
+    var need_ws = false;
     var end_index: u32 = undefined;
     // Collect the token body and validate any ## found.
     var tok = first;
@@ -1458,7 +1484,14 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                 end_index = tok.start;
                 break;
             },
-            else => try pp.token_buf.append(tok),
+            .whitespace => need_ws = true,
+            else => {
+                if (tok.id != .whitespace and need_ws) {
+                    need_ws = false;
+                    try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });
+                }
+                try pp.token_buf.append(tok);
+            },
         }
         tok = tokenizer.next();
     }
@@ -1518,6 +1551,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
         try params.append(pp.tokSlice(tok));
     }
 
+    var need_ws = false;
     var end_index: u32 = undefined;
     // Collect the body tokens and validate # and ##'s found.
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
@@ -1528,8 +1562,12 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 end_index = tok.start;
                 break;
             },
-            .whitespace => if (pp.token_buf.items.len != 0) try pp.token_buf.append(tok),
+            .whitespace => need_ws = pp.token_buf.items.len != 0,
             .hash => {
+                if (tok.id != .whitespace and need_ws) {
+                    need_ws = false;
+                    try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });
+                }
                 const param = tokenizer.nextNoWS();
                 blk: {
                     if (var_args and param.id == .keyword_va_args) {
@@ -1552,6 +1590,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 return skipToNl(tokenizer);
             },
             .hash_hash => {
+                need_ws = false;
                 // if ## appears at the beginning, the token buf is still empty
                 // in this case, error out
                 if (pp.token_buf.items.len == 0) {
@@ -1572,6 +1611,10 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.token_buf.append(tok);
             },
             else => {
+                if (tok.id != .whitespace and need_ws) {
+                    need_ws = false;
+                    try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });
+                }
                 if (var_args and tok.id == .keyword_va_args) {
                     // do nothing
                 } else if (tok.id.isMacroIdentifier()) {
@@ -1742,7 +1785,10 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
     while (true) : (i += 1) {
         var cur: Token = pp.tokens.get(i);
         switch (cur.id) {
-            .eof => break,
+            .eof => {
+                if (pp.tokens.len > 1 and pp.tokens.items(.id)[i - 1] != .nl) try w.writeByte('\n');
+                break;
+            },
             .nl => try w.writeAll("\n"),
             .keyword_pragma => {
                 const pragma_name = pp.expandedSlice(pp.tokens.get(i + 1));
