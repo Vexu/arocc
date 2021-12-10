@@ -82,6 +82,18 @@ void self_referential(void) {
     struct node ll[] = {{0, ll + 1, 42}, {ll, ll + 2, 5}, {ll, 0, 99}};
 }
 
+struct Foo {
+    struct {
+        int z;
+        union {
+            float b;
+            int x;
+        };
+        double z1;
+    };
+    float b;
+} a = { .x  = 1 };
+
 #define TESTS_SKIPPED 6
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
