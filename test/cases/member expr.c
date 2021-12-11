@@ -36,6 +36,11 @@ int f1(void) {
     return b->x;
 }
 
+struct Foo c[1];
+int f2(void) {
+    return c->a;
+}
+
 #define EXPECTED_ERRORS "member expr.c:7:8: error: member reference base type 'int' is not a structure or union" \
     "member expr.c:10:8: error: member reference type 'struct Foo' is not a pointer; did you mean to use '.'?" \
     "member expr.c:13:8: error: member reference type 'struct Foo' is not a pointer; did you mean to use '.'?" \

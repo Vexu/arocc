@@ -25,20 +25,11 @@ invalid_utf8_loc: ?Location = null,
 const LineCol = struct { line: []const u8, col: u32, width: u32 };
 
 pub fn lineCol(source: Source, byte_offset: u32) LineCol {
-    var start = byte_offset;
-    while (true) : (start -= 1) {
-        if (start == 0) {
-            if (source.buf[start] == '\n') start += 1;
-            break;
-        }
-        if (start < source.buf.len and source.buf[start] == '\n') {
-            start += 1;
-            break;
-        }
-    }
+    var start: usize = 0;
+    if (std.mem.lastIndexOfScalar(u8, source.buf[0..byte_offset], '\n')) |some| start = some + 1;
     var i: usize = start;
     var col: u32 = 1;
-    var width: u32 = 1;
+    var width: u32 = 0;
 
     while (i < byte_offset) : (col += 1) { // TODO this is still incorrect, but better
         const len = std.unicode.utf8ByteSequenceLength(source.buf[i]) catch unreachable;

@@ -94,6 +94,11 @@ struct Foo {
     float b;
 } a = { .x  = 1 };
 
+static const unsigned char halfrate[2][3][1] = {
+    { { 0, }, { 0 }, { 0, } },
+    { { 0, }, { 0 }, { 0, } },
+};
+
 #define TESTS_SKIPPED 6
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \

@@ -397,7 +397,7 @@ const MsgWriter = struct {
             return;
         };
         m.print("\n{s}\n", .{line});
-        m.print("{s: >[1]}^\n", .{ "", col - 1 });
+        m.print("{s: >[1]}^\n", .{ "", col });
     }
 };
 

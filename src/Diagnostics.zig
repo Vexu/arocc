@@ -1664,10 +1664,10 @@ const MsgWriter = struct {
         };
         if (!m.color) {
             m.print("\n{s}\n", .{line});
-            m.print("{s: >[1]}^\n", .{ "", col - 1 });
+            m.print("{s: >[1]}^\n", .{ "", col });
         } else {
             util.setColor(.reset, m.w);
-            m.print("\n{s}\n{s: >[2]}", .{ line, "", col - 1 });
+            m.print("\n{s}\n{s: >[2]}", .{ line, "", col });
             util.setColor(.green, m.w);
             m.write("^\n");
             util.setColor(.reset, m.w);

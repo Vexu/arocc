@@ -2555,7 +2555,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             var tmp_il = InitList{};
             defer tmp_il.deinit(p.pp.comp.gpa);
             saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
-            if (!warned_excess) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
+            if (!warned_excess and saw) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
             warned_excess = true;
         }
 
@@ -5252,6 +5252,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
         .arrow => {
             p.tok_i += 1;
             const name = try p.expectIdentifier();
+            if (lhs.ty.isArray()) {
+                var copy = lhs;
+                copy.ty.decayArray();
+                try copy.un(p, .array_to_pointer);
+                return p.fieldAccess(copy, name, true);
+            }
             return p.fieldAccess(lhs, name, true);
         },
         else => return Result{},
@@ -5265,7 +5271,7 @@ fn fieldAccess(
     is_arrow: bool,
 ) !Result {
     const expr_ty = lhs.ty;
-    const is_ptr = expr_ty.get(.pointer) != null;
+    const is_ptr = expr_ty.isPtr();
     const expr_base_ty = if (is_ptr) expr_ty.elemType() else expr_ty;
     const record_ty = expr_base_ty.canonicalize(.standard);
 
