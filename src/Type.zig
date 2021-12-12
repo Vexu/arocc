@@ -1040,7 +1040,11 @@ pub const Builder = struct {
             .complex_float => ty.specifier = .complex_float,
             .complex_double => ty.specifier = .complex_double,
             .complex_long_double => ty.specifier = .complex_long_double,
-            .complex, .complex_long => {
+            .complex => {
+                try p.errTok(.plain_complex, p.tok_i - 1);
+                ty.specifier = .complex_double;
+            },
+            .complex_long => {
                 try p.errExtra(.type_is_invalid, p.tok_i, .{ .str = b.specifier.str().? });
                 return error.ParsingFailed;
             },
