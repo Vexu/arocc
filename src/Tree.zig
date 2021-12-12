@@ -388,6 +388,8 @@ pub const Tag = enum(u8) {
     float_literal,
     /// f64 literal
     double_literal,
+    /// wraps a float or double literal: un
+    imaginary_literal,
     /// tree.str[index..][0..len]
     string_literal_expr,
     /// sizeof(un?)
@@ -1104,7 +1106,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(expr, level + delta, w);
             }
         },
-        .generic_association_expr, .generic_default_expr, .stmt_expr => {
+        .generic_association_expr, .generic_default_expr, .stmt_expr, .imaginary_literal => {
             try tree.dumpNode(data.un, level + delta, w);
         },
         .array_to_pointer,

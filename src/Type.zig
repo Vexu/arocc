@@ -477,20 +477,20 @@ pub fn anyQual(ty: Type) bool {
 }
 
 pub fn eitherLongDouble(a: Type, b: Type) ?Type {
-    if (a.is(.long_double) or a.is(.complex_long_double)) return a;
-    if (b.is(.long_double) or b.is(.complex_long_double)) return b;
+    if (a.is(.complex_long_double) or a.is(.long_double)) return a;
+    if (b.is(.complex_long_double) or b.is(.long_double)) return b;
     return null;
 }
 
 pub fn eitherDouble(a: Type, b: Type) ?Type {
-    if (a.is(.double) or a.is(.complex_double)) return a;
-    if (b.is(.double) or b.is(.complex_double)) return b;
+    if (a.is(.complex_double) or a.is(.double)) return a;
+    if (b.is(.complex_double) or b.is(.double)) return b;
     return null;
 }
 
 pub fn eitherFloat(a: Type, b: Type) ?Type {
-    if (a.is(.float) or a.is(.complex_float)) return a;
-    if (b.is(.float) or b.is(.complex_float)) return b;
+    if (a.is(.complex_float) or a.is(.float)) return a;
+    if (b.is(.complex_float) or b.is(.float)) return b;
     return null;
 }
 
