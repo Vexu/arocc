@@ -1364,6 +1364,10 @@ const messages = struct {
         const kind = .off;
         const suppress_gnu = true;
     };
+    const plain_complex = struct {
+        const msg = "plain '_Complex' requires a type specifier; assuming '_Complex double'";
+        const kind = .warning;
+    };
 };
 
 list: std.ArrayList(Message),
