@@ -45,6 +45,11 @@ pub const Token = struct {
         float_literal_f,
         float_literal_l,
 
+        // imaginary literals
+        imaginary_literal,
+        imaginary_literal_f,
+        imaginary_literal_l,
+
         // integer literals with suffixes
         integer_literal,
         integer_literal_u,
@@ -355,6 +360,9 @@ pub const Token = struct {
                 .float_literal,
                 .float_literal_f,
                 .float_literal_l,
+                .imaginary_literal,
+                .imaginary_literal_f,
+                .imaginary_literal_l,
                 .integer_literal,
                 .integer_literal_u,
                 .integer_literal_l,
@@ -544,6 +552,10 @@ pub const Token = struct {
                 .float_literal_f,
                 .float_literal_l,
                 => "a float literal",
+                .imaginary_literal,
+                .imaginary_literal_f,
+                .imaginary_literal_l,
+                => "an imaginary literal",
                 .integer_literal,
                 .integer_literal_u,
                 .integer_literal_l,
@@ -578,6 +590,9 @@ pub const Token = struct {
                 .float_literal,
                 .float_literal_f,
                 .float_literal_l,
+                .imaginary_literal,
+                .imaginary_literal_f,
+                .imaginary_literal_l,
                 .char_literal,
                 .char_literal_utf_16,
                 .char_literal_utf_32,
@@ -788,6 +803,9 @@ pub fn next(self: *Tokenizer) Token {
         float_exponent,
         float_exponent_digits,
         float_suffix,
+        float_suffix_f,
+        float_suffix_i,
+        float_suffix_l,
     } = .start;
 
     var start = self.index;
@@ -1519,18 +1537,49 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .float_suffix => switch (c) {
-                'l', 'L' => {
-                    id = .float_literal_l;
-                    self.index += 1;
+                'f', 'F' => state = .float_suffix_f,
+                'i', 'I' => state = .float_suffix_i,
+                'l', 'L' => state = .float_suffix_l,
+                else => {
+                    id = .float_literal;
                     break;
                 },
-                'f', 'F' => {
-                    id = .float_literal_f;
+            },
+            .float_suffix_f => switch (c) {
+                'i', 'I' => {
+                    id = .imaginary_literal_f;
                     self.index += 1;
                     break;
                 },
                 else => {
-                    id = .float_literal;
+                    id = .float_literal_f;
+                    break;
+                },
+            },
+            .float_suffix_i => switch (c) {
+                'f', 'F' => {
+                    id = .imaginary_literal_f;
+                    self.index += 1;
+                    break;
+                },
+                'l', 'L' => {
+                    id = .imaginary_literal_l;
+                    self.index += 1;
+                    break;
+                },
+                else => {
+                    id = .imaginary_literal;
+                    break;
+                },
+            },
+            .float_suffix_l => switch (c) {
+                'i', 'I' => {
+                    id = .imaginary_literal_l;
+                    self.index += 1;
+                    break;
+                },
+                else => {
+                    id = .float_literal_l;
                     break;
                 },
             },
@@ -1576,6 +1625,9 @@ pub fn next(self: *Tokenizer) Token {
             .integer_suffix_ul => id = .integer_literal_lu,
 
             .float_suffix => id = .float_literal,
+            .float_suffix_f => id = .float_literal_f,
+            .float_suffix_i => id = .imaginary_literal,
+            .float_suffix_l => id = .float_literal_l,
             .equal => id = .equal,
             .bang => id = .bang,
             .minus => id = .minus,
@@ -1847,6 +1899,9 @@ test "num suffixes" {
         \\ 1.0f 1.0L 1.0 .0 1. 0x1p0f 0X1p0
         \\ 0l 0lu 0ll 0llu 0
         \\ 1u 1ul 1ull 1
+        \\ 1.0i 1.0I
+        \\ 1.0if 1.0If 1.0fi 1.0fI
+        \\ 1.0il 1.0Il 1.0li 1.0lI
         \\
     , &.{
         .float_literal_f,
@@ -1867,6 +1922,19 @@ test "num suffixes" {
         .integer_literal_lu,
         .integer_literal_llu,
         .integer_literal,
+        .nl,
+        .imaginary_literal,
+        .imaginary_literal,
+        .nl,
+        .imaginary_literal_f,
+        .imaginary_literal_f,
+        .imaginary_literal_f,
+        .imaginary_literal_f,
+        .nl,
+        .imaginary_literal_l,
+        .imaginary_literal_l,
+        .imaginary_literal_l,
+        .imaginary_literal_l,
         .nl,
     });
 }
