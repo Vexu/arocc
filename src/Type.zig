@@ -1298,6 +1298,7 @@ pub const Builder = struct {
                 .sint => .slong_int,
                 .ulong => .ulong_long,
                 .long_long, .ulong_long => return b.duplicateSpec(p, "long"),
+                .complex => .complex_long,
                 else => return b.cannotCombine(p, source_tok),
             },
             .float => b.specifier = switch (b.specifier) {
