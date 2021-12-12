@@ -5473,6 +5473,7 @@ fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !v
 ///  : IDENTIFIER
 ///  | INTEGER_LITERAL
 ///  | FLOAT_LITERAL
+///  | IMAGINARY_LITERAL
 ///  | CHAR_LITERAL
 ///  | STRING_LITERAL
 ///  | '(' expr ')'
@@ -5616,21 +5617,37 @@ fn primaryExpr(p: *Parser) Error!Result {
         .char_literal_utf_32,
         .char_literal_wide,
         => return p.charLiteral(),
-        .float_literal => {
+        .float_literal, .imaginary_literal => |tag| {
             defer p.tok_i += 1;
             const ty = Type{ .specifier = .double };
-            return Result{ .ty = ty, .node = try p.addNode(
+            var res = Result{ .ty = ty, .node = try p.addNode(
                 .{ .tag = .double_literal, .ty = ty, .data = .{ .double = try p.parseFloat(p.tok_i, f64) } },
             ) };
+            if (tag == .imaginary_literal) {
+                try p.err(.gnu_imaginary_constant);
+                res.ty = .{ .specifier = .complex_double };
+                try res.un(p, .imaginary_literal);
+            }
+            return res;
         },
-        .float_literal_f => {
+        .float_literal_f, .imaginary_literal_f => |tag| {
             defer p.tok_i += 1;
             const ty = Type{ .specifier = .float };
-            return Result{ .ty = ty, .node = try p.addNode(
+            var res = Result{ .ty = ty, .node = try p.addNode(
                 .{ .tag = .float_literal, .ty = ty, .data = .{ .float = try p.parseFloat(p.tok_i, f32) } },
             ) };
+            if (tag == .imaginary_literal_f) {
+                try p.err(.gnu_imaginary_constant);
+                res.ty = .{ .specifier = .complex_float };
+                try res.un(p, .imaginary_literal);
+            }
+            return res;
         },
         .float_literal_l => return p.todo("long double literals"),
+        .imaginary_literal_l => {
+            try p.err(.gnu_imaginary_constant);
+            return p.todo("long double imaginary literals");
+        },
         .zero => {
             p.tok_i += 1;
             var res: Result = .{ .val = .{ .signed = 0 } };
@@ -5908,7 +5925,12 @@ fn charLiteral(p: *Parser) Error!Result {
 
 fn parseFloat(p: *Parser, tok: TokenIndex, comptime T: type) Error!T {
     var bytes = p.tokSlice(tok);
-    if (p.tok_ids[tok] != .float_literal) bytes = bytes[0 .. bytes.len - 1];
+    switch (p.tok_ids[tok]) {
+        .float_literal => {},
+        .imaginary_literal, .float_literal_f, .float_literal_l => bytes = bytes[0 .. bytes.len - 1],
+        .imaginary_literal_f, .imaginary_literal_l => bytes = bytes[0 .. bytes.len - 2],
+        else => unreachable,
+    }
     if (bytes.len > 2 and (bytes[1] == 'x' or bytes[1] == 'X')) {
         assert(bytes[0] == '0'); // validated by Tokenizer
         return std.fmt.parseHexFloat(T, bytes) catch |e| switch (e) {
