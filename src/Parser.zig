@@ -4801,7 +4801,9 @@ fn castExpr(p: *Parser) Error!Result {
                     try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(operand.ty));
 
                 const is_unsigned = ty.isUnsignedInt(p.pp.comp);
-                if (is_unsigned and operand.val == .signed) {
+                if (!ty.isInt()) {
+                    try operand.saveValue(p);
+                } else if (is_unsigned and operand.val == .signed) {
                     const copy = operand.val.signed;
                     operand.val = .{ .unsigned = @bitCast(u64, copy) };
                 } else if (!is_unsigned and operand.val == .unsigned) {
@@ -4948,6 +4950,7 @@ fn unExpr(p: *Parser) Error!Result {
                 .specifier = .pointer,
                 .data = .{ .sub_type = elem_ty },
             };
+            try operand.saveValue(p);
             try operand.un(p, .addr_of_expr);
             return operand;
         },
