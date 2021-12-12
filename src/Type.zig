@@ -476,24 +476,6 @@ pub fn anyQual(ty: Type) bool {
     };
 }
 
-pub fn eitherLongDouble(a: Type, b: Type) ?Type {
-    if (a.is(.complex_long_double) or a.is(.long_double)) return a;
-    if (b.is(.complex_long_double) or b.is(.long_double)) return b;
-    return null;
-}
-
-pub fn eitherDouble(a: Type, b: Type) ?Type {
-    if (a.is(.complex_double) or a.is(.double)) return a;
-    if (b.is(.complex_double) or b.is(.double)) return b;
-    return null;
-}
-
-pub fn eitherFloat(a: Type, b: Type) ?Type {
-    if (a.is(.complex_float) or a.is(.float)) return a;
-    if (b.is(.complex_float) or b.is(.float)) return b;
-    return null;
-}
-
 pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     var specifier = ty.specifier;
     if (specifier == .@"enum") specifier = ty.data.@"enum".tag_ty.specifier;
