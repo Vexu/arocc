@@ -3628,6 +3628,8 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
         if (!ret_ty.eql(e.ty, false)) {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
+    } else if (ret_ty.isFunc()) {
+        // Syntax error reported earlier; just let this return as-is since it is a parse failure anyway
     } else unreachable;
 
     try e.saveValue(p);
