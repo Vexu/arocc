@@ -50,16 +50,16 @@ int baz = 0xFFFFFFFFFF + 1u;
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
     "binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')" \
-    "binary expressions.c:10:15: warning: comparison of distinct pointer types ('float *' and 'int *')" \
-    "binary expressions.c:11:7: warning: comparison between pointer and integer ('int' and 'int *')" \
+    "binary expressions.c:10:15: warning: comparison of distinct pointer types ('float *' and 'int *') [-Wcompare-distinct-pointer-types]" \
+    "binary expressions.c:11:7: warning: comparison between pointer and integer ('int' and 'int *') [-Wpointer-integer-compare]" \
     "binary expressions.c:12:9: error: invalid operands to binary expression ('double' and 'int *')" \
     "binary expressions.c:13:24: error: invalid operands to binary expression ('_Complex double' and 'int')" \
     "binary expressions.c:15:13: error: invalid operands to binary expression ('int *' and 'int *')" \
     "binary expressions.c:18:7: error: invalid operands to binary expression ('int' and 'int *')" \
     "binary expressions.c:19:13: error: incompatible pointer types ('int *' and 'float *')" \
-    "binary expressions.c:21:17: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
-    "binary expressions.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
-    "binary expressions.c:24:24: warning: pointer type mismatch ('int *' and 'float *')" \
+    "binary expressions.c:21:17: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]" \
+    "binary expressions.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]" \
+    "binary expressions.c:24:24: warning: pointer type mismatch ('int *' and 'float *') [-Wpointer-type-mismatch]" \
     "binary expressions.c:32:18: error: invalid operands to binary expression ('struct Foo' and 'int')" \
     "binary expressions.c:33:5: error: expected statement" \
     "binary expressions.c:38:5: error: expected expression" \

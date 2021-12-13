@@ -10,7 +10,7 @@ void foo(void) {
     b++;
     1++;
     --1;
-    const c;
+    const int c;
     ++c;
     c--;
     (void)~1;
@@ -28,11 +28,10 @@ void foo(void) {
     "unary expressions.c:5:5: error: invalid argument type 'int *' to unary expression" \
     "unary expressions.c:11:6: error: expression is not assignable" \
     "unary expressions.c:12:5: error: expression is not assignable" \
-    "unary expressions.c:13:11: warning: type specifier missing, defaults to 'int'" \
     "unary expressions.c:14:5: error: expression is not assignable" \
     "unary expressions.c:15:6: error: expression is not assignable" \
     "unary expressions.c:17:5: error: invalid argument type 'double' to unary expression" \
     "unary expressions.c:18:5: error: invalid argument type 'void' to unary expression" \
     "unary expressions.c:21:11: error: invalid argument type 'void' to unary expression" \
     "unary expressions.c:22:11: error: expected expression" \
-    "unary expressions.c:24:5: error: address of register variable requested"
+    "unary expressions.c:24:5: error: address of register variable requested" \

@@ -1,6 +1,6 @@
 #pragma GCC diagnostic warning "-Wunknown-pragmas"
 
-#pragma unkonwn_option
+#pragma unknown_option
 
 #pragma GCC unknown_option
 

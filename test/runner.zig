@@ -241,6 +241,7 @@ pub fn main() !void {
                 defer buf.items.len = 0;
                 // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
                 std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSlice(str))) == .success);
+                try buf.append('\n');
                 const expected_error = buf.items;
 
                 const index = std.mem.indexOf(u8, m.buf.items, expected_error);

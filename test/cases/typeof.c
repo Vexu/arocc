@@ -125,7 +125,7 @@ void initializers(void) {
     typeof(u) u2 = {.x = 1};
 }
 
-#define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *'" \
+#define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *' [-Wincompatible-pointer-types]" \
     "typeof.c:28:7: error: expression is not assignable" \
     "typeof.c:30:7: error: expression is not assignable" \
     "typeof.c:34:30: error: initializing 'int *' from incompatible type 'float'" \
@@ -138,6 +138,6 @@ void initializers(void) {
     "typeof.c:71:13: error: expression is not assignable" \
     "typeof.c:74:13: error: expression is not assignable" \
     "typeof.c:77:13: error: expression is not assignable" \
-    "typeof.c:98:29: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers" \
+    "typeof.c:98:29: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
     "typeof.c:113:5: error: invalid argument type 'char *' to unary expression" \
     "typeof.c:119:5: warning: declaration does not declare anything [-Wmissing-declaration]" \
