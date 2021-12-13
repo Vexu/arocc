@@ -13,6 +13,8 @@ void foo(void) {
     (void)(x == (int *)2);
 }
 
+#pragma GCC diagnostic warning "-Wunknown-pragmas"
+
 _Pragma(GCC diagnostic error "-Wpointer-integer-compare")
 PRAGMA(Not a pragma)
 _Pragma()
@@ -21,11 +23,11 @@ _Pragma()
     "pragma operator.c:4:27: note: expanded from here" \
     "pragma operator.c:4:19: note: expanded from here" \
     "<scratch space>:4:13: note: expanded from here" \
-    "pragma operator.c:16:9: error: _Pragma requires exactly one string literal token" \
-    "pragma operator.c:17:1: warning: unsupported #pragma directive 'Not'" \
+    "pragma operator.c:18:9: error: _Pragma requires exactly one string literal token" \
+    "pragma operator.c:19:1: warning: unknown pragma ignored" \
     "pragma operator.c:4:27: note: expanded from here" \
     "pragma operator.c:4:19: note: expanded from here" \
     "<scratch space>:9:9: note: expanded from here" \
-    "pragma operator.c:18:1: error: _Pragma requires exactly one string literal token" \
+    "pragma operator.c:20:1: error: _Pragma requires exactly one string literal token" \
     "pragma operator.c:11:14: error: comparison between pointer and integer ('int' and 'int *')" \
     "pragma operator.c:13:14: warning: comparison between pointer and integer ('int' and 'int *')" \

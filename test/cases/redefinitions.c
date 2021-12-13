@@ -64,7 +64,7 @@ int f2(int *a) {
     "redefinitions.c:17:16: note: previous definition is here" \
     "redefinitions.c:18:17: error: redefinition of parameter 'foo'" \
     "redefinitions.c:18:12: note: previous definition is here" \
-    "redefinitions.c:18:12: warning: identifier parameter lists are only allowed in function definitions" \
+    "redefinitions.c:18:12: error: identifier parameter lists are only allowed in function definitions" \
     "redefinitions.c:19:30: error: redefinition of parameter 'foo'" \
     "redefinitions.c:19:18: note: previous definition is here" \
     "redefinitions.c:23:5: error: redefinition of 'func4' with a different type" \

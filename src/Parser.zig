@@ -2510,7 +2510,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
 
                 // TODO check if union already has field set
                 const field_name = p.tokSlice(identifier);
-                if (!(try p.findFieldDesigntor(&cur_il, &cur_ty, field_name))) {
+                if (!(try p.findFieldDesignator(&cur_il, &cur_ty, field_name))) {
                     try p.errStr(.no_such_field_designator, period, field_name);
                     return error.ParsingFailed;
                 }
@@ -2584,7 +2584,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
     return true;
 }
 
-fn findFieldDesigntor(p: *Parser, il: **InitList, ty: *Type, field_name: []const u8) Error!bool {
+fn findFieldDesignator(p: *Parser, il: **InitList, ty: *Type, field_name: []const u8) Error!bool {
     const record_ty = ty.canonicalize(.standard);
     for (record_ty.data.record.fields) |f, i| {
         if (f.isAnonymous()) {
@@ -2592,7 +2592,7 @@ fn findFieldDesigntor(p: *Parser, il: **InitList, ty: *Type, field_name: []const
             if (!f.ty.hasField(field_name)) continue;
             il.* = try il.*.find(p.pp.comp.gpa, i);
             ty.* = f.ty;
-            return p.findFieldDesigntor(il, ty, field_name);
+            return p.findFieldDesignator(il, ty, field_name);
         }
         if (std.mem.eql(u8, field_name, f.name)) {
             il.* = try il.*.find(p.pp.comp.gpa, i);
