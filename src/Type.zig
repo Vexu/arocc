@@ -12,10 +12,10 @@ pub const Qualifiers = packed struct {
     @"const": bool = false,
     atomic: bool = false,
     @"volatile": bool = false,
+    restrict: bool = false,
 
     // for function parameters only, stored here since it fits in the padding
     register: bool = false,
-    restrict: bool = false,
 
     pub fn any(quals: Qualifiers) bool {
         return quals.@"const" or quals.restrict or quals.@"volatile" or quals.atomic;
@@ -865,6 +865,18 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
             try inner.data.func.return_type.combine(outer, p, source_tok);
             if (inner.data.func.return_type.isArray()) try p.errTok(.func_cannot_return_array, source_tok);
             if (inner.data.func.return_type.isFunc()) try p.errTok(.func_cannot_return_func, source_tok);
+            if (inner.data.func.return_type.qual.@"const") {
+                try p.errStr(.qual_on_ret_type, source_tok, "const");
+                inner.data.func.return_type.qual.@"const" = false;
+            }
+            if (inner.data.func.return_type.qual.@"volatile") {
+                try p.errStr(.qual_on_ret_type, source_tok, "volatile");
+                inner.data.func.return_type.qual.@"volatile" = false;
+            }
+            if (inner.data.func.return_type.qual.atomic) {
+                try p.errStr(.qual_on_ret_type, source_tok, "atomic");
+                inner.data.func.return_type.qual.atomic = false;
+            }
         },
         .decayed_array,
         .decayed_static_array,

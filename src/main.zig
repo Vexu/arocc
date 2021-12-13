@@ -72,10 +72,10 @@ const usage =
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  -o <file>               Write output to <file>
+    \\  -pedantic               Warn on language extensions
     \\  -std=<standard>         Specify language standard
     \\  --target=<value>        Generate code for the given target
     \\  -U <macro>              Undefine <macro>
-    \\  -Wall                   Enable all warnings
     \\  -Werror                 Treat all warnings as errors
     \\  -Werror=<warning>       Treat warning as error
     \\  -W<warning>             Enable the specified warning
@@ -184,16 +184,18 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                     file = args[i];
                 }
                 comp.output_name = file;
-            } else if (mem.eql(u8, arg, "-Wall")) {
-                comp.diag.setAll(.warning);
-            } else if (mem.eql(u8, arg, "-Werror")) {
-                comp.diag.setAll(.@"error");
+            } else if (mem.eql(u8, arg, "-pedantic")) {
+                comp.diag.options.pedantic = .warning;
             } else if (mem.startsWith(u8, arg, "-Werror=")) {
                 const option = arg["-Werror=".len..];
                 try comp.diag.set(option, .@"error");
+            } else if (mem.eql(u8, arg, "-Wno-fatal-errors")) {
+                comp.diag.fatal_errors = false;
             } else if (mem.startsWith(u8, arg, "-Wno-")) {
                 const option = arg["-Wno-".len..];
                 try comp.diag.set(option, .off);
+            } else if (mem.eql(u8, arg, "-Wfatal-errors")) {
+                comp.diag.fatal_errors = true;
             } else if (mem.startsWith(u8, arg, "-W")) {
                 const option = arg["-W".len..];
                 try comp.diag.set(option, .warning);

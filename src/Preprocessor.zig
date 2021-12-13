@@ -1718,9 +1718,8 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
         };
     }
     return pp.comp.diag.add(.{
-        .tag = .unsupported_pragma,
+        .tag = .unknown_pragma,
         .loc = pragma_name_tok.loc,
-        .extra = .{ .str = name },
     }, pragma_name_tok.expansionSlice());
 }
 

@@ -57,57 +57,65 @@ pub const Tag = blk: {
     });
 };
 
-pub const Kind = enum { @"fatal error", @"error", note, warning, off };
+// u4 to avoid any possible packed struct issues
+pub const Kind = enum(u4) { @"fatal error", @"error", note, warning, off, default };
 
-pub const Options = struct {
-    @"unsupported-pragma": ?Kind = null,
-    @"c99-extensions": ?Kind = null,
-    @"implicit-int": ?Kind = null,
-    @"duplicate-decl-specifier": ?Kind = null,
-    @"missing-declaration": ?Kind = null,
-    @"extern-initializer": ?Kind = null,
-    @"implicit-function-declaration": ?Kind = null,
-    @"unused-value": ?Kind = null,
-    @"unreachable-code": ?Kind = null,
-    @"unknown-warning-option": ?Kind = null,
-    @"empty-struct": ?Kind = null,
-    @"gnu-alignof-expression": ?Kind = null,
-    @"macro-redefined": ?Kind = null,
-    @"generic-qual-type": ?Kind = null,
-    multichar: ?Kind = null,
-    @"pointer-integer-compare": ?Kind = null,
-    @"compare-distinct-pointer-types": ?Kind = null,
-    @"literal-conversion": ?Kind = null,
-    @"cast-qualifiers": ?Kind = null,
-    @"array-bounds": ?Kind = null,
-    @"int-conversion": ?Kind = null,
-    @"pointer-type-mismatch": ?Kind = null,
-    @"c2x-extensions": ?Kind = null,
-    @"incompatible-pointer-types": ?Kind = null,
-    @"excess-initializers": ?Kind = null,
-    @"division-by-zero": ?Kind = null,
-    @"initializer-overrides": ?Kind = null,
-    @"incompatible-pointer-types-discards-qualifiers": ?Kind = null,
-    @"unknown-attributes": ?Kind = null,
-    @"ignored-attributes": ?Kind = null,
-    @"builtin-macro-redefined": ?Kind = null,
-    @"gnu-label-as-value": ?Kind = null,
-    @"malformed-warning-check": ?Kind = null,
-    @"#pragma-messages": ?Kind = null,
-    @"newline-eof": ?Kind = null,
-    @"empty-translation-unit": ?Kind = null,
-    @"implicitly-unsigned-literal": ?Kind = null,
-    @"c99-compat": ?Kind = null,
-    @"unicode-zero-width": ?Kind = null,
-    @"unicode-homoglyph": ?Kind = null,
-    @"return-type": ?Kind = null,
-    @"dollar-in-identifier-extension": ?Kind = null,
-    @"unknown-pragmas": ?Kind = null,
-    @"predefined-identifier-outside-function": ?Kind = null,
-    @"many-braces-around-scalar-init": ?Kind = null,
-    uninitialized: ?Kind = null,
-    @"gnu-statement-expression": ?Kind = null,
-    @"gnu-imaginary-constant": ?Kind = null,
+pub const Options = packed struct {
+    // do not directly use these, instead add `const NAME = true;`
+    all: Kind = .default,
+    extra: Kind = .default,
+    pedantic: Kind = .default,
+
+    @"unsupported-pragma": Kind = .default,
+    @"c99-extensions": Kind = .default,
+    @"implicit-int": Kind = .default,
+    @"duplicate-decl-specifier": Kind = .default,
+    @"missing-declaration": Kind = .default,
+    @"extern-initializer": Kind = .default,
+    @"implicit-function-declaration": Kind = .default,
+    @"unused-value": Kind = .default,
+    @"unreachable-code": Kind = .default,
+    @"unknown-warning-option": Kind = .default,
+    @"gnu-empty-struct": Kind = .default,
+    @"gnu-alignof-expression": Kind = .default,
+    @"macro-redefined": Kind = .default,
+    @"generic-qual-type": Kind = .default,
+    multichar: Kind = .default,
+    @"pointer-integer-compare": Kind = .default,
+    @"compare-distinct-pointer-types": Kind = .default,
+    @"literal-conversion": Kind = .default,
+    @"cast-qualifiers": Kind = .default,
+    @"array-bounds": Kind = .default,
+    @"int-conversion": Kind = .default,
+    @"pointer-type-mismatch": Kind = .default,
+    @"c2x-extensions": Kind = .default,
+    @"incompatible-pointer-types": Kind = .default,
+    @"excess-initializers": Kind = .default,
+    @"division-by-zero": Kind = .default,
+    @"initializer-overrides": Kind = .default,
+    @"incompatible-pointer-types-discards-qualifiers": Kind = .default,
+    @"unknown-attributes": Kind = .default,
+    @"ignored-attributes": Kind = .default,
+    @"builtin-macro-redefined": Kind = .default,
+    @"gnu-label-as-value": Kind = .default,
+    @"malformed-warning-check": Kind = .default,
+    @"#pragma-messages": Kind = .default,
+    @"newline-eof": Kind = .default,
+    @"empty-translation-unit": Kind = .default,
+    @"implicitly-unsigned-literal": Kind = .default,
+    @"c99-compat": Kind = .default,
+    @"unicode-zero-width": Kind = .default,
+    @"unicode-homoglyph": Kind = .default,
+    @"return-type": Kind = .default,
+    @"dollar-in-identifier-extension": Kind = .default,
+    @"unknown-pragmas": Kind = .default,
+    @"predefined-identifier-outside-function": Kind = .default,
+    @"many-braces-around-scalar-init": Kind = .default,
+    uninitialized: Kind = .default,
+    @"gnu-statement-expression": Kind = .default,
+    @"gnu-imaginary-constant": Kind = .default,
+    @"ignored-qualifiers": Kind = .default,
+    @"integer-overflow": Kind = .default,
 };
 
 const messages = struct {
@@ -141,11 +149,11 @@ const messages = struct {
         const msg = "#endif without #if";
         const kind = .@"error";
     };
-    const unsupported_pragma = struct {
-        const msg = "unsupported #pragma directive '{s}'";
-        const extra = .str;
-        const opt = "unsupported-pragma";
-        const kind = .warning;
+    const unknown_pragma = struct {
+        const msg = "unknown pragma ignored";
+        const opt = "unknown-pragmas";
+        const kind = .off;
+        const all = true;
     };
     const line_simple_digit = struct {
         const msg = "#line directive requires a simple digit sequence";
@@ -279,6 +287,7 @@ const messages = struct {
         const msg = "type specifier missing, defaults to 'int'";
         const opt = "implicit-int";
         const kind = .warning;
+        const all = true;
     };
     const multiple_storage_class = struct {
         const msg = "cannot combine with previous '{s}' declaration specifier";
@@ -308,6 +317,7 @@ const messages = struct {
         const extra = .str;
         const opt = "duplicate-decl-specifier";
         const kind = .warning;
+        const all = true;
     };
     const restrict_non_pointer = struct {
         const msg = "restrict requires a pointer or reference ('{s}' is invalid)";
@@ -422,6 +432,7 @@ const messages = struct {
         const extra = .str;
         const opt = "implicit-function-declaration";
         const kind = .warning;
+        const all = true;
     };
     const expected_param_decl = struct {
         const msg = "expected parameter declaration";
@@ -429,7 +440,7 @@ const messages = struct {
     };
     const invalid_old_style_params = struct {
         const msg = "identifier parameter lists are only allowed in function definitions";
-        const kind = .warning;
+        const kind = .@"error";
     };
     const expected_fn_body = struct {
         const msg = "expected function body after function declaration";
@@ -443,6 +454,7 @@ const messages = struct {
         const msg = "expression result unused";
         const opt = "unused-value";
         const kind = .warning;
+        const all = true;
     };
     const continue_not_in_loop = struct {
         const msg = "'continue' statement not in a loop";
@@ -456,6 +468,7 @@ const messages = struct {
         const msg = "unreachable code";
         const opt = "unreachable-code";
         const kind = .warning;
+        const all = true;
     };
     const duplicate_label = struct {
         const msg = "duplicate label '{s}'";
@@ -533,6 +546,7 @@ const messages = struct {
     const useless_static = struct {
         const msg = "'static' useless without a constant size";
         const kind = .warning;
+        const w_extra = true;
     };
     const negative_array_size = struct {
         const msg = "array size must be 0 or greater";
@@ -568,11 +582,13 @@ const messages = struct {
     const overflow_signed = struct {
         const msg = "overflow in expression; result is '{d}'";
         const extra = .signed;
-        const kind = .@"error";
+        const opt = "integer-overflow";
+        const kind = .warning;
     };
     const overflow_unsigned = struct {
         const msg = overflow_signed.msg;
         const extra = .unsigned;
+        const opt = "integer-overflow";
         const kind = .warning;
     };
     const int_literal_too_big = struct {
@@ -629,8 +645,9 @@ const messages = struct {
     const empty_record = struct {
         const msg = "empty {s} is a GNU extension";
         const extra = .str;
-        const opt = "empty-struct";
+        const opt = "gnu-empty-struct";
         const kind = .off;
+        const pedantic = true;
     };
     const wrong_tag = struct {
         const msg = "use of '{s}' with tag type that does not match previous definition";
@@ -689,6 +706,7 @@ const messages = struct {
         const msg = "multi-character character constant";
         const opt = "multichar";
         const kind = .warning;
+        const all = true;
     };
     const unicode_multichar_literal = struct {
         const msg = "Unicode character literals may not contain multiple characters";
@@ -701,6 +719,7 @@ const messages = struct {
     const char_lit_too_wide = struct {
         const msg = "character constant too long for its type";
         const kind = .warning;
+        const all = true;
     };
     const char_too_large = struct {
         const msg = "character too large for enclosing character literal type";
@@ -830,6 +849,7 @@ const messages = struct {
         const extra = .str;
         const opt = "return-type";
         const kind = .@"error";
+        const all = true;
     };
     const incompatible_return = struct {
         const msg = "returning '{s}' from a function with incompatible result type";
@@ -847,12 +867,14 @@ const messages = struct {
         const extra = .str;
         const opt = "return-type";
         const kind = .warning;
+        const all = true;
     };
     const void_func_returns_value = struct {
         const msg = "void function '{s}' should not return a value";
         const extra = .str;
         const opt = "return-type";
         const kind = .@"error";
+        const all = true;
     };
     const incompatible_param = struct {
         const msg = "passing '{s}' to parameter of incompatible type";
@@ -1060,6 +1082,7 @@ const messages = struct {
         const msg = "initializer overrides previous initialization";
         const opt = "initializer-overrides";
         const kind = .warning;
+        const w_extra = true;
     };
     const previous_initializer = struct {
         const msg = "previous initialization";
@@ -1144,6 +1167,7 @@ const messages = struct {
         const msg = "use of GNU address-of-label extension";
         const opt = "gnu-label-as-value";
         const kind = .off;
+        const pedantic = true;
     };
     const expected_record_ty = struct {
         const msg = "member reference base type '{s}' is not a structure or union";
@@ -1170,6 +1194,7 @@ const messages = struct {
         const extra = .str;
         const opt = "malformed-warning-check";
         const kind = .warning;
+        const all = true;
     };
     const invalid_computed_goto = struct {
         const msg = "computed goto in function with no address-of-label expressions";
@@ -1212,11 +1237,13 @@ const messages = struct {
         const msg = "no newline at end of file";
         const opt = "newline-eof";
         const kind = .off;
+        const pedantic = true;
     };
     const empty_translation_unit = struct {
         const msg = "ISO C requires a translation unit to contain at least one declaration";
         const opt = "empty-translation-unit";
         const kind = .off;
+        const pedantic = true;
     };
     const omitting_parameter_name = struct {
         const msg = "omitting the parameter name in a function definition is a C2x extension";
@@ -1262,7 +1289,7 @@ const messages = struct {
     const c99_compat = struct {
         const msg = "using this character in an identifier is incompatible with C99";
         const opt = "c99-compat";
-        const kind = .warning;
+        const kind = .off;
     };
     const unicode_zero_width = struct {
         const msg = "identifier contains Unicode character <U+{X:0>4}> that is invisible in some environments";
@@ -1300,6 +1327,7 @@ const messages = struct {
         const opt = "dollar-in-identifier-extension";
         const kind = .off;
         const suppress_language_option = "dollars_in_identifiers";
+        const pedantic = true;
     };
     const dollars_in_identifiers = struct {
         const msg = "illegal character '$' in identifier";
@@ -1320,12 +1348,15 @@ const messages = struct {
     };
     const unknown_gcc_pragma = struct {
         const msg = "pragma GCC expected 'error', 'warning', 'diagnostic', 'poison'";
-        const kind = .warning;
+        const opt = "unknown-pragmas";
+        const kind = .off;
+        const all = true;
     };
     const unknown_gcc_pragma_directive = struct {
         const msg = "pragma GCC diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'";
         const opt = "unknown-pragmas";
-        const kind = .warning;
+        const kind = .off;
+        const all = true;
     };
     const predefined_top_level = struct {
         const msg = "predefined identifier is only valid inside function";
@@ -1347,12 +1378,14 @@ const messages = struct {
         const extra = .str;
         const opt = "uninitialized";
         const kind = .off;
+        const all = true;
     };
     const gnu_statement_expression = struct {
         const msg = "use of GNU statement expression extension";
         const opt = "gnu-statement-expression";
         const kind = .off;
         const suppress_gnu = true;
+        const pedantic = true;
     };
     const stmt_expr_not_allowed_file_scope = struct {
         const msg = "statement expression not allowed at file scope";
@@ -1363,10 +1396,18 @@ const messages = struct {
         const opt = "gnu-imaginary-constant";
         const kind = .off;
         const suppress_gnu = true;
+        const pedantic = true;
     };
     const plain_complex = struct {
         const msg = "plain '_Complex' requires a type specifier; assuming '_Complex double'";
         const kind = .warning;
+    };
+    const qual_on_ret_type = struct {
+        const msg = "'{s}' type qualifier on return type has no effect";
+        const opt = "ignored-qualifiers";
+        const extra = .str;
+        const kind = .off;
+        const all = true;
     };
 };
 
@@ -1386,10 +1427,6 @@ pub fn warningExists(name: []const u8) bool {
 }
 
 pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
-    if (std.mem.eql(u8, name, "fatal-errors")) {
-        diag.fatal_errors = to != .off;
-        return;
-    }
     inline for (std.meta.fields(Options)) |f| {
         if (mem.eql(u8, f.name, name)) {
             @field(diag.options, f.name) = to;
@@ -1400,12 +1437,6 @@ pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
         .tag = .unknown_warning,
         .extra = .{ .str = name },
     }, &.{});
-}
-
-pub fn setAll(diag: *Diagnostics, to: Kind) void {
-    inline for (std.meta.fields(Options)) |f| {
-        @field(diag.options, f.name) = to;
-    }
 }
 
 pub fn init(gpa: Allocator) Diagnostics {
@@ -1522,6 +1553,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             .warning => warnings += 1,
             .note => {},
             .off => continue, // happens if an error is added before it is disabled
+            .default => unreachable,
         }
 
         var line: ?[]const u8 = null;
@@ -1569,8 +1601,8 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                 }
 
                 if (@hasDecl(info, "opt")) {
-                    if (@field(comp.diag.options, info.opt) != null and @field(comp.diag.options, info.opt).? == .@"error") {
-                        m.print(" [-Werror={s}]", .{info.opt});
+                    if (msg.kind == .@"error" and info.kind != .@"error") {
+                        m.print(" [-Werror,-W{s}]", .{info.opt});
                     } else {
                         m.print(" [-W{s}]", .{info.opt});
                     }
@@ -1605,8 +1637,17 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
             kind = info.kind;
 
             // stage1 doesn't like when I combine these ifs
+            if (@hasDecl(info, "all")) {
+                if (diag.options.all != .default) kind = diag.options.all;
+            }
+            if (@hasDecl(info, "w_extra")) {
+                if (diag.options.extra != .default) kind = diag.options.extra;
+            }
+            if (@hasDecl(info, "pedantic")) {
+                if (diag.options.pedantic != .default) kind = diag.options.pedantic;
+            }
             if (@hasDecl(info, "opt")) {
-                if (@field(diag.options, info.opt)) |some| kind = some;
+                if (@field(diag.options, info.opt) != .default) kind = @field(diag.options, info.opt);
             }
             if (@hasDecl(info, "suppress_version")) if (comp.langopts.standard.atLeast(info.suppress_version)) return .off;
             if (@hasDecl(info, "suppress_gnu")) if (comp.langopts.standard.isExplicitGNU()) return .off;
@@ -1660,14 +1701,14 @@ const MsgWriter = struct {
                 .@"fatal error", .@"error" => util.setColor(.red, m.w),
                 .note => util.setColor(.cyan, m.w),
                 .warning => util.setColor(.purple, m.w),
-                .off => unreachable,
+                .off, .default => unreachable,
             }
             m.write(switch (kind) {
                 .@"fatal error" => "fatal error: ",
                 .@"error" => "error: ",
                 .note => "note: ",
                 .warning => "warning: ",
-                .off => unreachable,
+                .off, .default => unreachable,
             });
             util.setColor(.white, m.w);
         }

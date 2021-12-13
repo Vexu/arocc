@@ -17,7 +17,11 @@
 #define QUX 1
 #define QUX 2
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic error "-Wpedantic"
+#pragma GCC diagnostic pop
+struct Foo {};
 
 #define EXPECTED_ERRORS "adjust diagnostic levels.c:2:9: warning: 'FOO' macro redefined [-Wmacro-redefined]" \
-	"adjust diagnostic levels.c:6:9: error: 'BAR' macro redefined [-Wmacro-redefined]" \
+	"adjust diagnostic levels.c:6:9: error: 'BAR' macro redefined [-Werror,-Wmacro-redefined]" \
 	"adjust diagnostic levels.c:18:9: warning: 'QUX' macro redefined [-Wmacro-redefined]" \
