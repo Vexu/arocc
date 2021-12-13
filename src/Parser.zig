@@ -287,7 +287,7 @@ pub fn ignoredAttrStr(p: *Parser, attr: Attribute.Tag, context: Attribute.ParseC
     defer p.strings.items.len = strings_top;
 
     try p.strings.writer().print("Attribute '{s}' ignored in {s} context", .{ @tagName(attr), @tagName(context) });
-    return try p.arena.dupe(u8, p.strings.items[strings_top..]);
+    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
 pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
@@ -296,7 +296,7 @@ pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
     defer p.strings.items.len = strings_top;
 
     try ty.print(p.strings.writer());
-    return try p.arena.dupe(u8, p.strings.items[strings_top..]);
+    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
 pub fn typePairStr(p: *Parser, a: Type, b: Type) ![]const u8 {
@@ -314,7 +314,7 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
     try p.strings.append('\'');
     try b.print(p.strings.writer());
     try p.strings.append('\'');
-    return try p.arena.dupe(u8, p.strings.items[strings_top..]);
+    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
@@ -1022,7 +1022,7 @@ fn staticAssert(p: *Parser) Error!bool {
             try p.errStr(
                 .static_assert_failure_message,
                 static_assert,
-                try p.arena.dupe(u8, buf.items),
+                try p.pp.comp.diag.arena.allocator().dupe(u8, buf.items),
             );
         } else try p.errTok(.static_assert_failure, static_assert);
     }
@@ -1560,7 +1560,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             },
             .identifier, .extended_identifier => {
                 const typedef = (try p.findTypedef(p.tok_i, ty.specifier != .none)) orelse break;
-                if (!(try ty.combineTypedef(p, typedef.ty, typedef.name_tok))) break;
+                if (!ty.combineTypedef(p, typedef.ty, typedef.name_tok)) break;
             },
             .keyword_alignas => {
                 if (ty.align_tok != null) try p.errStr(.duplicate_decl_spec, p.tok_i, "alignment");
@@ -5307,7 +5307,8 @@ fn fieldAccess(
         try expr_ty.print(p.strings.writer());
         try p.strings.append('\'');
 
-        try p.errStr(.no_such_member, field_name_tok, try p.arena.dupe(u8, p.strings.items[strings_top..]));
+        const duped = try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+        try p.errStr(.no_such_member, field_name_tok, duped);
         return error.ParsingFailed;
     }
     return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow);

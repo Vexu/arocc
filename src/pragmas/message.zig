@@ -45,6 +45,6 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
         message_expansion_locs[message_expansion_locs.len - 1]
     else
         message_tok.loc;
-    const extra = Diagnostics.Message.Extra{ .str = try pp.arena.allocator().dupe(u8, str) };
+    const extra = Diagnostics.Message.Extra{ .str = try pp.comp.diag.arena.allocator().dupe(u8, str) };
     return pp.comp.diag.add(.{ .tag = .pragma_message, .loc = loc, .extra = extra }, &.{});
 }

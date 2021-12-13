@@ -1370,7 +1370,8 @@ const messages = struct {
     };
 };
 
-list: std.ArrayList(Message),
+list: std.ArrayListUnmanaged(Message) = .{},
+arena: std.heap.ArenaAllocator,
 color: bool = true,
 fatal_errors: bool = false,
 options: Options = .{},
@@ -1410,12 +1411,13 @@ pub fn setAll(diag: *Diagnostics, to: Kind) void {
 pub fn init(gpa: Allocator) Diagnostics {
     return .{
         .color = std.io.getStdErr().supportsAnsiEscapeCodes() or (is_windows and std.io.getStdErr().isTty()),
-        .list = std.ArrayList(Message).init(gpa),
+        .arena = std.heap.ArenaAllocator.init(gpa),
     };
 }
 
 pub fn deinit(diag: *Diagnostics) void {
-    diag.list.deinit();
+    diag.list.deinit(diag.arena.allocator());
+    diag.arena.deinit();
 }
 
 pub fn add(diag: *Diagnostics, msg: Message, expansion_locs: []const Source.Location) Compilation.Error!void {
@@ -1425,13 +1427,16 @@ pub fn add(diag: *Diagnostics, msg: Message, expansion_locs: []const Source.Loca
     copy.kind = kind;
 
     if (expansion_locs.len != 0) copy.loc = expansion_locs[expansion_locs.len - 1];
-    try diag.list.append(copy);
+    try diag.list.append(diag.arena.allocator(), copy);
     if (expansion_locs.len != 0) {
         // Add macro backtrace notes in reverse order omitting from the middle if needed.
         var i = expansion_locs.len - 1;
         const half = diag.macro_backtrace_limit / 2;
         const limit = if (i < diag.macro_backtrace_limit) 0 else i - half;
-        try diag.list.ensureUnusedCapacity(if (limit == 0) expansion_locs.len else diag.macro_backtrace_limit + 1);
+        try diag.list.ensureUnusedCapacity(
+            diag.arena.allocator(),
+            if (limit == 0) expansion_locs.len else diag.macro_backtrace_limit + 1,
+        );
         while (i > limit) {
             i -= 1;
             diag.list.appendAssumeCapacity(.{

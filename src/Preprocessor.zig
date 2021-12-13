@@ -1387,7 +1387,10 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
         try pp.comp.diag.add(.{
             .tag = .pasting_formed_invalid,
             .loc = lhs.loc,
-            .extra = .{ .str = try pp.arena.allocator().dupe(u8, pp.comp.generated_buf.items[start..end]) },
+            .extra = .{ .str = try pp.comp.diag.arena.allocator().dupe(
+                u8,
+                pp.comp.generated_buf.items[start..end],
+            ) },
         }, lhs.expansionSlice());
     }
 
