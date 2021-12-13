@@ -1154,8 +1154,8 @@ pub const Builder = struct {
 
     fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) !void {
         if (b.error_on_invalid) return error.CannotCombine;
-        const prev_ty = b.finish(p) catch unreachable;
-        try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = try p.typeStr(prev_ty) });
+        const ty_str = b.specifier.str() orelse try p.typeStr(b.finish(p) catch unreachable);
+        try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
         if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
 
