@@ -9,6 +9,7 @@ struct Bar f;
 int x[2305843009213693951u];
 _Complex long cl; /* TODO: complex integers extension */
 _Complex z;
+_Complex long int zi; /* TODO: complex integers extension */
 
 // int g[];
 // extern int h[];
@@ -17,7 +18,7 @@ _Complex z;
 //     char j[] = "hello";
 // }
 
-#define TESTS_SKIPPED 6
+#define TESTS_SKIPPED 7
 #define EXPECTED_ERRORS \
     "invalid types.c:1:6: error: cannot combine with previous 'long' specifier" \
     "invalid types.c:2:14: warning: duplicate 'atomic' declaration specifier" \
@@ -33,3 +34,6 @@ _Complex z;
     "invalid types.c:10:15: error: '_Complex long' is invalid" \
     "invalid types.c:10:15: warning: type specifier missing, defaults to 'int'" \
     "invalid types.c:11:1: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'" \
+    "invalid types.c:12:15: error: cannot combine with previous '_Complex long' specifier" \
+    "invalid types.c:12:19: error: '_Complex long' is invalid" \
+    "invalid types.c:12:19: warning: type specifier missing, defaults to 'int'" \
