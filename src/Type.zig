@@ -1154,7 +1154,7 @@ pub const Builder = struct {
 
     fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) !void {
         if (b.error_on_invalid) return error.CannotCombine;
-        const ty_str = b.specifier.str() orelse try p.typeStr(b.finish(p) catch unreachable);
+        const ty_str = b.specifier.str() orelse try p.typeStr(try b.finish(p));
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
         if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
@@ -1180,7 +1180,7 @@ pub const Builder = struct {
     }
 
     /// Try to combine type from typedef, returns true if successful.
-    pub fn combineTypedef(b: *Builder, p: *Parser, typedef_ty: Type, name_tok: TokenIndex) Compilation.Error!bool {
+    pub fn combineTypedef(b: *Builder, p: *Parser, typedef_ty: Type, name_tok: TokenIndex) bool {
         b.error_on_invalid = true;
         defer b.error_on_invalid = false;
 
@@ -1188,13 +1188,14 @@ pub const Builder = struct {
         b.combineExtra(p, new_spec, 0) catch |err| switch (err) {
             error.FatalError => unreachable, // we do not add any diagnostics
             error.OutOfMemory => unreachable, // we do not add any diagnostics
+            error.ParsingFailed => unreachable, // we do not add any diagnostics
             error.CannotCombine => return false,
         };
         b.typedef = .{ .tok = name_tok, .ty = typedef_ty };
         return true;
     }
 
-    pub fn combine(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) Compilation.Error!void {
+    pub fn combine(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) !void {
         b.combineExtra(p, new, source_tok) catch |err| switch (err) {
             error.CannotCombine => unreachable,
             else => |e| return e,

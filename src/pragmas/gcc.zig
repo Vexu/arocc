@@ -130,7 +130,7 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
                 },
                 else => |e| return e,
             };
-            const extra = Diagnostics.Message.Extra{ .str = try pp.arena.allocator().dupe(u8, text) };
+            const extra = Diagnostics.Message.Extra{ .str = try pp.comp.diag.arena.allocator().dupe(u8, text) };
             const diagnostic_tag: Diagnostics.Tag = if (gcc_pragma == .warning) .pragma_warning_message else .pragma_error_message;
             return pp.comp.diag.add(
                 .{ .tag = diagnostic_tag, .loc = directive_tok.loc, .extra = extra },
