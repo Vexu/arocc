@@ -35,6 +35,11 @@ void baz(void) {
     return 1;
 }
 
+int *return_func(void)(void) {
+    return 0;
+}
+
+
 #define EXPECTED_ERRORS "return.c:2:5: error: non-void function 'b' should return a value" \
     "return.c:3:5: warning: unreachable code" \
     "return.c:6:12: error: returning 'void' from a function with incompatible result type" \
@@ -49,3 +54,4 @@ void baz(void) {
     "return.c:30:1: warning: non-void function 'foo' does not return a value [-Wreturn-type]" \
     "return.c:32:5: error: non-void function 'bar' should return a value [-Wreturn-type]" \
     "return.c:35:12: error: void function 'baz' should not return a value [-Wreturn-type]" \
+    "return.c:38:17: error: function cannot return a function" \
