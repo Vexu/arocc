@@ -35,5 +35,5 @@ void test_type_resolution(void) {
     "*void" \
     "*void"
 
-#define EXPECTED_ERRORS "type_resolution.c:24:19: warning: pointer type mismatch ('int *' and 'float *')" \
-    "type_resolution.c:25:19: warning: pointer type mismatch ('int *' and '_Atomic(int) *')" \
+#define EXPECTED_ERRORS "type_resolution.c:24:19: warning: pointer type mismatch ('int *' and 'float *') [-Wpointer-type-mismatch]" \
+    "type_resolution.c:25:19: warning: pointer type mismatch ('int *' and '_Atomic(int) *') [-Wpointer-type-mismatch]" \

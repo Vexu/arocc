@@ -30,5 +30,5 @@ void invalid_param(void) {
 }
 
 #define EXPECTED_ERRORS "address of label.c:14:5: error: computed goto in function with no address-of-label expressions" \
-    "address of label.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'const void *'" \
-    "address of label.c:29:11: error: passing 'float' to parameter of incompatible type"
+    "address of label.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'const void *' [-Wint-conversion]" \
+    "address of label.c:29:11: error: passing 'float' to parameter of incompatible type" \

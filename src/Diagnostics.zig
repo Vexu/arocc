@@ -790,7 +790,7 @@ const messages = struct {
     const implicit_ptr_to_int = struct {
         const msg = "implicit pointer to integer conversion from {s}";
         const extra = .str;
-        const opt = "literal-conversion";
+        const opt = "int-conversion";
         const kind = .warning;
     };
     const invalid_cast_to_float = struct {

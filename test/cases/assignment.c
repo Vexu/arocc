@@ -70,18 +70,18 @@ void bar(void) {
 
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
     "assignment.c:4:7: error: expression is not assignable" \
-    "assignment.c:12:7: warning: implicit pointer to integer conversion from 'int *' to 'int'" \
+    "assignment.c:12:7: warning: implicit pointer to integer conversion from 'int *' to 'int' [-Wint-conversion]" \
     "assignment.c:13:7: error: invalid operands to binary expression ('int' and 'int *')" \
     "assignment.c:16:7: error: invalid operands to binary expression ('float' and 'int')" \
     "assignment.c:20:7: error: invalid operands to binary expression ('int *' and 'int')" \
     "assignment.c:25:7: error: invalid operands to binary expression ('struct Foo' and 'struct Foo')" \
     "assignment.c:27:9: error: expression is not assignable" \
-    "assignment.c:31:7: warning: implicit integer to pointer conversion from 'int' to 'int *'" \
-    "assignment.c:35:7: warning: incompatible pointer types assigning to 'char *' from incompatible type 'int *'" \
-    "assignment.c:38:18: warning: incompatible pointer types initializing 'int *' from incompatible type 'char *'" \
-    "assignment.c:39:11: warning: incompatible pointer types assigning to 'int *' from incompatible type 'char *'" \
-    "assignment.c:43:18: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers" \
-    "assignment.c:44:11: warning: assigning to 'int *' from incompatible type 'const int *' discards qualifiers" \
+    "assignment.c:31:7: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]" \
+    "assignment.c:35:7: warning: incompatible pointer types assigning to 'char *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
+    "assignment.c:38:18: warning: incompatible pointer types initializing 'int *' from incompatible type 'char *' [-Wincompatible-pointer-types]" \
+    "assignment.c:39:11: warning: incompatible pointer types assigning to 'int *' from incompatible type 'char *' [-Wincompatible-pointer-types]" \
+    "assignment.c:43:18: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
+    "assignment.c:44:11: warning: assigning to 'int *' from incompatible type 'const int *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
     "assignment.c:52:20: error: expression is not assignable" \
     "assignment.c:56:10: error: expression is not assignable" \
     "assignment.c:58:10: error: expression is not assignable" \

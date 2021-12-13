@@ -88,11 +88,11 @@ void foo(void) {
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
     "containers.c:15:12: error: variable has incomplete type 'struct Foo'" \
-    "containers.c:20:6: warning: declaration does not declare anything" \
-    "containers.c:21:25: warning: declaration does not declare anything" \
+    "containers.c:20:6: warning: declaration does not declare anything [-Wmissing-declaration]" \
+    "containers.c:21:25: warning: declaration does not declare anything [-Wmissing-declaration]" \
     "containers.c:22:20: error: invalid application of 'sizeof' to an incomplete type 'struct StructTest'" \
     "containers.c:38:5: error: invalid application of 'sizeof' to an incomplete type 'struct Foo'" \
     "containers.c:39:5: error: must use 'struct' tag to refer to type 'StructTest'" \
-    "containers.c:46:1: warning: declaration does not declare anything" \
+    "containers.c:46:1: warning: declaration does not declare anything [-Wmissing-declaration]" \
     "containers.c:54:13: error: expression is not an integer constant expression" \
     "containers.c:59:9: error: enum value must be an integer constant expression" \

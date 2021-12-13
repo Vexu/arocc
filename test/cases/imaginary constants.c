@@ -14,5 +14,5 @@ void foo(void) {
 #endif
 
 #define TESTS_SKIPPED 1
-#define EXPECTED_ERRORS "imaginary constants.c:5:32: warning: imaginary constants are a GNU extension" \
+#define EXPECTED_ERRORS "imaginary constants.c:5:32: warning: imaginary constants are a GNU extension [-Wgnu-imaginary-constant]" \
     "imaginary constants.c:13:5: error: floating point literal in preprocessor expression" \

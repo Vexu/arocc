@@ -104,15 +104,15 @@ static const unsigned char halfrate[2][3][1] = {
     "initializers.c:3:15: error: illegal initializer type" \
     "initializers.c:4:14: error: initializing 'int *' from incompatible type 'float'" \
     "initializers.c:5:13: error: scalar initializer cannot be empty" \
-    "initializers.c:6:17: warning: excess elements in scalar initializer" \
-    "initializers.c:7:30: warning: excess elements in string initializer" \
-    "initializers.c:8:23: warning: initializer-string for char array is too long" \
+    "initializers.c:6:17: warning: excess elements in scalar initializer [-Wexcess-initializers]" \
+    "initializers.c:7:30: warning: excess elements in string initializer [-Wexcess-initializers]" \
+    "initializers.c:8:23: warning: initializer-string for char array is too long [-Wexcess-initializers]" \
     "initializers.c:9:16: error: cannot initialize type ('int [2]' with array of type 'int [3]')" \
     "initializers.c:10:15: error: cannot initialize array of type 'int []' with array of type 'char [4]'" \
     "initializers.c:11:15: error: array designator used for non-array type 'int'" \
     "initializers.c:12:19: error: array designator value -1 is negative" \
     "initializers.c:13:19: error: array designator index 2 exceeds array bounds" \
-    "initializers.c:15:32: warning: initializer overrides previous initialization" \
+    "initializers.c:15:32: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
     "initializers.c:15:23: note: previous initialization" \
     "initializers.c:16:15: error: field designator used for non-record type 'int'" \
     "initializers.c:19:32: error: record type has no field named 'd'" \
@@ -120,10 +120,10 @@ static const unsigned char halfrate[2][3][1] = {
     /* "initializers.c:20:27: note: previous initialization" */ \
     /* "initializers.c:20:41: warning: excess elements in struct initializer" */ \
     /* "initializers.c:20:62: warning: excess elements in struct initializer" */ \
-    "initializers.c:21:23: warning: excess elements in array initializer" \
-    "initializers.c:21:44: warning: excess elements in array initializer" \
-    "initializers.c:23:37: warning: excess elements in array initializer" \
-    "initializers.c:30:43: warning: excess elements in array initializer" \
+    "initializers.c:21:23: warning: excess elements in array initializer [-Wexcess-initializers]" \
+    "initializers.c:21:44: warning: excess elements in array initializer [-Wexcess-initializers]" \
+    "initializers.c:23:37: warning: excess elements in array initializer [-Wexcess-initializers]" \
+    "initializers.c:30:43: warning: excess elements in array initializer [-Wexcess-initializers]" \
     "initializers.c:31:27: error: initializer for aggregate with no elements requires explicit braces" \
     "initializers.c:32:15: error: array initializer must be an initializer list or wide string literal" \
     "initializers.c:34:14: error: variable has incomplete type 'struct S'" \
