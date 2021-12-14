@@ -789,6 +789,7 @@ pub fn next(self: *Tokenizer) Token {
         line_comment,
         multi_line_comment,
         multi_line_comment_asterisk,
+        multi_line_comment_done,
         zero,
         integer_literal_oct,
         integer_literal_binary,
@@ -1370,13 +1371,34 @@ pub fn next(self: *Tokenizer) Token {
                 else => {},
             },
             .multi_line_comment_asterisk => switch (c) {
-                '/' => state = .start,
+                '/' => state = .multi_line_comment_done,
                 '\n' => {
                     self.line += 1;
                     state = .multi_line_comment;
                 },
                 '*' => {},
                 else => state = .multi_line_comment,
+            },
+            .multi_line_comment_done => switch (c) {
+                '\n' => {
+                    start = self.index;
+                    id = .nl;
+                    self.index += 1;
+                    self.line += 1;
+                    break;
+                },
+                '\r' => {
+                    start = self.index;
+                    state = .cr;
+                },
+                '\t', '\x0B', '\x0C', ' ' => {
+                    start = self.index;
+                    state = .whitespace;
+                },
+                else => {
+                    id = .macro_ws;
+                    break;
+                },
             },
             .zero => switch (c) {
                 '0'...'9' => state = .integer_literal_oct,
@@ -1611,6 +1633,7 @@ pub fn next(self: *Tokenizer) Token {
             => id = .invalid,
 
             .whitespace => id = .whitespace,
+            .multi_line_comment_done => id = .macro_ws,
             .float_exponent_digits => id = if (counter == 0) .invalid else .float_literal,
             .float_fraction,
             .float_fraction_hex,
