@@ -1,4 +1,4 @@
-//test preprocess
+//aro-args -E
 
 #define CAT(a, b) a##b
 

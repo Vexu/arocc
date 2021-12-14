@@ -38,7 +38,7 @@ pub fn main() u8 {
         },
     };
 
-    handleArgs(&comp, args) catch |err| switch (err) {
+    mainExtra(&comp, args) catch |err| switch (err) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             return 1;
@@ -87,42 +87,30 @@ const usage =
     \\
 ;
 
-fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
-    comp.defineSystemIncludes() catch |err| switch (err) {
-        error.OutOfMemory => return error.OutOfMemory,
-        error.SelfExeNotFound => return comp.diag.fatalNoSrc("could not find Aro executable path", .{}),
-        error.AroIncludeNotFound => return comp.diag.fatalNoSrc("could not find Aro builtin headers", .{}),
-    };
-
-    var source_files = std.ArrayList(Source).init(comp.gpa);
-    defer source_files.deinit();
-
-    var macro_buf = std.ArrayList(u8).init(comp.gpa);
-    defer macro_buf.deinit();
-
+/// Process command line arguments, returns true if something was written to std_out.
+pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(Source), macro_buf: anytype, args: [][]const u8) !bool {
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-")) {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
-                const std_out = std.io.getStdOut().writer();
                 std_out.print(usage, .{args[0]}) catch |err| {
-                    return comp.diag.fatalNoSrc("{s} when trying to print usage", .{@errorName(err)});
+                    return fatal(comp, "{s} when trying to print usage", .{@errorName(err)});
                 };
-                return;
+                return true;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
-                const std_out = std.io.getStdOut().writer();
                 std_out.writeAll(@import("lib.zig").version_str ++ "\n") catch |err| {
-                    return comp.diag.fatalNoSrc("{s} when trying to print version", .{@errorName(err)});
+                    return fatal(comp, "{s} when trying to print version", .{@errorName(err)});
                 };
-                return;
-            } else if (mem.eql(u8, arg, "-c")) {
-                comp.only_compile = true;
+                return true;
             } else if (mem.startsWith(u8, arg, "-D")) {
                 var macro = arg["-D".len..];
                 if (macro.len == 0) {
                     i += 1;
-                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -I", .{});
+                    if (i >= args.len) {
+                        try err(comp, "expected argument after -I");
+                        continue;
+                    }
                     macro = args[i];
                 }
                 var value: []const u8 = "1";
@@ -130,15 +118,20 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                     value = macro[some + 1 ..];
                     macro = macro[0..some];
                 }
-                try macro_buf.writer().print("#define {s} {s}\n", .{ macro, value });
+                try macro_buf.print("#define {s} {s}\n", .{ macro, value });
             } else if (mem.startsWith(u8, arg, "-U")) {
                 var macro = arg["-U".len..];
                 if (macro.len == 0) {
                     i += 1;
-                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -I", .{});
+                    if (i >= args.len) {
+                        try err(comp, "expected argument after -I");
+                        continue;
+                    }
                     macro = args[i];
                 }
-                try macro_buf.writer().print("#undef {s}\n", .{macro});
+                try macro_buf.print("#undef {s}\n", .{macro});
+            } else if (mem.eql(u8, arg, "-c")) {
+                comp.only_compile = true;
             } else if (mem.eql(u8, arg, "-E")) {
                 comp.only_preprocess = true;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
@@ -151,8 +144,10 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                 comp.langopts.dollars_in_identifiers = false;
             } else if (mem.startsWith(u8, arg, "-fmacro-backtrace-limit=")) {
                 const limit_str = arg["-fmacro-backtrace-limit=".len..];
-                var limit = std.fmt.parseInt(u32, limit_str, 10) catch
-                    return comp.diag.fatalNoSrc("-fmacro-backtrace-limit takes a number argument", .{});
+                var limit = std.fmt.parseInt(u32, limit_str, 10) catch {
+                    try err(comp, "-fmacro-backtrace-limit takes a number argument");
+                    continue;
+                };
 
                 if (limit == 0) limit = std.math.maxInt(u32);
                 comp.diag.macro_backtrace_limit = limit;
@@ -164,7 +159,10 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                 var path = arg["-I".len..];
                 if (path.len == 0) {
                     i += 1;
-                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -I", .{});
+                    if (i >= args.len) {
+                        try err(comp, "expected argument after -I");
+                        continue;
+                    }
                     path = args[i];
                 }
                 try comp.include_dirs.append(path);
@@ -172,7 +170,10 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                 var path = arg["-isystem".len..];
                 if (path.len == 0) {
                     i += 1;
-                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -isystem", .{});
+                    if (i >= args.len) {
+                        try err(comp, "expected argument after -isystem");
+                        continue;
+                    }
                     path = args[i];
                 }
                 try comp.system_include_dirs.append(path);
@@ -180,7 +181,10 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
                 var file = arg["-o".len..];
                 if (file.len == 0) {
                     i += 1;
-                    if (i >= args.len) return comp.diag.fatalNoSrc("expected argument after -o", .{});
+                    if (i >= args.len) {
+                        try err(comp, "expected argument after -o");
+                        continue;
+                    }
                     file = args[i];
                 }
                 comp.output_name = file;
@@ -202,29 +206,58 @@ fn handleArgs(comp: *Compilation, args: [][]const u8) !void {
             } else if (mem.startsWith(u8, arg, "-std=")) {
                 const standard = arg["-std=".len..];
                 comp.langopts.setStandard(standard) catch
-                    return comp.diag.fatalNoSrc("Invalid standard '{s}'", .{standard});
+                    try comp.diag.add(.{ .tag = .cli_invalid_standard, .extra = .{ .str = standard } }, &.{});
             } else if (mem.startsWith(u8, arg, "--target=")) {
                 const triple = arg["--target=".len..];
-                const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch
-                    return comp.diag.fatalNoSrc("Invalid target '{s}'", .{triple});
+                const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch {
+                    try comp.diag.add(.{ .tag = .cli_invalid_target, .extra = .{ .str = triple } }, &.{});
+                    continue;
+                };
                 comp.target = cross.toTarget(); // TODO deprecated
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 comp.verbose_ast = true;
             } else {
-                const std_out = std.io.getStdErr().writer();
-                std_out.print(usage, .{args[0]}) catch {};
-                return comp.diag.fatalNoSrc("unknown command: {s}", .{arg});
+                try comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }
         } else {
-            const file = comp.addSource(arg) catch |err| return comp.diag.fatalNoSrc("{s}", .{@errorName(err)});
-            try source_files.append(file);
+            const file = comp.addSource(arg) catch |err| {
+                return fatal(comp, "{s} when trying to add source file", .{@errorName(err)});
+            };
+            try sources.append(file);
         }
     }
+    return false;
+}
+
+fn err(comp: *Compilation, msg: []const u8) !void {
+    try comp.diag.add(.{ .tag = .cli_error, .extra = .{ .str = msg } }, &.{});
+}
+
+fn fatal(comp: *Compilation, comptime fmt: []const u8, args: anytype) error{FatalError} {
+    comp.renderErrors();
+    return comp.diag.fatalNoSrc(fmt, args);
+}
+
+fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
+    comp.defineSystemIncludes() catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.SelfExeNotFound => return fatal(comp, "could not find Aro executable path", .{}),
+        error.AroIncludeNotFound => return fatal(comp, "could not find Aro builtin headers", .{}),
+    };
+
+    var source_files = std.ArrayList(Source).init(comp.gpa);
+    defer source_files.deinit();
+
+    var macro_buf = std.ArrayList(u8).init(comp.gpa);
+    defer macro_buf.deinit();
+
+    const std_out = std.io.getStdOut().writer();
+    if (try parseArgs(comp, std_out, &source_files, macro_buf.writer(), args)) return;
 
     if (source_files.items.len == 0) {
-        return comp.diag.fatalNoSrc("no input files", .{});
+        return fatal(comp, "no input files", .{});
     } else if (source_files.items.len != 1 and comp.output_name != null) {
-        return comp.diag.fatalNoSrc("cannot specify -o when generating multiple output files", .{});
+        return fatal(comp, "cannot specify -o when generating multiple output files", .{});
     }
 
     const builtin = try comp.generateBuiltinMacros();
@@ -270,13 +303,13 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
 
         const file = if (comp.output_name) |some|
             std.fs.cwd().createFile(some, .{}) catch |err|
-                return comp.diag.fatalNoSrc("{s} when trying to create output file", .{@errorName(err)})
+                return fatal(comp, "{s} when trying to create output file", .{@errorName(err)})
         else
             std.io.getStdOut();
         defer if (comp.output_name != null) file.close();
 
         return pp.prettyPrintTokens(file.writer()) catch |err|
-            comp.diag.fatalNoSrc("{s} when trying to print tokens", .{@errorName(err)});
+            fatal(comp, "{s} when trying to print tokens", .{@errorName(err)});
     }
 
     var tree = try Parser.parse(&pp);
@@ -294,7 +327,8 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     if (comp.diag.errors != prev_errors) return; // do not compile if there were errors
 
     if (comp.target.getObjectFormat() != .elf or comp.target.cpu.arch != .x86_64) {
-        return comp.diag.fatalNoSrc(
+        return fatal(
+            comp,
             "unsupported target {s}-{s}-{s}, currently only x86-64 elf is supported",
             .{ @tagName(comp.target.cpu.arch), @tagName(comp.target.os.tag), @tagName(comp.target.abi) },
         );
@@ -311,11 +345,11 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     defer if (comp.output_name == null) comp.gpa.free(out_file_name);
 
     const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |err|
-        return comp.diag.fatalNoSrc("could not create output file '{s}': {s}", .{ out_file_name, @errorName(err) });
+        return fatal(comp, "could not create output file '{s}': {s}", .{ out_file_name, @errorName(err) });
     defer out_file.close();
 
     obj.finish(out_file) catch |err|
-        return comp.diag.fatalNoSrc("could output to object file '{s}': {s}", .{ out_file_name, @errorName(err) });
+        return fatal(comp, "could output to object file '{s}': {s}", .{ out_file_name, @errorName(err) });
 
     if (comp.only_compile) return;
 

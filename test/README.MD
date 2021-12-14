@@ -2,13 +2,25 @@
 To add a new test, add a new file to [test/cases](tests/cases) or expand an existing one.
 
 ---
+## Passing arguments to the compiler
+Arguments can be passed to the compiler by adding `//aro-args` on the first line of the file.
+
+**example:**
+```c
+//aro-args -std=c99
+void foo(void) {
+	int typeof = 5;
+}
+
+```
+---
 ## Testing preprocessor
-The output of the preprocessor can be tested by adding `//test preprocessor` on
+The output of the preprocessor can be tested by adding `//aro-args -E` on
 the first line of the file and then placing the expected result in [test/cases/expaneded](test/cases/expaned).
 
 **example:**
 ```c
-//test preprocessor
+//aro-args -E
 
 #define HE HI
 #define LLO _THERE
@@ -21,10 +33,6 @@ XCAT(HE, LLO)
 CALL(CAT)
 ```
 
----
-## Setting the C standard
-The C standard to use for a test can be set with the following comment as the first line
-of the file: `//std=<standard>`. See LangOpts.zig for a list of standards.
 
 ## Testing for errors
 Expected compile errors can be tested by defining a `EXPECTED_ERRORS` macro.

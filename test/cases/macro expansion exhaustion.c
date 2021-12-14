@@ -1,4 +1,4 @@
-//test preprocess
+//aro-args -E
 
 #define CREATE_CALL F
 #define F(x) (x + 2)

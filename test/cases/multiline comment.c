@@ -1,4 +1,4 @@
-//test preprocess
+//aro-args -E
 /* comment **/
 
 int I_exist;

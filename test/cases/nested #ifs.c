@@ -1,4 +1,4 @@
-//test preprocess
+//aro-args -E
 
 #define FOO
 #ifdef FOO

@@ -1,4 +1,4 @@
-//std=c17
+//aro-args -std=c17
 #if !__is_identifier(typeof)
 #error typeof should be an identifier in c17
 #endif

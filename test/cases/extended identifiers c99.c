@@ -1,4 +1,4 @@
-//std=c99
+//aro-args -std=c99
 
 #define Ǻ 42
 int fǿǿ(void) {

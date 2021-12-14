@@ -1,4 +1,4 @@
-//test preprocess
+//aro-args -E -h
 
 #define HE HI
 #define LLO _THERE

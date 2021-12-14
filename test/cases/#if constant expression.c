@@ -1,4 +1,4 @@
-//test preprocess
+//aro-args -E
 
 #if defined FOO & !defined(BAZ)
 void

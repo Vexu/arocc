@@ -1,4 +1,4 @@
-//std=gnu17
+//aro-args -std=gnu17
 int foo(void) {
     return 42.0;
 }

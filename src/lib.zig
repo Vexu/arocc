@@ -7,6 +7,7 @@ pub const Preprocessor = @import("Preprocessor.zig");
 pub const Source = @import("Source.zig");
 pub const Tokenizer = @import("Tokenizer.zig");
 pub const Tree = @import("Tree.zig");
+pub const parseArgs = @import("main.zig").parseArgs;
 
 pub const version_str = "0.0.0-dev";
 pub const version = @import("std").SemanticVersion.parse(version_str) catch unreachable;

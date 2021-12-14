@@ -1,4 +1,4 @@
-//test preprocess
+//aro-args -E
 
 #define h() 1
 #define g(x) x

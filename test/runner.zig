@@ -52,12 +52,11 @@ pub fn main() !void {
     const root_node = try progress.start("Test", cases.items.len);
 
     // prepare compiler
-    var comp = aro.Compilation.init(gpa);
-    defer comp.deinit();
+    var initial_comp = aro.Compilation.init(gpa);
+    defer initial_comp.deinit();
 
-    try comp.addDefaultPragmaHandlers();
-
-    try comp.defineSystemIncludes();
+    try initial_comp.addDefaultPragmaHandlers();
+    try initial_comp.defineSystemIncludes();
 
     // apparently we can't use setAstCwd without libc on windows yet
     const win = @import("builtin").os.tag == .windows;
@@ -70,17 +69,16 @@ pub fn main() !void {
     var ok_count: u32 = 0;
     var fail_count: u32 = 0;
     var skip_count: u32 = 0;
-    const initial_options = comp.diag.options;
     next_test: for (cases.items) |path| {
-        comp.langopts.standard = .default;
-        comp.diag.options = initial_options;
-        comp.only_preprocess = false;
-        comp.generated_buf.items.len = 0;
-        for (comp.sources.values()) |src| {
-            gpa.free(src.path);
-            gpa.free(src.buf);
+        var comp = initial_comp;
+        defer {
+            // preserve some values
+            comp.system_include_dirs = @TypeOf(comp.system_include_dirs).init(gpa);
+            comp.pragma_handlers = @TypeOf(comp.pragma_handlers).init(gpa);
+            comp.builtin_header_path = null;
+            // reset everything else
+            comp.deinit();
         }
-        comp.sources.clearRetainingCapacity();
 
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
@@ -88,14 +86,14 @@ pub fn main() !void {
             continue;
         };
 
-        if (std.mem.startsWith(u8, file.buf, "//std=")) {
-            const suffix = file.buf["//std=".len..];
-            var it = std.mem.tokenize(u8, suffix, " \r\n");
-            if (it.next()) |standard| {
-                try comp.langopts.setStandard(standard);
-            }
-        } else if (std.mem.startsWith(u8, file.buf, "//test preprocess")) {
-            comp.only_preprocess = true;
+        if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
+            var test_args = std.ArrayList([]const u8).init(gpa);
+            defer test_args.deinit();
+            var it = std.mem.tokenize(u8, std.mem.sliceTo(file.buf, '\n'), " ");
+            while (it.next()) |some| try test_args.append(some);
+
+            var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
+            _ = try aro.parseArgs(&comp, std.io.null_writer, &source_files, std.io.null_writer, test_args.items);
         }
 
         const builtin_macros = try comp.generateBuiltinMacros();
@@ -128,7 +126,19 @@ pub fn main() !void {
         };
         try pp.tokens.append(gpa, eof);
 
-        if (std.mem.startsWith(u8, file.buf, "//test preprocess")) {
+        if (pp.defines.get("TESTS_SKIPPED")) |macro| {
+            if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .integer_literal) {
+                fail_count += 1;
+                progress.log("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
+                continue;
+            }
+            const tok_slice = pp.tokSlice(macro.tokens[0]);
+            const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
+            progress.log("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
+            skip_count += tests_skipped;
+        }
+
+        if (comp.only_preprocess) {
             comp.renderErrors();
 
             const expected_output = blk: {
@@ -149,18 +159,6 @@ pub fn main() !void {
             else |_|
                 fail_count += 1;
             continue;
-        }
-
-        if (pp.defines.get("TESTS_SKIPPED")) |macro| {
-            if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .integer_literal) {
-                fail_count += 1;
-                progress.log("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
-                continue;
-            }
-            const tok_slice = pp.tokSlice(macro.tokens[0]);
-            const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
-            progress.log("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
-            skip_count += tests_skipped;
         }
 
         const expected_types = pp.defines.get("EXPECTED_TYPES");

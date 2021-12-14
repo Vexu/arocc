@@ -1409,6 +1409,26 @@ const messages = struct {
         const kind = .off;
         const all = true;
     };
+    const cli_invalid_standard = struct {
+        const msg = "invalid standard '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const cli_invalid_target = struct {
+        const msg = "invalid target '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const cli_unknown_arg = struct {
+        const msg = "unknown argument '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const cli_error = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -1522,7 +1542,7 @@ pub fn fatal(
     return error.FatalError;
 }
 
-pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) Compilation.Error {
+pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) error{FatalError} {
     if (!diag.color) {
         std.debug.print("fatal error: " ++ fmt ++ "\n", args);
     } else {

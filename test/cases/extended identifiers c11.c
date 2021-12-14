@@ -1,4 +1,4 @@
-//std=c11
+//aro-args -std=c11
 
 #pragma GCC diagnostic warning "-Wc99-compat"
 

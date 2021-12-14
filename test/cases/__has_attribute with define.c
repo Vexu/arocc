@@ -1,4 +1,4 @@
-//test preprocess
+//aro-args -E
 
 #define foo __has_attribute(used)
 #define bar 1 + __has_attribute(does_not_exist)
