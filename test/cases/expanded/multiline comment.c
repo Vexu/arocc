@@ -5,7 +5,9 @@ int I_exist;
 
 
 
- int x;
- int y;
+     int x;
 
-int foo ; int bar;
+  int y;
+
+int foo    ; int
+  bar;

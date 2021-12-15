@@ -1396,7 +1396,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .whitespace;
                 },
                 else => {
-                    id = .macro_ws;
+                    id = .whitespace;
                     break;
                 },
             },
@@ -1633,7 +1633,7 @@ pub fn next(self: *Tokenizer) Token {
             => id = .invalid,
 
             .whitespace => id = .whitespace,
-            .multi_line_comment_done => id = .macro_ws,
+            .multi_line_comment_done => id = .whitespace,
             .float_exponent_digits => id = if (counter == 0) .invalid else .float_literal,
             .float_fraction,
             .float_fraction_hex,
