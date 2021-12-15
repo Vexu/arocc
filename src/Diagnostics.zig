@@ -1680,27 +1680,32 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
 }
 
 const MsgWriter = struct {
-    w: std.fs.File.Writer,
+    w: std.io.BufferedWriter(4096, std.fs.File.Writer),
     color: bool,
 
     fn init(color: bool) MsgWriter {
         std.debug.getStderrMutex().lock();
         return .{
-            .w = std.io.getStdErr().writer(),
+            .w = std.io.bufferedWriter(std.io.getStdErr().writer()),
             .color = color,
         };
     }
 
-    fn deinit(_: *MsgWriter) void {
+    fn deinit(m: *MsgWriter) void {
+        m.w.flush() catch {};
         std.debug.getStderrMutex().unlock();
     }
 
     fn print(m: *MsgWriter, comptime fmt: []const u8, args: anytype) void {
-        m.w.print(fmt, args) catch {};
+        m.w.writer().print(fmt, args) catch {};
     }
 
     fn write(m: *MsgWriter, msg: []const u8) void {
-        m.w.writeAll(msg) catch {};
+        m.w.writer().writeAll(msg) catch {};
+    }
+
+    fn setColor(m: *MsgWriter, color: util.Color) void {
+        util.setColor(color, m.w.writer());
     }
 
     fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
@@ -1708,7 +1713,7 @@ const MsgWriter = struct {
         if (!m.color) {
             m.print("{s}{s}:{d}:{d}: ", .{ prefix, path, line, col });
         } else {
-            util.setColor(.white, m.w);
+            m.setColor(.white);
             m.print("{s}{s}:{d}:{d}: ", .{ prefix, path, line, col });
         }
     }
@@ -1718,9 +1723,9 @@ const MsgWriter = struct {
             m.print("{s}: ", .{@tagName(kind)});
         } else {
             switch (kind) {
-                .@"fatal error", .@"error" => util.setColor(.red, m.w),
-                .note => util.setColor(.cyan, m.w),
-                .warning => util.setColor(.purple, m.w),
+                .@"fatal error", .@"error" => m.setColor(.red),
+                .note => m.setColor(.cyan),
+                .warning => m.setColor(.purple),
                 .off, .default => unreachable,
             }
             m.write(switch (kind) {
@@ -1730,7 +1735,7 @@ const MsgWriter = struct {
                 .warning => "warning: ",
                 .off, .default => unreachable,
             });
-            util.setColor(.white, m.w);
+            m.setColor(.white);
         }
     }
 
@@ -1743,11 +1748,11 @@ const MsgWriter = struct {
             m.print("\n{s}\n", .{line});
             m.print("{s: >[1]}^\n", .{ "", col });
         } else {
-            util.setColor(.reset, m.w);
+            m.setColor(.reset);
             m.print("\n{s}\n{s: >[2]}", .{ line, "", col });
-            util.setColor(.green, m.w);
+            m.setColor(.green);
             m.write("^\n");
-            util.setColor(.reset, m.w);
+            m.setColor(.reset);
         }
     }
 };
