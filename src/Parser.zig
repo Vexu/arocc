@@ -281,11 +281,22 @@ pub fn todo(p: *Parser, msg: []const u8) Error {
     return error.ParsingFailed;
 }
 
-pub fn ignoredAttrStr(p: *Parser, attr: Attribute.Tag, context: Attribute.ParseContext) ![]const u8 {
+pub fn ignoredAttrStrContext(p: *Parser, attr: Attribute.Tag, context: Attribute.ParseContext) ![]const u8 {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
     try p.strings.writer().print("Attribute '{s}' ignored in {s} context", .{ @tagName(attr), @tagName(context) });
+    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+}
+
+pub fn ignoredAttrStrRecord(p: *Parser, attr: Attribute.Tag, record: Token.Id) ![]const u8 {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    try p.strings.writer().print(
+        "Attribute '{s}' ignored, place it after \"{s}\" to apply attribute to type declaration",
+        .{ @tagName(attr), record.symbol() },
+    );
     return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
@@ -788,7 +799,7 @@ fn decl(p: *Parser) Error!bool {
     defer p.attr_buf.items.len = attr_buf_top;
     // TODO: at this point we don't know what we're trying to parse, so we'll need to check
     // the attributes against what kind of decl was parsed after the fact
-    try p.attributeSpecifier(.any);
+    const consumed_any_attr_tokens = try p.attributeSpecifier(.any);
 
     var decl_spec = if (try p.declSpec(false)) |some| some else blk: {
         if (p.func.ty != null) {
@@ -797,12 +808,10 @@ fn decl(p: *Parser) Error!bool {
         }
         switch (p.tok_ids[first_tok]) {
             .asterisk, .l_paren, .identifier, .extended_identifier => {},
-            else => if (attr_buf_top == p.attr_buf.items.len) {
-                return false;
-            } else {
+            else => if (consumed_any_attr_tokens) {
                 try p.err(.expected_ident_or_l_paren);
                 return error.ParsingFailed;
-            },
+            } else return false,
         }
         var spec: Type.Builder = .{};
         break :blk DeclSpec{ .ty = try spec.finish(p) };
@@ -1372,7 +1381,7 @@ fn validateAttr(p: *Parser, attr: Attribute, context: Attribute.ParseContext) Er
             try p.errTok(.cannot_apply_attribute_to_statement, attr.name);
             return error.ParsingFailed;
         }
-        try p.errStr(.ignored_attribute, attr.name, try p.ignoredAttrStr(tag, context));
+        try p.errStr(.ignored_attribute, attr.name, try p.ignoredAttrStrContext(tag, context));
     } else {
         try p.errStr(.unknown_attribute, attr.name, name);
     }
@@ -1397,7 +1406,9 @@ fn attributeList(p: *Parser, context: Attribute.ParseContext) Error!void {
 }
 
 /// attributeSpecifier : (keyword_attribute '( '(' attributeList ')' ')')*
-fn attributeSpecifier(p: *Parser, context: Attribute.ParseContext) Error!void {
+fn attributeSpecifier(p: *Parser, context: Attribute.ParseContext) Error!bool {
+    const start = p.tok_i;
+    const attr_buf_top = p.attr_buf.items.len;
     while (p.tok_ids[p.tok_i] == .keyword_attribute1 or p.tok_ids[p.tok_i] == .keyword_attribute2) {
         p.tok_i += 1;
         const paren1 = try p.expectToken(.l_paren);
@@ -1408,6 +1419,20 @@ fn attributeSpecifier(p: *Parser, context: Attribute.ParseContext) Error!void {
         _ = try p.expectClosing(paren2, .r_paren);
         _ = try p.expectClosing(paren1, .r_paren);
     }
+    switch (p.tok_ids[p.tok_i]) {
+        .keyword_struct, .keyword_union, .keyword_enum => |kw| {
+            var i = attr_buf_top;
+            while (i < p.attr_buf.items.len) : (i += 1) {
+                const attr = p.attr_buf.items[i];
+                const name_slice = p.tokSlice(attr.name);
+                if (Attribute.Tag.fromString(name_slice)) |tag| {
+                    try p.errStr(.ignored_attribute, attr.name, try p.ignoredAttrStrRecord(tag, kw));
+                }
+            }
+        },
+        else => {},
+    }
+    return start != p.tok_i;
 }
 
 /// initDeclarator : declarator assembly? attributeSpecifier? ('=' initializer)?
@@ -1416,7 +1441,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
     _ = try p.assembly(.decl); // TODO use somehow
-    try p.attributeSpecifier(if (init_d.d.ty.isFunc()) .function else .variable);
+    _ = try p.attributeSpecifier(if (init_d.d.ty.isFunc()) .function else .variable);
     if (p.eatToken(.equal)) |eq| init: {
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
             try p.errTok(.illegal_initializer, eq);
@@ -1521,7 +1546,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
-        try p.attributeSpecifier(.typedef);
+        _ = try p.attributeSpecifier(.typedef);
 
         if (try p.typeof()) |inner_ty| {
             try ty.combineFromTypeof(p, inner_ty, start);
@@ -1647,7 +1672,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     p.tok_i += 1;
     const attr_buf_top = p.attr_buf.items.len;
     defer p.attr_buf.items.len = attr_buf_top;
-    try p.attributeSpecifier(.record);
+    _ = try p.attributeSpecifier(.record);
 
     const maybe_ident = try p.eatIdentifier();
     const l_brace = p.eatToken(.l_brace) orelse {
@@ -1715,7 +1740,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
 
     if (p.record_buf.items.len == record_buf_top) try p.errStr(.empty_record, kind_tok, p.tokSlice(kind_tok));
     try p.expectClosing(l_brace, .r_brace);
-    try p.attributeSpecifier(.record);
+    _ = try p.attributeSpecifier(.record);
 
     // finish by creating a node
     var node: Tree.Node = .{
@@ -1781,7 +1806,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         const this_decl_top = p.attr_buf.items.len;
         defer p.attr_buf.items.len = this_decl_top;
 
-        try p.attributeSpecifier(.record);
+        _ = try p.attributeSpecifier(.record);
 
         // 0 means unnamed
         var name_tok: TokenIndex = 0;
@@ -1793,7 +1818,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
             name_tok = d.name;
             ty = d.ty;
         }
-        try p.attributeSpecifier(.record);
+        _ = try p.attributeSpecifier(.record);
         const attrs = p.attr_buf.items[attr_buf_top..];
         ty = try ty.withAttributes(p.arena, attrs);
 
@@ -1880,7 +1905,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
     p.tok_i += 1;
     const attr_buf_top = p.attr_buf.items.len;
     defer p.attr_buf.items.len = attr_buf_top;
-    try p.attributeSpecifier(.record);
+    _ = try p.attributeSpecifier(.record);
 
     const maybe_ident = try p.eatIdentifier();
     const l_brace = p.eatToken(.l_brace) orelse {
@@ -1953,7 +1978,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
 
     if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
     try p.expectClosing(l_brace, .r_brace);
-    try p.attributeSpecifier(.record);
+    _ = try p.attributeSpecifier(.record);
 
     // finish by creating a node
     var node: Tree.Node = .{ .tag = .enum_decl_two, .ty = ty, .data = .{
@@ -2017,7 +2042,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     const name = p.tokSlice(name_tok);
     const attr_buf_top = p.attr_buf.items.len;
     defer p.attr_buf.items.len = attr_buf_top;
-    try p.attributeSpecifier(.@"enum");
+    _ = try p.attributeSpecifier(.@"enum");
 
     if (p.eatToken(.equal)) |_| {
         const specified = try p.constExpr();
@@ -3356,7 +3381,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
     const attr_buf_top = p.attr_buf.items.len;
     defer p.attr_buf.items.len = attr_buf_top;
-    try p.attributeSpecifier(.statement);
+    _ = try p.attributeSpecifier(.statement);
     const attrs = p.attr_buf.items[attr_buf_top..];
 
     if (p.eatToken(.semicolon)) |_| {
@@ -3404,7 +3429,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         p.tok_i += 1;
         const attr_buf_top = p.attr_buf.items.len;
         defer p.attr_buf.items.len = attr_buf_top;
-        try p.attributeSpecifier(.label);
+        _ = try p.attributeSpecifier(.label);
 
         return try p.addNode(.{
             .tag = .labeled_stmt,
