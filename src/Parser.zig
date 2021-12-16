@@ -2484,10 +2484,10 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         return true;
     }
 
-    // TODO cleanup here
     var count: u64 = 0;
     var warned_excess = false;
     var is_str_init = false;
+    var index_hint: ?usize = null;
     while (true) : (count += 1) {
         errdefer p.skipTo(.r_brace);
 
@@ -2495,6 +2495,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         var cur_ty = init_ty;
         var cur_il = il;
         var designation = false;
+        var cur_index_hint: ?usize = null;
         while (true) {
             if (p.eatToken(.l_bracket)) |l_bracket| {
                 if (!cur_ty.isArray()) {
@@ -2522,26 +2523,47 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     return error.ParsingFailed;
                 }
                 const checked = @intCast(usize, index_unchecked);
+                cur_index_hint = cur_index_hint orelse checked;
 
                 cur_il = try cur_il.find(p.pp.comp.gpa, checked);
                 cur_ty = cur_ty.elemType();
                 designation = true;
             } else if (p.eatToken(.period)) |period| {
-                const identifier = try p.expectIdentifier();
+                const field_name = p.tokSlice(try p.expectIdentifier());
+                cur_ty = cur_ty.canonicalize(.standard);
                 if (!cur_ty.isRecord()) {
                     try p.errStr(.invalid_field_designator, period, try p.typeStr(cur_ty));
+                    return error.ParsingFailed;
+                } else if (!cur_ty.hasField(field_name)) {
+                    try p.errStr(.no_such_field_designator, period, field_name);
                     return error.ParsingFailed;
                 }
 
                 // TODO check if union already has field set
-                const field_name = p.tokSlice(identifier);
-                if (!(try p.findFieldDesignator(&cur_il, &cur_ty, field_name))) {
-                    try p.errStr(.no_such_field_designator, period, field_name);
-                    return error.ParsingFailed;
+                outer: while (true) {
+                    for (cur_ty.data.record.fields) |f, i| {
+                        if (f.isAnonymous()) {
+                            // Recurse into anonymous field if it has a field by the name.
+                            if (!f.ty.hasField(field_name)) continue;
+                            cur_ty = f.ty.canonicalize(.standard);
+                            cur_il = try il.find(p.pp.comp.gpa, i);
+                            cur_index_hint = cur_index_hint orelse i;
+                            continue :outer;
+                        }
+                        if (std.mem.eql(u8, field_name, f.name)) {
+                            cur_il = try cur_il.find(p.pp.comp.gpa, i);
+                            cur_ty = f.ty;
+                            cur_index_hint = cur_index_hint orelse i;
+                            break :outer;
+                        }
+                    }
+                    unreachable; // we already checked that the starting type has this field
                 }
                 designation = true;
             } else break;
         }
+        if (designation) index_hint = null;
+        defer index_hint = cur_index_hint orelse null;
 
         if (designation) _ = try p.expectToken(.equal);
 
@@ -2560,7 +2582,10 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             defer tmp_il.deinit(p.pp.comp.gpa);
             saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
         } else if (p.tok_ids[p.tok_i] == .l_brace) {
-            if (try p.findAggregateInitializer(&cur_il, &cur_ty)) {
+            if (designation) {
+                // designation overrides previous value, let existing mechanism handle it
+                saw = try p.initializerItem(cur_il, cur_ty);
+            } else if (try p.findAggregateInitializer(&cur_il, &cur_ty, &index_hint)) {
                 saw = try p.initializerItem(cur_il, cur_ty);
             } else {
                 // discard further values
@@ -2570,6 +2595,8 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 if (!warned_excess) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
                 warned_excess = true;
             }
+        } else if (index_hint != null and try p.findScalarInitializerAt(&cur_il, &cur_ty, &index_hint.?)) {
+            saw = try p.initializerItem(cur_il, cur_ty);
         } else if (try p.findScalarInitializer(&cur_il, &cur_ty)) {
             saw = try p.initializerItem(cur_il, cur_ty);
         } else if (designation) {
@@ -2609,23 +2636,53 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
     return true;
 }
 
-fn findFieldDesignator(p: *Parser, il: **InitList, ty: *Type, field_name: []const u8) Error!bool {
-    const record_ty = ty.canonicalize(.standard);
-    for (record_ty.data.record.fields) |f, i| {
-        if (f.isAnonymous()) {
-            // Recurse into anonymous field if it has a field by the name.
-            if (!f.ty.hasField(field_name)) continue;
-            il.* = try il.*.find(p.pp.comp.gpa, i);
-            ty.* = f.ty;
-            return p.findFieldDesignator(il, ty, field_name);
+/// Returns true if the value is unused.
+fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, start_index: *usize) Error!bool {
+    if (ty.isArray()) {
+        start_index.* += 1;
+
+        const arr_ty = ty.*;
+        const elem_count = arr_ty.arrayLen() orelse std.math.maxInt(usize);
+        if (elem_count == 0) {
+            if (p.tok_ids[p.tok_i] != .l_brace) {
+                try p.err(.empty_aggregate_init_braces);
+                return error.ParsingFailed;
+            }
+            return false;
         }
-        if (std.mem.eql(u8, field_name, f.name)) {
-            il.* = try il.*.find(p.pp.comp.gpa, i);
-            ty.* = f.ty;
+        const elem_ty = arr_ty.elemType();
+        const arr_il = il.*;
+        if (start_index.* < elem_count) {
+            ty.* = elem_ty;
+            il.* = try arr_il.find(p.pp.comp.gpa, start_index.*);
+            _ = try p.findScalarInitializer(il, ty);
             return true;
         }
+        return false;
+    } else if (ty.get(.@"struct")) |struct_ty| {
+        start_index.* += 1;
+
+        const field_count = struct_ty.data.record.fields.len;
+        if (field_count == 0) {
+            if (p.tok_ids[p.tok_i] != .l_brace) {
+                try p.err(.empty_aggregate_init_braces);
+                return error.ParsingFailed;
+            }
+            return false;
+        }
+        const struct_il = il.*;
+        if (start_index.* < field_count) {
+            const field = struct_ty.data.record.fields[start_index.*];
+            ty.* = field.ty;
+            il.* = try struct_il.find(p.pp.comp.gpa, start_index.*);
+            _ = try p.findScalarInitializer(il, ty);
+            return true;
+        }
+        return false;
+    } else if (ty.get(.@"union")) |_| {
+        return false;
     }
-    return false;
+    return il.*.node == .none;
 }
 
 /// Returns true if the value is unused.
@@ -2635,8 +2692,8 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         if (index != 0) index = il.*.list.items[index - 1].index;
 
         const arr_ty = ty.*;
-        const max_elems = arr_ty.arrayLen() orelse std.math.maxInt(usize);
-        if (max_elems == 0) {
+        const elem_count = arr_ty.arrayLen() orelse std.math.maxInt(usize);
+        if (elem_count == 0) {
             if (p.tok_ids[p.tok_i] != .l_brace) {
                 try p.err(.empty_aggregate_init_braces);
                 return error.ParsingFailed;
@@ -2645,7 +2702,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         }
         const elem_ty = arr_ty.elemType();
         const arr_il = il.*;
-        while (index < max_elems) : (index += 1) {
+        while (index < elem_count) : (index += 1) {
             ty.* = elem_ty;
             il.* = try arr_il.find(p.pp.comp.gpa, index);
             if (try p.findScalarInitializer(il, ty)) return true;
@@ -2655,8 +2712,8 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         var index = il.*.list.items.len;
         if (index != 0) index = il.*.list.items[index - 1].index + 1;
 
-        const max_elems = struct_ty.data.record.fields.len;
-        if (max_elems == 0) {
+        const field_count = struct_ty.data.record.fields.len;
+        if (field_count == 0) {
             if (p.tok_ids[p.tok_i] != .l_brace) {
                 try p.err(.empty_aggregate_init_braces);
                 return error.ParsingFailed;
@@ -2664,7 +2721,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
             return false;
         }
         const struct_il = il.*;
-        while (index < max_elems) : (index += 1) {
+        while (index < field_count) : (index += 1) {
             const field = struct_ty.data.record.fields[index];
             ty.* = field.ty;
             il.* = try struct_il.find(p.pp.comp.gpa, index);
@@ -2687,15 +2744,19 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
     return il.*.node == .none;
 }
 
-fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
+fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: *?usize) Error!bool {
     if (ty.isArray()) {
         var index = il.*.list.items.len;
         if (index != 0) index = il.*.list.items[index - 1].index + 1;
+        if (start_index.*) |*some| {
+            some.* += 1;
+            index = some.*;
+        }
 
         const arr_ty = ty.*;
-        const max_elems = arr_ty.arrayLen() orelse std.math.maxInt(usize);
+        const elem_count = arr_ty.arrayLen() orelse std.math.maxInt(usize);
         const elem_ty = arr_ty.elemType();
-        if (index < max_elems) {
+        if (index < elem_count) {
             ty.* = elem_ty;
             il.* = try il.*.find(p.pp.comp.gpa, index);
             return true;
@@ -2704,15 +2765,21 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
     } else if (ty.get(.@"struct")) |struct_ty| {
         var index = il.*.list.items.len;
         if (index != 0) index = il.*.list.items[index - 1].index + 1;
+        if (start_index.*) |*some| {
+            some.* += 1;
+            index = some.*;
+        }
 
-        const max_elems = struct_ty.data.record.fields.len;
-        if (index < max_elems) {
+        const field_count = struct_ty.data.record.fields.len;
+        if (index < field_count) {
             ty.* = struct_ty.data.record.fields[index].ty;
             il.* = try il.*.find(p.pp.comp.gpa, index);
             return true;
         }
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
+        if (start_index.*) |_| return false; // overrides
+
         ty.* = union_ty.data.record.fields[0].ty;
         il.* = try il.*.find(p.pp.comp.gpa, 0);
         return true;

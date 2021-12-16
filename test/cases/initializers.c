@@ -17,7 +17,7 @@ void foo(void) {
     struct Foo {
         int a, b, c;
     } o = { .b = 1, 2 }, p = { .d = 0 };
-    // struct Foo q = { .c = 1, .b = 2, 3, 4, 5}, r = { .c = 1, 2}; TODO
+    struct Foo q = { .c = 1, .b = 2, 3, 4, 5}, r = { .c = 1, 2};
     int s[2] = {1, 2, 3}, t[2] = {[1] = 1, 2, 3};
 
     int arr[2][2] = {1, [1] = 3, 4, 5, 6};
@@ -99,7 +99,11 @@ static const unsigned char halfrate[2][3][1] = {
     { { 0, }, { 0 }, { 0, } },
 };
 
-#define TESTS_SKIPPED 6
+struct{
+    int a, b;
+} b[2][2] = { [1] = {1,2,3,4}, 1};
+
+#define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
     "initializers.c:4:14: error: initializing 'int *' from incompatible type 'float'" \
@@ -116,10 +120,10 @@ static const unsigned char halfrate[2][3][1] = {
     "initializers.c:15:23: note: previous initialization" \
     "initializers.c:16:15: error: field designator used for non-record type 'int'" \
     "initializers.c:19:32: error: record type has no field named 'd'" \
-    /* "initializers.c:20:38: warning: initializer overrides previous initialization" */ \
-    /* "initializers.c:20:27: note: previous initialization" */ \
-    /* "initializers.c:20:41: warning: excess elements in struct initializer" */ \
-    /* "initializers.c:20:62: warning: excess elements in struct initializer" */ \
+    "initializers.c:20:38: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
+    "initializers.c:20:27: note: previous initialization" \
+    "initializers.c:20:41: warning: excess elements in struct initializer [-Wexcess-initializers]" \
+    "initializers.c:20:62: warning: excess elements in struct initializer [-Wexcess-initializers]" \
     "initializers.c:21:23: warning: excess elements in array initializer [-Wexcess-initializers]" \
     "initializers.c:21:44: warning: excess elements in array initializer [-Wexcess-initializers]" \
     "initializers.c:23:37: warning: excess elements in array initializer [-Wexcess-initializers]" \
@@ -140,3 +144,4 @@ static const unsigned char halfrate[2][3][1] = {
     /* "initializers.c:78:28: warning: variable 's1' is uninitialized when used within its own initialization" */ \
     /* "initializers.c:79:31: warning: variable 's2' is uninitialized when used within its own initialization" */ \
     /* "initializers.c:80:38: warning: variable 's3' is uninitialized when used within its own initialization" */ \
+    "initializers.c:104:32: warning: excess elements in array initializer [-Wexcess-initializers]" \
