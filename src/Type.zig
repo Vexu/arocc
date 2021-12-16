@@ -540,6 +540,7 @@ pub fn hasIncompleteSize(ty: Type) bool {
         .void, .incomplete_array => true,
         .@"enum" => ty.data.@"enum".isIncomplete(),
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
+        .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
         .typeof_type => ty.data.sub_type.hasIncompleteSize(),
         .typeof_expr => ty.data.expr.ty.hasIncompleteSize(),
         .attributed => ty.data.attributed.base.hasIncompleteSize(),
@@ -838,45 +839,15 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
         .unspecified_variable_len_array => {
             try inner.data.sub_type.combine(outer, p, source_tok);
-
-            const elem_ty = inner.data.sub_type.*;
-            if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
-            if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .variable_len_array => {
             try inner.data.expr.ty.combine(outer, p, source_tok);
-
-            const elem_ty = inner.data.expr.ty;
-            if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
-            if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .array, .static_array, .incomplete_array => {
             try inner.data.array.elem.combine(outer, p, source_tok);
-
-            const elem_ty = inner.data.array.elem;
-            if (elem_ty.hasIncompleteSize()) try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
-            if (elem_ty.isFunc()) try p.errTok(.array_func_elem, source_tok);
-            if (elem_ty.specifier == .static_array and elem_ty.isArray()) try p.errTok(.static_non_outermost_array, source_tok);
-            if (elem_ty.anyQual() and elem_ty.isArray()) try p.errTok(.qualifier_non_outermost_array, source_tok);
         },
         .func, .var_args_func, .old_style_func => {
             try inner.data.func.return_type.combine(outer, p, source_tok);
-            if (inner.data.func.return_type.isArray()) try p.errTok(.func_cannot_return_array, source_tok);
-            if (inner.data.func.return_type.isFunc()) try p.errTok(.func_cannot_return_func, source_tok);
-            if (inner.data.func.return_type.qual.@"const") {
-                try p.errStr(.qual_on_ret_type, source_tok, "const");
-                inner.data.func.return_type.qual.@"const" = false;
-            }
-            if (inner.data.func.return_type.qual.@"volatile") {
-                try p.errStr(.qual_on_ret_type, source_tok, "volatile");
-                inner.data.func.return_type.qual.@"volatile" = false;
-            }
-            if (inner.data.func.return_type.qual.atomic) {
-                try p.errStr(.qual_on_ret_type, source_tok, "atomic");
-                inner.data.func.return_type.qual.atomic = false;
-            }
         },
         .decayed_array,
         .decayed_static_array,
@@ -887,6 +858,55 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
         .decayed_typeof_expr,
         => unreachable, // type should not be able to decay before being combined
         else => inner.* = outer,
+    }
+}
+
+pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
+    switch (ty.specifier) {
+        .pointer => return ty.data.sub_type.validateCombinedType(p, source_tok),
+        .unspecified_variable_len_array,
+        .variable_len_array,
+        .array,
+        .static_array,
+        .incomplete_array,
+        => {
+            const elem_ty = ty.elemType();
+            if (elem_ty.hasIncompleteSize()) {
+                try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_ty));
+                return error.ParsingFailed;
+            }
+            if (elem_ty.isFunc()) {
+                try p.errTok(.array_func_elem, source_tok);
+                return error.ParsingFailed;
+            }
+            if (elem_ty.specifier == .static_array and elem_ty.isArray()) {
+                try p.errTok(.static_non_outermost_array, source_tok);
+            }
+            if (elem_ty.anyQual() and elem_ty.isArray()) {
+                try p.errTok(.qualifier_non_outermost_array, source_tok);
+            }
+        },
+        .func, .var_args_func, .old_style_func => {
+            const ret_ty = &ty.data.func.return_type;
+            if (ret_ty.isArray()) try p.errTok(.func_cannot_return_array, source_tok);
+            if (ret_ty.isFunc()) try p.errTok(.func_cannot_return_func, source_tok);
+            if (ret_ty.qual.@"const") {
+                try p.errStr(.qual_on_ret_type, source_tok, "const");
+                ret_ty.qual.@"const" = false;
+            }
+            if (ret_ty.qual.@"volatile") {
+                try p.errStr(.qual_on_ret_type, source_tok, "volatile");
+                ret_ty.qual.@"volatile" = false;
+            }
+            if (ret_ty.qual.atomic) {
+                try p.errStr(.qual_on_ret_type, source_tok, "atomic");
+                ret_ty.qual.atomic = false;
+            }
+        },
+        .typeof_type, .decayed_typeof_type => return ty.data.sub_type.validateCombinedType(p, source_tok),
+        .typeof_expr, .decayed_typeof_expr => return ty.data.expr.ty.validateCombinedType(p, source_tok),
+        .attributed => return ty.data.attributed.base.validateCombinedType(p, source_tok),
+        else => {},
     }
 }
 

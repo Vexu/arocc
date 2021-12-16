@@ -1414,11 +1414,6 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
     _ = try p.assembly(.decl); // TODO use somehow
     try p.attributeSpecifier(if (init_d.d.ty.isFunc()) .function else .variable);
     if (p.eatToken(.equal)) |eq| init: {
-        if (init_d.d.ty.hasIncompleteSize() and !init_d.d.ty.isArray()) {
-            try p.errStr(.variable_incomplete_ty, init_d.d.name, try p.typeStr(init_d.d.ty));
-            return error.ParsingFailed;
-        }
-
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
             try p.errTok(.illegal_initializer, eq);
         } else if (init_d.d.ty.is(.variable_len_array)) {
@@ -1426,6 +1421,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         } else if (decl_spec.storage_class == .@"extern") {
             try p.err(.extern_initializer);
             decl_spec.storage_class = .none;
+        }
+
+        if (init_d.d.ty.hasIncompleteSize() and !init_d.d.ty.is(.incomplete_array)) {
+            try p.errStr(.variable_incomplete_ty, init_d.d.name, try p.typeStr(init_d.d.ty));
+            return error.ParsingFailed;
         }
 
         const scopes_len = p.scopes.items.len;
@@ -2119,7 +2119,9 @@ fn declarator(
     const maybe_ident = p.tok_i;
     if (kind != .abstract and (try p.eatIdentifier()) != null) {
         d.name = maybe_ident;
+        const combine_tok = p.tok_i;
         d.ty = try p.directDeclarator(d.ty, &d, kind);
+        try d.ty.validateCombinedType(p, combine_tok);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
         var res = (try p.declarator(.{ .specifier = .void }, kind)) orelse {
@@ -2130,15 +2132,20 @@ fn declarator(
         const suffix_start = p.tok_i;
         const outer = try p.directDeclarator(d.ty, &d, kind);
         try res.ty.combine(outer, p, res.func_declarator orelse suffix_start);
+        try res.ty.validateCombinedType(p, suffix_start);
         res.old_style_func = d.old_style_func;
         return res;
     }
 
-    if (kind == .normal and !base_type.isEnumOrRecord()) {
-        try p.err(.expected_ident_or_l_paren);
-    }
+    const expected_ident = p.tok_i;
 
     d.ty = try p.directDeclarator(d.ty, &d, kind);
+
+    if (kind == .normal and !d.ty.isEnumOrRecord()) {
+        try p.errTok(.expected_ident_or_l_paren, expected_ident);
+        return error.ParsingFailed;
+    }
+    try d.ty.validateCombinedType(p, expected_ident);
     if (start == p.tok_i) return null;
     return d;
 }
@@ -2193,7 +2200,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         var max_bits = p.pp.comp.target.cpu.arch.ptrBitWidth();
         if (max_bits > 61) max_bits = 61;
         const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
-        const max_elems = max_bytes / std.math.max(1, outer.sizeof(p.pp.comp) orelse 1);
+        // `outer` is validated later so it may be invalid here
+        const outer_size = if (outer.hasIncompleteSize()) 1 else outer.sizeof(p.pp.comp);
+        const max_elems = max_bytes / std.math.max(1, outer_size orelse 1);
 
         switch (size.val) {
             .unavailable => if (size.node != .none) {
@@ -2838,9 +2847,6 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
     } else if (init_ty.is(.variable_len_array)) {
         return error.ParsingFailed; // vla invalid, reported earlier
     } else if (init_ty.isArray()) {
-        if (init_ty.elemType().hasIncompleteSize()) {
-            return error.ParsingFailed; // array element type invalid, reported earlier
-        }
         if (il.node != .none) {
             return il.node;
         }
@@ -2962,9 +2968,6 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         return try p.addNode(union_init_node);
     } else if (init_ty.isFunc()) {
         return error.ParsingFailed; // invalid func initializer, reported earlier
-    } else if (init_ty.is(.void)) {
-        try p.errStr(.variable_incomplete_ty, il.tok, try p.typeStr(init_ty));
-        return error.ParsingFailed;
     } else {
         unreachable;
     }
@@ -4807,6 +4810,9 @@ fn castExpr(p: *Parser) Error!Result {
                     try p.err(.func_init);
                 } else if (ty.is(.variable_len_array)) {
                     try p.err(.vla_init);
+                } else if (ty.hasIncompleteSize() and !ty.is(.incomplete_array)) {
+                    try p.errStr(.variable_incomplete_ty, p.tok_i, try p.typeStr(ty));
+                    return error.ParsingFailed;
                 }
                 var init_list_expr = try p.initializer(ty);
                 try init_list_expr.un(p, .compound_literal_expr);

@@ -27,6 +27,4 @@ int Lǿ = 0;
 int Lǿ1 = 0;
 
 #define EXPECTED_ERRORS "extended identifiers c99.c:10:9: error: expected identifier or '('" \
-    "extended identifiers c99.c:10:9: error: expected ';', found invalid bytes" \
     "extended identifiers c99.c:16:9: error: expected identifier or '('" \
-    "extended identifiers c99.c:16:9: error: expected ';', found invalid bytes" \
