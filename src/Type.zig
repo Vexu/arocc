@@ -164,10 +164,10 @@ pub const Record = struct {
         ty: Type,
         bit_width: u32 = 0,
 
-        pub fn isAnonymous(f: Field) bool {
+        pub fn isAnonymousRecord(f: Field) bool {
             // anonymous fields can be recognized by their names which are in
             // the format "(anonymous record field at path:line:col)".
-            return f.name[0] == '(';
+            return f.name[0] == '(' and f.ty.isRecord();
         }
     };
 
@@ -577,14 +577,14 @@ pub fn hasField(ty: Type, name: []const u8) bool {
         .@"struct" => {
             std.debug.assert(!ty.data.record.isIncomplete());
             for (ty.data.record.fields) |f| {
-                if (f.isAnonymous() and f.ty.hasField(name)) return true;
+                if (f.isAnonymousRecord() and f.ty.hasField(name)) return true;
                 if (std.mem.eql(u8, name, f.name)) return true;
             }
         },
         .@"union" => {
             std.debug.assert(!ty.data.record.isIncomplete());
             for (ty.data.record.fields) |f| {
-                if (f.isAnonymous() and f.ty.hasField(name)) return true;
+                if (f.isAnonymousRecord() and f.ty.hasField(name)) return true;
                 if (std.mem.eql(u8, name, f.name)) return true;
             }
         },

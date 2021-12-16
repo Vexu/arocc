@@ -181,12 +181,9 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
 }
 
 fn expectIdentifier(p: *Parser) Error!TokenIndex {
-    if (p.tok_ids[p.tok_i] != .identifier and p.tok_ids[p.tok_i] != .extended_identifier) {
-        try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{
-            .expected = .identifier,
-            .actual = p.tok_ids[p.tok_i],
-        } });
-        return error.ParsingFailed;
+    const actual = p.tok_ids[p.tok_i];
+    if (actual != .identifier and actual != .extended_identifier) {
+        return p.errExpectedToken(.identifier, actual);
     }
 
     return (try p.eatIdentifier()) orelse unreachable;
@@ -203,17 +200,7 @@ fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
 fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
     assert(expected != .identifier and expected != .extended_identifier); // use expectIdentifier
     const actual = p.tok_ids[p.tok_i];
-    if (actual != expected) {
-        switch (actual) {
-            .invalid => try p.errExtra(.expected_invalid, p.tok_i, .{ .tok_id_expected = expected }),
-            .eof => try p.errExtra(.expected_eof, p.tok_i, .{ .tok_id_expected = expected }),
-            else => try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{
-                .expected = expected,
-                .actual = actual,
-            } }),
-        }
-        return error.ParsingFailed;
-    }
+    if (actual != expected) return p.errExpectedToken(expected, actual);
     defer p.tok_i += 1;
     return p.tok_i;
 }
@@ -243,6 +230,18 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
         }
         return e;
     };
+}
+
+fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
+    switch (actual) {
+        .invalid => try p.errExtra(.expected_invalid, p.tok_i, .{ .tok_id_expected = expected }),
+        .eof => try p.errExtra(.expected_eof, p.tok_i, .{ .tok_id_expected = expected }),
+        else => try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{
+            .expected = expected,
+            .actual = actual,
+        } }),
+    }
+    return error.ParsingFailed;
 }
 
 pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, str: []const u8) Compilation.Error!void {
@@ -798,7 +797,12 @@ fn decl(p: *Parser) Error!bool {
         }
         switch (p.tok_ids[first_tok]) {
             .asterisk, .l_paren, .identifier, .extended_identifier => {},
-            else => return false,
+            else => if (attr_buf_top == p.attr_buf.items.len) {
+                return false;
+            } else {
+                try p.err(.expected_ident_or_l_paren);
+                return error.ParsingFailed;
+            },
         }
         var spec: Type.Builder = .{};
         break :blk DeclSpec{ .ty = try spec.finish(p) };
@@ -2542,7 +2546,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 // TODO check if union already has field set
                 outer: while (true) {
                     for (cur_ty.data.record.fields) |f, i| {
-                        if (f.isAnonymous()) {
+                        if (f.isAnonymousRecord()) {
                             // Recurse into anonymous field if it has a field by the name.
                             if (!f.ty.hasField(field_name)) continue;
                             cur_ty = f.ty.canonicalize(.standard);
@@ -5405,7 +5409,7 @@ fn fieldAccess(
 
 fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: []const u8, is_arrow: bool) Error!Result {
     for (record_ty.data.record.fields) |f, i| {
-        if (f.isAnonymous()) {
+        if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
             const inner = try p.addNode(.{
                 .tag = if (is_arrow) .member_access_ptr_expr else .member_access_expr,

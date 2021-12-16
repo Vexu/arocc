@@ -103,6 +103,13 @@ struct{
     int a, b;
 } b[2][2] = { [1] = {1,2,3,4}, 1};
 
+struct {
+    int :0;
+    struct {
+        int b;
+    };
+} c[2] = { [0].b = 1 };
+
 #define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
