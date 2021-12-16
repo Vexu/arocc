@@ -116,6 +116,7 @@ pub const Options = packed struct {
     @"gnu-imaginary-constant": Kind = .default,
     @"ignored-qualifiers": Kind = .default,
     @"integer-overflow": Kind = .default,
+    @"extra-semi": Kind = .default,
 };
 
 const messages = struct {
@@ -267,6 +268,11 @@ const messages = struct {
     };
     const expected_invalid = struct {
         const msg = "expected '{s}', found invalid bytes";
+        const extra = .tok_id_expected;
+        const kind = .@"error";
+    };
+    const expected_eof = struct {
+        const msg = "expected '{s}' before end of file";
         const extra = .tok_id_expected;
         const kind = .@"error";
     };
@@ -1428,6 +1434,12 @@ const messages = struct {
         const msg = "{s}";
         const extra = .str;
         const kind = .@"error";
+    };
+    const extra_semi = struct {
+        const msg = "extra ';' outside of a function";
+        const opt = "extra-semi";
+        const kind = .off;
+        const pedantic = true;
     };
 };
 

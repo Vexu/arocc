@@ -206,6 +206,7 @@ fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
     if (actual != expected) {
         switch (actual) {
             .invalid => try p.errExtra(.expected_invalid, p.tok_i, .{ .tok_id_expected = expected }),
+            .eof => try p.errExtra(.expected_eof, p.tok_i, .{ .tok_id_expected = expected }),
             else => try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{
                 .expected = expected,
                 .actual = actual,
@@ -233,16 +234,12 @@ fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
 fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
     _ = p.expectToken(id) catch |e| {
         if (e == error.ParsingFailed) {
-            const tok = p.pp.tokens.get(opening);
-            try p.pp.comp.diag.add(.{
-                .tag = switch (id) {
-                    .r_paren => .to_match_paren,
-                    .r_brace => .to_match_brace,
-                    .r_bracket => .to_match_brace,
-                    else => unreachable,
-                },
-                .loc = tok.loc,
-            }, tok.expansionSlice());
+            try p.errTok(switch (id) {
+                .r_paren => .to_match_paren,
+                .r_brace => .to_match_brace,
+                .r_bracket => .to_match_brace,
+                else => unreachable,
+            }, opening);
         }
         return e;
     };
@@ -256,20 +253,23 @@ pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, str: []const 
 pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diagnostics.Message.Extra) Compilation.Error!void {
     @setCold(true);
     const tok = p.pp.tokens.get(tok_i);
+    var loc = tok.loc;
+    if (tok_i != 0 and tok.id == .eof) {
+        // if the token is EOF, point at the end of the previous token instead
+        const prev = p.pp.tokens.get(tok_i - 1);
+        loc = prev.loc;
+        loc.byte_offset += @intCast(u32, p.tokSlice(tok_i - 1).len);
+    }
     try p.pp.comp.diag.add(.{
         .tag = tag,
-        .loc = tok.loc,
+        .loc = loc,
         .extra = extra,
     }, tok.expansionSlice());
 }
 
 pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.Error!void {
     @setCold(true);
-    const tok = p.pp.tokens.get(tok_i);
-    try p.pp.comp.diag.add(.{
-        .tag = tag,
-        .loc = tok.loc,
-    }, tok.expansionSlice());
+    return p.errExtra(tag, tok_i, .{ .none = {} });
 }
 
 pub fn err(p: *Parser, tag: Diagnostics.Tag) Compilation.Error!void {
@@ -651,6 +651,18 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
                 },
                 else => |e| return e,
             }) continue;
+            switch (p.tok_ids[p.tok_i]) {
+                .semicolon => p.tok_i += 1,
+                .keyword_static_assert,
+                .keyword_pragma,
+                .keyword_extension,
+                .keyword_asm,
+                .keyword_asm1,
+                .keyword_asm2,
+                => {},
+                else => try p.err(.expected_external_decl),
+            }
+            continue;
         }
         if (p.assembly(.global) catch |er| switch (er) {
             error.ParsingFailed => {
@@ -659,6 +671,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             },
             else => |e| return e,
         }) |_| continue;
+        if (p.eatToken(.semicolon)) |tok| {
+            try p.errTok(.extra_semi, tok);
+            continue;
+        }
         try p.err(.expected_external_decl);
         p.tok_i += 1;
     }
