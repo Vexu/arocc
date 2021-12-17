@@ -797,12 +797,10 @@ fn decl(p: *Parser) Error!bool {
         }
         switch (p.tok_ids[first_tok]) {
             .asterisk, .l_paren, .identifier, .extended_identifier => {},
-            else => if (attr_buf_top == p.attr_buf.items.len) {
-                return false;
-            } else {
+            else => if (p.tok_i != first_tok) {
                 try p.err(.expected_ident_or_l_paren);
                 return error.ParsingFailed;
-            },
+            } else return false,
         }
         var spec: Type.Builder = .{};
         break :blk DeclSpec{ .ty = try spec.finish(p) };
