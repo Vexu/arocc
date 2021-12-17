@@ -1441,6 +1441,36 @@ const messages = struct {
         const kind = .off;
         const pedantic = true;
     };
+    const func_field = struct {
+        const msg = "field declared as a function";
+        const kind = .@"error";
+    };
+    const vla_field = struct {
+        const msg = "variable length array fields extension is not supported";
+        const kind = .@"error";
+    };
+    const field_incomplete_ty = struct {
+        const msg = "field has incomplete type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const flexible_in_union = struct {
+        const msg = "flexible array member in union is not allowed";
+        const kind = .@"error";
+    };
+    const flexible_non_final = struct {
+        const msg = "flexible array member is not at the end of struct";
+        const kind = .@"error";
+    };
+    const flexible_in_empty = struct {
+        const msg = "flexible array member in otherwise empty struct";
+        const kind = .@"error";
+    };
+    const duplicate_member = struct {
+        const msg = "duplicate member '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

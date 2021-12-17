@@ -85,6 +85,37 @@ void foo(void) {
     foo();
 }
 
+int len;
+struct S1 {
+    void a();
+    void b;
+    int c[len];
+};
+
+struct S2 {
+    int a[];
+};
+
+struct S3 {
+    int a[];
+    int b;
+};
+
+struct S4 {
+    int a[];
+    int b[];
+    int c;
+};
+
+struct S5 {
+    int a;
+    int b[];
+};
+
+union U {
+    int a[];
+};
+
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
     "containers.c:15:12: error: variable has incomplete type 'struct Foo'" \
@@ -96,3 +127,11 @@ void foo(void) {
     "containers.c:46:1: warning: declaration does not declare anything [-Wmissing-declaration]" \
     "containers.c:54:13: error: expression is not an integer constant expression" \
     "containers.c:59:9: error: enum value must be an integer constant expression" \
+    "containers.c:90:10: error: field declared as a function" \
+    "containers.c:91:10: error: field has incomplete type 'void'" \
+    "containers.c:92:9: error: variable length array fields extension is not supported" \
+    "containers.c:96:9: error: flexible array member in otherwise empty struct" \
+    "containers.c:100:9: error: flexible array member is not at the end of struct" \
+    "containers.c:105:9: error: flexible array member is not at the end of struct" \
+    "containers.c:106:9: error: flexible array member is not at the end of struct" \
+    "containers.c:116:9: error: flexible array member in union is not allowed" \

@@ -91,7 +91,7 @@ struct Foo {
         };
         double z1;
     };
-    float b;
+    float c;
 } a = { .x  = 1 };
 
 static const unsigned char halfrate[2][3][1] = {

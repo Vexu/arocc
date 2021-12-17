@@ -111,6 +111,46 @@ func: struct {
     ident: ?Result = null,
     pretty_ident: ?Result = null,
 } = .{},
+/// Various variables that are different for each record.
+record: struct {
+    // invalid means we're not parsing a record
+    kind: Token.Id = .invalid,
+    flexible_field: ?TokenIndex = null,
+    scopes_top: usize = undefined,
+
+    fn addField(r: @This(), p: *Parser, name_tok: TokenIndex) Error!void {
+        const name = p.tokSlice(name_tok);
+        var i = p.scopes.items.len;
+        while (i > r.scopes_top) {
+            i -= 1;
+            switch (p.scopes.items[i]) {
+                .def => |d| if (mem.eql(u8, d.name, name)) {
+                    try p.errStr(.duplicate_member, name_tok, name);
+                    try p.errTok(.previous_definition, d.name_tok);
+                    break;
+                },
+                else => {},
+            }
+        }
+        try p.scopes.append(.{
+            .def = .{
+                .name = name,
+                .name_tok = name_tok,
+                .ty = undefined, // unused
+            },
+        });
+    }
+
+    fn addFieldsFromAnonymous(r: @This(), p: *Parser, ty: Type) Error!void {
+        for (ty.data.record.fields) |f| {
+            if (f.isAnonymousRecord()) {
+                try r.addFieldsFromAnonymous(p, f.ty.canonicalize(.standard));
+            } else if (f.name_tok != 0) {
+                try r.addField(p, f.name_tok);
+            }
+        }
+    }
+} = .{},
 va_list_ty: Type = undefined,
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
@@ -1701,13 +1741,29 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     try p.decl_buf.append(.none);
     const decl_buf_top = p.decl_buf.items.len;
     const record_buf_top = p.record_buf.items.len;
+    const scopes_top = p.scopes.items.len;
     errdefer p.decl_buf.items.len = decl_buf_top - 1;
     defer {
         p.decl_buf.items.len = decl_buf_top;
         p.record_buf.items.len = record_buf_top;
+        p.scopes.items.len = scopes_top;
     }
 
+    const old_record = p.record;
+    defer p.record = old_record;
+    p.record = .{
+        .kind = p.tok_ids[kind_tok],
+        .scopes_top = scopes_top,
+    };
+
     try p.recordDecls();
+
+    if (p.record.flexible_field) |some| {
+        if (p.record_buf.items[record_buf_top..].len == 1 and is_struct) {
+            try p.errTok(.flexible_in_empty, some);
+        }
+    }
+
     record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
     // TODO actually calculate
     record_ty.size = 1;
@@ -1824,6 +1880,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
             bits = @truncate(u32, width);
             bits_node = res.node;
         }
+
         if (name_tok == 0 and bits_node == .none) unnamed: {
             if (ty.is(.@"enum")) break :unnamed;
             if (ty.isAnonymousRecord()) {
@@ -1839,6 +1896,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                     .data = undefined,
                 });
                 try p.decl_buf.append(node);
+                try p.record.addFieldsFromAnonymous(p, ty);
                 break; // must be followed by a semicolon
             }
             try p.err(.missing_declaration);
@@ -1846,14 +1904,34 @@ fn recordDeclarator(p: *Parser) Error!bool {
             try p.record_buf.append(.{
                 .name = if (name_tok != 0) p.tokSlice(name_tok) else try p.getAnonymousName(first_tok),
                 .ty = ty,
+                .name_tok = name_tok,
                 .bit_width = bits,
             });
+            if (name_tok != 0) try p.record.addField(p, name_tok);
             const node = try p.addNode(.{
                 .tag = .record_field_decl,
                 .ty = ty,
                 .data = .{ .decl = .{ .name = name_tok, .node = bits_node } },
             });
             try p.decl_buf.append(node);
+        }
+
+        if (ty.isFunc()) {
+            try p.errTok(.func_field, first_tok);
+        } else if (ty.is(.variable_len_array)) {
+            try p.errTok(.vla_field, first_tok);
+        } else if (ty.is(.incomplete_array)) {
+            if (p.record.kind == .keyword_union) {
+                try p.errTok(.flexible_in_union, first_tok);
+            }
+            if (p.record.flexible_field) |some| {
+                try p.errTok(.flexible_non_final, some);
+            }
+            p.record.flexible_field = first_tok;
+        } else if (ty.hasIncompleteSize()) {
+            try p.errStr(.field_incomplete_ty, first_tok, try p.typeStr(ty));
+        } else if (p.record.flexible_field) |some| {
+            if (some != first_tok) try p.errTok(.flexible_non_final, some);
         }
         if (p.eatToken(.comma) == null) break;
     }
@@ -2210,7 +2288,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
 
         switch (size.val) {
             .unavailable => if (size.node != .none) {
-                if (p.func.ty == null and kind != .param) try p.errTok(.variable_len_array_file_scope, l_bracket);
+                if (p.func.ty == null and kind != .param and p.record.kind == .invalid) {
+                    try p.errTok(.variable_len_array_file_scope, l_bracket);
+                }
                 const expr_ty = try p.arena.create(Type.Expr);
                 expr_ty.node = size.node;
                 res_ty.data = .{ .expr = expr_ty };
@@ -3037,10 +3117,8 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             };
         }
         return try p.addNode(union_init_node);
-    } else if (init_ty.isFunc()) {
-        return error.ParsingFailed; // invalid func initializer, reported earlier
     } else {
-        unreachable;
+        return error.ParsingFailed; // initializer target is invalid, reported earlier
     }
 }
 

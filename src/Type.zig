@@ -162,12 +162,12 @@ pub const Record = struct {
     pub const Field = struct {
         name: []const u8,
         ty: Type,
+        /// zero for anonymous fields
+        name_tok: TokenIndex = 0,
         bit_width: u32 = 0,
 
         pub fn isAnonymousRecord(f: Field) bool {
-            // anonymous fields can be recognized by their names which are in
-            // the format "(anonymous record field at path:line:col)".
-            return f.name[0] == '(' and f.ty.isRecord();
+            return f.name_tok == 0 and f.ty.isRecord();
         }
     };
 
