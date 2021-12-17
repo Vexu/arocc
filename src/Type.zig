@@ -137,7 +137,8 @@ pub const Enum = struct {
     pub const Field = struct {
         name: []const u8,
         ty: Type,
-        value: u64,
+        name_tok: TokenIndex,
+        node: NodeIndex,
     };
 
     pub fn isIncomplete(e: Enum) bool {

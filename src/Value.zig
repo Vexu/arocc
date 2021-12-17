@@ -27,7 +27,15 @@ pub const zero = int(0);
 pub const one = int(1);
 
 pub fn int(v: anytype) Value {
-    return .{ .tag = .int, .data = .{ .int = v }};
+    return .{ .tag = .int, .data = .{ .int = v } };
+}
+
+pub fn float(v: anytype) Value {
+    return .{ .tag = .float, .data = .{ .float = v } };
+}
+
+pub fn bytes(v: anytype) Value {
+    return .{ .tag = .bytes, .data = .{ .bytes = v } };
 }
 
 /// Converts the stored value from a float to an integer.
@@ -93,279 +101,285 @@ pub fn getFloat(v: Value, comptime T: type) T {
     return @floatCast(T, v.data.float);
 }
 
-pub fn add(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
-    if (ty.isFloat()) return addFloat(res, a, b, ty, comp);
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        inline fn doAdd(comptime T: type, out: *u128, aa: Value, bb: Value) bool {
-            const a_val = aa.getInt(T);
-            const b_val = bb.getInt(T);
-            var c: T = undefined;
-            const overflow = @addWithOverflow(T, a_val, b_val, &c);
-            const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
-            out.* = @bitCast(OutT, c);
-            return overflow;
-        }
-    };
-    var overflow = false;
-    var out: u128 = undefined;
-    if (ty.isUnsignedInt(comp)) switch (size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => overflow = S.doAdd(u32, &out, a, b),
-        8 => overflow = S.doAdd(u64, &out, a, b),
-        16 => overflow = S.doAdd(u128, &out, a, b),
-        else => unreachable,
-    } else switch (size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => overflow = S.doAdd(i32, &out, a, b),
-        8 => overflow = S.doAdd(i64, &out, a, b),
-        16 => overflow = S.doAdd(i128, &out, a, b),
-        else => unreachable,
+const bin_overflow = struct {
+    inline fn addInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
+        const a_val = a.getInt(T);
+        const b_val = b.getInt(T);
+        var c: T = undefined;
+        const overflow = @addWithOverflow(T, a_val, b_val, &c);
+        const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+        out.* = Value.int(@bitCast(OutT, c));
+        return overflow;
     }
-    res.* = .{ .tag = .int, .data = .{ .int = out } };
-    return overflow;
-}
-
-fn addFloat(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        inline fn doAdd(comptime T: type, aa: Value, bb: Value) f128 {
-            const a_val = aa.getFloat(T);
-            const b_val = bb.getFloat(T);
-            return a_val + b_val;
-        }
-    };
-    res.* = .{ .tag = .float, .data = .{
-        .float = switch (size) {
-            4 => S.doAdd(f32, a, b),
-            8 => S.doAdd(f64, a, b),
-            16 => S.doAdd(f128, a, b),
-            else => unreachable,
-        },
-    } };
-    return false;
-}
-
-pub fn sub(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
-    if (ty.isFloat()) return subFloat(res, a, b, ty, comp);
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        inline fn doSub(comptime T: type, out: *u128, aa: Value, bb: Value) bool {
-            const a_val = aa.getInt(T);
-            const b_val = bb.getInt(T);
-            var c: T = undefined;
-            const overflow = @subWithOverflow(T, a_val, b_val, &c);
-            const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
-            out.* = @bitCast(OutT, c);
-            return overflow;
-        }
-    };
-    var overflow = false;
-    var out: u128 = undefined;
-    if (ty.isUnsignedInt(comp)) switch (size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => overflow = S.doSub(u32, &out, a, b),
-        8 => overflow = S.doSub(u64, &out, a, b),
-        16 => overflow = S.doSub(u128, &out, a, b),
-        else => unreachable,
-    } else switch (size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => overflow = S.doSub(i32, &out, a, b),
-        8 => overflow = S.doSub(i64, &out, a, b),
-        16 => overflow = S.doSub(i128, &out, a, b),
-        else => unreachable,
+    inline fn addFloat(comptime T: type, aa: Value, bb: Value) Value {
+        const a_val = aa.getFloat(T);
+        const b_val = bb.getFloat(T);
+        return Value.float(a_val + b_val);
     }
-    res.* = .{ .tag = .int, .data = .{ .int = out } };
-    return overflow;
-}
 
-fn subFloat(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        inline fn doSub(comptime T: type, aa: Value, bb: Value) f128 {
-            const a_val = aa.getFloat(T);
-            const b_val = bb.getFloat(T);
-            return a_val - b_val;
-        }
-    };
-    res.* = .{ .tag = .float, .data = .{
-        .float = switch (size) {
-            4 => S.doSub(f32, a, b),
-            8 => S.doSub(f64, a, b),
-            16 => S.doSub(f128, a, b),
-            else => unreachable,
-        },
-    } };
-    return false;
-}
-
-pub fn mul(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
-    if (ty.isFloat()) return mulFloat(res, a, b, ty, comp);
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        inline fn doMul(comptime T: type, out: *u128, aa: Value, bb: Value) bool {
-            const a_val = aa.getInt(T);
-            const b_val = bb.getInt(T);
-            var c: T = undefined;
-            const overflow = @mulWithOverflow(T, a_val, b_val, &c);
-            const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
-            out.* = @bitCast(OutT, c);
-            return overflow;
-        }
-    };
-    var overflow = false;
-    var out: u128 = undefined;
-    if (ty.isUnsignedInt(comp)) switch (size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => overflow = S.doMul(u32, &out, a, b),
-        8 => overflow = S.doMul(u64, &out, a, b),
-        16 => overflow = S.doMul(u128, &out, a, b),
-        else => unreachable,
-    } else switch (size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => overflow = S.doMul(i32, &out, a, b),
-        8 => overflow = S.doMul(i64, &out, a, b),
-        16 => overflow = S.doMul(i128, &out, a, b),
-        else => unreachable,
+    inline fn subInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
+        const a_val = a.getInt(T);
+        const b_val = b.getInt(T);
+        var c: T = undefined;
+        const overflow = @subWithOverflow(T, a_val, b_val, &c);
+        const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+        out.* = Value.int(@bitCast(OutT, c));
+        return overflow;
     }
-    res.* = .{ .tag = .int, .data = .{ .int = out } };
-    return overflow;
-}
+    inline fn subFloat(comptime T: type, aa: Value, bb: Value) Value {
+        const a_val = aa.getFloat(T);
+        const b_val = bb.getFloat(T);
+        return Value.float(a_val - b_val);
+    }
 
-fn mulFloat(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        inline fn doMul(comptime T: type, aa: Value, bb: Value) f128 {
-            const a_val = aa.getFloat(T);
-            const b_val = bb.getFloat(T);
-            return a_val * b_val;
-        }
-    };
-    res.* = .{ .tag = .float, .data = .{
-        .float = switch (size) {
-            4 => S.doMul(f32, a, b),
-            8 => S.doMul(f64, a, b),
-            16 => S.doMul(f128, a, b),
-            else => unreachable,
-        },
-    } };
-    return false;
-}
+    inline fn mulInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
+        const a_val = a.getInt(T);
+        const b_val = b.getInt(T);
+        var c: T = undefined;
+        const overflow = @mulWithOverflow(T, a_val, b_val, &c);
+        const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+        out.* = Value.int(@bitCast(OutT, c));
+        return overflow;
+    }
+    inline fn mulFloat(comptime T: type, aa: Value, bb: Value) Value {
+        const a_val = aa.getFloat(T);
+        const b_val = bb.getFloat(T);
+        return Value.float(a_val * b_val);
+    }
 
-pub fn div(a: Value, b: Value, ty: Type, comp: *Compilation) Value {
-    if (ty.isFloat()) return divFloat(a, b, ty, comp);
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        inline fn doDiv(comptime T: type, aa: Value, bb: Value) u128 {
-            const a_val = aa.getInt(T);
-            const b_val = bb.getInt(T);
-            const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
-            return @bitCast(OutT, @divTrunc(a_val, b_val));
-        }
-    };
-    return .{
-        .tag = .int,
-        .data = .{
-            .int = if (ty.isUnsignedInt(comp)) switch (size) {
-                1 => unreachable, // promoted to int
-                2 => unreachable, // promoted to int
-                4 => S.doDiv(u32, a, b),
-                8 => S.doDiv(u64, a, b),
-                16 => S.doDiv(u128, a, b),
-                else => unreachable,
-            } else switch (size) {
-                1 => unreachable, // promoted to int
-                2 => unreachable, // promoted to int
-                4 => S.doDiv(i32, a, b),
-                8 => S.doDiv(i64, a, b),
-                16 => S.doDiv(i128, a, b),
-                else => unreachable,
-            },
-        },
-    };
-}
-
-fn divFloat(a: Value, b: Value, ty: Type, comp: *Compilation) Value {
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        inline fn doDiv(comptime T: type, aa: Value, bb: Value) f128 {
-            const a_val = aa.getFloat(T);
-            const b_val = bb.getFloat(T);
-            return a_val / b_val;
-        }
-    };
-    return .{ .tag = .float, .data = .{
-        .float = switch (size) {
-            4 => S.doDiv(f32, a, b),
-            8 => S.doDiv(f64, a, b),
-            16 => S.doDiv(f128, a, b),
-            else => unreachable,
-        },
-    } };
-}
-
-pub fn rem(a: Value, b: Value, ty: Type, comp: *Compilation) Value {
-    const size = ty.sizeof(comp).?;
-    const S = struct {
-        /// Implements C's % operator for signed integers, for evaluating constant expressions
-        /// caller guarantees rhs != 0
-        /// caller guarantees lhs != std.math.minInt(i64) OR rhs != -1
-        inline fn signedRemainder(lhs: anytype, rhs: @TypeOf(lhs)) @TypeOf(lhs) {
-            if (rhs > 0) return @rem(lhs, rhs);
-            return lhs - @divTrunc(lhs, rhs) * rhs;
-        }
-
-        inline fn doRem(comptime T: type, res: *Value, aa: Value, bb: Value) void {
-            const a_val = aa.getInt(T);
-            const b_val = bb.getInt(T);
-
-            const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
-            if (@typeInfo(T).Int.signedness == .signed) {
-                if (a_val == std.math.minInt(T) and b_val == -1) {
-                    res.tag = .unavailable;
-                } else {
-                    res.data.int = @bitCast(OutT, signedRemainder(a_val, b_val));
+    const FT = fn (*Value, Value, Value, Type, *Compilation) bool;
+    fn getOp(intFunc: anytype, floatFunc: anytype) FT {
+        return struct {
+            fn op(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
+                const size = ty.sizeof(comp).?;
+                if (@TypeOf(floatFunc) != @TypeOf(null) and ty.isFloat()) {
+                    res.* = switch (size) {
+                        4 => floatFunc(f32, a, b),
+                        8 => floatFunc(f64, a, b),
+                        16 => floatFunc(f128, a, b),
+                        else => unreachable,
+                    };
+                    return false;
                 }
-            } else {
-                res.data.int = @bitCast(OutT, a_val % b_val);
+
+                if (ty.isUnsignedInt(comp)) switch (size) {
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
+                    4 => return intFunc(u32, res, a, b),
+                    8 => return intFunc(u64, res, a, b),
+                    16 => return intFunc(u128, res, a, b),
+                    else => unreachable,
+                } else switch (size) {
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
+                    4 => return intFunc(i32, res, a, b),
+                    8 => return intFunc(i64, res, a, b),
+                    16 => return intFunc(i128, res, a, b),
+                    else => unreachable,
+                }
             }
+        }.op;
+    }
+};
+
+pub const add = bin_overflow.getOp(bin_overflow.addInt, bin_overflow.addFloat);
+pub const sub = bin_overflow.getOp(bin_overflow.subInt, bin_overflow.subFloat);
+pub const mul = bin_overflow.getOp(bin_overflow.mulInt, bin_overflow.mulFloat);
+
+const bin_ops = struct {
+    inline fn divInt(comptime T: type, aa: Value, bb: Value) Value {
+        const a_val = aa.getInt(T);
+        const b_val = bb.getInt(T);
+        const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+        return Value.int(@bitCast(OutT, @divTrunc(a_val, b_val)));
+    }
+    inline fn divFloat(comptime T: type, aa: Value, bb: Value) Value {
+        const a_val = aa.getFloat(T);
+        const b_val = bb.getFloat(T);
+        return Value.float(a_val / b_val);
+    }
+
+    inline fn remInt(comptime T: type, a: Value, b: Value) Value {
+        const a_val = a.getInt(T);
+        const b_val = b.getInt(T);
+
+        const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+        if (@typeInfo(T).Int.signedness == .signed) {
+            if (a_val == std.math.minInt(T) and b_val == -1) {
+                return Value{ .tag = .unavailable, .data = .{ .none = {} } };
+            } else {
+                if (b_val > 0) return Value.int(@bitCast(OutT, @rem(a_val, b_val)));
+                return Value.int(@bitCast(OutT, a_val - @divTrunc(a_val, b_val) * b_val));
+            }
+        } else {
+            return Value.int(@bitCast(OutT, a_val % b_val));
         }
-    };
-    var out = Value{ .tag = .int, .data = .{ .int = 0 } };
+    }
+
+    inline fn orInt(comptime T: type, a: Value, b: Value) Value {
+        const a_val = a.getInt(T);
+        const b_val = b.getInt(T);
+        const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+        return Value.int(@bitCast(OutT, a_val | b_val));
+    }
+    inline fn xorInt(comptime T: type, a: Value, b: Value) Value {
+        const a_val = a.getInt(T);
+        const b_val = b.getInt(T);
+        const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+        return Value.int(@bitCast(OutT, a_val ^ b_val));
+    }
+    inline fn andInt(comptime T: type, a: Value, b: Value) Value {
+        const a_val = a.getInt(T);
+        const b_val = b.getInt(T);
+        const OutT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+        return Value.int(@bitCast(OutT, a_val & b_val));
+    }
+
+    inline fn shl(comptime T: type, a: Value, b: Value) Value {
+        const ShiftT = std.math.Log2Int(T);
+        const info = @typeInfo(T).Int;
+        const UT = std.meta.Int(.unsigned, info.bits);
+        const b_val = b.getInt(T);
+
+        if (b_val > std.math.maxInt(ShiftT)) {
+            return if (info.signedness == .unsigned) 
+                Value.int(@as(UT, std.math.maxInt(UT)))
+            else
+                Value.int(@bitCast(UT, @as(T, std.math.minInt(T))));
+        }
+        const amt = @truncate(ShiftT, @bitCast(UT, b_val));
+        const a_val = a.getInt(T);
+        return Value.int(@bitCast(UT, a_val << amt));
+    }
+    inline fn shr(comptime T: type, a: Value, b: Value) Value {
+        const ShiftT = std.math.Log2Int(T);
+        const UT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
+
+        const b_val = b.getInt(T);
+        if (b_val > std.math.maxInt(ShiftT)) return Value.zero;
+
+        const amt = @truncate(ShiftT, @intCast(UT, b_val));
+        const a_val = a.getInt(T);
+        return Value.int(@bitCast(UT, a_val >> amt));
+    }
+
+    const FT = fn (Value, Value, Type, *Compilation) Value;
+    fn getOp(intFunc: anytype, floatFunc: anytype) FT {
+        return struct {
+            fn op(a: Value, b: Value, ty: Type, comp: *Compilation) Value {
+                const size = ty.sizeof(comp).?;
+                if (@TypeOf(floatFunc) != @TypeOf(null) and ty.isFloat()) {
+                    switch (size) {
+                        4 => return floatFunc(f32, a, b),
+                        8 => return floatFunc(f64, a, b),
+                        16 => return floatFunc(f128, a, b),
+                        else => unreachable,
+                    }
+                }
+
+                if (ty.isUnsignedInt(comp)) switch (size) {
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
+                    4 => return intFunc(u32, a, b),
+                    8 => return intFunc(u64, a, b),
+                    16 => return intFunc(u128, a, b),
+                    else => unreachable,
+                } else switch (size) {
+                    1 => unreachable, // promoted to int
+                    2 => unreachable, // promoted to int
+                    4 => return intFunc(i32, a, b),
+                    8 => return intFunc(i64, a, b),
+                    16 => return intFunc(i128, a, b),
+                    else => unreachable,
+                }
+            }
+        }.op;
+    }
+};
+
+/// caller guarantees rhs != 0
+pub const div = bin_ops.getOp(bin_ops.divInt, bin_ops.divFloat);
+/// caller guarantees rhs != 0
+/// caller guarantees lhs != std.math.minInt(T) OR rhs != -1
+pub const rem = bin_ops.getOp(bin_ops.remInt, null);
+
+pub const bitOr = bin_ops.getOp(bin_ops.orInt, null);
+pub const bitXor = bin_ops.getOp(bin_ops.xorInt, null);
+pub const bitAnd = bin_ops.getOp(bin_ops.andInt, null);
+
+pub const shl = bin_ops.getOp(bin_ops.shl, null);
+pub const shr = bin_ops.getOp(bin_ops.shr, null);
+
+pub fn bitNot(v: Value, ty: Type, comp: *Compilation) Value {
+    const size = ty.sizeof(comp).?;
+    var out: Value = undefined;
     if (ty.isUnsignedInt(comp)) switch (size) {
         1 => unreachable, // promoted to int
         2 => unreachable, // promoted to int
-        4 => S.doRem(u32, &out, a, b),
-        8 => S.doRem(u64, &out, a, b),
-        16 => S.doRem(u128, &out, a, b),
+        4 => out = Value.int(~v.getInt(u32)),
+        8 => out = Value.int(~v.getInt(u64)),
+        16 => out = Value.int(~v.getInt(u128)),
         else => unreachable,
     } else switch (size) {
         1 => unreachable, // promoted to int
         2 => unreachable, // promoted to int
-        4 => S.doRem(i32, &out, a, b),
-        8 => S.doRem(i64, &out, a, b),
-        16 => S.doRem(i128, &out, a, b),
+        4 => out = Value.int(@bitCast(u32, ~v.getInt(i32))),
+        8 => out = Value.int(@bitCast(u64, ~v.getInt(i64))),
+        16 => out = Value.int(@bitCast(u128, ~v.getInt(i128))),
         else => unreachable,
     }
     return out;
 }
 
-pub fn compare(a: Value, op: std.math.CompareOperator, b: Value) bool {
-    _ = a;
-    _ = op;
-    _ = b;
+pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp: *Compilation) bool {
+    assert(a.tag == b.tag);
+    const S = struct {
+        inline fn doICompare(comptime T: type, aa: Value, opp: std.math.CompareOperator, bb: Value) bool {
+            const a_val = aa.getInt(T);
+            const b_val = bb.getInt(T);
+            return std.math.compare(a_val, opp, b_val);
+        }
+        inline fn doFCompare(comptime T: type, aa: Value, opp: std.math.CompareOperator, bb: Value) bool {
+            const a_val = aa.getFloat(T);
+            const b_val = bb.getFloat(T);
+            return std.math.compare(a_val, opp, b_val);
+        }
+    };
+    const size = ty.sizeof(comp).?;
+    switch (a.tag) {
+        .unavailable => return true,
+        .int => if (ty.isUnsignedInt(comp)) switch (size) {
+            1 => unreachable, // promoted to int
+            2 => unreachable, // promoted to int
+            4 => return S.doICompare(u32, a, op, b),
+            8 => return S.doICompare(u64, a, op, b),
+            16 => return S.doICompare(u128, a, op, b),
+            else => unreachable,
+        } else switch (size) {
+            1 => unreachable, // promoted to int
+            2 => unreachable, // promoted to int
+            4 => return S.doICompare(i32, a, op, b),
+            8 => return S.doICompare(i64, a, op, b),
+            16 => return S.doICompare(i128, a, op, b),
+            else => unreachable,
+        },
+        .float => switch (size) {
+            4 => return S.doFCompare(f32, a, op, b),
+            8 => return S.doFCompare(f64, a, op, b),
+            16 => return S.doFCompare(f128, a, op, b),
+            else => unreachable,
+        },
+        else => @panic("TODO"),
+    }
     return false;
 }
 
 pub fn hash(v: Value) u64 {
-    _ = v;
-    return 0;
+    switch (v.tag) {
+        .unavailable => unreachable,
+        .int => return std.hash.Wyhash.hash(0, std.mem.asBytes(&v.data.int)),
+        else => @panic("TODO"),
+    }
 }
 
 pub fn dump(v: Value, ty: Type, comp: *Compilation, w: anytype) !void {

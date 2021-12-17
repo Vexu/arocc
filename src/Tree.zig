@@ -113,10 +113,6 @@ pub const Node = struct {
             cond: NodeIndex,
             body: u32,
         },
-        str: struct {
-            index: u32,
-            len: u32,
-        },
         un: NodeIndex,
         bin: struct {
             lhs: NodeIndex,
@@ -131,8 +127,6 @@ pub const Node = struct {
             node: NodeIndex,
         },
         int: u64,
-        float: f32,
-        double: f64,
 
         pub fn forDecl(data: Data, tree: Tree) struct {
             decls: []const NodeIndex,
@@ -388,6 +382,8 @@ pub const Tag = enum(u8) {
     enumeration_ref,
     /// integer literal, always unsigned
     int_literal,
+    /// Same as int_literal, but originates from a char literal
+    char_literal,
     /// f32 literal
     float_literal,
     /// f64 literal
@@ -927,14 +923,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(data.un, level + delta, w);
             }
         },
-        .string_literal_expr => {
-            try w.writeByteNTimes(' ', level + half);
-            try w.writeAll("data: ");
-            util.setColor(LITERAL, w);
-            try dumpStr(tree.strings[data.str.index..][0..data.str.len], tag, w);
-            try w.writeByte('\n');
-            util.setColor(.reset, w);
-        },
         .attr_arg_ident => {
             try w.writeByteNTimes(' ', level + half);
             util.setColor(ATTRIBUTE, w);
@@ -1054,27 +1042,12 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.print("{s}\n", .{tree.tokSlice(data.decl_ref)});
             util.setColor(.reset, w);
         },
-        .int_literal => {
-            try w.writeByteNTimes(' ', level + 1);
-            try w.writeAll("value: ");
-            util.setColor(LITERAL, w);
-            try w.print("{d}\n", .{data.int});
-            util.setColor(.reset, w);
-        },
-        .float_literal => {
-            try w.writeByteNTimes(' ', level + 1);
-            try w.writeAll("value: ");
-            util.setColor(LITERAL, w);
-            try w.print("{d}\n", .{data.float});
-            util.setColor(.reset, w);
-        },
-        .double_literal => {
-            try w.writeByteNTimes(' ', level + 1);
-            try w.writeAll("value: ");
-            util.setColor(LITERAL, w);
-            try w.print("{d}\n", .{data.double});
-            util.setColor(.reset, w);
-        },
+        .int_literal,
+        .char_literal,
+        .float_literal,
+        .double_literal,
+        .string_literal_expr,
+        => {},
         .member_access_expr, .member_access_ptr_expr => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("lhs:\n");
