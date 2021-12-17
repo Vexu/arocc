@@ -121,7 +121,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
 }
 
 fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
-    if (func.c.tree.value_map.get(node)) |some| return Value{ .immediate = @bitCast(i64, some) };
+    if (func.c.tree.value_map.get(node)) |some| return Value{ .immediate = @truncate(i64, @bitCast(i128, some.data.int)) };
 
     const data = func.c.node_data[@enumToInt(node)];
     switch (func.c.node_tag[@enumToInt(node)]) {
@@ -166,14 +166,14 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
             return Value{ .none = {} };
         },
         .int_literal => return Value{ .immediate = @bitCast(i64, data.int) },
-        .string_literal_expr => {
-            const str_bytes = func.c.tree.strings[data.str.index..][0..data.str.len];
-            const section = try func.c.obj.getSection(.strings);
-            const start = section.items.len;
-            try section.appendSlice(str_bytes);
-            const symbol_name = try func.c.obj.declareSymbol(.strings, null, .Internal, .variable, start, str_bytes.len);
-            return Value{ .symbol = symbol_name };
-        },
+        // .string_literal_expr => {
+        //     const str_bytes = func.c.tree.strings[data.str.index..][0..data.str.len];
+        //     const section = try func.c.obj.getSection(.strings);
+        //     const start = section.items.len;
+        //     try section.appendSlice(str_bytes);
+        //     const symbol_name = try func.c.obj.declareSymbol(.strings, null, .Internal, .variable, start, str_bytes.len);
+        //     return Value{ .symbol = symbol_name };
+        // },
         else => return func.c.comp.diag.fatalNoSrc("TODO x86_64 genNode {}\n", .{func.c.node_tag[@enumToInt(node)]}),
     }
 }

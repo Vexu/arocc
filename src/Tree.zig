@@ -4,6 +4,7 @@ const Tokenizer = @import("Tokenizer.zig");
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Attribute = @import("Attribute.zig");
+const Value = @import("Value.zig");
 
 const Tree = @This();
 
@@ -73,7 +74,7 @@ pub const Token = struct {
 
 pub const TokenIndex = u32;
 pub const NodeIndex = enum(u32) { none, _ };
-pub const ValueMap = std.AutoHashMap(NodeIndex, u64);
+pub const ValueMap = std.AutoHashMap(NodeIndex, Value);
 
 comp: *Compilation,
 arena: std.heap.ArenaAllocator,
@@ -567,7 +568,7 @@ pub fn isLvalExtra(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: 
             const data = nodes.items(.data)[@enumToInt(node)];
 
             if (value_map.get(data.if3.cond)) |val| {
-                const offset = @boolToInt(val == 0);
+                const offset = @boolToInt(val.isZero());
                 return isLvalExtra(nodes, extra, value_map, extra[data.if3.body + offset], is_const);
             }
             return false;
@@ -633,10 +634,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     }
     if (tree.value_map.get(node)) |val| {
         util.setColor(LITERAL, w);
-        if (ty.isUnsignedInt(tree.comp))
-            try w.print(" (value: {d})", .{val})
-        else
-            try w.print(" (value: {d})", .{@bitCast(i64, val)});
+        try w.writeAll(" (value: ");
+        try val.dump(ty, tree.comp, w);
+        try w.writeByte(')');
     }
     try w.writeAll("\n");
     util.setColor(.reset, w);

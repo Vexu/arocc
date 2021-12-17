@@ -31,8 +31,8 @@ pub const Message = struct {
             resembles: u21,
         },
         actual_codepoint: u21,
-        unsigned: u64,
-        signed: i64,
+        unsigned: u128,
+        signed: i128,
         none: void,
     };
 };
