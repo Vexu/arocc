@@ -394,7 +394,7 @@ pub fn isConst(ty: Type) bool {
 pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
     return switch (ty.specifier) {
         .char => return getCharSignedness(comp) == .unsigned,
-        .uchar, .ushort, .uint, .ulong, .ulong_long => return true,
+        .uchar, .ushort, .uint, .ulong, .ulong_long, .bool => true,
         .typeof_type => ty.data.sub_type.isUnsignedInt(comp),
         .typeof_expr => ty.data.expr.ty.isUnsignedInt(comp),
         .attributed => ty.data.attributed.base.isUnsignedInt(comp),
