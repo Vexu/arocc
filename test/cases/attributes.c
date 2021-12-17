@@ -92,7 +92,7 @@ typedef struct {
       __attribute__((__aligned__(__alignof__(long double))));
 } max_align_t;
 
-__attribute__((noreturn)) // test attribute at eof
+__attribute__(()) // test attribute at eof
 
 #define EXPECTED_ERRORS "attributes.c:8:26: warning: Attribute 'noreturn' ignored in variable context [-Wignored-attributes]" \
     "attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored [-Wunknown-attributes]" \
@@ -100,4 +100,4 @@ __attribute__((noreturn)) // test attribute at eof
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
     "attributes.c:40:20: error: attribute cannot be applied to a statement" \
     "attributes.c:76:6: error: cannot call non function type 'int'" \
-    "attributes.c:95:26: error: expected identifier or '('" \
+    "attributes.c:95:18: error: expected identifier or '('" \
