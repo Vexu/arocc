@@ -117,6 +117,7 @@ pub const Options = packed struct {
     @"ignored-qualifiers": Kind = .default,
     @"integer-overflow": Kind = .default,
     @"extra-semi": Kind = .default,
+    @"gnu-binary-literal": Kind = .default,
 };
 
 const messages = struct {
@@ -1470,6 +1471,12 @@ const messages = struct {
         const msg = "duplicate member '{s}'";
         const extra = .str;
         const kind = .@"error";
+    };
+    const binary_integer_literal = struct {
+        const msg = "binary integer literals are a GNU extension";
+        const kind = .off;
+        const opt = "gnu-binary-literal";
+        const pedantic = true;
     };
 };
 
