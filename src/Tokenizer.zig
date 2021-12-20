@@ -91,6 +91,7 @@ pub const Token = struct {
         percent_equal,
         arrow,
         colon,
+        colon_colon,
         semicolon,
         slash,
         slash_equal,
@@ -429,6 +430,7 @@ pub const Token = struct {
                 .percent_equal => "%=",
                 .arrow => "->",
                 .colon => ":",
+                .colon_colon => "::",
                 .semicolon => ";",
                 .slash => "/",
                 .slash_equal => "/=",
@@ -772,6 +774,7 @@ pub fn next(self: *Tokenizer) Token {
         equal,
         bang,
         pipe,
+        colon,
         percent,
         asterisk,
         plus,
@@ -880,7 +883,9 @@ pub fn next(self: *Tokenizer) Token {
                     self.index += 1;
                     break;
                 },
-                ':' => {
+                ':' => if (self.comp.langopts.standard.atLeast(.c2x)) {
+                    state = .colon;
+                } else {
                     id = .colon;
                     self.index += 1;
                     break;
@@ -1179,6 +1184,17 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 else => {
                     id = .pipe;
+                    break;
+                },
+            },
+            .colon => switch (c) {
+                ':' => {
+                    id = .colon_colon;
+                    self.index += 1;
+                    break;
+                },
+                else => {
+                    id = .colon;
                     break;
                 },
             },
@@ -1667,6 +1683,7 @@ pub fn next(self: *Tokenizer) Token {
             .angle_bracket_angle_bracket_left => id = .angle_bracket_angle_bracket_left,
             .angle_bracket_left => id = .angle_bracket_left,
             .plus => id = .plus,
+            .colon => id = .colon,
             .percent => id = .percent,
             .caret => id = .caret,
             .asterisk => id = .asterisk,
