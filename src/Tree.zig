@@ -600,6 +600,15 @@ pub fn dump(tree: Tree, writer: anytype) @TypeOf(writer).Error!void {
     }
 }
 
+fn dumpAttribute(attr: Attribute, writer: anytype) !void {
+    inline for (std.meta.fields(Attribute.Tag)) |e| {
+        if (e.value == @enumToInt(attr.tag)) {
+            try writer.print("{}\n", .{@field(attr.args, e.name)});
+            return;
+        }
+    }
+}
+
 fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Error!void {
     const delta = 2;
     const half = delta / 2;
@@ -640,12 +649,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     if (ty.specifier == .attributed) {
         util.setColor(ATTRIBUTE, w);
         for (ty.data.attributed.attributes) |attr| {
-            const attr_name = tree.tokSlice(attr.name);
             try w.writeByteNTimes(' ', level + half);
-            try w.print("attr: {s}\n", .{attr_name});
-            if (attr.params != .none) {
-                try tree.dumpNode(attr.params, level + delta, w);
-            }
+            try w.print("attr: {s} ", .{@tagName(attr.tag)});
+            try dumpAttribute(attr, w);
         }
         util.setColor(.reset, w);
     }

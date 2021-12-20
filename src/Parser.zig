@@ -75,6 +75,12 @@ const Label = union(enum) {
 
 pub const Error = Compilation.Error || error{ParsingFailed};
 
+/// An attribute that has been parsed but not yet validated in its context
+const TentativeAttribute = struct {
+    attr: Attribute,
+    tok: TokenIndex,
+};
+
 // values from preprocessor
 pp: *Preprocessor,
 tok_ids: []const Token.Id,
@@ -95,7 +101,7 @@ decl_buf: NodeList,
 param_buf: std.ArrayList(Type.Func.Param),
 enum_buf: std.ArrayList(Type.Enum.Field),
 record_buf: std.ArrayList(Type.Record.Field),
-attr_buf: std.ArrayList(Attribute),
+attr_buf: std.MultiArrayList(TentativeAttribute) = .{},
 
 // configuration and miscellaneous info
 no_eval: bool = false,
@@ -573,7 +579,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .param_buf = std.ArrayList(Type.Func.Param).init(pp.comp.gpa),
         .enum_buf = std.ArrayList(Type.Enum.Field).init(pp.comp.gpa),
         .record_buf = std.ArrayList(Type.Record.Field).init(pp.comp.gpa),
-        .attr_buf = std.ArrayList(Attribute).init(pp.comp.gpa),
     };
     errdefer {
         p.nodes.deinit(pp.comp.gpa);
@@ -589,7 +594,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.param_buf.deinit();
         p.enum_buf.deinit();
         p.record_buf.deinit();
-        p.attr_buf.deinit();
+        p.attr_buf.deinit(pp.comp.gpa);
     }
 
     // NodeIndex 0 must be invalid
@@ -769,11 +774,11 @@ fn skipTo(p: *Parser, id: Token.Id) void {
 fn decl(p: *Parser) Error!bool {
     _ = try p.pragma();
     const first_tok = p.tok_i;
-    const attr_buf_top = p.attr_buf.items.len;
-    defer p.attr_buf.items.len = attr_buf_top;
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
     // TODO: at this point we don't know what we're trying to parse, so we'll need to check
     // the attributes against what kind of decl was parsed after the fact
-    try p.attributeSpecifier(.any);
+    try p.attributeSpecifier(); //.any
 
     var decl_spec = if (try p.declSpec(false)) |some| some else blk: {
         if (p.func.ty != null) {
@@ -947,7 +952,7 @@ fn decl(p: *Parser) Error!bool {
     while (true) {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         const tag = try decl_spec.validate(p, &init_d.d.ty, init_d.initializer != .none);
-        const attrs = p.attr_buf.items[attr_buf_top..];
+        const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
         init_d.d.ty = try init_d.d.ty.withAttributes(p.arena, attrs);
 
         const node = try p.addNode(.{ .ty = init_d.d.ty, .tag = tag, .data = .{
@@ -1269,81 +1274,77 @@ const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = .none };
 ///  | attrIdentifier '(' identifier ')'
 ///  | attrIdentifier '(' identifier (',' expr)+ ')'
 ///  | attrIdentifier '(' (expr (',' expr)*)? ')'
-fn attribute(p: *Parser) Error!Attribute {
+fn attribute(p: *Parser) Error!?TentativeAttribute {
     const name_tok = p.tok_i;
     switch (p.tok_ids[p.tok_i]) {
         .keyword_const, .keyword_const1, .keyword_const2 => p.tok_i += 1,
         else => _ = try p.expectIdentifier(),
     }
+    const name = p.tokSlice(name_tok);
+
+    const attr = Attribute.fromString(name) orelse {
+        try p.errStr(.unknown_attribute, name_tok, name);
+        if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
+        return null;
+    };
+
+    const required_count = Attribute.requiredArgCount(attr);
+    var arguments = Attribute.initArguments(attr);
+    var arg_idx: u32 = 0;
 
     switch (p.tok_ids[p.tok_i]) {
-        .comma, .r_paren => { // will be consumed in attributeList
-            return Attribute{ .name = name_tok };
-        },
-        .l_paren => {
+        .comma, .r_paren => {}, // will be consumed in attributeList
+        .l_paren => blk: {
             p.tok_i += 1;
-            if (p.eatToken(.r_paren)) |_| return Attribute{ .name = name_tok };
+            if (p.eatToken(.r_paren)) |_| break :blk;
 
-            const maybe_ident = try p.eatIdentifier();
-            if (maybe_ident != null and p.eatToken(.r_paren) != null) {
-                const arg_node = try p.addNode(.{
-                    .tag = .attr_arg_ident,
-                    .ty = .{ .specifier = .void },
-                    .data = .{ .decl_ref = maybe_ident.? },
-                });
-                return Attribute{
-                    .name = name_tok,
-                    .params = arg_node,
-                };
-            }
-            const list_buf_top = p.list_buf.items.len;
-            defer p.list_buf.items.len = list_buf_top;
-
-            if (maybe_ident) |ident| {
-                const arg_node = try p.addNode(.{
-                    .tag = .attr_arg_ident,
-                    .ty = .{ .specifier = .void },
-                    .data = .{ .decl_ref = ident },
-                });
-                try p.list_buf.append(arg_node);
+            if (Attribute.wantsIdentEnum(attr)) {
+                if (try p.eatIdentifier()) |ident| {
+                    if (Attribute.diagnoseIdent(attr, &arguments, p.tokSlice(ident))) |msg| {
+                        try p.errExtra(msg.tag, ident, msg.extra);
+                        p.skipTo(.r_paren);
+                        return error.ParsingFailed;
+                    }
+                } else {
+                    try p.errExtra(.attribute_requires_identifier, name_tok, .{ .str = name });
+                    return error.ParsingFailed;
+                }
             } else {
+                const arg_start = p.tok_i;
                 var first_expr = try p.assignExpr();
                 try first_expr.expect(p);
-                try first_expr.saveValue(p);
-                try p.list_buf.append(first_expr.node);
+                if (p.diagnose(attr, &arguments, arg_idx, first_expr)) |msg| {
+                    try p.errExtra(msg.tag, arg_start, msg.extra);
+                    p.skipTo(.r_paren);
+                    return error.ParsingFailed;
+                }
             }
-
-            while (p.tok_ids[p.tok_i] != .r_paren) {
+            arg_idx += 1;
+            while (p.eatToken(.r_paren) == null) : (arg_idx += 1) {
                 _ = try p.expectToken(.comma);
 
-                var attr_expr = try p.assignExpr();
-                try attr_expr.expect(p);
-                try attr_expr.saveValue(p);
-
-                try p.list_buf.append(attr_expr.node);
+                const arg_start = p.tok_i;
+                var arg_expr = try p.assignExpr();
+                try arg_expr.expect(p);
+                if (p.diagnose(attr, &arguments, arg_idx, arg_expr)) |msg| {
+                    try p.errExtra(msg.tag, arg_start, msg.extra);
+                    p.skipTo(.r_paren);
+                    return error.ParsingFailed;
+                }
             }
-            p.tok_i += 1; // eat closing r_paren
-
-            const items = p.list_buf.items[list_buf_top..];
-            assert(items.len > 0);
-
-            var node: Tree.Node = .{ .tag = .attr_params_two, .ty = .{ .specifier = .void }, .data = .{ .bin = .{ .lhs = items[0], .rhs = .none } } };
-            switch (items.len) {
-                0 => unreachable,
-                1 => {},
-                2 => node.data.bin.rhs = items[1],
-                else => {
-                    node.tag = .attr_params;
-                    node.data = .{ .range = try p.addList(items) };
-                },
-            }
-            return Attribute{
-                .name = name_tok,
-                .params = try p.addNode(node),
-            };
         },
         else => return error.ParsingFailed,
     }
+    if (arg_idx < required_count) {
+        try p.errExtra(.attribute_not_enough_args, name_tok, .{ .attr_arg_count = .{ .attribute = attr, .expected = required_count } });
+        return error.ParsingFailed;
+    }
+    return TentativeAttribute{ .attr = .{ .tag = attr, .args = arguments }, .tok = name_tok };
+}
+
+fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result) ?Diagnostics.Message {
+    const node = p.nodes.get(@enumToInt(res.node));
+    return Attribute.diagnose(attr, arguments, arg_idx, res.val, node);
 }
 
 fn validateAttr(p: *Parser, attr: Attribute, context: Attribute.ParseContext) Error!bool {
@@ -1363,33 +1364,50 @@ fn validateAttr(p: *Parser, attr: Attribute, context: Attribute.ParseContext) Er
 }
 
 /// attributeList : (attribute (',' attribute)*)?
-fn attributeList(p: *Parser, context: Attribute.ParseContext) Error!void {
+fn attributeList(p: *Parser) Error!void {
     if (p.tok_ids[p.tok_i] != .r_paren) {
-        const attr = try p.attribute();
-        if (try p.validateAttr(attr, context)) {
-            try p.attr_buf.append(attr);
-        }
+        if (try p.attribute()) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
         while (p.tok_ids[p.tok_i] != .r_paren) {
             _ = try p.expectToken(.comma);
-            const next_attr = try p.attribute();
-            if (try p.validateAttr(next_attr, context)) {
-                try p.attr_buf.append(next_attr);
-            }
+            if (try p.attribute()) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
         }
     }
 }
 
+fn c2xAttribute(p: *Parser) !bool {
+    // todo [[attribute]]
+    _ = p;
+    return false;
+}
+
+fn msvcAttribute(p: *Parser) !bool {
+    // todo __declspec
+    _ = p;
+    return false;
+}
+
+fn gnuAttribute(p: *Parser) !bool {
+    switch (p.tok_ids[p.tok_i]) {
+        .keyword_attribute1, .keyword_attribute2 => p.tok_i += 1,
+        else => return false,
+    }
+    const paren1 = try p.expectToken(.l_paren);
+    const paren2 = try p.expectToken(.l_paren);
+
+    try p.attributeList();
+
+    _ = try p.expectClosing(paren2, .r_paren);
+    _ = try p.expectClosing(paren1, .r_paren);
+    return true;
+}
+
 /// attributeSpecifier : (keyword_attribute '( '(' attributeList ')' ')')*
-fn attributeSpecifier(p: *Parser, context: Attribute.ParseContext) Error!void {
-    while (p.tok_ids[p.tok_i] == .keyword_attribute1 or p.tok_ids[p.tok_i] == .keyword_attribute2) {
-        p.tok_i += 1;
-        const paren1 = try p.expectToken(.l_paren);
-        const paren2 = try p.expectToken(.l_paren);
-
-        try p.attributeList(context);
-
-        _ = try p.expectClosing(paren2, .r_paren);
-        _ = try p.expectClosing(paren1, .r_paren);
+fn attributeSpecifier(p: *Parser) Error!void {
+    while (true) {
+        if (try p.gnuAttribute()) continue;
+        if (try p.c2xAttribute()) continue;
+        if (try p.msvcAttribute()) continue;
+        break;
     }
 }
 
@@ -1399,7 +1417,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
     _ = try p.assembly(.decl); // TODO use somehow
-    try p.attributeSpecifier(if (init_d.d.ty.isFunc()) .function else .variable);
+    try p.attributeSpecifier(); // if (init_d.d.ty.isFunc()) .function else .variable
     if (p.eatToken(.equal)) |eq| init: {
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
             try p.errTok(.illegal_initializer, eq);
@@ -1504,7 +1522,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
-        try p.attributeSpecifier(.typedef);
+        try p.attributeSpecifier(); // .typedef
 
         if (try p.typeof()) |inner_ty| {
             try ty.combineFromTypeof(p, inner_ty, start);
@@ -1632,9 +1650,9 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     const kind_tok = p.tok_i;
     const is_struct = p.tok_ids[kind_tok] == .keyword_struct;
     p.tok_i += 1;
-    const attr_buf_top = p.attr_buf.items.len;
-    defer p.attr_buf.items.len = attr_buf_top;
-    try p.attributeSpecifier(.record);
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
+    try p.attributeSpecifier(); // .record
 
     const maybe_ident = try p.eatIdentifier();
     const l_brace = p.eatToken(.l_brace) orelse {
@@ -1718,7 +1736,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
 
     if (p.record_buf.items.len == record_buf_top) try p.errStr(.empty_record, kind_tok, p.tokSlice(kind_tok));
     try p.expectClosing(l_brace, .r_brace);
-    try p.attributeSpecifier(.record);
+    try p.attributeSpecifier(); // .record
 
     // finish by creating a node
     var node: Tree.Node = .{
@@ -1776,15 +1794,15 @@ fn recordDecls(p: *Parser) Error!void {
 
 /// recordDeclarator : keyword_extension? declarator (':' constExpr)?
 fn recordDeclarator(p: *Parser) Error!bool {
-    const attr_buf_top = p.attr_buf.items.len;
-    defer p.attr_buf.items.len = attr_buf_top;
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
     const base_ty = (try p.specQual()) orelse return false;
 
     while (true) {
-        const this_decl_top = p.attr_buf.items.len;
-        defer p.attr_buf.items.len = this_decl_top;
+        const this_decl_top = p.attr_buf.len;
+        defer p.attr_buf.len = this_decl_top;
 
-        try p.attributeSpecifier(.record);
+        try p.attributeSpecifier(); // .record
 
         // 0 means unnamed
         var name_tok: TokenIndex = 0;
@@ -1796,8 +1814,8 @@ fn recordDeclarator(p: *Parser) Error!bool {
             name_tok = d.name;
             ty = d.ty;
         }
-        try p.attributeSpecifier(.record);
-        const attrs = p.attr_buf.items[attr_buf_top..];
+        try p.attributeSpecifier(); // .record
+        const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
         ty = try ty.withAttributes(p.arena, attrs);
 
         if (p.eatToken(.colon)) |_| bits: {
@@ -1904,9 +1922,9 @@ fn specQual(p: *Parser) Error!?Type {
 fn enumSpec(p: *Parser) Error!*Type.Enum {
     const enum_tok = p.tok_i;
     p.tok_i += 1;
-    const attr_buf_top = p.attr_buf.items.len;
-    defer p.attr_buf.items.len = attr_buf_top;
-    try p.attributeSpecifier(.record);
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
+    try p.attributeSpecifier(); // record
 
     const maybe_ident = try p.eatIdentifier();
     const l_brace = p.eatToken(.l_brace) orelse {
@@ -1979,7 +1997,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
 
     if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
     try p.expectClosing(l_brace, .r_brace);
-    try p.attributeSpecifier(.record);
+    try p.attributeSpecifier(); // record
 
     // finish by creating a node
     var node: Tree.Node = .{ .tag = .enum_decl_two, .ty = ty, .data = .{
@@ -2037,9 +2055,9 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         return error.ParsingFailed;
     };
     const name = p.tokSlice(name_tok);
-    const attr_buf_top = p.attr_buf.items.len;
-    defer p.attr_buf.items.len = attr_buf_top;
-    try p.attributeSpecifier(.@"enum");
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
+    try p.attributeSpecifier(); // .@"enum"
 
     if (p.eatToken(.equal)) |_| {
         const specified = try p.constExpr();
@@ -3383,10 +3401,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
         return e.node;
     }
 
-    const attr_buf_top = p.attr_buf.items.len;
-    defer p.attr_buf.items.len = attr_buf_top;
-    try p.attributeSpecifier(.statement);
-    const attrs = p.attr_buf.items[attr_buf_top..];
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
+    try p.attributeSpecifier(); // statement
+    const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
 
     if (p.eatToken(.semicolon)) |_| {
         var null_node: Tree.Node = .{ .tag = .null_stmt, .data = undefined };
@@ -3431,9 +3449,9 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         }
 
         p.tok_i += 1;
-        const attr_buf_top = p.attr_buf.items.len;
-        defer p.attr_buf.items.len = attr_buf_top;
-        try p.attributeSpecifier(.label);
+        const attr_buf_top = p.attr_buf.len;
+        defer p.attr_buf.len = attr_buf_top;
+        try p.attributeSpecifier(); // label
 
         return try p.addNode(.{
             .tag = .labeled_stmt,

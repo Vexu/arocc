@@ -1395,6 +1395,20 @@ pub const Builder = struct {
     }
 };
 
+pub fn getAttribute(ty: Type, comptime tag: Attribute.Tag) ?Attribute.ArgumentsForTag(tag) {
+    switch (ty.specifier) {
+        .typeof_type => return ty.data.sub_type.getAttribute(tag),
+        .typeof_expr => return ty.data.expr.ty.getAttribute(tag),
+        .attributed => {
+            for (ty.data.attributed.attributes) |attribute| {
+                if (attribute.tag == tag) return @field(attribute.args, @tagName(tag));
+            }
+            return null;
+        },
+        else => return null,
+    }
+}
+
 /// Print type in C style
 pub fn print(ty: Type, w: anytype) @TypeOf(w).Error!void {
     _ = try ty.printPrologue(w);

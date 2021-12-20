@@ -3,6 +3,7 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
+const Attribute = @import("Attribute.zig");
 const Tree = @import("Tree.zig");
 const util = @import("util.zig");
 const is_windows = @import("builtin").os.tag == .windows;
@@ -29,6 +30,18 @@ pub const Message = struct {
         codepoints: struct {
             actual: u21,
             resembles: u21,
+        },
+        attr_arg_count: struct {
+            attribute: Attribute.Tag,
+            expected: u32,
+        },
+        attr_arg_type: struct {
+            expected: Attribute.ArgumentType,
+            actual: Attribute.ArgumentType,
+        },
+        attr_enum: struct {
+            tag: Attribute.Tag,
+            actual: []const u8,
         },
         actual_codepoint: u21,
         unsigned: u64,
@@ -1521,6 +1534,31 @@ const messages = struct {
         const opt = "varargs";
         const kind = .warning;
     };
+    const attribute_not_enough_args = struct {
+        const msg = "'{s}' attribute takes at least {d} argument(s)";
+        const kind = .@"error";
+        const extra = .attr_arg_count;
+    };
+    const attribute_too_many_args = struct {
+        const msg = "'{s}' attribute takes at most {d} argument(s)";
+        const kind = .@"error";
+        const extra = .attr_arg_count;
+    };
+    const attribute_arg_invalid = struct {
+        const msg = "Attribute argument is invalid, expected {s} but got {s}";
+        const kind = .@"error";
+        const extra = .attr_arg_type;
+    };
+    const unknown_attr_enum = struct {
+        const msg = "Unknown `{s}` argument {s}{s}{s}. Possible values are: {s}";
+        const kind = .@"error";
+        const extra = .attr_enum;
+    };
+    const attribute_requires_identifier = struct {
+        const msg = "'{s}' attribute requires an identifier";
+        const kind = .@"error";
+        const extra = .str;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -1703,9 +1741,24 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                             msg.extra.codepoints.actual,
                             msg.extra.codepoints.resembles,
                         }),
+                        .attr_arg_count => m.print(info.msg, .{
+                            @tagName(msg.extra.attr_arg_count.attribute),
+                            msg.extra.attr_arg_count.expected,
+                        }),
+                        .attr_arg_type => m.print(info.msg, .{
+                            msg.extra.attr_arg_type.expected.toString(),
+                            msg.extra.attr_arg_type.actual.toString(),
+                        }),
                         .actual_codepoint => m.print(info.msg, .{msg.extra.actual_codepoint}),
                         .unsigned => m.print(info.msg, .{msg.extra.unsigned}),
                         .signed => m.print(info.msg, .{msg.extra.signed}),
+                        .attr_enum => m.print(info.msg, .{
+                            @tagName(msg.extra.attr_enum.tag),
+                            Attribute.Formatting.quoteChar(msg.extra.attr_enum.tag),
+                            msg.extra.attr_enum.actual,
+                            Attribute.Formatting.quoteChar(msg.extra.attr_enum.tag),
+                            Attribute.Formatting.choices(msg.extra.attr_enum.tag),
+                        }),
                         else => unreachable,
                     }
                 } else {
