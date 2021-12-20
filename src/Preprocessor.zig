@@ -1520,20 +1520,14 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
     defer params.deinit();
 
     // Parse the parameter list.
+    var gnu_var_args: []const u8 = "";
     var var_args = false;
     var start_index: u32 = undefined;
     while (true) {
-        var tok = tokenizer.next();
-        if (tok.id == .whitespace) continue;
+        var tok = tokenizer.nextNoWS();
         if (tok.id == .r_paren) {
             start_index = tok.end;
             break;
-        }
-        if (params.items.len != 0) {
-            if (tok.id != .comma) {
-                try pp.err(tok, .invalid_token_param_list);
-                return skipToNl(tokenizer);
-            } else tok = tokenizer.nextNoWS();
         }
         if (tok.id == .eof) return pp.err(tok, .unterminated_macro_param_list);
         if (tok.id == .ellipsis) {
@@ -1552,6 +1546,25 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
         }
 
         try params.append(pp.tokSlice(tok));
+
+        tok = tokenizer.nextNoWS();
+        if (tok.id == .ellipsis) {
+            try pp.err(tok, .gnu_va_macro);
+            gnu_var_args = params.pop();
+            const r_paren = tokenizer.nextNoWS();
+            if (r_paren.id != .r_paren) {
+                try pp.err(r_paren, .missing_paren_param_list);
+                try pp.err(l_paren, .to_match_paren);
+                return skipToNl(tokenizer);
+            }
+            break;
+        } else if (tok.id == .r_paren) {
+            start_index = tok.end;
+            break;
+        } else if (tok.id != .comma) {
+            try pp.err(tok, .expected_comma_param_list);
+            return skipToNl(tokenizer);
+        }
     }
 
     var need_ws = false;
@@ -1580,6 +1593,11 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                     }
                     if (!param.id.isMacroIdentifier()) break :blk;
                     const s = pp.tokSlice(param);
+                    if (mem.eql(u8, s, gnu_var_args)) {
+                        tok.id = .stringify_va_args;
+                        try pp.token_buf.append(tok);
+                        continue :tok_loop;
+                    }
                     for (params.items) |p, i| {
                         if (mem.eql(u8, p, s)) {
                             tok.id = .stringify_param;
@@ -1623,7 +1641,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 } else if (tok.id.isMacroIdentifier()) {
                     tok.id.simplifyMacroKeyword();
                     const s = pp.tokSlice(tok);
-                    for (params.items) |param, i| {
+                    if (mem.eql(u8, gnu_var_args, s)) {
+                        tok.id = .keyword_va_args;
+                    } else for (params.items) |param, i| {
                         if (mem.eql(u8, param, s)) {
                             // NOTE: it doesn't matter to assign .macro_param_no_expand
                             // here in case a ## was the previous token, because
@@ -1644,7 +1664,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
     try pp.defineMacro(macro_name, .{
         .is_func = true,
         .params = param_list,
-        .var_args = var_args,
+        .var_args = var_args or gnu_var_args.len != 0,
         .tokens = token_list,
         .loc = .{
             .id = macro_name.source,

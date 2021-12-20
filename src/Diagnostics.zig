@@ -118,6 +118,7 @@ pub const Options = packed struct {
     @"integer-overflow": Kind = .default,
     @"extra-semi": Kind = .default,
     @"gnu-binary-literal": Kind = .default,
+    @"variadic-macros": Kind = .default,
 };
 
 const messages = struct {
@@ -253,6 +254,10 @@ const messages = struct {
     };
     const invalid_token_param_list = struct {
         const msg = "invalid token in macro parameter list";
+        const kind = .@"error";
+    };
+    const expected_comma_param_list = struct {
+        const msg = "expected comma in macro parameter list";
         const kind = .@"error";
     };
     const hash_not_followed_param = struct {
@@ -1476,6 +1481,12 @@ const messages = struct {
         const msg = "binary integer literals are a GNU extension";
         const kind = .off;
         const opt = "gnu-binary-literal";
+        const pedantic = true;
+    };
+    const gnu_va_macro = struct {
+        const msg = "named variadic macros are a GNU extension";
+        const op = "variadic-macros";
+        const kind = .off;
         const pedantic = true;
     };
 };
