@@ -15,6 +15,7 @@ pub const Color = enum {
 pub fn setColor(color: Color, w: anytype) void {
     if (is_windows) {
         const stderr_file = std.io.getStdErr();
+        if (!stderr_file.isTty()) return;
         const windows = std.os.windows;
         const S = struct {
             var attrs: windows.WORD = undefined;

@@ -80,6 +80,12 @@ pub fn main() !void {
             comp.deinit();
         }
 
+        const case = std.mem.sliceTo(std.fs.path.basename(path), '.');
+        var case_node = root_node.start(case, 0);
+        case_node.activate();
+        defer case_node.end();
+        progress.refresh();
+
         const file = comp.addSource(path) catch |err| {
             fail_count += 1;
             progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
@@ -97,12 +103,6 @@ pub fn main() !void {
         }
 
         const builtin_macros = try comp.generateBuiltinMacros();
-
-        const case = std.mem.sliceTo(std.fs.path.basename(path), '.');
-        var case_node = root_node.start(case, 0);
-        case_node.activate();
-        defer case_node.end();
-        progress.refresh();
 
         comp.diag.errors = 0;
         var pp = aro.Preprocessor.init(&comp);
