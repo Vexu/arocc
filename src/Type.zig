@@ -251,6 +251,9 @@ pub const Specifier = enum {
 
     /// data.attributed
     attributed,
+
+    /// special type used to implement __builtin_va_start
+    special_va_start,
 };
 
 /// All fields of Type except data may be mutated
@@ -661,6 +664,7 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .typeof_type => ty.data.sub_type.sizeof(comp),
         .typeof_expr => ty.data.expr.ty.sizeof(comp),
         .attributed => ty.data.attributed.base.sizeof(comp),
+        else => unreachable,
     };
 }
 
@@ -716,6 +720,7 @@ pub fn alignof(ty: Type, comp: *Compilation) u29 {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
         .attributed => ty.data.attributed.base.alignof(comp),
+        else => unreachable,
     };
 }
 
@@ -1419,6 +1424,7 @@ pub const Builder = struct {
             .decayed_typeof_expr => .{ .decayed_typeof_expr = ty.data.expr },
 
             .attributed => .{ .attributed = ty.data.attributed },
+            else => unreachable,
         };
     }
 };
@@ -1639,6 +1645,7 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try ty.data.attributed.base.dump(w);
             try w.writeAll(")");
         },
+        .special_va_start => try w.writeAll("(va start param)"),
         else => try w.writeAll(Builder.fromType(ty).str().?),
     }
 }

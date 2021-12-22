@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const assert = std.debug.assert;
+const builtins = @import("builtins.zig");
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -92,6 +93,7 @@ param_buf: std.ArrayList(Type.Func.Param),
 enum_buf: std.ArrayList(Type.Enum.Field),
 record_buf: std.ArrayList(Type.Record.Field),
 attr_buf: std.ArrayList(Attribute),
+builtins: std.StringHashMapUnmanaged(Type) = .{},
 
 // configuration and miscellaneous info
 no_eval: bool = false,
@@ -106,6 +108,7 @@ computed_goto_tok: ?TokenIndex = null,
 
 /// Various variables that are different for each function.
 func: struct {
+    /// null if not in function, will always be plain func, var_args_func or old_style_func
     ty: ?Type = null,
     name: TokenIndex = 0,
     ident: ?Result = null,
@@ -501,6 +504,10 @@ fn findSwitch(p: *Parser) ?*Scope.Switch {
 }
 
 fn nodeIs(p: *Parser, node: NodeIndex, tag: Tree.Tag) bool {
+    return p.getNode(node, tag) != null;
+}
+
+fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
     var cur = node;
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
@@ -509,9 +516,9 @@ fn nodeIs(p: *Parser, node: NodeIndex, tag: Tree.Tag) bool {
         if (cur_tag == .paren_expr) {
             cur = data[@enumToInt(cur)].un;
         } else if (cur_tag == tag) {
-            return true;
+            return cur;
         } else {
-            return false;
+            return null;
         }
     }
 }
@@ -652,11 +659,13 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.enum_buf.deinit();
         p.record_buf.deinit();
         p.attr_buf.deinit();
+        p.builtins.deinit(pp.comp.gpa);
     }
 
     // NodeIndex 0 must be invalid
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
     try p.defineVaList();
+    try builtins.init(&p);
 
     while (p.eatToken(.eof) == null) {
         const found_pragma = p.pragma() catch |err| switch (err) {
@@ -2332,14 +2341,20 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         return res_ty;
     } else if (p.eatToken(.l_paren)) |l_paren| {
         d.func_declarator = l_paren;
-        if (p.tok_ids[p.tok_i] == .ellipsis) {
-            try p.err(.param_before_var_args);
-            p.tok_i += 1;
-        }
 
         const func_ty = try p.arena.create(Type.Func);
         func_ty.params = &.{};
         var specifier: Type.Specifier = .func;
+
+        if (p.eatToken(.ellipsis)) |_| {
+            try p.err(.param_before_var_args);
+            try p.expectClosing(l_paren, .r_paren);
+            var res_ty = Type{ .specifier = .func, .data = .{ .func = func_ty } };
+
+            const outer = try p.directDeclarator(base_type, d, kind);
+            try res_ty.combine(outer, p, l_paren);
+            return res_ty;
+        }
 
         if (try p.paramDecls()) |params| {
             func_ty.params = params;
@@ -5043,6 +5058,7 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
 }
 
 fn builtinVaArg(p: *Parser) Error!Result {
+    const builtin_tok = p.tok_i;
     p.tok_i += 1;
 
     const l_paren = try p.expectToken(.l_paren);
@@ -5065,9 +5081,9 @@ fn builtinVaArg(p: *Parser) Error!Result {
     }
 
     return Result{ .ty = ty, .node = try p.addNode(.{
-        .tag = .builtin_va_arg,
+        .tag = .builtin_call_expr_one,
         .ty = ty,
-        .data = .{ .un = va_list.node },
+        .data = .{ .decl = .{ .name = builtin_tok, .node = va_list.node } },
     }) };
 }
 
@@ -5523,84 +5539,114 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     try p.list_buf.append(func.node);
     var arg_count: u32 = 0;
 
-    var first_after = l_paren;
-    if (p.eatToken(.r_paren) == null) {
-        while (true) {
-            const param_tok = p.tok_i;
-            if (arg_count == params.len) first_after = p.tok_i;
-            var arg = try p.assignExpr();
-            try arg.expect(p);
-            try arg.lvalConversion(p);
-            if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
+    const builtin_node = p.getNode(lhs.node, .builtin_call_expr_one);
 
-            if (arg_count < params.len) {
-                const p_ty = params[arg_count].ty;
-                if (p_ty.is(.bool)) {
-                    // this is ridiculous but it's what clang does
-                    if (arg.ty.isInt() or arg.ty.isFloat() or arg.ty.isPtr()) {
-                        try arg.boolCast(p, p_ty);
-                    } else {
-                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                        try p.errTok(.parameter_here, params[arg_count].name_tok);
-                    }
-                } else if (p_ty.isInt()) {
-                    if (arg.ty.isInt() or arg.ty.isFloat()) {
-                        try arg.intCast(p, p_ty);
-                    } else if (arg.ty.isPtr()) {
-                        try p.errStr(
-                            .implicit_ptr_to_int,
-                            param_tok,
-                            try p.typePairStrExtra(arg.ty, " to ", p_ty),
-                        );
-                        try p.errTok(.parameter_here, params[arg_count].name_tok);
-                        try arg.intCast(p, p_ty);
-                    } else {
-                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                        try p.errTok(.parameter_here, params[arg_count].name_tok);
-                    }
-                } else if (p_ty.isFloat()) {
-                    if (arg.ty.isInt() or arg.ty.isFloat()) {
-                        try arg.floatCast(p, p_ty);
-                    } else {
-                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                        try p.errTok(.parameter_here, params[arg_count].name_tok);
-                    }
-                } else if (p_ty.isPtr()) {
-                    if (arg.isZero()) {
-                        try arg.nullCast(p, p_ty);
-                    } else if (arg.ty.isInt()) {
-                        try p.errStr(
-                            .implicit_int_to_ptr,
-                            param_tok,
-                            try p.typePairStrExtra(arg.ty, " to ", p_ty),
-                        );
-                        try p.errTok(.parameter_here, params[arg_count].name_tok);
-                        try arg.intCast(p, p_ty);
-                    } else if (!arg.ty.isVoidStar() and !p_ty.isVoidStar() and !p_ty.eql(arg.ty, false)) {
-                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                        try p.errTok(.parameter_here, params[arg_count].name_tok);
-                    }
-                } else if (p_ty.isRecord()) {
-                    if (!p_ty.eql(arg.ty, false)) {
-                        try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                        try p.errTok(.parameter_here, params[arg_count].name_tok);
-                    }
-                } else {
-                    // should be unreachable
-                    try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                    try p.errTok(.parameter_here, params[arg_count].name_tok);
-                }
-            } else {
-                if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.pp.comp));
-                if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
-            }
+    var first_after = l_paren;
+    while (p.eatToken(.r_paren) == null) {
+        const param_tok = p.tok_i;
+        if (arg_count == params.len) first_after = p.tok_i;
+        var arg = try p.assignExpr();
+        try arg.expect(p);
+        const raw_arg_node = arg.node;
+        try arg.lvalConversion(p);
+        if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
+
+        if (arg_count >= params.len) {
+            if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.pp.comp));
+            if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
             try arg.saveValue(p);
             try p.list_buf.append(arg.node);
             arg_count += 1;
 
-            _ = p.eatToken(.comma) orelse break;
+            _ = p.eatToken(.comma) orelse {
+                try p.expectClosing(l_paren, .r_paren);
+                break;
+            };
+            continue;
         }
-        try p.expectClosing(l_paren, .r_paren);
+
+        const p_ty = params[arg_count].ty;
+        if (p_ty.is(.special_va_start)) va_start: {
+            const builtin_tok = p.nodes.items(.data)[@enumToInt(builtin_node.?)].decl.name;
+            var func_ty = p.func.ty orelse {
+                try p.errTok(.va_start_not_in_func, builtin_tok);
+                break :va_start;
+            };
+            if (func_ty.specifier != .var_args_func) {
+                try p.errTok(.va_start_fixed_args, builtin_tok);
+                break :va_start;
+            }
+            const last_param_name = func_ty.data.func.params[func_ty.data.func.params.len - 1].name;
+            const decl_ref = p.getNode(raw_arg_node, .decl_ref_expr);
+            if (decl_ref == null or
+                !mem.eql(u8, p.tokSlice(p.nodes.items(.data)[@enumToInt(decl_ref.?)].decl_ref), last_param_name))
+            {
+                try p.errTok(.va_start_not_last_param, param_tok);
+            }
+        } else if (p_ty.is(.bool)) {
+            // this is ridiculous but it's what clang does
+            if (arg.ty.isInt() or arg.ty.isFloat() or arg.ty.isPtr()) {
+                try arg.boolCast(p, p_ty);
+            } else {
+                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                try p.errTok(.parameter_here, params[arg_count].name_tok);
+            }
+        } else if (p_ty.isInt()) {
+            if (arg.ty.isInt() or arg.ty.isFloat()) {
+                try arg.intCast(p, p_ty);
+            } else if (arg.ty.isPtr()) {
+                try p.errStr(
+                    .implicit_ptr_to_int,
+                    param_tok,
+                    try p.typePairStrExtra(arg.ty, " to ", p_ty),
+                );
+                try p.errTok(.parameter_here, params[arg_count].name_tok);
+                try arg.intCast(p, p_ty);
+            } else {
+                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                try p.errTok(.parameter_here, params[arg_count].name_tok);
+            }
+        } else if (p_ty.isFloat()) {
+            if (arg.ty.isInt() or arg.ty.isFloat()) {
+                try arg.floatCast(p, p_ty);
+            } else {
+                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                try p.errTok(.parameter_here, params[arg_count].name_tok);
+            }
+        } else if (p_ty.isPtr()) {
+            if (arg.isZero()) {
+                try arg.nullCast(p, p_ty);
+            } else if (arg.ty.isInt()) {
+                try p.errStr(
+                    .implicit_int_to_ptr,
+                    param_tok,
+                    try p.typePairStrExtra(arg.ty, " to ", p_ty),
+                );
+                try p.errTok(.parameter_here, params[arg_count].name_tok);
+                try arg.intCast(p, p_ty);
+            } else if (!arg.ty.isVoidStar() and !p_ty.isVoidStar() and !p_ty.eql(arg.ty, false)) {
+                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                try p.errTok(.parameter_here, params[arg_count].name_tok);
+            }
+        } else if (p_ty.isRecord()) {
+            if (!p_ty.eql(arg.ty, false)) {
+                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+                try p.errTok(.parameter_here, params[arg_count].name_tok);
+            }
+        } else {
+            // should be unreachable
+            try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
+            try p.errTok(.parameter_here, params[arg_count].name_tok);
+        }
+
+        try arg.saveValue(p);
+        try p.list_buf.append(arg.node);
+        arg_count += 1;
+
+        _ = p.eatToken(.comma) orelse {
+            try p.expectClosing(l_paren, .r_paren);
+            break;
+        };
     }
 
     const extra = Diagnostics.Message.Extra{ .arguments = .{
@@ -5615,6 +5661,23 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     }
     if (ty.is(.var_args_func) and arg_count < params.len) {
         try p.errExtra(.expected_at_least_arguments, first_after, extra);
+    }
+
+    if (builtin_node) |some| {
+        const index = @enumToInt(some);
+        var call_node = p.nodes.get(index);
+        defer p.nodes.set(index, call_node);
+        const args = p.list_buf.items[list_buf_top..];
+        switch (arg_count) {
+            0 => {},
+            1 => call_node.data.decl.node = args[1], // args[0] == func.node
+            else => {
+                call_node.tag = .builtin_call_expr;
+                args[0] = @intToEnum(NodeIndex, call_node.data.decl.name);
+                call_node.data = .{ .range = try p.addList(args) };
+            },
+        }
+        return Result{ .node = some, .ty = call_node.ty.returnType() };
     }
 
     var call_node: Tree.Node = .{
@@ -5668,11 +5731,32 @@ fn primaryExpr(p: *Parser) Error!Result {
     switch (p.tok_ids[p.tok_i]) {
         .identifier, .extended_identifier => {
             const name_tok = p.expectIdentifier() catch unreachable;
+            const name = p.tokSlice(name_tok);
+            if (p.builtins.get(name)) |some| {
+                for (p.tok_ids[p.tok_i..]) |id| switch (id) {
+                    .r_paren => {}, // closing grouped expr
+                    .l_paren => break, // beginning of a call
+                    else => {
+                        try p.errTok(.builtin_must_be_called, name_tok);
+                        return error.ParsingFailed;
+                    },
+                };
+                return Result{
+                    .ty = some,
+                    .node = try p.addNode(.{
+                        .tag = .builtin_call_expr_one,
+                        .ty = some,
+                        .data = .{ .decl = .{ .name = name_tok, .node = .none } },
+                    }),
+                };
+            }
             const sym = p.findSymbol(name_tok, .reference) orelse {
                 if (p.tok_ids[p.tok_i] == .l_paren) {
-                    // implicitly declare simple functions as like `puts("foo")`;
-                    const name = p.tokSlice(name_tok);
-                    try p.errStr(.implicit_func_decl, name_tok, name);
+                    // allow implicitly declaring functions before C99 like `puts("foo")`
+                    if (mem.startsWith(u8, name, "__builtin_"))
+                        try p.errStr(.unknown_builtin, name_tok, name)
+                    else
+                        try p.errStr(.implicit_func_decl, name_tok, name);
 
                     const func_ty = try p.arena.create(Type.Func);
                     func_ty.* = .{ .return_type = .{ .specifier = .int }, .params = &.{} };
