@@ -130,6 +130,8 @@ pub const Token = struct {
         macro_param_has_feature,
         /// Special token for implementing __has_extension
         macro_param_has_extension,
+        /// Special token for implementing __has_builtin
+        macro_param_has_builtin,
         /// Special token for implementing __is_identifier
         macro_param_is_identifier,
         /// Special token for implementing __FILE__
@@ -389,6 +391,7 @@ pub const Token = struct {
                 .macro_param_has_warning,
                 .macro_param_has_feature,
                 .macro_param_has_extension,
+                .macro_param_has_builtin,
                 .macro_param_is_identifier,
                 .macro_file,
                 .macro_line,
