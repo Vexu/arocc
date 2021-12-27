@@ -500,44 +500,6 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     };
 }
 
-pub fn wideChar(comp: *Compilation) Type {
-    const os = comp.target.os.tag;
-    return switch (comp.target.cpu.arch) {
-        .xcore => .{ .specifier = .uchar },
-        .ve => .{ .specifier = .uint },
-        .arm, .armeb, .thumb, .thumbeb => .{
-            .specifier = if (os != .windows and os != .netbsd and os != .openbsd) .uint else .int,
-        },
-        .aarch64, .aarch64_be, .aarch64_32 => .{
-            .specifier = if (!os.isDarwin() and os != .netbsd) .uint else .int,
-        },
-        .x86_64, .i386 => .{ .specifier = if (os == .windows) .ushort else .int },
-        else => .{ .specifier = .int },
-    };
-}
-
-pub fn ptrDiffT(comp: *Compilation) Type {
-    if (comp.target.os.tag == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
-        return .{ .specifier = .long_long };
-
-    return switch (comp.target.cpu.arch.ptrBitWidth()) {
-        32 => .{ .specifier = .int },
-        64 => .{ .specifier = .long },
-        else => unreachable,
-    };
-}
-
-pub fn sizeT(comp: *Compilation) Type {
-    if (comp.target.os.tag == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
-        return .{ .specifier = .ulong_long };
-
-    return switch (comp.target.cpu.arch.ptrBitWidth()) {
-        32 => .{ .specifier = .uint },
-        64 => .{ .specifier = .ulong },
-        else => unreachable,
-    };
-}
-
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
         .void, .incomplete_array => true,
