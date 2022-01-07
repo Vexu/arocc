@@ -12,6 +12,12 @@ const Attribute = @This();
 tag: Tag,
 args: Arguments,
 
+pub const Kind = enum {
+    c2x,
+    declspec,
+    gnu,
+};
+
 pub const ArgumentType = enum {
     string,
     identifier,
@@ -211,6 +217,7 @@ fn diagnoseField(
                     @field(@field(arguments, decl.name), field.name) = enum_val;
                     return null;
                 } else {
+                    @setEvalBranchQuota(3000);
                     return Diagnostics.Message{
                         .tag = .unknown_attr_enum,
                         .extra = .{ .attr_enum = .{ .tag = std.meta.stringToEnum(Tag, decl.name).?, .actual = bytes } },
@@ -265,6 +272,8 @@ pub const Identifier = struct {
 
 const attributes = struct {
     const access = struct {
+        const gnu = "access";
+
         const Args = struct {
             access_mode: enum {
                 read_only,
@@ -281,72 +290,109 @@ const attributes = struct {
         };
     };
     const alias = struct {
+        const gnu = "alias";
         const Args = struct {
             alias: []const u8,
         };
     };
     const aligned = struct {
+        const gnu = "aligned";
+
+        const std_gnu = "aligned"; // [[gnu::aligned]]
+        const declspec = "aligned";
+
         const Args = struct {
             alignment: ?Alignment,
         };
     };
     const alloc_align = struct {
+        const gnu = "alloc_align";
+
         const Args = struct {
             position: u32,
         };
     };
     const alloc_size = struct {
+        const gnu = "alloc_size";
+
         const Args = struct {
             position_1: u32,
             position_2: ?u32 = null,
         };
     };
-    const always_inline = struct {};
-    const artificial = struct {};
+    const always_inline = struct {
+        const gnu = "always_inline";
+    };
+    const artificial = struct {
+        const gnu = "artificial";
+    };
     const assume_aligned = struct {
+        const gnu = "assume_aligned";
         const Args = struct {
             alignment: Alignment,
             offset: ?u32 = null,
         };
     };
     const cleanup = struct {
+        const gnu = "cleanup";
         const Args = struct {
             function: Identifier,
         };
     };
-    const cold = struct {};
-    const common = struct {};
-    const @"const" = struct {};
+    const cold = struct {
+        const gnu = "cold";
+    };
+    const common = struct {
+        const gnu = "common";
+    };
+    const @"const" = struct {
+        const gnu = "const";
+    };
     const constructor = struct {
+        const gnu = "constructor";
         const Args = struct {
             priority: ?u32 = null,
         };
     };
     const copy = struct {
+        const gnu = "copy";
         const Args = struct {
             function: Identifier,
         };
     };
     const deprecated = struct {
+        const gnu = "deprecated";
+
         const Args = struct {
-            msg: ?[]const u8,
+            msg: ?[]const u8 = null,
         };
     };
-    const designated_init = struct {};
+    const designated_init = struct {
+        const gnu = "designated_init";
+    };
     const destructor = struct {
+        const gnu = "destructor";
         const Args = struct {
             priority: ?u32 = null,
         };
     };
     const @"error" = struct {
+        const gnu = "error";
         const Args = struct {
             message: []const u8,
         };
     };
-    const externally_visible = struct {};
-    const fallthrough = struct {};
-    const flatten = struct {};
+    const externally_visible = struct {
+        const gnu = "externally_visible";
+    };
+    const fallthrough = struct {
+        const gnu = "fallthrough";
+    };
+    const flatten = struct {
+        const gnu = "flatten";
+    };
     const format = struct {
+        const gnu = "format";
         const Args = struct {
             archetype: enum {
                 printf,
@@ -363,23 +409,40 @@ const attributes = struct {
         };
     };
     const format_arg = struct {
+        const gnu = "format_arg";
         const Args = struct {
             string_index: u32,
         };
     };
-    const gnu_inline = struct {};
-    const hot = struct {};
+    const gnu_inline = struct {
+        const gnu = "gnu_inline";
+    };
+    const hot = struct {
+        const gnu = "hot";
+    };
     const ifunc = struct {
+        const gnu = "ifunc";
         const Args = struct {
             resolver: []const u8,
         };
     };
-    const interrupt = struct {};
-    const interrupt_handler = struct {};
-    const leaf = struct {};
-    const malloc = struct {};
-    const may_alias = struct {};
+    const interrupt = struct {
+        const gnu = "interrupt";
+    };
+    const interrupt_handler = struct {
+        const gnu = "interrupt_handler";
+    };
+    const leaf = struct {
+        const gnu = "leaf";
+    };
+    const malloc = struct {
+        const gnu = "malloc";
+    };
+    const may_alias = struct {
+        const gnu = "may_alias";
+    };
     const mode = struct {
+        const gnu = "mode";
         const Args = struct {
             mode: enum {
                 byte,
@@ -395,54 +458,114 @@ const attributes = struct {
             },
         };
     };
-    const no_address_safety_analysis = struct {};
-    const no_icf = struct {};
-    const no_instrument_function = struct {};
-    const no_profile_instrument_function = struct {};
-    const no_reorder = struct {};
+    const no_address_safety_analysis = struct {
+        const gnu = "no_address_safety_analysise";
+    };
+    const no_icf = struct {
+        const gnu = "no_icf";
+    };
+    const no_instrument_function = struct {
+        const gnu = "no_instrument_function";
+    };
+    const no_profile_instrument_function = struct {
+        const gnu = "no_profile_instrument_function";
+    };
+    const no_reorder = struct {
+        const gnu = "no_reorder";
+    };
     const no_sanitize = struct {
+        const gnu = "no_sanitize";
         /// Todo: represent args as union?
         const Args = struct {
             alignment: []const u8,
             object_size: ?[]const u8 = null,
         };
     };
-    const no_sanitize_address = struct {};
-    const no_sanitize_coverage = struct {};
-    const no_sanitize_thread = struct {};
-    const no_sanitize_undefined = struct {};
-    const no_split_stack = struct {};
-    const no_stack_limit = struct {};
-    const no_stack_protector = struct {};
-    const noclone = struct {};
-    const nocommon = struct {};
-    const noinit = struct {};
-    const @"noinline" = struct {};
-    const noipa = struct {};
+    const no_sanitize_address = struct {
+        const gnu = "no_sanitize_address";
+    };
+    const no_sanitize_coverage = struct {
+        const gnu = "no_sanitize_coverage";
+    };
+    const no_sanitize_thread = struct {
+        const gnu = "no_sanitize_thread";
+    };
+    const no_sanitize_undefined = struct {
+        const gnu = "no_sanitize_undefined";
+    };
+    const no_split_stack = struct {
+        const gnu = "no_split_stack";
+    };
+    const no_stack_limit = struct {
+        const gnu = "no_stack_limit";
+    };
+    const no_stack_protector = struct {
+        const gnu = "no_stack_protector";
+    };
+    const noclone = struct {
+        const gnu = "noclone";
+    };
+    const nocommon = struct {
+        const gnu = "nocommon";
+    };
+    const noinit = struct {
+        const gnu = "noinit";
+    };
+    const @"noinline" = struct {
+        const gnu = "noinline";
+    };
+    const noipa = struct {
+        const gnu = "noipa";
+    };
     // TODO: arbitrary number of arguments
     //    const nonnull = struct {
+    //        const gnu = "nonnull";
     //        const Args = struct {
     //            arg_index: []const u32,
     //        };
     //    };
-    const nonstring = struct {};
-    const noplt = struct {};
-    const @"noreturn" = struct {};
-    const nothrow = struct {};
+    const nonstring = struct {
+        const gnu = "nonstring";
+    };
+    const noplt = struct {
+        const gnu = "noplt";
+    };
+    const @"noreturn" = struct {
+        const gnu = "noreturn";
+    };
+    const nothrow = struct {
+        const gnu = "nothrow";
+    };
     // TODO: union args ?
     //    const optimize = struct {
+    //        const gnu = "optimize";
     //        const Args = struct {
     //            optimize, // u32 | []const u8 -- optimize?
     //        };
     //    };
-    const @"packed" = struct {};
-    const patchable_function_entry = struct {};
-    const persistent = struct {};
-    const pure = struct {};
-    const retain = struct {};
-    const returns_nonnull = struct {};
-    const returns_twice = struct {};
+    const @"packed" = struct {
+        const gnu = "packed";
+    };
+    const patchable_function_entry = struct {
+        const gnu = "patchable_function_entry";
+    };
+    const persistent = struct {
+        const gnu = "persistent";
+    };
+    const pure = struct {
+        const gnu = "pure";
+    };
+    const retain = struct {
+        const gnu = "retain";
+    };
+    const returns_nonnull = struct {
+        const gnu = "returns_nonnull";
+    };
+    const returns_twice = struct {
+        const gnu = "returns_twice";
+    };
     const scalar_storage_order = struct {
+        const gnu = "scalar_storage_order";
         const Args = struct {
             order: enum {
                 @"little-endian",
@@ -455,16 +578,19 @@ const attributes = struct {
         };
     };
     const section = struct {
+        const gnu = "section";
         const Args = struct {
             name: []const u8,
         };
     };
     const sentinel = struct {
+        const gnu = "sentinel";
         const Args = struct {
             position: ?u32 = null,
         };
     };
     const simd = struct {
+        const gnu = "simd";
         const Args = struct {
             mask: ?enum {
                 notinbranch,
@@ -476,23 +602,29 @@ const attributes = struct {
             },
         };
     };
-    const stack_protect = struct {};
+    const stack_protect = struct {
+        const gnu = "stack_protect";
+    };
     const symver = struct {
+        const gnu = "symver";
         const Args = struct {
             version: []const u8, // TODO: validate format "name2@nodename"
         };
     };
     const target = struct {
+        const gnu = "target";
         const Args = struct {
             options: []const u8, // TODO: multiple arguments
         };
     };
     const target_clones = struct {
+        const gnu = "target_clones";
         const Args = struct {
             options: []const u8, // TODO: multiple arguments
         };
     };
     const tls_model = struct {
+        const gnu = "tls_model";
         const Args = struct {
             model: enum {
                 @"global-dynamic",
@@ -506,21 +638,33 @@ const attributes = struct {
             },
         };
     };
-    const transparent_union = struct {};
+    const transparent_union = struct {
+        const gnu = "transparent_union";
+    };
     const unavailable = struct {
+        const gnu = "unavailable";
         const Args = struct {
             msg: ?[]const u8,
         };
     };
-    const uninitialized = struct {};
-    const unused = struct {};
-    const used = struct {};
+    const uninitialized = struct {
+        const gnu = "uninitialized";
+    };
+    const unused = struct {
+        const gnu = "unused";
+        const c2x = "maybe_unused";
+    };
+    const used = struct {
+        const gnu = "used";
+    };
     const vector_size = struct {
+        const gnu = "vector_size";
         const Args = struct {
             bytes: u32, // TODO: validate "The bytes argument must be a positive power-of-two multiple of the base type size"
         };
     };
     const visibility = struct {
+        const gnu = "visibility";
         const Args = struct {
             visibility_type: enum {
                 default,
@@ -535,23 +679,31 @@ const attributes = struct {
         };
     };
     const warn_if_not_aligned = struct {
+        const gnu = "warn_if_not_aligned";
         const Args = struct {
             alignment: Alignment,
         };
     };
-    const warn_unused_result = struct {};
+    const warn_unused_result = struct {
+        const gnu = "warn_unused_result";
+    };
     const warning = struct {
+        const gnu = "warning";
         const Args = struct {
             message: []const u8,
         };
     };
-    const weak = struct {};
+    const weak = struct {
+        const gnu = "weak";
+    };
     const weakref = struct {
+        const gnu = "weakref";
         const Args = struct {
             target: ?[]const u8,
         };
     };
     const zero_call_used_regs = struct {
+        const gnu = "zero_call_used_regs";
         const Args = struct {
             choice: enum {
                 skip,
@@ -627,9 +779,51 @@ pub fn initArguments(tag: Tag) Arguments {
     unreachable;
 }
 
-pub fn fromString(name: []const u8) ?Tag {
+pub fn fromString(kind: Kind, namespace: ?[]const u8, name: []const u8) ?Tag {
+    return switch (kind) {
+        .c2x => fromStringC2X(namespace, name),
+        .declspec => fromStringDeclspec(name),
+        .gnu => fromStringGnu(name),
+    };
+}
+
+fn fromStringGnu(name: []const u8) ?Tag {
+    const normalized = normalize(name);
+    const decls = @typeInfo(attributes).Struct.decls;
     @setEvalBranchQuota(3000);
-    return std.meta.stringToEnum(Tag, normalize(name));
+    inline for (decls) |decl, i| {
+        if (@hasDecl(decl.data.Type, "gnu")) {
+            if (mem.eql(u8, decl.data.Type.gnu, normalized)) {
+                return @intToEnum(Tag, i);
+            }
+        }
+    }
+    return null;
+}
+
+fn fromStringC2X(namespace: ?[]const u8, name: []const u8) ?Tag {
+    const normalized = normalize(name);
+    if (namespace) |ns| {
+        const normalized_ns = normalize(ns);
+        if (mem.eql(u8, normalized_ns, "gnu")) {
+            return fromStringGnu(normalized);
+        }
+        return null;
+    }
+    const decls = @typeInfo(attributes).Struct.decls;
+    inline for (decls) |decl, i| {
+        if (@hasDecl(decl.data.Type, "c2x")) {
+            if (mem.eql(u8, decl.data.Type.c2x, normalized)) {
+                return @intToEnum(Tag, i);
+            }
+        }
+    }
+    return null;
+}
+
+fn fromStringDeclspec(name: []const u8) ?Tag {
+    _ = name;
+    return null;
 }
 
 fn normalize(name: []const u8) []const u8 {

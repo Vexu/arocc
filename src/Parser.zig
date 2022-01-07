@@ -1274,7 +1274,7 @@ const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = .none };
 ///  | attrIdentifier '(' identifier ')'
 ///  | attrIdentifier '(' identifier (',' expr)+ ')'
 ///  | attrIdentifier '(' (expr (',' expr)*)? ')'
-fn attribute(p: *Parser) Error!?TentativeAttribute {
+fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?TentativeAttribute {
     const name_tok = p.tok_i;
     switch (p.tok_ids[p.tok_i]) {
         .keyword_const, .keyword_const1, .keyword_const2 => p.tok_i += 1,
@@ -1282,7 +1282,7 @@ fn attribute(p: *Parser) Error!?TentativeAttribute {
     }
     const name = p.tokSlice(name_tok);
 
-    const attr = Attribute.fromString(name) orelse {
+    const attr = Attribute.fromString(kind, namespace, name) orelse {
         try p.errStr(.unknown_attribute, name_tok, name);
         if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
         return null;
@@ -1364,20 +1364,44 @@ fn validateAttr(p: *Parser, attr: Attribute, context: Attribute.ParseContext) Er
 }
 
 /// attributeList : (attribute (',' attribute)*)?
-fn attributeList(p: *Parser) Error!void {
-    if (p.tok_ids[p.tok_i] != .r_paren) {
-        if (try p.attribute()) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
-        while (p.tok_ids[p.tok_i] != .r_paren) {
-            _ = try p.expectToken(.comma);
-            if (try p.attribute()) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+fn gnuAttributeList(p: *Parser) Error!void {
+    if (p.tok_ids[p.tok_i] == .r_paren) return;
+
+    if (try p.attribute(.gnu, null)) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+    while (p.tok_ids[p.tok_i] != .r_paren) {
+        _ = try p.expectToken(.comma);
+        if (try p.attribute(.gnu, null)) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+    }
+}
+
+fn c2xAttributeList(p: *Parser) Error!void {
+    while (p.tok_ids[p.tok_i] != .r_bracket) {
+        var namespace_tok = try p.expectIdentifier();
+        var namespace: ?[]const u8 = null;
+        if (p.eatToken(.colon_colon)) |_| {
+            namespace = p.tokSlice(namespace_tok);
+        } else {
+            p.tok_i -= 1;
         }
+        if (try p.attribute(.c2x, namespace)) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+        _ = p.eatToken(.comma);
     }
 }
 
 fn c2xAttribute(p: *Parser) !bool {
-    // todo [[attribute]]
-    _ = p;
-    return false;
+    if (!p.pp.comp.langopts.standard.atLeast(.c2x)) return false;
+    const bracket1 = p.eatToken(.l_bracket) orelse return false;
+    const bracket2 = p.eatToken(.l_bracket) orelse {
+        p.tok_i -= 1;
+        return false;
+    };
+
+    try p.c2xAttributeList();
+
+    _ = try p.expectClosing(bracket2, .r_bracket);
+    _ = try p.expectClosing(bracket1, .r_bracket);
+
+    return true;
 }
 
 fn msvcAttribute(p: *Parser) !bool {
@@ -1394,7 +1418,7 @@ fn gnuAttribute(p: *Parser) !bool {
     const paren1 = try p.expectToken(.l_paren);
     const paren2 = try p.expectToken(.l_paren);
 
-    try p.attributeList();
+    try p.gnuAttributeList();
 
     _ = try p.expectClosing(paren2, .r_paren);
     _ = try p.expectClosing(paren1, .r_paren);
