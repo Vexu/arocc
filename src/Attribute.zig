@@ -297,9 +297,7 @@ const attributes = struct {
     };
     const aligned = struct {
         const gnu = "aligned";
-
-        const std_gnu = "aligned"; // [[gnu::aligned]]
-        const declspec = "aligned";
+        const declspec = "align";
 
         const Args = struct {
             alignment: ?Alignment,
@@ -822,7 +820,14 @@ fn fromStringC2X(namespace: ?[]const u8, name: []const u8) ?Tag {
 }
 
 fn fromStringDeclspec(name: []const u8) ?Tag {
-    _ = name;
+    const decls = @typeInfo(attributes).Struct.decls;
+    inline for (decls) |decl, i| {
+        if (@hasDecl(decl.data.Type, "declspec")) {
+            if (mem.eql(u8, decl.data.Type.declspec, name)) {
+                return @intToEnum(Tag, i);
+            }
+        }
+    }
     return null;
 }
 

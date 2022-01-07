@@ -1563,6 +1563,12 @@ const messages = struct {
         const msg = "'__declspec' attributes are not enabled; use '-fdeclspec' or '-fms-extensions' to enable support for __declspec attributes";
         const kind = .@"error";
     };
+    const declspec_attr_not_supported = struct {
+        const msg = "__declspec attribute '{s}' is not supported";
+        const extra = .str;
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

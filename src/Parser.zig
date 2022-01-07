@@ -1283,7 +1283,8 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
     const name = p.tokSlice(name_tok);
 
     const attr = Attribute.fromString(kind, namespace, name) orelse {
-        try p.errStr(.unknown_attribute, name_tok, name);
+        const tag: Diagnostics.Tag = if (kind == .declspec) .declspec_attr_not_supported else .unknown_attribute;
+        try p.errStr(tag, name_tok, name);
         if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
         return null;
     };
@@ -1333,7 +1334,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
                 }
             }
         },
-        else => return error.ParsingFailed,
+        else => {},
     }
     if (arg_idx < required_count) {
         try p.errExtra(.attribute_not_enough_args, name_tok, .{ .attr_arg_count = .{ .attribute = attr, .expected = required_count } });
@@ -1388,6 +1389,13 @@ fn c2xAttributeList(p: *Parser) Error!void {
     }
 }
 
+fn msvcAttributeList(p: *Parser) Error!void {
+    while (p.tok_ids[p.tok_i] != .r_paren) {
+        if (try p.attribute(.declspec, null)) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+        _ = p.eatToken(.comma);
+    }
+}
+
 fn c2xAttribute(p: *Parser) !bool {
     if (!p.pp.comp.langopts.standard.atLeast(.c2x)) return false;
     const bracket1 = p.eatToken(.l_bracket) orelse return false;
@@ -1410,7 +1418,10 @@ fn msvcAttribute(p: *Parser) !bool {
         try p.errTok(.declspec_not_enabled, declspec_tok);
         return error.ParsingFailed;
     }
-    // todo __declspec
+    const l_paren = try p.expectToken(.l_paren);
+    try p.msvcAttributeList();
+    _ = try p.expectClosing(l_paren, .r_paren);
+
     return false;
 }
 
