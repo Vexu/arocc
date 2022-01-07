@@ -73,6 +73,7 @@ standard: Standard = .default,
 /// -fshort-enums option, makes enums only take up as much space as they need to hold all the values.
 short_enums: bool = false,
 dollars_in_identifiers: bool = true,
+declspec_attrs: bool = false,
 
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;

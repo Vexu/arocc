@@ -1405,8 +1405,12 @@ fn c2xAttribute(p: *Parser) !bool {
 }
 
 fn msvcAttribute(p: *Parser) !bool {
+    const declspec_tok = p.eatToken(.keyword_declspec) orelse return false;
+    if (!p.pp.comp.langopts.declspec_attrs) {
+        try p.errTok(.declspec_not_enabled, declspec_tok);
+        return error.ParsingFailed;
+    }
     // todo __declspec
-    _ = p;
     return false;
 }
 
