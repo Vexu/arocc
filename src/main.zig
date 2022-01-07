@@ -61,6 +61,10 @@ const usage =
     \\  -E                      Only run the preprocessor
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
+    \\  -fdeclspec              Enable support for __declspec attributes
+    \\  -fno-declspec           Disable support for __declspec attributes
+    \\  -fms-extensions         Enable support for Microsoft extensions
+    \\  -fno-ms-extensions      Disable support for Microsoft extensions
     \\  -fdollars-in-identifiers        
     \\                          Allow '$' in identifiers
     \\  -fno-dollars-in-identifiers     
@@ -155,6 +159,14 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
                 comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {
                 comp.langopts.short_enums = false;
+            } else if (mem.eql(u8, arg, "-fdeclspec")) {
+                comp.langopts.declspec_attrs = true;
+            } else if (mem.eql(u8, arg, "-fno-declspec")) {
+                comp.langopts.declspec_attrs = false;
+            } else if (mem.eql(u8, arg, "-fms-extensions")) {
+                comp.langopts.enableMSExtensions();
+            } else if (mem.eql(u8, arg, "-fno-ms-extensions")) {
+                comp.langopts.disableMSExtensions();
             } else if (mem.startsWith(u8, arg, "-I")) {
                 var path = arg["-I".len..];
                 if (path.len == 0) {
