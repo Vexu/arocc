@@ -251,6 +251,9 @@ pub const Specifier = enum {
 
     /// data.attributed
     attributed,
+
+    /// special type used to implement __builtin_va_start
+    special_va_start,
 };
 
 /// All fields of Type except data may be mutated
@@ -497,44 +500,6 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     };
 }
 
-pub fn wideChar(comp: *Compilation) Type {
-    const os = comp.target.os.tag;
-    return switch (comp.target.cpu.arch) {
-        .xcore => .{ .specifier = .uchar },
-        .ve => .{ .specifier = .uint },
-        .arm, .armeb, .thumb, .thumbeb => .{
-            .specifier = if (os != .windows and os != .netbsd and os != .openbsd) .uint else .int,
-        },
-        .aarch64, .aarch64_be, .aarch64_32 => .{
-            .specifier = if (!os.isDarwin() and os != .netbsd) .uint else .int,
-        },
-        .x86_64, .i386 => .{ .specifier = if (os == .windows) .ushort else .int },
-        else => .{ .specifier = .int },
-    };
-}
-
-pub fn ptrDiffT(comp: *Compilation) Type {
-    if (comp.target.os.tag == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
-        return .{ .specifier = .long_long };
-
-    return switch (comp.target.cpu.arch.ptrBitWidth()) {
-        32 => .{ .specifier = .int },
-        64 => .{ .specifier = .long },
-        else => unreachable,
-    };
-}
-
-pub fn sizeT(comp: *Compilation) Type {
-    if (comp.target.os.tag == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
-        return .{ .specifier = .ulong_long };
-
-    return switch (comp.target.cpu.arch.ptrBitWidth()) {
-        32 => .{ .specifier = .uint },
-        64 => .{ .specifier = .ulong },
-        else => unreachable,
-    };
-}
-
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
         .void, .incomplete_array => true,
@@ -661,6 +626,7 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .typeof_type => ty.data.sub_type.sizeof(comp),
         .typeof_expr => ty.data.expr.ty.sizeof(comp),
         .attributed => ty.data.attributed.base.sizeof(comp),
+        else => unreachable,
     };
 }
 
@@ -716,6 +682,7 @@ pub fn alignof(ty: Type, comp: *Compilation) u29 {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
         .attributed => ty.data.attributed.base.alignof(comp),
+        else => unreachable,
     };
 }
 
@@ -1419,6 +1386,7 @@ pub const Builder = struct {
             .decayed_typeof_expr => .{ .decayed_typeof_expr = ty.data.expr },
 
             .attributed => .{ .attributed = ty.data.attributed },
+            else => unreachable,
         };
     }
 };
@@ -1639,6 +1607,7 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try ty.data.attributed.base.dump(w);
             try w.writeAll(")");
         },
+        .special_va_start => try w.writeAll("(va start param)"),
         else => try w.writeAll(Builder.fromType(ty).str().?),
     }
 }

@@ -114,6 +114,10 @@ const builtin_macros = struct {
         .id = .macro_param_has_extension,
         .source = .generated,
     }};
+    const has_builtin = [1]RawToken{.{
+        .id = .macro_param_has_builtin,
+        .source = .generated,
+    }};
 
     const is_identifier = [1]RawToken{.{
         .id = .macro_param_is_identifier,
@@ -155,6 +159,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_warning", true, &builtin_macros.has_warning);
     try pp.addBuiltinMacro("__has_feature", true, &builtin_macros.has_feature);
     try pp.addBuiltinMacro("__has_extension", true, &builtin_macros.has_extension);
+    try pp.addBuiltinMacro("__has_builtin", true, &builtin_macros.has_builtin);
     try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
     try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
 
@@ -831,11 +836,12 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
         .macro_param_has_attribute,
         .macro_param_has_feature,
         .macro_param_has_extension,
+        .macro_param_has_builtin,
         => {
             var invalid: ?Token = null;
             var identifier: ?Token = null;
             for (param_toks) |tok| switch (tok.id) {
-                .identifier, .extended_identifier => {
+                .identifier, .extended_identifier, .builtin_choose_expr, .builtin_va_arg => {
                     if (identifier) |_| invalid = tok else identifier = tok;
                 },
                 .macro_ws => continue,
@@ -858,6 +864,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                 .macro_param_has_attribute => AttrTag.fromString(ident_str) != null,
                 .macro_param_has_feature => features.hasFeature(pp.comp, ident_str),
                 .macro_param_has_extension => features.hasExtension(pp.comp, ident_str),
+                .macro_param_has_builtin => pp.comp.builtins.hasBuiltin(ident_str),
                 else => unreachable,
             };
         },
@@ -991,6 +998,7 @@ fn expandFuncMacro(
             .macro_param_has_warning,
             .macro_param_has_feature,
             .macro_param_has_extension,
+            .macro_param_has_builtin,
             .macro_param_is_identifier,
             => {
                 const arg = expanded_args.items[0];

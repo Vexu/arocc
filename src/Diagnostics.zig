@@ -119,6 +119,7 @@ pub const Options = packed struct {
     @"extra-semi": Kind = .default,
     @"gnu-binary-literal": Kind = .default,
     @"variadic-macros": Kind = .default,
+    varargs: Kind = .default,
 };
 
 const messages = struct {
@@ -444,6 +445,13 @@ const messages = struct {
         const extra = .str;
         const opt = "implicit-function-declaration";
         const kind = .warning;
+        const all = true;
+    };
+    const unknown_builtin = struct {
+        const msg = "use of unknown builtin '{s}'";
+        const extra = .str;
+        const opt = "implicit-function-declaration";
+        const kind = .@"error";
         const all = true;
     };
     const expected_param_decl = struct {
@@ -1485,9 +1493,26 @@ const messages = struct {
     };
     const gnu_va_macro = struct {
         const msg = "named variadic macros are a GNU extension";
-        const op = "variadic-macros";
+        const opt = "variadic-macros";
         const kind = .off;
         const pedantic = true;
+    };
+    const builtin_must_be_called = struct {
+        const msg = "builtin function must be directly called";
+        const kind = .@"error";
+    };
+    const va_start_not_in_func = struct {
+        const msg = "'va_start' cannot be used outside a function";
+        const kind = .@"error";
+    };
+    const va_start_fixed_args = struct {
+        const msg = "'va_start' used in a function with fixed args";
+        const kind = .@"error";
+    };
+    const va_start_not_last_param = struct {
+        const msg = "second argument to 'va_start' is not the last named parameter";
+        const opt = "varargs";
+        const kind = .warning;
     };
 };
 

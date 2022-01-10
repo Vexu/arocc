@@ -368,6 +368,9 @@ pub const Tag = enum(u8) {
     call_expr_one,
     /// data[0](data[1..])
     call_expr,
+    /// decl
+    builtin_call_expr_one,
+    builtin_call_expr,
     /// lhs.member
     member_access_expr,
     /// lhs->member
@@ -378,7 +381,7 @@ pub const Tag = enum(u8) {
     post_dec_expr,
     /// (un)
     paren_expr,
-    /// decl
+    /// decl_ref
     decl_ref_expr,
     /// decl_ref
     enumeration_ref,
@@ -406,8 +409,6 @@ pub const Tag = enum(u8) {
     generic_default_expr,
     /// __builtin_choose_expr(lhs, data[0], data[1])
     builtin_choose_expr,
-    /// __builtin_va_arg(un)
-    builtin_va_arg,
     /// ({ un })
     stmt_expr,
 
@@ -959,6 +960,29 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(data.bin.rhs, level + delta, w);
             }
         },
+        .builtin_call_expr => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(@enumToInt(tree.data[data.range.start]))});
+            util.setColor(.reset, w);
+
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("args:\n");
+            for (tree.data[data.range.start + 1 .. data.range.end]) |arg| try tree.dumpNode(arg, level + delta, w);
+        },
+        .builtin_call_expr_one => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("name: ");
+            util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+            util.setColor(.reset, w);
+            if (data.decl.node != .none) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("arg:\n");
+                try tree.dumpNode(data.decl.node, level + delta, w);
+            }
+        },
         .comma_expr,
         .binary_cond_expr,
         .assign_expr,
@@ -1011,7 +1035,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .post_inc_expr,
         .post_dec_expr,
         .paren_expr,
-        .builtin_va_arg,
         => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("operand:\n");
