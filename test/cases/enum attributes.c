@@ -15,9 +15,9 @@ void foo(void) {
 }
 
 #define EXPECTED_ERRORS "enum attributes.c:11:7: warning: 'is_deprecated' is deprecated [-Wdeprecated-declarations]" \
-  "enum attributes.c:2:4: note: 'is_deprecated' has been explicitly marked deprecated here [-Wdeprecated-declarations]" \
+  "enum attributes.c:2:4: note: 'is_deprecated' has been explicitly marked deprecated here" \
   "enum attributes.c:12:7: warning: 'is_deprecated_with_msg' is deprecated: I am deprecated [-Wdeprecated-declarations]" \
-  "enum attributes.c:3:4: note: 'is_deprecated_with_msg' has been explicitly marked deprecated here [-Wdeprecated-declarations]" \
+  "enum attributes.c:3:4: note: 'is_deprecated_with_msg' has been explicitly marked deprecated here" \
   "enum attributes.c:13:7: error: 'is_unavailable' is unavailable" \
   "enum attributes.c:4:4: note: 'is_unavailable' has been explicitly marked unavailable here" \
   "enum attributes.c:14:7: error: 'is_unavailable_with_msg' is unavailable: I am not available" \

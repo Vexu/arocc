@@ -1801,7 +1801,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                 if (@hasDecl(info, "opt")) {
                     if (msg.kind == .@"error" and info.kind != .@"error") {
                         m.print(" [-Werror,-W{s}]", .{info.opt});
-                    } else {
+                    } else if (msg.kind != .note) {
                         m.print(" [-W{s}]", .{info.opt});
                     }
                 }
