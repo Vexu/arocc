@@ -374,6 +374,36 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
     return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
+fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
+    if (ty.getAttribute(.unavailable)) |unavailable| {
+        try p.errDeprecated(.unavailable, usage_tok, unavailable.msg);
+        try p.errStr(.unavailable_note, decl_tok, p.tokSlice(decl_tok));
+        return error.ParsingFailed;
+    } else if (ty.getAttribute(.deprecated)) |deprecated| {
+        try p.errDeprecated(.deprecated_declarations, usage_tok, deprecated.msg);
+        try p.errStr(.deprecated_note, decl_tok, p.tokSlice(decl_tok));
+    }
+}
+
+fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?[]const u8) Compilation.Error!void {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    const w = p.strings.writer();
+    try w.print("'{s}' is ", .{p.tokSlice(tok_i)});
+    const reason: []const u8 = switch (tag) {
+        .unavailable => "unavailable",
+        .deprecated_declarations => "deprecated",
+        else => unreachable,
+    };
+    try w.writeAll(reason);
+    if (msg) |m| {
+        try w.print(": {s}", .{m});
+    }
+    const str = try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    return p.errStr(tag, tok_i, str);
+}
+
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     if (p.in_macro) return .none;
     const res = p.nodes.len;
@@ -2096,7 +2126,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     const name = p.tokSlice(name_tok);
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
-    try p.attributeSpecifier(); // .@"enum"
+    try p.attributeSpecifier();
 
     if (p.eatToken(.equal)) |_| {
         const specified = try p.constExpr();
@@ -2122,24 +2152,28 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         else => unreachable,
     };
 
+    const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
+    var res = e.res;
+    res.ty = try res.ty.withAttributes(p.arena, attrs);
+
     try p.scopes.append(.{ .enumeration = .{
         .name = name,
-        .value = e.res,
+        .value = res,
         .name_tok = name_tok,
     } });
     const node = try p.addNode(.{
         .tag = .enum_field_decl,
-        .ty = e.res.ty,
+        .ty = res.ty,
         .data = .{ .decl = .{
             .name = name_tok,
-            .node = e.res.node,
+            .node = res.node,
         } },
     });
     return EnumFieldAndNode{ .field = .{
         .name = name,
-        .ty = e.res.ty,
+        .ty = res.ty,
         .name_tok = name_tok,
-        .node = e.res.node,
+        .node = res.node,
     }, .node = node };
 }
 
@@ -5598,6 +5632,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             switch (sym) {
                 .enumeration => |e| {
                     var res = e.value;
+                    try p.checkDeprecatedUnavailable(res.ty, name_tok, e.name_tok);
                     res.node = try p.addNode(.{
                         .tag = .enumeration_ref,
                         .ty = res.ty,

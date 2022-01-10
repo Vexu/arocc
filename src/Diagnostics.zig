@@ -134,6 +134,7 @@ pub const Options = packed struct {
     @"variadic-macros": Kind = .default,
     varargs: Kind = .default,
     @"#warnings": Kind = .default,
+    @"deprecated-declarations": Kind = .default,
 };
 
 const messages = struct {
@@ -1568,6 +1569,28 @@ const messages = struct {
         const extra = .str;
         const opt = "ignored-attributes";
         const kind = .warning;
+    };
+    const deprecated_declarations = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const opt = "deprecated-declarations";
+        const kind = .warning;
+    };
+    const deprecated_note = struct {
+        const msg = "'{s}' has been explicitly marked deprecated here";
+        const extra = .str;
+        const opt = "deprecated-declarations";
+        const kind = .note;
+    };
+    const unavailable = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const unavailable_note = struct {
+        const msg = "'{s}' has been explicitly marked unavailable here";
+        const extra = .str;
+        const kind = .note;
     };
 };
 
