@@ -5661,13 +5661,16 @@ fn primaryExpr(p: *Parser) Error!Result {
                     });
                     return res;
                 },
-                .def, .decl, .param => |s| return Result{
-                    .ty = s.ty,
-                    .node = try p.addNode(.{
-                        .tag = .decl_ref_expr,
+                .def, .decl, .param => |s| {
+                    try p.checkDeprecatedUnavailable(s.ty, name_tok, s.name_tok);
+                    return Result{
                         .ty = s.ty,
-                        .data = .{ .decl_ref = name_tok },
-                    }),
+                        .node = try p.addNode(.{
+                            .tag = .decl_ref_expr,
+                            .ty = s.ty,
+                            .data = .{ .decl_ref = name_tok },
+                        }),
+                    };
                 },
                 else => unreachable,
             }
