@@ -806,9 +806,8 @@ fn decl(p: *Parser) Error!bool {
     const first_tok = p.tok_i;
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
-    // TODO: at this point we don't know what we're trying to parse, so we'll need to check
-    // the attributes against what kind of decl was parsed after the fact
-    try p.attributeSpecifier(); //.any
+
+    try p.attributeSpecifier();
 
     var decl_spec = if (try p.declSpec(false)) |some| some else blk: {
         if (p.func.ty != null) {
@@ -825,6 +824,7 @@ fn decl(p: *Parser) Error!bool {
         var spec: Type.Builder = .{};
         break :blk DeclSpec{ .ty = try spec.finish(p) };
     };
+    try decl_spec.warnIgnoredAttrs(p, attr_buf_top);
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
         _ = try p.expectToken(.semicolon);
         if (decl_spec.ty.is(.@"enum") or
@@ -1167,6 +1167,23 @@ pub const DeclSpec = struct {
                 if (is_extern) return .extern_var;
                 return .@"var";
             }
+        }
+    }
+
+    fn warnIgnoredAttrs(d: DeclSpec, p: *Parser, attr_buf_start: usize) !void {
+        if (!d.ty.isEnumOrRecord()) return;
+
+        var i = attr_buf_start;
+        while (i < p.attr_buf.len) : (i += 1) {
+            const ignored_attr = p.attr_buf.get(i);
+            try p.errExtra(.ignored_record_attr, ignored_attr.tok, .{
+                .ignored_record_attr = .{ .tag = ignored_attr.attr.tag, .specifier = switch (d.ty.specifier) {
+                    .@"enum" => .@"enum",
+                    .@"struct" => .@"struct",
+                    .@"union" => .@"union",
+                    else => continue,
+                } },
+            });
         }
     }
 };

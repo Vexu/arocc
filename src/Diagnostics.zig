@@ -43,6 +43,10 @@ pub const Message = struct {
             tag: Attribute.Tag,
             actual: []const u8,
         },
+        ignored_record_attr: struct {
+            tag: Attribute.Tag,
+            specifier: enum { @"struct", @"union", @"enum" },
+        },
         actual_codepoint: u21,
         unsigned: u64,
         signed: i64,
@@ -1592,6 +1596,12 @@ const messages = struct {
         const extra = .str;
         const kind = .note;
     };
+    const ignored_record_attr = struct {
+        const msg = "attribute '{s}' is ignored, place it after \"{s}\" to apply attribute to type declaration";
+        const extra = .ignored_record_attr;
+        const kind = .warning;
+        const opt = "ignored-attributes";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -1791,6 +1801,10 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                             msg.extra.attr_enum.actual,
                             Attribute.Formatting.quoteChar(msg.extra.attr_enum.tag),
                             Attribute.Formatting.choices(msg.extra.attr_enum.tag),
+                        }),
+                        .ignored_record_attr => m.print(info.msg, .{
+                            @tagName(msg.extra.ignored_record_attr.tag),
+                            @tagName(msg.extra.ignored_record_attr.specifier),
                         }),
                         else => unreachable,
                     }
