@@ -1009,7 +1009,7 @@ pub const Builder = struct {
         }
     };
 
-    pub fn finish(b: Builder, p: *Parser) Parser.Error!Type {
+    pub fn finish(b: Builder, p: *Parser, attr_buf_start: usize) Parser.Error!Type {
         var ty: Type = .{ .specifier = undefined };
         switch (b.specifier) {
             .none => {
@@ -1152,12 +1152,13 @@ pub const Builder = struct {
                 ty.alignment = b.alignment;
             }
         }
-        return ty;
+        const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+        return ty.withAttributes(p.arena, attrs);
     }
 
     fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) !void {
         if (b.error_on_invalid) return error.CannotCombine;
-        const ty_str = b.specifier.str() orelse try p.typeStr(try b.finish(p));
+        const ty_str = b.specifier.str() orelse try p.typeStr(try b.finish(p, p.attr_buf.len));
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
         if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
