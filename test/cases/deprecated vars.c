@@ -1,6 +1,6 @@
 #pragma GCC diagnostic ignored "-Wunused-value"
 
-void foo(__attribute__((deprecated)) int arg) {
+void foo(__attribute__((deprecated)) int arg, int arg2 __attribute__((deprecated))) {
     __attribute__((deprecated)) int foo = 1;
     int __attribute__((deprecated)) bar = 2;
     int baz __attribute__((deprecated)) = 3;
@@ -9,6 +9,7 @@ void foo(__attribute__((deprecated)) int arg) {
     bar;
     baz;
     arg;
+    arg2;
 }
 
 #define EXPECTED_ERRORS "deprecated vars.c:8:5: warning: 'foo' is deprecated [-Wdeprecated-declarations]" \
@@ -19,3 +20,5 @@ void foo(__attribute__((deprecated)) int arg) {
     "deprecated vars.c:6:28: note: 'baz' has been explicitly marked deprecated here" \
     "deprecated vars.c:11:5: warning: 'arg' is deprecated [-Wdeprecated-declarations]" \
     "deprecated vars.c:3:25: note: 'arg' has been explicitly marked deprecated here" \
+    "deprecated vars.c:12:5: warning: 'arg2' is deprecated [-Wdeprecated-declarations]" \
+    "deprecated vars.c:3:71: note: 'arg2' has been explicitly marked deprecated here" \

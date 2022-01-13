@@ -2503,8 +2503,14 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
         var param_ty = param_decl_spec.ty;
         if (try p.declarator(param_decl_spec.ty, .param)) |some| {
             if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
+
+            const attr_buf_top = p.attr_buf.len;
+            defer p.attr_buf.len = attr_buf_top;
+            try p.attributeSpecifier();
+            const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
+
             name_tok = some.name;
-            param_ty = some.ty;
+            param_ty = try some.ty.withAttributes(p.arena, attrs);
             if (some.name != 0) {
                 if (p.findSymbol(name_tok, .definition)) |scope| {
                     if (scope == .enumeration) {
@@ -2517,7 +2523,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
                 }
                 try p.scopes.append(.{ .param = .{
                     .name = p.tokSlice(name_tok),
-                    .ty = some.ty,
+                    .ty = param_ty,
                     .name_tok = name_tok,
                 } });
             }
