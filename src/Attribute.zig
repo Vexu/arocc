@@ -3,6 +3,8 @@ const mem = std.mem;
 const Tree = @import("Tree.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Value = @import("Value.zig");
+const Compilation = @import("Compilation.zig");
+const Type = @import("Type.zig");
 const NodeIndex = Tree.NodeIndex;
 const TokenIndex = Tree.TokenIndex;
 const TypeInfo = std.builtin.TypeInfo;
@@ -190,6 +192,51 @@ pub fn diagnoseIdent(attr: Tag, arguments: *Arguments, ident: []const u8) ?Diagn
     unreachable;
 }
 
+pub fn wantsAlignment(attr: Tag, idx: usize) bool {
+    inline for (@typeInfo(Tag).Enum.fields) |field, i| {
+        if (field.value == @enumToInt(attr)) {
+            const decl = @typeInfo(attributes).Struct.decls[i];
+            const fields = getArguments(decl.data.Type);
+
+            if (idx >= fields.len) return false;
+            inline for (fields) |arg_field, field_idx| {
+                if (field_idx == idx) {
+                    return UnwrapOptional(arg_field.field_type) == Alignment;
+                }
+            }
+        }
+    }
+    unreachable;
+}
+
+pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, ty: Type, comp: *Compilation) ?Diagnostics.Message {
+    inline for (@typeInfo(Tag).Enum.fields) |field, i| {
+        if (field.value == @enumToInt(attr)) {
+            const decl = @typeInfo(attributes).Struct.decls[i];
+            const arg_fields = getArguments(decl.data.Type);
+            inline for (arg_fields) |arg_field, arg_i| {
+                if (arg_idx == arg_i) {
+                    if (UnwrapOptional(arg_field.field_type) != Alignment) unreachable;
+
+                    if (val.tag == .unavailable) return Diagnostics.Message{ .tag = .alignas_unavailable };
+                    if (val.compare(.lt, Value.int(0), ty, comp)) {
+                        return Diagnostics.Message{ .tag = .negative_alignment, .extra = .{ .signed = val.signExtend(ty, comp) } };
+                    }
+                    const requested = std.math.cast(u29, val.data.int) catch {
+                        return Diagnostics.Message{ .tag = .maximum_alignment, .extra = .{ .unsigned = val.data.int } };
+                    };
+                    if (!std.mem.isValidAlign(requested)) return Diagnostics.Message{ .tag = .non_pow2_align };
+
+                    @field(@field(arguments, decl.name), arg_field.name) = Alignment{ .requested = requested };
+                    return null;
+                }
+            }
+            unreachable;
+        }
+    }
+    unreachable;
+}
+
 fn diagnoseField(
     comptime decl: TypeInfo.Declaration,
     comptime field: TypeInfo.StructField,
@@ -202,12 +249,6 @@ fn diagnoseField(
         .int => {
             if (@typeInfo(wanted) == .Int) {
                 @field(@field(arguments, decl.name), field.name) = val.getInt(wanted);
-                return null;
-            } else if (wanted == Alignment) {
-                const requested = val.getInt(u29);
-                if (!std.math.isPowerOfTwo(requested)) return Diagnostics.Message{ .tag = .non_pow2_align };
-
-                @field(@field(arguments, decl.name), field.name) = Alignment{ .requested = requested };
                 return null;
             }
         },
@@ -270,6 +311,7 @@ const EnumTypes = enum {
 pub const Alignment = struct {
     node: NodeIndex = .none,
     requested: u29,
+    alignas: bool = false,
 };
 pub const Identifier = struct {
     tok: TokenIndex = 0,
@@ -306,6 +348,7 @@ const attributes = struct {
 
         const Args = struct {
             alignment: ?Alignment,
+            __name_tok: TokenIndex = undefined,
         };
     };
     const alloc_align = struct {

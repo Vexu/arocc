@@ -15,6 +15,3 @@ typedef int A;
 typedef A B;
 typedef A C;
 typedef C B;
-
-#define EXPECTED_ERRORS "types.c:1:19: warning: duplicate 'alignment' declaration specifier [-Wduplicate-decl-specifier]" \
-    "types.c:1:35: warning: duplicate 'alignment' declaration specifier [-Wduplicate-decl-specifier]" \
