@@ -88,7 +88,11 @@ pub fn maxArgCount(attr: Tag) u32 {
         if (field.value == @enumToInt(attr)) {
             const decl = @typeInfo(attributes).Struct.decls[i];
             const fields = getArguments(decl.data.Type);
-            return @intCast(u32, fields.len);
+            var max: u32 = 0;
+            inline for (fields) |arg_field| {
+                if (!mem.eql(u8, arg_field.name, "__name_tok")) max += 1;
+            }
+            return max;
         }
     }
     unreachable;
@@ -242,11 +246,12 @@ pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node
     inline for (@typeInfo(Tag).Enum.fields) |field, i| {
         if (field.value == @enumToInt(attr)) {
             const decl = @typeInfo(attributes).Struct.decls[i];
-            const arg_fields = getArguments(decl.data.Type);
-            if (arg_idx >= arg_fields.len) return Diagnostics.Message{
+            const max_arg_count = maxArgCount(attr);
+            if (arg_idx >= max_arg_count) return Diagnostics.Message{
                 .tag = .attribute_too_many_args,
-                .extra = .{ .attr_arg_count = .{ .attribute = attr, .expected = maxArgCount(attr) } },
+                .extra = .{ .attr_arg_count = .{ .attribute = attr, .expected = max_arg_count } },
             };
+            const arg_fields = getArguments(decl.data.Type);
             inline for (arg_fields) |arg_field, arg_i| {
                 if (arg_idx == arg_i) {
                     return diagnoseField(decl, arg_field, UnwrapOptional(arg_field.field_type), arguments, val, node);

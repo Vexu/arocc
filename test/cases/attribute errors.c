@@ -21,7 +21,7 @@ void foo(void) {
     int __attribute__((simd("wrong"))) bar_18;
     int __attribute__((invalid_attribute)) bar_19;
     int __attribute__((invalid_attribute(1, (2 + 3)))) bar_20;
-
+    int __attribute__((deprecated("deprecated", 1))) bar_21;
 }
 
 #define EXPECTED_ERRORS "attribute errors.c:4:24: error: 'access' attribute takes at least 2 argument(s)" \
@@ -34,3 +34,4 @@ void foo(void) {
     "attribute errors.c:21:29: error: Unknown `simd` argument \"wrong\". Possible values are: \"notinbranch\", \"inbranch\"" \
     "attribute errors.c:22:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
     "attribute errors.c:23:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
+    "attribute errors.c:24:49: error: 'deprecated' attribute takes at most 1 argument(s)" \
