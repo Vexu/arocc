@@ -74,7 +74,7 @@ pub fn requiredArgCount(attr: Tag) u32 {
             const decl = @typeInfo(attributes).Struct.decls[i];
             const fields = getArguments(decl.data.Type);
             inline for (fields) |arg_field| {
-                if (@typeInfo(arg_field.field_type) != .Optional) needed += 1;
+                if (!mem.eql(u8, arg_field.name, "__name_tok") and @typeInfo(arg_field.field_type) != .Optional) needed += 1;
             }
             return needed;
         }
@@ -384,6 +384,7 @@ const attributes = struct {
 
         const Args = struct {
             msg: ?[]const u8 = null,
+            __name_tok: TokenIndex = undefined,
         };
     };
     const designated_init = struct {
@@ -717,7 +718,8 @@ const attributes = struct {
     const unavailable = struct {
         const gnu = "unavailable";
         const Args = struct {
-            msg: ?[]const u8,
+            msg: ?[]const u8 = null,
+            __name_tok: TokenIndex = undefined,
         };
     };
     const uninitialized = struct {
@@ -849,10 +851,15 @@ pub fn ArgumentsForTag(comptime tag: Tag) type {
     return if (@hasDecl(decl.data.Type, "Args")) decl.data.Type.Args else void;
 }
 
-pub fn initArguments(tag: Tag) Arguments {
+pub fn initArguments(tag: Tag, name_tok: TokenIndex) Arguments {
     inline for (@typeInfo(Tag).Enum.fields) |field| {
         if (@enumToInt(tag) == field.value) {
-            return @unionInit(Arguments, field.name, undefined);
+            var args = @unionInit(Arguments, field.name, undefined);
+            const decl = @typeInfo(attributes).Struct.decls[field.value];
+            if (@hasDecl(decl.data.Type, "Args") and @hasField(decl.data.Type.Args, "__name_tok")) {
+                @field(@field(args, field.name), "__name_tok") = name_tok;
+            }
+            return args;
         }
     }
     unreachable;

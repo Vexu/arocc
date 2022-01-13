@@ -377,11 +377,11 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
 fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
     if (ty.getAttribute(.unavailable)) |unavailable| {
         try p.errDeprecated(.unavailable, usage_tok, unavailable.msg);
-        try p.errStr(.unavailable_note, decl_tok, p.tokSlice(decl_tok));
+        try p.errStr(.unavailable_note, unavailable.__name_tok, p.tokSlice(decl_tok));
         return error.ParsingFailed;
     } else if (ty.getAttribute(.deprecated)) |deprecated| {
         try p.errDeprecated(.deprecated_declarations, usage_tok, deprecated.msg);
-        try p.errStr(.deprecated_note, decl_tok, p.tokSlice(decl_tok));
+        try p.errStr(.deprecated_note, deprecated.__name_tok, p.tokSlice(decl_tok));
     }
 }
 
@@ -1339,7 +1339,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
     };
 
     const required_count = Attribute.requiredArgCount(attr);
-    var arguments = Attribute.initArguments(attr);
+    var arguments = Attribute.initArguments(attr, name_tok);
     var arg_idx: u32 = 0;
 
     switch (p.tok_ids[p.tok_i]) {
