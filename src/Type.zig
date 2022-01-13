@@ -120,8 +120,14 @@ pub const Attributed = struct {
     fn create(allocator: std.mem.Allocator, base: Type, attributes: []const Attribute) !*Attributed {
         var attributed_type = try allocator.create(Attributed);
         errdefer allocator.destroy(attributed_type);
+
+        const existing = base.getAttributes();
+        var all_attrs = try allocator.alloc(Attribute, existing.len + attributes.len);
+        std.mem.copy(Attribute, all_attrs, existing);
+        std.mem.copy(Attribute, all_attrs[existing.len..], attributes);
+
         attributed_type.* = .{
-            .attributes = try allocator.dupe(Attribute, attributes),
+            .attributes = all_attrs,
             .base = base,
         };
         return attributed_type;
@@ -477,6 +483,15 @@ pub fn anyQual(ty: Type) bool {
         .typeof_type => ty.qual.any() or ty.data.sub_type.anyQual(),
         .typeof_expr => ty.qual.any() or ty.data.expr.ty.anyQual(),
         else => ty.qual.any(),
+    };
+}
+
+pub fn getAttributes(ty: Type) []const Attribute {
+    return switch (ty.specifier) {
+        .attributed => ty.data.attributed.attributes,
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.getAttributes(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.getAttributes(),
+        else => &.{},
     };
 }
 
