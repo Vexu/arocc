@@ -7,4 +7,4 @@
 #  endif
 #endif
 
-#define EXPECTED_ERRORS "__has_builtin.c:3:7: error: builtin exists"
+#define EXPECTED_ERRORS "__has_builtin.c:3:8: error: builtin exists"

@@ -120,6 +120,7 @@ pub const Options = packed struct {
     @"gnu-binary-literal": Kind = .default,
     @"variadic-macros": Kind = .default,
     varargs: Kind = .default,
+    @"#warnings": Kind = .default,
 };
 
 const messages = struct {
@@ -132,6 +133,12 @@ const messages = struct {
         const msg = "{s}";
         const extra = .str;
         const kind = .@"error";
+    };
+    const warning_directive = struct {
+        const msg = "{s}";
+        const opt = "#warnings";
+        const extra = .str;
+        const kind = .@"warning";
     };
     const elif_without_if = struct {
         const msg = "#elif without #if";

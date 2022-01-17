@@ -203,7 +203,6 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
         .comp = pp.comp,
         .source = source.id,
     };
-    const TRAILING_WS = " \r\t\x0B\x0C";
 
     // Estimate how many new tokens this source will contain.
     const estimated_token_count = source.buf.len / 8;
@@ -222,18 +221,26 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
             .hash => if (start_of_line) {
                 const directive = tokenizer.nextNoWS();
                 switch (directive.id) {
-                    .keyword_error => {
+                    .keyword_error, .keyword_warning => {
                         // #error tokens..
-                        const start = tokenizer.index;
-                        while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
-                            if (tokenizer.buf[tokenizer.index] == '\n') break;
+                        pp.top_expansion_buf.items.len = 0;
+                        const char_top = pp.char_buf.items.len;
+                        defer pp.char_buf.items.len = char_top;
+
+                        while (true) {
+                            tok = tokenizer.next();
+                            if (tok.id == .nl or tok.id == .eof) break;
+                            if (tok.id == .whitespace) tok.id = .macro_ws;
+                            try pp.top_expansion_buf.append(tokFromRaw(tok));
                         }
-                        var slice = tokenizer.buf[start..tokenizer.index];
-                        slice = mem.trim(u8, slice, TRAILING_WS);
+                        try pp.stringify(pp.top_expansion_buf.items);
+                        const slice = pp.char_buf.items[char_top + 1 .. pp.char_buf.items.len - 2];
+                        const duped = try pp.comp.diag.arena.allocator().dupe(u8, slice);
+
                         try pp.comp.diag.add(.{
-                            .tag = .error_directive,
-                            .loc = .{ .id = tok.source, .byte_offset = tok.start, .line = directive.line },
-                            .extra = .{ .str = slice },
+                            .tag = if (directive.id == .keyword_error) .error_directive else .warning_directive,
+                            .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
+                            .extra = .{ .str = duped },
                         }, &.{});
                     },
                     .keyword_if => {
@@ -359,7 +366,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                     },
                     else => {
                         try pp.err(tok, .invalid_preprocessing_directive);
-                        try pp.expectNl(&tokenizer);
+                        skipToNl(&tokenizer);
                     },
                 }
             },

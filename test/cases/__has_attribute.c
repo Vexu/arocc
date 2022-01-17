@@ -7,4 +7,4 @@
 #  endif
 #endif
 
-#define EXPECTED_ERRORS "__has_attribute.c:3:7: error: attribute exists"
+#define EXPECTED_ERRORS "__has_attribute.c:3:8: error: attribute exists"
