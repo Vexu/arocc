@@ -1571,12 +1571,15 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
             init_d.d.ty.data.array.len = init_list_expr.ty.data.array.len;
             init_d.d.ty.specifier = .array;
         } else if (init_d.d.ty.is(.incomplete_array)) {
+            const attrs = init_d.d.ty.getAttributes();
+
             const arr_ty = try p.arena.create(Type.Array);
             arr_ty.* = .{ .elem = init_d.d.ty.elemType(), .len = init_list_expr.ty.arrayLen().? };
-            init_d.d.ty = .{
+            const ty = Type{
                 .specifier = .array,
                 .data = .{ .array = arr_ty },
             };
+            init_d.d.ty = try ty.withAttributes(p.arena, attrs);
         }
     }
     const name = init_d.d.name;

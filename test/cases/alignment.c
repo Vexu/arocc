@@ -20,7 +20,7 @@ _Alignas(1) _Alignas(2) _Alignas(4) char i;
 __attribute__((aligned(2), aligned(4))) int j;
 __attribute__((aligned(8))) __attribute__((aligned(4))) int k;
 __attribute__((aligned(16))) typeof(int[]) l  = {1};
-//typeof(int[]) __attribute__((aligned(16))) m  = {1};
+typeof(int[]) __attribute__((aligned(16))) m  = {1};
 typeof(int[]) n __attribute__((aligned(32))) = {1};
 
 #pragma GCC diagnostic ignored "-Wgnu-alignof-expression"
@@ -29,10 +29,9 @@ _Static_assert(_Alignof(i) == 4, "incorrect alignment");
 _Static_assert(_Alignof(j) == 4, "incorrect alignment");
 _Static_assert(_Alignof(k) == 8, "incorrect alignment");
 _Static_assert(_Alignof(l) == 16, "incorrect alignment");
-//_Static_assert(_Alignof(m) == 16, "incorrect alignment");
+_Static_assert(_Alignof(m) == 16, "incorrect alignment");
 _Static_assert(_Alignof(n) == 32, "incorrect alignment");
 
-#define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "alignment.c:1:1: error: '_Alignas' attribute only applies to variables and fields" \
     "alignment.c:3:3: error: '_Alignas' attribute only applies to variables and fields" \
     "alignment.c:5:1: error: requested alignment is less than minimum alignment of 4" \
