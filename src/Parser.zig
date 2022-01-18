@@ -3535,14 +3535,14 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
     if (p.eatToken(.semicolon)) |_| {
         var null_node: Tree.Node = .{ .tag = .null_stmt, .data = undefined };
-        if (attrs.len > 0) {
+        null_node.ty = try null_node.ty.withAttributes(p.arena, attrs);
+        if (null_node.ty.getAttribute(.fallthrough) != null) {
             if (p.tok_ids[p.tok_i] != .keyword_case and p.tok_ids[p.tok_i] != .keyword_default) {
                 // TODO: this condition is not completely correct; the last statement of a compound
                 // statement is also valid if it precedes a switch label (so intervening '}' are ok,
                 // but only if they close a compound statement)
                 try p.errTok(.invalid_fallthrough, expr_start);
             }
-            null_node.ty = try null_node.ty.withAttributes(p.arena, attrs);
         }
         return p.addNode(null_node);
     }
