@@ -123,7 +123,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
 fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
     if (func.c.tree.value_map.get(node)) |some| {
         if (some.tag == .int)
-            return Value{ .immediate = @truncate(i64, @bitCast(i128, some.data.int)) };
+            return Value{ .immediate = @bitCast(i64, some.data.int) };
     }
 
     const data = func.c.node_data[@enumToInt(node)];

@@ -278,7 +278,7 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
 
 fn errOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
     if (res.ty.isUnsignedInt(p.pp.comp)) {
-        try p.errExtra(.overflow_unsigned, op_tok, .{ .unsigned = res.val.getInt(u128) });
+        try p.errExtra(.overflow_unsigned, op_tok, .{ .unsigned = res.val.data.int });
     } else {
         try p.errExtra(.overflow_signed, op_tok, .{ .signed = res.val.signExtend(res.ty, p.pp.comp) });
     }
@@ -1585,7 +1585,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     }
                     var requested = std.math.cast(u29, res.val.data.int) catch {
                         try p.errExtra(.maximum_alignment, ty.align_tok.?, .{
-                            .unsigned = res.val.getInt(u128),
+                            .unsigned = res.val.getInt(u64),
                         });
                         break :blk;
                     };
@@ -4080,18 +4080,17 @@ const Result = struct {
 
     fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
         if (res.ty.is(.bool)) {
-            res.val.intToFloat(res.ty, p.pp.comp);
+            res.val.intToFloat(res.ty, float_ty, p.pp.comp);
             res.ty = float_ty;
             try res.un(p, .bool_to_float);
         } else if (res.ty.isInt()) {
-            res.val.intToFloat(res.ty, p.pp.comp);
+            res.val.intToFloat(res.ty, float_ty, p.pp.comp);
             res.ty = float_ty;
             try res.un(p, .int_to_float);
         } else if (!res.ty.eql(float_ty, true)) {
             res.ty = float_ty;
             try res.un(p, .float_cast);
         }
-        if (!float_ty.isReal()) res.val.tag = .unavailable;
     }
 
     fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
@@ -4720,6 +4719,7 @@ fn castExpr(p: *Parser) Error!Result {
         }
         if (try p.typeName()) |ty| {
             try p.expectClosing(l_paren, .r_paren);
+
             if (p.tok_ids[p.tok_i] == .l_brace) {
                 // compound literal
                 if (ty.isFunc()) {
@@ -4734,6 +4734,7 @@ fn castExpr(p: *Parser) Error!Result {
                 try init_list_expr.un(p, .compound_literal_expr);
                 return init_list_expr;
             }
+
             var operand = try p.castExpr();
             try operand.expect(p);
             if (ty.is(.void)) {
@@ -4759,7 +4760,7 @@ fn castExpr(p: *Parser) Error!Result {
                 } else if (old_float and new_int) {
                     operand.val.floatToInt(operand.ty, ty, p.pp.comp);
                 } else if (new_float and old_int) {
-                    operand.val.intToFloat(operand.ty, p.pp.comp);
+                    operand.val.intToFloat(operand.ty, ty, p.pp.comp);
                 }
             } else {
                 try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
@@ -5966,10 +5967,10 @@ fn integerLiteral(p: *Parser) Error!Result {
     var slice = p.tokSlice(p.tok_i);
     defer p.tok_i += 1;
     var base: u8 = 10;
-    if (mem.startsWith(u8, slice, "0x") or mem.startsWith(u8, slice, "0X")) {
+    if (std.ascii.startsWithIgnoreCase(slice, "0x")) {
         slice = slice[2..];
-        base = 10;
-    } else if (mem.startsWith(u8, slice, "0b") or mem.startsWith(u8, slice, "0B")) {
+        base = 16;
+    } else if (std.ascii.startsWithIgnoreCase(slice, "0b")) {
         try p.err(.binary_integer_literal);
         slice = slice[2..];
         base = 2;

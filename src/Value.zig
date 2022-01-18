@@ -8,8 +8,8 @@ const Value = @This();
 tag: Tag = .unavailable,
 data: union {
     none: void,
-    int: u128,
-    float: f128,
+    int: u64,
+    float: f64,
     array: []Value,
     bytes: []u8,
 } = .{ .none = {} },
@@ -43,7 +43,7 @@ pub fn int(v: anytype) Value {
     if (@TypeOf(v) == comptime_int or @typeInfo(@TypeOf(v)).Int.signedness == .unsigned)
         return .{ .tag = .int, .data = .{ .int = v } }
     else
-        return .{ .tag = .int, .data = .{ .int = @bitCast(u128, @as(i128, v)) } };
+        return .{ .tag = .int, .data = .{ .int = @bitCast(u64, @as(i64, v)) } };
 }
 
 pub fn float(v: anytype) Value {
@@ -54,12 +54,11 @@ pub fn bytes(v: anytype) Value {
     return .{ .tag = .bytes, .data = .{ .bytes = v } };
 }
 
-pub fn signExtend(v: Value, old_ty: Type, comp: *Compilation) i128 {
+pub fn signExtend(v: Value, old_ty: Type, comp: *Compilation) i64 {
     const size = old_ty.sizeof(comp).?;
     return switch (size) {
         4 => v.getInt(i32),
         8 => v.getInt(i64),
-        16 => v.getInt(i128),
         else => unreachable,
     };
 }
@@ -77,20 +76,21 @@ pub fn floatToInt(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) voi
     v.* = int(switch (size) {
         4 => @floatToInt(i32, v.getFloat(f32)),
         8 => @floatToInt(i64, v.getFloat(f64)),
-        16 => @floatToInt(i128, v.getFloat(f128)),
         else => unreachable,
     });
 }
 
 /// Converts the stored value from an integer to a float.
 /// `.unavailable` value remains unchanged.
-pub fn intToFloat(v: *Value, old_ty: Type, comp: *Compilation) void {
+pub fn intToFloat(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
     assert(old_ty.isInt());
     if (v.tag == .unavailable) return;
-    if (old_ty.isUnsignedInt(comp)) {
-        v.* = float(@intToFloat(f128, v.data.int));
+    if (!new_ty.isReal() or new_ty.sizeof(comp).? > 8) {
+        v.tag = .unavailable;
+    } else if (old_ty.isUnsignedInt(comp)) {
+        v.* = float(@intToFloat(f64, v.data.int));
     } else {
-        v.* = float(@intToFloat(f128, @bitCast(i128, v.data.int)));
+        v.* = float(@intToFloat(f64, @bitCast(i64, v.data.int)));
     }
 }
 
@@ -106,8 +106,7 @@ pub fn intCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
             1 => v.* = int(@bitCast(u8, v.getInt(i8))),
             2 => v.* = int(@bitCast(u16, v.getInt(i16))),
             4 => v.* = int(@bitCast(u32, v.getInt(i32))),
-            8 => v.* = int(@bitCast(u64, v.getInt(i64))),
-            16 => return,
+            8 => return,
             else => unreachable,
         }
     }
@@ -141,15 +140,15 @@ pub fn getBool(v: Value) bool {
 }
 
 pub fn getInt(v: Value, comptime T: type) T {
-    if (T == u128) return v.data.int;
+    if (T == u64) return v.data.int;
     return if (@typeInfo(T).Int.signedness == .unsigned)
         @truncate(T, v.data.int)
     else
-        @truncate(T, @bitCast(i128, v.data.int));
+        @truncate(T, @bitCast(i64, v.data.int));
 }
 
 pub fn getFloat(v: Value, comptime T: type) T {
-    if (T == f128) return v.data.float;
+    if (T == f64) return v.data.float;
     return @floatCast(T, v.data.float);
 }
 
@@ -205,7 +204,6 @@ const bin_overflow = struct {
                     res.* = switch (size) {
                         4 => floatFunc(f32, a, b),
                         8 => floatFunc(f64, a, b),
-                        16 => floatFunc(f128, a, b),
                         else => unreachable,
                     };
                     return false;
@@ -216,14 +214,12 @@ const bin_overflow = struct {
                     2 => unreachable, // promoted to int
                     4 => return intFunc(u32, res, a, b),
                     8 => return intFunc(u64, res, a, b),
-                    16 => return intFunc(u128, res, a, b),
                     else => unreachable,
                 } else switch (size) {
                     1 => unreachable, // promoted to int
                     2 => unreachable, // promoted to int
                     4 => return intFunc(i32, res, a, b),
                     8 => return intFunc(i64, res, a, b),
-                    16 => return intFunc(i128, res, a, b),
                     else => unreachable,
                 }
             }
@@ -316,7 +312,6 @@ const bin_ops = struct {
                     switch (size) {
                         4 => return floatFunc(f32, a, b),
                         8 => return floatFunc(f64, a, b),
-                        16 => return floatFunc(f128, a, b),
                         else => unreachable,
                     }
                 }
@@ -326,14 +321,12 @@ const bin_ops = struct {
                     2 => unreachable, // promoted to int
                     4 => return intFunc(u32, a, b),
                     8 => return intFunc(u64, a, b),
-                    16 => return intFunc(u128, a, b),
                     else => unreachable,
                 } else switch (size) {
                     1 => unreachable, // promoted to int
                     2 => unreachable, // promoted to int
                     4 => return intFunc(i32, a, b),
                     8 => return intFunc(i64, a, b),
-                    16 => return intFunc(i128, a, b),
                     else => unreachable,
                 }
             }
@@ -362,14 +355,12 @@ pub fn bitNot(v: Value, ty: Type, comp: *Compilation) Value {
         2 => unreachable, // promoted to int
         4 => out = int(~v.getInt(u32)),
         8 => out = int(~v.getInt(u64)),
-        16 => out = int(~v.getInt(u128)),
         else => unreachable,
     } else switch (size) {
         1 => unreachable, // promoted to int
         2 => unreachable, // promoted to int
         4 => out = int(~v.getInt(i32)),
         8 => out = int(~v.getInt(i64)),
-        16 => out = int(~v.getInt(i128)),
         else => unreachable,
     }
     return out;
@@ -397,20 +388,17 @@ pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp:
             2 => unreachable, // promoted to int
             4 => return S.doICompare(u32, a, op, b),
             8 => return S.doICompare(u64, a, op, b),
-            16 => return S.doICompare(u128, a, op, b),
             else => unreachable,
         } else switch (size) {
             1 => unreachable, // promoted to int
             2 => unreachable, // promoted to int
             4 => return S.doICompare(i32, a, op, b),
             8 => return S.doICompare(i64, a, op, b),
-            16 => return S.doICompare(i128, a, op, b),
             else => unreachable,
         },
         .float => switch (size) {
             4 => return S.doFCompare(f32, a, op, b),
             8 => return S.doFCompare(f64, a, op, b),
-            16 => return S.doFCompare(f128, a, op, b),
             else => unreachable,
         },
         else => @panic("TODO"),
