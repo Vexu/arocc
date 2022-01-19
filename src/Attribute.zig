@@ -111,7 +111,7 @@ pub const Formatting = struct {
     /// The quote char (single or double) to use when printing identifiers/strings corresponding
     /// to the enum in the first field of the Args of `attr`. Identifier enums use single quotes, string enums
     /// use double quotes
-    pub fn quoteChar(attr: Tag) []const u8 {
+    fn quoteChar(attr: Tag) []const u8 {
         inline for (@typeInfo(Tag).Enum.fields) |field, i| {
             if (field.value == @enumToInt(attr)) {
                 const decl = @typeInfo(attributes).Struct.decls[i];
@@ -185,7 +185,7 @@ pub fn diagnoseIdent(attr: Tag, arguments: *Arguments, ident: []const u8) ?Diagn
             }
             return Diagnostics.Message{
                 .tag = .unknown_attr_enum,
-                .extra = .{ .attr_enum = .{ .tag = attr, .actual = ident } },
+                .extra = .{ .attr_enum = .{ .tag = attr } },
             };
         }
     }
@@ -265,7 +265,7 @@ fn diagnoseField(
                     @setEvalBranchQuota(3000);
                     return Diagnostics.Message{
                         .tag = .unknown_attr_enum,
-                        .extra = .{ .attr_enum = .{ .tag = std.meta.stringToEnum(Tag, decl.name).?, .actual = bytes } },
+                        .extra = .{ .attr_enum = .{ .tag = std.meta.stringToEnum(Tag, decl.name).? } },
                     };
                 }
             }

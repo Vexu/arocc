@@ -41,7 +41,6 @@ pub const Message = struct {
         },
         attr_enum: struct {
             tag: Attribute.Tag,
-            actual: []const u8,
         },
         ignored_record_attr: struct {
             tag: Attribute.Tag,
@@ -1555,7 +1554,7 @@ const messages = struct {
         const extra = .attr_arg_type;
     };
     const unknown_attr_enum = struct {
-        const msg = "Unknown `{s}` argument {s}{s}{s}. Possible values are: {s}";
+        const msg = "Unknown `{s}` argument. Possible values are: {s}";
         const kind = .@"error";
         const extra = .attr_enum;
     };
@@ -1797,9 +1796,6 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                         .signed => m.print(info.msg, .{msg.extra.signed}),
                         .attr_enum => m.print(info.msg, .{
                             @tagName(msg.extra.attr_enum.tag),
-                            Attribute.Formatting.quoteChar(msg.extra.attr_enum.tag),
-                            msg.extra.attr_enum.actual,
-                            Attribute.Formatting.quoteChar(msg.extra.attr_enum.tag),
                             Attribute.Formatting.choices(msg.extra.attr_enum.tag),
                         }),
                         .ignored_record_attr => m.print(info.msg, .{
