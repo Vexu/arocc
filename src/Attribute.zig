@@ -71,15 +71,15 @@ fn getArguments(comptime descriptor: type) []const TypeInfo.StructField {
 /// number of required arguments
 pub fn requiredArgCount(attr: Tag) u32 {
     inline for (@typeInfo(Tag).Enum.fields) |field, i| {
-        if (field.value == @enumToInt(attr)) {
-            var needed: u32 = 0;
+        if (field.value == @enumToInt(attr)) comptime {
+            var needed = 0;
             const decl = @typeInfo(attributes).Struct.decls[i];
             const fields = getArguments(decl.data.Type);
-            inline for (fields) |arg_field| {
+            for (fields) |arg_field| {
                 if (!mem.eql(u8, arg_field.name, "__name_tok") and @typeInfo(arg_field.field_type) != .Optional) needed += 1;
             }
             return needed;
-        }
+        };
     }
     unreachable;
 }
@@ -87,15 +87,15 @@ pub fn requiredArgCount(attr: Tag) u32 {
 /// maximum number of args that can be passed
 pub fn maxArgCount(attr: Tag) u32 {
     inline for (@typeInfo(Tag).Enum.fields) |field, i| {
-        if (field.value == @enumToInt(attr)) {
+        if (field.value == @enumToInt(attr)) comptime {
             const decl = @typeInfo(attributes).Struct.decls[i];
             const fields = getArguments(decl.data.Type);
-            var max: u32 = 0;
-            inline for (fields) |arg_field| {
+            var max = 0;
+            for (fields) |arg_field| {
                 if (!mem.eql(u8, arg_field.name, "__name_tok")) max += 1;
             }
             return max;
-        }
+        };
     }
     unreachable;
 }
@@ -179,7 +179,7 @@ pub fn diagnoseIdent(attr: Tag, arguments: *Arguments, ident: []const u8) ?Diagn
             if (fields.len == 0) unreachable;
             const Unwrapped = UnwrapOptional(fields[0].field_type);
             if (@typeInfo(Unwrapped) != .Enum) unreachable;
-            if (std.meta.stringToEnum(Unwrapped, ident)) |enum_val| {
+            if (std.meta.stringToEnum(Unwrapped, normalize(ident))) |enum_val| {
                 @field(@field(arguments, decl.name), fields[0].name) = enum_val;
                 return null;
             }
@@ -523,12 +523,28 @@ const attributes = struct {
         const gnu = "mode";
         const Args = struct {
             mode: enum {
-                byte,
-                __byte__,
-                word,
-                __word__,
-                pointer,
-                __pointer__,
+                // zig fmt: off
+                byte,  word,  pointer,
+                BI,    QI,    HI,
+                PSI,   SI,    PDI,
+                DI,    TI,    OI,
+                XI,    QF,    HF,
+                TQF,   SF,    DF,
+                XF,    SD,    DD,
+                TD,    TF,    QQ,
+                HQ,    SQ,    DQ,
+                TQ,    UQQ,   UHQ,
+                USQ,   UDQ,   UTQ,
+                HA,    SA,    DA,
+                TA,    UHA,   USA,
+                UDA,   UTA,   CC,
+                BLK,   VOID,  QC,
+                HC,    SC,    DC,
+                XC,    TC,    CQI,
+                CHI,   CSI,   CDI,
+                CTI,   COI,   CPSI,
+                BND32, BND64,
+                // zig fmt: on
 
                 const opts = struct {
                     const enum_kind = .identifier;
