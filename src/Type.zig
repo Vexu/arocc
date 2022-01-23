@@ -482,7 +482,10 @@ pub fn anyQual(ty: Type) bool {
 
 pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     var specifier = ty.specifier;
-    if (specifier == .@"enum") specifier = ty.data.@"enum".tag_ty.specifier;
+    if (specifier == .@"enum") {
+        if (ty.hasIncompleteSize()) return .{ .specifier = .int };
+        specifier = ty.data.@"enum".tag_ty.specifier;
+    }
     return .{
         .specifier = switch (specifier) {
             .bool, .char, .schar, .uchar, .short => .int,
