@@ -68,6 +68,11 @@ void bar(void) {
     b = a;
 }
 
+void baz(void) {
+    enum E e;
+    e = 0;
+}
+
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
     "assignment.c:4:7: error: expression is not assignable" \
     "assignment.c:12:7: warning: implicit pointer to integer conversion from 'int *' to 'int' [-Wint-conversion]" \
@@ -87,3 +92,4 @@ void bar(void) {
     "assignment.c:58:10: error: expression is not assignable" \
     "assignment.c:60:8: error: expression is not assignable" \
     "assignment.c:61:9: error: expression is not assignable" \
+    "assignment.c:72:12: error: variable has incomplete type 'enum E'" \

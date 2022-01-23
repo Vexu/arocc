@@ -4072,6 +4072,7 @@ const Result = struct {
             res.ty = int_ty;
             try res.un(p, .float_to_int);
         } else if (!res.ty.eql(int_ty, true)) {
+            if (int_ty.hasIncompleteSize()) return error.ParsingFailed; // Diagnostic already issued
             res.val.intCast(res.ty, int_ty, p.pp.comp);
             res.ty = int_ty;
             try res.un(p, .int_cast);
