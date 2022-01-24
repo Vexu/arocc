@@ -1,9 +1,10 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-fn addFuzzStep(b: *Builder) !void {
+fn addFuzzStep(b: *Builder, target: std.zig.CrossTarget) !void {
     const fuzz_lib = b.addStaticLibrary("fuzz-lib", "test/fuzz/fuzz_lib.zig");
     fuzz_lib.addPackagePath("aro", "src/lib.zig");
+    fuzz_lib.setTarget(target);
     fuzz_lib.setBuildMode(.Debug);
     fuzz_lib.want_lto = true;
     fuzz_lib.bundle_compiler_rt = true;
@@ -75,5 +76,5 @@ pub fn build(b: *Builder) !void {
     integration_test_runner.addArg(b.zig_exe);
     tests_step.dependOn(&integration_test_runner.step);
 
-    try addFuzzStep(b);
+    try addFuzzStep(b, target);
 }

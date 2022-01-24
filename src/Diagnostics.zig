@@ -3,6 +3,7 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
+const Attribute = @import("Attribute.zig");
 const Tree = @import("Tree.zig");
 const util = @import("util.zig");
 const is_windows = @import("builtin").os.tag == .windows;
@@ -29,6 +30,21 @@ pub const Message = struct {
         codepoints: struct {
             actual: u21,
             resembles: u21,
+        },
+        attr_arg_count: struct {
+            attribute: Attribute.Tag,
+            expected: u32,
+        },
+        attr_arg_type: struct {
+            expected: Attribute.ArgumentType,
+            actual: Attribute.ArgumentType,
+        },
+        attr_enum: struct {
+            tag: Attribute.Tag,
+        },
+        ignored_record_attr: struct {
+            tag: Attribute.Tag,
+            specifier: enum { @"struct", @"union", @"enum" },
         },
         actual_codepoint: u21,
         unsigned: u64,
@@ -121,6 +137,7 @@ pub const Options = packed struct {
     @"variadic-macros": Kind = .default,
     varargs: Kind = .default,
     @"#warnings": Kind = .default,
+    @"deprecated-declarations": Kind = .default,
 };
 
 const messages = struct {
@@ -1521,6 +1538,69 @@ const messages = struct {
         const opt = "varargs";
         const kind = .warning;
     };
+    const attribute_not_enough_args = struct {
+        const msg = "'{s}' attribute takes at least {d} argument(s)";
+        const kind = .@"error";
+        const extra = .attr_arg_count;
+    };
+    const attribute_too_many_args = struct {
+        const msg = "'{s}' attribute takes at most {d} argument(s)";
+        const kind = .@"error";
+        const extra = .attr_arg_count;
+    };
+    const attribute_arg_invalid = struct {
+        const msg = "Attribute argument is invalid, expected {s} but got {s}";
+        const kind = .@"error";
+        const extra = .attr_arg_type;
+    };
+    const unknown_attr_enum = struct {
+        const msg = "Unknown `{s}` argument. Possible values are: {s}";
+        const kind = .@"error";
+        const extra = .attr_enum;
+    };
+    const attribute_requires_identifier = struct {
+        const msg = "'{s}' attribute requires an identifier";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    const declspec_not_enabled = struct {
+        const msg = "'__declspec' attributes are not enabled; use '-fdeclspec' or '-fms-extensions' to enable support for __declspec attributes";
+        const kind = .@"error";
+    };
+    const declspec_attr_not_supported = struct {
+        const msg = "__declspec attribute '{s}' is not supported";
+        const extra = .str;
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const deprecated_declarations = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const opt = "deprecated-declarations";
+        const kind = .warning;
+    };
+    const deprecated_note = struct {
+        const msg = "'{s}' has been explicitly marked deprecated here";
+        const extra = .str;
+        const opt = "deprecated-declarations";
+        const kind = .note;
+    };
+    const unavailable = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const unavailable_note = struct {
+        const msg = "'{s}' has been explicitly marked unavailable here";
+        const extra = .str;
+        const kind = .note;
+    };
+    const ignored_record_attr = struct {
+        const msg = "attribute '{s}' is ignored, place it after \"{s}\" to apply attribute to type declaration";
+        const extra = .ignored_record_attr;
+        const kind = .warning;
+        const opt = "ignored-attributes";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -1703,9 +1783,25 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                             msg.extra.codepoints.actual,
                             msg.extra.codepoints.resembles,
                         }),
+                        .attr_arg_count => m.print(info.msg, .{
+                            @tagName(msg.extra.attr_arg_count.attribute),
+                            msg.extra.attr_arg_count.expected,
+                        }),
+                        .attr_arg_type => m.print(info.msg, .{
+                            msg.extra.attr_arg_type.expected.toString(),
+                            msg.extra.attr_arg_type.actual.toString(),
+                        }),
                         .actual_codepoint => m.print(info.msg, .{msg.extra.actual_codepoint}),
                         .unsigned => m.print(info.msg, .{msg.extra.unsigned}),
                         .signed => m.print(info.msg, .{msg.extra.signed}),
+                        .attr_enum => m.print(info.msg, .{
+                            @tagName(msg.extra.attr_enum.tag),
+                            Attribute.Formatting.choices(msg.extra.attr_enum.tag),
+                        }),
+                        .ignored_record_attr => m.print(info.msg, .{
+                            @tagName(msg.extra.ignored_record_attr.tag),
+                            @tagName(msg.extra.ignored_record_attr.specifier),
+                        }),
                         else => unreachable,
                     }
                 } else {
@@ -1715,7 +1811,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                 if (@hasDecl(info, "opt")) {
                     if (msg.kind == .@"error" and info.kind != .@"error") {
                         m.print(" [-Werror,-W{s}]", .{info.opt});
-                    } else {
+                    } else if (msg.kind != .note) {
                         m.print(" [-W{s}]", .{info.opt});
                     }
                 }

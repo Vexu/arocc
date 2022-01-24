@@ -643,3 +643,20 @@ pub fn isTlsSupported(comp: *Compilation) bool {
         else => true,
     };
 }
+
+/// Default alignment (in bytes) for __attribute__((aligned)) when no alignment is specified
+pub fn defaultAlignment(comp: *const Compilation) u29 {
+    switch (comp.target.cpu.arch) {
+        .avr => return 1,
+        .arm,
+        .armeb,
+        .thumb,
+        .thumbeb,
+        => switch (comp.target.abi) {
+            .gnueabi, .gnueabihf, .eabi, .eabihf, .musleabi, .musleabihf => return 8,
+            else => {},
+        },
+        else => {},
+    }
+    return 16;
+}

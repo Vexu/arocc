@@ -235,6 +235,9 @@ pub const Token = struct {
         keyword_asm1,
         keyword_asm2,
 
+        // ms keywords
+        keyword_declspec,
+
         // builtins that require special parsing
         builtin_choose_expr,
         builtin_va_arg,
@@ -325,6 +328,7 @@ pub const Token = struct {
                 .keyword_asm,
                 .keyword_asm1,
                 .keyword_asm2,
+                .keyword_declspec,
                 => return true,
                 else => return false,
             }
@@ -535,6 +539,7 @@ pub const Token = struct {
                 .keyword_asm => "asm",
                 .keyword_asm1 => "__asm",
                 .keyword_asm2 => "__asm__",
+                .keyword_declspec => "__declspec",
             };
         }
 
@@ -745,6 +750,9 @@ pub const Token = struct {
         .{ "asm", .keyword_asm },
         .{ "__asm", .keyword_asm1 },
         .{ "__asm__", .keyword_asm2 },
+
+        // ms keywords
+        .{ "__declspec", .keyword_declspec },
 
         // builtins that require special parsing
         .{ "__builtin_choose_expr", .builtin_choose_expr },
@@ -1790,7 +1798,7 @@ test "keywords" {
         \\struct switch typedef union unsigned void volatile 
         \\while _Bool _Complex _Imaginary inline restrict _Alignas 
         \\_Alignof _Atomic _Generic _Noreturn _Static_assert _Thread_local 
-        \\__attribute __attribute__
+        \\__attribute __attribute__ __declspec
         \\
     , &.{
         .keyword_auto,
@@ -1845,6 +1853,7 @@ test "keywords" {
         .nl,
         .keyword_attribute1,
         .keyword_attribute2,
+        .keyword_declspec,
         .nl,
     });
 }
