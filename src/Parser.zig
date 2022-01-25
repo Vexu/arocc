@@ -2269,12 +2269,17 @@ fn declarator(
     const start = p.tok_i;
     var d = Declarator{ .name = 0, .ty = try p.pointer(base_type) };
 
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
+
     const maybe_ident = p.tok_i;
     if (kind != .abstract and (try p.eatIdentifier()) != null) {
         d.name = maybe_ident;
         const combine_tok = p.tok_i;
         d.ty = try p.directDeclarator(d.ty, &d, kind);
         try d.ty.validateCombinedType(p, combine_tok);
+        const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
+        d.ty = try d.ty.withAttributes(p.arena, attrs);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
         var res = (try p.declarator(.{ .specifier = .void }, kind)) orelse {
@@ -2299,6 +2304,8 @@ fn declarator(
         return error.ParsingFailed;
     }
     try d.ty.validateCombinedType(p, expected_ident);
+    const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
+    d.ty = try d.ty.withAttributes(p.arena, attrs);
     if (start == p.tok_i) return null;
     return d;
 }
@@ -2317,6 +2324,7 @@ fn declarator(
 ///  | '[' '*' ']'
 ///  | '(' paramDecls? ')'
 fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: DeclaratorKind) Error!Type {
+    try p.attributeSpecifier();
     if (p.eatToken(.l_bracket)) |l_bracket| {
         var res_ty = Type{
             // so that we can get any restrict type that might be present
