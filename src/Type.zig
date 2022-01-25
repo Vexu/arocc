@@ -1186,8 +1186,7 @@ pub const Builder = struct {
         }
         try b.qual.finish(p, &ty);
 
-        const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-        return ty.withAttributes(p.arena, attrs);
+        return p.withAttributes(ty, attr_buf_start);
     }
 
     fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) !void {

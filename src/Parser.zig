@@ -796,6 +796,11 @@ fn skipTo(p: *Parser, id: Token.Id) void {
     }
 }
 
+pub fn withAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    return ty.withAttributes(p.arena, attrs);
+}
+
 // ====== declarations ======
 
 /// decl
@@ -836,8 +841,7 @@ fn decl(p: *Parser) Error!bool {
         return true;
     };
 
-    const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
-    init_d.d.ty = try init_d.d.ty.withAttributes(p.arena, attrs);
+    init_d.d.ty = try p.withAttributes(init_d.d.ty, attr_buf_top);
     try p.validateAlignas(init_d.d.ty, null);
 
     // Check for function definition.
@@ -1905,8 +1909,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
             ty = d.ty;
         }
         try p.attributeSpecifier(); // .record
-        const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
-        ty = try ty.withAttributes(p.arena, attrs);
+        ty = try p.withAttributes(ty, attr_buf_top);
 
         if (p.eatToken(.colon)) |_| bits: {
             const res = try p.constExpr();
@@ -2186,9 +2189,8 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         else => unreachable,
     };
 
-    const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
     var res = e.res;
-    res.ty = try res.ty.withAttributes(p.arena, attrs);
+    res.ty = try p.withAttributes(res.ty, attr_buf_top);
 
     try p.scopes.append(.{ .enumeration = .{
         .name = name,
@@ -2278,8 +2280,7 @@ fn declarator(
         const combine_tok = p.tok_i;
         d.ty = try p.directDeclarator(d.ty, &d, kind);
         try d.ty.validateCombinedType(p, combine_tok);
-        const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
-        d.ty = try d.ty.withAttributes(p.arena, attrs);
+        d.ty = try p.withAttributes(d.ty, attr_buf_top);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
         var res = (try p.declarator(.{ .specifier = .void }, kind)) orelse {
@@ -2304,8 +2305,7 @@ fn declarator(
         return error.ParsingFailed;
     }
     try d.ty.validateCombinedType(p, expected_ident);
-    const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
-    d.ty = try d.ty.withAttributes(p.arena, attrs);
+    d.ty = try p.withAttributes(d.ty, attr_buf_top);
     if (start == p.tok_i) return null;
     return d;
 }
@@ -2528,10 +2528,9 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             const attr_buf_top = p.attr_buf.len;
             defer p.attr_buf.len = attr_buf_top;
             try p.attributeSpecifier();
-            const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
 
             name_tok = some.name;
-            param_ty = try some.ty.withAttributes(p.arena, attrs);
+            param_ty = try p.withAttributes(some.ty, attr_buf_top);
             if (some.name != 0) {
                 if (p.findSymbol(name_tok, .definition)) |scope| {
                     if (scope == .enumeration) {
@@ -3526,11 +3525,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
     try p.attributeSpecifier(); // statement
-    const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
 
     if (p.eatToken(.semicolon)) |_| {
         var null_node: Tree.Node = .{ .tag = .null_stmt, .data = undefined };
-        null_node.ty = try null_node.ty.withAttributes(p.arena, attrs);
+        null_node.ty = try p.withAttributes(null_node.ty, attr_buf_top);
         if (null_node.ty.getAttribute(.fallthrough) != null) {
             if (p.tok_ids[p.tok_i] != .keyword_case and p.tok_ids[p.tok_i] != .keyword_default) {
                 // TODO: this condition is not completely correct; the last statement of a compound
