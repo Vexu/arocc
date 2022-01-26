@@ -530,13 +530,35 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
     const duped_path = try comp.gpa.dupe(u8, path);
     errdefer comp.gpa.free(duped_path);
 
-    const contents = try file.reader().readAllAlloc(comp.gpa, std.math.maxInt(u32));
+    const size = try file.getEndPos();
+    if (size > std.math.maxInt(u32)) return error.StreamTooLong;
+
+    const contents = try comp.gpa.alloc(u8, size);
     errdefer comp.gpa.free(contents);
 
+    var reader = std.io.bufferedReader(file.reader()).reader();
+    var i: usize = 0;
+    while (true) {
+        const byte = reader.readByte() catch break;
+        if (byte == '\\') {
+            const next = reader.readByte() catch {
+                contents[i] = '\\';
+                i += 1;
+                break;
+            };
+            if (next == '\n') continue;
+            contents[i] = '\\';
+            contents[i + 1] = next;
+            i += 2;
+        } else {
+            contents[i] = byte;
+            i += 1;
+        }
+    }
     var source = Source{
         .id = @intToEnum(Source.Id, comp.sources.count() + 2),
         .path = duped_path,
-        .buf = contents,
+        .buf = if (contents.len == i) contents else try comp.gpa.realloc(contents, i),
     };
     source.checkUtf8();
 
