@@ -53,25 +53,7 @@ pub const Message = struct {
     };
 };
 
-pub const Tag = blk: {
-    const decls = @typeInfo(messages).Struct.decls;
-    var enum_fields: [decls.len]std.builtin.TypeInfo.EnumField = undefined;
-    inline for (decls) |decl, i| {
-        enum_fields[i] = .{
-            .name = decl.name,
-            .value = i,
-        };
-    }
-    break :blk @Type(.{
-        .Enum = .{
-            .layout = .Auto,
-            .tag_type = std.math.IntFittingRange(0, decls.len - 1),
-            .fields = &enum_fields,
-            .decls = &.{},
-            .is_exhaustive = true,
-        },
-    });
-};
+pub const Tag = std.meta.DeclEnum(messages);
 
 // u4 to avoid any possible packed struct issues
 pub const Kind = enum(u4) { @"fatal error", @"error", note, warning, off, default };
