@@ -49,6 +49,7 @@ pub fn build(b: *Builder) !void {
     exe.install();
 
     const run_cmd = exe.run();
+    run_cmd.expected_exit_code = null;
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
