@@ -60,6 +60,7 @@ pub fn deinit(comp: *Compilation) void {
     for (comp.sources.values()) |source| {
         comp.gpa.free(source.path);
         comp.gpa.free(source.buf);
+        comp.gpa.free(source.splice_locs);
     }
     comp.sources.deinit();
     comp.diag.deinit();
@@ -348,6 +349,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         .id = @intToEnum(Source.Id, comp.sources.count() + 2),
         .path = duped_path,
         .buf = contents,
+        .splice_locs = &.{},
     };
     try comp.sources.put(duped_path, source);
     return source;
@@ -513,6 +515,7 @@ pub fn getSource(comp: *Compilation, id: Source.Id) Source {
         .path = "<scratch space>",
         .buf = comp.generated_buf.items,
         .id = .generated,
+        .splice_locs = &.{},
     };
     return comp.sources.values()[@enumToInt(id) - 2];
 }
@@ -536,8 +539,11 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
     const contents = try comp.gpa.alloc(u8, size);
     errdefer comp.gpa.free(contents);
 
+    var splice_locs = std.ArrayList(u32).init(comp.gpa);
+    defer splice_locs.deinit();
+
     var reader = std.io.bufferedReader(file.reader()).reader();
-    var i: usize = 0;
+    var i: u32 = 0;
     while (true) {
         const byte = reader.readByte() catch break;
         if (byte == '\\') {
@@ -546,7 +552,10 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
                 i += 1;
                 break;
             };
-            if (next == '\n') continue;
+            if (next == '\n') {
+                try splice_locs.append(i);
+                continue;
+            }
             contents[i] = '\\';
             contents[i + 1] = next;
             i += 2;
@@ -559,6 +568,7 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
         .id = @intToEnum(Source.Id, comp.sources.count() + 2),
         .path = duped_path,
         .buf = if (contents.len == i) contents else try comp.gpa.realloc(contents, i),
+        .splice_locs = try comp.gpa.dupe(u32, splice_locs.items),
     };
     source.checkUtf8();
 

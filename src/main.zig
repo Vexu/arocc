@@ -284,6 +284,7 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
             .id = @intToEnum(Source.Id, comp.sources.count() + 2),
             .path = duped_path,
             .buf = contents,
+            .splice_locs = &.{}, // TODO: can buf contain line splicings? Probably
         };
         try comp.sources.put(duped_path, source);
         break :blk source;

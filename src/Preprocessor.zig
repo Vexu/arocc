@@ -1895,6 +1895,7 @@ test "Preserve pragma tokens sometimes" {
                     .id = @intToEnum(Source.Id, comp.sources.count() + 2),
                     .path = duped_path,
                     .buf = contents,
+                    .splice_locs = &.{},
                 };
                 try comp.sources.put(duped_path, source);
                 break :blk source;

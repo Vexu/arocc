@@ -21,8 +21,20 @@ path: []const u8,
 buf: []const u8,
 id: Id,
 invalid_utf8_loc: ?Location = null,
+/// each entry represents a byte position within `buf` where a backslash+newline was deleted
+/// from the original raw buffer. The same position can appear multiple times if multiple
+/// consecutive splices happened. Guaranteed to be non-decreasing
+splice_locs: []const u32,
 
 const LineCol = struct { line: []const u8, col: u32, width: u32 };
+
+/// Todo: binary search instead of scanning entire `splice_locs`.
+pub fn numSplicesBefore(source: Source, byte_offset: u32) u32 {
+    for (source.splice_locs) |splice_offset, i| {
+        if (splice_offset > byte_offset) return @intCast(u32, i);
+    }
+    return @intCast(u32, source.splice_locs.len);
+}
 
 pub fn lineCol(source: Source, byte_offset: u32) LineCol {
     var start: usize = 0;
