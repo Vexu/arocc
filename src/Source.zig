@@ -37,7 +37,9 @@ pub fn lineCol(source: Source, byte_offset: u32) LineCol {
         width += codepointWidth(cp);
         i += len;
     }
-    return .{ .line = std.mem.sliceTo(source.buf[start..], '\n'), .col = col, .width = width };
+    const slice = source.buf[start..];
+    const nl = std.mem.indexOfAny(u8, slice, "\n\r") orelse slice.len;
+    return .{ .line = slice[0..nl], .col = col, .width = width };
 }
 
 fn codepointWidth(cp: u32) u32 {

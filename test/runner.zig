@@ -95,7 +95,8 @@ pub fn main() !void {
         if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
             var test_args = std.ArrayList([]const u8).init(gpa);
             defer test_args.deinit();
-            var it = std.mem.tokenize(u8, std.mem.sliceTo(file.buf, '\n'), " ");
+            const nl = std.mem.indexOfAny(u8, file.buf, "\n\r") orelse file.buf.len;
+            var it = std.mem.tokenize(u8, file.buf[0..nl], " ");
             while (it.next()) |some| try test_args.append(some);
 
             var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
