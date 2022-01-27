@@ -36,6 +36,12 @@ pub fn numSplicesBefore(source: Source, byte_offset: u32) u32 {
     return @intCast(u32, source.splice_locs.len);
 }
 
+/// Returns the actual line number (before newline splicing) of a Location
+/// This corresponds to what the user would actually see in their text editor
+pub fn physicalLine(source: Source, loc: Location) u32 {
+    return loc.line + source.numSplicesBefore(loc.byte_offset);
+}
+
 pub fn lineCol(source: Source, byte_offset: u32) LineCol {
     var start: usize = 0;
     if (std.mem.lastIndexOfScalar(u8, source.buf[0..byte_offset], '\n')) |some| start = some + 1;

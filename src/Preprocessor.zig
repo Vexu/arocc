@@ -704,8 +704,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
             .macro_line => {
                 const start = pp.comp.generated_buf.items.len;
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                const line_no = pp.expansion_source_loc.line + source.numSplicesBefore(pp.expansion_source_loc.byte_offset);
-                try pp.comp.generated_buf.writer().print("{d}\n", .{line_no});
+                try pp.comp.generated_buf.writer().print("{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .integer_literal, tok));
             },
