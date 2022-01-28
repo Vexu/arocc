@@ -1885,23 +1885,7 @@ test "Preserve pragma tokens sometimes" {
             var pp = Preprocessor.init(&comp);
             defer pp.deinit();
 
-            const test_runner_macros = blk: {
-                const duped_path = try allocator.dupe(u8, "<test_runner>");
-                errdefer comp.gpa.free(duped_path);
-
-                const contents = try allocator.dupe(u8, source_text);
-                errdefer comp.gpa.free(contents);
-
-                const source = Source{
-                    .id = @intToEnum(Source.Id, comp.sources.count() + 2),
-                    .path = duped_path,
-                    .buf = contents,
-                    .splice_locs = &.{},
-                };
-                try comp.sources.put(duped_path, source);
-                break :blk source;
-            };
-
+            const test_runner_macros = try comp.addSourceFromBuffer("<test_runner>", source_text);
             const eof = try pp.preprocess(test_runner_macros);
             try pp.tokens.append(pp.comp.gpa, eof);
             try pp.prettyPrintTokens(buf.writer());

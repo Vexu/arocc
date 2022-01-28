@@ -27,3 +27,11 @@ x) =\
 = 4, "wrong size");
 
 }
+
+int trailing\ 
+ws = 1;
+
+// error should be on line 31, not 32
+#define TESTS_SKIPPED 1
+
+#define EXPECTED_ERRORS "newline splicing.c:32:14: warning: backslash and newline separated by space [-Wbackslash-newline-escape]" \

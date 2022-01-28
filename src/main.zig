@@ -43,6 +43,10 @@ pub fn main() u8 {
             std.debug.print("out of memory\n", .{});
             return 1;
         },
+        error.StreamTooLong => {
+            std.debug.print("maximum file size exceeded\n", .{});
+            return 1;
+        },
         error.FatalError => comp.renderErrors(),
     };
     return @boolToInt(comp.diag.errors != 0);
@@ -232,7 +236,7 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
                 try comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }
         } else {
-            const file = comp.addSource(arg) catch |err| {
+            const file = comp.addSourceFromPath(arg) catch |err| {
                 return fatal(comp, "{s} when trying to add source file", .{@errorName(err)});
             };
             try sources.append(file);
@@ -273,22 +277,7 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     }
 
     const builtin = try comp.generateBuiltinMacros();
-    const user_macros = blk: {
-        const duped_path = try comp.gpa.dupe(u8, "<command line>");
-        errdefer comp.gpa.free(duped_path);
-
-        const contents = macro_buf.toOwnedSlice();
-        errdefer comp.gpa.free(contents);
-
-        const source = Source{
-            .id = @intToEnum(Source.Id, comp.sources.count() + 2),
-            .path = duped_path,
-            .buf = contents,
-            .splice_locs = &.{}, // TODO: can buf contain line splicings? Probably
-        };
-        try comp.sources.put(duped_path, source);
-        break :blk source;
-    };
+    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
     for (source_files.items) |source| {
         processSource(comp, source, builtin, user_macros) catch |e| switch (e) {
