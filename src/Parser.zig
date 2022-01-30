@@ -1928,7 +1928,9 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 break :bits;
             }
 
-            if (res.val.compare(.gt, Value.int(ty.bitSizeof(p.pp.comp).?), res.ty, p.pp.comp)) {
+            // incomplete size error is reported later
+            const bit_size = ty.bitSizeof(p.pp.comp) orelse break :bits;
+            if (res.val.compare(.gt, Value.int(bit_size), res.ty, p.pp.comp)) {
                 try p.errTok(.bitfield_too_big, name_tok);
                 break :bits;
             } else if (res.val.isZero() and name_tok != 0) {

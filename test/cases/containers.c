@@ -116,6 +116,10 @@ union U {
     int a[];
 };
 
+struct S {
+    enum EnumTest1:2;
+};
+
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
     "containers.c:15:12: error: variable has incomplete type 'struct Foo'" \
@@ -135,3 +139,4 @@ union U {
     "containers.c:105:9: error: flexible array member is not at the end of struct" \
     "containers.c:106:9: error: flexible array member is not at the end of struct" \
     "containers.c:116:9: error: flexible array member in union is not allowed" \
+    "containers.c:120:19: error: field has incomplete type 'enum EnumTest1'" \
