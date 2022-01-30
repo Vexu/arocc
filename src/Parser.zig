@@ -829,6 +829,10 @@ fn decl(p: *Parser) Error!bool {
         var spec: Type.Builder = .{};
         break :blk DeclSpec{ .ty = try spec.finish(p, p.attr_buf.len) };
     };
+    if (decl_spec.@"noreturn") |tok| {
+        const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} } };
+        try p.attr_buf.append(p.pp.comp.gpa, .{ .attr = attr, .tok = tok });
+    }
     try decl_spec.warnIgnoredAttrs(p, attr_buf_top);
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
         _ = try p.expectToken(.semicolon);
@@ -1117,16 +1121,11 @@ pub const DeclSpec = struct {
 
         const is_static = d.storage_class == .static;
         const is_inline = d.@"inline" != null;
-        const is_noreturn = d.@"noreturn" != null;
         if (is_static) {
-            if (is_inline and is_noreturn) return .noreturn_inline_static_fn_def;
             if (is_inline) return .inline_static_fn_def;
-            if (is_noreturn) return .noreturn_static_fn_def;
             return .static_fn_def;
         } else {
-            if (is_inline and is_noreturn) return .noreturn_inline_fn_def;
             if (is_inline) return .inline_fn_def;
-            if (is_noreturn) return .noreturn_fn_def;
             return .fn_def;
         }
     }
@@ -1143,20 +1142,16 @@ pub const DeclSpec = struct {
             if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
 
             const is_inline = d.@"inline" != null;
-            const is_noreturn = d.@"noreturn" != null;
             if (is_static) {
-                if (is_inline and is_noreturn) return .noreturn_inline_static_fn_proto;
                 if (is_inline) return .inline_static_fn_proto;
-                if (is_noreturn) return .noreturn_static_fn_proto;
                 return .static_fn_proto;
             } else {
-                if (is_inline and is_noreturn) return .noreturn_inline_fn_proto;
                 if (is_inline) return .inline_fn_proto;
-                if (is_noreturn) return .noreturn_fn_proto;
                 return .fn_proto;
             }
         } else {
             if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
+            // TODO move to attribute validation
             if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
             switch (d.storage_class) {
                 .auto, .register => if (p.func.ty == null) try p.err(.illegal_storage_on_global),
@@ -1307,7 +1302,7 @@ fn declSpec(p: *Parser, is_param: bool) Error!?DeclSpec {
                 if (d.@"noreturn" != null) {
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "_Noreturn");
                 }
-                d.@"noreturn" = null;
+                d.@"noreturn" = p.tok_i;
             },
             else => break,
         }
@@ -1543,7 +1538,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
     var init_d = InitDeclarator{
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
-    _ = try p.assembly(.decl); // TODO use somehow
+    _ = try p.assembly(.decl_label);
     try p.attributeSpecifier(); // if (init_d.d.ty.isFunc()) .function else .variable
     if (p.eatToken(.equal)) |eq| init: {
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
@@ -3212,7 +3207,8 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
 }
 
 /// assembly : keyword_asm asmQual* '(' asmStr ')'
-fn assembly(p: *Parser, kind: enum { global, decl, stmt }) Error!?NodeIndex {
+fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeIndex {
+    const asm_tok = p.tok_i;
     switch (p.tok_ids[p.tok_i]) {
         .keyword_asm, .keyword_asm1, .keyword_asm2 => p.tok_i += 1,
         else => return null,
@@ -3241,19 +3237,23 @@ fn assembly(p: *Parser, kind: enum { global, decl, stmt }) Error!?NodeIndex {
     };
 
     const l_paren = try p.expectToken(.l_paren);
-    if (kind != .stmt) {
-        _ = try p.asmStr();
-    } else {
-        return p.todo("assembly statements");
+    switch (kind) {
+        .decl_label => {
+            const str = (try p.asmStr()).val.data.bytes;
+            const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } } };
+            try p.attr_buf.append(p.pp.comp.gpa, .{ .attr = attr, .tok = asm_tok });
+        },
+        .global => _ = try p.asmStr(),
+        .stmt => return p.todo("assembly statements"),
     }
     try p.expectClosing(l_paren, .r_paren);
 
-    if (kind != .decl) _ = try p.expectToken(.semicolon);
+    if (kind != .decl_label) _ = try p.expectToken(.semicolon);
     return .none;
 }
 
 /// Same as stringLiteral but errors on unicode and wide string literals
-fn asmStr(p: *Parser) Error!NodeIndex {
+fn asmStr(p: *Parser) Error!Result {
     var i = p.tok_i;
     while (true) : (i += 1) switch (p.tok_ids[i]) {
         .string_literal => {},
@@ -3267,7 +3267,7 @@ fn asmStr(p: *Parser) Error!NodeIndex {
         },
         else => break,
     };
-    return (try p.stringLiteral()).node;
+    return try p.stringLiteral();
 }
 
 // ====== statements ======

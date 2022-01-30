@@ -179,20 +179,12 @@ pub const Tag = enum(u8) {
     static_fn_proto,
     inline_fn_proto,
     inline_static_fn_proto,
-    noreturn_fn_proto,
-    noreturn_static_fn_proto,
-    noreturn_inline_fn_proto,
-    noreturn_inline_static_fn_proto,
 
     // function definition
     fn_def,
     static_fn_def,
     inline_fn_def,
     inline_static_fn_def,
-    noreturn_fn_def,
-    noreturn_static_fn_def,
-    noreturn_inline_fn_def,
-    noreturn_inline_static_fn_def,
 
     // variable declaration
     @"var",
@@ -672,10 +664,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .static_fn_proto,
         .inline_fn_proto,
         .inline_static_fn_proto,
-        .noreturn_fn_proto,
-        .noreturn_static_fn_proto,
-        .noreturn_inline_fn_proto,
-        .noreturn_inline_static_fn_proto,
         => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
@@ -687,10 +675,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .static_fn_def,
         .inline_fn_def,
         .inline_static_fn_def,
-        .noreturn_fn_def,
-        .noreturn_static_fn_def,
-        .noreturn_inline_fn_def,
-        .noreturn_inline_static_fn_def,
         => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
