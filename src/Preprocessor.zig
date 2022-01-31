@@ -430,7 +430,7 @@ fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
     const source = pp.comp.getSource(raw.source);
-    const line_col = source.lineCol(raw.start);
+    const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
     return pp.comp.diag.fatal(source.path, line_col.line, raw.line, line_col.col, fmt, args);
 }
 
@@ -703,7 +703,8 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
             },
             .macro_line => {
                 const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.writer().print("{d}\n", .{pp.expansion_source_loc.line});
+                const source = pp.comp.getSource(pp.expansion_source_loc.id);
+                try pp.comp.generated_buf.writer().print("{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .integer_literal, tok));
             },
@@ -1884,22 +1885,7 @@ test "Preserve pragma tokens sometimes" {
             var pp = Preprocessor.init(&comp);
             defer pp.deinit();
 
-            const test_runner_macros = blk: {
-                const duped_path = try allocator.dupe(u8, "<test_runner>");
-                errdefer comp.gpa.free(duped_path);
-
-                const contents = try allocator.dupe(u8, source_text);
-                errdefer comp.gpa.free(contents);
-
-                const source = Source{
-                    .id = @intToEnum(Source.Id, comp.sources.count() + 2),
-                    .path = duped_path,
-                    .buf = contents,
-                };
-                try comp.sources.put(duped_path, source);
-                break :blk source;
-            };
-
+            const test_runner_macros = try comp.addSourceFromBuffer("<test_runner>", source_text);
             const eof = try pp.preprocess(test_runner_macros);
             try pp.tokens.append(pp.comp.gpa, eof);
             try pp.prettyPrintTokens(buf.writer());

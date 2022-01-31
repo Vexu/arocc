@@ -120,6 +120,7 @@ pub const Options = packed struct {
     varargs: Kind = .default,
     @"#warnings": Kind = .default,
     @"deprecated-declarations": Kind = .default,
+    @"backslash-newline-escape": Kind = .default,
 };
 
 const messages = struct {
@@ -1583,6 +1584,11 @@ const messages = struct {
         const kind = .warning;
         const opt = "ignored-attributes";
     };
+    const backslash_newline_escape = struct {
+        const msg = "backslash and newline separated by space";
+        const kind = .warning;
+        const opt = "backslash-newline-escape";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -1692,7 +1698,7 @@ pub fn fatal(
     m.location(path, line_no, col);
     m.start(.@"fatal error");
     m.print(fmt, args);
-    m.end(line, col);
+    m.end(line, col, false);
     return error.FatalError;
 }
 
@@ -1739,13 +1745,20 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             else => 0,
         };
         var width = col;
+        var end_with_splice = false;
         if (msg.loc.id != .unused) {
             const source = comp.getSource(msg.loc.id);
-            const line_col = source.lineCol(msg.loc.byte_offset);
+            var line_col = source.lineCol(msg.loc);
             line = line_col.line;
             col += line_col.col;
             width += line_col.width;
-            m.location(source.path, msg.loc.line, col);
+            end_with_splice = line_col.end_with_splice;
+            if (msg.tag == .backslash_newline_escape) {
+                line = line_col.line[0 .. col - 1];
+                col += 1;
+                width += 1;
+            }
+            m.location(source.path, line_col.line_no, col);
         }
 
         m.start(msg.kind);
@@ -1800,7 +1813,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
             }
         }
 
-        m.end(line, width);
+        m.end(line, width, end_with_splice);
     }
     const w_s: []const u8 = if (warnings == 1) "" else "s";
     const e_s: []const u8 = if (errors == 1) "" else "s";
@@ -1909,17 +1922,18 @@ const MsgWriter = struct {
         }
     }
 
-    fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32) void {
+    fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32, end_with_splice: bool) void {
         const line = maybe_line orelse {
             m.write("\n");
             return;
         };
+        const trailer = if (end_with_splice) "\\ " else "";
         if (!m.color) {
-            m.print("\n{s}\n", .{line});
+            m.print("\n{s}{s}\n", .{ line, trailer });
             m.print("{s: >[1]}^\n", .{ "", col });
         } else {
             m.setColor(.reset);
-            m.print("\n{s}\n{s: >[2]}", .{ line, "", col });
+            m.print("\n{s}{s}\n{s: >[3]}", .{ line, trailer, "", col });
             m.setColor(.green);
             m.write("^\n");
             m.setColor(.reset);

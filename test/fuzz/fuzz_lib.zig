@@ -26,13 +26,7 @@ fn compileSlice(buf: []const u8) !void {
     try comp.defineSystemIncludes();
 
     const builtin = try comp.generateBuiltinMacros();
-    var user_source = Source{
-        .id = @intToEnum(Source.Id, comp.sources.count() + 2),
-        .path = "<STDIN>",
-        .buf = buf,
-    };
-    user_source.checkUtf8();
-    try comp.sources.put(user_source.path, user_source);
+    const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
 
     processSource(&comp, builtin, user_source) catch |e| switch (e) {
         error.FatalError => {},

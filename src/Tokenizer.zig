@@ -769,10 +769,7 @@ line: u32 = 1,
 pub fn next(self: *Tokenizer) Token {
     var state: enum {
         start,
-        cr,
         whitespace,
-        back_slash,
-        back_slash_cr,
         u,
         u8,
         U,
@@ -781,7 +778,6 @@ pub fn next(self: *Tokenizer) Token {
         char_literal_start,
         char_literal,
         escape_sequence,
-        cr_escape,
         octal_escape,
         hex_escape,
         unicode_escape,
@@ -848,7 +844,6 @@ pub fn next(self: *Tokenizer) Token {
                     self.line += 1;
                     break;
                 },
-                '\r' => state = .cr,
                 '"' => {
                     id = .string_literal;
                     state = .string_literal;
@@ -934,7 +929,6 @@ pub fn next(self: *Tokenizer) Token {
                 '#' => state = .hash,
                 '0' => state = .zero,
                 '1'...'9' => state = .integer_literal,
-                '\\' => state = .back_slash,
                 '\t', '\x0B', '\x0C', ' ' => state = .whitespace,
                 else => if (Token.mayAppearInIdent(self.comp, c, .start)) {
                     state = .extended_identifier;
@@ -944,52 +938,11 @@ pub fn next(self: *Tokenizer) Token {
                     break;
                 },
             },
-            .cr => switch (c) {
-                '\n' => {
-                    id = .nl;
-                    self.index += 1;
-                    self.line += 1;
-                    break;
-                },
-                else => {
-                    id = .nl;
-                    self.line += 1;
-                    break;
-                },
-            },
             .whitespace => switch (c) {
                 '\t', '\x0B', '\x0C', ' ' => {},
-                '\\' => state = .back_slash,
                 else => {
                     id = .whitespace;
                     break;
-                },
-            },
-            .back_slash => switch (c) {
-                '\n' => {
-                    start = self.index + 1;
-                    state = .whitespace;
-                    self.line += 1;
-                },
-                '\r' => state = .back_slash_cr,
-                '\t', '\x0B', '\x0C', ' ' => {
-                    // TODO warn
-                },
-                else => {
-                    id = .invalid;
-                    break;
-                },
-            },
-            .back_slash_cr => switch (c) {
-                '\n' => {
-                    start = self.index + 1;
-                    state = .whitespace;
-                    self.line += 1;
-                },
-                else => {
-                    start = self.index;
-                    state = .start;
-                    self.line += 1;
                 },
             },
             .u => switch (c) {
@@ -1056,10 +1009,11 @@ pub fn next(self: *Tokenizer) Token {
                     self.index += 1;
                     break;
                 },
-                '\n', '\r' => {
+                '\n' => {
                     id = .invalid;
                     break;
                 },
+                '\r' => unreachable,
                 else => {},
             },
             .char_literal_start => switch (c) {
@@ -1099,7 +1053,6 @@ pub fn next(self: *Tokenizer) Token {
                     state = return_state;
                     self.line += 1;
                 },
-                '\r' => state = .cr_escape,
                 '0'...'7' => {
                     counter = 1;
                     state = .octal_escape;
@@ -1112,16 +1065,6 @@ pub fn next(self: *Tokenizer) Token {
                 'U' => {
                     counter = 8;
                     state = .unicode_escape;
-                },
-                else => {
-                    id = .invalid;
-                    break;
-                },
-            },
-            .cr_escape => switch (c) {
-                '\n' => {
-                    state = return_state;
-                    self.line += 1;
                 },
                 else => {
                     id = .invalid;
@@ -1419,10 +1362,7 @@ pub fn next(self: *Tokenizer) Token {
                     self.line += 1;
                     break;
                 },
-                '\r' => {
-                    start = self.index;
-                    state = .cr;
-                },
+                '\r' => unreachable,
                 '\t', '\x0B', '\x0C', ' ' => {
                     start = self.index;
                     state = .whitespace;
@@ -1646,14 +1586,11 @@ pub fn next(self: *Tokenizer) Token {
             .start, .line_comment => {},
             .u, .u8, .U, .L, .identifier => id = Token.getTokenId(self.comp, self.buf[start..self.index]),
             .extended_identifier => id = .extended_identifier,
-            .cr => id = .nl,
-            .back_slash, .back_slash_cr => {},
             .period2,
             .string_literal,
             .char_literal_start,
             .char_literal,
             .escape_sequence,
-            .cr_escape,
             .octal_escape,
             .hex_escape,
             .unicode_escape,
@@ -2033,12 +1970,13 @@ test "extended identifiers" {
     try expectTokens("1e1\u{E0000}", &.{ .float_literal, .extended_identifier });
 }
 
-fn expectTokens(source: []const u8, expected_tokens: []const Token.Id) !void {
+fn expectTokens(contents: []const u8, expected_tokens: []const Token.Id) !void {
     var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
+    const source = try comp.addSourceFromBuffer("path", contents);
     var tokenizer = Tokenizer{
-        .buf = source,
-        .source = .unused,
+        .buf = source.buf,
+        .source = source.id,
         .comp = &comp,
     };
     var i: usize = 0;

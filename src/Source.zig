@@ -21,25 +21,66 @@ path: []const u8,
 buf: []const u8,
 id: Id,
 invalid_utf8_loc: ?Location = null,
+/// each entry represents a byte position within `buf` where a backslash+newline was deleted
+/// from the original raw buffer. The same position can appear multiple times if multiple
+/// consecutive splices happened. Guaranteed to be non-decreasing
+splice_locs: []const u32,
 
-const LineCol = struct { line: []const u8, col: u32, width: u32 };
+/// Todo: binary search instead of scanning entire `splice_locs`.
+pub fn numSplicesBefore(source: Source, byte_offset: u32) u32 {
+    for (source.splice_locs) |splice_offset, i| {
+        if (splice_offset > byte_offset) return @intCast(u32, i);
+    }
+    return @intCast(u32, source.splice_locs.len);
+}
 
-pub fn lineCol(source: Source, byte_offset: u32) LineCol {
+/// Returns the actual line number (before newline splicing) of a Location
+/// This corresponds to what the user would actually see in their text editor
+pub fn physicalLine(source: Source, loc: Location) u32 {
+    return loc.line + source.numSplicesBefore(loc.byte_offset);
+}
+
+const LineCol = struct { line: []const u8, line_no: u32, col: u32, width: u32, end_with_splice: bool };
+
+pub fn lineCol(source: Source, loc: Location) LineCol {
     var start: usize = 0;
-    if (std.mem.lastIndexOfScalar(u8, source.buf[0..byte_offset], '\n')) |some| start = some + 1;
+    // find the start of the line which is either a newline or a splice
+    if (std.mem.lastIndexOfScalar(u8, source.buf[0..loc.byte_offset], '\n')) |some| start = some + 1;
+    const splice_index = for (source.splice_locs) |splice_offset, i| {
+        if (splice_offset > start) {
+            if (splice_offset < loc.byte_offset) {
+                start = splice_offset;
+                break @intCast(u32, i) + 1;
+            }
+            break @intCast(u32, i);
+        }
+    } else @intCast(u32, source.splice_locs.len);
     var i: usize = start;
     var col: u32 = 1;
     var width: u32 = 0;
 
-    while (i < byte_offset) : (col += 1) { // TODO this is still incorrect, but better
+    while (i < loc.byte_offset) : (col += 1) { // TODO this is still incorrect, but better
         const len = std.unicode.utf8ByteSequenceLength(source.buf[i]) catch unreachable;
         const cp = std.unicode.utf8Decode(source.buf[i..][0..len]) catch unreachable;
         width += codepointWidth(cp);
         i += len;
     }
-    const slice = source.buf[start..];
-    const nl = std.mem.indexOfAny(u8, slice, "\n\r") orelse slice.len;
-    return .{ .line = slice[0..nl], .col = col, .width = width };
+
+    // find the end of the line which is either a newline, EOF or a splice
+    var nl = source.buf.len;
+    var end_with_splice = false;
+    if (std.mem.indexOfScalar(u8, source.buf[start..], '\n')) |some| nl = some + start;
+    if (source.splice_locs.len > splice_index and nl > source.splice_locs[splice_index] and source.splice_locs[splice_index] > start) {
+        end_with_splice = true;
+        nl = source.splice_locs[splice_index];
+    }
+    return .{
+        .line = source.buf[start..nl],
+        .line_no = loc.line + splice_index,
+        .col = col,
+        .width = width,
+        .end_with_splice = end_with_splice,
+    };
 }
 
 fn codepointWidth(cp: u32) u32 {

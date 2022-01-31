@@ -60,6 +60,7 @@ pub fn deinit(comp: *Compilation) void {
     for (comp.sources.values()) |source| {
         comp.gpa.free(source.path);
         comp.gpa.free(source.buf);
+        comp.gpa.free(source.splice_locs);
     }
     comp.sources.deinit();
     comp.diag.deinit();
@@ -338,19 +339,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try generateTypeMacro(w, "__SIZE_TYPE__", comp.types.size);
     try generateTypeMacro(w, "__WCHAR_TYPE__", comp.types.wchar);
 
-    const duped_path = try comp.gpa.dupe(u8, "<builtin>");
-    errdefer comp.gpa.free(duped_path);
-
-    const contents = buf.toOwnedSlice();
-    errdefer comp.gpa.free(contents);
-
-    const source = Source{
-        .id = @intToEnum(Source.Id, comp.sources.count() + 2),
-        .path = duped_path,
-        .buf = contents,
-    };
-    try comp.sources.put(duped_path, source);
-    return source;
+    return comp.addSourceFromBuffer("<builtin>", buf.items);
 }
 
 fn generateTypeMacro(w: anytype, name: []const u8, ty: Type) !void {
@@ -513,11 +502,131 @@ pub fn getSource(comp: *Compilation, id: Source.Id) Source {
         .path = "<scratch space>",
         .buf = comp.generated_buf.items,
         .id = .generated,
+        .splice_locs = &.{},
     };
     return comp.sources.values()[@enumToInt(id) - 2];
 }
 
-pub fn addSource(comp: *Compilation, path: []const u8) !Source {
+/// Write bytes from `reader` into `contents`, performing newline splicing,
+/// line-ending normalization (convert line endings to \n), and UTF-8 validation.
+/// Creates a Source with `contents` as the buf and adds it to the Compilation.
+/// `contents` is assumed to be large enough to hold the entire content of `reader`.
+/// `contents` must have been allocated by `comp`'s allocator since it will be reallocated
+/// if splicing occurred.
+/// Compilation owns `contents` if and only if this call succeeds; caller always retains
+/// ownership of `path`.
+pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8, contents: []u8) !Source {
+    const duped_path = try comp.gpa.dupe(u8, path);
+    errdefer comp.gpa.free(duped_path);
+
+    var splice_list = std.ArrayList(u32).init(comp.gpa);
+    defer splice_list.deinit();
+
+    const source_id = @intToEnum(Source.Id, comp.sources.count() + 2);
+
+    var i: u32 = 0;
+    var backslash_loc: u32 = undefined;
+    var state: enum { start, back_slash, cr, back_slash_cr, trailing_ws } = .start;
+    var line: u32 = 1;
+
+    while (true) {
+        const byte = reader.readByte() catch break;
+        contents[i] = byte;
+
+        switch (byte) {
+            '\r' => {
+                switch (state) {
+                    .start, .cr => {
+                        line += 1;
+                        state = .cr;
+                        contents[i] = '\n';
+                        i += 1;
+                    },
+                    .back_slash, .trailing_ws, .back_slash_cr => {
+                        i = backslash_loc;
+                        try splice_list.append(i);
+                        if (state == .trailing_ws) {
+                            try comp.diag.add(.{
+                                .tag = .backslash_newline_escape,
+                                .loc = .{ .id = source_id, .byte_offset = i, .line = line },
+                            }, &.{});
+                        }
+                        state = if (state == .back_slash_cr) .cr else .back_slash_cr;
+                    },
+                }
+            },
+            '\n' => {
+                switch (state) {
+                    .start => {
+                        line += 1;
+                        i += 1;
+                    },
+                    .cr, .back_slash_cr => {},
+                    .back_slash, .trailing_ws => {
+                        i = backslash_loc;
+                        if (state == .back_slash or state == .trailing_ws) {
+                            try splice_list.append(i);
+                        }
+                        if (state == .trailing_ws) {
+                            try comp.diag.add(.{
+                                .tag = .backslash_newline_escape,
+                                .loc = .{ .id = source_id, .byte_offset = i, .line = line },
+                            }, &.{});
+                        }
+                    },
+                }
+                state = .start;
+            },
+            '\\' => {
+                backslash_loc = i;
+                state = .back_slash;
+                i += 1;
+            },
+            '\t', '\x0B', '\x0C', ' ' => {
+                switch (state) {
+                    .start, .trailing_ws => {},
+                    .cr, .back_slash_cr => state = .start,
+                    .back_slash => state = .trailing_ws,
+                }
+                i += 1;
+            },
+            else => {
+                i += 1;
+                state = .start;
+            },
+        }
+    }
+
+    const splice_locs = splice_list.toOwnedSlice();
+    errdefer comp.gpa.free(splice_locs);
+
+    var source = Source{
+        .id = source_id,
+        .path = duped_path,
+        .buf = if (i == contents.len) contents else try comp.gpa.realloc(contents, i),
+        .splice_locs = splice_locs,
+    };
+
+    source.checkUtf8();
+    try comp.sources.put(path, source);
+    return source;
+}
+
+/// Caller retains ownership of `path` and `buf`.
+pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8) !Source {
+    if (comp.sources.get(path)) |some| return some;
+
+    if (buf.len > std.math.maxInt(u32)) return error.StreamTooLong;
+
+    const reader = std.io.fixedBufferStream(buf).reader();
+    const contents = try comp.gpa.alloc(u8, buf.len);
+    errdefer comp.gpa.free(contents);
+
+    return comp.addSourceFromReader(reader, path, contents);
+}
+
+/// Caller retains ownership of `path`
+pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
     if (comp.sources.get(path)) |some| return some;
 
     if (mem.indexOfScalar(u8, path, 0) != null) {
@@ -527,22 +636,13 @@ pub fn addSource(comp: *Compilation, path: []const u8) !Source {
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
-    const duped_path = try comp.gpa.dupe(u8, path);
-    errdefer comp.gpa.free(duped_path);
+    const size = std.math.cast(u32, try file.getEndPos()) catch return error.StreamTooLong;
 
-    const contents = try file.reader().readAllAlloc(comp.gpa, std.math.maxInt(u32));
+    var reader = std.io.bufferedReader(file.reader()).reader();
+    const contents = try comp.gpa.alloc(u8, size);
     errdefer comp.gpa.free(contents);
 
-    var source = Source{
-        .id = @intToEnum(Source.Id, comp.sources.count() + 2),
-        .path = duped_path,
-        .buf = contents,
-    };
-    source.checkUtf8();
-
-    try comp.sources.put(duped_path, source);
-
-    return source;
+    return comp.addSourceFromReader(reader, path, contents);
 }
 
 pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_cwd: bool) !?Source {
@@ -554,7 +654,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
             std.fs.path.join(fib.allocator(), &.{ some, filename }) catch break :blk
         else
             std.fs.path.join(fib.allocator(), &.{ ".", filename }) catch break :blk;
-        if (comp.addSource(path)) |some|
+        if (comp.addSourceFromPath(path)) |some|
             return some
         else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
@@ -564,7 +664,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
     for (comp.include_dirs.items) |dir| {
         fib.end_index = 0;
         const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
-        if (comp.addSource(path)) |some|
+        if (comp.addSourceFromPath(path)) |some|
             return some
         else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
@@ -574,7 +674,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
     for (comp.system_include_dirs.items) |dir| {
         fib.end_index = 0;
         const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
-        if (comp.addSource(path)) |some|
+        if (comp.addSourceFromPath(path)) |some|
             return some
         else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
@@ -659,4 +759,76 @@ pub fn defaultAlignment(comp: *const Compilation) u29 {
         else => {},
     }
     return 16;
+}
+
+test "addSourceFromReader" {
+    const Test = struct {
+        fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
+            var comp = Compilation.init(std.testing.allocator);
+            defer comp.deinit();
+
+            const contents = try comp.gpa.alloc(u8, 1024);
+
+            var reader = std.io.fixedBufferStream(str).reader();
+            const source = try comp.addSourceFromReader(reader, "path", contents);
+
+            try std.testing.expectEqualStrings(expected, source.buf);
+            try std.testing.expectEqual(warning_count, @intCast(u32, comp.diag.list.items.len));
+            try std.testing.expectEqualSlices(u32, splices, source.splice_locs);
+        }
+    };
+    try Test.addSourceFromReader("ab\\\nc", "abc", 0, &.{2});
+    try Test.addSourceFromReader("ab\\\rc", "abc", 0, &.{2});
+    try Test.addSourceFromReader("ab\\\r\nc", "abc", 0, &.{2});
+    try Test.addSourceFromReader("ab\\ \nc", "abc", 1, &.{2});
+    try Test.addSourceFromReader("ab\\\t\nc", "abc", 1, &.{2});
+    try Test.addSourceFromReader("ab\\                     \t\nc", "abc", 1, &.{2});
+    try Test.addSourceFromReader("ab\\\r \nc", "ab \nc", 0, &.{2});
+    try Test.addSourceFromReader("ab\\\\\nc", "ab\\c", 0, &.{3});
+    try Test.addSourceFromReader("ab\\   \r\nc", "abc", 1, &.{2});
+    try Test.addSourceFromReader("ab\\ \\\nc", "ab\\ c", 0, &.{4});
+    try Test.addSourceFromReader("ab\\\r\\\nc", "abc", 0, &.{ 2, 2 });
+    try Test.addSourceFromReader("ab\\  \rc", "abc", 1, &.{2});
+    try Test.addSourceFromReader("ab\\", "ab\\", 0, &.{});
+    try Test.addSourceFromReader("ab\\\\", "ab\\\\", 0, &.{});
+    try Test.addSourceFromReader("ab\\ ", "ab\\ ", 0, &.{});
+    try Test.addSourceFromReader("ab\\\n", "ab", 0, &.{2});
+    try Test.addSourceFromReader("ab\\\r\n", "ab", 0, &.{2});
+    try Test.addSourceFromReader("ab\\\r", "ab", 0, &.{2});
+
+    // carriage return normalization
+    try Test.addSourceFromReader("ab\r", "ab\n", 0, &.{});
+    try Test.addSourceFromReader("ab\r\r", "ab\n\n", 0, &.{});
+    try Test.addSourceFromReader("ab\r\r\n", "ab\n\n", 0, &.{});
+    try Test.addSourceFromReader("ab\r\r\n\r", "ab\n\n\n", 0, &.{});
+    try Test.addSourceFromReader("\r\\", "\n\\", 0, &.{});
+    try Test.addSourceFromReader("\\\r\\", "\\", 0, &.{0});
+}
+
+test "addSourceFromReader - exhaustive check for carriage return elimination" {
+    const alphabet = [_]u8{ '\r', '\n', ' ', '\\', 'a' };
+    const alen = alphabet.len;
+    var buf: [alphabet.len]u8 = [1]u8{alphabet[0]} ** alen;
+
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+
+    var source_count: u32 = 0;
+
+    while (true) {
+        const source = try comp.addSourceFromBuffer(&buf, &buf);
+        source_count += 1;
+        try std.testing.expect(std.mem.indexOfScalar(u8, source.buf, '\r') == null);
+
+        if (std.mem.allEqual(u8, &buf, alphabet[alen - 1])) break;
+
+        var idx = std.mem.indexOfScalar(u8, &alphabet, buf[buf.len - 1]).?;
+        buf[buf.len - 1] = alphabet[(idx + 1) % alen];
+        var j = buf.len - 1;
+        while (j > 0) : (j -= 1) {
+            idx = std.mem.indexOfScalar(u8, &alphabet, buf[j - 1]).?;
+            if (buf[j] == alphabet[0]) buf[j - 1] = alphabet[(idx + 1) % alen] else break;
+        }
+    }
+    try std.testing.expect(source_count == std.math.powi(usize, alen, alen) catch unreachable);
 }
