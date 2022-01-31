@@ -1312,6 +1312,9 @@ fn expandMacroExhaustive(
     // end of scanning phase
 
     // trim excess buffer
+    for (buf.items[moving_end_idx..]) |item| {
+        Token.free(item.expansion_locs, pp.comp.gpa);
+    }
     buf.items.len = moving_end_idx;
 }
 
