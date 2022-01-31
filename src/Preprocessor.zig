@@ -430,7 +430,7 @@ fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
     const source = pp.comp.getSource(raw.source);
-    const line_col = source.lineCol(raw.start);
+    const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
     return pp.comp.diag.fatal(source.path, line_col.line, raw.line, line_col.col, fmt, args);
 }
 

@@ -1718,7 +1718,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
 fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
     const loc = p.pp.tokens.items(.loc)[kind_tok];
     const source = p.pp.comp.getSource(loc.id);
-    const col = source.lineCol(loc.byte_offset).col;
+    const line_col = source.lineCol(loc);
 
     const kind_str = switch (p.tok_ids[kind_tok]) {
         .keyword_struct, .keyword_union, .keyword_enum => p.tokSlice(kind_tok),
@@ -1728,7 +1728,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
     return std.fmt.allocPrint(
         p.arena,
         "(anonymous {s} at {s}:{d}:{d})",
-        .{ kind_str, source.path, loc.line, col },
+        .{ kind_str, source.path, line_col.line_no, line_col.col },
     );
 }
 
