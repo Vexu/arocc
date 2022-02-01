@@ -1099,7 +1099,7 @@ pub const DeclSpec = struct {
     thread_local: ?TokenIndex = null,
     @"inline": ?TokenIndex = null,
     @"noreturn": ?TokenIndex = null,
-    ty: Type = .{ .specifier = undefined },
+    ty: Type,
 
     fn validateParam(d: DeclSpec, p: *Parser, ty: *Type) Error!void {
         switch (d.storage_class) {
@@ -1244,7 +1244,7 @@ fn typeof(p: *Parser) Error!?Type {
 ///  | keyword_register
 /// funcSpec : keyword_inline | keyword_noreturn
 fn declSpec(p: *Parser, is_param: bool) Error!?DeclSpec {
-    var d: DeclSpec = .{};
+    var d: DeclSpec = .{ .ty = .{ .specifier = undefined } };
     var spec: Type.Builder = .{};
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;

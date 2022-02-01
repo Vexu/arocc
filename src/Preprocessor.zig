@@ -1480,10 +1480,9 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
 
     var need_ws = false;
-    var end_index: u32 = undefined;
     // Collect the token body and validate any ## found.
     var tok = first;
-    while (true) {
+    const end_index = while (true) {
         tok.id.simplifyMacroKeyword();
         switch (tok.id) {
             .hash_hash => {
@@ -1502,10 +1501,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                 try pp.token_buf.append(tok);
                 try pp.token_buf.append(next);
             },
-            .nl, .eof => {
-                end_index = tok.start;
-                break;
-            },
+            .nl, .eof => break tok.start,
             .whitespace => need_ws = true,
             else => {
                 if (tok.id != .whitespace and need_ws) {
@@ -1516,7 +1512,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
             },
         }
         tok = tokenizer.next();
-    }
+    } else unreachable;
 
     const list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
     try pp.defineMacro(macro_name, .{
@@ -1541,13 +1537,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
     // Parse the parameter list.
     var gnu_var_args: []const u8 = "";
     var var_args = false;
-    var start_index: u32 = undefined;
-    while (true) {
+    const start_index = while (true) {
         var tok = tokenizer.nextNoWS();
-        if (tok.id == .r_paren) {
-            start_index = tok.end;
-            break;
-        }
+        if (tok.id == .r_paren) break tok.end;
         if (tok.id == .eof) return pp.err(tok, .unterminated_macro_param_list);
         if (tok.id == .ellipsis) {
             var_args = true;
@@ -1557,8 +1549,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.err(l_paren, .to_match_paren);
                 return skipToNl(tokenizer);
             }
-            start_index = r_paren.end;
-            break;
+            break r_paren.end;
         }
         if (!tok.id.isMacroIdentifier()) {
             try pp.err(tok, .invalid_token_param_list);
@@ -1577,28 +1568,22 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.err(l_paren, .to_match_paren);
                 return skipToNl(tokenizer);
             }
-            start_index = r_paren.end;
-            break;
+            break r_paren.end;
         } else if (tok.id == .r_paren) {
-            start_index = tok.end;
-            break;
+            break tok.end;
         } else if (tok.id != .comma) {
             try pp.err(tok, .expected_comma_param_list);
             return skipToNl(tokenizer);
         }
-    }
+    } else unreachable;
 
     var need_ws = false;
-    var end_index: u32 = undefined;
     // Collect the body tokens and validate # and ##'s found.
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
-    tok_loop: while (true) {
+    const end_index = tok_loop: while (true) {
         var tok = tokenizer.next();
         switch (tok.id) {
-            .nl, .eof => {
-                end_index = tok.start;
-                break;
-            },
+            .nl, .eof => break tok.start,
             .whitespace => need_ws = pp.token_buf.items.len != 0,
             .hash => {
                 if (tok.id != .whitespace and need_ws) {
@@ -1678,7 +1663,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.token_buf.append(tok);
             },
         }
-    }
+    } else unreachable;
 
     const param_list = try pp.arena.allocator().dupe([]const u8, params.items);
     const token_list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);

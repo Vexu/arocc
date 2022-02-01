@@ -764,12 +764,11 @@ fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
             var max_requested: ?u29 = null;
             for (ty.data.attributed.attributes) |attribute| {
                 if (attribute.tag != .aligned) continue;
-                var requested: u29 = undefined;
-                if (attribute.args.aligned.alignment) |alignment| {
-                    requested = alignment.requested;
-                } else {
-                    requested = comp.defaultAlignment();
-                }
+                const requested = if (attribute.args.aligned.alignment) |alignment|
+                    alignment.requested
+                else
+                    comp.defaultAlignment();
+
                 if (max_requested == null or max_requested.? < requested) {
                     max_requested = requested;
                 }
