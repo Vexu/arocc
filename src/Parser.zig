@@ -1567,7 +1567,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         if (!init_list_expr.ty.isArray()) break :init;
         if (init_d.d.ty.specifier == .incomplete_array) {
             // Modifying .data is exceptionally allowed for .incomplete_array.
-            init_d.d.ty.data.array.len = init_list_expr.ty.data.array.len;
+            init_d.d.ty.data.array.len = init_list_expr.ty.arrayLen().?;
             init_d.d.ty.specifier = .array;
         } else if (init_d.d.ty.is(.incomplete_array)) {
             const attrs = init_d.d.ty.getAttributes();

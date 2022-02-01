@@ -123,6 +123,9 @@ void empty_typeof_declaration(void) {
 void initializers(void) {
     typeof(union U) u = {.x = 1};
     typeof(u) u2 = {.x = 1};
+
+    typeof(char[10]) arr1;
+    typeof(int) arr2[] = arr1;
 }
 
 #define EXPECTED_ERRORS "typeof.c:24:9: warning: incompatible pointer types assigning to 'int *' from incompatible type 'float *' [-Wincompatible-pointer-types]" \
@@ -141,3 +144,4 @@ void initializers(void) {
     "typeof.c:98:29: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
     "typeof.c:113:5: error: invalid argument type 'char *' to unary expression" \
     "typeof.c:119:5: warning: declaration does not declare anything [-Wmissing-declaration]" \
+    "typeof.c:128:26: error: array initializer must be an initializer list or wide string literal" \
