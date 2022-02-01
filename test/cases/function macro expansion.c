@@ -14,3 +14,6 @@ CALL(CAT)
 #define BAR(a, b) a, b
 
 FOO(1, (2, 3))
+
+#define S(...) S()
+S()

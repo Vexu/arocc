@@ -1050,6 +1050,7 @@ fn expandFuncMacro(
 }
 
 fn shouldExpand(tok: Token, macro: *Macro) bool {
+    // macro.loc.line contains the macros end index
     if (tok.loc.id == macro.loc.id and
         tok.loc.byte_offset >= macro.loc.byte_offset and
         tok.loc.byte_offset <= macro.loc.line)
@@ -1143,8 +1144,7 @@ fn collectMacroFuncArguments(
     errdefer deinitMacroArguments(pp.comp.gpa, &args);
     var curArgument = std.ArrayList(Token).init(pp.comp.gpa);
     defer curArgument.deinit();
-    var done = false;
-    while (!done) {
+    while (true) {
         var tok = try nextBufToken(pp, tokenizer, buf, start_idx, end_idx, extend_buf);
         switch (tok.id) {
             .comma => {
@@ -1557,6 +1557,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.err(l_paren, .to_match_paren);
                 return skipToNl(tokenizer);
             }
+            start_index = r_paren.end;
             break;
         }
         if (!tok.id.isMacroIdentifier()) {
@@ -1576,6 +1577,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.err(l_paren, .to_match_paren);
                 return skipToNl(tokenizer);
             }
+            start_index = r_paren.end;
             break;
         } else if (tok.id == .r_paren) {
             start_index = tok.end;
