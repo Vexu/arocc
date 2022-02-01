@@ -71,6 +71,9 @@ pub fn floatToInt(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) voi
     if (new_ty.isUnsignedInt(comp) and v.data.float < 0) {
         v.* = int(0);
         return;
+    } else if (!std.math.isFinite(v.data.float)) {
+        v.tag = .unavailable;
+        return;
     }
     const size = old_ty.sizeof(comp).?;
     v.* = int(switch (size) {
@@ -112,6 +115,19 @@ pub fn intCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
     }
 }
 
+/// Converts the stored value from an integer to a float.
+/// `.unavailable` value remains unchanged.
+pub fn floatCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
+    assert(old_ty.isFloat() and new_ty.isFloat());
+    if (v.tag == .unavailable) return;
+    const size = new_ty.sizeof(comp).?;
+    if (!new_ty.isReal() or size > 8) {
+        v.tag = .unavailable;
+    } else if (size == 32) {
+        v.* = float(@floatCast(f32, v.data.float));
+    }
+}
+
 /// Truncates data.int to one bit
 pub fn toBool(v: *Value) void {
     if (v.tag == .unavailable) return;
@@ -124,8 +140,8 @@ pub fn isZero(v: Value) bool {
         .unavailable => false,
         .int => v.data.int == 0,
         .float => v.data.float == 0,
-        .array => unreachable,
-        .bytes => unreachable,
+        .array => false,
+        .bytes => false,
     };
 }
 
@@ -134,8 +150,8 @@ pub fn getBool(v: Value) bool {
         .unavailable => unreachable,
         .int => v.data.int != 0,
         .float => v.data.float != 0,
-        .array => unreachable,
-        .bytes => unreachable,
+        .array => true,
+        .bytes => true,
     };
 }
 

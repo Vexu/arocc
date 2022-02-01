@@ -1567,7 +1567,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         if (!init_list_expr.ty.isArray()) break :init;
         if (init_d.d.ty.specifier == .incomplete_array) {
             // Modifying .data is exceptionally allowed for .incomplete_array.
-            init_d.d.ty.data.array.len = init_list_expr.ty.arrayLen().?;
+            init_d.d.ty.data.array.len = init_list_expr.ty.arrayLen() orelse break :init;
             init_d.d.ty.specifier = .array;
         } else if (init_d.d.ty.is(.incomplete_array)) {
             const attrs = init_d.d.ty.getAttributes();
@@ -2333,6 +2333,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         var static = p.eatToken(.keyword_static);
         if (static != null and !got_quals) got_quals = try p.typeQual(&quals);
         var star = p.eatToken(.asterisk);
+        const size_tok = p.tok_i;
         const size = if (star) |_| Result{} else try p.assignExpr();
         try p.expectClosing(l_bracket, .r_bracket);
 
@@ -2383,6 +2384,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 res_ty.data = .{ .array = arr_ty };
                 res_ty.specifier = .incomplete_array;
             }
+        } else if (!size.ty.isInt() and !size.ty.isFloat()) {
+            try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
+            return error.ParsingFailed;
         } else {
             var size_val = size.val;
             const size_t = p.pp.comp.types.size;
@@ -4226,6 +4230,7 @@ const Result = struct {
             res.ty = float_ty;
             try res.un(p, .int_to_float);
         } else if (!res.ty.eql(float_ty, p.pp.comp, true)) {
+            res.val.floatCast(res.ty, float_ty, p.pp.comp);
             res.ty = float_ty;
             try res.un(p, .float_cast);
         }
@@ -4835,7 +4840,7 @@ fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
 ///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
-    if (p.eatToken(.l_paren)) |l_paren| {
+    if (p.eatToken(.l_paren)) |l_paren| cast_expr: {
         if (p.tok_ids[p.tok_i] == .l_brace) {
             try p.err(.gnu_statement_expression);
             if (p.func.ty == null) {
@@ -4855,62 +4860,65 @@ fn castExpr(p: *Parser) Error!Result {
             try res.un(p, .stmt_expr);
             return res;
         }
-        if (try p.typeName()) |ty| {
-            try p.expectClosing(l_paren, .r_paren);
+        const ty = (try p.typeName()) orelse {
+            p.tok_i -= 1;
+            break :cast_expr;
+        };
+        try p.expectClosing(l_paren, .r_paren);
 
-            if (p.tok_ids[p.tok_i] == .l_brace) {
-                // compound literal
-                if (ty.isFunc()) {
-                    try p.err(.func_init);
-                } else if (ty.is(.variable_len_array)) {
-                    try p.err(.vla_init);
-                } else if (ty.hasIncompleteSize() and !ty.is(.incomplete_array)) {
-                    try p.errStr(.variable_incomplete_ty, p.tok_i, try p.typeStr(ty));
-                    return error.ParsingFailed;
-                }
-                var init_list_expr = try p.initializer(ty);
-                try init_list_expr.un(p, .compound_literal_expr);
-                return init_list_expr;
-            }
-
-            var operand = try p.castExpr();
-            try operand.expect(p);
-            if (ty.is(.void)) {
-                // everything can cast to void
-                operand.val.tag = .unavailable;
-            } else if (ty.isInt() or ty.isFloat() or ty.isPtr()) cast: {
-                const old_float = operand.ty.isFloat();
-                const new_float = ty.isFloat();
-
-                if (new_float and operand.ty.isPtr()) {
-                    try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(operand.ty));
-                    return error.ParsingFailed;
-                } else if (old_float and ty.isPtr()) {
-                    try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(operand.ty));
-                    return error.ParsingFailed;
-                }
-                if (operand.val.tag == .unavailable) break :cast;
-
-                const old_int = operand.ty.isInt() or operand.ty.isPtr();
-                const new_int = ty.isInt() or ty.isPtr();
-                if (ty.is(.bool)) {
-                    operand.val.toBool();
-                } else if (old_float and new_int) {
-                    operand.val.floatToInt(operand.ty, ty, p.pp.comp);
-                } else if (new_float and old_int) {
-                    operand.val.intToFloat(operand.ty, ty, p.pp.comp);
-                }
-            } else {
-                try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
+        if (p.tok_ids[p.tok_i] == .l_brace) {
+            // compound literal
+            if (ty.isFunc()) {
+                try p.err(.func_init);
+            } else if (ty.is(.variable_len_array)) {
+                try p.err(.vla_init);
+            } else if (ty.hasIncompleteSize() and !ty.is(.incomplete_array)) {
+                try p.errStr(.variable_incomplete_ty, p.tok_i, try p.typeStr(ty));
                 return error.ParsingFailed;
             }
-            if (ty.anyQual()) try p.errStr(.qual_cast, l_paren, try p.typeStr(ty));
-            operand.ty = ty;
-            operand.ty.qual = .{};
-            try operand.un(p, .cast_expr);
-            return operand;
+            var init_list_expr = try p.initializer(ty);
+            try init_list_expr.un(p, .compound_literal_expr);
+            return init_list_expr;
         }
-        p.tok_i -= 1;
+
+        var operand = try p.castExpr();
+        try operand.expect(p);
+        if (ty.is(.void)) {
+            // everything can cast to void
+            operand.val.tag = .unavailable;
+        } else if (ty.isInt() or ty.isFloat() or ty.isPtr()) cast: {
+            const old_float = operand.ty.isFloat();
+            const new_float = ty.isFloat();
+
+            if (new_float and operand.ty.isPtr()) {
+                try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(operand.ty));
+                return error.ParsingFailed;
+            } else if (old_float and ty.isPtr()) {
+                try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(operand.ty));
+                return error.ParsingFailed;
+            }
+            if (operand.val.tag == .unavailable) break :cast;
+
+            const old_int = operand.ty.isInt() or operand.ty.isPtr();
+            const new_int = ty.isInt() or ty.isPtr();
+            if (ty.is(.bool)) {
+                operand.val.toBool();
+            } else if (old_float and new_int) {
+                operand.val.floatToInt(operand.ty, ty, p.pp.comp);
+            } else if (new_float and old_int) {
+                operand.val.intToFloat(operand.ty, ty, p.pp.comp);
+            } else if (new_float and old_float) {
+                operand.val.floatCast(operand.ty, ty, p.pp.comp);
+            }
+        } else {
+            try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
+            return error.ParsingFailed;
+        }
+        if (ty.anyQual()) try p.errStr(.qual_cast, l_paren, try p.typeStr(ty));
+        operand.ty = ty;
+        operand.ty.qual = .{};
+        try operand.un(p, .cast_expr);
+        return operand;
     }
     switch (p.tok_ids[p.tok_i]) {
         .builtin_choose_expr => return p.builtinChooseExpr(),

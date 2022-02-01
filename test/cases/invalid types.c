@@ -19,6 +19,10 @@ void foo(int arr[]) {
     struct bar b[1][] = {{1}};
 }
 
+int bar["foo"];
+int baz[] = 111111E1111111111111;
+int qux[] = baz;
+
 // int g[];
 // extern int h[];
 // void foo(void) {
@@ -49,3 +53,6 @@ void foo(int arr[]) {
     "invalid types.c:17:17: error: array has incomplete element type 'struct bar'" \
     "invalid types.c:18:15: error: expected identifier or '('" \
     "invalid types.c:19:17: error: array has incomplete element type 'struct bar []'" \
+    "invalid types.c:22:9: error: size of array has non-integer type 'char [4]'" \
+    "invalid types.c:23:13: error: array initializer must be an initializer list or wide string literal" \
+    "invalid types.c:24:13: error: array initializer must be an initializer list or wide string literal" \

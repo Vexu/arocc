@@ -46,6 +46,8 @@ int bar(void) {
 }
 
 int baz = 0xFFFFFFFFFF + 1u;
+int qux = 1/"foo";
+int quux = "foo"?1:2;
 
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
@@ -64,3 +66,4 @@ int baz = 0xFFFFFFFFFF + 1u;
     "binary expressions.c:33:5: error: expected statement" \
     "binary expressions.c:38:5: error: expected expression" \
     "binary expressions.c:39:13: error: expected expression" \
+    "binary expressions.c:49:12: error: invalid operands to binary expression ('int' and 'char *')" \

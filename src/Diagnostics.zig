@@ -1589,6 +1589,11 @@ const messages = struct {
         const kind = .warning;
         const opt = "backslash-newline-escape";
     };
+    const array_size_non_int = struct {
+        const msg = "size of array has non-integer type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
