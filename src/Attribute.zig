@@ -74,7 +74,7 @@ pub fn requiredArgCount(attr: Tag) u32 {
         if (field.value == @enumToInt(attr)) comptime {
             var needed = 0;
             const decl = @typeInfo(attributes).Struct.decls[i];
-            const fields = getArguments(decl.data.Type);
+            const fields = getArguments(@field(attributes, decl.name));
             for (fields) |arg_field| {
                 if (!mem.eql(u8, arg_field.name, "__name_tok") and @typeInfo(arg_field.field_type) != .Optional) needed += 1;
             }
@@ -89,7 +89,7 @@ pub fn maxArgCount(attr: Tag) u32 {
     inline for (@typeInfo(Tag).Enum.fields) |field, i| {
         if (field.value == @enumToInt(attr)) comptime {
             const decl = @typeInfo(attributes).Struct.decls[i];
-            const fields = getArguments(decl.data.Type);
+            const fields = getArguments(@field(attributes, decl.name));
             var max = 0;
             for (fields) |arg_field| {
                 if (!mem.eql(u8, arg_field.name, "__name_tok")) max += 1;
@@ -115,7 +115,7 @@ pub const Formatting = struct {
         inline for (@typeInfo(Tag).Enum.fields) |field, i| {
             if (field.value == @enumToInt(attr)) {
                 const decl = @typeInfo(attributes).Struct.decls[i];
-                const fields = getArguments(decl.data.Type);
+                const fields = getArguments(@field(attributes, decl.name));
 
                 if (fields.len == 0) unreachable;
                 const Unwrapped = UnwrapOptional(fields[0].field_type);
@@ -133,7 +133,7 @@ pub const Formatting = struct {
         inline for (@typeInfo(Tag).Enum.fields) |field, i| {
             if (field.value == @enumToInt(attr)) {
                 const decl = @typeInfo(attributes).Struct.decls[i];
-                const fields = getArguments(decl.data.Type);
+                const fields = getArguments(@field(attributes, decl.name));
 
                 if (fields.len == 0) unreachable;
                 const Unwrapped = UnwrapOptional(fields[0].field_type);
@@ -159,7 +159,7 @@ pub fn wantsIdentEnum(attr: Tag) bool {
     inline for (@typeInfo(Tag).Enum.fields) |field, i| {
         if (field.value == @enumToInt(attr)) {
             const decl = @typeInfo(attributes).Struct.decls[i];
-            const fields = getArguments(decl.data.Type);
+            const fields = getArguments(@field(attributes, decl.name));
 
             if (fields.len == 0) return false;
             const Unwrapped = UnwrapOptional(fields[0].field_type);
@@ -175,7 +175,7 @@ pub fn diagnoseIdent(attr: Tag, arguments: *Arguments, ident: []const u8) ?Diagn
     inline for (@typeInfo(Tag).Enum.fields) |field, i| {
         if (field.value == @enumToInt(attr)) {
             const decl = @typeInfo(attributes).Struct.decls[i];
-            const fields = getArguments(decl.data.Type);
+            const fields = getArguments(@field(attributes, decl.name));
             if (fields.len == 0) unreachable;
             const Unwrapped = UnwrapOptional(fields[0].field_type);
             if (@typeInfo(Unwrapped) != .Enum) unreachable;
@@ -196,7 +196,7 @@ pub fn wantsAlignment(attr: Tag, idx: usize) bool {
     inline for (@typeInfo(Tag).Enum.fields) |field, i| {
         if (field.value == @enumToInt(attr)) {
             const decl = @typeInfo(attributes).Struct.decls[i];
-            const fields = getArguments(decl.data.Type);
+            const fields = getArguments(@field(attributes, decl.name));
 
             if (idx >= fields.len) return false;
             inline for (fields) |arg_field, field_idx| {
@@ -213,7 +213,7 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Va
     inline for (@typeInfo(Tag).Enum.fields) |field, i| {
         if (field.value == @enumToInt(attr)) {
             const decl = @typeInfo(attributes).Struct.decls[i];
-            const arg_fields = getArguments(decl.data.Type);
+            const arg_fields = getArguments(@field(attributes, decl.name));
             inline for (arg_fields) |arg_field, arg_i| {
                 if (arg_idx == arg_i) {
                     if (UnwrapOptional(arg_field.field_type) != Alignment) unreachable;
@@ -292,7 +292,7 @@ pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node
                 .tag = .attribute_too_many_args,
                 .extra = .{ .attr_arg_count = .{ .attribute = attr, .expected = max_arg_count } },
             };
-            const arg_fields = getArguments(decl.data.Type);
+            const arg_fields = getArguments(@field(attributes, decl.name));
             inline for (arg_fields) |arg_field, arg_i| {
                 if (arg_idx == arg_i) {
                     return diagnoseField(decl, arg_field, UnwrapOptional(arg_field.field_type), arguments, val, node);
@@ -882,7 +882,7 @@ pub const Arguments = blk: {
     inline for (decls) |decl, i| {
         union_fields[i] = .{
             .name = decl.name,
-            .field_type = if (@hasDecl(decl.data.Type, "Args")) decl.data.Type.Args else void,
+            .field_type = if (@hasDecl(@field(attributes, decl.name), "Args")) @field(attributes, decl.name).Args else void,
             .alignment = 0,
         };
     }
@@ -899,7 +899,7 @@ pub const Arguments = blk: {
 
 pub fn ArgumentsForTag(comptime tag: Tag) type {
     const decl = @typeInfo(attributes).Struct.decls[@enumToInt(tag)];
-    return if (@hasDecl(decl.data.Type, "Args")) decl.data.Type.Args else void;
+    return if (@hasDecl(@field(attributes, decl.name), "Args")) @field(attributes, decl.name).Args else void;
 }
 
 pub fn initArguments(tag: Tag, name_tok: TokenIndex) Arguments {
@@ -907,7 +907,7 @@ pub fn initArguments(tag: Tag, name_tok: TokenIndex) Arguments {
         if (@enumToInt(tag) == field.value) {
             var args = @unionInit(Arguments, field.name, undefined);
             const decl = @typeInfo(attributes).Struct.decls[field.value];
-            if (@hasDecl(decl.data.Type, "Args") and @hasField(decl.data.Type.Args, "__name_tok")) {
+            if (@hasDecl(@field(attributes, decl.name), "Args") and @hasField(@field(attributes, decl.name).Args, "__name_tok")) {
                 @field(@field(args, field.name), "__name_tok") = name_tok;
             }
             return args;
@@ -929,8 +929,8 @@ fn fromStringGnu(name: []const u8) ?Tag {
     const decls = @typeInfo(attributes).Struct.decls;
     @setEvalBranchQuota(3000);
     inline for (decls) |decl, i| {
-        if (@hasDecl(decl.data.Type, "gnu")) {
-            if (mem.eql(u8, decl.data.Type.gnu, normalized)) {
+        if (@hasDecl(@field(attributes, decl.name), "gnu")) {
+            if (mem.eql(u8, @field(attributes, decl.name).gnu, normalized)) {
                 return @intToEnum(Tag, i);
             }
         }
@@ -949,8 +949,8 @@ fn fromStringC2X(namespace: ?[]const u8, name: []const u8) ?Tag {
     }
     const decls = @typeInfo(attributes).Struct.decls;
     inline for (decls) |decl, i| {
-        if (@hasDecl(decl.data.Type, "c2x")) {
-            if (mem.eql(u8, decl.data.Type.c2x, normalized)) {
+        if (@hasDecl(@field(attributes, decl.name), "c2x")) {
+            if (mem.eql(u8, @field(attributes, decl.name).c2x, normalized)) {
                 return @intToEnum(Tag, i);
             }
         }
@@ -961,8 +961,8 @@ fn fromStringC2X(namespace: ?[]const u8, name: []const u8) ?Tag {
 fn fromStringDeclspec(name: []const u8) ?Tag {
     const decls = @typeInfo(attributes).Struct.decls;
     inline for (decls) |decl, i| {
-        if (@hasDecl(decl.data.Type, "declspec")) {
-            if (mem.eql(u8, decl.data.Type.declspec, name)) {
+        if (@hasDecl(@field(attributes, decl.name), "declspec")) {
+            if (mem.eql(u8, @field(attributes, decl.name).declspec, name)) {
                 return @intToEnum(Tag, i);
             }
         }
