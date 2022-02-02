@@ -568,18 +568,15 @@ fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
     }
 }
 
-fn pragma(p: *Parser) !bool {
+fn pragma(p: *Parser) Compilation.Error!bool {
     var found_pragma = false;
-    while (p.eatToken(.keyword_pragma)) |pragma_tok| {
+    while (p.eatToken(.keyword_pragma)) |_| {
         found_pragma = true;
 
         const name_tok = p.tok_i;
         const name = p.tokSlice(name_tok);
 
-        const end_idx = mem.indexOfScalarPos(Token.Id, p.tok_ids, p.tok_i, .nl) orelse {
-            try p.errTok(.pragma_inside_macro, pragma_tok);
-            return error.ParsingFailed;
-        };
+        const end_idx = mem.indexOfScalarPos(Token.Id, p.tok_ids, p.tok_i, .nl).?;
         const pragma_len = @intCast(TokenIndex, end_idx) - p.tok_i;
         defer p.tok_i += pragma_len + 1; // skip past .nl as well
         if (p.pp.comp.getPragma(name)) |prag| {
@@ -639,37 +636,15 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     }
 
     while (p.eatToken(.eof) == null) {
-        const found_pragma = p.pragma() catch |err| switch (err) {
-            error.ParsingFailed => break,
-            else => |e| return e,
-        };
-        if (found_pragma) continue;
-        if (p.staticAssert() catch |er| switch (er) {
-            error.ParsingFailed => {
-                p.nextExternDecl();
-                continue;
-            },
-            else => |e| return e,
-        }) continue;
-        if (p.decl() catch |er| switch (er) {
-            error.ParsingFailed => {
-                p.nextExternDecl();
-                continue;
-            },
-            else => |e| return e,
-        }) continue;
+        if (try p.pragma()) continue;
+        if (try p.parseOrNextDecl(staticAssert)) continue;
+        if (try p.parseOrNextDecl(decl)) continue;
         if (p.eatToken(.keyword_extension)) |_| {
             const saved_extension = p.extension_suppressed;
             defer p.extension_suppressed = saved_extension;
             p.extension_suppressed = true;
 
-            if (p.decl() catch |er| switch (er) {
-                error.ParsingFailed => {
-                    p.nextExternDecl();
-                    continue;
-                },
-                else => |e| return e,
-            }) continue;
+            if (try p.parseOrNextDecl(decl)) continue;
             switch (p.tok_ids[p.tok_i]) {
                 .semicolon => p.tok_i += 1,
                 .keyword_static_assert,
@@ -723,6 +698,16 @@ fn skipToPragmaSentinel(p: *Parser) void {
             return;
         }
     }
+}
+
+fn parseOrNextDecl(p: *Parser, comptime func: fn (*Parser) Error!bool) Compilation.Error!bool {
+    return func(p) catch |er| switch (er) {
+        error.ParsingFailed => {
+            p.nextExternDecl();
+            return true;
+        },
+        else => |e| return e,
+    };
 }
 
 fn nextExternDecl(p: *Parser) void {
@@ -1853,30 +1838,18 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
 fn recordDecls(p: *Parser) Error!void {
     while (true) {
         if (try p.pragma()) continue;
-        if (try p.staticAssert()) continue;
+        if (try p.parseOrNextDecl(staticAssert)) continue;
         if (p.eatToken(.keyword_extension)) |_| {
             const saved_extension = p.extension_suppressed;
             defer p.extension_suppressed = saved_extension;
             p.extension_suppressed = true;
 
-            if (p.recordDeclarator() catch |e| switch (e) {
-                error.ParsingFailed => {
-                    p.nextExternDecl();
-                    continue;
-                },
-                else => |err| return err,
-            }) continue;
+            if (try p.parseOrNextDecl(recordDeclarator)) continue;
             try p.err(.expected_type);
             p.nextExternDecl();
             continue;
         }
-        if (p.recordDeclarator() catch |e| switch (e) {
-            error.ParsingFailed => {
-                p.nextExternDecl();
-                continue;
-            },
-            else => |err| return err,
-        }) continue;
+        if (try p.parseOrNextDecl(recordDeclarator)) continue;
         break;
     }
 }
@@ -3665,32 +3638,14 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
 
     while (p.eatToken(.r_brace) == null) : (_ = try p.pragma()) {
         if (stmt_expr_state) |state| state.* = .{};
-        if (p.staticAssert() catch |er| switch (er) {
-            error.ParsingFailed => {
-                try p.nextStmt(l_brace);
-                continue;
-            },
-            else => |e| return e,
-        }) continue;
-        if (p.decl() catch |er| switch (er) {
-            error.ParsingFailed => {
-                try p.nextStmt(l_brace);
-                continue;
-            },
-            else => |e| return e,
-        }) continue;
+        if (try p.parseOrNextStmt(staticAssert, l_brace)) continue;
+        if (try p.parseOrNextStmt(decl, l_brace)) continue;
         if (p.eatToken(.keyword_extension)) |ext| {
             const saved_extension = p.extension_suppressed;
             defer p.extension_suppressed = saved_extension;
             p.extension_suppressed = true;
 
-            if (p.decl() catch |er| switch (er) {
-                error.ParsingFailed => {
-                    try p.nextStmt(l_brace);
-                    continue;
-                },
-                else => |e| return e,
-            }) continue;
+            if (try p.parseOrNextStmt(decl, l_brace)) continue;
             p.tok_i = ext;
         }
         const stmt_tok = p.tok_i;
@@ -3776,6 +3731,16 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) bool {
         },
         else => return false,
     }
+}
+
+fn parseOrNextStmt(p: *Parser, comptime func: fn (*Parser) Error!bool, l_brace: TokenIndex) !bool {
+    return func(p) catch |er| switch (er) {
+        error.ParsingFailed => {
+            try p.nextStmt(l_brace);
+            return true;
+        },
+        else => |e| return e,
+    };
 }
 
 fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {

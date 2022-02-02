@@ -1330,10 +1330,6 @@ const messages = struct {
         const opt = "unicode-homoglyph";
         const kind = .warning;
     };
-    const pragma_inside_macro = struct {
-        const msg = "#pragma directive in macro expansion";
-        const kind = .@"error";
-    };
     const meaningless_asm_qual = struct {
         const msg = "meaningless '{s}' on assembly outside function";
         const extra = .str;

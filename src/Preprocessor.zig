@@ -390,7 +390,6 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                 }
                 // Add the token to the buffer doing any necessary expansions.
                 start_of_line = false;
-                tok.id.simplifyMacroKeyword();
                 try pp.expandMacro(&tokenizer, tok);
             },
         }
@@ -1321,8 +1320,9 @@ fn expandMacroExhaustive(
 /// Try to expand a macro after a possible candidate has been read from the `tokenizer`
 /// into the `raw` token passed as argument
 fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroError!void {
-    const source_tok = tokFromRaw(raw);
+    var source_tok = tokFromRaw(raw);
     if (!raw.id.isMacroIdentifier()) {
+        source_tok.id.simplifyMacroKeyword();
         return pp.tokens.append(pp.comp.gpa, source_tok);
     }
     pp.top_expansion_buf.items.len = 0;
@@ -1336,6 +1336,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
             Token.free(tok.expansion_locs, pp.comp.gpa);
             continue;
         }
+        tok.id.simplifyMacroKeyword();
         pp.tokens.appendAssumeCapacity(tok.*);
     }
     if (pp.comp.only_preprocess) {
