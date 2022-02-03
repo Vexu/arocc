@@ -4860,7 +4860,7 @@ fn castExpr(p: *Parser) Error!Result {
             const new_float = ty.isFloat();
 
             if (new_float and operand.ty.isPtr()) {
-                try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(operand.ty));
+                try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(ty));
                 return error.ParsingFailed;
             } else if (old_float and ty.isPtr()) {
                 try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(operand.ty));
