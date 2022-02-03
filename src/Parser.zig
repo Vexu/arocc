@@ -872,7 +872,11 @@ fn decl(p: *Parser) Error!bool {
 
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null) {
-            init_d.d.ty.specifier = .func;
+            const attrs = init_d.d.ty.getAttributes();
+            var base_ty = if (init_d.d.ty.specifier == .attributed) init_d.d.ty.elemType() else init_d.d.ty;
+            base_ty.specifier = .func;
+            init_d.d.ty = try base_ty.withAttributes(p.arena, attrs);
+
             const param_buf_top = p.param_buf.items.len;
             defer p.param_buf.items.len = param_buf_top;
 
