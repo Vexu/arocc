@@ -92,6 +92,11 @@ typedef struct {
       __attribute__((__aligned__(__alignof__(long double))));
 } max_align_t;
 
+__attribute__((unused)) void attributed_old_style_func(baz)
+int baz;
+{
+}
+
 __attribute__(()) // test attribute at eof
 
 #define TESTS_SKIPPED 3
@@ -103,4 +108,4 @@ __attribute__(()) // test attribute at eof
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
     /* "attributes.c:40:20: error: attribute cannot be applied to a statement" */ \
     "attributes.c:76:6: error: cannot call non function type 'int'" \
-    "attributes.c:95:18: error: expected identifier or '('" \
+    "attributes.c:100:18: error: expected identifier or '('" \

@@ -443,12 +443,13 @@ pub fn elemType(ty: Type) Type {
         .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.*,
         .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem,
         .variable_len_array, .decayed_variable_len_array => ty.data.expr.ty,
-        .typeof_type, .decayed_typeof_type, .typeof_expr, .decayed_typeof_expr, .attributed => {
+        .typeof_type, .decayed_typeof_type, .typeof_expr, .decayed_typeof_expr => {
             const unwrapped = ty.canonicalize(.preserve_quals);
             var elem = unwrapped.elemType();
             elem.qual = elem.qual.mergeAll(unwrapped.qual);
             return elem;
         },
+        .attributed => ty.data.attributed.base,
         else => unreachable,
     };
 }
