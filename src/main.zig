@@ -47,6 +47,10 @@ pub fn main() u8 {
             std.debug.print("maximum file size exceeded\n", .{});
             return 1;
         },
+        error.NotEnoughArgs => {
+            std.debug.print("too few command line arguments provided\n", .{});
+            return 1;
+        },
         error.FatalError => comp.renderErrors(),
     };
     return @boolToInt(comp.diag.errors != 0);
@@ -97,6 +101,8 @@ const usage =
 
 /// Process command line arguments, returns true if something was written to std_out.
 pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(Source), macro_buf: anytype, args: [][]const u8) !bool {
+    if (args.len < 1) return error.NotEnoughArgs;
+    if (mem.eql(u8, std.fs.path.basename(args[0]), "aro++")) comp.langopts.standard = .defaultxx;
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];

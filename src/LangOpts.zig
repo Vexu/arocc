@@ -35,6 +35,9 @@ const Standard = enum {
     /// Default value if nothing specified; adds the GNU keywords to
     /// C17 but does not suppress warnings about using GNU extensions
     default,
+    /// Default value if nothing specified for C++; adds the GNU keywords to
+    /// C++17 but does not suppress warnings about using GNU extensions
+    defaultxx,
     /// ISO C 2017 with GNU extensions
     gnu17,
     /// C++ 2017
@@ -71,13 +74,13 @@ const Standard = enum {
     pub fn isGNU(standard: Standard) bool {
         return switch (standard) {
             .gnu89, .gnu99, .gnu11, .default, .gnu17, .gnu2x => true,
-            .gnuxx03, .gnuxx11, .gnuxx14, .gnuxx17, .gnuxx20 => true,
+            .gnuxx03, .gnuxx11, .gnuxx14, .defaultxx, .gnuxx17, .gnuxx20 => true,
             else => false,
         };
     }
 
     pub fn isExplicitGNU(standard: Standard) bool {
-        return standard.isGNU() and standard != .default;
+        return standard.isGNU() and standard != .default and standard != .defaultxx;
     }
 
     /// Value reported by __STDC_VERSION__ macro
@@ -96,7 +99,7 @@ const Standard = enum {
 
     pub fn isCxx(standard: Standard) bool {
         return switch (standard) {
-            .cxx03, .gnuxx03, .cxx11, .gnuxx11, .cxx14, .gnuxx14, .cxx17, .gnuxx17, .cxx20, .gnuxx20 => true,
+            .cxx03, .gnuxx03, .cxx11, .gnuxx11, .cxx14, .gnuxx14, .defaultxx, .cxx17, .gnuxx17, .cxx20, .gnuxx20 => true,
             else => false,
         };
     }
