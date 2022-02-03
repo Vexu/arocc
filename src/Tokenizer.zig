@@ -76,6 +76,7 @@ pub const Token = struct {
         l_bracket,
         r_bracket,
         period,
+        period_asterisk,
         ellipsis,
         caret,
         caret_equal,
@@ -90,6 +91,7 @@ pub const Token = struct {
         percent,
         percent_equal,
         arrow,
+        arrow_asterisk,
         colon,
         colon_colon,
         semicolon,
@@ -108,6 +110,7 @@ pub const Token = struct {
         angle_bracket_right_equal,
         angle_bracket_angle_bracket_right,
         angle_bracket_angle_bracket_right_equal,
+        spaceship,
         tilde,
         hash,
         hash_hash,
@@ -489,6 +492,7 @@ pub const Token = struct {
                 .l_bracket => "[",
                 .r_bracket => "]",
                 .period => ".",
+                .period_asterisk => ".*",
                 .ellipsis => "...",
                 .caret => "^",
                 .caret_equal => "^=",
@@ -503,6 +507,7 @@ pub const Token = struct {
                 .percent => "%",
                 .percent_equal => "%=",
                 .arrow => "->",
+                .arrow_asterisk => "->*",
                 .colon => ":",
                 .colon_colon => "::",
                 .semicolon => ";",
@@ -521,6 +526,7 @@ pub const Token = struct {
                 .angle_bracket_right_equal => ">=",
                 .angle_bracket_angle_bracket_right => ">>",
                 .angle_bracket_angle_bracket_right_equal => ">>=",
+                .spaceship => "<=>",
                 .tilde => "~",
                 .hash => "#",
                 .hash_hash => "##",
@@ -995,12 +1001,14 @@ pub fn next(self: *Tokenizer) Token {
         plus,
         angle_bracket_left,
         angle_bracket_angle_bracket_left,
+        angle_bracket_equal,
         angle_bracket_right,
         angle_bracket_angle_bracket_right,
         caret,
         period,
         period2,
         minus,
+        arrow,
         slash,
         ampersand,
         hash,
@@ -1097,7 +1105,9 @@ pub fn next(self: *Tokenizer) Token {
                     self.index += 1;
                     break;
                 },
-                ':' => if (self.comp.langopts.standard.atLeast(.c2x)) {
+                ':' => if (self.comp.langopts.standard.atLeast(.c2x) or
+                    self.comp.langopts.standard.isCxx())
+                {
                     state = .colon;
                 } else {
                     id = .colon;
@@ -1401,12 +1411,29 @@ pub fn next(self: *Tokenizer) Token {
             .angle_bracket_left => switch (c) {
                 '<' => state = .angle_bracket_angle_bracket_left,
                 '=' => {
+                    if (self.comp.langopts.standard.isCxx() and
+                        self.comp.langopts.standard.atLeast(.cxx20))
+                    {
+                        state = .angle_bracket_equal;
+                        continue;
+                    }
                     id = .angle_bracket_left_equal;
                     self.index += 1;
                     break;
                 },
                 else => {
                     id = .angle_bracket_left;
+                    break;
+                },
+            },
+            .angle_bracket_equal => switch (c) {
+                '>' => {
+                    id = .spaceship;
+                    self.index += 1;
+                    break;
+                },
+                else => {
+                    id = .angle_bracket_left_equal;
                     break;
                 },
             },
@@ -1458,6 +1485,13 @@ pub fn next(self: *Tokenizer) Token {
             .period => switch (c) {
                 '.' => state = .period2,
                 '0'...'9' => state = .float_fraction,
+                '*' => if (self.comp.langopts.standard.isCxx()) {
+                    id = .period_asterisk;
+                    break;
+                } else {
+                    id = .period;
+                    break;
+                },
                 else => {
                     id = .period;
                     break;
@@ -1493,6 +1527,17 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 else => {
                     id = .minus;
+                    break;
+                },
+            },
+            .arrow => switch (c) {
+                '*' => {
+                    id = .arrow_asterisk;
+                    self.index += 1;
+                    break;
+                },
+                else => {
+                    id = .arrow;
                     break;
                 },
             },
@@ -1829,6 +1874,7 @@ pub fn next(self: *Tokenizer) Token {
             .equal => id = .equal,
             .bang => id = .bang,
             .minus => id = .minus,
+            .arrow => id = .arrow,
             .slash => id = .slash,
             .ampersand => id = .ampersand,
             .hash => id = .hash,
@@ -1838,6 +1884,7 @@ pub fn next(self: *Tokenizer) Token {
             .angle_bracket_right => id = .angle_bracket_right,
             .angle_bracket_angle_bracket_left => id = .angle_bracket_angle_bracket_left,
             .angle_bracket_left => id = .angle_bracket_left,
+            .angle_bracket_equal => id = .spaceship,
             .plus => id = .plus,
             .colon => id = .colon,
             .percent => id = .percent,
@@ -1904,6 +1951,7 @@ test "operators" {
         .percent,
         .percent_equal,
         .arrow,
+        .arrow_asterisk,
         .colon,
         .semicolon,
         .slash,
