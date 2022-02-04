@@ -121,6 +121,7 @@ pub const Options = packed struct {
     @"#warnings": Kind = .default,
     @"deprecated-declarations": Kind = .default,
     @"backslash-newline-escape": Kind = .default,
+    @"pointer-to-int-cast": Kind = .default,
 };
 
 const messages = struct {
@@ -1589,6 +1590,12 @@ const messages = struct {
         const msg = "size of array has non-integer type '{s}'";
         const extra = .str;
         const kind = .@"error";
+    };
+    const cast_to_smaller_int = struct {
+        const msg = "cast to smaller integer type {s}";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "pointer-to-int-cast";
     };
 };
 

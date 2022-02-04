@@ -4856,6 +4856,8 @@ fn castExpr(p: *Parser) Error!Result {
             // everything can cast to void
             operand.val.tag = .unavailable;
         } else if (ty.isInt() or ty.isFloat() or ty.isPtr()) cast: {
+            try operand.lvalConversion(p);
+
             const old_float = operand.ty.isFloat();
             const new_float = ty.isFloat();
 
@@ -4884,6 +4886,9 @@ fn castExpr(p: *Parser) Error!Result {
             return error.ParsingFailed;
         }
         if (ty.anyQual()) try p.errStr(.qual_cast, l_paren, try p.typeStr(ty));
+        if (ty.isInt() and operand.ty.isPtr() and ty.sizeCompare(operand.ty, p.pp.comp) == .lt) {
+            try p.errStr(.cast_to_smaller_int, l_paren, try p.typePairStrExtra(ty, " from ", operand.ty));
+        }
         operand.ty = ty;
         operand.ty.qual = .{};
         try operand.un(p, .cast_expr);
