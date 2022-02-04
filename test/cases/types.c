@@ -15,3 +15,6 @@ typedef int A;
 typedef A B;
 typedef A C;
 typedef C B;
+
+__attribute__((aligned)) int attributed[] = {0};
+int *decayed_attributed = attributed;

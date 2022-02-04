@@ -883,7 +883,7 @@ fn decl(p: *Parser) Error!bool {
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null) {
             const attrs = init_d.d.ty.getAttributes();
-            var base_ty = if (init_d.d.ty.specifier == .attributed) init_d.d.ty.elemType() else init_d.d.ty;
+            var base_ty = if (init_d.d.ty.specifier == .attributed) init_d.d.ty.data.attributed.base else init_d.d.ty;
             base_ty.specifier = .func;
             init_d.d.ty = try base_ty.withAttributes(p.arena, attrs);
 

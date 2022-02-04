@@ -258,6 +258,7 @@ pub const Specifier = enum {
 
     /// data.attributed
     attributed,
+    decayed_attributed,
 
     /// special type used to implement __builtin_va_start
     special_va_start,
@@ -325,6 +326,7 @@ pub fn isPtr(ty: Type) bool {
     return switch (ty.specifier) {
         .pointer,
         .decayed_array,
+        .decayed_attributed,
         .decayed_static_array,
         .decayed_incomplete_array,
         .decayed_variable_len_array,
@@ -390,7 +392,7 @@ pub fn isConst(ty: Type) bool {
     return switch (ty.specifier) {
         .typeof_type, .decayed_typeof_type => ty.qual.@"const" or ty.data.sub_type.isConst(),
         .typeof_expr, .decayed_typeof_expr => ty.qual.@"const" or ty.data.expr.ty.isConst(),
-        .attributed => ty.data.attributed.base.isConst(),
+        .attributed, .decayed_attributed => ty.data.attributed.base.isConst(),
         else => ty.qual.@"const",
     };
 }
@@ -449,7 +451,7 @@ pub fn elemType(ty: Type) Type {
             elem.qual = elem.qual.mergeAll(unwrapped.qual);
             return elem;
         },
-        .attributed => ty.data.attributed.base,
+        .attributed, .decayed_attributed => ty.data.attributed.base.elemType(),
         else => unreachable,
     };
 }
@@ -459,7 +461,7 @@ pub fn returnType(ty: Type) Type {
         .func, .var_args_func, .old_style_func => ty.data.func.return_type,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.returnType(),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.returnType(),
-        .attributed => ty.data.attributed.base.returnType(),
+        .attributed, .decayed_attributed => ty.data.attributed.base.returnType(),
         else => unreachable,
     };
 }
@@ -469,7 +471,7 @@ pub fn params(ty: Type) []Func.Param {
         .func, .var_args_func, .old_style_func => ty.data.func.params,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.params(),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.params(),
-        .attributed => ty.data.attributed.base.params(),
+        .attributed, .decayed_attributed => ty.data.attributed.base.params(),
         else => unreachable,
     };
 }
@@ -479,7 +481,7 @@ pub fn arrayLen(ty: Type) ?usize {
         .array, .static_array, .decayed_array, .decayed_static_array => ty.data.array.len,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.arrayLen(),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.arrayLen(),
-        .attributed => ty.data.attributed.base.arrayLen(),
+        .attributed, .decayed_attributed => ty.data.attributed.base.arrayLen(),
         else => null,
     };
 }
@@ -494,7 +496,7 @@ pub fn anyQual(ty: Type) bool {
 
 pub fn getAttributes(ty: Type) []const Attribute {
     return switch (ty.specifier) {
-        .attributed => ty.data.attributed.attributes,
+        .attributed, .decayed_attributed => ty.data.attributed.attributes,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.getAttributes(),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.getAttributes(),
         else => &.{},
@@ -556,7 +558,7 @@ pub fn hasUnboundVLA(ty: Type) bool {
             => cur = cur.elemType(),
             .typeof_type, .decayed_typeof_type => cur = cur.data.sub_type.*,
             .typeof_expr, .decayed_typeof_expr => cur = cur.data.expr.ty,
-            .attributed => cur = cur.data.attributed.base,
+            .attributed, .decayed_attributed => cur = cur.data.attributed.base,
             else => return false,
         }
     }
@@ -660,6 +662,7 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .decayed_unspecified_variable_len_array,
         .decayed_typeof_type,
         .decayed_typeof_expr,
+        .decayed_attributed,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .array => ty.data.array.elem.sizeof(comp).? * ty.data.array.len,
@@ -677,7 +680,7 @@ pub fn bitSizeof(ty: Type, comp: *Compilation) ?u64 {
         .bool => 1,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
-        .attributed => ty.data.attributed.base.bitSizeof(comp),
+        .attributed, .decayed_attributed => ty.data.attributed.base.bitSizeof(comp),
         else => 8 * (ty.sizeof(comp) orelse return null),
     };
 }
@@ -717,6 +720,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .decayed_incomplete_array,
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
+        .decayed_attributed,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .array => ty.data.array.elem.alignof(comp),
@@ -736,7 +740,12 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
 /// arrays and pointers.
 pub fn canonicalize(ty: Type, qual_handling: enum { standard, preserve_quals }) Type {
     var cur = ty;
-    if (cur.specifier == .attributed) cur = cur.data.attributed.base;
+    if (cur.specifier == .attributed) {
+        cur = cur.data.attributed.base;
+    } else if (cur.specifier == .decayed_attributed) {
+        cur = cur.data.attributed.base;
+        if (cur.isArray()) cur.decayArray();
+    }
     if (!cur.isTypeof()) return cur;
 
     var qual = cur.qual;
@@ -769,7 +778,7 @@ pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
     return switch (ty.specifier) {
         .typeof_type => ty.data.sub_type.get(specifier),
         .typeof_expr => ty.data.expr.ty.get(specifier),
-        .attributed => ty.data.attributed.base.get(specifier),
+        .attributed, .decayed_attributed => ty.data.attributed.base.get(specifier),
         else => if (ty.specifier == specifier) ty else null,
     };
 }
@@ -778,7 +787,7 @@ fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
     return switch (ty.specifier) {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.requestedAlignment(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.requestedAlignment(comp),
-        .attributed => {
+        .attributed, .decayed_attributed => {
             var max_requested: ?u29 = null;
             for (ty.data.attributed.attributes) |attribute| {
                 if (attribute.tag != .aligned) continue;
@@ -819,6 +828,7 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
     switch (a.specifier) {
         .pointer,
         .decayed_array,
+        .decayed_attributed,
         .decayed_static_array,
         .decayed_incomplete_array,
         .decayed_variable_len_array,
@@ -889,6 +899,7 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
         .decayed_unspecified_variable_len_array,
         .decayed_typeof_type,
         .decayed_typeof_expr,
+        .decayed_attributed,
         => unreachable, // type should not be able to decay before being combined
         else => inner.* = outer,
     }
@@ -938,7 +949,7 @@ pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: TokenIndex) Parser
         },
         .typeof_type, .decayed_typeof_type => return ty.data.sub_type.validateCombinedType(p, source_tok),
         .typeof_expr, .decayed_typeof_expr => return ty.data.expr.ty.validateCombinedType(p, source_tok),
-        .attributed => return ty.data.attributed.base.validateCombinedType(p, source_tok),
+        .attributed, .decayed_attributed => return ty.data.attributed.base.validateCombinedType(p, source_tok),
         else => {},
     }
 }
@@ -1020,6 +1031,7 @@ pub const Builder = struct {
         decayed_typeof_expr: *Expr,
 
         attributed: *Attributed,
+        decayed_attributed: *Attributed,
 
         pub fn str(spec: Builder.Specifier) ?[]const u8 {
             return switch (spec) {
@@ -1062,7 +1074,7 @@ pub const Builder = struct {
                 .complex_double => "_Complex double",
                 .complex_long_double => "_Complex long double",
 
-                .attributed => |attributed| Builder.fromType(attributed.base).str(),
+                .attributed, .decayed_attributed => |attributed| Builder.fromType(attributed.base).str(),
 
                 else => null,
             };
@@ -1200,6 +1212,10 @@ pub const Builder = struct {
                 ty.specifier = .attributed;
                 ty.data = .{ .attributed = data };
             },
+            .decayed_attributed => |data| {
+                ty.specifier = .decayed_attributed;
+                ty.data = .{ .attributed = data };
+            },
         }
         try b.qual.finish(p, &ty);
 
@@ -1228,7 +1244,7 @@ pub const Builder = struct {
         };
 
         b.typeof = switch (inner.specifier) {
-            .attributed => inner.data.attributed.base,
+            .attributed, .decayed_attributed => inner.data.attributed.base,
             else => new,
         };
     }
@@ -1441,6 +1457,7 @@ pub const Builder = struct {
             .decayed_typeof_expr => .{ .decayed_typeof_expr = ty.data.expr },
 
             .attributed => .{ .attributed = ty.data.attributed },
+            .decayed_attributed => .{ .decayed_attributed = ty.data.attributed },
             else => unreachable,
         };
     }
@@ -1450,7 +1467,7 @@ pub fn getAttribute(ty: Type, comptime tag: Attribute.Tag) ?Attribute.ArgumentsF
     switch (ty.specifier) {
         .typeof_type => return ty.data.sub_type.getAttribute(tag),
         .typeof_expr => return ty.data.expr.ty.getAttribute(tag),
-        .attributed => {
+        .attributed, .decayed_attributed => {
             for (ty.data.attributed.attributes) |attribute| {
                 if (attribute.tag == tag) return @field(attribute.args, @tagName(tag));
             }
@@ -1492,6 +1509,7 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
         .decayed_unspecified_variable_len_array,
         .decayed_typeof_type,
         .decayed_typeof_expr,
+        .decayed_attributed,
         => {
             const elem_ty = ty.elemType();
             const simple = try elem_ty.printPrologue(w);
@@ -1545,6 +1563,7 @@ fn printEpilogue(ty: Type, w: anytype) @TypeOf(w).Error!void {
         .decayed_unspecified_variable_len_array,
         .decayed_typeof_type,
         .decayed_typeof_expr,
+        .decayed_attributed,
         => {
             const elem_ty = ty.elemType();
             if (elem_ty.isFunc() or elem_ty.isArray()) try w.writeByte(')');
@@ -1664,7 +1683,8 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try ty.data.expr.ty.dump(w);
             try w.writeAll(")");
         },
-        .attributed => {
+        .attributed, .decayed_attributed => {
+            if (ty.specifier == .decayed_attributed) try w.writeAll("d ");
             try w.writeAll("attributed(");
             try ty.data.attributed.base.dump(w);
             try w.writeAll(")");
