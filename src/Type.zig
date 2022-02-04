@@ -606,6 +606,23 @@ pub fn getCharSignedness(comp: *Compilation) std.builtin.Signedness {
     }
 }
 
+const TypeSizeOrder = enum {
+    lt,
+    gt,
+    eq,
+    indeterminate,
+};
+
+pub fn sizeCompare(a: Type, b: Type, comp: *Compilation) TypeSizeOrder {
+    const a_size = a.sizeof(comp) orelse return .indeterminate;
+    const b_size = b.sizeof(comp) orelse return .indeterminate;
+    return switch (std.math.order(a_size, b_size)) {
+        .lt => .lt,
+        .gt => .gt,
+        .eq => .eq,
+    };
+}
+
 /// Size of type as reported by sizeof
 pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
     // TODO get target from compilation
