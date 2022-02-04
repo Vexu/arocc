@@ -122,6 +122,7 @@ pub const Options = packed struct {
     @"deprecated-declarations": Kind = .default,
     @"backslash-newline-escape": Kind = .default,
     @"pointer-to-int-cast": Kind = .default,
+    @"indirect-include": Kind = .default,
 };
 
 const messages = struct {
@@ -1596,6 +1597,16 @@ const messages = struct {
         const extra = .str;
         const kind = .warning;
         const opt = "pointer-to-int-cast";
+    };
+    const indirect_use_of_ident = struct {
+        const msg = "use of indirectly included symbol";
+        const kind = .warning;
+        const opt = "indirect-include";
+    };
+    const include_file_directly = struct {
+        const msg = "include '{s}' directly to use this symbol";
+        const extra = .str;
+        const kind = .note;
     };
 };
 

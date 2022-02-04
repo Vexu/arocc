@@ -385,6 +385,24 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
     }
 }
 
+fn checkIndirectInclude(p: *Parser, usage_tok: TokenIndex, source_tok: TokenIndex) !void {
+    if (source_tok == 0) return; // builtin_va_list uses this, just skip it
+    const locs = p.pp.tokens.items(.loc);
+    if (locs[source_tok].id == .generated) return;
+    if (locs[usage_tok].id == .generated) return;
+    if (locs[usage_tok].id == locs[source_tok].id) return; // in same file
+    const usage_src = p.pp.comp.getSource(locs[usage_tok].id);
+    if (usage_src.direct_includes.get(locs[source_tok].id) != null) return; // directly included
+
+    try p.errTok(.indirect_use_of_ident, usage_tok);
+    const source = p.pp.comp.getSource(locs[source_tok].id);
+    try p.pp.comp.diag.add(.{
+        .tag = .include_file_directly,
+        .loc = .{ .id = .unused },
+        .extra = .{ .str = source.path },
+    }, &.{});
+}
+
 fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?[]const u8) Compilation.Error!void {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
@@ -1694,6 +1712,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             },
             .identifier, .extended_identifier => {
                 const typedef = (try p.findTypedef(p.tok_i, ty.specifier != .none)) orelse break;
+                try p.checkIndirectInclude(p.tok_i, typedef.name_tok);
                 if (!ty.combineTypedef(p, typedef.ty, typedef.name_tok)) break;
             },
             else => break,
@@ -1740,6 +1759,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         };
         // check if this is a reference to a previous type
         if (try p.findTag(p.tok_ids[kind_tok], ident, .reference)) |prev| {
+            try p.checkIndirectInclude(kind_tok, prev.name_tok);
             return prev.ty.data.record;
         } else {
             // this is a forward declaration, create a new record Type.
@@ -2014,6 +2034,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
         };
         // check if this is a reference to a previous type
         if (try p.findTag(.keyword_enum, ident, .reference)) |prev| {
+            try p.checkIndirectInclude(enum_tok, prev.name_tok);
             return prev.ty.data.@"enum";
         } else {
             // this is a forward declaration, create a new enum Type.
@@ -5661,6 +5682,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             switch (sym) {
                 .enumeration => |e| {
                     var res = e.value;
+                    try p.checkIndirectInclude(name_tok, e.name_tok);
                     try p.checkDeprecatedUnavailable(res.ty, name_tok, e.name_tok);
                     res.node = try p.addNode(.{
                         .tag = .enumeration_ref,
@@ -5670,6 +5692,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     return res;
                 },
                 .def, .decl, .param => |s| {
+                    try p.checkIndirectInclude(name_tok, s.name_tok);
                     try p.checkDeprecatedUnavailable(s.ty, name_tok, s.name_tok);
                     return Result{
                         .ty = s.ty,

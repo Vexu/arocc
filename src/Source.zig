@@ -17,14 +17,20 @@ pub const Location = struct {
     }
 };
 
+pub const Map = std.AutoHashMapUnmanaged(Source.Id, void);
+
 path: []const u8,
 buf: []const u8,
 id: Id,
+/// True if this source is included in the preprocessor without an explicit #include
+included_automatically: bool = false,
 invalid_utf8_loc: ?Location = null,
 /// each entry represents a byte position within `buf` where a backslash+newline was deleted
 /// from the original raw buffer. The same position can appear multiple times if multiple
 /// consecutive splices happened. Guaranteed to be non-decreasing
 splice_locs: []const u32,
+/// HashMap containing the id's of all directly included files
+direct_includes: Source.Map = .{},
 
 /// Todo: binary search instead of scanning entire `splice_locs`.
 pub fn numSplicesBefore(source: Source, byte_offset: u32) u32 {

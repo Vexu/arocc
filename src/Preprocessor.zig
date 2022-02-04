@@ -1049,6 +1049,7 @@ fn expandFuncMacro(
 }
 
 fn shouldExpand(tok: Token, macro: *Macro) bool {
+    if (macro.tokens.len == 0) return true;
     // macro.loc.line contains the macros end index
     if (tok.loc.id == macro.loc.id and
         tok.loc.byte_offset >= macro.loc.byte_offset and
@@ -1188,6 +1189,22 @@ fn collectMacroFuncArguments(
     return args;
 }
 
+fn checkIndirectInclude(pp: *Preprocessor, source_loc: Source.Location) !void {
+    if (source_loc.id == .generated) return; // a builtin macro, always available
+    const source = pp.comp.getSource(source_loc.id);
+    if (source.included_automatically) return; // macro is included automatically and always visible
+    if (pp.expansion_source_loc.id == source_loc.id) return; // in same file
+    const usage_src = pp.comp.getSource(pp.expansion_source_loc.id);
+    if (usage_src.direct_includes.get(source_loc.id) != null) return; // directly included
+
+    try pp.comp.diag.add(.{ .tag = .indirect_use_of_ident, .loc = pp.expansion_source_loc }, &.{});
+    try pp.comp.diag.add(.{
+        .tag = .include_file_directly,
+        .loc = .{ .id = .unused },
+        .extra = .{ .str = source.path },
+    }, &.{});
+}
+
 fn expandMacroExhaustive(
     pp: *Preprocessor,
     tokenizer: *Tokenizer,
@@ -1195,7 +1212,9 @@ fn expandMacroExhaustive(
     start_idx: usize,
     end_idx: usize,
     extend_buf: bool,
+    should_check_direct_include: bool,
 ) MacroError!void {
+    var check_direct_include = should_check_direct_include;
     var moving_end_idx = end_idx;
     var advance_index: usize = 0;
     // rescan loop
@@ -1232,6 +1251,10 @@ fn expandMacroExhaustive(
                         }
                         args.deinit();
                     }
+                    if (check_direct_include) {
+                        try pp.checkIndirectInclude(macro.loc);
+                        check_direct_include = false;
+                    }
 
                     var args_count = @intCast(u32, args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
@@ -1264,7 +1287,7 @@ fn expandMacroExhaustive(
                         var expand_buf = ExpandBuf.init(pp.comp.gpa);
                         try expand_buf.appendSlice(arg);
 
-                        try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false);
+                        try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false, false);
 
                         expanded_args.appendAssumeCapacity(expand_buf.toOwnedSlice());
                     }
@@ -1287,6 +1310,11 @@ fn expandMacroExhaustive(
                     idx += res.items.len;
                     do_rescan = true;
                 } else {
+                    if (check_direct_include) {
+                        try pp.checkIndirectInclude(macro.loc);
+                        check_direct_include = false;
+                    }
+
                     const res = try pp.expandObjMacro(macro);
                     defer res.deinit();
 
@@ -1329,7 +1357,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     try pp.top_expansion_buf.append(source_tok);
     pp.expansion_source_loc = source_tok.loc;
 
-    try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true);
+    try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, true);
     try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, pp.top_expansion_buf.items.len);
     for (pp.top_expansion_buf.items) |*tok| {
         if (tok.id == .macro_ws and !pp.comp.only_preprocess) {
@@ -1463,9 +1491,13 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     switch (first.id) {
         .nl, .eof => return pp.defineMacro(macro_name, .{
             .params = undefined,
-            .tokens = undefined,
+            .tokens = &.{},
             .var_args = false,
-            .loc = undefined,
+            .loc = .{
+                .id = macro_name.source,
+                .byte_offset = undefined,
+                .line = undefined,
+            },
             .is_func = false,
         }),
         .whitespace => first = tokenizer.next(),
@@ -1687,6 +1719,8 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         error.InvalidInclude => return,
         else => |e| return e,
     };
+    const source = pp.comp.getSourceRef(tokenizer.source);
+    try source.direct_includes.put(pp.comp.gpa, new_source.id, {});
 
     // Prevent stack overflow
     pp.include_depth += 1;

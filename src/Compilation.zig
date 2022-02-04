@@ -57,10 +57,11 @@ pub fn deinit(comp: *Compilation) void {
     for (comp.pragma_handlers.values()) |pragma| {
         pragma.deinit(pragma, comp);
     }
-    for (comp.sources.values()) |source| {
+    for (comp.sources.values()) |*source| {
         comp.gpa.free(source.path);
         comp.gpa.free(source.buf);
         comp.gpa.free(source.splice_locs);
+        source.direct_includes.deinit(comp.gpa);
     }
     comp.sources.deinit();
     comp.diag.deinit();
@@ -507,6 +508,13 @@ pub fn getSource(comp: *Compilation, id: Source.Id) Source {
     return comp.sources.values()[@enumToInt(id) - 2];
 }
 
+/// Same as getSource but asserts that the source is not generated
+/// and returns a reference.
+pub fn getSourceRef(comp: *Compilation, id: Source.Id) *Source {
+    assert(id != .generated);
+    return &comp.sources.values()[@enumToInt(id) - 2];
+}
+
 /// Write bytes from `reader` into `contents`, performing newline splicing,
 /// line-ending normalization (convert line endings to \n), and UTF-8 validation.
 /// Creates a Source with `contents` as the buf and adds it to the Compilation.
@@ -515,7 +523,13 @@ pub fn getSource(comp: *Compilation, id: Source.Id) Source {
 /// if splicing occurred.
 /// Compilation owns `contents` if and only if this call succeeds; caller always retains
 /// ownership of `path`.
-pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8, contents: []u8) !Source {
+pub fn addSourceFromReader(
+    comp: *Compilation,
+    reader: anytype,
+    path: []const u8,
+    contents: []u8,
+    included_automatically: bool,
+) !Source {
     const duped_path = try comp.gpa.dupe(u8, path);
     errdefer comp.gpa.free(duped_path);
 
@@ -603,6 +617,7 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
     var source = Source{
         .id = source_id,
         .path = duped_path,
+        .included_automatically = included_automatically,
         .buf = if (i == contents.len) contents else try comp.gpa.realloc(contents, i),
         .splice_locs = splice_locs,
     };
@@ -622,7 +637,7 @@ pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8
     const contents = try comp.gpa.alloc(u8, buf.len);
     errdefer comp.gpa.free(contents);
 
-    return comp.addSourceFromReader(reader, path, contents);
+    return comp.addSourceFromReader(reader, path, contents, true);
 }
 
 /// Caller retains ownership of `path`
@@ -642,7 +657,7 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
     const contents = try comp.gpa.alloc(u8, size);
     errdefer comp.gpa.free(contents);
 
-    return comp.addSourceFromReader(reader, path, contents);
+    return comp.addSourceFromReader(reader, path, contents, false);
 }
 
 pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_cwd: bool) !?Source {
@@ -770,7 +785,7 @@ test "addSourceFromReader" {
             const contents = try comp.gpa.alloc(u8, 1024);
 
             var reader = std.io.fixedBufferStream(str).reader();
-            const source = try comp.addSourceFromReader(reader, "path", contents);
+            const source = try comp.addSourceFromReader(reader, "path", contents, false);
 
             try std.testing.expectEqualStrings(expected, source.buf);
             try std.testing.expectEqual(warning_count, @intCast(u32, comp.diag.list.items.len));
