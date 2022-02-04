@@ -120,7 +120,16 @@ struct S {
     enum EnumTest1:2;
 };
 
-#define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
+struct A {
+    struct B {
+        int a;
+    } a;
+} a1;
+struct B b1;
+
+
+#define EXPECTED_ERRORS "containers.c:11:9: error: enum value must be an integer constant expression" \
+    "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
     "containers.c:15:12: error: variable has incomplete type 'struct Foo'" \
     "containers.c:20:6: warning: declaration does not declare anything [-Wmissing-declaration]" \
@@ -131,6 +140,8 @@ struct S {
     "containers.c:46:1: warning: declaration does not declare anything [-Wmissing-declaration]" \
     "containers.c:54:13: error: expression is not an integer constant expression" \
     "containers.c:59:9: error: enum value must be an integer constant expression" \
+    "containers.c:84:6: error: redefinition of 'foo'" \
+    "containers.c:25:6: note: previous definition is here" \
     "containers.c:90:10: error: field declared as a function" \
     "containers.c:91:10: error: field has incomplete type 'void'" \
     "containers.c:92:9: error: variable length array fields extension is not supported" \

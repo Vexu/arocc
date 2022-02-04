@@ -59,16 +59,21 @@ struct S {
     };
 };
 
+typedef int MyInt;
+typedef float MyFloat;
+typedef MyFloat MyInt;
+
+typedef int MyOtherInt;
+typedef const int MyOtherInt;
+
 #define TESTS_SKIPPED 1
 // int f(int (*)(), double (*)[3]);
 // int f(int (*)(char *), double (*)[]);
 
 #define EXPECTED_ERRORS "redefinitions.c:4:5: error: redefinition of 'foo' as different kind of symbol" \
     "redefinitions.c:1:5: note: previous definition is here" \
-    "redefinitions.c:5:5: error: redefinition of 'foo'" \
-    "redefinitions.c:4:5: note: previous definition is here" \
-    "redefinitions.c:8:5: error: redefinition of 'foo' as different kind of symbol" \
-    "redefinitions.c:5:5: note: previous definition is here" \
+    "redefinitions.c:5:5: error: redefinition of 'foo' as different kind of symbol" \
+    "redefinitions.c:1:5: note: previous definition is here" \
     "redefinitions.c:12:5: error: redefinition of 'bar'" \
     "redefinitions.c:11:5: note: previous definition is here" \
     "redefinitions.c:15:7: error: redefinition of 'baz' with a different type" \
@@ -88,8 +93,6 @@ struct S {
     "redefinitions.c:25:5: note: previous definition is here" \
     "redefinitions.c:38:1: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]" \
     "redefinitions.c:38:1: error: variable length arrays not allowed at file scope" \
-    "redefinitions.c:38:1: error: redefinition of 'arr' with a different type" \
-    "redefinitions.c:36:5: note: previous definition is here" \
     "redefinitions.c:45:5: error: redefinition of 'f2' with a different type" \
     "redefinitions.c:44:5: note: previous definition is here" \
     "redefinitions.c:53:9: error: duplicate member 'a'" \
@@ -98,3 +101,7 @@ struct S {
     "redefinitions.c:53:9: note: previous definition is here" \
     "redefinitions.c:57:17: error: duplicate member 'a'" \
     "redefinitions.c:54:11: note: previous definition is here" \
+    "redefinitions.c:64:17: error: typedef redefinition with different types ('float' vs 'int')" \
+    "redefinitions.c:62:13: note: previous definition is here" \
+    "redefinitions.c:67:19: error: typedef redefinition with different types ('const int' vs 'int')" \
+    "redefinitions.c:66:13: note: previous definition is here" \

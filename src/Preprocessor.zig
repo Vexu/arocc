@@ -583,7 +583,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .data = undefined,
         .strings = undefined,
         .value_map = undefined,
-        .scopes = undefined,
         .labels = undefined,
         .decl_buf = undefined,
         .list_buf = undefined,

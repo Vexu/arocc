@@ -17,66 +17,41 @@ const InitList = @import("InitList.zig");
 const Attribute = @import("Attribute.zig");
 const CharInfo = @import("CharInfo.zig");
 const Value = @import("Value.zig");
+const SymbolStack = @import("SymbolStack.zig");
+const Symbol = SymbolStack.Symbol;
 
 const Parser = @This();
 
-const Scope = union(enum) {
-    typedef: Symbol,
-    @"struct": Symbol,
-    @"union": Symbol,
-    @"enum": Symbol,
-    decl: Symbol,
-    def: Symbol,
-    param: Symbol,
-    enumeration: Enumeration,
-    loop,
-    @"switch": *Switch,
-    block,
+const Switch = struct {
+    default: ?TokenIndex = null,
+    ranges: std.ArrayList(Range),
+    ty: Type,
 
-    const Symbol = struct {
-        name: []const u8,
-        ty: Type,
-        name_tok: TokenIndex,
-        val: Value,
+    const Range = struct {
+        first: Value,
+        last: Value,
+        tok: TokenIndex,
     };
 
-    const Enumeration = struct {
-        name: []const u8,
-        value: Result,
-        name_tok: TokenIndex,
-    };
-
-    const Switch = struct {
-        default: ?TokenIndex = null,
-        ranges: std.ArrayList(Range),
-        ty: Type,
-
-        const Range = struct {
-            first: Value,
-            last: Value,
-            tok: TokenIndex,
-        };
-
-        fn add(
-            self: *Switch,
-            comp: *Compilation,
-            first: Value,
-            last: Value,
-            tok: TokenIndex,
-        ) !?Range {
-            for (self.ranges.items) |range| {
-                if (last.compare(.gte, range.first, self.ty, comp) and first.compare(.lte, range.last, self.ty, comp)) {
-                    return range; // They overlap.
-                }
+    fn add(
+        self: *Switch,
+        comp: *Compilation,
+        first: Value,
+        last: Value,
+        tok: TokenIndex,
+    ) !?Range {
+        for (self.ranges.items) |range| {
+            if (last.compare(.gte, range.first, self.ty, comp) and first.compare(.lte, range.last, self.ty, comp)) {
+                return range; // They overlap.
             }
-            try self.ranges.append(.{
-                .first = first,
-                .last = last,
-                .tok = tok,
-            });
-            return null;
         }
-    };
+        try self.ranges.append(.{
+            .first = first,
+            .last = last,
+            .tok = tok,
+        });
+        return null;
+    }
 };
 
 const Label = union(enum) {
@@ -118,7 +93,7 @@ strings: std.ArrayList(u8),
 value_map: Tree.ValueMap,
 
 // buffers used during compilation
-scopes: std.ArrayList(Scope),
+syms: SymbolStack = .{},
 labels: std.ArrayList(Label),
 list_buf: NodeList,
 decl_buf: NodeList,
@@ -152,30 +127,20 @@ record: struct {
     // invalid means we're not parsing a record
     kind: Token.Id = .invalid,
     flexible_field: ?TokenIndex = null,
-    scopes_top: usize = undefined,
+    start: usize = 0,
 
-    fn addField(r: @This(), p: *Parser, name_tok: TokenIndex) Error!void {
-        const name = p.tokSlice(name_tok);
-        var i = p.scopes.items.len;
-        while (i > r.scopes_top) {
+    fn addField(r: @This(), p: *Parser, tok: TokenIndex) Error!void {
+        const name = p.tokSlice(tok);
+        var i = p.record_members.items.len;
+        while (i > r.start) {
             i -= 1;
-            switch (p.scopes.items[i]) {
-                .def => |d| if (mem.eql(u8, d.name, name)) {
-                    try p.errStr(.duplicate_member, name_tok, name);
-                    try p.errTok(.previous_definition, d.name_tok);
-                    break;
-                },
-                else => {},
+            if (mem.eql(u8, p.record_members.items[i].name, name)) {
+                try p.errStr(.duplicate_member, tok, name);
+                try p.errTok(.previous_definition, p.record_members.items[i].tok);
+                break;
             }
         }
-        try p.scopes.append(.{
-            .def = .{
-                .name = name,
-                .name_tok = name_tok,
-                .ty = undefined, // unused
-                .val = .{},
-            },
-        });
+        try p.record_members.append(p.pp.comp.gpa, .{ .name = name, .tok = tok });
     }
 
     fn addFieldsFromAnonymous(r: @This(), p: *Parser, ty: Type) Error!void {
@@ -188,6 +153,9 @@ record: struct {
         }
     }
 } = .{},
+record_members: std.ArrayListUnmanaged(struct { tok: TokenIndex, name: []const u8 }) = .{},
+@"switch": ?*Switch = null,
+in_loop: bool = false,
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
     if (codepoint <= 0x7F) return false;
@@ -281,7 +249,7 @@ fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
     return p.tok_i;
 }
 
-fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
+pub fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
     if (p.tok_ids[tok].lexeme()) |some| return some;
     const loc = p.pp.tokens.items(.loc)[tok];
     var tmp_tokenizer = Tokenizer{
@@ -465,130 +433,11 @@ fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range
     return Tree.Node.Range{ .start = start, .end = end };
 }
 
-fn findTypedef(p: *Parser, name_tok: TokenIndex, no_type_yet: bool) !?Scope.Symbol {
-    const name = p.tokSlice(name_tok);
-    var i = p.scopes.items.len;
-    while (i > 0) {
-        i -= 1;
-        switch (p.scopes.items[i]) {
-            .typedef => |t| if (mem.eql(u8, t.name, name)) return t,
-            .@"struct" => |s| if (mem.eql(u8, s.name, name)) {
-                if (no_type_yet) return null;
-                try p.errStr(.must_use_struct, name_tok, name);
-                return s;
-            },
-            .@"union" => |u| if (mem.eql(u8, u.name, name)) {
-                if (no_type_yet) return null;
-                try p.errStr(.must_use_union, name_tok, name);
-                return u;
-            },
-            .@"enum" => |e| if (mem.eql(u8, e.name, name)) {
-                if (no_type_yet) return null;
-                try p.errStr(.must_use_enum, name_tok, name);
-                return e;
-            },
-            .def, .decl => |d| if (mem.eql(u8, d.name, name)) return null,
-            else => {},
-        }
-    }
-    return null;
-}
-
-fn findSymbol(p: *Parser, name_tok: TokenIndex, ref_kind: enum { reference, definition }) ?Scope {
-    const name = p.tokSlice(name_tok);
-    var i = p.scopes.items.len;
-    while (i > 0) {
-        i -= 1;
-        const sym = p.scopes.items[i];
-        switch (sym) {
-            .def, .decl, .param => |s| if (mem.eql(u8, s.name, name)) return sym,
-            .enumeration => |e| if (mem.eql(u8, e.name, name)) return sym,
-            .block => if (ref_kind == .definition) return null,
-            else => {},
-        }
-    }
-    return null;
-}
-
-fn findTag(p: *Parser, kind: Token.Id, name_tok: TokenIndex, ref_kind: enum { reference, definition }) !?Scope.Symbol {
-    const name = p.tokSlice(name_tok);
-    var i = p.scopes.items.len;
-    var saw_block = false;
-    while (i > 0) {
-        i -= 1;
-        const sym = p.scopes.items[i];
-        switch (sym) {
-            .@"enum" => |e| if (mem.eql(u8, e.name, name)) {
-                if (kind == .keyword_enum) return e;
-                if (saw_block) return null;
-                try p.errStr(.wrong_tag, name_tok, name);
-                try p.errTok(.previous_definition, e.name_tok);
-                return null;
-            },
-            .@"struct" => |s| if (mem.eql(u8, s.name, name)) {
-                if (kind == .keyword_struct) return s;
-                if (saw_block) return null;
-                try p.errStr(.wrong_tag, name_tok, name);
-                try p.errTok(.previous_definition, s.name_tok);
-                return null;
-            },
-            .@"union" => |u| if (mem.eql(u8, u.name, name)) {
-                if (kind == .keyword_union) return u;
-                if (saw_block) return null;
-                try p.errStr(.wrong_tag, name_tok, name);
-                try p.errTok(.previous_definition, u.name_tok);
-                return null;
-            },
-            .block => if (ref_kind == .reference) {
-                saw_block = true;
-            } else return null,
-            else => {},
-        }
-    }
-    return null;
-}
-
-fn inLoop(p: *Parser) bool {
-    var i = p.scopes.items.len;
-    while (i > 0) {
-        i -= 1;
-        switch (p.scopes.items[i]) {
-            .loop => return true,
-            else => {},
-        }
-    }
-    return false;
-}
-
-fn inLoopOrSwitch(p: *Parser) bool {
-    var i = p.scopes.items.len;
-    while (i > 0) {
-        i -= 1;
-        switch (p.scopes.items[i]) {
-            .loop, .@"switch" => return true,
-            else => {},
-        }
-    }
-    return false;
-}
-
 fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
     for (p.labels.items) |item| {
         switch (item) {
             .label => |l| if (mem.eql(u8, p.tokSlice(l), name)) return l,
             .unresolved_goto => {},
-        }
-    }
-    return null;
-}
-
-fn findSwitch(p: *Parser) ?*Scope.Switch {
-    var i = p.scopes.items.len;
-    while (i > 0) {
-        i -= 1;
-        switch (p.scopes.items[i]) {
-            .@"switch" => |s| return s,
-            else => {},
         }
     }
     return null;
@@ -646,7 +495,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .value_map = Tree.ValueMap.init(pp.comp.gpa),
         .data = NodeList.init(pp.comp.gpa),
         .labels = std.ArrayList(Label).init(pp.comp.gpa),
-        .scopes = std.ArrayList(Scope).init(pp.comp.gpa),
         .list_buf = NodeList.init(pp.comp.gpa),
         .decl_buf = NodeList.init(pp.comp.gpa),
         .param_buf = std.ArrayList(Type.Func.Param).init(pp.comp.gpa),
@@ -661,12 +509,13 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     defer {
         p.data.deinit();
         p.labels.deinit();
-        p.scopes.deinit();
+        p.syms.deinit(pp.comp.gpa);
         p.list_buf.deinit();
         p.decl_buf.deinit();
         p.param_buf.deinit();
         p.enum_buf.deinit();
         p.record_buf.deinit();
+        p.record_members.deinit(pp.comp.gpa);
         p.attr_buf.deinit(pp.comp.gpa);
     }
 
@@ -675,8 +524,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
     {
         const ty = &pp.comp.types.va_list;
-        const sym = Scope.Symbol{ .name = "__builtin_va_list", .ty = ty.*, .name_tok = 0, .val = .{} };
-        try p.scopes.append(.{ .typedef = sym });
+        try p.syms.defineTypedef(&p, "__builtin_va_list", ty.*, 0, .none);
 
         if (ty.isArray()) ty.decayArray();
     }
@@ -891,18 +739,8 @@ fn decl(p: *Parser) Error!bool {
         }
         if (p.func.ty != null) try p.err(.func_not_in_root);
 
-        if (p.findSymbol(init_d.d.name, .definition)) |sym| {
-            if (sym == .def) {
-                try p.errStr(.redefinition, init_d.d.name, p.tokSlice(init_d.d.name));
-                try p.errTok(.previous_definition, sym.def.name_tok);
-            }
-        }
-        try p.scopes.append(.{ .def = .{
-            .name = p.tokSlice(init_d.d.name),
-            .ty = init_d.d.ty,
-            .name_tok = init_d.d.name,
-            .val = .{},
-        } });
+        const node = try p.addNode(undefined); // reserve space
+        try p.syms.defineSymbol(p, init_d.d.ty, init_d.d.name, node, .{});
 
         const func = p.func;
         p.func = .{
@@ -911,11 +749,8 @@ fn decl(p: *Parser) Error!bool {
         };
         defer p.func = func;
 
-        const scopes_top = p.scopes.items.len;
-        defer p.scopes.items.len = scopes_top;
-
-        // findSymbol stops the search at .block
-        try p.scopes.append(.block);
+        try p.syms.pushScope(p);
+        defer p.syms.popScope();
 
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null) {
@@ -968,12 +803,14 @@ fn decl(p: *Parser) Error!bool {
                         try p.errStr(.parameter_missing, d.name, name_str);
                     }
 
-                    try p.scopes.append(.{ .param = .{
+                    // bypass redefinition check to avoid duplicate errors
+                    try p.syms.syms.append(p.pp.comp.gpa, .{
+                        .kind = .def,
                         .name = name_str,
-                        .name_tok = d.name,
+                        .tok = d.name,
                         .ty = d.ty,
                         .val = .{},
-                    } });
+                    });
                     if (p.eatToken(.comma) == null) break;
                 }
                 _ = try p.expectToken(.semicolon);
@@ -988,13 +825,13 @@ fn decl(p: *Parser) Error!bool {
                     continue;
                 }
 
-                try p.scopes.append(.{
-                    .param = .{
-                        .name = param.name,
-                        .ty = param.ty,
-                        .name_tok = param.name_tok,
-                        .val = .{},
-                    },
+                // bypass redefinition check to avoid duplicate errors
+                try p.syms.syms.append(p.pp.comp.gpa, .{
+                    .kind = .def,
+                    .name = param.name,
+                    .tok = param.name_tok,
+                    .ty = param.ty,
+                    .val = .{},
                 });
             }
         }
@@ -1004,7 +841,7 @@ fn decl(p: *Parser) Error!bool {
             try p.err(.expected_fn_body);
             return true;
         };
-        const node = try p.addNode(.{
+        p.nodes.set(@enumToInt(node), .{
             .ty = init_d.d.ty,
             .tag = try decl_spec.validateFnDef(p),
             .data = .{ .decl = .{ .name = init_d.d.name, .node = body } },
@@ -1040,18 +877,20 @@ fn decl(p: *Parser) Error!bool {
         } });
         try p.decl_buf.append(node);
 
-        const sym = Scope.Symbol{
-            .name = p.tokSlice(init_d.d.name),
-            .ty = init_d.d.ty,
-            .name_tok = init_d.d.name,
-            .val = if (init_d.d.ty.isConst()) init_d.initializer.val else .{},
-        };
         if (decl_spec.storage_class == .typedef) {
-            try p.scopes.append(.{ .typedef = sym });
-        } else if (init_d.initializer.node != .none) {
-            try p.scopes.append(.{ .def = sym });
+            try p.syms.defineTypedef(p, p.tokSlice(init_d.d.name), init_d.d.ty, init_d.d.name, node);
+        } else if (init_d.initializer.node != .none or
+            (p.func.ty != null and decl_spec.storage_class != .@"extern"))
+        {
+            try p.syms.defineSymbol(
+                p,
+                init_d.d.ty,
+                init_d.d.name,
+                node,
+                if (init_d.d.ty.isConst()) init_d.initializer.val else .{},
+            );
         } else {
-            try p.scopes.append(.{ .decl = sym });
+            try p.syms.declareSymbol(p, init_d.d.ty, init_d.d.name, node);
         }
 
         if (p.eatToken(.comma) == null) break;
@@ -1594,16 +1433,10 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
             return error.ParsingFailed;
         }
 
-        const scopes_len = p.scopes.items.len;
-        defer p.scopes.items.len = scopes_len;
-        try p.scopes.append(.{
-            .decl = .{
-                .name = p.tokSlice(init_d.d.name),
-                .ty = init_d.d.ty,
-                .name_tok = init_d.d.name,
-                .val = .{},
-            },
-        });
+        try p.syms.pushScope(p);
+        defer p.syms.popScope();
+
+        try p.syms.declareSymbol(p, init_d.d.ty, init_d.d.name, .none);
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr;
         if (!init_list_expr.ty.isArray()) break :init;
@@ -1639,28 +1472,6 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
         return init_d;
     }
-    if (p.findSymbol(name, .definition)) |scope| switch (scope) {
-        .enumeration => {
-            try p.errStr(.redefinition_different_sym, name, p.tokSlice(name));
-            try p.errTok(.previous_definition, scope.enumeration.name_tok);
-        },
-        .decl => |s| if (!s.ty.eql(init_d.d.ty, p.pp.comp, true)) {
-            try p.errStr(.redefinition_incompatible, name, p.tokSlice(name));
-            try p.errTok(.previous_definition, s.name_tok);
-        },
-        .def => |s| if (!s.ty.eql(init_d.d.ty, p.pp.comp, true)) {
-            try p.errStr(.redefinition_incompatible, name, p.tokSlice(name));
-            try p.errTok(.previous_definition, s.name_tok);
-        } else if (init_d.initializer.node != .none) {
-            try p.errStr(.redefinition, name, p.tokSlice(name));
-            try p.errTok(.previous_definition, s.name_tok);
-        },
-        .param => |s| {
-            try p.errStr(.redefinition, name, p.tokSlice(name));
-            try p.errTok(.previous_definition, s.name_tok);
-        },
-        else => unreachable,
-    };
     return init_d;
 }
 
@@ -1746,8 +1557,9 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 continue;
             },
             .identifier, .extended_identifier => {
-                const typedef = (try p.findTypedef(p.tok_i, ty.specifier != .none)) orelse break;
-                if (!ty.combineTypedef(p, typedef.ty, typedef.name_tok)) break;
+                if (ty.typedef != null) break;
+                const typedef = (try p.syms.findTypedef(p, p.tok_i, ty.specifier != .none)) orelse break;
+                if (!ty.combineTypedef(p, typedef.ty, typedef.tok)) break;
             },
             else => break,
         }
@@ -1792,17 +1604,22 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
             return error.ParsingFailed;
         };
         // check if this is a reference to a previous type
-        if (try p.findTag(p.tok_ids[kind_tok], ident, .reference)) |prev| {
+        if (try p.syms.findTag(p, p.tok_ids[kind_tok], ident)) |prev| {
             return prev.ty.data.record;
         } else {
             // this is a forward declaration, create a new record Type.
             const record_ty = try Type.Record.create(p.arena, p.tokSlice(ident));
-            const ty = Type{
+            const ty = try p.withAttributes(.{
                 .specifier = if (is_struct) .@"struct" else .@"union",
                 .data = .{ .record = record_ty },
-            };
-            const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = ident, .val = .{} };
-            try p.scopes.append(if (is_struct) .{ .@"struct" = sym } else .{ .@"union" = sym });
+            }, attr_buf_top);
+            try p.syms.syms.append(p.pp.comp.gpa, .{
+                .kind = if (is_struct) .@"struct" else .@"union",
+                .name = record_ty.name,
+                .tok = ident,
+                .ty = ty,
+                .val = .{},
+            });
             return record_ty;
         }
     };
@@ -1810,47 +1627,52 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     // Get forward declared type or create a new one
     var defined = false;
     const record_ty: *Type.Record = if (maybe_ident) |ident| record_ty: {
-        if (try p.findTag(p.tok_ids[kind_tok], ident, .definition)) |prev| {
-            if (!prev.ty.data.record.isIncomplete()) {
+        if (try p.syms.defineTag(p, p.tok_ids[kind_tok], ident)) |prev| {
+            if (!prev.ty.hasIncompleteSize()) {
                 // if the record isn't incomplete, this is a redefinition
                 try p.errStr(.redefinition, ident, p.tokSlice(ident));
-                try p.errTok(.previous_definition, prev.name_tok);
+                try p.errTok(.previous_definition, prev.tok);
             } else {
                 defined = true;
-                break :record_ty prev.ty.data.record;
+                break :record_ty prev.ty.get(if (is_struct) .@"struct" else .@"union").?.data.record;
             }
         }
         break :record_ty try Type.Record.create(p.arena, p.tokSlice(ident));
     } else try Type.Record.create(p.arena, try p.getAnonymousName(kind_tok));
-    const ty = Type{
+    const ty = try p.withAttributes(.{
         .specifier = if (is_struct) .@"struct" else .@"union",
         .data = .{ .record = record_ty },
-    };
+    }, attr_buf_top);
 
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
-        const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = maybe_ident.?, .val = .{} };
-        try p.scopes.append(if (is_struct) .{ .@"struct" = sym } else .{ .@"union" = sym });
+        try p.syms.syms.append(p.pp.comp.gpa, .{
+            .kind = if (is_struct) .@"struct" else .@"union",
+            .name = p.tokSlice(maybe_ident.?),
+            .tok = maybe_ident.?,
+            .ty = ty,
+            .val = .{},
+        });
     }
 
     // reserve space for this record
     try p.decl_buf.append(.none);
     const decl_buf_top = p.decl_buf.items.len;
     const record_buf_top = p.record_buf.items.len;
-    const scopes_top = p.scopes.items.len;
     errdefer p.decl_buf.items.len = decl_buf_top - 1;
     defer {
         p.decl_buf.items.len = decl_buf_top;
         p.record_buf.items.len = record_buf_top;
-        p.scopes.items.len = scopes_top;
     }
 
     const old_record = p.record;
-    defer p.record = old_record;
+    const old_members = p.record_members.items.len;
     p.record = .{
         .kind = p.tok_ids[kind_tok],
-        .scopes_top = scopes_top,
+        .start = p.record_members.items.len,
     };
+    defer p.record = old_record;
+    defer p.record_members.items.len = old_members;
 
     try p.recordDecls();
 
@@ -2074,14 +1896,22 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             return error.ParsingFailed;
         };
         // check if this is a reference to a previous type
-        if (try p.findTag(.keyword_enum, ident, .reference)) |prev| {
+        if (try p.syms.findTag(p, .keyword_enum, ident)) |prev| {
             return prev.ty.data.@"enum";
         } else {
             // this is a forward declaration, create a new enum Type.
             const enum_ty = try Type.Enum.create(p.arena, p.tokSlice(ident));
-            const ty = Type{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } };
-            const sym = Scope.Symbol{ .name = enum_ty.name, .ty = ty, .name_tok = ident, .val = .{} };
-            try p.scopes.append(.{ .@"enum" = sym });
+            const ty = try p.withAttributes(
+                .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
+                attr_buf_top,
+            );
+            try p.syms.syms.append(p.pp.comp.gpa, .{
+                .kind = .@"enum",
+                .name = enum_ty.name,
+                .tok = ident,
+                .ty = ty,
+                .val = .{},
+            });
             return enum_ty;
         }
     };
@@ -2089,31 +1919,32 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
     // Get forward declared type or create a new one
     var defined = false;
     const enum_ty: *Type.Enum = if (maybe_ident) |ident| enum_ty: {
-        if (try p.findTag(.keyword_enum, ident, .definition)) |prev| {
-            if (!prev.ty.data.@"enum".isIncomplete()) {
+        if (try p.syms.defineTag(p, .keyword_enum, ident)) |prev| {
+            if (!prev.ty.hasIncompleteSize()) {
                 // if the enum isn't incomplete, this is a redefinition
                 try p.errStr(.redefinition, ident, p.tokSlice(ident));
-                try p.errTok(.previous_definition, prev.name_tok);
+                try p.errTok(.previous_definition, prev.tok);
             } else {
                 defined = true;
-                break :enum_ty prev.ty.data.@"enum";
+                break :enum_ty prev.ty.get(.@"enum").?.data.@"enum";
             }
         }
         break :enum_ty try Type.Enum.create(p.arena, p.tokSlice(ident));
     } else try Type.Enum.create(p.arena, try p.getAnonymousName(enum_tok));
-    const ty = Type{
-        .specifier = .@"enum",
-        .data = .{ .@"enum" = enum_ty },
-    };
+    const ty = try p.withAttributes(
+        .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
+        attr_buf_top,
+    );
 
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
-        try p.scopes.append(.{ .@"enum" = .{
-            .name = enum_ty.name,
+        try p.syms.syms.append(p.pp.comp.gpa, .{
+            .kind = .@"enum",
+            .name = p.tokSlice(maybe_ident.?),
             .ty = ty,
-            .name_tok = maybe_ident.?,
+            .tok = maybe_ident.?,
             .val = .{},
-        } });
+        });
     }
 
     // reserve space for this enum
@@ -2196,7 +2027,6 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         p.skipTo(.r_brace);
         return error.ParsingFailed;
     };
-    const name = p.tokSlice(name_tok);
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
     try p.attributeSpecifier();
@@ -2213,26 +2043,10 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         try e.incr(p);
     }
 
-    if (p.findSymbol(name_tok, .definition)) |scope| switch (scope) {
-        .enumeration => |sym| {
-            try p.errStr(.redefinition, name_tok, name);
-            try p.errTok(.previous_definition, sym.name_tok);
-        },
-        .decl, .def, .param => |sym| {
-            try p.errStr(.redefinition_different_sym, name_tok, name);
-            try p.errTok(.previous_definition, sym.name_tok);
-        },
-        else => unreachable,
-    };
-
     var res = e.res;
     res.ty = try p.withAttributes(res.ty, attr_buf_top);
 
-    try p.scopes.append(.{ .enumeration = .{
-        .name = name,
-        .value = res,
-        .name_tok = name_tok,
-    } });
+    try p.syms.defineEnumeration(p, res.ty, name_tok);
     const node = try p.addNode(.{
         .tag = .enum_field_decl,
         .ty = res.ty,
@@ -2242,7 +2056,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         } },
     });
     return EnumFieldAndNode{ .field = .{
-        .name = name,
+        .name = p.tokSlice(name_tok),
         .ty = res.ty,
         .name_tok = name_tok,
         .node = res.node,
@@ -2473,32 +2287,20 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             func_ty.params = params;
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
         } else if (p.tok_ids[p.tok_i] == .r_paren) {
-            specifier = .old_style_func;
+            specifier = .var_args_func;
         } else if (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) {
             d.old_style_func = p.tok_i;
             const param_buf_top = p.param_buf.items.len;
-            const scopes_top = p.scopes.items.len;
+            try p.syms.pushScope(p);
             defer {
                 p.param_buf.items.len = param_buf_top;
-                p.scopes.items.len = scopes_top;
+                p.syms.popScope();
             }
-
-            // findSymbol stops the search at .block
-            try p.scopes.append(.block);
 
             specifier = .old_style_func;
             while (true) {
                 const name_tok = try p.expectIdentifier();
-                if (p.findSymbol(name_tok, .definition)) |scope| {
-                    try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
-                    try p.errTok(.previous_definition, scope.param.name_tok);
-                }
-                try p.scopes.append(.{ .param = .{
-                    .name = p.tokSlice(name_tok),
-                    .ty = undefined,
-                    .name_tok = name_tok,
-                    .val = .{},
-                } });
+                try p.syms.defineParam(p, undefined, name_tok);
                 try p.param_buf.append(.{
                     .name = p.tokSlice(name_tok),
                     .name_tok = name_tok,
@@ -2545,14 +2347,9 @@ fn pointer(p: *Parser, base_ty: Type) Error!Type {
 fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
     // TODO warn about visibility of types declared here
     const param_buf_top = p.param_buf.items.len;
-    const scopes_top = p.scopes.items.len;
-    defer {
-        p.param_buf.items.len = param_buf_top;
-        p.scopes.items.len = scopes_top;
-    }
-
-    // findSymbol stops the search at .block
-    try p.scopes.append(.block);
+    defer p.param_buf.items.len = param_buf_top;
+    try p.syms.pushScope(p);
+    defer p.syms.popScope();
 
     while (true) {
         const param_decl_spec = if (try p.declSpec(true)) |some|
@@ -2577,21 +2374,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             name_tok = some.name;
             param_ty = try p.withAttributes(some.ty, attr_buf_top);
             if (some.name != 0) {
-                if (p.findSymbol(name_tok, .definition)) |scope| {
-                    if (scope == .enumeration) {
-                        try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
-                        try p.errTok(.previous_definition, scope.enumeration.name_tok);
-                    } else {
-                        try p.errStr(.redefinition_of_parameter, name_tok, p.tokSlice(name_tok));
-                        try p.errTok(.previous_definition, scope.param.name_tok);
-                    }
-                }
-                try p.scopes.append(.{ .param = .{
-                    .name = p.tokSlice(name_tok),
-                    .ty = param_ty,
-                    .name_tok = name_tok,
-                    .val = .{},
-                } });
+                try p.syms.defineParam(p, param_ty, name_tok);
             }
         }
 
@@ -3340,9 +3123,6 @@ fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.labeledStmt()) |some| return some;
     if (try p.compoundStmt(false, null)) |some| return some;
     if (p.eatToken(.keyword_if)) |_| {
-        const start_scopes_len = p.scopes.items.len;
-        defer p.scopes.items.len = start_scopes_len;
-
         const l_paren = try p.expectToken(.l_paren);
         const cond_tok = p.tok_i;
         var cond = try p.expr();
@@ -3375,9 +3155,6 @@ fn stmt(p: *Parser) Error!NodeIndex {
             });
     }
     if (p.eatToken(.keyword_switch)) |_| {
-        const start_scopes_len = p.scopes.items.len;
-        defer p.scopes.items.len = start_scopes_len;
-
         const l_paren = try p.expectToken(.l_paren);
         const cond_tok = p.tok_i;
         var cond = try p.expr();
@@ -3390,12 +3167,17 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
-        var switch_scope = Scope.Switch{
-            .ranges = std.ArrayList(Scope.Switch.Range).init(p.pp.comp.gpa),
+        const old_switch = p.@"switch";
+        var @"switch" = Switch{
+            .ranges = std.ArrayList(Switch.Range).init(p.pp.comp.gpa),
             .ty = cond.ty,
         };
-        defer switch_scope.ranges.deinit();
-        try p.scopes.append(.{ .@"switch" = &switch_scope });
+        p.@"switch" = &@"switch";
+        defer {
+            @"switch".ranges.deinit();
+            p.@"switch" = old_switch;
+        }
+
         const body = try p.stmt();
 
         return try p.addNode(.{
@@ -3404,9 +3186,6 @@ fn stmt(p: *Parser) Error!NodeIndex {
         });
     }
     if (p.eatToken(.keyword_while)) |_| {
-        const start_scopes_len = p.scopes.items.len;
-        defer p.scopes.items.len = start_scopes_len;
-
         const l_paren = try p.expectToken(.l_paren);
         const cond_tok = p.tok_i;
         var cond = try p.expr();
@@ -3419,8 +3198,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
-        try p.scopes.append(.loop);
-        const body = try p.stmt();
+        const body = body: {
+            const old_loop = p.in_loop;
+            p.in_loop = true;
+            defer p.in_loop = old_loop;
+            break :body try p.stmt();
+        };
 
         return try p.addNode(.{
             .tag = .while_stmt,
@@ -3428,12 +3211,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
         });
     }
     if (p.eatToken(.keyword_do)) |_| {
-        const start_scopes_len = p.scopes.items.len;
-        defer p.scopes.items.len = start_scopes_len;
-
-        try p.scopes.append(.loop);
-        const body = try p.stmt();
-        p.scopes.items.len = start_scopes_len;
+        const body = body: {
+            const old_loop = p.in_loop;
+            p.in_loop = true;
+            defer p.in_loop = old_loop;
+            break :body try p.stmt();
+        };
 
         _ = try p.expectToken(.keyword_while);
         const l_paren = try p.expectToken(.l_paren);
@@ -3455,8 +3238,8 @@ fn stmt(p: *Parser) Error!NodeIndex {
         });
     }
     if (p.eatToken(.keyword_for)) |_| {
-        const start_scopes_len = p.scopes.items.len;
-        defer p.scopes.items.len = start_scopes_len;
+        try p.syms.pushScope(p);
+        defer p.syms.popScope();
         const decl_buf_top = p.decl_buf.items.len;
         defer p.decl_buf.items.len = decl_buf_top;
 
@@ -3492,8 +3275,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try incr.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
-        try p.scopes.append(.loop);
-        const body = try p.stmt();
+        const body = body: {
+            const old_loop = p.in_loop;
+            p.in_loop = true;
+            defer p.in_loop = old_loop;
+            break :body try p.stmt();
+        };
 
         if (got_decl) {
             const start = (try p.addList(p.decl_buf.items[decl_buf_top..])).start;
@@ -3555,12 +3342,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
         });
     }
     if (p.eatToken(.keyword_continue)) |cont| {
-        if (!p.inLoop()) try p.errTok(.continue_not_in_loop, cont);
+        if (!p.in_loop) try p.errTok(.continue_not_in_loop, cont);
         _ = try p.expectToken(.semicolon);
         return try p.addNode(.{ .tag = .continue_stmt, .data = undefined });
     }
     if (p.eatToken(.keyword_break)) |br| {
-        if (!p.inLoopOrSwitch()) try p.errTok(.break_not_in_loop_or_switch, br);
+        if (!p.in_loop and p.@"switch" == null) try p.errTok(.break_not_in_loop_or_switch, br);
         _ = try p.expectToken(.semicolon);
         return try p.addNode(.{ .tag = .break_stmt, .data = undefined });
     }
@@ -3641,7 +3428,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         } else null;
         _ = try p.expectToken(.colon);
 
-        if (p.findSwitch()) |some| check: {
+        if (p.@"switch") |some| check: {
             if (some.ty.hasIncompleteSize()) break :check; // error already reported for incomplete size
 
             const first = first_item.val;
@@ -3690,15 +3477,15 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             .tag = .default_stmt,
             .data = .{ .un = s },
         });
-        if (p.findSwitch()) |some| {
-            if (some.default) |previous| {
-                try p.errTok(.multiple_default, default);
-                try p.errTok(.previous_case, previous);
-            } else {
-                some.default = default;
-            }
-        } else {
+        const @"switch" = p.@"switch" orelse {
             try p.errStr(.case_not_in_switch, default, "default");
+            return node;
+        };
+        if (@"switch".default) |previous| {
+            try p.errTok(.multiple_default, default);
+            try p.errTok(.previous_case, previous);
+        } else {
+            @"switch".default = default;
         }
         return node;
     } else return null;
@@ -3716,10 +3503,9 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
     const decl_buf_top = p.decl_buf.items.len;
     defer p.decl_buf.items.len = decl_buf_top;
 
-    const scopes_top = p.scopes.items.len;
-    defer p.scopes.items.len = scopes_top;
     // the parameters of a function are in the same scope as the body
-    if (!is_fn_body) try p.scopes.append(.block);
+    if (!is_fn_body) try p.syms.pushScope(p);
+    defer if (!is_fn_body) p.syms.popScope();
 
     var noreturn_index: ?TokenIndex = null;
     var noreturn_label_count: u32 = 0;
@@ -5543,11 +5329,11 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.errTok(.va_start_not_in_func, builtin_tok);
                 break :va_start;
             };
-            if (func_ty.specifier != .var_args_func) {
+            const func_params = func_ty.params();
+            if (func_ty.specifier != .var_args_func or func_params.len == 0) {
                 try p.errTok(.va_start_fixed_args, builtin_tok);
                 break :va_start;
             }
-            const func_params = func_ty.params();
             const last_param_name = func_params[func_params.len - 1].name;
             const decl_ref = p.getNode(raw_arg_node, .decl_ref_expr);
             if (decl_ref == null or
@@ -5726,75 +5512,55 @@ fn primaryExpr(p: *Parser) Error!Result {
                     }),
                 };
             }
-            const sym = p.findSymbol(name_tok, .reference) orelse {
-                if (p.tok_ids[p.tok_i] == .l_paren) {
-                    // allow implicitly declaring functions before C99 like `puts("foo")`
-                    if (mem.startsWith(u8, name, "__builtin_"))
-                        try p.errStr(.unknown_builtin, name_tok, name)
-                    else
-                        try p.errStr(.implicit_func_decl, name_tok, name);
-
-                    const func_ty = try p.arena.create(Type.Func);
-                    func_ty.* = .{ .return_type = .{ .specifier = .int }, .params = &.{} };
-                    const ty: Type = .{ .specifier = .old_style_func, .data = .{ .func = func_ty } };
-                    const node = try p.addNode(.{
-                        .ty = ty,
-                        .tag = .fn_proto,
-                        .data = .{ .decl = .{ .name = name_tok } },
-                    });
-
-                    try p.decl_buf.append(node);
-                    try p.scopes.append(.{ .decl = .{
-                        .name = name,
-                        .ty = ty,
-                        .name_tok = name_tok,
-                        .val = .{},
-                    } });
-
-                    return Result{
-                        .ty = ty,
-                        .node = try p.addNode(.{
-                            .tag = .decl_ref_expr,
-                            .ty = ty,
-                            .data = .{ .decl_ref = name_tok },
-                        }),
-                    };
-                }
-                try p.errStr(.undeclared_identifier, name_tok, p.tokSlice(name_tok));
-                return error.ParsingFailed;
-            };
-            switch (sym) {
-                .enumeration => |e| {
-                    var res = e.value;
-                    try p.checkDeprecatedUnavailable(res.ty, name_tok, e.name_tok);
-                    res.node = try p.addNode(.{
-                        .tag = .enumeration_ref,
-                        .ty = res.ty,
-                        .data = .{ .decl_ref = name_tok },
-                    });
-                    return res;
-                },
-                .def, .decl, .param => |s| {
-                    try p.checkDeprecatedUnavailable(s.ty, name_tok, s.name_tok);
-                    if (s.val.tag == .int) {
-                        switch (p.const_decl_folding) {
-                            .gnu_folding_extension => try p.errTok(.const_decl_folded, name_tok),
-                            .gnu_vla_folding_extension => try p.errTok(.const_decl_folded_vla, name_tok),
-                            else => {},
-                        }
+            if (p.syms.findSymbol(p, name_tok)) |sym| {
+                try p.checkDeprecatedUnavailable(sym.ty, name_tok, sym.tok);
+                if (sym.val.tag == .int) {
+                    switch (p.const_decl_folding) {
+                        .gnu_folding_extension => try p.errTok(.const_decl_folded, name_tok),
+                        .gnu_vla_folding_extension => try p.errTok(.const_decl_folded_vla, name_tok),
+                        else => {},
                     }
-                    return Result{
-                        .val = if (p.const_decl_folding == .no_const_decl_folding) Value{} else s.val,
-                        .ty = s.ty,
-                        .node = try p.addNode(.{
-                            .tag = .decl_ref_expr,
-                            .ty = s.ty,
-                            .data = .{ .decl_ref = name_tok },
-                        }),
-                    };
-                },
-                else => unreachable,
+                }
+                return Result{
+                    .val = if (p.const_decl_folding == .no_const_decl_folding) Value{} else sym.val,
+                    .ty = sym.ty,
+                    .node = try p.addNode(.{
+                        .tag = if (sym.kind == .enumeration) .enumeration_ref else .decl_ref_expr,
+                        .ty = sym.ty,
+                        .data = .{ .decl_ref = name_tok },
+                    }),
+                };
             }
+            if (p.tok_ids[p.tok_i] == .l_paren) {
+                // allow implicitly declaring functions before C99 like `puts("foo")`
+                if (mem.startsWith(u8, name, "__builtin_"))
+                    try p.errStr(.unknown_builtin, name_tok, name)
+                else
+                    try p.errStr(.implicit_func_decl, name_tok, name);
+
+                const func_ty = try p.arena.create(Type.Func);
+                func_ty.* = .{ .return_type = .{ .specifier = .int }, .params = &.{} };
+                const ty: Type = .{ .specifier = .old_style_func, .data = .{ .func = func_ty } };
+                const node = try p.addNode(.{
+                    .ty = ty,
+                    .tag = .fn_proto,
+                    .data = .{ .decl = .{ .name = name_tok } },
+                });
+
+                try p.decl_buf.append(node);
+                try p.syms.declareSymbol(p, ty, name_tok, node);
+
+                return Result{
+                    .ty = ty,
+                    .node = try p.addNode(.{
+                        .tag = .decl_ref_expr,
+                        .ty = ty,
+                        .data = .{ .decl_ref = name_tok },
+                    }),
+                };
+            }
+            try p.errStr(.undeclared_identifier, name_tok, p.tokSlice(name_tok));
+            return error.ParsingFailed;
         },
         .macro_func, .macro_function => {
             defer p.tok_i += 1;

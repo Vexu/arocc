@@ -1676,6 +1676,11 @@ const messages = struct {
         const opt = "gnu-folding-constant";
         const pedantic = true;
     };
+    const redefinition_of_typedef = struct {
+        const msg = "typedef redefinition with different types ({s})";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
