@@ -529,6 +529,7 @@ pub fn addSourceFromReader(
     path: []const u8,
     contents: []u8,
     included_automatically: bool,
+    system_header_file: bool,
 ) !Source {
     const duped_path = try comp.gpa.dupe(u8, path);
     errdefer comp.gpa.free(duped_path);
@@ -618,6 +619,7 @@ pub fn addSourceFromReader(
         .id = source_id,
         .path = duped_path,
         .included_automatically = included_automatically,
+        .system_header_file = system_header_file,
         .buf = if (i == contents.len) contents else try comp.gpa.realloc(contents, i),
         .splice_locs = splice_locs,
     };
@@ -637,11 +639,11 @@ pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8
     const contents = try comp.gpa.alloc(u8, buf.len);
     errdefer comp.gpa.free(contents);
 
-    return comp.addSourceFromReader(reader, path, contents, true);
+    return comp.addSourceFromReader(reader, path, contents, true, false);
 }
 
 /// Caller retains ownership of `path`
-pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
+pub fn addSourceFromPath(comp: *Compilation, path: []const u8, system_header_file: bool) !Source {
     if (comp.sources.get(path)) |some| return some;
 
     if (mem.indexOfScalar(u8, path, 0) != null) {
@@ -657,7 +659,7 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
     const contents = try comp.gpa.alloc(u8, size);
     errdefer comp.gpa.free(contents);
 
-    return comp.addSourceFromReader(reader, path, contents, false);
+    return comp.addSourceFromReader(reader, path, contents, false, system_header_file);
 }
 
 pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_cwd: bool) !?Source {
@@ -669,7 +671,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
             std.fs.path.join(fib.allocator(), &.{ some, filename }) catch break :blk
         else
             std.fs.path.join(fib.allocator(), &.{ ".", filename }) catch break :blk;
-        if (comp.addSourceFromPath(path)) |some|
+        if (comp.addSourceFromPath(path, false)) |some|
             return some
         else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
@@ -679,7 +681,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
     for (comp.include_dirs.items) |dir| {
         fib.end_index = 0;
         const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
-        if (comp.addSourceFromPath(path)) |some|
+        if (comp.addSourceFromPath(path, false)) |some|
             return some
         else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
@@ -689,7 +691,7 @@ pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_
     for (comp.system_include_dirs.items) |dir| {
         fib.end_index = 0;
         const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
-        if (comp.addSourceFromPath(path)) |some|
+        if (comp.addSourceFromPath(path, true)) |some|
             return some
         else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
@@ -785,7 +787,7 @@ test "addSourceFromReader" {
             const contents = try comp.gpa.alloc(u8, 1024);
 
             var reader = std.io.fixedBufferStream(str).reader();
-            const source = try comp.addSourceFromReader(reader, "path", contents, false);
+            const source = try comp.addSourceFromReader(reader, "path", contents, false, false);
 
             try std.testing.expectEqualStrings(expected, source.buf);
             try std.testing.expectEqual(warning_count, @intCast(u32, comp.diag.list.items.len));

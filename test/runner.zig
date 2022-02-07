@@ -86,7 +86,7 @@ pub fn main() !void {
         defer case_node.end();
         progress.refresh();
 
-        const file = comp.addSourceFromPath(path) catch |err| {
+        const file = comp.addSourceFromPath(path, false) catch |err| {
             fail_count += 1;
             progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
             continue;

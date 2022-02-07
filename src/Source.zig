@@ -24,6 +24,7 @@ buf: []const u8,
 id: Id,
 /// True if this source is included in the preprocessor without an explicit #include
 included_automatically: bool = false,
+system_header_file: bool = false,
 invalid_utf8_loc: ?Location = null,
 /// each entry represents a byte position within `buf` where a backslash+newline was deleted
 /// from the original raw buffer. The same position can appear multiple times if multiple

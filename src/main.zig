@@ -236,7 +236,7 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
                 try comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }
         } else {
-            const file = comp.addSourceFromPath(arg) catch |err| {
+            const file = comp.addSourceFromPath(arg, false) catch |err| {
                 return fatal(comp, "{s} when trying to add source file", .{@errorName(err)});
             };
             try sources.append(file);

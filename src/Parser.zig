@@ -392,6 +392,7 @@ fn checkIndirectInclude(p: *Parser, usage_tok: TokenIndex, source_tok: TokenInde
     if (locs[usage_tok].id == .generated) return;
     if (locs[usage_tok].id == locs[source_tok].id) return; // in same file
     const usage_src = p.pp.comp.getSource(locs[usage_tok].id);
+    if (usage_src.system_header_file) return; // do not apply rule to system header files
     if (usage_src.direct_includes.get(locs[source_tok].id) != null) return; // directly included
 
     try p.errTok(.indirect_use_of_ident, usage_tok);

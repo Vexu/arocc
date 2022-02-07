@@ -1195,6 +1195,7 @@ fn checkIndirectInclude(pp: *Preprocessor, source_loc: Source.Location) !void {
     if (source.included_automatically) return; // macro is included automatically and always visible
     if (pp.expansion_source_loc.id == source_loc.id) return; // in same file
     const usage_src = pp.comp.getSource(pp.expansion_source_loc.id);
+    if (usage_src.system_header_file) return; // do not apply rule to system header files
     if (usage_src.direct_includes.get(source_loc.id) != null) return; // directly included
 
     try pp.comp.diag.add(.{ .tag = .indirect_use_of_ident, .loc = pp.expansion_source_loc }, &.{});
