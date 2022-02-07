@@ -331,7 +331,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         _ = pp.defines.remove(macro_name);
                         try pp.expectNl(&tokenizer);
                     },
-                    .keyword_include => try pp.include(&tokenizer),
+                    .keyword_include => try pp.include(&tokenizer, directive),
                     .keyword_pragma => try pp.pragma(&tokenizer, directive, null, &.{}),
                     .keyword_line => {
                         // #line number "file"
@@ -490,7 +490,15 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                         try pp.err(first, .to_match_paren);
                     }
                 }
-                tok.id = if (pp.defines.get(pp.tokSlice(macro_tok)) != null) .one else .zero;
+                const macro = pp.defines.get(pp.tokSlice(macro_tok));
+                if (macro) |some| {
+                    try pp.checkIndirectInclude(.{
+                        .id = macro_tok.source,
+                        .byte_offset = macro_tok.start,
+                        .line = macro_tok.line,
+                    }, some.loc, false);
+                }
+                tok.id = if (macro != null) .one else .zero;
             },
             .whitespace => continue,
             else => {},
@@ -577,6 +585,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     var parser = Parser{
         .pp = pp,
         .tok_ids = pp.tokens.items(.id),
+        .tok_locs = pp.tokens.items(.loc),
         .tok_i = @intCast(u32, start),
         .arena = pp.arena.allocator(),
         .in_macro = true,
@@ -1189,16 +1198,20 @@ fn collectMacroFuncArguments(
     return args;
 }
 
-fn checkIndirectInclude(pp: *Preprocessor, source_loc: Source.Location) !void {
+fn checkIndirectInclude(pp: *Preprocessor, usage_loc: Source.Location, source_loc: Source.Location, only_mark_used: bool) !void {
     if (source_loc.id == .generated) return; // a builtin macro, always available
     const source = pp.comp.getSource(source_loc.id);
+    const usage_src = pp.comp.getSource(usage_loc.id);
+    if (usage_src.direct_includes.getPtr(source_loc.id)) |some| {
+        some.used = true;
+        return; // directly included
+    }
+    if (only_mark_used) return;
     if (source.included_automatically) return; // macro is included automatically and always visible
-    if (pp.expansion_source_loc.id == source_loc.id) return; // in same file
-    const usage_src = pp.comp.getSource(pp.expansion_source_loc.id);
+    if (usage_loc.id == source_loc.id) return; // in same file
     if (usage_src.system_header_file) return; // do not apply rule to system header files
-    if (usage_src.direct_includes.get(source_loc.id) != null) return; // directly included
 
-    try pp.comp.diag.add(.{ .tag = .indirect_use_of_ident, .loc = pp.expansion_source_loc }, &.{});
+    try pp.comp.diag.add(.{ .tag = .indirect_use_of_ident, .loc = usage_loc }, &.{});
     try pp.comp.diag.add(.{
         .tag = .include_file_directly,
         .loc = .{ .id = .unused },
@@ -1215,7 +1228,7 @@ fn expandMacroExhaustive(
     extend_buf: bool,
     should_check_direct_include: bool,
 ) MacroError!void {
-    var check_direct_include = should_check_direct_include;
+    var only_mark_usage = !should_check_direct_include;
     var moving_end_idx = end_idx;
     var advance_index: usize = 0;
     // rescan loop
@@ -1252,10 +1265,8 @@ fn expandMacroExhaustive(
                         }
                         args.deinit();
                     }
-                    if (check_direct_include) {
-                        try pp.checkIndirectInclude(macro.loc);
-                        check_direct_include = false;
-                    }
+                    try pp.checkIndirectInclude(macro_tok.loc, macro.loc, only_mark_usage);
+                    only_mark_usage = true;
 
                     var args_count = @intCast(u32, args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
@@ -1311,10 +1322,8 @@ fn expandMacroExhaustive(
                     idx += res.items.len;
                     do_rescan = true;
                 } else {
-                    if (check_direct_include) {
-                        try pp.checkIndirectInclude(macro.loc);
-                        check_direct_include = false;
-                    }
+                    try pp.checkIndirectInclude(macro_tok.loc, macro.loc, only_mark_usage);
+                    only_mark_usage = true;
 
                     const res = try pp.expandObjMacro(macro);
                     defer res.deinit();
@@ -1715,13 +1724,13 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 }
 
 // Handle a #include directive.
-fn include(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
+fn include(pp: *Preprocessor, tokenizer: *Tokenizer, tok: RawToken) MacroError!void {
     const new_source = findIncludeSource(pp, tokenizer) catch |er| switch (er) {
         error.InvalidInclude => return,
         else => |e| return e,
     };
     const source = pp.comp.getSourceRef(tokenizer.source);
-    try source.direct_includes.put(pp.comp.gpa, new_source.id, {});
+    try source.direct_includes.put(pp.comp.gpa, new_source.id, .{ .line = tok.line, .byte_offset = tok.start });
 
     // Prevent stack overflow
     pp.include_depth += 1;

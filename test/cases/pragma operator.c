@@ -19,6 +19,8 @@ _Pragma(GCC diagnostic error "-Wpointer-integer-compare")
 PRAGMA(Not a pragma)
 _Pragma()
 
+int *once_ptr = &once;
+
 #define EXPECTED_ERRORS "pragma operator.c:6:1: warning: This is a warning [-W#pragma-messages]" \
     "pragma operator.c:4:27: note: expanded from here" \
     "pragma operator.c:4:19: note: expanded from here" \

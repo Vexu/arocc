@@ -17,7 +17,7 @@ pub const Location = struct {
     }
 };
 
-pub const Map = std.AutoHashMapUnmanaged(Source.Id, void);
+pub const Map = std.AutoHashMapUnmanaged(Source.Id, struct { line: u32, byte_offset: u32, used: bool = false });
 
 path: []const u8,
 buf: []const u8,
@@ -25,6 +25,7 @@ id: Id,
 /// True if this source is included in the preprocessor without an explicit #include
 included_automatically: bool = false,
 system_header_file: bool = false,
+imports_checked: bool = false,
 invalid_utf8_loc: ?Location = null,
 /// each entry represents a byte position within `buf` where a backslash+newline was deleted
 /// from the original raw buffer. The same position can appear multiple times if multiple
@@ -55,11 +56,10 @@ pub fn lineCol(source: Source, loc: Location) LineCol {
     if (std.mem.lastIndexOfScalar(u8, source.buf[0..loc.byte_offset], '\n')) |some| start = some + 1;
     const splice_index = for (source.splice_locs) |splice_offset, i| {
         if (splice_offset > start) {
-            if (splice_offset < loc.byte_offset) {
-                start = splice_offset;
-                break @intCast(u32, i) + 1;
+            if (splice_offset >= loc.byte_offset) {
+                break @intCast(u32, i);
             }
-            break @intCast(u32, i);
+            start = splice_offset;
         }
     } else @intCast(u32, source.splice_locs.len);
     var i: usize = start;

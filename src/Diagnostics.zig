@@ -123,6 +123,7 @@ pub const Options = packed struct {
     @"backslash-newline-escape": Kind = .default,
     @"pointer-to-int-cast": Kind = .default,
     @"indirect-include": Kind = .default,
+    @"unused-include": Kind = .default,
 };
 
 const messages = struct {
@@ -1607,6 +1608,11 @@ const messages = struct {
         const msg = "include '{s}' directly to use this symbol";
         const extra = .str;
         const kind = .note;
+    };
+    const unused_include = struct {
+        const msg = "unused include";
+        const kind = .warning;
+        const opt = "unused-include";
     };
 };
 

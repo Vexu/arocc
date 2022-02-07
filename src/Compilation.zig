@@ -625,7 +625,7 @@ pub fn addSourceFromReader(
     };
 
     source.checkUtf8();
-    try comp.sources.put(path, source);
+    try comp.sources.putNoClobber(duped_path, source);
     return source;
 }
 

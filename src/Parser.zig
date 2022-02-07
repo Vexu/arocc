@@ -84,6 +84,7 @@ const TentativeAttribute = struct {
 // values from preprocessor
 pp: *Preprocessor,
 tok_ids: []const Token.Id,
+tok_locs: []const Source.Location,
 tok_i: TokenIndex = 0,
 
 // values of the incomplete Tree
@@ -387,21 +388,44 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
 
 fn checkIndirectInclude(p: *Parser, usage_tok: TokenIndex, source_tok: TokenIndex) !void {
     if (source_tok == 0) return; // builtin_va_list uses this, just skip it
-    const locs = p.pp.tokens.items(.loc);
-    if (locs[source_tok].id == .generated) return;
-    if (locs[usage_tok].id == .generated) return;
-    if (locs[usage_tok].id == locs[source_tok].id) return; // in same file
-    const usage_src = p.pp.comp.getSource(locs[usage_tok].id);
+    if (p.tok_locs[source_tok].id == .generated) return;
+    if (p.tok_locs[usage_tok].id == .generated) return;
+
+    const source = p.pp.comp.getSourceRef(p.tok_locs[source_tok].id);
+    const usage_src = p.pp.comp.getSource(p.tok_locs[usage_tok].id);
+    if (usage_src.direct_includes.getPtr(p.tok_locs[source_tok].id)) |some| {
+        some.used = true;
+        return; // directly included
+    }
+
+    if (p.tok_locs[usage_tok].id == p.tok_locs[source_tok].id) return; // in same file
     if (usage_src.system_header_file) return; // do not apply rule to system header files
-    if (usage_src.direct_includes.get(locs[source_tok].id) != null) return; // directly included
 
     try p.errTok(.indirect_use_of_ident, usage_tok);
-    const source = p.pp.comp.getSource(locs[source_tok].id);
     try p.pp.comp.diag.add(.{
         .tag = .include_file_directly,
         .loc = .{ .id = .unused },
         .extra = .{ .str = source.path },
     }, &.{});
+}
+
+fn checkUnusedImports(p: *Parser, source: Source.Id) Compilation.Error!void {
+    const cur_src = p.pp.comp.getSourceRef(source);
+    if (cur_src.system_header_file) return; // do not apply rule to system headers
+    if (cur_src.imports_checked) return;
+    cur_src.imports_checked = true;
+
+    var it = cur_src.direct_includes.iterator();
+    while (it.next()) |include| {
+        if (include.key_ptr.* == .generated) continue;
+        if (!include.value_ptr.used) {
+            try p.pp.comp.diag.add(.{
+                .tag = .unused_include,
+                .loc = .{ .id = source, .byte_offset = include.value_ptr.byte_offset, .line = include.value_ptr.line },
+            }, &.{});
+        }
+        try p.checkUnusedImports(include.key_ptr.*);
+    }
 }
 
 fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?[]const u8) Compilation.Error!void {
@@ -615,6 +639,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .pp = pp,
         .arena = arena.allocator(),
         .tok_ids = pp.tokens.items(.id),
+        .tok_locs = pp.tokens.items(.loc),
         .strings = std.ArrayList(u8).init(pp.comp.gpa),
         .value_map = Tree.ValueMap.init(pp.comp.gpa),
         .data = NodeList.init(pp.comp.gpa),
@@ -696,6 +721,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.errTok(.empty_translation_unit, p.tok_i - 1);
     }
     pp.comp.pragmaEvent(.after_parse);
+
+    const eof_loc = p.tok_locs[p.tok_locs.len - 1]; // always last
+    try p.checkUnusedImports(eof_loc.id);
     return Tree{
         .comp = pp.comp,
         .tokens = pp.tokens.slice(),

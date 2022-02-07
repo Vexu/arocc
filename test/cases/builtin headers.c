@@ -1,3 +1,4 @@
+//aro-args -Wno-unused-include
 #include <stdalign.h>
 #include <stdarg.h>
 #include <stdatomic.h>
