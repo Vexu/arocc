@@ -530,7 +530,10 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
     var line: u32 = 1;
 
     while (true) {
-        const byte = reader.readByte() catch break;
+        const byte = reader.readByte() catch |err| switch (err) {
+            error.EndOfStream => break,
+            else => |e| return e,
+        };
         contents[i] = byte;
 
         switch (byte) {
