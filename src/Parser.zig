@@ -4293,6 +4293,8 @@ const Result = struct {
 
     fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!bool {
         try p.errStr(.invalid_bin_types, tok, try p.typePairStr(a.ty, b.ty));
+        a.val.tag = .unavailable;
+        b.val.tag = .unavailable;
         return false;
     }
 
