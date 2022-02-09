@@ -49,6 +49,14 @@ int baz = 0xFFFFFFFFFF + 1u;
 int qux = 1/"foo";
 int quux = "foo"?1:2;
 
+struct S { int x; };
+void invalid_chained_comparisons() {
+    struct S s = { .x = 1 };
+    1.0 == s == 1;
+    1.0 < s == 1;
+    1.0 == &1 == 1;
+}
+
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
     "binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')" \
@@ -67,3 +75,7 @@ int quux = "foo"?1:2;
     "binary expressions.c:38:5: error: expected expression" \
     "binary expressions.c:39:13: error: expected expression" \
     "binary expressions.c:49:12: error: invalid operands to binary expression ('int' and 'char *')" \
+    "binary expressions.c:55:9: error: invalid operands to binary expression ('double' and 'struct S')" \
+    "binary expressions.c:56:9: error: invalid operands to binary expression ('double' and 'struct S')" \
+    "binary expressions.c:57:12: error: cannot take the address of an rvalue" \
+    "binary expressions.c:57:9: error: invalid operands to binary expression ('double' and 'int *')" \
