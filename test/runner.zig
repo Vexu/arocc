@@ -49,7 +49,7 @@ pub fn main() !void {
     }
 
     var progress = std.Progress{};
-    const root_node = try progress.start("Test", cases.items.len);
+    const root_node = progress.start("Test", cases.items.len);
 
     // prepare compiler
     var initial_comp = aro.Compilation.init(gpa);
