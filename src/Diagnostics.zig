@@ -1608,6 +1608,11 @@ const messages = struct {
         const msg = "empty case range specified";
         const kind = .warning;
     };
+    const non_standard_escape_char = struct {
+        const msg = "use of non-standard escape character '\\e'";
+        const kind = .off;
+        const opt = "pedantic";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -1756,29 +1761,29 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
         }
 
         var line: ?[]const u8 = null;
-        var col = switch (msg.tag) {
-            .escape_sequence_overflow,
-            .invalid_universal_character,
-            // use msg.extra.unsigned for index into string literal
-            => @truncate(u32, msg.extra.unsigned),
-            else => 0,
-        };
-        var width = col;
         var end_with_splice = false;
-        if (msg.loc.id != .unused) {
-            const source = comp.getSource(msg.loc.id);
-            var line_col = source.lineCol(msg.loc);
+        const width = if (msg.loc.id != .unused) blk: {
+            var loc = msg.loc;
+            switch (msg.tag) {
+                .escape_sequence_overflow,
+                .invalid_universal_character,
+                .non_standard_escape_char,
+                // use msg.extra.unsigned for index into string literal
+                => loc.byte_offset += @truncate(u32, msg.extra.unsigned),
+                else => {},
+            }
+            const source = comp.getSource(loc.id);
+            var line_col = source.lineCol(loc);
             line = line_col.line;
-            col += line_col.col;
-            width += line_col.width;
             end_with_splice = line_col.end_with_splice;
             if (msg.tag == .backslash_newline_escape) {
-                line = line_col.line[0 .. col - 1];
-                col += 1;
-                width += 1;
+                line = line_col.line[0 .. line_col.col - 1];
+                line_col.col += 1;
+                line_col.width += 1;
             }
-            m.location(source.path, line_col.line_no, col);
-        }
+            m.location(source.path, line_col.line_no, line_col.col);
+            break :blk line_col.width;
+        } else 0;
 
         m.start(msg.kind);
         inline for (std.meta.fields(Tag)) |field| {

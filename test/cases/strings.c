@@ -11,6 +11,10 @@ _Static_assert(1, "\U0000DFFF");
 _Static_assert(1, "\UFFFFFFFF");
 _Static_assert(1, "\u0060");
 
+#pragma GCC diagnostic warning "-Wpedantic"
+_Static_assert(1, "aaァ\e[1;");
+#pragma GCC diagnostic pop
+
 #define EXPECTED_ERRORS "strings.c:2:30: error: escape sequence out of range" \
     "strings.c:4:20: error: invalid universal character" \
     "strings.c:5:20: error: invalid universal character" \
@@ -19,3 +23,4 @@ _Static_assert(1, "\u0060");
     "strings.c:9:20: error: invalid universal character" \
     "strings.c:10:20: error: invalid universal character" \
     "strings.c:11:20: error: invalid universal character" \
+    "strings.c:15:23: warning: use of non-standard escape character '\\e' [-Wpedantic]" \
