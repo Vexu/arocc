@@ -26,8 +26,22 @@ void bar(int arg) {
     next: return;
 }
 
+#pragma GCC diagnostic warning "-Wgnu-case-range"
+void baz(int arg) {
+    switch (arg) {
+        case 1 ... 3:
+        case 2:
+            break;
+        default:
+            return;
+    }
+}
+
 #define EXPECTED_ERRORS "statements.c:3:9: error: statement requires expression with scalar type ('void' invalid)" \
     "statements.c:4:13: error: statement requires expression with integer type ('float' invalid)" \
     "statements.c:5:10: warning: expression result unused [-Wunused-value]" \
     "statements.c:5:10: error: statement requires expression with scalar type ('void' invalid)" \
     "statements.c:7:21: error: case value must be an integer constant expression" \
+    "statements.c:32:16: warning: use of GNU case range extension [-Wgnu-case-range]" \
+    "statements.c:33:14: error: duplicate case value '2'" \
+    "statements.c:32:14: note: previous case defined here" \

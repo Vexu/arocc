@@ -46,25 +46,35 @@ const Scope = union(enum) {
     };
 
     const Switch = struct {
-        cases: CaseMap,
-        default: ?Case = null,
+        default: ?TokenIndex = null,
+        ranges: std.ArrayList(Range),
+        ty: Type,
 
-        const ResultContext = struct {
-            ty: Type,
-            comp: *Compilation,
-
-            pub fn eql(ctx: ResultContext, a: Result, b: Result) bool {
-                return a.val.compare(.eq, b.val, ctx.ty, ctx.comp);
-            }
-            pub fn hash(_: ResultContext, a: Result) u64 {
-                return a.val.hash();
-            }
-        };
-        const CaseMap = std.HashMap(Result, Case, ResultContext, std.hash_map.default_max_load_percentage);
-        const Case = struct {
-            node: NodeIndex,
+        const Range = struct {
+            first: Value,
+            last: Value,
             tok: TokenIndex,
         };
+
+        fn add(
+            self: *Switch,
+            comp: *Compilation,
+            first: Value,
+            last: Value,
+            tok: TokenIndex,
+        ) !?Range {
+            for (self.ranges.items) |range| {
+                if (last.compare(.gte, range.first, self.ty, comp) and first.compare(.lte, range.last, self.ty, comp)) {
+                    return range; // They overlap.
+                }
+            }
+            try self.ranges.append(.{
+                .first = first,
+                .last = last,
+                .tok = tok,
+            });
+            return null;
+        }
     };
 };
 
@@ -3320,12 +3330,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try p.expectClosing(l_paren, .r_paren);
 
         var switch_scope = Scope.Switch{
-            .cases = Scope.Switch.CaseMap.initContext(
-                p.pp.comp.gpa,
-                .{ .ty = cond.ty, .comp = p.pp.comp },
-            ),
+            .ranges = std.ArrayList(Scope.Switch.Range).init(p.pp.comp.gpa),
+            .ty = cond.ty,
         };
-        defer switch_scope.cases.deinit();
+        defer switch_scope.ranges.deinit();
         try p.scopes.append(.{ .@"switch" = &switch_scope });
         const body = try p.stmt();
 
@@ -3561,41 +3569,54 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             .data = .{ .decl = .{ .name = name_tok, .node = try p.stmt() } },
         });
     } else if (p.eatToken(.keyword_case)) |case| {
-        const val = try p.constExpr();
+        const first_item = try p.constExpr();
+        const ellipsis = p.tok_i;
+        const second_item = if (p.eatToken(.ellipsis) != null) blk: {
+            try p.errTok(.gnu_switch_range, ellipsis);
+            break :blk try p.constExpr();
+        } else null;
         _ = try p.expectToken(.colon);
-        const s = try p.stmt();
-        const node = try p.addNode(.{
-            .tag = .case_stmt,
-            .data = .{ .bin = .{ .lhs = val.node, .rhs = s } },
-        });
-        if (p.findSwitch()) |some| {
-            if (val.val.tag == .unavailable) {
+
+        if (p.findSwitch()) |some| check: {
+            const first = first_item.val;
+            const last = if (second_item) |second| second.val else first;
+            if (first.tag == .unavailable) {
                 try p.errTok(.case_val_unavailable, case + 1);
-                return node;
+                break :check;
+            } else if (last.tag == .unavailable) {
+                try p.errTok(.case_val_unavailable, ellipsis + 1);
+                break :check;
+            } else if (last.compare(.lt, first, some.ty, p.pp.comp)) {
+                try p.errTok(.empty_case_range, case + 1);
+                break :check;
             }
+
             // TODO cast to target type
-            const gop = try some.cases.getOrPut(val);
-            if (gop.found_existing) {
-                if (some.cases.ctx.ty.isUnsignedInt(p.pp.comp)) {
-                    try p.errExtra(.duplicate_switch_case_unsigned, case, .{
-                        .unsigned = val.val.data.int,
-                    });
-                } else {
-                    try p.errExtra(.duplicate_switch_case_signed, case, .{
-                        .signed = val.val.signExtend(val.ty, p.pp.comp),
-                    });
-                }
-                try p.errTok(.previous_case, gop.value_ptr.tok);
+            const prev = (try some.add(p.pp.comp, first, last, case + 1)) orelse break :check;
+
+            // TODO check which value was already handled
+            if (some.ty.isUnsignedInt(p.pp.comp)) {
+                try p.errExtra(.duplicate_switch_case_unsigned, case + 1, .{
+                    .unsigned = first.data.int,
+                });
             } else {
-                gop.value_ptr.* = .{
-                    .tok = case,
-                    .node = node,
-                };
+                try p.errExtra(.duplicate_switch_case_signed, case + 1, .{
+                    .signed = first.signExtend(some.ty, p.pp.comp),
+                });
             }
+            try p.errTok(.previous_case, prev.tok);
         } else {
             try p.errStr(.case_not_in_switch, case, "case");
         }
-        return node;
+
+        const s = try p.stmt();
+        if (second_item) |some| return try p.addNode(.{
+            .tag = .case_range_stmt,
+            .data = .{ .if3 = .{ .cond = s, .body = (try p.addList(&.{ first_item.node, some.node })).start } },
+        }) else return try p.addNode(.{
+            .tag = .case_stmt,
+            .data = .{ .bin = .{ .lhs = first_item.node, .rhs = s } },
+        });
     } else if (p.eatToken(.keyword_default)) |default| {
         _ = try p.expectToken(.colon);
         const s = try p.stmt();
@@ -3606,12 +3627,9 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         if (p.findSwitch()) |some| {
             if (some.default) |previous| {
                 try p.errTok(.multiple_default, default);
-                try p.errTok(.previous_case, previous.tok);
+                try p.errTok(.previous_case, previous);
             } else {
-                some.default = .{
-                    .tok = default,
-                    .node = node,
-                };
+                some.default = default;
             }
         } else {
             try p.errStr(.case_not_in_switch, default, "default");

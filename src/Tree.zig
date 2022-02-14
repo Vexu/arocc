@@ -238,6 +238,8 @@ pub const Tag = enum(u8) {
     switch_stmt,
     /// case first: second
     case_stmt,
+    /// case data[body]...data[body+1]: cond
+    case_range_stmt,
     /// default: first
     default_stmt,
     /// while (first) second
@@ -809,6 +811,21 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("stmt:\n");
                 try tree.dumpNode(data.bin.rhs, level + delta, w);
+            }
+        },
+        .case_range_stmt => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("range start:\n");
+            try tree.dumpNode(tree.data[data.if3.body], level + delta, w);
+
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("range end:\n");
+            try tree.dumpNode(tree.data[data.if3.body + 1], level + delta, w);
+
+            if (data.if3.cond != .none) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("stmt:\n");
+                try tree.dumpNode(data.if3.cond, level + delta, w);
             }
         },
         .default_stmt => {

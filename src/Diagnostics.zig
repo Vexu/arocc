@@ -122,6 +122,7 @@ pub const Options = packed struct {
     @"deprecated-declarations": Kind = .default,
     @"backslash-newline-escape": Kind = .default,
     @"pointer-to-int-cast": Kind = .default,
+    @"gnu-case-range": Kind = .default,
 };
 
 const messages = struct {
@@ -1596,6 +1597,16 @@ const messages = struct {
         const extra = .str;
         const kind = .warning;
         const opt = "pointer-to-int-cast";
+    };
+    const gnu_switch_range = struct {
+        const msg = "use of GNU case range extension";
+        const opt = "gnu-case-range";
+        const kind = .off;
+        const pedantic = true;
+    };
+    const empty_case_range = struct {
+        const msg = "empty case range specified";
+        const kind = .warning;
     };
 };
 
