@@ -3957,12 +3957,20 @@ const Result = struct {
         });
     }
 
+    fn implicitCast(operand: *Result, p: *Parser, kind: Tree.CastKind) Error!void {
+        operand.node = try p.addNode(.{
+            .tag = .implicit_cast,
+            .ty = operand.ty,
+            .data = .{ .cast = .{ .operand = operand.node, .kind = kind } },
+        });
+    }
+
     fn qualCast(res: *Result, p: *Parser, elem_ty: *Type) Error!void {
         res.ty = .{
             .data = .{ .sub_type = elem_ty },
             .specifier = .pointer,
         };
-        try res.un(p, .qual_cast);
+        try res.implicitCast(p, .qual_cast);
     }
 
     fn adjustCondExprPtrs(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) !bool {
@@ -4122,14 +4130,14 @@ const Result = struct {
             elem_ty.* = res.ty;
             res.ty.specifier = .pointer;
             res.ty.data = .{ .sub_type = elem_ty };
-            try res.un(p, .function_to_pointer);
+            try res.implicitCast(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
             res.val.tag = .unavailable;
             res.ty.decayArray();
-            try res.un(p, .array_to_pointer);
+            try res.implicitCast(p, .array_to_pointer);
         } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, res.node)) {
             res.ty.qual = .{};
-            try res.un(p, .lval_to_rval);
+            try res.implicitCast(p, .lval_to_rval);
         }
     }
 
@@ -4137,17 +4145,17 @@ const Result = struct {
         if (res.ty.isPtr()) {
             res.val.toBool();
             res.ty = bool_ty;
-            try res.un(p, .pointer_to_bool);
+            try res.implicitCast(p, .pointer_to_bool);
         } else if (res.ty.isInt() and !res.ty.is(.bool)) {
             res.val.toBool();
             res.ty = bool_ty;
-            try res.un(p, .int_to_bool);
+            try res.implicitCast(p, .int_to_bool);
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
             const value_change_kind = res.val.floatToInt(res.ty, bool_ty, p.comp);
             try res.floatToIntWarning(p, bool_ty, old_value, value_change_kind, tok);
             res.ty = bool_ty;
-            try res.un(p, .float_to_bool);
+            try res.implicitCast(p, .float_to_bool);
         }
     }
 
@@ -4155,20 +4163,20 @@ const Result = struct {
         if (int_ty.hasIncompleteSize()) return error.ParsingFailed; // Diagnostic already issued
         if (res.ty.is(.bool)) {
             res.ty = int_ty;
-            try res.un(p, .bool_to_int);
+            try res.implicitCast(p, .bool_to_int);
         } else if (res.ty.isPtr()) {
             res.ty = int_ty;
-            try res.un(p, .pointer_to_int);
+            try res.implicitCast(p, .pointer_to_int);
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
             const value_change_kind = res.val.floatToInt(res.ty, int_ty, p.comp);
             try res.floatToIntWarning(p, int_ty, old_value, value_change_kind, tok);
             res.ty = int_ty;
-            try res.un(p, .float_to_int);
+            try res.implicitCast(p, .float_to_int);
         } else if (!res.ty.eql(int_ty, p.comp, true)) {
             res.val.intCast(res.ty, int_ty, p.comp);
             res.ty = int_ty;
-            try res.un(p, .int_cast);
+            try res.implicitCast(p, .int_cast);
         }
     }
 
@@ -4186,45 +4194,40 @@ const Result = struct {
         if (res.ty.is(.bool)) {
             res.val.intToFloat(res.ty, float_ty, p.comp);
             res.ty = float_ty;
-            try res.un(p, .bool_to_float);
+            try res.implicitCast(p, .bool_to_float);
         } else if (res.ty.isInt()) {
             res.val.intToFloat(res.ty, float_ty, p.comp);
             res.ty = float_ty;
-            try res.un(p, .int_to_float);
+            try res.implicitCast(p, .int_to_float);
         } else if (!res.ty.eql(float_ty, p.comp, true)) {
             res.val.floatCast(res.ty, float_ty, p.comp);
             res.ty = float_ty;
-            try res.un(p, .float_cast);
+            try res.implicitCast(p, .float_cast);
         }
     }
 
     fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
         if (res.ty.is(.bool)) {
             res.ty = ptr_ty;
-            try res.un(p, .bool_to_pointer);
+            try res.implicitCast(p, .bool_to_pointer);
         } else if (res.ty.isInt()) {
             res.val.intCast(res.ty, ptr_ty, p.comp);
             res.ty = ptr_ty;
-            try res.un(p, .int_to_pointer);
+            try res.implicitCast(p, .int_to_pointer);
         }
     }
 
     fn toVoid(res: *Result, p: *Parser) Error!void {
         if (!res.ty.is(.void)) {
             res.ty = .{ .specifier = .void };
-            res.node = try p.addNode(.{
-                .tag = .to_void,
-                .ty = res.ty,
-                .data = .{ .un = res.node },
-            });
-            res.val.tag = .unavailable;
+            try res.implicitCast(p, .to_void);
         }
     }
 
     fn nullCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
         if (!res.val.isZero()) return;
         res.ty = ptr_ty;
-        try res.un(p, .null_to_pointer);
+        try res.implicitCast(p, .null_to_pointer);
     }
 
     fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser, tok: TokenIndex) Error!void {
@@ -4308,6 +4311,57 @@ const Result = struct {
         if (res.val.tag == .unavailable) return;
         if (!p.in_macro) try p.value_map.put(res.node, res.val);
         res.val.tag = .unavailable;
+    }
+
+    fn castType(res: *Result, p: *Parser, to: Type, tok: TokenIndex) !void {
+        var cast_kind: Tree.CastKind = undefined;
+        if (to.is(.void)) {
+            // everything can cast to void
+            cast_kind = .to_void;
+            res.val.tag = .unavailable;
+        } else if (res.val.isZero() and to.isPtr()) {
+            cast_kind = .null_to_pointer;
+        } else if (to.isScalar()) cast: {
+            const old_float = res.ty.isFloat();
+            const new_float = to.isFloat();
+
+            if (new_float and res.ty.isPtr()) {
+                try p.errStr(.invalid_cast_to_float, tok, try p.typeStr(to));
+                return error.ParsingFailed;
+            } else if (old_float and to.isPtr()) {
+                try p.errStr(.invalid_cast_to_pointer, tok, try p.typeStr(res.ty));
+                return error.ParsingFailed;
+            }
+            cast_kind = Tree.CastKind.fromExplicitCast(to, res.ty, p.comp);
+            if (res.val.tag == .unavailable) break :cast;
+
+            const old_int = res.ty.isInt() or res.ty.isPtr();
+            const new_int = to.isInt() or to.isPtr();
+            if (to.is(.bool)) {
+                res.val.toBool();
+            } else if (old_float and new_int) {
+                // Explicit cast, no conversion warning
+                _ = res.val.floatToInt(res.ty, to, p.comp);
+            } else if (new_float and old_int) {
+                res.val.intToFloat(res.ty, to, p.comp);
+            } else if (new_float and old_float) {
+                res.val.floatCast(res.ty, to, p.comp);
+            }
+        } else {
+            try p.errStr(.invalid_cast_type, tok, try p.typeStr(res.ty));
+            return error.ParsingFailed;
+        }
+        if (to.anyQual()) try p.errStr(.qual_cast, tok, try p.typeStr(to));
+        if (to.isInt() and res.ty.isPtr() and to.sizeCompare(res.ty, p.comp) == .lt) {
+            try p.errStr(.cast_to_smaller_int, tok, try p.typePairStrExtra(to, " from ", res.ty));
+        }
+        res.ty = to;
+        res.ty.qual = .{};
+        res.node = try p.addNode(.{
+            .tag = .explicit_cast,
+            .ty = res.ty,
+            .data = .{ .cast = .{ .operand = res.node, .kind = cast_kind } },
+        });
     }
 };
 
@@ -4878,46 +4932,8 @@ fn castExpr(p: *Parser) Error!Result {
 
         var operand = try p.castExpr();
         try operand.expect(p);
-        if (ty.is(.void)) {
-            // everything can cast to void
-            operand.val.tag = .unavailable;
-        } else if (ty.isScalar()) cast: {
-            try operand.lvalConversion(p);
-
-            const old_float = operand.ty.isFloat();
-            const new_float = ty.isFloat();
-
-            if (new_float and operand.ty.isPtr()) {
-                try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(ty));
-                return error.ParsingFailed;
-            } else if (old_float and ty.isPtr()) {
-                try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(operand.ty));
-                return error.ParsingFailed;
-            }
-            if (operand.val.tag == .unavailable) break :cast;
-
-            const old_int = operand.ty.isInt() or operand.ty.isPtr();
-            const new_int = ty.isInt() or ty.isPtr();
-            if (ty.is(.bool)) {
-                operand.val.toBool();
-            } else if (old_float and new_int) {
-                _ = operand.val.floatToInt(operand.ty, ty, p.comp); // no warnings for explicit cast
-            } else if (new_float and old_int) {
-                operand.val.intToFloat(operand.ty, ty, p.comp);
-            } else if (new_float and old_float) {
-                operand.val.floatCast(operand.ty, ty, p.comp);
-            }
-        } else {
-            try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
-            return error.ParsingFailed;
-        }
-        if (ty.anyQual()) try p.errStr(.qual_cast, l_paren, try p.typeStr(ty));
-        if (ty.isInt() and operand.ty.isPtr() and ty.sizeCompare(operand.ty, p.comp) == .lt) {
-            try p.errStr(.cast_to_smaller_int, l_paren, try p.typePairStrExtra(ty, " from ", operand.ty));
-        }
-        operand.ty = ty;
-        operand.ty.qual = .{};
-        try operand.un(p, .cast_expr);
+        try operand.lvalConversion(p);
+        try operand.castType(p, ty, l_paren);
         return operand;
     }
     switch (p.tok_ids[p.tok_i]) {
@@ -5447,7 +5463,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (lhs.ty.isArray()) {
                 var copy = lhs;
                 copy.ty.decayArray();
-                try copy.un(p, .array_to_pointer);
+                try copy.implicitCast(p, .array_to_pointer);
                 return p.fieldAccess(copy, name, true);
             }
             return p.fieldAccess(lhs, name, true);
