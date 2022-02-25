@@ -207,10 +207,6 @@ pub const CastKind = enum(u8) {
     int_cast,
     /// Convert one floating type to another
     float_cast,
-    /// Convert pointer to one with same child type but more CV-quals,
-    /// OR to appropriately-qualified void *
-    /// only appears on the branches of a conditional expr
-    qual_cast,
     /// Convert type to void
     to_void,
     /// Convert a literal 0 to a null pointer

@@ -3965,14 +3965,6 @@ const Result = struct {
         });
     }
 
-    fn qualCast(res: *Result, p: *Parser, elem_ty: *Type) Error!void {
-        res.ty = .{
-            .data = .{ .sub_type = elem_ty },
-            .specifier = .pointer,
-        };
-        try res.implicitCast(p, .qual_cast);
-    }
-
     fn adjustCondExprPtrs(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) !bool {
         assert(a.ty.isPtr() and b.ty.isPtr());
 
@@ -3996,8 +3988,20 @@ const Result = struct {
         if (pointers_compatible) {
             adjusted_elem_ty.qual = a_elem.qual.mergeCV(b_elem.qual);
         }
-        if (!adjusted_elem_ty.eql(a_elem, p.comp, true)) try a.qualCast(p, adjusted_elem_ty);
-        if (!adjusted_elem_ty.eql(b_elem, p.comp, true)) try b.qualCast(p, adjusted_elem_ty);
+        if (!adjusted_elem_ty.eql(a_elem, p.comp, true)) {
+            a.ty = .{
+                .data = .{ .sub_type = adjusted_elem_ty },
+                .specifier = .pointer,
+            };
+            try a.implicitCast(p, .bitcast);
+        }
+        if (!adjusted_elem_ty.eql(b_elem, p.comp, true)) {
+            b.ty = .{
+                .data = .{ .sub_type = adjusted_elem_ty },
+                .specifier = .pointer,
+            };
+            try b.implicitCast(p, .bitcast);
+        }
         return true;
     }
 
