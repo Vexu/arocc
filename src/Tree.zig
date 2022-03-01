@@ -629,6 +629,7 @@ fn dumpAttribute(attr: Attribute, writer: anytype) !void {
                 try writer.writeByte('\n');
                 return;
             }
+            try writer.writeByte(' ');
             inline for (@typeInfo(@TypeOf(args)).Struct.fields) |f, i| {
                 if (comptime std.mem.eql(u8, f.name, "__name_tok")) continue;
                 if (i != 0) {
@@ -695,7 +696,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         if (tree.comp.diag.color) util.setColor(ATTRIBUTE, w);
         for (ty.data.attributed.attributes) |attr| {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("attr: {s} ", .{@tagName(attr.tag)});
+            try w.print("attr: {s}", .{@tagName(attr.tag)});
             try dumpAttribute(attr, w);
         }
         if (tree.comp.diag.color) util.setColor(.reset, w);

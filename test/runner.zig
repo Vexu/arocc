@@ -259,7 +259,25 @@ pub fn main() !void {
 
         var tree = try aro.Parser.parse(&pp);
         defer tree.deinit();
-        tree.dump(std.io.null_writer) catch {};
+
+        const ast_path = try std.fs.path.join(gpa, &.{ args[1], "ast", std.fs.path.basename(path) });
+        defer gpa.free(ast_path);
+        const maybe_ast = std.fs.cwd().readFileAlloc(gpa, ast_path, std.math.maxInt(u32)) catch null;
+        if (maybe_ast) |expected_ast| {
+            defer gpa.free(expected_ast);
+            var actual_ast = std.ArrayList(u8).init(gpa);
+            defer actual_ast.deinit();
+
+            const old_color_setting = comp.diag.color;
+            defer comp.diag.color = old_color_setting;
+            comp.diag.color = false;
+
+            try tree.dump(actual_ast.writer());
+            std.testing.expectEqualStrings(expected_ast, actual_ast.items) catch {
+                fail_count += 1;
+                break;
+            };
+        } else tree.dump(std.io.null_writer) catch {};
 
         if (expected_types) |types| {
             const test_fn = for (tree.root_decls) |decl| {
