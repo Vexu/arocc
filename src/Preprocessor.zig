@@ -1167,6 +1167,7 @@ fn collectMacroFuncArguments(
                 }
             },
             .eof => {
+                try args.append(curArgument.toOwnedSlice());
                 deinitMacroArguments(pp.comp.gpa, &args);
                 tokenizer.* = saved_tokenizer;
                 end_idx.* = old_end;
@@ -1281,9 +1282,8 @@ fn expandMacroExhaustive(
                     const count = macro_scan_idx - idx + 1;
                     for (buf.items[idx .. idx + count]) |tok| Token.free(tok.expansion_locs, pp.comp.gpa);
                     try buf.replaceRange(idx, count, res.items);
-                    // TODO: moving_end_idx += res.items.len - (macro_scan_idx-idx+1)
-                    // doesn't work when the RHS is negative (unsigned!)
-                    moving_end_idx = moving_end_idx + res.items.len - count;
+
+                    moving_end_idx = (moving_end_idx + res.items.len) -| count;
                     idx += res.items.len;
                     do_rescan = true;
                 } else {
