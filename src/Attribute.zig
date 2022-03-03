@@ -218,7 +218,7 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Va
                 if (arg_idx == arg_i) {
                     if (UnwrapOptional(arg_field.field_type) != Alignment) unreachable;
 
-                    if (val.tag == .unavailable) return Diagnostics.Message{ .tag = .alignas_unavailable };
+                    if (val.tag != .int) return Diagnostics.Message{ .tag = .alignas_unavailable };
                     if (val.compare(.lt, Value.int(0), ty, comp)) {
                         return Diagnostics.Message{ .tag = .negative_alignment, .extra = .{ .signed = val.signExtend(ty, comp) } };
                     }
