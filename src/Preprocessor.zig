@@ -1272,6 +1272,7 @@ fn expandMacroExhaustive(
 
                     var res = try pp.expandFuncMacro(macro_tok.loc, macro, &args, &expanded_args);
                     defer res.deinit();
+                    const tokens_added = res.items.len;
 
                     const macro_expansion_locs = macro_tok.expansionSlice();
                     for (res.items) |*tok| {
@@ -1279,12 +1280,15 @@ fn expandMacroExhaustive(
                         try tok.addExpansionLocation(pp.comp.gpa, macro_expansion_locs);
                     }
 
-                    const count = macro_scan_idx - idx + 1;
-                    for (buf.items[idx .. idx + count]) |tok| Token.free(tok.expansion_locs, pp.comp.gpa);
-                    try buf.replaceRange(idx, count, res.items);
+                    const tokens_removed = macro_scan_idx - idx + 1;
+                    for (buf.items[idx .. idx + tokens_removed]) |tok| Token.free(tok.expansion_locs, pp.comp.gpa);
+                    try buf.replaceRange(idx, tokens_removed, res.items);
 
-                    moving_end_idx = (moving_end_idx + res.items.len) -| count;
-                    idx += res.items.len;
+                    moving_end_idx += tokens_added;
+                    // Overflow here means that we encountered an unterminated argument list
+                    // while expanding the body of this macro.
+                    moving_end_idx -|= tokens_removed;
+                    idx += tokens_added;
                     do_rescan = true;
                 } else {
                     const res = try pp.expandObjMacro(macro);
