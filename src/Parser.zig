@@ -1822,7 +1822,10 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     record_ty.size = 1;
     record_ty.alignment = 1;
 
-    if (p.record_buf.items.len == record_buf_top) try p.errStr(.empty_record, kind_tok, p.tokSlice(kind_tok));
+    if (p.record_buf.items.len == record_buf_top) {
+        try p.errStr(.empty_record, kind_tok, p.tokSlice(kind_tok));
+        try p.errStr(.empty_record_size, kind_tok, p.tokSlice(kind_tok));
+    }
     try p.expectClosing(l_brace, .r_brace);
     try p.attributeSpecifier(); // .record
 

@@ -123,6 +123,7 @@ pub const Options = packed struct {
     @"backslash-newline-escape": Kind = .default,
     @"pointer-to-int-cast": Kind = .default,
     @"gnu-case-range": Kind = .default,
+    @"c++-compat": Kind = .default,
 };
 
 const messages = struct {
@@ -677,6 +678,12 @@ const messages = struct {
         const opt = "gnu-empty-struct";
         const kind = .off;
         const pedantic = true;
+    };
+    const empty_record_size = struct {
+        const msg = "empty {s} has size 0 in C, size 1 in C++";
+        const extra = .str;
+        const opt = "c++-compat";
+        const kind = .off;
     };
     const wrong_tag = struct {
         const msg = "use of '{s}' with tag type that does not match previous definition";
