@@ -2937,6 +2937,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
         if (start_index.*) |_| return false; // overrides
+        if (union_ty.data.record.fields.len == 0) return false;
 
         ty.* = union_ty.data.record.fields[0].ty;
         il.* = try il.*.find(p.pp.comp.gpa, 0);
