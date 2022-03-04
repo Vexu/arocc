@@ -110,6 +110,10 @@ struct {
     };
 } c[2] = { [0].b = 1 };
 
+union {
+
+} empty = {{'a', 'b'}};
+
 #define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
@@ -152,3 +156,7 @@ struct {
     /* "initializers.c:79:31: warning: variable 's2' is uninitialized when used within its own initialization" */ \
     /* "initializers.c:80:38: warning: variable 's3' is uninitialized when used within its own initialization" */ \
     "initializers.c:104:32: warning: excess elements in array initializer [-Wexcess-initializers]" \
+    "initializers.c:115:18: warning: excess elements in struct initializer [-Wexcess-initializers]" \
+    "initializers.c:115:12: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
+    "initializers.c:115:13: note: previous initialization" \
+    "initializers.c:115:12: warning: excess elements in struct initializer [-Wexcess-initializers]" \
