@@ -4242,6 +4242,7 @@ const Result = struct {
                 .ty = res.ty,
                 .data = .{ .un = res.node },
             });
+            res.val.tag = .unavailable;
         }
     }
 

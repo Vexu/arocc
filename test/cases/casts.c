@@ -10,6 +10,9 @@ void foo(void) {
     int a = (char)"foo";
     int b = (float)"foo";
     unsigned long long d = (unsigned long long)"foo";
+
+    int x = 1;
+    x ? (void)1 : 1;
 }
 
 #define EXPECTED_ERRORS "casts.c:5:5: error: cannot cast to non arithmetic or pointer type 'int'" \
