@@ -1817,10 +1817,14 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         }
     }
 
-    record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
-    // TODO actually calculate
-    record_ty.size = 1;
-    record_ty.alignment = 1;
+    for (p.record_buf.items[record_buf_top..]) |field| {
+        if (field.ty.hasIncompleteSize()) break;
+    } else {
+        record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
+        // TODO actually calculate
+        record_ty.size = 1;
+        record_ty.alignment = 1;
+    }
 
     if (p.record_buf.items.len == record_buf_top) {
         try p.errStr(.empty_record, kind_tok, p.tokSlice(kind_tok));
