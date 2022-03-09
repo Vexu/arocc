@@ -3586,6 +3586,8 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         _ = try p.expectToken(.colon);
 
         if (p.findSwitch()) |some| check: {
+            if (some.ty.hasIncompleteSize()) break :check; // error already reported for incomplete size
+
             const first = first_item.val;
             const last = if (second_item) |second| second.val else first;
             if (first.tag == .unavailable) {
