@@ -835,6 +835,14 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
                 try pp.char_buf.append(c);
         }
     }
+    if (pp.char_buf.items[pp.char_buf.items.len - 1] == '\\') {
+        const tok = tokens[tokens.len - 1];
+        try pp.comp.diag.add(.{
+            .tag = .invalid_pp_stringify_escape,
+            .loc = tok.loc,
+        }, tok.expansionSlice());
+        pp.char_buf.items.len -= 1;
+    }
     try pp.char_buf.appendSlice("\"\n");
 }
 

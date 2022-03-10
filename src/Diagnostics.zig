@@ -1620,6 +1620,10 @@ const messages = struct {
         const kind = .off;
         const opt = "pedantic";
     };
+    const invalid_pp_stringify_escape = struct {
+        const msg = "invalid string literal, ignoring final '\\'";
+        const kind = .warning;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
