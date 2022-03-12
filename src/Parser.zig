@@ -4443,7 +4443,7 @@ fn assignExpr(p: *Parser) Error!Result {
                     else => {},
                 }
             }
-            _ = try lhs_copy.adjustTypes(tok, &rhs, p, .arithmetic);
+            _ = try lhs_copy.adjustTypes(tok, &rhs, p, if (tag == .mod_assign_expr) .integer else .arithmetic);
             try lhs.bin(p, tag, rhs);
             return lhs;
         },
