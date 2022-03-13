@@ -2357,6 +2357,10 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         const outer_size = if (outer.hasIncompleteSize()) 1 else outer.sizeof(p.pp.comp);
         const max_elems = max_bytes / std.math.max(1, outer_size orelse 1);
 
+        if (!size.ty.isInt()) {
+            try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
+            return error.ParsingFailed;
+        }
         if (size.val.tag == .unavailable) {
             if (size.node != .none) {
                 try p.errTok(.vla, size_tok);
@@ -2379,15 +2383,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 res_ty.data = .{ .array = arr_ty };
                 res_ty.specifier = .incomplete_array;
             }
-        } else if (!size.ty.isInt() and !size.ty.isFloat()) {
-            try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
-            return error.ParsingFailed;
         } else {
             var size_val = size.val;
             const size_t = p.pp.comp.types.size;
-            if (size_val.tag == .float) {
-                size_val.floatToInt(size.ty, size_t, p.pp.comp);
-            }
             if (size_val.compare(.lt, Value.int(0), size_t, p.pp.comp)) {
                 try p.errTok(.negative_array_size, l_bracket);
             }
