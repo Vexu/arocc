@@ -125,6 +125,9 @@ pub const Options = packed struct {
     @"gnu-case-range": Kind = .default,
     @"c++-compat": Kind = .default,
     vla: Kind = .default,
+    @"float-overflow-conversion": Kind = .default,
+    @"float-zero-conversion": Kind = .default,
+    @"float-conversion": Kind = .default,
 };
 
 const messages = struct {
@@ -1630,6 +1633,36 @@ const messages = struct {
         const kind = .off;
         const opt = "vla";
     };
+    const float_overflow_conversion = struct {
+        const msg = "implicit conversion of non-finite value from {s} is undefined";
+        const extra = .str;
+        const kind = .off;
+        const opt = "float-overflow-conversion";
+    };
+    const float_out_of_range = struct {
+        const msg = "implicit conversion of out of range value from {s} is undefined";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "literal-conversion";
+    };
+    const float_zero_conversion = struct {
+        const msg = "implicit conversion from {s}";
+        const extra = .str;
+        const kind = .off;
+        const opt = "float-zero-conversion";
+    };
+    const float_value_changed = struct {
+        const msg = "implicit conversion from {s}";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "float-conversion";
+    };
+    const float_to_int = struct {
+        const msg = "implicit conversion turns floating-point number into integer: {s}";
+        const extra = .str;
+        const kind = .off;
+        const opt = "literal-conversion";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -1803,6 +1836,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
         } else 0;
 
         m.start(msg.kind);
+        @setEvalBranchQuota(1500);
         inline for (std.meta.fields(Tag)) |field| {
             if (field.value == @enumToInt(msg.tag)) {
                 const info = @field(messages, field.name);

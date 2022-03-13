@@ -384,6 +384,20 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
     return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
+pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: f64, int_ty: Type) ![]const u8 {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    var w = p.strings.writer();
+    const type_pair_str = try p.typePairStrExtra(res.ty, " to ", int_ty);
+    try w.writeAll(type_pair_str);
+    const is_zero = res.val.isZero();
+    const non_zero_str: []const u8 = if (is_zero) "non-zero " else "";
+    try w.print(" changes {s}value from {d} to {d}", .{ non_zero_str, old_value, res.val.data.int });
+
+    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+}
+
 fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
     if (ty.getAttribute(.unavailable)) |unavailable| {
         try p.errDeprecated(.unavailable, usage_tok, unavailable.msg);
@@ -3004,16 +3018,16 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     if (unqual_ty.is(.bool)) {
         // this is ridiculous but it's what clang does
         if (item.ty.isInt() or item.ty.isFloat() or item.ty.isPtr()) {
-            try item.boolCast(p, unqual_ty);
+            try item.boolCast(p, unqual_ty, tok);
         } else {
             try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
         }
     } else if (unqual_ty.isInt()) {
         if (item.ty.isInt() or item.ty.isFloat()) {
-            try item.intCast(p, unqual_ty);
+            try item.intCast(p, unqual_ty, tok);
         } else if (item.ty.isPtr()) {
             try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(item.ty, " to ", target));
-            try item.intCast(p, unqual_ty);
+            try item.intCast(p, unqual_ty, tok);
         } else {
             try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
         }
@@ -3292,11 +3306,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
         defer p.scopes.items.len = start_scopes_len;
 
         const l_paren = try p.expectToken(.l_paren);
+        const cond_tok = p.tok_i;
         var cond = try p.expr();
         try cond.expect(p);
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
         else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
@@ -3326,11 +3341,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
         defer p.scopes.items.len = start_scopes_len;
 
         const l_paren = try p.expectToken(.l_paren);
+        const cond_tok = p.tok_i;
         var cond = try p.expr();
         try cond.expect(p);
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
         else
             try p.errStr(.statement_int, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
@@ -3354,11 +3370,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
         defer p.scopes.items.len = start_scopes_len;
 
         const l_paren = try p.expectToken(.l_paren);
+        const cond_tok = p.tok_i;
         var cond = try p.expr();
         try cond.expect(p);
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
         else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
@@ -3382,11 +3399,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         _ = try p.expectToken(.keyword_while);
         const l_paren = try p.expectToken(.l_paren);
+        const cond_tok = p.tok_i;
         var cond = try p.expr();
         try cond.expect(p);
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
         else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
@@ -3416,11 +3434,12 @@ fn stmt(p: *Parser) Error!NodeIndex {
         if (!got_decl) _ = try p.expectToken(.semicolon);
 
         // for (init; cond
+        const cond_tok = p.tok_i;
         var cond = try p.expr();
         if (cond.node != .none) {
             try cond.lvalConversion(p);
             if (cond.ty.isInt())
-                try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp))
+                try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
             else if (!cond.ty.isFloat() and !cond.ty.isPtr())
                 try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         }
@@ -3860,16 +3879,16 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     if (ret_ty.is(.bool)) {
         // this is ridiculous but it's what clang does
         if (e.ty.isInt() or e.ty.isFloat() or e.ty.isPtr()) {
-            try e.boolCast(p, ret_ty);
+            try e.boolCast(p, ret_ty, e_tok);
         } else {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
     } else if (ret_ty.isInt()) {
         if (e.ty.isInt() or e.ty.isFloat()) {
-            try e.intCast(p, ret_ty);
+            try e.intCast(p, ret_ty, e_tok);
         } else if (e.ty.isPtr()) {
             try p.errStr(.implicit_ptr_to_int, e_tok, try p.typePairStrExtra(e.ty, " to ", ret_ty));
-            try e.intCast(p, ret_ty);
+            try e.intCast(p, ret_ty, e_tok);
         } else {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
@@ -3884,7 +3903,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
             try e.nullCast(p, ret_ty);
         } else if (e.ty.isInt()) {
             try p.errStr(.implicit_int_to_ptr, e_tok, try p.typePairStrExtra(e.ty, " to ", ret_ty));
-            try e.intCast(p, ret_ty);
+            try e.intCast(p, ret_ty, e_tok);
         } else if (!e.ty.isVoidStar() and !ret_ty.isVoidStar() and !ret_ty.eql(e.ty, p.pp.comp, false)) {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
@@ -4057,7 +4076,7 @@ const Result = struct {
         const a_int = a.ty.isInt();
         const b_int = b.ty.isInt();
         if (a_int and b_int) {
-            try a.usualArithmeticConversion(b, p);
+            try a.usualArithmeticConversion(b, p, tok);
             return a.shouldEval(b, p);
         }
         if (kind == .integer) return a.invalidBinTy(tok, b, p);
@@ -4071,7 +4090,7 @@ const Result = struct {
             if (kind == .relational and (!a.ty.isReal() or !b.ty.isReal()))
                 return a.invalidBinTy(tok, b, p);
 
-            try a.usualArithmeticConversion(b, p);
+            try a.usualArithmeticConversion(b, p, tok);
             return a.shouldEval(b, p);
         }
         if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
@@ -4085,8 +4104,8 @@ const Result = struct {
                 if (!a_scalar or !b_scalar) return a.invalidBinTy(tok, b, p);
 
                 // Do integer promotions but nothing else
-                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp));
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp), tok);
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp), tok);
                 return a.shouldEval(b, p);
             },
             .relational, .equality => {
@@ -4139,8 +4158,8 @@ const Result = struct {
                 if (a_ptr == b_ptr or a_int == b_int) return a.invalidBinTy(tok, b, p);
 
                 // Do integer promotions but nothing else
-                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp));
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp), tok);
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp), tok);
 
                 // The result type is the type of the pointer operand
                 if (a_int) a.ty = b.ty else b.ty = a.ty;
@@ -4156,7 +4175,7 @@ const Result = struct {
                 }
 
                 // Do integer promotion on b if needed
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp));
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp), tok);
                 return a.shouldEval(b, p);
             },
             else => return a.invalidBinTy(tok, b, p),
@@ -4181,7 +4200,8 @@ const Result = struct {
         }
     }
 
-    fn boolCast(res: *Result, p: *Parser, bool_ty: Type) Error!void {
+    fn boolCast(res: *Result, p: *Parser, bool_ty: Type, tok: TokenIndex) Error!void {
+        _ = tok;
         if (res.ty.isPtr()) {
             res.val.toBool();
             res.ty = bool_ty;
@@ -4191,13 +4211,13 @@ const Result = struct {
             res.ty = bool_ty;
             try res.un(p, .int_to_bool);
         } else if (res.ty.isFloat()) {
-            res.val.floatToInt(res.ty, bool_ty, p.pp.comp);
+            _ = res.val.floatToInt(res.ty, bool_ty, p.pp.comp); //TODO
             res.ty = bool_ty;
             try res.un(p, .float_to_bool);
         }
     }
 
-    fn intCast(res: *Result, p: *Parser, int_ty: Type) Error!void {
+    fn intCast(res: *Result, p: *Parser, int_ty: Type, tok: TokenIndex) Error!void {
         if (res.ty.is(.bool)) {
             res.ty = int_ty;
             try res.un(p, .bool_to_int);
@@ -4205,7 +4225,9 @@ const Result = struct {
             res.ty = int_ty;
             try res.un(p, .pointer_to_int);
         } else if (res.ty.isFloat()) {
-            res.val.floatToInt(res.ty, int_ty, p.pp.comp);
+            const old_value = res.val;
+            const value_change_kind = res.val.floatToInt(res.ty, int_ty, p.pp.comp);
+            try res.floatToIntWarning(p, int_ty, old_value, value_change_kind, tok);
             res.ty = int_ty;
             try res.un(p, .float_to_int);
         } else if (!res.ty.eql(int_ty, p.pp.comp, true)) {
@@ -4213,6 +4235,16 @@ const Result = struct {
             res.val.intCast(res.ty, int_ty, p.pp.comp);
             res.ty = int_ty;
             try res.un(p, .int_cast);
+        }
+    }
+
+    fn floatToIntWarning(res: *Result, p: *Parser, int_ty: Type, old_value: Value, change_kind: Value.FloatToIntChangeKind, tok: TokenIndex) !void {
+        switch (change_kind) {
+            .none => return p.errStr(.float_to_int, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
+            .out_of_range => return p.errStr(.float_out_of_range, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
+            .overflow => return p.errStr(.float_overflow_conversion, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
+            .nonzero_to_zero => return p.errStr(.float_zero_conversion, tok, try p.floatValueChangedStr(res, old_value.getFloat(f64), int_ty)),
+            .value_changed => return p.errStr(.float_value_changed, tok, try p.floatValueChangedStr(res, old_value.getFloat(f64), int_ty)),
         }
     }
 
@@ -4261,7 +4293,7 @@ const Result = struct {
         try res.un(p, .null_to_pointer);
     }
 
-    fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser) Error!void {
+    fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser, tok: TokenIndex) Error!void {
         // if either is a float cast to that type
         const float_types = [3][2]Type.Specifier{
             .{ .complex_long_double, .long_double },
@@ -4288,8 +4320,8 @@ const Result = struct {
         const b_promoted = b.ty.integerPromotion(p.pp.comp);
         if (a_promoted.eql(b_promoted, p.pp.comp, true)) {
             // cast to promoted type
-            try a.intCast(p, a_promoted);
-            try b.intCast(p, a_promoted);
+            try a.intCast(p, a_promoted, tok);
+            try b.intCast(p, a_promoted, tok);
             return;
         }
 
@@ -4299,8 +4331,8 @@ const Result = struct {
             // cast to greater signed or unsigned type
             const res_spec = std.math.max(@enumToInt(a_promoted.specifier), @enumToInt(b_promoted.specifier));
             const res_ty = Type{ .specifier = @intToEnum(Type.Specifier, res_spec) };
-            try a.intCast(p, res_ty);
-            try b.intCast(p, res_ty);
+            try a.intCast(p, res_ty, tok);
+            try b.intCast(p, res_ty, tok);
             return;
         }
 
@@ -4309,13 +4341,13 @@ const Result = struct {
         const b_larger = @enumToInt(b_promoted.specifier) > @enumToInt(b_promoted.specifier);
         if (a_unsigned) {
             const target = if (a_larger) a_promoted else b_promoted;
-            try a.intCast(p, target);
-            try b.intCast(p, target);
+            try a.intCast(p, target, tok);
+            try b.intCast(p, target, tok);
         } else {
             assert(b_unsigned);
             const target = if (b_larger) b_promoted else a_promoted;
-            try a.intCast(p, target);
-            try b.intCast(p, target);
+            try a.intCast(p, target, tok);
+            try b.intCast(p, target, tok);
         }
     }
 
@@ -4476,16 +4508,16 @@ fn assignExpr(p: *Parser) Error!Result {
     if (lhs.ty.is(.bool)) {
         // this is ridiculous but it's what clang does
         if (rhs.ty.isInt() or rhs.ty.isFloat() or rhs.ty.isPtr()) {
-            try rhs.boolCast(p, unqual_ty);
+            try rhs.boolCast(p, unqual_ty, tok);
         } else {
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
         }
     } else if (unqual_ty.isInt()) {
         if (rhs.ty.isInt() or rhs.ty.isFloat()) {
-            try rhs.intCast(p, unqual_ty);
+            try rhs.intCast(p, unqual_ty, tok);
         } else if (rhs.ty.isPtr()) {
             try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(rhs.ty, " to ", lhs.ty));
-            try rhs.intCast(p, unqual_ty);
+            try rhs.intCast(p, unqual_ty, tok);
         } else {
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
         }
@@ -4905,7 +4937,7 @@ fn castExpr(p: *Parser) Error!Result {
             if (ty.is(.bool)) {
                 operand.val.toBool();
             } else if (old_float and new_int) {
-                operand.val.floatToInt(operand.ty, ty, p.pp.comp);
+                _ = operand.val.floatToInt(operand.ty, ty, p.pp.comp); // no warnings for explicit cast
             } else if (new_float and old_int) {
                 operand.val.intToFloat(operand.ty, ty, p.pp.comp);
             } else if (new_float and old_float) {
@@ -5085,7 +5117,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
             return operand;
         },
         .minus => {
@@ -5097,7 +5129,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
             if (operand.val.tag != .unavailable) {
                 _ = operand.val.sub(operand.val.zero(), operand.val, operand.ty, p.pp.comp);
             }
@@ -5116,7 +5148,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
 
             if (operand.val.tag != .unavailable) {
                 if (operand.val.add(operand.val, operand.val.one(), operand.ty, p.pp.comp))
@@ -5138,7 +5170,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
 
             if (operand.val.tag != .unavailable) {
                 if (operand.val.sub(operand.val, operand.val.one(), operand.ty, p.pp.comp))
@@ -5156,7 +5188,7 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.lvalConversion(p);
             if (!operand.ty.isInt()) try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
             if (operand.ty.isInt()) {
-                try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+                try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
                 if (operand.val.tag != .unavailable) {
                     operand.val = operand.val.bitNot(operand.ty, p.pp.comp);
                 }
@@ -5175,7 +5207,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
             if (operand.val.tag != .unavailable) {
                 const res = Value.int(@boolToInt(!operand.val.getBool()));
                 operand.val = res;
@@ -5285,7 +5317,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), p.tok_i);
 
             try operand.un(p, .post_dec_expr);
             return operand;
@@ -5301,7 +5333,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp));
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), p.tok_i);
 
             try operand.un(p, .post_dec_expr);
             return operand;
@@ -5449,7 +5481,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
 
         if (arg_count >= params.len) {
-            if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.pp.comp));
+            if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.pp.comp), param_tok);
             if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
             try arg.saveValue(p);
             try p.list_buf.append(arg.node);
@@ -5484,14 +5516,14 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         } else if (p_ty.is(.bool)) {
             // this is ridiculous but it's what clang does
             if (arg.ty.isInt() or arg.ty.isFloat() or arg.ty.isPtr()) {
-                try arg.boolCast(p, p_ty);
+                try arg.boolCast(p, p_ty, params[arg_count].name_tok);
             } else {
                 try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
                 try p.errTok(.parameter_here, params[arg_count].name_tok);
             }
         } else if (p_ty.isInt()) {
             if (arg.ty.isInt() or arg.ty.isFloat()) {
-                try arg.intCast(p, p_ty);
+                try arg.intCast(p, p_ty, param_tok);
             } else if (arg.ty.isPtr()) {
                 try p.errStr(
                     .implicit_ptr_to_int,
@@ -5499,7 +5531,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                     try p.typePairStrExtra(arg.ty, " to ", p_ty),
                 );
                 try p.errTok(.parameter_here, params[arg_count].name_tok);
-                try arg.intCast(p, p_ty);
+                try arg.intCast(p, p_ty, param_tok);
             } else {
                 try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
                 try p.errTok(.parameter_here, params[arg_count].name_tok);
@@ -5521,7 +5553,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                     try p.typePairStrExtra(arg.ty, " to ", p_ty),
                 );
                 try p.errTok(.parameter_here, params[arg_count].name_tok);
-                try arg.intCast(p, p_ty);
+                try arg.intCast(p, p_ty, param_tok);
             } else if (!arg.ty.isVoidStar() and !p_ty.isVoidStar() and !p_ty.eql(arg.ty, p.pp.comp, false)) {
                 try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
                 try p.errTok(.parameter_here, params[arg_count].name_tok);
