@@ -7,6 +7,9 @@ void foo(void) {
     (void)(0/0);
     (void)(1%0);
     _Static_assert(1/0, "unavailable");
+    float f = 0.0f / 0.0f;
+    f /= 0.0f;
+    x = 1 / 2.0f;
 }
 
 #define EXPECTED_ERRORS \

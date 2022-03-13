@@ -4436,7 +4436,7 @@ fn assignExpr(p: *Parser) Error!Result {
         .div_assign_expr,
         .mod_assign_expr,
         => {
-            if (rhs.val.isZero()) {
+            if (rhs.val.isZero() and lhs.ty.isInt() and rhs.ty.isInt()) {
                 switch (tag) {
                     .div_assign_expr => try p.errStr(.division_by_zero, div.?, "division"),
                     .mod_assign_expr => try p.errStr(.division_by_zero, mod.?, "remainder"),
@@ -4784,7 +4784,7 @@ fn mulExpr(p: *Parser) Error!Result {
         var rhs = try p.castExpr();
         try rhs.expect(p);
 
-        if (rhs.val.isZero() and mul == null and !p.no_eval) {
+        if (rhs.val.isZero() and mul == null and !p.no_eval and lhs.ty.isInt() and rhs.ty.isInt()) {
             const err_tag: Diagnostics.Tag = if (p.in_macro) .division_by_zero_macro else .division_by_zero;
             lhs.val.tag = .unavailable;
             if (div != null) {
