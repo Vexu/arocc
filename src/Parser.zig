@@ -2359,8 +2359,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
 
         if (size.val.tag == .unavailable) {
             if (size.node != .none) {
+                try p.errTok(.vla, size_tok);
                 if (p.func.ty == null and kind != .param and p.record.kind == .invalid) {
-                    try p.errTok(.variable_len_array_file_scope, l_bracket);
+                    try p.errTok(.variable_len_array_file_scope, d.name);
                 }
                 const expr_ty = try p.arena.create(Type.Expr);
                 expr_ty.node = size.node;

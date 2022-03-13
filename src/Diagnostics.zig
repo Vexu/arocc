@@ -124,6 +124,7 @@ pub const Options = packed struct {
     @"pointer-to-int-cast": Kind = .default,
     @"gnu-case-range": Kind = .default,
     @"c++-compat": Kind = .default,
+    vla: Kind = .default,
 };
 
 const messages = struct {
@@ -1623,6 +1624,11 @@ const messages = struct {
     const invalid_pp_stringify_escape = struct {
         const msg = "invalid string literal, ignoring final '\\'";
         const kind = .warning;
+    };
+    const vla = struct {
+        const msg = "variable length array used";
+        const kind = .off;
+        const opt = "vla";
     };
 };
 
