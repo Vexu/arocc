@@ -57,6 +57,11 @@ void invalid_chained_comparisons() {
     1.0 == &1 == 1;
 }
 
+void mod_assign_float(void) {
+    int x = 1;
+    x %= 1.0f;
+}
+
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
     "binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')" \
@@ -79,3 +84,4 @@ void invalid_chained_comparisons() {
     "binary expressions.c:56:9: error: invalid operands to binary expression ('double' and 'struct S')" \
     "binary expressions.c:57:12: error: cannot take the address of an rvalue" \
     "binary expressions.c:57:9: error: invalid operands to binary expression ('double' and 'int *')" \
+    "binary expressions.c:62:7: error: invalid operands to binary expression ('int' and 'float')" \

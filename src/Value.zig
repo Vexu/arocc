@@ -63,24 +63,74 @@ pub fn signExtend(v: Value, old_ty: Type, comp: *Compilation) i64 {
     };
 }
 
+pub const FloatToIntChangeKind = enum {
+    /// value did not change
+    none,
+    /// floating point number too small or large for destination integer type
+    out_of_range,
+    /// tried to convert a NaN or Infinity
+    overflow,
+    /// fractional value was converted to zero
+    nonzero_to_zero,
+    /// fractional part truncated
+    value_changed,
+};
+
+fn floatToIntExtra(comptime FloatTy: type, int_ty_signedness: std.builtin.Signedness, int_ty_size: u16, v: *Value) FloatToIntChangeKind {
+    const float_val = v.getFloat(FloatTy);
+    const was_zero = float_val == 0;
+    const had_fraction = std.math.modf(float_val).fpart != 0;
+
+    inline for ([_]std.builtin.Signedness{ .signed, .unsigned }) |signedness| {
+        inline for ([_]u16{ 1, 2, 4, 8 }) |bytecount| {
+            if (signedness == int_ty_signedness and bytecount == int_ty_size) {
+                const IntTy = std.meta.Int(signedness, bytecount * 8);
+
+                const intVal = std.math.lossyCast(IntTy, float_val);
+                v.* = int(intVal);
+                if (!was_zero and v.isZero()) return .nonzero_to_zero;
+                if (float_val <= std.math.minInt(IntTy) or float_val >= std.math.maxInt(IntTy)) return .out_of_range;
+                if (had_fraction) return .value_changed;
+                return .none;
+            }
+        }
+    }
+    unreachable;
+}
+
 /// Converts the stored value from a float to an integer.
 /// `.unavailable` value remains unchanged.
-pub fn floatToInt(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
+pub fn floatToInt(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) FloatToIntChangeKind {
     assert(old_ty.isFloat());
-    if (v.tag == .unavailable) return;
-    if (new_ty.isUnsignedInt(comp) and v.data.float < 0) {
+    if (v.tag == .unavailable) return .none;
+    if (new_ty.is(.bool)) {
+        const was_zero = v.isZero();
+        const was_one = v.getFloat(f64) == 1.0;
+        v.toBool();
+        if (was_zero or was_one) return .none;
+        return .value_changed;
+    } else if (new_ty.isUnsignedInt(comp) and v.data.float < 0) {
         v.* = int(0);
-        return;
+        return .out_of_range;
     } else if (!std.math.isFinite(v.data.float)) {
         v.tag = .unavailable;
-        return;
+        return .overflow;
     }
-    const size = old_ty.sizeof(comp).?;
-    v.* = int(switch (size) {
-        4 => @floatToInt(i32, v.getFloat(f32)),
-        8 => @floatToInt(i64, v.getFloat(f64)),
+    const old_size = old_ty.sizeof(comp).?;
+    const new_size = @intCast(u16, new_ty.sizeof(comp).?);
+    if (new_ty.isUnsignedInt(comp)) switch (old_size) {
+        1 => unreachable, // promoted to int
+        2 => unreachable, // promoted to int
+        4 => return floatToIntExtra(f32, .unsigned, new_size, v),
+        8 => return floatToIntExtra(f64, .unsigned, new_size, v),
         else => unreachable,
-    });
+    } else switch (old_size) {
+        1 => unreachable, // promoted to int
+        2 => unreachable, // promoted to int
+        4 => return floatToIntExtra(f32, .signed, new_size, v),
+        8 => return floatToIntExtra(f64, .signed, new_size, v),
+        else => unreachable,
+    }
 }
 
 /// Converts the stored value from an integer to a float.

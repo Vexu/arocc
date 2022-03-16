@@ -75,6 +75,7 @@ void baz(void) {
 
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
     "assignment.c:4:7: error: expression is not assignable" \
+    "assignment.c:6:7: warning: implicit conversion from 'float' to '_Bool' changes value from 5.5 to true [-Wfloat-conversion]" \
     "assignment.c:12:7: warning: implicit pointer to integer conversion from 'int *' to 'int' [-Wint-conversion]" \
     "assignment.c:13:7: error: invalid operands to binary expression ('int' and 'int *')" \
     "assignment.c:16:7: error: invalid operands to binary expression ('float' and 'int')" \
