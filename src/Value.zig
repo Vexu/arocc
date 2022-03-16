@@ -103,7 +103,13 @@ fn floatToIntExtra(comptime FloatTy: type, int_ty_signedness: std.builtin.Signed
 pub fn floatToInt(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) FloatToIntChangeKind {
     assert(old_ty.isFloat());
     if (v.tag == .unavailable) return .none;
-    if (new_ty.isUnsignedInt(comp) and v.data.float < 0) {
+    if (new_ty.is(.bool)) {
+        const was_zero = v.isZero();
+        const was_one = v.getFloat(f64) == 1.0;
+        v.toBool();
+        if (was_zero or was_one) return .none;
+        return .value_changed;
+    } else if (new_ty.isUnsignedInt(comp) and v.data.float < 0) {
         v.* = int(0);
         return .out_of_range;
     } else if (!std.math.isFinite(v.data.float)) {

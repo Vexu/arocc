@@ -13,6 +13,9 @@ void foo(void) {
     int g = 2147483647.0f;
     char h = 256.0f;
     unsigned i = -1.0;
+    _Bool j = 0.0;
+    _Bool k = 1.0f;
+    _Bool l = 1.5f;
 }
 
 
@@ -26,3 +29,6 @@ void foo(void) {
     "float to int.c:13:13: warning: implicit conversion of out of range value from 'float' to 'int' is undefined [-Wliteral-conversion]" \
     "float to int.c:14:14: warning: implicit conversion of out of range value from 'float' to 'char' is undefined [-Wliteral-conversion]" \
     "float to int.c:15:18: warning: implicit conversion of out of range value from 'double' to 'unsigned int' is undefined [-Wliteral-conversion]" \
+    "float to int.c:16:15: warning: implicit conversion turns floating-point number into integer: 'double' to '_Bool' [-Wliteral-conversion]" \
+    "float to int.c:17:15: warning: implicit conversion turns floating-point number into integer: 'float' to '_Bool' [-Wliteral-conversion]" \
+    "float to int.c:18:15: warning: implicit conversion from 'float' to '_Bool' changes value from 1.5 to true [-Wfloat-conversion]" \

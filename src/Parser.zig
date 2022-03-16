@@ -393,7 +393,13 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: f64, int_ty: Ty
     try w.writeAll(type_pair_str);
     const is_zero = res.val.isZero();
     const non_zero_str: []const u8 = if (is_zero) "non-zero " else "";
-    try w.print(" changes {s}value from {d} to {d}", .{ non_zero_str, old_value, res.val.data.int });
+    if (int_ty.is(.bool)) {
+        try w.print(" changes {s}value from {d} to {}", .{ non_zero_str, old_value, res.val.getBool() });
+    } else if (int_ty.isUnsignedInt(p.pp.comp)) {
+        try w.print(" changes {s}value from {d} to {d}", .{ non_zero_str, old_value, res.val.getInt(u64) });
+    } else {
+        try w.print(" changes {s}value from {d} to {d}", .{ non_zero_str, old_value, res.val.getInt(i64) });
+    }
 
     return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -4201,7 +4207,6 @@ const Result = struct {
     }
 
     fn boolCast(res: *Result, p: *Parser, bool_ty: Type, tok: TokenIndex) Error!void {
-        _ = tok;
         if (res.ty.isPtr()) {
             res.val.toBool();
             res.ty = bool_ty;
@@ -4211,7 +4216,9 @@ const Result = struct {
             res.ty = bool_ty;
             try res.un(p, .int_to_bool);
         } else if (res.ty.isFloat()) {
-            _ = res.val.floatToInt(res.ty, bool_ty, p.pp.comp); //TODO
+            const old_value = res.val;
+            const value_change_kind = res.val.floatToInt(res.ty, bool_ty, p.pp.comp);
+            try res.floatToIntWarning(p, bool_ty, old_value, value_change_kind, tok);
             res.ty = bool_ty;
             try res.un(p, .float_to_bool);
         }
