@@ -688,8 +688,11 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
 
     // TODO get target from compilation
     return switch (ty.specifier) {
-        .unspecified_variable_len_array => unreachable, // must be bound in function definition
-        .variable_len_array, .incomplete_array => ty.elemType().alignof(comp),
+        .variable_len_array,
+        .incomplete_array,
+        .unspecified_variable_len_array,
+        .array,
+        => ty.elemType().alignof(comp),
         .func, .var_args_func, .old_style_func => 4, // TODO check target
         .char, .schar, .uchar, .void, .bool => 1,
         .short, .ushort => 2,
@@ -719,7 +722,6 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .decayed_unspecified_variable_len_array,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .array => ty.data.array.elem.alignof(comp),
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else ty.data.record.alignment,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
