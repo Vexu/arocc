@@ -128,6 +128,7 @@ pub const Options = packed struct {
     @"float-overflow-conversion": Kind = .default,
     @"float-zero-conversion": Kind = .default,
     @"float-conversion": Kind = .default,
+    @"gnu-folding-constant": Kind = .default,
 };
 
 const messages = struct {
@@ -1662,6 +1663,18 @@ const messages = struct {
         const extra = .str;
         const kind = .off;
         const opt = "literal-conversion";
+    };
+    const const_decl_folded = struct {
+        const msg = "expression is not an integer constant expression; folding it to a constant is a GNU extension";
+        const kind = .off;
+        const opt = "gnu-folding-constant";
+        const pedantic = true;
+    };
+    const const_decl_folded_vla = struct {
+        const msg = "variable length array folded to constant array as an extension";
+        const kind = .off;
+        const opt = "gnu-folding-constant";
+        const pedantic = true;
     };
 };
 
