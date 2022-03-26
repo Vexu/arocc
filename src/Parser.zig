@@ -1921,6 +1921,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         ty = try p.withAttributes(ty, attr_buf_top);
 
         if (p.eatToken(.colon)) |_| bits: {
+            const bits_tok = p.tok_i;
             const res = try p.constExpr();
             if (!ty.isInt()) {
                 try p.errStr(.non_int_bitfield, first_tok, try p.typeStr(ty));
@@ -1928,7 +1929,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
             }
 
             if (res.val.tag == .unavailable) {
-                try p.errTok(.expected_integer_constant_expr, first_tok);
+                try p.errTok(.expected_integer_constant_expr, bits_tok);
                 break :bits;
             } else if (res.val.compare(.lt, Value.int(0), res.ty, p.pp.comp)) {
                 try p.errExtra(.negative_bitwidth, first_tok, .{
