@@ -37,6 +37,7 @@ const Scope = union(enum) {
         name: []const u8,
         ty: Type,
         name_tok: TokenIndex,
+        val: Value,
     };
 
     const Enumeration = struct {
@@ -91,6 +92,19 @@ const TentativeAttribute = struct {
     tok: TokenIndex,
 };
 
+/// How the parser handles const int decl references when it is expecting an integer
+/// constant expression.
+const ConstDeclFoldingMode = enum {
+    /// fold const decls as if they were literals
+    fold_const_decls,
+    /// fold const decls as if they were literals and issue GNU extension diagnostic
+    gnu_folding_extension,
+    /// fold const decls as if they were literals and issue VLA diagnostic
+    gnu_vla_folding_extension,
+    /// folding const decls is prohibited; return an unavailable value
+    no_const_decl_folding,
+};
+
 // values from preprocessor
 pp: *Preprocessor,
 tok_ids: []const Token.Id,
@@ -119,6 +133,7 @@ in_macro: bool = false,
 extension_suppressed: bool = false,
 contains_address_of_label: bool = false,
 label_count: u32 = 0,
+const_decl_folding: ConstDeclFoldingMode = .fold_const_decls,
 /// location of first computed goto in function currently being parsed
 /// if a computed goto is used, the function must contain an
 /// address-of-label expression (tracked with contains_address_of_label)
@@ -158,6 +173,7 @@ record: struct {
                 .name = name,
                 .name_tok = name_tok,
                 .ty = undefined, // unused
+                .val = .{},
             },
         });
     }
@@ -659,7 +675,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
     {
         const ty = &pp.comp.types.va_list;
-        const sym = Scope.Symbol{ .name = "__builtin_va_list", .ty = ty.*, .name_tok = 0 };
+        const sym = Scope.Symbol{ .name = "__builtin_va_list", .ty = ty.*, .name_tok = 0, .val = .{} };
         try p.scopes.append(.{ .typedef = sym });
 
         if (ty.isArray()) ty.decayArray();
@@ -864,7 +880,7 @@ fn decl(p: *Parser) Error!bool {
     try p.validateAlignas(init_d.d.ty, null);
 
     // Check for function definition.
-    if (init_d.d.func_declarator != null and init_d.initializer == .none and init_d.d.ty.isFunc()) fn_def: {
+    if (init_d.d.func_declarator != null and init_d.initializer.node == .none and init_d.d.ty.isFunc()) fn_def: {
         switch (p.tok_ids[p.tok_i]) {
             .comma, .semicolon => break :fn_def,
             .l_brace => {},
@@ -885,6 +901,7 @@ fn decl(p: *Parser) Error!bool {
             .name = p.tokSlice(init_d.d.name),
             .ty = init_d.d.ty,
             .name_tok = init_d.d.name,
+            .val = .{},
         } });
 
         const func = p.func;
@@ -955,6 +972,7 @@ fn decl(p: *Parser) Error!bool {
                         .name = name_str,
                         .name_tok = d.name,
                         .ty = d.ty,
+                        .val = .{},
                     } });
                     if (p.eatToken(.comma) == null) break;
                 }
@@ -975,6 +993,7 @@ fn decl(p: *Parser) Error!bool {
                         .name = param.name,
                         .ty = param.ty,
                         .name_tok = param.name_tok,
+                        .val = .{},
                     },
                 });
             }
@@ -1012,12 +1031,12 @@ fn decl(p: *Parser) Error!bool {
     // Declare all variable/typedef declarators.
     while (true) {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
-        const tag = try decl_spec.validate(p, &init_d.d.ty, init_d.initializer != .none);
+        const tag = try decl_spec.validate(p, &init_d.d.ty, init_d.initializer.node != .none);
         //        const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
         //        init_d.d.ty = try init_d.d.ty.withAttributes(p.arena, attrs);
 
         const node = try p.addNode(.{ .ty = init_d.d.ty, .tag = tag, .data = .{
-            .decl = .{ .name = init_d.d.name, .node = init_d.initializer },
+            .decl = .{ .name = init_d.d.name, .node = init_d.initializer.node },
         } });
         try p.decl_buf.append(node);
 
@@ -1025,10 +1044,11 @@ fn decl(p: *Parser) Error!bool {
             .name = p.tokSlice(init_d.d.name),
             .ty = init_d.d.ty,
             .name_tok = init_d.d.name,
+            .val = if (init_d.d.ty.isConst()) init_d.initializer.val else .{},
         };
         if (decl_spec.storage_class == .typedef) {
             try p.scopes.append(.{ .typedef = sym });
-        } else if (init_d.initializer != .none) {
+        } else if (init_d.initializer.node != .none) {
             try p.scopes.append(.{ .def = sym });
         } else {
             try p.scopes.append(.{ .decl = sym });
@@ -1051,7 +1071,7 @@ fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.eatToken(.keyword_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
-    const res = try p.constExpr();
+    const res = try p.constExpr(.no_const_decl_folding);
     const str = if (p.eatToken(.comma) != null)
         switch (p.tok_ids[p.tok_i]) {
             .string_literal,
@@ -1354,7 +1374,7 @@ fn validateAlignas(p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !void {
     }
 }
 
-const InitDeclarator = struct { d: Declarator, initializer: NodeIndex = .none };
+const InitDeclarator = struct { d: Declarator, initializer: Result = .{} };
 
 /// attribute
 ///  : attrIdentifier
@@ -1524,7 +1544,7 @@ fn alignAs(p: *Parser) !bool {
         try p.attr_buf.append(p.pp.comp.gpa, .{ .attr = attr, .tok = align_tok });
     } else {
         const arg_start = p.tok_i;
-        const res = try p.constExpr();
+        const res = try p.constExpr(.no_const_decl_folding);
         if (!res.val.isZero()) {
             var args = Attribute.initArguments(.aligned, align_tok);
             if (p.diagnose(.aligned, &args, 0, res)) |msg| {
@@ -1576,13 +1596,16 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 
         const scopes_len = p.scopes.items.len;
         defer p.scopes.items.len = scopes_len;
-        try p.scopes.append(.{ .decl = .{
-            .name = p.tokSlice(init_d.d.name),
-            .ty = init_d.d.ty,
-            .name_tok = init_d.d.name,
-        } });
+        try p.scopes.append(.{
+            .decl = .{
+                .name = p.tokSlice(init_d.d.name),
+                .ty = init_d.d.ty,
+                .name_tok = init_d.d.name,
+                .val = .{},
+            },
+        });
         var init_list_expr = try p.initializer(init_d.d.ty);
-        init_d.initializer = init_list_expr.node;
+        init_d.initializer = init_list_expr;
         if (!init_list_expr.ty.isArray()) break :init;
         if (init_d.d.ty.specifier == .incomplete_array) {
             // Modifying .data is exceptionally allowed for .incomplete_array.
@@ -1612,7 +1635,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
             else => {},
         };
         // if there was an initializer expression it must have contained an error
-        if (init_d.initializer != .none) break :incomplete;
+        if (init_d.initializer.node != .none) break :incomplete;
         try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
         return init_d;
     }
@@ -1628,7 +1651,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
         .def => |s| if (!s.ty.eql(init_d.d.ty, p.pp.comp, true)) {
             try p.errStr(.redefinition_incompatible, name, p.tokSlice(name));
             try p.errTok(.previous_definition, s.name_tok);
-        } else if (init_d.initializer != .none) {
+        } else if (init_d.initializer.node != .none) {
             try p.errStr(.redefinition, name, p.tokSlice(name));
             try p.errTok(.previous_definition, s.name_tok);
         },
@@ -1778,7 +1801,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
                 .specifier = if (is_struct) .@"struct" else .@"union",
                 .data = .{ .record = record_ty },
             };
-            const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = ident };
+            const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = ident, .val = .{} };
             try p.scopes.append(if (is_struct) .{ .@"struct" = sym } else .{ .@"union" = sym });
             return record_ty;
         }
@@ -1806,7 +1829,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
 
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
-        const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = maybe_ident.? };
+        const sym = Scope.Symbol{ .name = record_ty.name, .ty = ty, .name_tok = maybe_ident.?, .val = .{} };
         try p.scopes.append(if (is_struct) .{ .@"struct" = sym } else .{ .@"union" = sym });
     }
 
@@ -1921,14 +1944,15 @@ fn recordDeclarator(p: *Parser) Error!bool {
         ty = try p.withAttributes(ty, attr_buf_top);
 
         if (p.eatToken(.colon)) |_| bits: {
-            const res = try p.constExpr();
+            const bits_tok = p.tok_i;
+            const res = try p.constExpr(.gnu_folding_extension);
             if (!ty.isInt()) {
                 try p.errStr(.non_int_bitfield, first_tok, try p.typeStr(ty));
                 break :bits;
             }
 
             if (res.val.tag == .unavailable) {
-                try p.errTok(.expected_integer_constant_expr, first_tok);
+                try p.errTok(.expected_integer_constant_expr, bits_tok);
                 break :bits;
             } else if (res.val.compare(.lt, Value.int(0), res.ty, p.pp.comp)) {
                 try p.errExtra(.negative_bitwidth, first_tok, .{
@@ -2056,7 +2080,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             // this is a forward declaration, create a new enum Type.
             const enum_ty = try Type.Enum.create(p.arena, p.tokSlice(ident));
             const ty = Type{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } };
-            const sym = Scope.Symbol{ .name = enum_ty.name, .ty = ty, .name_tok = ident };
+            const sym = Scope.Symbol{ .name = enum_ty.name, .ty = ty, .name_tok = ident, .val = .{} };
             try p.scopes.append(.{ .@"enum" = sym });
             return enum_ty;
         }
@@ -2088,6 +2112,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
             .name = enum_ty.name,
             .ty = ty,
             .name_tok = maybe_ident.?,
+            .val = .{},
         } });
     }
 
@@ -2177,7 +2202,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     try p.attributeSpecifier();
 
     if (p.eatToken(.equal)) |_| {
-        const specified = try p.constExpr();
+        const specified = try p.constExpr(.gnu_folding_extension);
         if (specified.val.tag == .unavailable) {
             try p.errTok(.enum_val_unavailable, name_tok + 2);
             try e.incr(p);
@@ -2348,7 +2373,12 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         if (static != null and !got_quals) got_quals = try p.typeQual(&quals);
         var star = p.eatToken(.asterisk);
         const size_tok = p.tok_i;
+
+        const const_decl_folding = p.const_decl_folding;
+        p.const_decl_folding = .gnu_vla_folding_extension;
         const size = if (star) |_| Result{} else try p.assignExpr();
+        p.const_decl_folding = const_decl_folding;
+
         try p.expectClosing(l_bracket, .r_bracket);
 
         if (star != null and static != null) {
@@ -2467,6 +2497,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                     .name = p.tokSlice(name_tok),
                     .ty = undefined,
                     .name_tok = name_tok,
+                    .val = .{},
                 } });
                 try p.param_buf.append(.{
                     .name = p.tokSlice(name_tok),
@@ -2559,6 +2590,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
                     .name = p.tokSlice(name_tok),
                     .ty = param_ty,
                     .name_tok = name_tok,
+                    .val = .{},
                 } });
             }
         }
@@ -2688,7 +2720,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     return error.ParsingFailed;
                 }
                 const expr_tok = p.tok_i;
-                const index_res = try p.constExpr();
+                const index_res = try p.constExpr(.gnu_folding_extension);
                 try p.expectClosing(l_bracket, .r_bracket);
 
                 if (index_res.val.tag == .unavailable) {
@@ -3601,11 +3633,11 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             .data = .{ .decl = .{ .name = name_tok, .node = try p.stmt() } },
         });
     } else if (p.eatToken(.keyword_case)) |case| {
-        const first_item = try p.constExpr();
+        const first_item = try p.constExpr(.gnu_folding_extension);
         const ellipsis = p.tok_i;
         const second_item = if (p.eatToken(.ellipsis) != null) blk: {
             try p.errTok(.gnu_switch_range, ellipsis);
-            break :blk try p.constExpr();
+            break :blk try p.constExpr(.gnu_folding_extension);
         } else null;
         _ = try p.expectToken(.colon);
 
@@ -4200,7 +4232,6 @@ const Result = struct {
             res.ty.decayArray();
             try res.un(p, .array_to_pointer);
         } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, res.node)) {
-            res.val.tag = .unavailable;
             res.ty.qual = .{};
             try res.un(p, .lval_to_rval);
         }
@@ -4567,8 +4598,12 @@ fn assignExpr(p: *Parser) Error!Result {
 }
 
 /// constExpr : condExpr
-fn constExpr(p: *Parser) Error!Result {
+fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
     const start = p.tok_i;
+    const const_decl_folding = p.const_decl_folding;
+    defer p.const_decl_folding = const_decl_folding;
+    p.const_decl_folding = decl_folding;
+
     const res = try p.condExpr();
     try res.expect(p);
     if (!res.ty.isInt()) {
@@ -4976,7 +5011,7 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     const cond_tok = p.tok_i;
-    var cond = try p.constExpr();
+    var cond = try p.constExpr(.no_const_decl_folding);
     if (cond.val.tag == .unavailable) {
         try p.errTok(.builtin_choose_cond, cond_tok);
         return error.ParsingFailed;
@@ -5713,6 +5748,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                         .name = name,
                         .ty = ty,
                         .name_tok = name_tok,
+                        .val = .{},
                     } });
 
                     return Result{
@@ -5740,7 +5776,15 @@ fn primaryExpr(p: *Parser) Error!Result {
                 },
                 .def, .decl, .param => |s| {
                     try p.checkDeprecatedUnavailable(s.ty, name_tok, s.name_tok);
+                    if (s.val.tag == .int) {
+                        switch (p.const_decl_folding) {
+                            .gnu_folding_extension => try p.errTok(.const_decl_folded, name_tok),
+                            .gnu_vla_folding_extension => try p.errTok(.const_decl_folded_vla, name_tok),
+                            else => {},
+                        }
+                    }
                     return Result{
+                        .val = if (p.const_decl_folding == .no_const_decl_folding) Value{} else s.val,
                         .ty = s.ty,
                         .node = try p.addNode(.{
                             .tag = .decl_ref_expr,
