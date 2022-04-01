@@ -27,6 +27,7 @@ const Scope = union(enum) {
     @"enum": Symbol,
     decl: Symbol,
     def: Symbol,
+    field: Symbol,
     param: Symbol,
     enumeration: Enumeration,
     loop,
@@ -160,7 +161,7 @@ record: struct {
         while (i > r.scopes_top) {
             i -= 1;
             switch (p.scopes.items[i]) {
-                .def => |d| if (mem.eql(u8, d.name, name)) {
+                .field => |d| if (mem.eql(u8, d.name, name)) {
                     try p.errStr(.duplicate_member, name_tok, name);
                     try p.errTok(.previous_definition, d.name_tok);
                     break;
@@ -169,7 +170,7 @@ record: struct {
             }
         }
         try p.scopes.append(.{
-            .def = .{
+            .field = .{
                 .name = name,
                 .name_tok = name_tok,
                 .ty = undefined, // unused
