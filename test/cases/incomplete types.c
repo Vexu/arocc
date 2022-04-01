@@ -36,6 +36,11 @@ void switch_with_incomplete(void) {
     }
 }
 
+void incomplete_enum_float(void) {
+    enum E e;
+    e = 1.0f;
+}
+
 #define EXPECTED_ERRORS "incomplete types.c:4:5: error: dereferencing pointer to incomplete type 'struct S'" \
     "incomplete types.c:5:11: error: dereferencing pointer to incomplete type 'struct S'" \
     "incomplete types.c:8:5: error: dereferencing pointer to incomplete type 'union U'" \
@@ -47,3 +52,4 @@ void switch_with_incomplete(void) {
     "incomplete types.c:29:29: error: variable has incomplete type 'struct self_referential'" \
     "incomplete types.c:33:17: error: variable has incomplete type 'struct node'" \
     "incomplete types.c:34:13: error: statement requires expression with integer type ('struct node' invalid)" \
+    "incomplete types.c:40:12: error: variable has incomplete type 'enum E'" \
