@@ -4256,6 +4256,7 @@ const Result = struct {
     }
 
     fn intCast(res: *Result, p: *Parser, int_ty: Type, tok: TokenIndex) Error!void {
+        if (int_ty.hasIncompleteSize()) return error.ParsingFailed; // Diagnostic already issued
         if (res.ty.is(.bool)) {
             res.ty = int_ty;
             try res.un(p, .bool_to_int);
@@ -4269,7 +4270,6 @@ const Result = struct {
             res.ty = int_ty;
             try res.un(p, .float_to_int);
         } else if (!res.ty.eql(int_ty, p.pp.comp, true)) {
-            if (int_ty.hasIncompleteSize()) return error.ParsingFailed; // Diagnostic already issued
             res.val.intCast(res.ty, int_ty, p.pp.comp);
             res.ty = int_ty;
             try res.un(p, .int_cast);
