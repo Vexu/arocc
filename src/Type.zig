@@ -662,7 +662,7 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
         .decayed_typeof_expr,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .array => ty.data.array.elem.sizeof(comp).? * ty.data.array.len,
+        .array => if (ty.data.array.elem.sizeof(comp)) |size| size * ty.data.array.len else null,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
         .typeof_type => ty.data.sub_type.sizeof(comp),
