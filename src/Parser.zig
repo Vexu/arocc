@@ -4961,7 +4961,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (operand.val.tag == .int or operand.val.tag == .float) {
                 _ = operand.val.sub(operand.val.zero(), operand.val, operand.ty, p.pp.comp);
             } else {
-                operand.val = .unavailable;
+                operand.val.tag = .unavailable;
             }
             try operand.un(p, .negate_expr);
             return operand;
@@ -4984,7 +4984,7 @@ fn unExpr(p: *Parser) Error!Result {
                 if (operand.val.add(operand.val, operand.val.one(), operand.ty, p.pp.comp))
                     try p.errOverflow(tok, operand);
             } else {
-                operand.val = .unavailable;
+                operand.val.tag = .unavailable;
             }
 
             try operand.un(p, .pre_inc_expr);
@@ -5008,7 +5008,7 @@ fn unExpr(p: *Parser) Error!Result {
                 if (operand.val.sub(operand.val, operand.val.one(), operand.ty, p.pp.comp))
                     try p.errOverflow(tok, operand);
             } else {
-                operand.val = .unavailable;
+                operand.val.tag = .unavailable;
             }
 
             try operand.un(p, .pre_dec_expr);
