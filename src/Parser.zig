@@ -4958,8 +4958,10 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
-            if (operand.val.tag != .unavailable) {
+            if (operand.val.tag == .int or operand.val.tag == .float) {
                 _ = operand.val.sub(operand.val.zero(), operand.val, operand.ty, p.pp.comp);
+            } else {
+                operand.val = .unavailable;
             }
             try operand.un(p, .negate_expr);
             return operand;
@@ -4978,9 +4980,11 @@ fn unExpr(p: *Parser) Error!Result {
             }
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
 
-            if (operand.val.tag != .unavailable) {
+            if (operand.val.tag == .int or operand.val.tag == .float) {
                 if (operand.val.add(operand.val, operand.val.one(), operand.ty, p.pp.comp))
                     try p.errOverflow(tok, operand);
+            } else {
+                operand.val = .unavailable;
             }
 
             try operand.un(p, .pre_inc_expr);
@@ -5000,9 +5004,11 @@ fn unExpr(p: *Parser) Error!Result {
             }
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
 
-            if (operand.val.tag != .unavailable) {
+            if (operand.val.tag == .int or operand.val.tag == .float) {
                 if (operand.val.sub(operand.val, operand.val.one(), operand.ty, p.pp.comp))
                     try p.errOverflow(tok, operand);
+            } else {
+                operand.val = .unavailable;
             }
 
             try operand.un(p, .pre_dec_expr);
@@ -5017,7 +5023,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt()) try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
             if (operand.ty.isInt()) {
                 try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
-                if (operand.val.tag != .unavailable) {
+                if (operand.val.tag == .int) {
                     operand.val = operand.val.bitNot(operand.ty, p.pp.comp);
                 }
             } else {
@@ -5036,9 +5042,11 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
-            if (operand.val.tag != .unavailable) {
+            if (operand.val.tag == .int) {
                 const res = Value.int(@boolToInt(!operand.val.getBool()));
                 operand.val = res;
+            } else {
+                operand.val.tag = .unavailable;
             }
             operand.ty = .{ .specifier = .int };
             try operand.un(p, .bool_not_expr);
