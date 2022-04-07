@@ -69,6 +69,11 @@ fn testFn(allocator: std.mem.Allocator) !void {
 
     // apparently we can't use setAstCwd without libc on windows yet
     const win = @import("builtin").os.tag == .windows;
+
+    var old_cwd_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const old_cwd = if (!win) try std.os.getcwd(&old_cwd_buf);
+    defer if (!win) std.os.chdir(old_cwd) catch unreachable;
+
     var tmp_dir = if (!win) std.testing.tmpDir(.{});
     defer if (!win) tmp_dir.cleanup();
 
