@@ -1155,26 +1155,38 @@ fn collectMacroFuncArguments(
         switch (tok.id) {
             .comma => {
                 if (parens == 0) {
-                    try args.append(curArgument.toOwnedSlice());
+                    const owned = curArgument.toOwnedSlice();
+                    errdefer pp.comp.gpa.free(owned);
+                    try args.append(owned);
                 } else {
-                    try curArgument.append(try tok.dupe(pp.comp.gpa));
+                    const duped = try tok.dupe(pp.comp.gpa);
+                    errdefer Token.free(duped.expansion_locs, pp.comp.gpa);
+                    try curArgument.append(duped);
                 }
             },
             .l_paren => {
-                try curArgument.append(try tok.dupe(pp.comp.gpa));
+                const duped = try tok.dupe(pp.comp.gpa);
+                errdefer Token.free(duped.expansion_locs, pp.comp.gpa);
+                try curArgument.append(duped);
                 parens += 1;
             },
             .r_paren => {
                 if (parens == 0) {
-                    try args.append(curArgument.toOwnedSlice());
+                    const owned = curArgument.toOwnedSlice();
+                    errdefer pp.comp.gpa.free(owned);
+                    try args.append(owned);
                     break;
                 } else {
-                    try curArgument.append(try tok.dupe(pp.comp.gpa));
+                    const duped = try tok.dupe(pp.comp.gpa);
+                    errdefer Token.free(duped.expansion_locs, pp.comp.gpa);
+                    try curArgument.append(duped);
                     parens -= 1;
                 }
             },
             .eof => {
-                try args.append(curArgument.toOwnedSlice());
+                const owned = curArgument.toOwnedSlice();
+                errdefer pp.comp.gpa.free(owned);
+                try args.append(owned);
                 deinitMacroArguments(pp.comp.gpa, &args);
                 tokenizer.* = saved_tokenizer;
                 end_idx.* = old_end;
