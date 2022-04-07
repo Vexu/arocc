@@ -51,7 +51,9 @@ fn testFn(allocator: std.mem.Allocator) !void {
 
             defer buf.items.len = 0;
             try buf.writer().print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
-            try cases.append(try allocator.dupe(u8, buf.items));
+            const case = try allocator.dupe(u8, buf.items);
+            errdefer allocator.free(case);
+            try cases.append(case);
         }
     }
 
