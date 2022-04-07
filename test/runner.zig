@@ -6,12 +6,17 @@ const Tree = aro.Tree;
 const Token = Tree.Token;
 const NodeIndex = Tree.NodeIndex;
 const AllocatorError = std.mem.Allocator.Error;
+const build_options = @import("build_options");
 
 pub fn main() !void {
-    std.testing.checkAllAllocationFailures(std.testing.allocator, testFn, .{}) catch |err| switch (err) {
-        error.OutOfMemory => {},
-        else => |e| return e,
-    };
+    if (build_options.test_all_allocation_failures) {
+        std.testing.checkAllAllocationFailures(std.testing.allocator, testFn, .{}) catch |err| switch (err) {
+            error.OutOfMemory => {},
+            else => |e| return e,
+        };
+    } else {
+        try testFn(std.testing.allocator);
+    }
 }
 
 fn testFn(allocator: std.mem.Allocator) !void {
