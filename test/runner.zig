@@ -9,17 +9,18 @@ const AllocatorError = std.mem.Allocator.Error;
 const build_options = @import("build_options");
 
 pub fn main() !void {
+    var run_count: usize = 0;
+
     if (build_options.test_all_allocation_failures) {
-        std.testing.checkAllAllocationFailures(std.testing.allocator, testFn, .{}) catch |err| switch (err) {
-            error.OutOfMemory => {},
-            else => |e| return e,
-        };
+        try std.testing.checkAllAllocationFailures(std.testing.allocator, testFn, .{&run_count});
     } else {
-        try testFn(std.testing.allocator);
+        try testFn(std.testing.allocator, &run_count);
     }
 }
 
-fn testFn(allocator: std.mem.Allocator) !void {
+fn testFn(allocator: std.mem.Allocator, run_count: *usize) !void {
+    defer run_count.* += 1;
+
     var args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
@@ -100,10 +101,13 @@ fn testFn(allocator: std.mem.Allocator) !void {
         defer case_node.end();
         progress.refresh();
 
-        const file = comp.addSourceFromPath(path) catch |err| {
-            fail_count += 1;
-            progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
-            continue;
+        const file = comp.addSourceFromPath(path) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => {
+                fail_count += 1;
+                progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
+                continue;
+            },
         };
 
         if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
@@ -327,7 +331,7 @@ fn testFn(allocator: std.mem.Allocator) !void {
         print("{d} passed; {d} skipped.\n", .{ ok_count, skip_count });
     } else {
         print("{d} passed; {d} failed.\n\n", .{ ok_count, fail_count });
-        std.process.exit(1);
+        if (run_count.* == 0) std.process.exit(1);
     }
 }
 
