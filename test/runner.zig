@@ -7,24 +7,26 @@ const Token = Tree.Token;
 const NodeIndex = Tree.NodeIndex;
 const AllocatorError = std.mem.Allocator.Error;
 
-var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-
 pub fn main() !void {
-    const gpa = general_purpose_allocator.allocator();
-    defer if (general_purpose_allocator.deinit()) std.process.exit(1);
+    std.testing.checkAllAllocationFailures(std.testing.allocator, testFn, .{}) catch |err| switch (err) {
+        error.OutOfMemory => {},
+        else => |e| return e,
+    };
+}
 
-    var args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
+fn testFn(allocator: std.mem.Allocator) !void {
+    var args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
 
     if (args.len != 3) {
         print("expected test case directory and zig executable as only arguments\n", .{});
         return error.InvalidArguments;
     }
 
-    var buf = std.ArrayList(u8).init(gpa);
-    var cases = std.ArrayList([]const u8).init(gpa);
+    var buf = std.ArrayList(u8).init(allocator);
+    var cases = std.ArrayList([]const u8).init(allocator);
     defer {
-        for (cases.items) |path| gpa.free(path);
+        for (cases.items) |path| allocator.free(path);
         cases.deinit();
         buf.deinit();
     }
@@ -44,7 +46,7 @@ pub fn main() !void {
 
             defer buf.items.len = 0;
             try buf.writer().print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
-            try cases.append(try gpa.dupe(u8, buf.items));
+            try cases.append(try allocator.dupe(u8, buf.items));
         }
     }
 
@@ -52,7 +54,7 @@ pub fn main() !void {
     const root_node = progress.start("Test", cases.items.len);
 
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa);
+    var initial_comp = aro.Compilation.init(allocator);
     defer initial_comp.deinit();
 
     try initial_comp.addDefaultPragmaHandlers();
@@ -73,8 +75,8 @@ pub fn main() !void {
         var comp = initial_comp;
         defer {
             // preserve some values
-            comp.system_include_dirs = @TypeOf(comp.system_include_dirs).init(gpa);
-            comp.pragma_handlers = @TypeOf(comp.pragma_handlers).init(gpa);
+            comp.system_include_dirs = @TypeOf(comp.system_include_dirs).init(allocator);
+            comp.pragma_handlers = @TypeOf(comp.pragma_handlers).init(allocator);
             comp.builtin_header_path = null;
             // reset everything else
             comp.deinit();
@@ -93,7 +95,7 @@ pub fn main() !void {
         };
 
         if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
-            var test_args = std.ArrayList([]const u8).init(gpa);
+            var test_args = std.ArrayList([]const u8).init(allocator);
             defer test_args.deinit();
             const nl = std.mem.indexOfAny(u8, file.buf, "\n\r") orelse file.buf.len;
             var it = std.mem.tokenize(u8, file.buf[0..nl], " ");
@@ -125,7 +127,7 @@ pub fn main() !void {
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
-        try pp.tokens.append(gpa, eof);
+        try pp.tokens.append(allocator, eof);
 
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .integer_literal) {
@@ -154,14 +156,14 @@ pub fn main() !void {
             }
 
             const expected_output = blk: {
-                const expaned_path = try std.fs.path.join(gpa, &.{ args[1], "expanded", std.fs.path.basename(path) });
-                defer gpa.free(expaned_path);
+                const expaned_path = try std.fs.path.join(allocator, &.{ args[1], "expanded", std.fs.path.basename(path) });
+                defer allocator.free(expaned_path);
 
-                break :blk try std.fs.cwd().readFileAlloc(gpa, expaned_path, std.math.maxInt(u32));
+                break :blk try std.fs.cwd().readFileAlloc(allocator, expaned_path, std.math.maxInt(u32));
             };
-            defer gpa.free(expected_output);
+            defer allocator.free(expected_output);
 
-            var output = std.ArrayList(u8).init(gpa);
+            var output = std.ArrayList(u8).init(allocator);
             defer output.deinit();
 
             try pp.prettyPrintTokens(output.writer());
@@ -188,10 +190,10 @@ pub fn main() !void {
                 break;
             };
 
-            var actual = StmtTypeDumper.init(gpa);
-            defer actual.deinit(gpa);
+            var actual = StmtTypeDumper.init(allocator);
+            defer actual.deinit(allocator);
 
-            try actual.dump(&tree, test_fn.decl.node, gpa);
+            try actual.dump(&tree, test_fn.decl.node, allocator);
 
             var i: usize = 0;
             for (types.tokens) |str| {
@@ -263,15 +265,15 @@ pub fn main() !void {
                 try obj.finish(out_file);
             }
 
-            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
+            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, allocator);
             defer child.deinit();
 
             child.stdout_behavior = .Pipe;
 
             try child.spawn();
 
-            const stdout = try child.stdout.?.reader().readAllAlloc(gpa, std.math.maxInt(u16));
-            defer gpa.free(stdout);
+            const stdout = try child.stdout.?.reader().readAllAlloc(allocator, std.math.maxInt(u16));
+            defer allocator.free(stdout);
 
             switch (try child.wait()) {
                 .Exited => |code| if (code != 0) {
