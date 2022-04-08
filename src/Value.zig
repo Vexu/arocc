@@ -57,6 +57,8 @@ pub fn bytes(v: anytype) Value {
 pub fn signExtend(v: Value, old_ty: Type, comp: *Compilation) i64 {
     const size = old_ty.sizeof(comp).?;
     return switch (size) {
+        1 => v.getInt(i8),
+        2 => v.getInt(i16),
         4 => v.getInt(i32),
         8 => v.getInt(i64),
         else => unreachable,
