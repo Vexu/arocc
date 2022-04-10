@@ -568,6 +568,14 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                 return false;
             },
             else => if (id.isMacroIdentifier()) {
+                const tok = pp.tokens.get(start + i);
+
+                try pp.comp.diag.add(.{
+                    .tag = .undefined_macro,
+                    .loc = tok.loc,
+                    .extra = .{ .str = pp.expandedSlice(tok) },
+                }, tok.expansionSlice());
+
                 id.* = .zero; // undefined macro
             },
         }

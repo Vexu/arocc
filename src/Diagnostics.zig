@@ -129,6 +129,7 @@ pub const Options = packed struct {
     @"float-zero-conversion": Kind = .default,
     @"float-conversion": Kind = .default,
     @"gnu-folding-constant": Kind = .default,
+    undef: Kind = .default,
 };
 
 const messages = struct {
@@ -1680,6 +1681,12 @@ const messages = struct {
         const msg = "typedef redefinition with different types ({s})";
         const extra = .str;
         const kind = .@"error";
+    };
+    const undefined_macro = struct {
+        const msg = "'{s}' is not defined, evaluates to 0";
+        const extra = .str;
+        const kind = .off;
+        const opt = "undef";
     };
 };
 
