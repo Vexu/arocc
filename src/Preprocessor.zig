@@ -508,6 +508,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     }
     // validate the tokens in the expression
     for (pp.tokens.items(.id)[start..]) |*id, i| {
+        const tok = pp.tokens.get(start + i);
         switch (id.*) {
             .string_literal,
             .string_literal_utf_16,
@@ -515,7 +516,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .string_literal_utf_32,
             .string_literal_wide,
             => {
-                const tok = pp.tokens.get(start + i);
                 try pp.comp.diag.add(.{
                     .tag = .string_literal_in_pp_expr,
                     .loc = tok.loc,
@@ -529,7 +529,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .imaginary_literal_f,
             .imaginary_literal_l,
             => {
-                const tok = pp.tokens.get(start + i);
                 try pp.comp.diag.add(.{
                     .tag = .float_literal_in_pp_expr,
                     .loc = tok.loc,
@@ -560,7 +559,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .arrow,
             .period,
             => {
-                const tok = pp.tokens.get(start + i);
                 try pp.comp.diag.add(.{
                     .tag = .invalid_preproc_operator,
                     .loc = tok.loc,
@@ -568,8 +566,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                 return false;
             },
             else => if (id.isMacroIdentifier()) {
-                const tok = pp.tokens.get(start + i);
-
                 try pp.comp.diag.add(.{
                     .tag = .undefined_macro,
                     .loc = tok.loc,
