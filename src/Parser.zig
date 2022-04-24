@@ -1798,7 +1798,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         }
 
         if (name_tok == 0 and bits_node == .none) unnamed: {
-            if (ty.is(.@"enum")) break :unnamed;
+            if (ty.is(.@"enum") or ty.hasIncompleteSize()) break :unnamed;
             if (ty.isAnonymousRecord()) {
                 // An anonymous record appears as indirect fields on the parent
                 try p.record_buf.append(.{
