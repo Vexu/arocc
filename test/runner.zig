@@ -495,7 +495,9 @@ const StmtTypeDumper = struct {
         if (tag == .implicit_return) return;
         const ty = tree.nodes.items(.ty)[@enumToInt(node)];
         ty.dump(m.buf.writer()) catch {};
-        try self.types.append(m.buf.toOwnedSlice());
+        const owned = m.buf.toOwnedSlice();
+        errdefer m.buf.allocator.free(owned);
+        try self.types.append(owned);
     }
 
     fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, decl_idx: NodeIndex, allocator: std.mem.Allocator) AllocatorError!void {
