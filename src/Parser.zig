@@ -5967,17 +5967,7 @@ fn parseFloat(p: *Parser, tok: TokenIndex, comptime T: type) Error!T {
         .imaginary_literal_f, .imaginary_literal_l => bytes = bytes[0 .. bytes.len - 2],
         else => unreachable,
     }
-    if (bytes.len > 2 and (bytes[1] == 'x' or bytes[1] == 'X')) {
-        assert(bytes[0] == '0'); // validated by Tokenizer
-        return std.fmt.parseHexFloat(T, bytes) catch |e| switch (e) {
-            error.InvalidCharacter => unreachable, // validated by Tokenizer
-            error.Overflow => p.todo("what to do with hex floats too big"),
-        };
-    } else {
-        return std.fmt.parseFloat(T, bytes) catch |e| switch (e) {
-            error.InvalidCharacter => unreachable, // validated by Tokenizer
-        };
-    }
+    return std.fmt.parseFloat(T, bytes) catch unreachable; // valid hex chars enforced by Tokenizer
 }
 
 fn integerLiteral(p: *Parser) Error!Result {
