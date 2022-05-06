@@ -320,9 +320,7 @@ pub fn main() !void {
                 try obj.finish(out_file);
             }
 
-            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
-            defer child.deinit();
-
+            var child = std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
             child.stdout_behavior = .Pipe;
 
             try child.spawn();
