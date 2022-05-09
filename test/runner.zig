@@ -1,4 +1,5 @@
 const std = @import("std");
+const build_options = @import("build_options");
 const print = std.debug.print;
 const aro = @import("aro");
 const Codegen = aro.Codegen;
@@ -8,6 +9,68 @@ const NodeIndex = Tree.NodeIndex;
 const AllocatorError = std.mem.Allocator.Error;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+
+fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source) !void {
+    if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
+        var test_args = std.ArrayList([]const u8).init(comp.gpa);
+        defer test_args.deinit();
+        const nl = std.mem.indexOfAny(u8, file.buf, "\n\r") orelse file.buf.len;
+        var it = std.mem.tokenize(u8, file.buf[0..nl], " ");
+        while (it.next()) |some| try test_args.append(some);
+
+        var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
+        _ = try aro.parseArgs(comp, std.io.null_writer, &source_files, std.io.null_writer, test_args.items);
+    }
+}
+
+fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
+    var comp = aro.Compilation.init(allocator);
+    defer comp.deinit();
+
+    try comp.addDefaultPragmaHandlers();
+    try comp.defineSystemIncludes();
+
+    const file = try comp.addSourceFromPath(path);
+    try addCommandLineArgs(&comp, file);
+
+    const builtin_macros = try comp.generateBuiltinMacros();
+
+    var pp = aro.Preprocessor.init(&comp);
+    defer pp.deinit();
+    try pp.addBuiltinMacros();
+
+    _ = try pp.preprocess(builtin_macros);
+
+    const eof = pp.preprocess(file) catch |err| {
+        if (!std.unicode.utf8ValidateSlice(file.buf)) {
+            if (comp.diag.list.items.len > 0 and comp.diag.list.items[comp.diag.list.items.len - 1].tag == .invalid_utf8) {
+                return;
+            }
+        }
+        return err;
+    };
+    try pp.tokens.append(allocator, eof);
+
+    var tree = try aro.Parser.parse(&pp);
+    defer tree.deinit();
+    tree.dump(std.io.null_writer) catch {};
+}
+
+fn testAllAllocationFailures(cases: [][]const u8) !void {
+    var progress = std.Progress{};
+    const root_node = progress.start("Memory Allocation Test", cases.len);
+
+    for (cases) |case| {
+        const case_name = std.mem.sliceTo(std.fs.path.basename(case), '.');
+        var case_node = root_node.start(case_name, 0);
+        case_node.activate();
+        defer case_node.end();
+        progress.refresh();
+
+        try std.testing.checkAllAllocationFailures(std.testing.allocator, testOne, .{case});
+    }
+    root_node.end();
+}
 
 pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
@@ -46,6 +109,9 @@ pub fn main() !void {
             try buf.writer().print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
             try cases.append(try gpa.dupe(u8, buf.items));
         }
+    }
+    if (build_options.test_all_allocation_failures) {
+        return testAllAllocationFailures(cases.items);
     }
 
     var progress = std.Progress{};
@@ -92,16 +158,7 @@ pub fn main() !void {
             continue;
         };
 
-        if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
-            var test_args = std.ArrayList([]const u8).init(gpa);
-            defer test_args.deinit();
-            const nl = std.mem.indexOfAny(u8, file.buf, "\n\r") orelse file.buf.len;
-            var it = std.mem.tokenize(u8, file.buf[0..nl], " ");
-            while (it.next()) |some| try test_args.append(some);
-
-            var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
-            _ = try aro.parseArgs(&comp, std.io.null_writer, &source_files, std.io.null_writer, test_args.items);
-        }
+        try addCommandLineArgs(&comp, file);
 
         const builtin_macros = try comp.generateBuiltinMacros();
 
@@ -263,9 +320,7 @@ pub fn main() !void {
                 try obj.finish(out_file);
             }
 
-            var child = try std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
-            defer child.deinit();
-
+            var child = std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
             child.stdout_behavior = .Pipe;
 
             try child.spawn();
@@ -438,7 +493,9 @@ const StmtTypeDumper = struct {
         if (tag == .implicit_return) return;
         const ty = tree.nodes.items(.ty)[@enumToInt(node)];
         ty.dump(m.buf.writer()) catch {};
-        try self.types.append(m.buf.toOwnedSlice());
+        const owned = m.buf.toOwnedSlice();
+        errdefer m.buf.allocator.free(owned);
+        try self.types.append(owned);
     }
 
     fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, decl_idx: NodeIndex, allocator: std.mem.Allocator) AllocatorError!void {

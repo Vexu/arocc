@@ -33,6 +33,8 @@ pub fn build(b: *Builder) !void {
     // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
 
+    const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
+
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
@@ -71,6 +73,9 @@ pub fn build(b: *Builder) !void {
         .path = .{ .path = "src/lib.zig" },
         .dependencies = &.{zig_pkg},
     });
+    const test_runner_options = b.addOptions();
+    integration_tests.addOptions("build_options", test_runner_options);
+    test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
 
     const integration_test_runner = integration_tests.run();
     integration_test_runner.addArg(b.pathFromRoot("test/cases"));

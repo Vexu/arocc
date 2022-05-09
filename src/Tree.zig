@@ -30,7 +30,9 @@ pub const Token = struct {
             std.mem.set(Source.Location, list.items.ptr[list.items.len..list.capacity], .{});
             // add a sentinel since the allocator is not guaranteed
             // to return the exact desired size
-            list.items.ptr[list.capacity - 1].byte_offset = 1;
+            if (list.capacity > 0) {
+                list.items.ptr[list.capacity - 1].byte_offset = 1;
+            }
             tok.expansion_locs = list.items.ptr;
         }
 

@@ -678,6 +678,7 @@ fn deinitMacroArguments(allocator: Allocator, args: *const MacroArguments) void 
 
 fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.comp.gpa);
+    errdefer buf.deinit();
     try buf.ensureTotalCapacity(simple_macro.tokens.len);
 
     // Add all of the simple_macros tokens to the new buffer handling any concats.
@@ -1079,6 +1080,7 @@ fn bufCopyTokens(buf: *ExpandBuf, tokens: []const Token, src: []const Source.Loc
     try buf.ensureUnusedCapacity(tokens.len);
     for (tokens) |tok| {
         var copy = try tok.dupe(buf.allocator);
+        errdefer Token.free(copy.expansion_locs, buf.allocator);
         try copy.addExpansionLocation(buf.allocator, src);
         buf.appendAssumeCapacity(copy);
     }
@@ -1159,26 +1161,38 @@ fn collectMacroFuncArguments(
         switch (tok.id) {
             .comma => {
                 if (parens == 0) {
-                    try args.append(curArgument.toOwnedSlice());
+                    const owned = curArgument.toOwnedSlice();
+                    errdefer pp.comp.gpa.free(owned);
+                    try args.append(owned);
                 } else {
-                    try curArgument.append(try tok.dupe(pp.comp.gpa));
+                    const duped = try tok.dupe(pp.comp.gpa);
+                    errdefer Token.free(duped.expansion_locs, pp.comp.gpa);
+                    try curArgument.append(duped);
                 }
             },
             .l_paren => {
-                try curArgument.append(try tok.dupe(pp.comp.gpa));
+                const duped = try tok.dupe(pp.comp.gpa);
+                errdefer Token.free(duped.expansion_locs, pp.comp.gpa);
+                try curArgument.append(duped);
                 parens += 1;
             },
             .r_paren => {
                 if (parens == 0) {
-                    try args.append(curArgument.toOwnedSlice());
+                    const owned = curArgument.toOwnedSlice();
+                    errdefer pp.comp.gpa.free(owned);
+                    try args.append(owned);
                     break;
                 } else {
-                    try curArgument.append(try tok.dupe(pp.comp.gpa));
+                    const duped = try tok.dupe(pp.comp.gpa);
+                    errdefer Token.free(duped.expansion_locs, pp.comp.gpa);
+                    try curArgument.append(duped);
                     parens -= 1;
                 }
             },
             .eof => {
-                try args.append(curArgument.toOwnedSlice());
+                const owned = curArgument.toOwnedSlice();
+                errdefer pp.comp.gpa.free(owned);
+                try args.append(owned);
                 deinitMacroArguments(pp.comp.gpa, &args);
                 tokenizer.* = saved_tokenizer;
                 end_idx.* = old_end;
@@ -1192,7 +1206,9 @@ fn collectMacroFuncArguments(
                 try curArgument.append(.{ .id = .macro_ws, .loc = .{ .id = .generated } });
             },
             else => {
-                try curArgument.append(try tok.dupe(pp.comp.gpa));
+                const duped = try tok.dupe(pp.comp.gpa);
+                errdefer Token.free(duped.expansion_locs, pp.comp.gpa);
+                try curArgument.append(duped);
             },
         }
     }
@@ -1274,6 +1290,7 @@ fn expandMacroExhaustive(
                     try expanded_args.ensureTotalCapacity(args.items.len);
                     for (args.items) |arg| {
                         var expand_buf = ExpandBuf.init(pp.comp.gpa);
+                        errdefer expand_buf.deinit();
                         try expand_buf.appendSlice(arg);
 
                         try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false);
