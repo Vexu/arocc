@@ -801,6 +801,8 @@ pub fn next(self: *Tokenizer) Token {
         slash,
         ampersand,
         hash,
+        hash_digraph,
+        hash_hash_digraph_partial,
         line_comment,
         multi_line_comment,
         multi_line_comment_asterisk,
@@ -894,13 +896,7 @@ pub fn next(self: *Tokenizer) Token {
                     self.index += 1;
                     break;
                 },
-                ':' => if (self.comp.langopts.standard.atLeast(.c2x)) {
-                    state = .colon;
-                } else {
-                    id = .colon;
-                    self.index += 1;
-                    break;
-                },
+                ':' => state = .colon,
                 '%' => state = .percent,
                 '*' => state = .asterisk,
                 '+' => state = .plus,
@@ -1147,10 +1143,24 @@ pub fn next(self: *Tokenizer) Token {
                 },
             },
             .colon => switch (c) {
-                ':' => {
-                    id = .colon_colon;
-                    self.index += 1;
+                '>' => {
+                    if (self.comp.langopts.hasDigraphs()) {
+                        id = .r_bracket;
+                        self.index += 1;
+                    } else {
+                        id = .colon;
+                    }
                     break;
+                },
+                ':' => {
+                    if (self.comp.langopts.standard.atLeast(.c2x)) {
+                        id = .colon_colon;
+                        self.index += 1;
+                        break;
+                    } else {
+                        id = .colon;
+                        break;
+                    }
                 },
                 else => {
                     id = .colon;
@@ -1162,6 +1172,23 @@ pub fn next(self: *Tokenizer) Token {
                     id = .percent_equal;
                     self.index += 1;
                     break;
+                },
+                '>' => {
+                    if (self.comp.langopts.hasDigraphs()) {
+                        id = .r_brace;
+                        self.index += 1;
+                    } else {
+                        id = .percent;
+                    }
+                    break;
+                },
+                ':' => {
+                    if (self.comp.langopts.hasDigraphs()) {
+                        state = .hash_digraph;
+                    } else {
+                        id = .percent;
+                        break;
+                    }
                 },
                 else => {
                     id = .percent;
@@ -1200,6 +1227,24 @@ pub fn next(self: *Tokenizer) Token {
                 '=' => {
                     id = .angle_bracket_left_equal;
                     self.index += 1;
+                    break;
+                },
+                ':' => {
+                    if (self.comp.langopts.hasDigraphs()) {
+                        id = .l_bracket;
+                        self.index += 1;
+                    } else {
+                        id = .angle_bracket_left;
+                    }
+                    break;
+                },
+                '%' => {
+                    if (self.comp.langopts.hasDigraphs()) {
+                        id = .l_brace;
+                        self.index += 1;
+                    } else {
+                        id = .angle_bracket_left;
+                    }
                     break;
                 },
                 else => {
@@ -1317,6 +1362,25 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 else => {
                     id = .hash;
+                    break;
+                },
+            },
+            .hash_digraph => switch (c) {
+                '%' => state = .hash_hash_digraph_partial,
+                else => {
+                    id = .hash;
+                    break;
+                },
+            },
+            .hash_hash_digraph_partial => switch (c) {
+                ':' => {
+                    id = .hash_hash;
+                    self.index += 1;
+                    break;
+                },
+                else => {
+                    id = .hash;
+                    self.index -= 1; // re-tokenize the percent
                     break;
                 },
             },
@@ -1640,6 +1704,11 @@ pub fn next(self: *Tokenizer) Token {
             .percent => id = .percent,
             .caret => id = .caret,
             .asterisk => id = .asterisk,
+            .hash_digraph => id = .hash,
+            .hash_hash_digraph_partial => {
+                id = .hash;
+                self.index -= 1; // re-tokenize the percent
+            },
         }
     }
 
@@ -1968,6 +2037,12 @@ test "extended identifiers" {
     try expectTokens("\"\\u\u{E0000}\"", &.{ .invalid, .extended_identifier, .invalid });
     try expectTokens("1e\u{E0000}", &.{ .invalid, .extended_identifier });
     try expectTokens("1e1\u{E0000}", &.{ .float_literal, .extended_identifier });
+}
+
+test "digraphs" {
+    try expectTokens("%:<::><%%>%:%:", &.{ .hash, .l_bracket, .r_bracket, .l_brace, .r_brace, .hash_hash });
+    try expectTokens("\"%:<::><%%>%:%:\"", &.{.string_literal});
+    try expectTokens("%:%42 %:%", &.{ .hash, .percent, .integer_literal, .hash, .percent });
 }
 
 fn expectTokens(contents: []const u8, expected_tokens: []const Token.Id) !void {
