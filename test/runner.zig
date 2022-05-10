@@ -10,7 +10,7 @@ const AllocatorError = std.mem.Allocator.Error;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source) !void {
+fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !void {
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
         var test_args = std.ArrayList([]const u8).init(comp.gpa);
         defer test_args.deinit();
@@ -19,7 +19,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source) !void {
         while (it.next()) |some| try test_args.append(some);
 
         var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
-        _ = try aro.parseArgs(comp, std.io.null_writer, &source_files, std.io.null_writer, test_args.items);
+        _ = try aro.parseArgs(comp, std.io.null_writer, &source_files, macro_buf, test_args.items);
     }
 }
 
@@ -31,7 +31,11 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
     try comp.defineSystemIncludes();
 
     const file = try comp.addSourceFromPath(path);
-    try addCommandLineArgs(&comp, file);
+    var macro_buf = std.ArrayList(u8).init(comp.gpa);
+    defer macro_buf.deinit();
+
+    try addCommandLineArgs(&comp, file, macro_buf.writer());
+    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
     const builtin_macros = try comp.generateBuiltinMacros();
 
@@ -40,6 +44,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
     try pp.addBuiltinMacros();
 
     _ = try pp.preprocess(builtin_macros);
+    _ = try pp.preprocess(user_macros);
 
     const eof = pp.preprocess(file) catch |err| {
         if (!std.unicode.utf8ValidateSlice(file.buf)) {
@@ -158,7 +163,11 @@ pub fn main() !void {
             continue;
         };
 
-        try addCommandLineArgs(&comp, file);
+        var macro_buf = std.ArrayList(u8).init(comp.gpa);
+        defer macro_buf.deinit();
+
+        try addCommandLineArgs(&comp, file, macro_buf.writer());
+        const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
         const builtin_macros = try comp.generateBuiltinMacros();
 
@@ -168,6 +177,7 @@ pub fn main() !void {
         try pp.addBuiltinMacros();
 
         _ = try pp.preprocess(builtin_macros);
+        _ = try pp.preprocess(user_macros);
         const eof = pp.preprocess(file) catch |err| {
             if (!std.unicode.utf8ValidateSlice(file.buf)) {
                 // non-utf8 files are not preprocessed, so we can't use EXPECTED_ERRORS; instead we

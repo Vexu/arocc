@@ -1,4 +1,5 @@
-#define STRINGIZE(X) %:X
+//aro-args -DSTRINGIZE(X)=%:X
+
 #define PASTE(X, Y) (X %:%: Y)
 
 void baz(void) <%
