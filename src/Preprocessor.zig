@@ -218,7 +218,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
     while (true) {
         var tok = tokenizer.next();
         switch (tok.id) {
-            .hash => if (start_of_line) {
+            .hash => if (!start_of_line) try pp.tokens.append(pp.comp.gpa, tokFromRaw(tok)) else {
                 const directive = tokenizer.nextNoWS();
                 switch (directive.id) {
                     .keyword_error, .keyword_warning => {
