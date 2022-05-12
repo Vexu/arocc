@@ -150,6 +150,10 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
                 comp.langopts.dollars_in_identifiers = true;
             } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
                 comp.langopts.dollars_in_identifiers = false;
+            } else if (mem.eql(u8, arg, "-fdigraphs")) {
+                comp.langopts.digraphs = true;
+            } else if (mem.eql(u8, arg, "-fno-digraphs")) {
+                comp.langopts.digraphs = false;
             } else if (mem.startsWith(u8, arg, "-fmacro-backtrace-limit=")) {
                 const limit_str = arg["-fmacro-backtrace-limit=".len..];
                 var limit = std.fmt.parseInt(u32, limit_str, 10) catch {

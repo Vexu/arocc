@@ -218,7 +218,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
     while (true) {
         var tok = tokenizer.next();
         switch (tok.id) {
-            .hash => if (start_of_line) {
+            .hash => if (!start_of_line) try pp.tokens.append(pp.comp.gpa, tokFromRaw(tok)) else {
                 const directive = tokenizer.nextNoWS();
                 switch (directive.id) {
                     .keyword_error, .keyword_warning => {
@@ -1381,7 +1381,9 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
 
 /// Get expanded token source string.
 pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
-    if (tok.id.lexeme()) |some| return some;
+    if (tok.id.lexeme()) |some| {
+        if (!tok.id.allowsDigraphs(pp.comp)) return some;
+    }
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.getSource(tok.loc.id).buf,
         .comp = pp.comp,
