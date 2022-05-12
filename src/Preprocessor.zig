@@ -1381,7 +1381,9 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
 
 /// Get expanded token source string.
 pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
-    if (tok.id.lexeme()) |some| return some;
+    if (tok.id.lexeme()) |some| {
+        if (!tok.id.allowsDigraphs(pp.comp)) return some;
+    }
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.getSource(tok.loc.id).buf,
         .comp = pp.comp,

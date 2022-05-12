@@ -627,6 +627,19 @@ pub const Token = struct {
                 else => false,
             };
         }
+
+        pub fn allowsDigraphs(id: Id, comp: *const Compilation) bool {
+            return switch (id) {
+                .l_bracket,
+                .r_bracket,
+                .l_brace,
+                .r_brace,
+                .hash,
+                .hash_hash,
+                => comp.langopts.hasDigraphs(),
+                else => false,
+            };
+        }
     };
 
     /// double underscore and underscore + capital letter identifiers
