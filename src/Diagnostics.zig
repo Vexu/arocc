@@ -304,6 +304,11 @@ const messages = struct {
         const extra = .tok_id;
         const kind = .@"error";
     };
+    const missing_token_after = struct {
+        const msg = "missing '{s}' after '{s}'";
+        const extra = .tok_id;
+        const kind = .@"error";
+    };
     const expected_expr = struct {
         const msg = "expected expression";
         const kind = .@"error";
@@ -1687,6 +1692,11 @@ const messages = struct {
         const extra = .str;
         const kind = .off;
         const opt = "undef";
+    };
+    const preprocessing_directive_only = struct {
+        const msg = "'{s}' must be used within a preprocessing directive";
+        const extra = .tok_id_expected;
+        const kind = .@"error";
     };
 };
 

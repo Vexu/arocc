@@ -163,6 +163,11 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
     try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
 
+    // Add __has_include so that #ifdef/#ifndef/#if defined can find it. Howver it is not handled
+    // as a normal built-in macro since angle brackets and periods are not treated as binary
+    // operators.
+    try pp.addBuiltinMacro("__has_include", true, &.{});
+
     try pp.addBuiltinMacro("__FILE__", false, &builtin_macros.file);
     try pp.addBuiltinMacro("__LINE__", false, &builtin_macros.line);
     try pp.addBuiltinMacro("__COUNTER__", false, &builtin_macros.counter);
@@ -492,6 +497,34 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                     }
                 }
                 tok.id = if (pp.defines.get(pp.tokSlice(macro_tok)) != null) .one else .zero;
+            },
+            .keyword_has_include => {
+                const l_paren = tokenizer.nextNoWS();
+                if (l_paren.id != .l_paren) {
+                    if (l_paren.id != .nl) skipToNl(tokenizer);
+                    try pp.comp.diag.add(.{
+                        .tag = .missing_token_after,
+                        .loc = .{ .id = l_paren.source, .byte_offset = l_paren.start, .line = tok.line },
+                        .extra = .{ .tok_id = .{ .expected = .l_paren, .actual = tok.id } },
+                    }, &.{});
+                    return false;
+                }
+                var first = tokenizer.nextNoWS();
+                const filename_tok = pp.findIncludeFilenameToken(&first, tokenizer, .ignore_trailing_tokens) catch |err| switch (err) {
+                    error.InvalidInclude => return false,
+                    else => |e| return e,
+                };
+                const r_paren = tokenizer.nextNoWS();
+                if (r_paren.id != .r_paren) {
+                    try pp.err(r_paren, .closing_paren);
+                    try pp.err(l_paren, .to_match_paren);
+                    if (r_paren.id != .nl) skipToNl(tokenizer);
+                    return false;
+                }
+                const tok_slice = pp.expandedSlice(filename_tok);
+                // TODO: do something with the filename
+                _ = tok_slice;
+                tok.id = .one;
             },
             .whitespace => continue,
             else => {},
@@ -1358,6 +1391,15 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
         source_tok.id.simplifyMacroKeyword();
         return pp.tokens.append(pp.comp.gpa, source_tok);
     }
+    if (raw.id.preprocessingDirectiveOnly()) {
+        source_tok.id.simplifyMacroKeyword();
+        try pp.comp.diag.add(.{
+            .tag = .preprocessing_directive_only,
+            .loc = source_tok.loc,
+            .extra = .{ .tok_id_expected = raw.id },
+        }, &.{});
+        return pp.tokens.append(pp.comp.gpa, source_tok);
+    }
     pp.top_expansion_buf.items.len = 0;
     try pp.top_expansion_buf.append(source_tok);
     pp.expansion_source_loc = source_tok.loc;
@@ -1785,7 +1827,12 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
     }, pragma_name_tok.expansionSlice());
 }
 
-fn findIncludeFilenameToken(pp: *Preprocessor, first: *RawToken, tokenizer: *Tokenizer) !Token {
+fn findIncludeFilenameToken(
+    pp: *Preprocessor,
+    first: *RawToken,
+    tokenizer: *Tokenizer,
+    trailing_token_behavior: enum { ignore_trailing_tokens, expect_nl_eof },
+) !Token {
     const start = pp.tokens.len;
     defer pp.tokens.len = start;
 
@@ -1822,11 +1869,16 @@ fn findIncludeFilenameToken(pp: *Preprocessor, first: *RawToken, tokenizer: *Tok
             return error.InvalidInclude;
         },
     }
-    // Error on extra tokens.
-    const nl = tokenizer.nextNoWS();
-    if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
-        skipToNl(tokenizer);
-        try pp.err(first.*, .extra_tokens_directive_end);
+    switch (trailing_token_behavior) {
+        .expect_nl_eof => {
+            // Error on extra tokens.
+            const nl = tokenizer.nextNoWS();
+            if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
+                skipToNl(tokenizer);
+                try pp.err(first.*, .extra_tokens_directive_end);
+            }
+        },
+        .ignore_trailing_tokens => {},
     }
     return filename_tok;
 }
@@ -1834,7 +1886,7 @@ fn findIncludeFilenameToken(pp: *Preprocessor, first: *RawToken, tokenizer: *Tok
 fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
     var first = tokenizer.nextNoWS();
 
-    const filename_tok = try pp.findIncludeFilenameToken(&first, tokenizer);
+    const filename_tok = try pp.findIncludeFilenameToken(&first, tokenizer, .expect_nl_eof);
 
     // Check for empty filename.
     const tok_slice = pp.expandedSlice(filename_tok);
