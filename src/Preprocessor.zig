@@ -1805,7 +1805,7 @@ fn findIncludeFilenameToken(pp: *Preprocessor, first: *RawToken, tokenizer: *Tok
         }
         try pp.comp.diag.add(.{
             .tag = .header_str_closing,
-            .loc = .{ .id = first.source, .byte_offset = first.start },
+            .loc = .{ .id = first.source, .byte_offset = tokenizer.index, .line = first.line },
         }, &.{});
         try pp.err(first.*, .header_str_match);
     }
