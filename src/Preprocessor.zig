@@ -1785,11 +1785,10 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
     }, pragma_name_tok.expansionSlice());
 }
 
-fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
+fn findIncludeFilenameToken(pp: *Preprocessor, first: *RawToken, tokenizer: *Tokenizer) !Token {
     const start = pp.tokens.len;
     defer pp.tokens.len = start;
 
-    var first = tokenizer.nextNoWS();
     if (first.id == .angle_bracket_left) to_end: {
         // The tokenizer does not handle <foo> include strings so do it here.
         while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
@@ -1808,17 +1807,17 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
             .tag = .header_str_closing,
             .loc = .{ .id = first.source, .byte_offset = first.start },
         }, &.{});
-        try pp.err(first, .header_str_match);
+        try pp.err(first.*, .header_str_match);
     }
     // Try to expand if the argument is a macro.
-    try pp.expandMacro(tokenizer, first);
+    try pp.expandMacro(tokenizer, first.*);
 
     // Check that we actually got a string.
     const filename_tok = pp.tokens.get(start);
     switch (filename_tok.id) {
         .string_literal, .macro_string => {},
         else => {
-            try pp.err(first, .expected_filename);
+            try pp.err(first.*, .expected_filename);
             try pp.expectNl(tokenizer);
             return error.InvalidInclude;
         },
@@ -1827,8 +1826,15 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
     const nl = tokenizer.nextNoWS();
     if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
         skipToNl(tokenizer);
-        try pp.err(first, .extra_tokens_directive_end);
+        try pp.err(first.*, .extra_tokens_directive_end);
     }
+    return filename_tok;
+}
+
+fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
+    var first = tokenizer.nextNoWS();
+
+    const filename_tok = try pp.findIncludeFilenameToken(&first, tokenizer);
 
     // Check for empty filename.
     const tok_slice = pp.expandedSlice(filename_tok);
