@@ -500,7 +500,7 @@ pub fn defineSystemIncludes(comp: *Compilation) !void {
     try comp.system_include_dirs.append("/usr/include");
 }
 
-pub fn getSource(comp: *Compilation, id: Source.Id) Source {
+pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
     if (id == .generated) return .{
         .path = "<scratch space>",
         .buf = comp.generated_buf.items,
@@ -651,34 +651,43 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
     return comp.addSourceFromReader(reader, path, size);
 }
 
-pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_cwd: bool) !?Source {
+pub const IncludeDirIterator = struct {
+    comp: *const Compilation,
+    cwd_source_id: ?Source.Id,
+    include_dirs_idx: usize = 0,
+    sys_include_dirs_idx: usize = 0,
+
+    fn init(comp: *const Compilation, cwd_source_id: ?Source.Id) IncludeDirIterator {
+        return .{
+            .comp = comp,
+            .cwd_source_id = cwd_source_id,
+        };
+    }
+
+    fn next(self: *IncludeDirIterator) ?[]const u8 {
+        if (self.cwd_source_id) |source_id| {
+            self.cwd_source_id = null;
+            const path = self.comp.getSource(source_id).path;
+            return std.fs.path.dirname(path) orelse ".";
+        }
+        while (self.include_dirs_idx < self.comp.include_dirs.items.len) {
+            defer self.include_dirs_idx += 1;
+            return self.comp.include_dirs.items[self.include_dirs_idx];
+        }
+        while (self.sys_include_dirs_idx < self.comp.system_include_dirs.items.len) {
+            defer self.sys_include_dirs_idx += 1;
+            return self.comp.system_include_dirs.items[self.sys_include_dirs_idx];
+        }
+        return null;
+    }
+};
+
+pub fn findInclude(comp: *Compilation, filename: []const u8, cwd_source_id: ?Source.Id) !?Source {
+    var it = IncludeDirIterator.init(comp, cwd_source_id);
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
-    if (search_cwd) blk: {
-        const source = comp.getSource(tok.source);
-        const path = if (std.fs.path.dirname(source.path)) |some|
-            std.fs.path.join(fib.allocator(), &.{ some, filename }) catch break :blk
-        else
-            std.fs.path.join(fib.allocator(), &.{ ".", filename }) catch break :blk;
-        if (comp.addSourceFromPath(path)) |some|
-            return some
-        else |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => {},
-        }
-    }
-    for (comp.include_dirs.items) |dir| {
-        fib.end_index = 0;
-        const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
-        if (comp.addSourceFromPath(path)) |some|
-            return some
-        else |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => {},
-        }
-    }
-    for (comp.system_include_dirs.items) |dir| {
-        fib.end_index = 0;
+
+    while (it.next()) |dir| : (fib.end_index = 0) {
         const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
         if (comp.addSourceFromPath(path)) |some|
             return some

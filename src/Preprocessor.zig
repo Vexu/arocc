@@ -1897,7 +1897,9 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
 
     // Find the file.
     const filename = tok_slice[1 .. tok_slice.len - 1];
-    return (try pp.comp.findInclude(first, filename, filename_tok.id == .string_literal)) orelse
+    const cwd_source_id = if (filename_tok.id == .string_literal) first.source else null;
+
+    return (try pp.comp.findInclude(filename, cwd_source_id)) orelse
         pp.fatal(first, "'{s}' not found", .{filename});
 }
 
