@@ -682,6 +682,17 @@ pub const IncludeDirIterator = struct {
     }
 };
 
+pub fn hasInclude(comp: *const Compilation, filename: []const u8, cwd_source_id: ?Source.Id) bool {
+    var it = IncludeDirIterator.init(comp, cwd_source_id);
+    var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var fib = std.heap.FixedBufferAllocator.init(&path_buf);
+    while (it.next()) |dir| : (fib.end_index = 0) {
+        const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
+        if (!std.meta.isError(std.fs.cwd().access(path, .{}))) return true;
+    }
+    return false;
+}
+
 pub fn findInclude(comp: *Compilation, filename: []const u8, cwd_source_id: ?Source.Id) !?Source {
     var it = IncludeDirIterator.init(comp, cwd_source_id);
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;

@@ -522,9 +522,15 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                     return false;
                 }
                 const tok_slice = pp.expandedSlice(filename_tok);
-                // TODO: do something with the filename
-                _ = tok_slice;
-                tok.id = .one;
+                if (tok_slice.len < 3) {
+                    try pp.err(first, .empty_filename);
+                    tok.id = .zero;
+                } else {
+                    const filename = tok_slice[1 .. tok_slice.len - 1];
+                    const cwd_source_id = if (filename_tok.id == .string_literal) first.source else null;
+
+                    tok.id = if (pp.comp.hasInclude(filename, cwd_source_id)) .one else .zero;
+                }
             },
             .whitespace => continue,
             else => {},
