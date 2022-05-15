@@ -656,13 +656,9 @@ pub const IncludeDirIterator = struct {
     cwd_source_id: ?Source.Id,
     include_dirs_idx: usize = 0,
     sys_include_dirs_idx: usize = 0,
-
-    fn init(comp: *const Compilation, cwd_source_id: ?Source.Id) IncludeDirIterator {
-        return .{
-            .comp = comp,
-            .cwd_source_id = cwd_source_id,
-        };
-    }
+    /// nextWithFile will use this to hold the full path for its return value
+    /// not required if `nextWithFile` is not used
+    path_buf: []u8 = undefined,
 
     fn next(self: *IncludeDirIterator) ?[]const u8 {
         if (self.cwd_source_id) |source_id| {
@@ -680,26 +676,33 @@ pub const IncludeDirIterator = struct {
         }
         return null;
     }
+
+    /// Return value is invalidated by subsequent calls to nextWithFile
+    fn nextWithFile(self: *IncludeDirIterator, filename: []const u8) ?[]const u8 {
+        var fib = std.heap.FixedBufferAllocator.init(self.path_buf);
+        while (self.next()) |dir| : (fib.end_index = 0) {
+            const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
+            return path;
+        }
+        return null;
+    }
 };
 
 pub fn hasInclude(comp: *const Compilation, filename: []const u8, cwd_source_id: ?Source.Id) bool {
-    var it = IncludeDirIterator.init(comp, cwd_source_id);
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    var fib = std.heap.FixedBufferAllocator.init(&path_buf);
-    while (it.next()) |dir| : (fib.end_index = 0) {
-        const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
-        if (!std.meta.isError(std.fs.cwd().access(path, .{}))) return true;
+    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
+    const cwd = std.fs.cwd();
+    while (it.nextWithFile(filename)) |path| {
+        if (!std.meta.isError(cwd.access(path, .{}))) return true;
     }
     return false;
 }
 
 pub fn findInclude(comp: *Compilation, filename: []const u8, cwd_source_id: ?Source.Id) !?Source {
-    var it = IncludeDirIterator.init(comp, cwd_source_id);
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    var fib = std.heap.FixedBufferAllocator.init(&path_buf);
+    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
 
-    while (it.next()) |dir| : (fib.end_index = 0) {
-        const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
+    while (it.nextWithFile(filename)) |path| {
         if (comp.addSourceFromPath(path)) |some|
             return some
         else |err| switch (err) {
