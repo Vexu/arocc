@@ -246,7 +246,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
             \\#define _ARCH_PPC64 1
             \\
         ),
-        .sparcv9 => try w.writeAll(
+        .sparc64 => try w.writeAll(
             \\#define __sparc__ 1
             \\#define __sparc 1
             \\#define __sparc_v9__ 1
