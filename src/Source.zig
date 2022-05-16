@@ -20,7 +20,6 @@ pub const Location = struct {
 path: []const u8,
 buf: []const u8,
 id: Id,
-invalid_utf8_loc: ?Location = null,
 /// each entry represents a byte position within `buf` where a backslash+newline was deleted
 /// from the original raw buffer. The same position can appear multiple times if multiple
 /// consecutive splices happened. Guaranteed to be non-decreasing
@@ -111,7 +110,8 @@ fn codepointWidth(cp: u32) u32 {
 
 /// Returns the first offset, if any, in buf where an invalid utf8 sequence
 /// is found. Code adapted from std.unicode.utf8ValidateSlice
-fn offsetOfInvalidUtf8(buf: []const u8) ?u32 {
+pub fn offsetOfInvalidUtf8(self: Source) ?u32 {
+    const buf = self.buf;
     std.debug.assert(buf.len <= std.math.maxInt(u32));
     var i: u32 = 0;
     while (i < buf.len) {
@@ -122,10 +122,4 @@ fn offsetOfInvalidUtf8(buf: []const u8) ?u32 {
         } else |_| return i;
     }
     return null;
-}
-
-pub fn checkUtf8(source: *Source) void {
-    if (offsetOfInvalidUtf8(source.buf)) |offset| {
-        source.invalid_utf8_loc = Location{ .id = source.id, .byte_offset = offset };
-    }
 }

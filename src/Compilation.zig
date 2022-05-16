@@ -40,6 +40,8 @@ types: struct {
     size: Type,
     va_list: Type,
 } = undefined,
+/// Mapping from Source.Id to byte offset of first non-utf8 byte
+invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
 
 pub fn init(gpa: Allocator) Compilation {
     return .{
@@ -70,6 +72,7 @@ pub fn deinit(comp: *Compilation) void {
     if (comp.builtin_header_path) |some| comp.gpa.free(some);
     comp.generated_buf.deinit();
     comp.builtins.deinit(comp.gpa);
+    comp.invalid_utf8_locs.deinit(comp.gpa);
 }
 
 fn generateDateAndTime(w: anytype) !void {
@@ -614,8 +617,10 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
         .splice_locs = splice_locs,
     };
 
-    source.checkUtf8();
     try comp.sources.put(path, source);
+    if (source.offsetOfInvalidUtf8()) |offset| {
+        try comp.invalid_utf8_locs.putNoClobber(comp.gpa, source_id, offset);
+    }
     return source;
 }
 
