@@ -189,10 +189,11 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
 }
 
 fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
-    if (source.invalid_utf8_loc) |loc| {
+    if (pp.comp.invalid_utf8_locs.get(source.id)) |offset| {
         try pp.comp.diag.add(.{
             .tag = .invalid_utf8,
-            .loc = loc,
+            // Todo: compute line number
+            .loc = .{ .id = source.id, .byte_offset = offset },
         }, &.{});
         return error.FatalError;
     }
