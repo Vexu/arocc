@@ -144,7 +144,7 @@ const builtin_macros = struct {
 };
 
 fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: []const RawToken) !void {
-    try pp.defines.put(name, .{
+    try pp.defines.putNoClobber(name, .{
         .params = &builtin_macros.args,
         .tokens = tokens,
         .var_args = false,
