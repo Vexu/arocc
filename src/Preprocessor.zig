@@ -1243,7 +1243,7 @@ fn collectMacroFuncArguments(
                 return null;
             },
             .nl, .whitespace => {
-                try curArgument.append(.{ .id = .macro_ws, .loc = .{ .id = .generated } });
+                try curArgument.append(.{ .id = .macro_ws, .loc = tok.loc });
             },
             else => {
                 const duped = try tok.dupe(pp.comp.gpa);
