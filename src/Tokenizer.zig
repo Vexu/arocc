@@ -132,6 +132,8 @@ pub const Token = struct {
         macro_param_has_extension,
         /// Special token for implementing __has_builtin
         macro_param_has_builtin,
+        /// Special token for implementing __has_include
+        macro_param_has_include,
         /// Special token for implementing __is_identifier
         macro_param_is_identifier,
         /// Special token for implementing __FILE__
@@ -203,7 +205,6 @@ pub const Token = struct {
 
         // Preprocessor directives
         keyword_include,
-        keyword_has_include,
         keyword_define,
         keyword_defined,
         keyword_undef,
@@ -247,7 +248,6 @@ pub const Token = struct {
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
                 .keyword_include,
-                .keyword_has_include,
                 .keyword_define,
                 .keyword_defined,
                 .keyword_undef,
@@ -340,7 +340,6 @@ pub const Token = struct {
         pub fn simplifyMacroKeyword(id: *Id) void {
             switch (id.*) {
                 .keyword_include,
-                .keyword_has_include,
                 .keyword_define,
                 .keyword_defined,
                 .keyword_undef,
@@ -402,6 +401,7 @@ pub const Token = struct {
                 .macro_param_has_feature,
                 .macro_param_has_extension,
                 .macro_param_has_builtin,
+                .macro_param_has_include,
                 .macro_param_is_identifier,
                 .macro_file,
                 .macro_line,
@@ -510,7 +510,6 @@ pub const Token = struct {
                 .keyword_static_assert => "_Static_assert",
                 .keyword_thread_local => "_Thread_local",
                 .keyword_include => "include",
-                .keyword_has_include => "__has_include",
                 .keyword_define => "define",
                 .keyword_defined => "defined",
                 .keyword_undef => "undef",
@@ -644,14 +643,6 @@ pub const Token = struct {
                 else => false,
             };
         }
-
-        /// Tokens that may only appear within preprocessing directives
-        pub fn preprocessingDirectiveOnly(id: Id) bool {
-            return switch (id) {
-                .keyword_has_include => true,
-                else => false,
-            };
-        }
     };
 
     /// double underscore and underscore + capital letter identifiers
@@ -741,7 +732,6 @@ pub const Token = struct {
 
         // Preprocessor directives
         .{ "include", .keyword_include },
-        .{ "__has_include", .keyword_has_include },
         .{ "define", .keyword_define },
         .{ "defined", .keyword_defined },
         .{ "undef", .keyword_undef },
@@ -1893,7 +1883,6 @@ test "keywords" {
 test "preprocessor keywords" {
     try expectTokens(
         \\#include
-        \\__has_include
         \\#define
         \\#ifdef
         \\#ifndef
@@ -1903,8 +1892,6 @@ test "preprocessor keywords" {
     , &.{
         .hash,
         .keyword_include,
-        .nl,
-        .keyword_has_include,
         .nl,
         .hash,
         .keyword_define,

@@ -118,6 +118,10 @@ const builtin_macros = struct {
         .id = .macro_param_has_builtin,
         .source = .generated,
     }};
+    const has_include = [1]RawToken{.{
+        .id = .macro_param_has_include,
+        .source = .generated,
+    }};
 
     const is_identifier = [1]RawToken{.{
         .id = .macro_param_is_identifier,
@@ -160,13 +164,9 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_feature", true, &builtin_macros.has_feature);
     try pp.addBuiltinMacro("__has_extension", true, &builtin_macros.has_extension);
     try pp.addBuiltinMacro("__has_builtin", true, &builtin_macros.has_builtin);
+    try pp.addBuiltinMacro("__has_include", true, &builtin_macros.has_include);
     try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
     try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
-
-    // Add __has_include so that #ifdef/#ifndef/#if defined can find it. Howver it is not handled
-    // as a normal built-in macro since angle brackets and periods are not treated as binary
-    // operators.
-    try pp.addBuiltinMacro("__has_include", true, &.{});
 
     try pp.addBuiltinMacro("__FILE__", false, &builtin_macros.file);
     try pp.addBuiltinMacro("__LINE__", false, &builtin_macros.line);
@@ -497,40 +497,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                     }
                 }
                 tok.id = if (pp.defines.get(pp.tokSlice(macro_tok)) != null) .one else .zero;
-            },
-            .keyword_has_include => {
-                const l_paren = tokenizer.nextNoWS();
-                if (l_paren.id != .l_paren) {
-                    if (l_paren.id != .nl) skipToNl(tokenizer);
-                    try pp.comp.diag.add(.{
-                        .tag = .missing_token_after,
-                        .loc = .{ .id = l_paren.source, .byte_offset = l_paren.start, .line = tok.line },
-                        .extra = .{ .tok_id = .{ .expected = .l_paren, .actual = tok.id } },
-                    }, &.{});
-                    return false;
-                }
-                var first = tokenizer.nextNoWS();
-                const filename_tok = pp.findIncludeFilenameToken(&first, tokenizer, .ignore_trailing_tokens) catch |err| switch (err) {
-                    error.InvalidInclude => return false,
-                    else => |e| return e,
-                };
-                const r_paren = tokenizer.nextNoWS();
-                if (r_paren.id != .r_paren) {
-                    try pp.err(r_paren, .closing_paren);
-                    try pp.err(l_paren, .to_match_paren);
-                    if (r_paren.id != .nl) skipToNl(tokenizer);
-                    return false;
-                }
-                const tok_slice = pp.expandedSlice(filename_tok);
-                if (tok_slice.len < 3) {
-                    try pp.err(first, .empty_filename);
-                    tok.id = .zero;
-                } else {
-                    const filename = tok_slice[1 .. tok_slice.len - 1];
-                    const cwd_source_id = if (filename_tok.id == .string_literal) first.source else null;
-
-                    tok.id = if (pp.comp.hasInclude(filename, cwd_source_id)) .one else .zero;
-                }
             },
             .whitespace => continue,
             else => {},
@@ -972,6 +938,49 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const id = identifier.?.id;
             return id == .identifier or id == .extended_identifier;
         },
+        .macro_param_has_include => {
+            const char_top = pp.char_buf.items.len;
+            defer pp.char_buf.items.len = char_top;
+            var actual_params = if (param_toks[0].id == .macro_ws) param_toks[1..] else param_toks;
+            if (actual_params.len > 0) {
+                actual_params = if (actual_params[actual_params.len - 1].id == .macro_ws) actual_params[0 .. actual_params.len - 1] else actual_params;
+            }
+            for (actual_params) |tok| {
+                const str = if (tok.id == .macro_ws) blk: {
+                    // preserve whitespace in case we have a path within < > that has multiple consecutive spaces
+                    var tmp_tokenizer = Tokenizer{
+                        .buf = pp.comp.getSource(tok.loc.id).buf,
+                        .comp = pp.comp,
+                        .index = tok.loc.byte_offset,
+                        .source = .generated,
+                    };
+                    const res = tmp_tokenizer.next();
+                    break :blk tmp_tokenizer.buf[res.start..res.end];
+                } else pp.expandedSlice(tok);
+                try pp.char_buf.appendSlice(str);
+            }
+            const full = pp.char_buf.items[char_top..];
+            if (full.len < 3) {
+                try pp.comp.diag.add(.{
+                    .tag = .empty_filename,
+                    .loc = actual_params[0].loc,
+                }, actual_params[0].expansionSlice());
+                return false;
+            }
+            const cwd_source_id = switch (full[0]) {
+                '<' => null,
+                '"' => actual_params[0].loc.id,
+                else => {
+                    try pp.comp.diag.add(.{
+                        .tag = .expected_filename,
+                        .loc = actual_params[0].loc,
+                    }, actual_params[0].expansionSlice());
+                    return false;
+                },
+            };
+            const filename = full[1 .. full.len - 1];
+            return pp.comp.hasInclude(filename, cwd_source_id);
+        },
         else => unreachable,
     }
 }
@@ -1058,6 +1067,7 @@ fn expandFuncMacro(
             .macro_param_has_feature,
             .macro_param_has_extension,
             .macro_param_has_builtin,
+            .macro_param_has_include,
             .macro_param_is_identifier,
             => {
                 const arg = expanded_args.items[0];
@@ -1395,15 +1405,6 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     var source_tok = tokFromRaw(raw);
     if (!raw.id.isMacroIdentifier()) {
         source_tok.id.simplifyMacroKeyword();
-        return pp.tokens.append(pp.comp.gpa, source_tok);
-    }
-    if (raw.id.preprocessingDirectiveOnly()) {
-        source_tok.id.simplifyMacroKeyword();
-        try pp.comp.diag.add(.{
-            .tag = .preprocessing_directive_only,
-            .loc = source_tok.loc,
-            .extra = .{ .tok_id_expected = raw.id },
-        }, &.{});
         return pp.tokens.append(pp.comp.gpa, source_tok);
     }
     pp.top_expansion_buf.items.len = 0;
