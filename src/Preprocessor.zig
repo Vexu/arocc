@@ -856,6 +856,66 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
     try pp.char_buf.appendSlice("\"\n");
 }
 
+fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]const u8 {
+    const char_top = pp.char_buf.items.len;
+    defer pp.char_buf.items.len = char_top;
+    var params = param_toks;
+
+    // Trim leading/trailing whitespace
+    if (params[0].id == .macro_ws) params = params[1..];
+    if (params.len > 0 and params[params.len - 1].id == .macro_ws) params = params[0 .. params.len - 1];
+
+    // no string pasting
+    if (params[0].id == .string_literal and params.len > 1) {
+        try pp.comp.diag.add(.{
+            .tag = .closing_paren,
+            .loc = params[1].loc,
+        }, params[1].expansionSlice());
+        return null;
+    }
+
+    for (params) |tok| {
+        const str = pp.expandedSliceExtra(tok, .preserve_macro_ws);
+        try pp.char_buf.appendSlice(str);
+    }
+
+    const include_str = pp.char_buf.items[char_top..];
+    if (include_str.len < 3) {
+        try pp.comp.diag.add(.{
+            .tag = .empty_filename,
+            .loc = params[0].loc,
+        }, params[0].expansionSlice());
+        return null;
+    }
+
+    switch (include_str[0]) {
+        '<' => {
+            if (include_str[include_str.len - 1] != '>') {
+                // Ugly hack to find out where the '>' should go, since we don't have the closing ')' location
+                const start = params[0].loc;
+                try pp.comp.diag.add(.{
+                    .tag = .header_str_closing,
+                    .loc = .{ .id = start.id, .byte_offset = start.byte_offset + @intCast(u32, include_str.len) + 1, .line = start.line },
+                }, params[0].expansionSlice());
+                try pp.comp.diag.add(.{
+                    .tag = .header_str_match,
+                    .loc = params[0].loc,
+                }, params[0].expansionSlice());
+                return null;
+            }
+            return include_str;
+        },
+        '"' => return include_str,
+        else => {
+            try pp.comp.diag.add(.{
+                .tag = .expected_filename,
+                .loc = params[0].loc,
+            }, params[0].expansionSlice());
+            return null;
+        },
+    }
+}
+
 fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token, src_loc: Source.Location) Error!bool {
     switch (builtin) {
         .macro_param_has_attribute,
@@ -939,46 +999,13 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             return id == .identifier or id == .extended_identifier;
         },
         .macro_param_has_include => {
-            const char_top = pp.char_buf.items.len;
-            defer pp.char_buf.items.len = char_top;
-            var actual_params = if (param_toks[0].id == .macro_ws) param_toks[1..] else param_toks;
-            if (actual_params.len > 0) {
-                actual_params = if (actual_params[actual_params.len - 1].id == .macro_ws) actual_params[0 .. actual_params.len - 1] else actual_params;
-            }
-            for (actual_params) |tok| {
-                const str = if (tok.id == .macro_ws) blk: {
-                    // preserve whitespace in case we have a path within < > that has multiple consecutive spaces
-                    var tmp_tokenizer = Tokenizer{
-                        .buf = pp.comp.getSource(tok.loc.id).buf,
-                        .comp = pp.comp,
-                        .index = tok.loc.byte_offset,
-                        .source = .generated,
-                    };
-                    const res = tmp_tokenizer.next();
-                    break :blk tmp_tokenizer.buf[res.start..res.end];
-                } else pp.expandedSlice(tok);
-                try pp.char_buf.appendSlice(str);
-            }
-            const full = pp.char_buf.items[char_top..];
-            if (full.len < 3) {
-                try pp.comp.diag.add(.{
-                    .tag = .empty_filename,
-                    .loc = actual_params[0].loc,
-                }, actual_params[0].expansionSlice());
-                return false;
-            }
-            const cwd_source_id = switch (full[0]) {
+            const include_str = (try pp.reconstructIncludeString(param_toks)) orelse return false;
+            const cwd_source_id = switch (include_str[0]) {
                 '<' => null,
-                '"' => actual_params[0].loc.id,
-                else => {
-                    try pp.comp.diag.add(.{
-                        .tag = .expected_filename,
-                        .loc = actual_params[0].loc,
-                    }, actual_params[0].expansionSlice());
-                    return false;
-                },
+                '"' => param_toks[0].loc.id,
+                else => unreachable,
             };
-            const filename = full[1 .. full.len - 1];
+            const filename = include_str[1 .. include_str.len - 1];
             return pp.comp.hasInclude(filename, cwd_source_id);
         },
         else => unreachable,
@@ -1187,9 +1214,9 @@ fn collectMacroFuncArguments(
             else => {
                 if (is_builtin) {
                     try pp.comp.diag.add(.{
-                        .tag = .missing_tok_builtin,
-                        .loc = tok.loc,
-                        .extra = .{ .tok_id_expected = .l_paren },
+                        .tag = .missing_lparen_after_builtin,
+                        .loc = name_tok.loc,
+                        .extra = .{ .str = pp.expandedSlice(name_tok) },
                     }, tok.expansionSlice());
                 }
                 // Not a macro function call, go over normal identifier, rewind
@@ -1429,10 +1456,9 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     }
 }
 
-/// Get expanded token source string.
-pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
+fn expandedSliceExtra(pp: *const Preprocessor, tok: Token, macro_ws_handling: enum { single_macro_ws, preserve_macro_ws }) []const u8 {
     if (tok.id.lexeme()) |some| {
-        if (!tok.id.allowsDigraphs(pp.comp)) return some;
+        if (!tok.id.allowsDigraphs(pp.comp) and !(tok.id == .macro_ws and macro_ws_handling == .preserve_macro_ws)) return some;
     }
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.getSource(tok.loc.id).buf,
@@ -1448,6 +1474,11 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
     }
     const res = tmp_tokenizer.next();
     return tmp_tokenizer.buf[res.start..res.end];
+}
+
+/// Get expanded token source string.
+pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
+    return pp.expandedSliceExtra(tok, .single_macro_ws);
 }
 
 /// Concat two tokens and add the result to pp.generated

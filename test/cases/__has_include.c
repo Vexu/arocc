@@ -46,12 +46,25 @@ _Static_assert(BAR == 2, "\"include/global_var.h\" not found");
 #if __has_include(<>)
 #endif
 
-#define EXPECTED_ERRORS "__has_include.c:1:5: error: '__has_include' must be used within a preprocessing directive" \
-    "__has_include.c:3:18: error: missing '(' after '__has_include'" \
-    "__has_include.c:6:19: error: expected \"FILENAME\" or <FILENAME>" \
+#define HAS_INCLUDE(X) __has_include(X)
+#define STDARG <stdarg.h>
+
+#if HAS_INCLUDE( STDARG )
+#define BAZ 3
+#else
+#error Stdarg not found!
+#endif
+_Static_assert(BAZ == 3, "__has_include macro failed");
+
+#if __has_include("std" "arg.h")
+#error "Should not have this"
+#endif
+
+#define EXPECTED_ERRORS "__has_include.c:1:5: error: Missing '(' after built-in macro '__has_include'" \
+    "__has_include.c:3:5: error: Missing '(' after built-in macro '__has_include'" \
+    "__has_include.c:6:5: error: expected 1 argument(s) got 0" \
     "__has_include.c:22:19: error: expected \"FILENAME\" or <FILENAME>" \
-    "__has_include.c:22:25: error: extra tokens at end of macro directive" \
     "__has_include.c:25:27: error: expected closing '>'" \
     "__has_include.c:25:19: note: to match this '<'" \
-    "__has_include.c:25:19: error: expected \"FILENAME\" or <FILENAME>" \
     "__has_include.c:46:19: error: empty filename" \
+    "__has_include.c:59:24: error: expected closing ')'" \
