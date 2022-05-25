@@ -1,3 +1,4 @@
+//aro-args -I../../../test/cases
 int __has_include = 42;
 
 #if __has_include
@@ -60,11 +61,18 @@ _Static_assert(BAZ == 3, "__has_include macro failed");
 #error "Should not have this"
 #endif
 
-#define EXPECTED_ERRORS "__has_include.c:1:5: error: Missing '(' after built-in macro '__has_include'" \
-    "__has_include.c:3:5: error: Missing '(' after built-in macro '__has_include'" \
-    "__has_include.c:6:5: error: expected 1 argument(s) got 0" \
-    "__has_include.c:22:19: error: expected \"FILENAME\" or <FILENAME>" \
-    "__has_include.c:25:27: error: expected closing '>'" \
-    "__has_include.c:25:19: note: to match this '<'" \
-    "__has_include.c:46:19: error: empty filename" \
-    "__has_include.c:59:24: error: expected closing ')'" \
+#if __has_include( <include/two  spaces/three   spaces.h>  )
+#include <include/two  spaces/three   spaces.h>
+_Static_assert(THREE_SPACES_H == 1, "");
+#else
+    #error "Incorrect space handling in __has_include with angle brackets"
+#endif
+
+#define EXPECTED_ERRORS "__has_include.c:2:5: error: Missing '(' after built-in macro '__has_include'" \
+    "__has_include.c:4:5: error: Missing '(' after built-in macro '__has_include'" \
+    "__has_include.c:7:5: error: expected 1 argument(s) got 0" \
+    "__has_include.c:23:19: error: expected \"FILENAME\" or <FILENAME>" \
+    "__has_include.c:26:27: error: expected closing '>'" \
+    "__has_include.c:26:19: note: to match this '<'" \
+    "__has_include.c:47:19: error: empty filename" \
+    "__has_include.c:60:24: error: expected closing ')'" \
