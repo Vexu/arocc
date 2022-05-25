@@ -68,6 +68,9 @@ _Static_assert(THREE_SPACES_H == 1, "");
     #error "Incorrect space handling in __has_include with angle brackets"
 #endif
 
+#if __has_include(            )
+#endif
+
 #define EXPECTED_ERRORS "__has_include.c:2:5: error: Missing '(' after built-in macro '__has_include'" \
     "__has_include.c:4:5: error: Missing '(' after built-in macro '__has_include'" \
     "__has_include.c:7:5: error: expected 1 argument(s) got 0" \
@@ -76,3 +79,5 @@ _Static_assert(THREE_SPACES_H == 1, "");
     "__has_include.c:26:19: note: to match this '<'" \
     "__has_include.c:47:19: error: empty filename" \
     "__has_include.c:60:24: error: expected closing ')'" \
+    "__has_include.c:71:19: error: expected \"FILENAME\" or <FILENAME>" \
+
