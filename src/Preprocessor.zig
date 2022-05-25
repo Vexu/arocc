@@ -859,11 +859,13 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
 fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]const u8 {
     const char_top = pp.char_buf.items.len;
     defer pp.char_buf.items.len = char_top;
-    var params = param_toks;
 
     // Trim leading/trailing whitespace
-    if (params[0].id == .macro_ws) params = params[1..];
-    if (params.len > 0 and params[params.len - 1].id == .macro_ws) params = params[0 .. params.len - 1];
+    var begin: usize = 0;
+    var end: usize = param_toks.len;
+    while (begin < end and param_toks[begin].id == .macro_ws) : (begin += 1) {}
+    while (end > begin and param_toks[end - 1].id == .macro_ws) : (end -= 1) {}
+    const params = param_toks[begin..end];
 
     // no string pasting
     if (params[0].id == .string_literal and params.len > 1) {
