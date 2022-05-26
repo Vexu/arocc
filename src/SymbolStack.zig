@@ -331,6 +331,7 @@ pub fn defineEnumeration(
     p: *Parser,
     ty: Type,
     tok: TokenIndex,
+    val: Value,
 ) !void {
     const name = p.tokSlice(tok);
     const kinds = s.syms.items(.kind);
@@ -358,6 +359,6 @@ pub fn defineEnumeration(
         .name = name,
         .tok = tok,
         .ty = ty,
-        .val = .{},
+        .val = val,
     });
 }

@@ -1994,9 +1994,12 @@ const Enumerator = struct {
     res: Result,
 
     fn init(p: *Parser) Enumerator {
+        // Enumerator value is captured after increment in p.enumerator(), and we want the first enumeration constant
+        // to have a value of 0
+        const initial_value = Value.int(@as(i64, -1));
         return .{ .res = .{
             .ty = .{ .specifier = if (p.pp.comp.langopts.short_enums) .schar else .int },
-            .val = Value.int(0),
+            .val = initial_value,
         } };
     }
 
@@ -2046,7 +2049,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     var res = e.res;
     res.ty = try p.withAttributes(res.ty, attr_buf_top);
 
-    try p.syms.defineEnumeration(p, res.ty, name_tok);
+    try p.syms.defineEnumeration(p, res.ty, name_tok, e.res.val);
     const node = try p.addNode(.{
         .tag = .enum_field_decl,
         .ty = res.ty,
@@ -5530,7 +5533,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     }
                 }
                 return Result{
-                    .val = if (p.const_decl_folding == .no_const_decl_folding) Value{} else sym.val,
+                    .val = if (p.const_decl_folding == .no_const_decl_folding and sym.kind != .enumeration) Value{} else sym.val,
                     .ty = sym.ty,
                     .node = try p.addNode(.{
                         .tag = if (sym.kind == .enumeration) .enumeration_ref else .decl_ref_expr,
