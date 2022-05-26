@@ -118,6 +118,10 @@ const builtin_macros = struct {
         .id = .macro_param_has_builtin,
         .source = .generated,
     }};
+    const has_include = [1]RawToken{.{
+        .id = .macro_param_has_include,
+        .source = .generated,
+    }};
 
     const is_identifier = [1]RawToken{.{
         .id = .macro_param_is_identifier,
@@ -144,7 +148,7 @@ const builtin_macros = struct {
 };
 
 fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: []const RawToken) !void {
-    try pp.defines.put(name, .{
+    try pp.defines.putNoClobber(name, .{
         .params = &builtin_macros.args,
         .tokens = tokens,
         .var_args = false,
@@ -160,6 +164,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_feature", true, &builtin_macros.has_feature);
     try pp.addBuiltinMacro("__has_extension", true, &builtin_macros.has_extension);
     try pp.addBuiltinMacro("__has_builtin", true, &builtin_macros.has_builtin);
+    try pp.addBuiltinMacro("__has_include", true, &builtin_macros.has_include);
     try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
     try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
 
@@ -851,6 +856,75 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
     try pp.char_buf.appendSlice("\"\n");
 }
 
+fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]const u8 {
+    const char_top = pp.char_buf.items.len;
+    defer pp.char_buf.items.len = char_top;
+
+    // Trim leading/trailing whitespace
+    var begin: usize = 0;
+    var end: usize = param_toks.len;
+    while (begin < end and param_toks[begin].id == .macro_ws) : (begin += 1) {}
+    while (end > begin and param_toks[end - 1].id == .macro_ws) : (end -= 1) {}
+    const params = param_toks[begin..end];
+
+    if (params.len == 0) {
+        try pp.comp.diag.add(.{
+            .tag = .expected_filename,
+            .loc = param_toks[0].loc,
+        }, param_toks[0].expansionSlice());
+        return null;
+    }
+    // no string pasting
+    if (params[0].id == .string_literal and params.len > 1) {
+        try pp.comp.diag.add(.{
+            .tag = .closing_paren,
+            .loc = params[1].loc,
+        }, params[1].expansionSlice());
+        return null;
+    }
+
+    for (params) |tok| {
+        const str = pp.expandedSliceExtra(tok, .preserve_macro_ws);
+        try pp.char_buf.appendSlice(str);
+    }
+
+    const include_str = pp.char_buf.items[char_top..];
+    if (include_str.len < 3) {
+        try pp.comp.diag.add(.{
+            .tag = .empty_filename,
+            .loc = params[0].loc,
+        }, params[0].expansionSlice());
+        return null;
+    }
+
+    switch (include_str[0]) {
+        '<' => {
+            if (include_str[include_str.len - 1] != '>') {
+                // Ugly hack to find out where the '>' should go, since we don't have the closing ')' location
+                const start = params[0].loc;
+                try pp.comp.diag.add(.{
+                    .tag = .header_str_closing,
+                    .loc = .{ .id = start.id, .byte_offset = start.byte_offset + @intCast(u32, include_str.len) + 1, .line = start.line },
+                }, params[0].expansionSlice());
+                try pp.comp.diag.add(.{
+                    .tag = .header_str_match,
+                    .loc = params[0].loc,
+                }, params[0].expansionSlice());
+                return null;
+            }
+            return include_str;
+        },
+        '"' => return include_str,
+        else => {
+            try pp.comp.diag.add(.{
+                .tag = .expected_filename,
+                .loc = params[0].loc,
+            }, params[0].expansionSlice());
+            return null;
+        },
+    }
+}
+
 fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token, src_loc: Source.Location) Error!bool {
     switch (builtin) {
         .macro_param_has_attribute,
@@ -932,6 +1006,16 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
 
             const id = identifier.?.id;
             return id == .identifier or id == .extended_identifier;
+        },
+        .macro_param_has_include => {
+            const include_str = (try pp.reconstructIncludeString(param_toks)) orelse return false;
+            const cwd_source_id = switch (include_str[0]) {
+                '<' => null,
+                '"' => param_toks[0].loc.id,
+                else => unreachable,
+            };
+            const filename = include_str[1 .. include_str.len - 1];
+            return pp.comp.hasInclude(filename, cwd_source_id);
         },
         else => unreachable,
     }
@@ -1019,6 +1103,7 @@ fn expandFuncMacro(
             .macro_param_has_feature,
             .macro_param_has_extension,
             .macro_param_has_builtin,
+            .macro_param_has_include,
             .macro_param_is_identifier,
             => {
                 const arg = expanded_args.items[0];
@@ -1138,9 +1223,9 @@ fn collectMacroFuncArguments(
             else => {
                 if (is_builtin) {
                     try pp.comp.diag.add(.{
-                        .tag = .missing_tok_builtin,
-                        .loc = tok.loc,
-                        .extra = .{ .tok_id_expected = .l_paren },
+                        .tag = .missing_lparen_after_builtin,
+                        .loc = name_tok.loc,
+                        .extra = .{ .str = pp.expandedSlice(name_tok) },
                     }, tok.expansionSlice());
                 }
                 // Not a macro function call, go over normal identifier, rewind
@@ -1204,7 +1289,7 @@ fn collectMacroFuncArguments(
                 return null;
             },
             .nl, .whitespace => {
-                try curArgument.append(.{ .id = .macro_ws, .loc = .{ .id = .generated } });
+                try curArgument.append(.{ .id = .macro_ws, .loc = tok.loc });
             },
             else => {
                 const duped = try tok.dupe(pp.comp.gpa);
@@ -1380,10 +1465,9 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     }
 }
 
-/// Get expanded token source string.
-pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
+fn expandedSliceExtra(pp: *const Preprocessor, tok: Token, macro_ws_handling: enum { single_macro_ws, preserve_macro_ws }) []const u8 {
     if (tok.id.lexeme()) |some| {
-        if (!tok.id.allowsDigraphs(pp.comp)) return some;
+        if (!tok.id.allowsDigraphs(pp.comp) and !(tok.id == .macro_ws and macro_ws_handling == .preserve_macro_ws)) return some;
     }
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.getSource(tok.loc.id).buf,
@@ -1399,6 +1483,11 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
     }
     const res = tmp_tokenizer.next();
     return tmp_tokenizer.buf[res.start..res.end];
+}
+
+/// Get expanded token source string.
+pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
+    return pp.expandedSliceExtra(tok, .single_macro_ws);
 }
 
 /// Concat two tokens and add the result to pp.generated
@@ -1785,11 +1874,16 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
     }, pragma_name_tok.expansionSlice());
 }
 
-fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
+fn findIncludeFilenameToken(
+    pp: *Preprocessor,
+    first_token: RawToken,
+    tokenizer: *Tokenizer,
+    trailing_token_behavior: enum { ignore_trailing_tokens, expect_nl_eof },
+) !Token {
     const start = pp.tokens.len;
     defer pp.tokens.len = start;
+    var first = first_token;
 
-    var first = tokenizer.nextNoWS();
     if (first.id == .angle_bracket_left) to_end: {
         // The tokenizer does not handle <foo> include strings so do it here.
         while (tokenizer.index < tokenizer.buf.len) : (tokenizer.index += 1) {
@@ -1806,7 +1900,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
         }
         try pp.comp.diag.add(.{
             .tag = .header_str_closing,
-            .loc = .{ .id = first.source, .byte_offset = first.start },
+            .loc = .{ .id = first.source, .byte_offset = tokenizer.index, .line = first.line },
         }, &.{});
         try pp.err(first, .header_str_match);
     }
@@ -1823,12 +1917,24 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
             return error.InvalidInclude;
         },
     }
-    // Error on extra tokens.
-    const nl = tokenizer.nextNoWS();
-    if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
-        skipToNl(tokenizer);
-        try pp.err(first, .extra_tokens_directive_end);
+    switch (trailing_token_behavior) {
+        .expect_nl_eof => {
+            // Error on extra tokens.
+            const nl = tokenizer.nextNoWS();
+            if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
+                skipToNl(tokenizer);
+                try pp.err(first, .extra_tokens_directive_end);
+            }
+        },
+        .ignore_trailing_tokens => {},
     }
+    return filename_tok;
+}
+
+fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
+    var first = tokenizer.nextNoWS();
+
+    const filename_tok = try pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof);
 
     // Check for empty filename.
     const tok_slice = pp.expandedSlice(filename_tok);
@@ -1839,7 +1945,9 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
 
     // Find the file.
     const filename = tok_slice[1 .. tok_slice.len - 1];
-    return (try pp.comp.findInclude(first, filename, filename_tok.id == .string_literal)) orelse
+    const cwd_source_id = if (filename_tok.id == .string_literal) first.source else null;
+
+    return (try pp.comp.findInclude(filename, cwd_source_id)) orelse
         pp.fatal(first, "'{s}' not found", .{filename});
 }
 

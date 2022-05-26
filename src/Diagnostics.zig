@@ -1688,6 +1688,16 @@ const messages = struct {
         const kind = .off;
         const opt = "undef";
     };
+    const preprocessing_directive_only = struct {
+        const msg = "'{s}' must be used within a preprocessing directive";
+        const extra = .tok_id_expected;
+        const kind = .@"error";
+    };
+    const missing_lparen_after_builtin = struct {
+        const msg = "Missing '(' after built-in macro '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

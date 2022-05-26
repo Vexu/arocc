@@ -126,6 +126,11 @@ pub fn main() !void {
     var initial_comp = aro.Compilation.init(gpa);
     defer initial_comp.deinit();
 
+    const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });
+    defer gpa.free(cases_include_dir);
+
+    try initial_comp.include_dirs.append(cases_include_dir);
+
     try initial_comp.addDefaultPragmaHandlers();
     try initial_comp.defineSystemIncludes();
 
@@ -144,6 +149,7 @@ pub fn main() !void {
         var comp = initial_comp;
         defer {
             // preserve some values
+            comp.include_dirs = @TypeOf(comp.include_dirs).init(gpa);
             comp.system_include_dirs = @TypeOf(comp.system_include_dirs).init(gpa);
             comp.pragma_handlers = @TypeOf(comp.pragma_handlers).init(gpa);
             comp.builtin_header_path = null;

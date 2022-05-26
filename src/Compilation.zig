@@ -500,7 +500,7 @@ pub fn defineSystemIncludes(comp: *Compilation) !void {
     try comp.system_include_dirs.append("/usr/include");
 }
 
-pub fn getSource(comp: *Compilation, id: Source.Id) Source {
+pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
     if (id == .generated) return .{
         .path = "<scratch space>",
         .buf = comp.generated_buf.items,
@@ -651,35 +651,58 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
     return comp.addSourceFromReader(reader, path, size);
 }
 
-pub fn findInclude(comp: *Compilation, tok: Token, filename: []const u8, search_cwd: bool) !?Source {
+pub const IncludeDirIterator = struct {
+    comp: *const Compilation,
+    cwd_source_id: ?Source.Id,
+    include_dirs_idx: usize = 0,
+    sys_include_dirs_idx: usize = 0,
+    /// nextWithFile will use this to hold the full path for its return value
+    /// not required if `nextWithFile` is not used
+    path_buf: []u8 = undefined,
+
+    fn next(self: *IncludeDirIterator) ?[]const u8 {
+        if (self.cwd_source_id) |source_id| {
+            self.cwd_source_id = null;
+            const path = self.comp.getSource(source_id).path;
+            return std.fs.path.dirname(path) orelse ".";
+        }
+        while (self.include_dirs_idx < self.comp.include_dirs.items.len) {
+            defer self.include_dirs_idx += 1;
+            return self.comp.include_dirs.items[self.include_dirs_idx];
+        }
+        while (self.sys_include_dirs_idx < self.comp.system_include_dirs.items.len) {
+            defer self.sys_include_dirs_idx += 1;
+            return self.comp.system_include_dirs.items[self.sys_include_dirs_idx];
+        }
+        return null;
+    }
+
+    /// Return value is invalidated by subsequent calls to nextWithFile
+    fn nextWithFile(self: *IncludeDirIterator, filename: []const u8) ?[]const u8 {
+        var fib = std.heap.FixedBufferAllocator.init(self.path_buf);
+        while (self.next()) |dir| : (fib.end_index = 0) {
+            const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
+            return path;
+        }
+        return null;
+    }
+};
+
+pub fn hasInclude(comp: *const Compilation, filename: []const u8, cwd_source_id: ?Source.Id) bool {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    var fib = std.heap.FixedBufferAllocator.init(&path_buf);
-    if (search_cwd) blk: {
-        const source = comp.getSource(tok.source);
-        const path = if (std.fs.path.dirname(source.path)) |some|
-            std.fs.path.join(fib.allocator(), &.{ some, filename }) catch break :blk
-        else
-            std.fs.path.join(fib.allocator(), &.{ ".", filename }) catch break :blk;
-        if (comp.addSourceFromPath(path)) |some|
-            return some
-        else |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => {},
-        }
+    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
+    const cwd = std.fs.cwd();
+    while (it.nextWithFile(filename)) |path| {
+        if (!std.meta.isError(cwd.access(path, .{}))) return true;
     }
-    for (comp.include_dirs.items) |dir| {
-        fib.end_index = 0;
-        const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
-        if (comp.addSourceFromPath(path)) |some|
-            return some
-        else |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => {},
-        }
-    }
-    for (comp.system_include_dirs.items) |dir| {
-        fib.end_index = 0;
-        const path = std.fs.path.join(fib.allocator(), &.{ dir, filename }) catch continue;
+    return false;
+}
+
+pub fn findInclude(comp: *Compilation, filename: []const u8, cwd_source_id: ?Source.Id) !?Source {
+    var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
+
+    while (it.nextWithFile(filename)) |path| {
         if (comp.addSourceFromPath(path)) |some|
             return some
         else |err| switch (err) {
