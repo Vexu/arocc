@@ -41,7 +41,7 @@ pub fn build(b: *Builder) !void {
 
     const zig_pkg = std.build.Pkg{
         .name = "zig",
-        .path = .{ .path = "deps/zig/lib.zig" },
+        .source = .{ .path = "deps/zig/lib.zig" },
     };
 
     const exe = b.addExecutable("arocc", "src/main.zig");
@@ -70,7 +70,7 @@ pub fn build(b: *Builder) !void {
     const integration_tests = b.addExecutable("arocc", "test/runner.zig");
     integration_tests.addPackage(.{
         .name = "aro",
-        .path = .{ .path = "src/lib.zig" },
+        .source = .{ .path = "src/lib.zig" },
         .dependencies = &.{zig_pkg},
     });
     const test_runner_options = b.addOptions();
