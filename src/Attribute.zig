@@ -222,7 +222,7 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Va
                     if (val.compare(.lt, Value.int(0), ty, comp)) {
                         return Diagnostics.Message{ .tag = .negative_alignment, .extra = .{ .signed = val.signExtend(ty, comp) } };
                     }
-                    const requested = std.math.cast(u29, val.data.int) catch {
+                    const requested = std.math.cast(u29, val.data.int) orelse {
                         return Diagnostics.Message{ .tag = .maximum_alignment, .extra = .{ .unsigned = val.data.int } };
                     };
                     if (!std.mem.isValidAlign(requested)) return Diagnostics.Message{ .tag = .non_pow2_align };
