@@ -628,7 +628,7 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
 pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8) !Source {
     if (comp.sources.get(path)) |some| return some;
 
-    const size = std.math.cast(u32, buf.len) catch return error.StreamTooLong;
+    const size = std.math.cast(u32, buf.len) orelse return error.StreamTooLong;
     const reader = std.io.fixedBufferStream(buf).reader();
 
     return comp.addSourceFromReader(reader, path, size);
@@ -645,7 +645,7 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
-    const size = std.math.cast(u32, try file.getEndPos()) catch return error.StreamTooLong;
+    const size = std.math.cast(u32, try file.getEndPos()) orelse return error.StreamTooLong;
     var reader = std.io.bufferedReader(file.reader()).reader();
 
     return comp.addSourceFromReader(reader, path, size);
