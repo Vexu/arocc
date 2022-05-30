@@ -1687,6 +1687,9 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     } else {
         record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
         // TODO actually calculate
+        const rl = @import("RecordLayout.zig");
+        var layout = std.mem.zeroes(rl.TypeLayout);
+        _ = rl.recordLayout(try p.withAttributes(ty, attr_buf_top), p, &layout);
         record_ty.size = 1;
         record_ty.alignment = 1;
     }
@@ -1804,7 +1807,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 try p.record_buf.append(.{
                     .name = try p.getAnonymousName(first_tok),
                     .ty = ty,
-                    .bit_width = 0,
+                    .bit_width = null,
                 });
                 const node = try p.addNode(.{
                     .tag = .indirect_record_field_decl,

@@ -19,6 +19,18 @@ pub const Error = error{
     FatalError,
 } || Allocator.Error;
 
+pub const MimicCompiler = enum {
+    gcc,
+    clang,
+    msvc,
+};
+
+pub const Dialect = enum {
+    sysv,
+    mingw,
+};
+
+
 gpa: Allocator,
 sources: std.StringArrayHashMap(Source),
 diag: Diagnostics,
@@ -27,6 +39,8 @@ system_include_dirs: std.ArrayList([]const u8),
 output_name: ?[]const u8 = null,
 builtin_header_path: ?[]u8 = null,
 target: std.Target = @import("builtin").target,
+mimic:MimicCompiler = .clang,
+dialect:Dialect = .sysv,
 pragma_handlers: std.StringArrayHashMap(*Pragma),
 only_preprocess: bool = false,
 only_compile: bool = false,

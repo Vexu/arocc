@@ -171,7 +171,7 @@ pub const Record = struct {
         ty: Type,
         /// zero for anonymous fields
         name_tok: TokenIndex = 0,
-        bit_width: u32 = 0,
+        bit_width: ?u32 = null,
 
         pub fn isAnonymousRecord(f: Field) bool {
             return f.name_tok == 0 and f.ty.isRecord();
@@ -290,34 +290,42 @@ pub fn withAttributes(self: Type, allocator: std.mem.Allocator, attributes: []co
     return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
 }
 
-pub fn isCallable(ty: Type) ?Type {
+pub fn unwrap(ty:Type) *const Type {
     return switch (ty.specifier) {
+        .typeof_type => ty.data.sub_type.unwrap(),
+        .typeof_expr => ty.data.expr.ty.unwrap(),
+        .attributed => ty.data.attributed.base.unwrap(),
+        else => &ty,
+    };
+}
+
+
+pub fn isCallable(ty: Type) ?Type {
+    return switch (ty.unwrap().specifier) {
         .func, .var_args_func, .old_style_func => ty,
         .pointer => if (ty.data.sub_type.isFunc()) ty.data.sub_type.* else null,
-        .typeof_type => ty.data.sub_type.isCallable(),
-        .typeof_expr => ty.data.expr.ty.isCallable(),
-        .attributed => ty.data.attributed.base.isCallable(),
         else => null,
     };
 }
 
 pub fn isFunc(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .func, .var_args_func, .old_style_func => true,
-        .typeof_type => ty.data.sub_type.isFunc(),
-        .typeof_expr => ty.data.expr.ty.isFunc(),
-        .attributed => ty.data.attributed.base.isFunc(),
         else => false,
     };
 }
 
+
+
 pub fn isArray(ty: Type) bool {
-    return switch (ty.specifier) {
-        .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => true,
-        .typeof_type => ty.data.sub_type.isArray(),
-        .typeof_expr => ty.data.expr.ty.isArray(),
-        .attributed => ty.data.attributed.base.isArray(),
-        else => false,
+    return ty.getArray() != null;
+}
+
+
+pub fn getArray(ty: *const Type) ?*const Type {
+    return switch (ty.unwrap().specifier) {
+        .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => ty,
+        else => null,
     };
 }
 
@@ -340,41 +348,29 @@ pub fn isPtr(ty: Type) bool {
 }
 
 pub fn isInt(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
-        .typeof_type => ty.data.sub_type.isInt(),
-        .typeof_expr => ty.data.expr.ty.isInt(),
-        .attributed => ty.data.attributed.base.isInt(),
         else => false,
     };
 }
 
 pub fn isFloat(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double => true,
-        .typeof_type => ty.data.sub_type.isFloat(),
-        .typeof_expr => ty.data.expr.ty.isFloat(),
-        .attributed => ty.data.attributed.base.isFloat(),
         else => false,
     };
 }
 
 pub fn isReal(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .complex_float, .complex_double, .complex_long_double => false,
-        .typeof_type => ty.data.sub_type.isReal(),
-        .typeof_expr => ty.data.expr.ty.isReal(),
-        .attributed => ty.data.attributed.base.isReal(),
         else => true,
     };
 }
 
 pub fn isVoidStar(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .pointer => ty.data.sub_type.specifier == .void,
-        .typeof_type => ty.data.sub_type.isVoidStar(),
-        .typeof_expr => ty.data.expr.ty.isVoidStar(),
-        .attributed => ty.data.attributed.base.isVoidStar(),
         else => false,
     };
 }
@@ -406,34 +402,36 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
     };
 }
 
-pub fn isEnumOrRecord(ty: Type) bool {
-    return switch (ty.specifier) {
-        .@"enum", .@"struct", .@"union" => true,
-        .typeof_type => ty.data.sub_type.isEnumOrRecord(),
-        .typeof_expr => ty.data.expr.ty.isEnumOrRecord(),
-        .attributed => ty.data.attributed.base.isEnumOrRecord(),
+pub fn isEnum(ty: Type) bool {
+    return switch (ty.unwrap().specifier) {
+        .@"enum" => true,
         else => false,
     };
 }
 
-pub fn isRecord(ty: Type) bool {
-    return switch (ty.specifier) {
-        .@"struct", .@"union" => true,
-        .typeof_type => ty.data.sub_type.isRecord(),
-        .typeof_expr => ty.data.expr.ty.isRecord(),
-        .attributed => ty.data.attributed.base.isRecord(),
+pub fn isEnumOrRecord(ty: Type) bool {
+    return switch (ty.unwrap().specifier) {
+        .@"enum", .@"struct", .@"union" => true,
         else => false,
+    };
+}
+
+pub fn isRecord( ty: Type ) bool {
+    return ty.getRecord() != null;
+}
+
+pub fn getRecord(ty: *const Type) ?*const Type {
+    return switch (ty.unwrap().specifier) {
+        .@"struct", .@"union" => ty,
+        else => null,
     };
 }
 
 pub fn isAnonymousRecord(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         // anonymous records can be recognized by their names which are in
         // the format "(anonymous TAG at path:line:col)".
         .@"struct", .@"union" => ty.data.record.name[0] == '(',
-        .typeof_type => ty.data.sub_type.isAnonymousRecord(),
-        .typeof_expr => ty.data.expr.ty.isAnonymousRecord(),
-        .attributed => ty.data.attributed.base.isAnonymousRecord(),
         else => false,
     };
 }
@@ -455,31 +453,22 @@ pub fn elemType(ty: Type) Type {
 }
 
 pub fn returnType(ty: Type) Type {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .func, .var_args_func, .old_style_func => ty.data.func.return_type,
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.returnType(),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.returnType(),
-        .attributed => ty.data.attributed.base.returnType(),
         else => unreachable,
     };
 }
 
 pub fn params(ty: Type) []Func.Param {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .func, .var_args_func, .old_style_func => ty.data.func.params,
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.params(),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.params(),
-        .attributed => ty.data.attributed.base.params(),
         else => unreachable,
     };
 }
 
 pub fn arrayLen(ty: Type) ?usize {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .array, .static_array, .decayed_array, .decayed_static_array => ty.data.array.len,
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.arrayLen(),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.arrayLen(),
-        .attributed => ty.data.attributed.base.arrayLen(),
         else => null,
     };
 }
@@ -526,14 +515,11 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
 }
 
 pub fn hasIncompleteSize(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.unwrap().specifier) {
         .void, .incomplete_array => true,
         .@"enum" => ty.data.@"enum".isIncomplete(),
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
-        .typeof_type => ty.data.sub_type.hasIncompleteSize(),
-        .typeof_expr => ty.data.expr.ty.hasIncompleteSize(),
-        .attributed => ty.data.attributed.base.hasIncompleteSize(),
         else => false,
     };
 }
@@ -624,7 +610,7 @@ pub fn sizeCompare(a: Type, b: Type, comp: *Compilation) TypeSizeOrder {
 }
 
 /// Size of type as reported by sizeof
-pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
+pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
     // TODO get target from compilation
     return switch (ty.specifier) {
         .variable_len_array, .unspecified_variable_len_array, .incomplete_array => return null,
@@ -672,7 +658,7 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
     };
 }
 
-pub fn bitSizeof(ty: Type, comp: *Compilation) ?u64 {
+pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
     return switch (ty.specifier) {
         .bool => 1,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
@@ -776,7 +762,7 @@ pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
     };
 }
 
-fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
+pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
     return switch (ty.specifier) {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.requestedAlignment(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.requestedAlignment(comp),
@@ -798,6 +784,24 @@ fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
         else => null,
     };
 }
+
+pub fn requestedPack(ty: Type) ?u29 {
+    return switch (ty.specifier) {
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.requestedPack(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.requestedPack(),
+        .attributed => {
+            for (ty.data.attributed.attributes) |attribute| {
+                if (attribute.tag != .@"packed") continue;
+                // TODO: get pack value once parced.
+                // can you set more tha one pragma pack?
+                return 8;
+            }
+            return null;
+        },
+        else => null,
+    };
+}
+
 
 pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifiers: bool) bool {
     const a = a_param.canonicalize(.standard);
