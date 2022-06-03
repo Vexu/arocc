@@ -1721,9 +1721,49 @@ fn recordSpec(p: *Parser) Error!Type {
         if (field.ty.hasIncompleteSize()) break;
     } else {
         record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
-        // TODO actually calculate
-        record_ty.size = 1;
-        record_ty.alignment = 1;
+        // Compute the size of this record.
+        if (record_ty.fields.len == 0) {
+            // Alignment of 0 likely to cause division by 0 errors
+            // later, align of 1 is semantically the same i think
+            record_ty.size = 0;
+            record_ty.alignment = 1;
+        } else {
+            var total_size: usize = 0;
+            var largest_field_size: usize = 0;
+            var largest_field_align: u29 = 0;
+            // The padding of a field depends on the align of the fielh
+            // after it, last field's padding is special
+            for (record_ty.fields) |f| {
+                const field_size_opt = f.ty.sizeof(p.pp.comp);
+                if (field_size_opt) |field_size| {
+                    const field_align = f.ty.alignof(p.pp.comp);
+                    largest_field_size = std.math.max(field_size, largest_field_size);
+                    largest_field_align = std.math.max(field_align, largest_field_align);
+                    const offset_needed = @divTrunc(total_size + (field_align - 1), field_align) * field_align;
+                    const padding = offset_needed - total_size;
+                    total_size += field_size + padding;
+                } else {
+                    // TODO what's the best way to error here?
+                    std.log.err(
+                        "Couldn't compute sizeof {s}.{s}",
+                        .{ record_ty.name, f.name },
+                    );
+                }
+            }
+            // Compute record padding
+            const record_offset_needed = @divTrunc(
+                total_size + (largest_field_align - 1),
+                largest_field_align,
+            ) * largest_field_align;
+            const record_padding = record_offset_needed - total_size;
+            total_size += record_padding;
+            if (is_struct) {
+                record_ty.size = total_size;
+            } else { // union
+                record_ty.size = largest_field_size;
+            }
+            record_ty.alignment = largest_field_align;
+        }
     }
 
     if (p.record_buf.items.len == record_buf_top) {
