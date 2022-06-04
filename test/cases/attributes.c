@@ -97,9 +97,11 @@ int baz;
 {
 }
 
+_Static_assert(sizeof(struct S2) == 1, "sizeof aligned struct"); /* TODO: Should be 8 */
+
 __attribute__(()) // test attribute at eof
 
-#define TESTS_SKIPPED 3
+#define TESTS_SKIPPED 4
 
 #define EXPECTED_ERRORS \
 	/* "attributes.c:8:26: warning: Attribute 'noreturn' ignored in variable context [-Wignored-attributes]" */ \
@@ -108,4 +110,4 @@ __attribute__(()) // test attribute at eof
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
     /* "attributes.c:40:20: error: attribute cannot be applied to a statement" */ \
     "attributes.c:76:6: error: cannot call non function type 'int'" \
-    "attributes.c:100:18: error: expected identifier or '('" \
+    "attributes.c:102:18: error: expected identifier or '('" \
