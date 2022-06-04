@@ -1605,7 +1605,8 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         };
         // check if this is a reference to a previous type
         if (try p.syms.findTag(p, p.tok_ids[kind_tok], ident)) |prev| {
-            return prev.ty.data.record;
+            const record_ty = prev.ty.get(.@"struct") orelse prev.ty.get(.@"union") orelse return error.ParsingFailed;
+            return record_ty.data.record;
         } else {
             // this is a forward declaration, create a new record Type.
             const record_ty = try Type.Record.create(p.arena, p.tokSlice(ident));
