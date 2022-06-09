@@ -159,19 +159,57 @@ pub const Enum = struct {
     }
 };
 
+pub const TypeLayout = struct {
+    /// The size of the type in bits.
+    ///
+    /// This is the value returned by `sizeof` and C and `std::mem::size_of` in Rust
+    /// (but in bits instead of bytes). This is a multiple of `pointer_alignment_bits`.
+    size_bits: u29,
+    /// The alignment of the type, in bits, when used as a field in a record.
+    ///
+    /// This is usually the value returned by `_Alignof` in C, but there are some edge
+    /// cases in GCC where `_Alignof` returns a smaller value.
+    field_alignment_bits: u29,
+    /// The alignment, in bits, of valid pointers to this type.
+    ///
+    /// This is the value returned by `std::mem::align_of` in Rust
+    /// (but in bits instead of bytes). `size_bits` is a multiple of this value.
+    pointer_alignment_bits: u29,
+    /// The required alignment of the type in bits.
+    ///
+    /// This value is only used by MSVC targets. It is 8 on all other
+    /// targets. On MSVC targets, this value restricts the effects of `#pragma pack` except
+    /// in some cases involving bit-fields.
+    required_alignmnet_bits: u29,
+};
+
+const FieldLayout = struct {
+    /// The offset of the struct, in bits, from the start of the struct.
+    offset_bits: u29,
+    /// The size, in bits, of the field.
+    ///
+    /// For bit-fields, this is the width of the field.
+    size_bits: u29,
+};
+
+
 // TODO improve memory usage
 pub const Record = struct {
     name: []const u8,
     fields: []Field,
+    // TODO: should remove size/alin
+    // and change code to use TypeLayout.
     size: u64,
     alignment: u29,
+    type_layout:TypeLayout,
 
     pub const Field = struct {
         name: []const u8,
         ty: Type,
         /// zero for anonymous fields
         name_tok: TokenIndex = 0,
-        bit_width: ?u32 = null,
+        bit_width: ?u29 = null,
+        layout:FieldLayout,
 
         pub fn isAnonymousRecord(f: Field) bool {
             return f.name_tok == 0 and f.ty.isRecord();
@@ -785,20 +823,18 @@ pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
     };
 }
 
-pub fn requestedPack(ty: Type) ?u29 {
+pub fn isPacked(ty: Type) bool {
     return switch (ty.specifier) {
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.requestedPack(),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.requestedPack(),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.isPacked(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.isPacked(),
         .attributed => {
             for (ty.data.attributed.attributes) |attribute| {
                 if (attribute.tag != .@"packed") continue;
-                // TODO: get pack value once parced.
-                // can you set more tha one pragma pack?
-                return 8;
+                return true;
             }
-            return null;
+            return false;
         },
-        else => null,
+        else => false,
     };
 }
 
