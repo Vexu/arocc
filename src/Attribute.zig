@@ -656,7 +656,6 @@ const attributes = struct {
     //    };
     const @"packed" = struct {
         const gnu = "packed";
-        // TODO: add packed value eg #pragma(8)
     };
     const patchable_function_entry = struct {
         const gnu = "patchable_function_entry";

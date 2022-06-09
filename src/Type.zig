@@ -328,42 +328,34 @@ pub fn withAttributes(self: Type, allocator: std.mem.Allocator, attributes: []co
     return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
 }
 
-pub fn unwrap(ty:Type) *const Type {
-    return switch (ty.specifier) {
-        .typeof_type => ty.data.sub_type.unwrap(),
-        .typeof_expr => ty.data.expr.ty.unwrap(),
-        .attributed => ty.data.attributed.base.unwrap(),
-        else => &ty,
-    };
-}
-
-
 pub fn isCallable(ty: Type) ?Type {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => ty,
         .pointer => if (ty.data.sub_type.isFunc()) ty.data.sub_type.* else null,
+        .typeof_type => ty.data.sub_type.isCallable(),
+        .typeof_expr => ty.data.expr.ty.isCallable(),
+        .attributed => ty.data.attributed.base.isCallable(),
         else => null,
     };
 }
 
 pub fn isFunc(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => true,
+        .typeof_type => ty.data.sub_type.isFunc(),
+        .typeof_expr => ty.data.expr.ty.isFunc(),
+        .attributed => ty.data.attributed.base.isFunc(),
         else => false,
     };
 }
 
-
-
 pub fn isArray(ty: Type) bool {
-    return ty.getArray() != null;
-}
-
-
-pub fn getArray(ty: *const Type) ?*const Type {
-    return switch (ty.unwrap().specifier) {
-        .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => ty,
-        else => null,
+    return switch (ty.specifier) {
+        .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => true,
+        .typeof_type => ty.data.sub_type.isArray(),
+        .typeof_expr => ty.data.expr.ty.isArray(),
+        .attributed => ty.data.attributed.base.isArray(),
+        else => false,
     };
 }
 
@@ -386,29 +378,41 @@ pub fn isPtr(ty: Type) bool {
 }
 
 pub fn isInt(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
+        .typeof_type => ty.data.sub_type.isInt(),
+        .typeof_expr => ty.data.expr.ty.isInt(),
+        .attributed => ty.data.attributed.base.isInt(),
         else => false,
     };
 }
 
 pub fn isFloat(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double => true,
+        .typeof_type => ty.data.sub_type.isFloat(),
+        .typeof_expr => ty.data.expr.ty.isFloat(),
+        .attributed => ty.data.attributed.base.isFloat(),
         else => false,
     };
 }
 
 pub fn isReal(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .complex_float, .complex_double, .complex_long_double => false,
+        .typeof_type => ty.data.sub_type.isReal(),
+        .typeof_expr => ty.data.expr.ty.isReal(),
+        .attributed => ty.data.attributed.base.isReal(),
         else => true,
     };
 }
 
 pub fn isVoidStar(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .pointer => ty.data.sub_type.specifier == .void,
+        .typeof_type => ty.data.sub_type.isVoidStar(),
+        .typeof_expr => ty.data.expr.ty.isVoidStar(),
+        .attributed => ty.data.attributed.base.isVoidStar(),
         else => false,
     };
 }
@@ -440,16 +444,32 @@ pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
     };
 }
 
+pub fn getArray(ty: *const Type) ?*const Type {
+    return switch (ty.specifier) {
+        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty,
+        .typeof_type => ty.data.sub_type.getArray(),
+        .typeof_expr => ty.data.expr.ty.getArray(),
+        .attributed => ty.data.attributed.base.getArray(),
+        else => null,
+    };
+}
+
 pub fn isEnum(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .@"enum" => true,
+        .typeof_type => ty.data.sub_type.isEnum(),
+        .typeof_expr => ty.data.expr.ty.isEnum(),
+        .attributed => ty.data.attributed.base.isEnum(),
         else => false,
     };
 }
 
 pub fn isEnumOrRecord(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .@"enum", .@"struct", .@"union" => true,
+        .typeof_type => ty.data.sub_type.isEnumOrRecord(),
+        .typeof_expr => ty.data.expr.ty.isEnumOrRecord(),
+        .attributed => ty.data.attributed.base.isEnumOrRecord(),
         else => false,
     };
 }
@@ -459,17 +479,23 @@ pub fn isRecord( ty: Type ) bool {
 }
 
 pub fn getRecord(ty: *const Type) ?*const Type {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .@"struct", .@"union" => ty,
+        .typeof_type => ty.data.sub_type.getRecord(),
+        .typeof_expr => ty.data.expr.ty.getRecord(),
+        .attributed => ty.data.attributed.base.getRecord(),
         else => null,
     };
 }
 
 pub fn isAnonymousRecord(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         // anonymous records can be recognized by their names which are in
         // the format "(anonymous TAG at path:line:col)".
         .@"struct", .@"union" => ty.data.record.name[0] == '(',
+        .typeof_type => ty.data.sub_type.isAnonymousRecord(),
+        .typeof_expr => ty.data.expr.ty.isAnonymousRecord(),
+        .attributed => ty.data.attributed.base.isAnonymousRecord(),
         else => false,
     };
 }
@@ -491,22 +517,31 @@ pub fn elemType(ty: Type) Type {
 }
 
 pub fn returnType(ty: Type) Type {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => ty.data.func.return_type,
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.returnType(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.returnType(),
+        .attributed => ty.data.attributed.base.returnType(),
         else => unreachable,
     };
 }
 
 pub fn params(ty: Type) []Func.Param {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .func, .var_args_func, .old_style_func => ty.data.func.params,
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.params(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.params(),
+        .attributed => ty.data.attributed.base.params(),
         else => unreachable,
     };
 }
 
 pub fn arrayLen(ty: Type) ?usize {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .array, .static_array, .decayed_array, .decayed_static_array => ty.data.array.len,
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.arrayLen(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.arrayLen(),
+        .attributed => ty.data.attributed.base.arrayLen(),
         else => null,
     };
 }
@@ -553,11 +588,14 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
 }
 
 pub fn hasIncompleteSize(ty: Type) bool {
-    return switch (ty.unwrap().specifier) {
+    return switch (ty.specifier) {
         .void, .incomplete_array => true,
         .@"enum" => ty.data.@"enum".isIncomplete(),
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
+        .typeof_type => ty.data.sub_type.hasIncompleteSize(),
+        .typeof_expr => ty.data.expr.ty.hasIncompleteSize(),
+        .attributed => ty.data.attributed.base.hasIncompleteSize(),
         else => false,
     };
 }
@@ -702,7 +740,7 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
         .attributed => ty.data.attributed.base.bitSizeof(comp),
-        else => 8 * (ty.sizeof(comp) orelse return null),
+        else => 8 * (ty.sizeof(comp) orelse 1),
     };
 }
 

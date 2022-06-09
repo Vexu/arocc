@@ -60,12 +60,13 @@ pub fn computeLayout(ty: *Type, p: *const Parser, type_layout: *TypeLayout) void
         type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
         type_layout.required_alignmnet_bits = BITS_PER_BYTE;
     }
+
 }
 
 fn checkNoAttbiute(ty: *const Type, p: *const Parser) void {
     if (ty.requestedAlignment(p.pp.comp) != null or ty.isPacked()) {
         // maybe this is a warning?
-        std.debug.panic("alignment ignored for this field type in records", .{});
+        // std.debug.print("alignment ignored for this field type in records\n", .{});
     }
 }
 
@@ -84,9 +85,6 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
     assert(ty.isRecord());
     const record_ty = ty.getRecord() orelse unreachable;
     const rec = record_ty.data.record;
-
-    std.debug.print("\nrecord = {s}\n", .{rec.name});
-    std.debug.print("\trec:{any}\n", .{rec});
 
     var record_context = RecordContext{
         .attr_packed = ty.isPacked(),
@@ -116,7 +114,7 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
         computeLayout(&fld.ty, p, &type_layout);
 
         if (fld.bit_width != null) {
-            layoutBitField(p.pp.comp, fld, type_layout, &record_context);
+            layoutBitField(p.pp.comp, fld, &type_layout, &record_context);
         } else {
             layoutRegluarField(p.pp.comp, fld, type_layout, &record_context);
         }
@@ -131,6 +129,9 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
     rec.type_layout.required_alignmnet_bits = BITS_PER_BYTE;
     rec.size = rec.type_layout.size_bits / BITS_PER_BYTE;
     rec.alignment = rec.type_layout.field_alignment_bits / BITS_PER_BYTE;
+    
+    // std.debug.print("\nrecord = {s}\n", .{rec.name});
+    // std.debug.print("\trec:{any}\n", .{rec.type_layout});
 }
 
 fn layoutRegluarField(
@@ -157,11 +158,10 @@ fn layoutRegluarField(
     fld.layout.size_bits = fld_layout.size_bits;
 }
 
-// too many params. refactor.
 fn layoutBitField(
     comp: *const Compilation,
     fld: *Field,
-    fld_layout: TypeLayout,
+    fld_layout: *TypeLayout,
     record_context: *RecordContext,
 ) void {
     assert(fld.bit_width != null);
@@ -228,16 +228,19 @@ fn layoutBitField(
 
     var offset_bits = alignTo(first_unused_bit, field_align_bits);
     record_context.size_bits = std.math.max(record_context.size_bits, offset_bits + bit_width);
+    fld_layout.field_alignment_bits = ty_align_bits;
 
     // Unnamed fields do not contribute to the record alignment except on a few targets.
     // TODO: is this how to check for unnamed field?
     if (fld.name.len == 0 or minZeroWidthBitfieldAlignment(comp) != null) {
         std.debug.print("some stuff", .{});
     }
+
+
 }
 
 fn layoutArray(ty: *const Type, p: *const Parser, type_layout: *TypeLayout) void {
-    var ar_ty = ty.unwrap(); // strip any alignment / typedef
+    var ar_ty = ty.getArray() orelse unreachable; // strip any alignment / typedef
 
     if (ar_ty.data.array.len > std.math.maxInt(u29)) {
         // TODO: real error msg.
@@ -246,6 +249,8 @@ fn layoutArray(ty: *const Type, p: *const Parser, type_layout: *TypeLayout) void
     const a_len = @intCast(u29, ar_ty.data.array.len);
 
     computeLayout(&ar_ty.data.array.elem, p, type_layout);
+
+    // std.debug.print("array elm layout {any}\n\tresult = {any}\n", .{ar_ty.data.array.elem, type_layout});
 
     var full_size: u29 = 0;
     if (@mulWithOverflow(u29, type_layout.size_bits, a_len, &full_size)) {
