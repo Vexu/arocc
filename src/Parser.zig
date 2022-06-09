@@ -1605,7 +1605,8 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         };
         // check if this is a reference to a previous type
         if (try p.syms.findTag(p, p.tok_ids[kind_tok], ident)) |prev| {
-            return prev.ty.data.record;
+            const record_ty = prev.ty.get(.@"struct") orelse prev.ty.get(.@"union") orelse return error.ParsingFailed;
+            return record_ty.data.record;
         } else {
             // this is a forward declaration, create a new record Type.
             const record_ty = try Type.Record.create(p.arena, p.tokSlice(ident));
@@ -1639,13 +1640,19 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         }
         break :record_ty try Type.Record.create(p.arena, p.tokSlice(ident));
     } else try Type.Record.create(p.arena, try p.getAnonymousName(kind_tok));
-    const ty = try p.withAttributes(.{
+
+    // Initially create ty as a regular non-attributed type, since attributes for a record
+    // can be specified after the closing rbrace, which we haven't encountered yet.
+    var ty = Type{
         .specifier = if (is_struct) .@"struct" else .@"union",
         .data = .{ .record = record_ty },
-    }, attr_buf_top);
+    };
 
     // declare a symbol for the type
+    // We need to replace the symbol's type if it has attributes
+    var symbol_index: ?usize = null;
     if (maybe_ident != null and !defined) {
+        symbol_index = p.syms.syms.len;
         try p.syms.syms.append(p.pp.comp.gpa, .{
             .kind = if (is_struct) .@"struct" else .@"union",
             .name = p.tokSlice(maybe_ident.?),
@@ -1698,6 +1705,14 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     }
     try p.expectClosing(l_brace, .r_brace);
     try p.attributeSpecifier(); // .record
+
+    ty = try p.withAttributes(.{
+        .specifier = if (is_struct) .@"struct" else .@"union",
+        .data = .{ .record = record_ty },
+    }, attr_buf_top);
+    if (ty.specifier == .attributed and symbol_index != null) {
+        p.syms.syms.items(.ty)[symbol_index.?] = ty;
+    }
 
     // finish by creating a node
     var node: Tree.Node = .{

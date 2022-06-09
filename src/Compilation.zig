@@ -643,7 +643,7 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
         .splice_locs = splice_locs,
     };
 
-    try comp.sources.put(path, source);
+    try comp.sources.put(duped_path, source);
     if (source.offsetOfInvalidUtf8()) |offset| {
         try comp.invalid_utf8_locs.putNoClobber(comp.gpa, source_id, offset);
     }
