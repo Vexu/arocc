@@ -10,6 +10,14 @@ const TypeLayout = Type.TypeLayout;
 
 const assert = std.debug.assert;
 
+// almost all the code for record layout
+// was liberally copied from this repro
+// https://github.com/mahkoh/repr-c
+// specifically the code in "repc/impl/src/" directory.
+// At the time of this writing (Q2 2022)
+// that code marked as "SPDX-License-Identifier: MIT OR Apache-2.0"
+// so is compatable with arocc's MIT licence
+
 const RecordContext = struct {
     // Whether the record has an __attribute__((packed)) annotation.
     attr_packed: bool,
@@ -23,25 +31,13 @@ const RecordContext = struct {
     size_bits: u29,
 };
 
-// pub const TypeLayout = struct {
-//     size_bits: u29,
-//     field_alignment_bits: u29,
-//     pointer_alignment_bits: u29,
-//     required_alignmnet_bits: u29,
-// };
-
-// const FieldLayout = struct {
-//     offset_bits: u29,
-//     size_bits: u29,
-// };
-
 const int_type = Type{ .specifier = .int };
 
 pub const BITS_PER_BYTE: u29 = 8;
 
 pub fn computeLayout(ty: *Type, p: *const Parser, type_layout: *TypeLayout) void {
     if (ty.isRecord()) {
-        // TODO : this won't work, m: u29)
+        // TODO : this won't work,
         // need to call try p.withAttributes(ty, attr_buf_top) but don't know how to do that.
         recordLayout(ty, p);
         const record_ty = ty.getRecord() orelse unreachable;
@@ -59,6 +55,7 @@ pub fn computeLayout(ty: *Type, p: *const Parser, type_layout: *TypeLayout) void
         type_layout.pointer_alignment_bits = ty.alignof(p.pp.comp) * BITS_PER_BYTE;
         type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
         type_layout.required_alignmnet_bits = BITS_PER_BYTE;
+        // std.debug.print("basic layout of {s} is {d}\n", .{ty.specifier, type_layout.size_bits });
     }
 
 }
@@ -86,6 +83,7 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
     const record_ty = ty.getRecord() orelse unreachable;
     const rec = record_ty.data.record;
 
+    // std.debug.print("laying out {s}\n", .{rec.name});
     var record_context = RecordContext{
         .attr_packed = ty.isPacked(),
         .max_field_align_bits = null, // TODO: get pack value
@@ -114,10 +112,13 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
         computeLayout(&fld.ty, p, &type_layout);
 
         if (fld.bit_width != null) {
+            // std.debug.print("bitfield-layout b:{d}\n", .{fld.bit_width});
             layoutBitField(p.pp.comp, fld, &type_layout, &record_context);
         } else {
+            // std.debug.print("regluar-layout\n", .{});
             layoutRegluarField(p.pp.comp, fld, type_layout, &record_context);
         }
+        // std.debug.print("fld : {any}\n\tcontext : {any}\n\tlayout : {any}\n", .{type_layout, record_context, fld.layout});
     }
 
     // if(record_context.max_field_align_bits) |pak| {
@@ -149,13 +150,15 @@ fn layoutRegluarField(
         align_bits = std.math.min(align_bits, req_bits);
     }
 
-    var offset_bits = if (!record_context.is_union) alignTo(record_context.size_bits, align_bits) else 0;
+    var offset_bits = if (record_context.is_union) 0 else alignTo(record_context.size_bits, align_bits);
 
+    // std.debug.print("rc.sb : {d}, ob : {d}, fl.sb : {d}\n", .{ record_context.size_bits, offset_bits, fld_layout.size_bits });
     record_context.size_bits = std.math.max(record_context.size_bits, offset_bits + fld_layout.size_bits);
     record_context.aligned_bits = std.math.max(record_context.aligned_bits, align_bits);
 
     fld.layout.offset_bits = offset_bits;
     fld.layout.size_bits = fld_layout.size_bits;
+    // std.debug.print("fld layout type {s} size {d}\n", .{fld.ty.specifier, record_context.size_bits});
 }
 
 fn layoutBitField(
@@ -249,6 +252,7 @@ fn layoutArray(ty: *const Type, p: *const Parser, type_layout: *TypeLayout) void
     const a_len = @intCast(u29, ar_ty.data.array.len);
 
     computeLayout(&ar_ty.data.array.elem, p, type_layout);
+    // std.debug.print("array type says {any}\n", .{type_layout});
 
     // std.debug.print("array elm layout {any}\n\tresult = {any}\n", .{ar_ty.data.array.elem, type_layout});
 

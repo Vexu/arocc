@@ -1697,6 +1697,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         const rl = @import("RecordLayout.zig");
 
         rl.recordLayout(&try p.withAttributes(ty, attr_buf_top), p );
+        //std.debug.print("record {s} is {any}\n", .{record_ty.name, record_ty.type_layout});
     }
 
     if (p.record_buf.items.len == record_buf_top) {
@@ -1772,7 +1773,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         var name_tok: TokenIndex = 0;
         var ty = base_ty;
         var bits_node: NodeIndex = .none;
-        var bits: u29 = 0;
+        var bits: ?u29 = null;
         const first_tok = p.tok_i;
         if (try p.declarator(ty, .record)) |d| {
             name_tok = d.name;
