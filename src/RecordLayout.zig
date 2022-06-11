@@ -67,23 +67,13 @@ fn checkNoAttbiute(ty: *const Type, p: *const Parser) void {
     }
 }
 
-fn alignTo(n: u29, m: u29) u29 {
-    assert(std.math.isPowerOfTwo(m));
-    var mask = m - 1;
-    var res: u29 = 0;
-    if (@addWithOverflow(u29, n, mask, &res)) {
-        std.debug.panic("alingTo overflow", .{});
-    } else {
-        return res & ~mask;
-    }
-}
 
 pub fn recordLayout(ty: *Type, p: *const Parser) void {
     assert(ty.isRecord());
     const record_ty = ty.getRecord() orelse unreachable;
     const rec = record_ty.data.record;
 
-    // std.debug.print("laying out {s}\n", .{rec.name});
+    // std.debug.print("laying out : {s}\n", .{rec.name});
     var record_context = RecordContext{
         .attr_packed = ty.isPacked(),
         .max_field_align_bits = null, // TODO: get pack value
@@ -110,7 +100,9 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
         };
         // recursion
         computeLayout(&fld.ty, p, &type_layout);
+        // std.debug.print("\tfld {s} is size {d}\n", .{fld.name, type_layout.size_bits});
 
+        // var old_sz = record_context.size_bits;
         if (fld.bit_width != null) {
             // std.debug.print("bitfield-layout b:{d}\n", .{fld.bit_width});
             layoutBitField(p.pp.comp, fld, &type_layout, &record_context);
@@ -119,8 +111,10 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
             layoutRegluarField(p.pp.comp, fld, type_layout, &record_context);
         }
         // std.debug.print("fld : {any}\n\tcontext : {any}\n\tlayout : {any}\n", .{type_layout, record_context, fld.layout});
+        // std.debug.print("\tfld {s} adding {d} to record. total {d}\n", .{fld.name, record_context.size_bits - old_sz, record_context.size_bits});
     }
 
+    record_context.size_bits = alignTo(record_context.size_bits, record_context.aligned_bits);
     // if(record_context.max_field_align_bits) |pak| {
     //     record_context.size_bits =  alignTo(record_context.size_bits, pak);
     // }
@@ -255,15 +249,17 @@ fn layoutArray(ty: *const Type, p: *const Parser, type_layout: *TypeLayout) void
     // std.debug.print("array type says {any}\n", .{type_layout});
 
     // std.debug.print("array elm layout {any}\n\tresult = {any}\n", .{ar_ty.data.array.elem, type_layout});
+    // var arr_elm_sz = type_layout.size_bits;
 
     var full_size: u29 = 0;
     if (@mulWithOverflow(u29, type_layout.size_bits, a_len, &full_size)) {
         // TODO, meaningfull error and return.
         std.debug.panic("array sizne for type overflows {any}", .{ty});
     }
-    type_layout.size_bits = alignTo(full_size, type_layout.size_bits);
+    type_layout.size_bits = alignTo(full_size, type_layout.field_alignment_bits);
 
     type_layout.pointer_alignment_bits = type_layout.field_alignment_bits;
+    // std.debug.print("arry layout. elm {d} len {d} total {d}\n", .{arr_elm_sz, a_len, type_layout.size_bits});
 }
 
 fn layoutEnum(ty: *const Type, comp: *const Compilation, type_layout: *TypeLayout) void {
@@ -306,6 +302,18 @@ fn rawAlignOf(ty: *const Type, comp: *const Compilation) u29 {
         else => ty.alignof(comp),
     };
 }
+
+fn alignTo(n: u29, m: u29) u29 {
+    assert(std.math.isPowerOfTwo(m));
+    var mask = m - 1;
+    var res: u29 = 0;
+    if (@addWithOverflow(u29, n, mask, &res)) {
+        std.debug.panic("alingTo overflow", .{});
+    } else {
+        return res & ~mask;
+    }
+}
+
 
 //
 // TODO: Move all these to Compilation?
