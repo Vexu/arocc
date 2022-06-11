@@ -740,7 +740,7 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
         .attributed => ty.data.attributed.base.bitSizeof(comp),
-        else => 8 * (ty.sizeof(comp) orelse 1),
+        else => 8 * (ty.sizeof(comp) orelse return null),
     };
 }
 
