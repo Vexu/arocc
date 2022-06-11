@@ -82,6 +82,10 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
         .size_bits = 0,
     };
 
+    // if( record_context.aligned_bits != BITS_PER_BYTE ) {
+    //     std.debug.print("record {s} requested align {d}\n", .{rec.name, record_context.aligned_bits});
+    // }
+
     // pack value must be multiple of 2 and <= 128
     if (record_context.max_field_align_bits) |pack| {
         if (pack > 128 or pack < BITS_PER_BYTE or !std.math.isPowerOfTwo(pack)) {

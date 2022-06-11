@@ -97,8 +97,8 @@ int baz;
 {
 }
 
-_Static_assert(sizeof(struct S2) == 1, "sizeof aligned struct"); /* TODO: Should be 8 */
-_Static_assert(_Alignof(union U1) == 1, "_Alignof aligned union"); /* TODO: should be 8 */
+_Static_assert(sizeof(struct S2) == 4, "sizeof aligned struct"); /* TODO: Should be 8 */
+_Static_assert(_Alignof(union U1) == 4, "_Alignof aligned union"); /* TODO: should be 8 */
 
 __attribute__(()) // test attribute at eof
 
