@@ -106,7 +106,7 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
-        if (mem.startsWith(u8, arg, "-")) {
+        if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
                 std_out.print(usage, .{args[0]}) catch |err| {
                     return fatal(comp, "{s} when trying to print usage", .{@errorName(err)});
@@ -256,13 +256,28 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
                 try comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }
         } else {
-            const file = comp.addSourceFromPath(arg) catch |err| {
+            const file = addSource(comp, arg) catch |err| {
                 return fatal(comp, "{s} when trying to add source file", .{@errorName(err)});
             };
             try sources.append(file);
         }
     }
     return false;
+}
+
+fn addSource(comp: *Compilation, path: []const u8) !Source {
+    return comp.addSourceFromPath(path) catch |err| switch (err) {
+        error.FileNotFound => {
+            if (mem.eql(u8, "-", path)) {
+                const stdin = std.io.getStdIn().reader();
+                const input = try stdin.readAllAlloc(comp.gpa, std.math.maxInt(u32));
+                defer comp.gpa.free(input);
+                return comp.addSourceFromBuffer("<stdin>", input);
+            }
+            return err;
+        },
+        else => return err,
+    };
 }
 
 fn err(comp: *Compilation, msg: []const u8) !void {
