@@ -4715,6 +4715,7 @@ fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
 ///  | '(' typeName ')' '{' initializerItems '}'
 ///  | __builtin_choose_expr '(' constExpr ',' assignExpr ',' assignExpr ')'
 ///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
+///  | __builtin_offsetof '(' typeName ',' offsetofMemberDesignator ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| cast_expr: {
@@ -4805,6 +4806,7 @@ fn castExpr(p: *Parser) Error!Result {
     switch (p.tok_ids[p.tok_i]) {
         .builtin_choose_expr => return p.builtinChooseExpr(),
         .builtin_va_arg => return p.builtinVaArg(),
+        .builtin_offsetof => return p.builtinOffsetof(),
         // TODO: other special-cased builtins
         else => {},
     }
@@ -4876,6 +4878,101 @@ fn builtinVaArg(p: *Parser) Error!Result {
         .ty = ty,
         .data = .{ .decl = .{ .name = builtin_tok, .node = va_list.node } },
     }) };
+}
+
+fn builtinOffsetof(p: *Parser) Error!Result {
+    const builtin_tok = p.tok_i;
+    p.tok_i += 1;
+
+    const l_paren = try p.expectToken(.l_paren);
+    const ty_tok = p.tok_i;
+
+    const ty = (try p.typeName()) orelse {
+        try p.err(.expected_type);
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    };
+
+    if (!ty.isRecord()) {
+        try p.errStr(.offsetof_ty, ty_tok, try p.typeStr(ty));
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    } else if (ty.hasIncompleteSize()) {
+        try p.errStr(.offsetof_incomplete, ty_tok, try p.typeStr(ty));
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    }
+
+    _ = try p.expectToken(.comma);
+
+    const offsetof_expr = try p.offsetofMemberDesignator(ty);
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    return Result{
+        .ty = p.pp.comp.types.size,
+        .val = if (offsetof_expr.val.tag == .int)
+            Value.int(offsetof_expr.val.data.int / 8)
+        else
+            offsetof_expr.val,
+        .node = try p.addNode(.{
+            .tag = .builtin_call_expr_one,
+            .ty = p.pp.comp.types.size,
+            .data = .{ .decl = .{ .name = builtin_tok, .node = offsetof_expr.node } },
+        }),
+    };
+}
+
+/// offsetofMemberDesignator: IDENTIFIER ('.' IDENTIFIER | '[' expr ']' )*
+fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
+    errdefer p.skipTo(.r_paren);
+    const base_field_name_tok = try p.expectIdentifier();
+    const base_field_name = p.tokSlice(base_field_name_tok);
+    try p.validateFieldAccess(base_ty, base_ty, base_field_name_tok, base_field_name);
+    const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
+
+    var bit_offset = Value.int(0);
+    var lhs = try p.fieldAccessExtra(base_node, base_ty, base_field_name, false);
+
+    while (true) switch (p.tok_ids[p.tok_i]) {
+        .period => {
+            p.tok_i += 1;
+            const field_name_tok = try p.expectIdentifier();
+            const field_name = p.tokSlice(field_name_tok);
+
+            if (!lhs.ty.isRecord()) {
+                try p.errStr(.offsetof_ty, field_name_tok, try p.typeStr(lhs.ty));
+                return error.ParsingFailed;
+            }
+            try p.validateFieldAccess(lhs.ty, lhs.ty, field_name_tok, field_name);
+            lhs = try p.fieldAccessExtra(lhs.node, lhs.ty, field_name, false);
+        },
+        .l_bracket => {
+            const l_bracket_tok = p.tok_i;
+            p.tok_i += 1;
+            var index = try p.expr();
+            try index.expect(p);
+            _ = try p.expectClosing(l_bracket_tok, .r_bracket);
+
+            if (!lhs.ty.isArray()) {
+                try p.errStr(.offsetof_array, l_bracket_tok, try p.typeStr(lhs.ty));
+                return error.ParsingFailed;
+            }
+            var ptr = lhs;
+            try ptr.lvalConversion(p);
+            try index.lvalConversion(p);
+
+            if (!index.ty.isInt()) try p.errTok(.invalid_index, l_bracket_tok);
+            try p.checkArrayBounds(index, lhs.ty, l_bracket_tok);
+
+            try index.saveValue(p);
+            try ptr.bin(p, .array_access_expr, index);
+            lhs = ptr;
+        },
+        else => break,
+    };
+
+    return Result{ .ty = base_ty, .val = bit_offset, .node = lhs.node };
 }
 
 /// unExpr
@@ -5268,18 +5365,22 @@ fn fieldAccess(
     if (!is_arrow and is_ptr) try p.errStr(.member_expr_ptr, field_name_tok, try p.typeStr(expr_ty));
 
     const field_name = p.tokSlice(field_name_tok);
-    if (!record_ty.hasField(field_name)) {
-        p.strings.items.len = 0;
-
-        try p.strings.writer().print("'{s}' in '", .{field_name});
-        try expr_ty.print(p.strings.writer());
-        try p.strings.append('\'');
-
-        const duped = try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items);
-        try p.errStr(.no_such_member, field_name_tok, duped);
-        return error.ParsingFailed;
-    }
+    try p.validateFieldAccess(record_ty, expr_ty, field_name_tok, field_name);
     return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow);
+}
+
+fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_tok: TokenIndex, field_name: []const u8) Error!void {
+    if (record_ty.hasField(field_name)) return;
+
+    p.strings.items.len = 0;
+
+    try p.strings.writer().print("'{s}' in '", .{field_name});
+    try expr_ty.print(p.strings.writer());
+    try p.strings.append('\'');
+
+    const duped = try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items);
+    try p.errStr(.no_such_member, field_name_tok, duped);
+    return error.ParsingFailed;
 }
 
 fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: []const u8, is_arrow: bool) Error!Result {

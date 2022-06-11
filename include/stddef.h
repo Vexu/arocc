@@ -14,4 +14,4 @@ typedef struct {
 
 #define NULL ((void*)0)
 /* TODO implement offsetof */
-#define offsetof(T, member) 0
+#define offsetof(T, member) __builtin_offsetof(T, member)
