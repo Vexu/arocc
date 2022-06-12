@@ -1698,6 +1698,21 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const offsetof_ty = struct {
+        const msg = "offsetof requires struct or union type, '{s}' invalid";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const offsetof_incomplete = struct {
+        const msg = "offsetof of incomplete type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const offsetof_array = struct {
+        const msg = "offsetof requires array type, '{s}' invalid";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

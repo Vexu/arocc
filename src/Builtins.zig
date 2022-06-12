@@ -77,7 +77,8 @@ pub fn create(comp: *Compilation) !Builtins {
 
 pub fn hasBuiltin(b: Builtins, name: []const u8) bool {
     if (std.mem.eql(u8, name, "__builtin_va_arg") or
-        std.mem.eql(u8, name, "__builtin_choose_expr")) return true;
+        std.mem.eql(u8, name, "__builtin_choose_expr") or
+        std.mem.eql(u8, name, "__builtin_offsetof")) return true;
     return b._builtins.getPtr(name) != null;
 }
 
