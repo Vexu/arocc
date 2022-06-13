@@ -4915,10 +4915,7 @@ fn builtinOffsetof(p: *Parser) Error!Result {
 
     return Result{
         .ty = p.pp.comp.types.size,
-        .val = if (offsetof_expr.val.tag == .int)
-            Value.int(offsetof_expr.val.data.int / 8)
-        else
-            offsetof_expr.val,
+        .val = offsetof_expr.val,
         .node = try p.addNode(.{
             .tag = .builtin_call_expr_one,
             .ty = p.pp.comp.types.size,
@@ -4935,8 +4932,9 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
     try p.validateFieldAccess(base_ty, base_ty, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
 
-    var bit_offset = Value.int(0);
-    var lhs = try p.fieldAccessExtra(base_node, base_ty, base_field_name, false);
+    var offet_num:usize=0;
+    var lhs = try p.fieldAccessExtra(base_node, base_ty, base_field_name, false, &offet_num);
+    var bit_offset = Value.int(offet_num);
 
     while (true) switch (p.tok_ids[p.tok_i]) {
         .period => {
@@ -4949,7 +4947,8 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
                 return error.ParsingFailed;
             }
             try p.validateFieldAccess(lhs.ty, lhs.ty, field_name_tok, field_name);
-            lhs = try p.fieldAccessExtra(lhs.node, lhs.ty, field_name, false);
+            lhs = try p.fieldAccessExtra(lhs.node, lhs.ty, field_name, false, &offet_num);
+            bit_offset = Value.int(offet_num);
         },
         .l_bracket => {
             const l_bracket_tok = p.tok_i;
@@ -5370,7 +5369,8 @@ fn fieldAccess(
 
     const field_name = p.tokSlice(field_name_tok);
     try p.validateFieldAccess(record_ty, expr_ty, field_name_tok, field_name);
-    return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow);
+    var bit_offset:usize=0;
+    return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, &bit_offset);
 }
 
 fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_tok: TokenIndex, field_name: []const u8) Error!void {
@@ -5387,7 +5387,7 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
     return error.ParsingFailed;
 }
 
-fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: []const u8, is_arrow: bool) Error!Result {
+fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: []const u8, is_arrow: bool, offset_bits:*usize) Error!Result {
     for (record_ty.data.record.fields) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
@@ -5396,16 +5396,19 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: []c
                 .ty = f.ty,
                 .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
             });
-            return p.fieldAccessExtra(inner, f.ty, field_name, false);
+            return p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
         }
-        if (std.mem.eql(u8, field_name, f.name)) return Result{
-            .ty = f.ty,
-            .node = try p.addNode(.{
-                .tag = if (is_arrow) .member_access_ptr_expr else .member_access_expr,
+        if (std.mem.eql(u8, field_name, f.name)) {
+            offset_bits.* = f.layout.offset_bits;
+            return Result{
                 .ty = f.ty,
-                .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
-            }),
-        };
+                .node = try p.addNode(.{
+                    .tag = if (is_arrow) .member_access_ptr_expr else .member_access_expr,
+                    .ty = f.ty,
+                    .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
+                }),
+            };
+        }
     }
     // We already checked that this container has a field by the name.
     unreachable;

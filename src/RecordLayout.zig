@@ -76,7 +76,7 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
     // std.debug.print("laying out : {s}\n", .{rec.name});
     var record_context = RecordContext{
         .attr_packed = ty.isPacked(),
-        .max_field_align_bits = null, // TODO: get pack value
+        .max_field_align_bits = if( ty.isPacked() ) 1 else null, // TODO: get pack value
         .aligned_bits = (ty.requestedAlignment(p.pp.comp) orelse 1) * BITS_PER_BYTE,
         .is_union = ty.specifier == .@"union",
         .size_bits = 0,
