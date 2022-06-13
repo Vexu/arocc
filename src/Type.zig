@@ -1073,6 +1073,40 @@ pub const Builder = struct {
 
     pub fn finish(b: Builder, p: *Parser, attr_buf_start: usize) Parser.Error!Type {
         var ty: Type = .{ .specifier = undefined };
+        if (b.typedef) |typedef| {
+            ty = typedef.ty;
+            if (ty.isArray()) {
+                var elem = ty.elemType();
+                try b.qual.finish(p, &elem);
+                // TODO this really should be easier
+                switch (ty.specifier) {
+                    .array, .static_array, .incomplete_array => {
+                        var old = ty.data.array;
+                        ty.data.array = try p.arena.create(Array);
+                        ty.data.array.* = .{
+                            .len = old.len,
+                            .elem = elem,
+                        };
+                    },
+                    .variable_len_array, .unspecified_variable_len_array => {
+                        var old = ty.data.expr;
+                        ty.data.expr = try p.arena.create(Expr);
+                        ty.data.expr.* = .{
+                            .node = old.node,
+                            .ty = elem,
+                        };
+                    },
+                    .typeof_type => {}, // TODO handle
+                    .typeof_expr => {}, // TODO handle
+                    .attributed => {}, // TODO handle
+                    else => unreachable,
+                }
+
+                return p.withAttributes(ty, attr_buf_start);
+            }
+            try b.qual.finish(p, &ty);
+            return p.withAttributes(ty, attr_buf_start);
+        }
         switch (b.specifier) {
             .none => {
                 if (b.typeof) |typeof| {
