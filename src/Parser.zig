@@ -4423,9 +4423,19 @@ fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
 
 /// condExpr : lorExpr ('?' expression? ':' condExpr)?
 fn condExpr(p: *Parser) Error!Result {
+    const cond_tok = p.tok_i;
     var cond = try p.lorExpr();
     if (cond.empty(p) or p.eatToken(.question_mark) == null) return cond;
+    try cond.lvalConversion(p);
     const saved_eval = p.no_eval;
+
+    if (!cond.ty.isInt() and !cond.ty.isFloat() and !cond.ty.isPtr()) {
+        try p.errStr(.cond_expr_type, cond_tok, try p.typeStr(cond.ty));
+        return error.ParsingFailed;
+    }
+
+    // Prepare for possible binary conditional expression.
+    var maybe_colon = p.eatToken(.colon);
 
     // Depending on the value of the condition, avoid evaluating unreachable branches.
     var then_expr = blk: {
@@ -4433,7 +4443,22 @@ fn condExpr(p: *Parser) Error!Result {
         if (cond.val.tag != .unavailable and !cond.val.getBool()) p.no_eval = true;
         break :blk try p.expr();
     };
-    try then_expr.expect(p); // TODO binary cond expr
+    try then_expr.expect(p);
+
+    // If we saw a colon then this is a binary conditional expression.
+    if (maybe_colon) |colon| {
+        var cond_then = cond;
+        cond_then.node = try p.addNode(.{ .tag = .cond_dummy_expr, .ty = cond.ty, .data = .{ .un = cond.node } });
+        _ = try cond_then.adjustTypes(colon, &then_expr, p, .conditional);
+        cond.ty = then_expr.ty;
+        cond.node = try p.addNode(.{
+            .tag = .binary_cond_expr,
+            .ty = cond.ty,
+            .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ cond_then.node, then_expr.node })).start } },
+        });
+        return cond;
+    }
+
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;

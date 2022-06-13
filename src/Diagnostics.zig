@@ -1753,6 +1753,11 @@ const messages = struct {
         const opt = "ignored-pragmas";
         const kind = .warning;
     };
+    const cond_expr_type = struct {
+        const msg = "used type '{s}' where arithmetic or pointer type is required";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
