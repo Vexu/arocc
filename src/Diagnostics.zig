@@ -130,6 +130,7 @@ pub const Options = packed struct {
     @"float-conversion": Kind = .default,
     @"gnu-folding-constant": Kind = .default,
     undef: Kind = .default,
+    @"ignored-pragmas": Kind = .default,
 };
 
 const messages = struct {
@@ -1712,6 +1713,45 @@ const messages = struct {
         const msg = "offsetof requires array type, '{s}' invalid";
         const extra = .str;
         const kind = .@"error";
+    };
+    const pragma_pack_lparen = struct {
+        const msg = "missing '(' after '#pragma pack' - ignoring";
+        const kind = .warning;
+        const opt = "ignored-pragmas";
+    };
+    const pragma_pack_rparen = struct {
+        const msg = "missing ')' after '#pragma pack' - ignoring";
+        const kind = .warning;
+        const opt = "ignored-pragmas";
+    };
+    const pragma_pack_unknown_action = struct {
+        const msg = "unknown action for '#pragma pack' - ignoring";
+        const opt = "ignored-pragmas";
+        const kind = .warning;
+    };
+    const pragma_pack_show = struct {
+        const msg = "value of #pragma pack(show) == {d}";
+        const extra = .unsigned;
+        const kind = .warning;
+    };
+    const pragma_pack_int = struct {
+        const msg = "expected #pragma pack parameter to be '1', '2', '4', '8', or '16'";
+        const opt = "ignored-pragmas";
+        const kind = .warning;
+    };
+    const pragma_pack_int_ident = struct {
+        const msg = "expected integer or identifier in '#pragma pack' - ignored";
+        const opt = "ignored-pragmas";
+        const kind = .warning;
+    };
+    const pragma_pack_undefined_pop = struct {
+        const msg = "specifying both a name and alignment to 'pop' is undefined";
+        const kind = .warning;
+    };
+    const pragma_pack_empty_stack = struct {
+        const msg = "#pragma pack(pop, ...) failed: stack empty";
+        const opt = "ignored-pragmas";
+        const kind = .warning;
     };
 };
 
