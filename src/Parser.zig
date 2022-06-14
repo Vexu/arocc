@@ -2743,7 +2743,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
     while (true) : (count += 1) {
         errdefer p.skipTo(.r_brace);
 
-        const first_tok = p.tok_i;
+        var first_tok = p.tok_i;
         var cur_ty = init_ty;
         var cur_il = il;
         var designation = false;
@@ -2846,20 +2846,32 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 if (!warned_excess) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
                 warned_excess = true;
             }
-        } else if (index_hint != null and try p.findScalarInitializerAt(&cur_il, &cur_ty, &index_hint.?)) {
-            saw = try p.initializerItem(cur_il, cur_ty);
-        } else if (try p.findScalarInitializer(&cur_il, &cur_ty)) {
-            saw = try p.initializerItem(cur_il, cur_ty);
-        } else if (designation) {
-            // designation overrides previous value, let existing mechanism handle it
-            saw = try p.initializerItem(cur_il, cur_ty);
-        } else {
-            // discard further values
-            var tmp_il = InitList{};
-            defer tmp_il.deinit(p.gpa);
-            saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
-            if (!warned_excess and saw) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
-            warned_excess = true;
+        } else single_item: {
+            first_tok = p.tok_i;
+            var res = try p.assignExpr();
+            saw = !res.empty(p);
+            if (!saw) break :single_item;
+
+            excess: {
+                if (index_hint) |*hint| {
+                    if (try p.findScalarInitializerAt(&cur_il, &cur_ty, res.ty, first_tok, hint)) break :excess;
+                } else if (try p.findScalarInitializer(&cur_il, &cur_ty, res.ty, first_tok)) break :excess;
+
+                if (designation) break :excess;
+                if (!warned_excess) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
+                warned_excess = true;
+
+                break :single_item;
+            }
+
+            const arr = try p.coerceArrayInit(&res, first_tok, cur_ty);
+            if (!arr) try p.coerceInit(&res, first_tok, cur_ty);
+            if (cur_il.tok != 0) {
+                try p.errTok(.initializer_overrides, first_tok);
+                try p.errTok(.previous_initializer, cur_il.tok);
+            }
+            cur_il.node = res.node;
+            cur_il.tok = first_tok;
         }
 
         if (!saw) {
@@ -2888,45 +2900,41 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
 }
 
 /// Returns true if the value is unused.
-fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, start_index: *usize) Error!bool {
+fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type, first_tok: TokenIndex, start_index: *usize) Error!bool {
     if (ty.isArray()) {
+        if (il.*.node != .none) return false;
         start_index.* += 1;
 
         const arr_ty = ty.*;
         const elem_count = arr_ty.arrayLen() orelse std.math.maxInt(usize);
         if (elem_count == 0) {
-            if (p.tok_ids[p.tok_i] != .l_brace) {
-                try p.err(.empty_aggregate_init_braces);
-                return error.ParsingFailed;
-            }
-            return false;
+            try p.errTok(.empty_aggregate_init_braces, first_tok);
+            return error.ParsingFailed;
         }
         const elem_ty = arr_ty.elemType();
         const arr_il = il.*;
         if (start_index.* < elem_count) {
             ty.* = elem_ty;
             il.* = try arr_il.find(p.gpa, start_index.*);
-            _ = try p.findScalarInitializer(il, ty);
+            _ = try p.findScalarInitializer(il, ty, actual_ty, first_tok);
             return true;
         }
         return false;
     } else if (ty.get(.@"struct")) |struct_ty| {
+        if (il.*.node != .none) return false;
         start_index.* += 1;
 
-        const field_count = struct_ty.data.record.fields.len;
-        if (field_count == 0) {
-            if (p.tok_ids[p.tok_i] != .l_brace) {
-                try p.err(.empty_aggregate_init_braces);
-                return error.ParsingFailed;
-            }
-            return false;
+        const fields = struct_ty.data.record.fields;
+        if (fields.len == 0) {
+            try p.errTok(.empty_aggregate_init_braces, first_tok);
+            return error.ParsingFailed;
         }
         const struct_il = il.*;
-        if (start_index.* < field_count) {
-            const field = struct_ty.data.record.fields[start_index.*];
+        if (start_index.* < fields.len) {
+            const field = fields[start_index.*];
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, start_index.*);
-            _ = try p.findScalarInitializer(il, ty);
+            _ = try p.findScalarInitializer(il, ty, actual_ty, first_tok);
             return true;
         }
         return false;
@@ -2937,59 +2945,58 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, start_index: *
 }
 
 /// Returns true if the value is unused.
-fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
+fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type, first_tok: TokenIndex) Error!bool {
     if (ty.isArray()) {
+        if (il.*.node != .none) return false;
         var index = il.*.list.items.len;
         if (index != 0) index = il.*.list.items[index - 1].index;
 
         const arr_ty = ty.*;
         const elem_count = arr_ty.arrayLen() orelse std.math.maxInt(usize);
         if (elem_count == 0) {
-            if (p.tok_ids[p.tok_i] != .l_brace) {
-                try p.err(.empty_aggregate_init_braces);
-                return error.ParsingFailed;
-            }
-            return false;
+            try p.errTok(.empty_aggregate_init_braces, first_tok);
+            return error.ParsingFailed;
         }
         const elem_ty = arr_ty.elemType();
         const arr_il = il.*;
         while (index < elem_count) : (index += 1) {
             ty.* = elem_ty;
             il.* = try arr_il.find(p.gpa, index);
-            if (try p.findScalarInitializer(il, ty)) return true;
+            if (il.*.node == .none and actual_ty.eql(elem_ty, p.comp, false)) return true;
+            if (try p.findScalarInitializer(il, ty, actual_ty, first_tok)) return true;
         }
         return false;
     } else if (ty.get(.@"struct")) |struct_ty| {
+        if (il.*.node != .none) return false;
+        if (actual_ty.eql(ty.*, p.pp.comp, false)) return true;
         var index = il.*.list.items.len;
         if (index != 0) index = il.*.list.items[index - 1].index + 1;
 
-        const field_count = struct_ty.data.record.fields.len;
-        if (field_count == 0) {
-            if (p.tok_ids[p.tok_i] != .l_brace) {
-                try p.err(.empty_aggregate_init_braces);
-                return error.ParsingFailed;
-            }
-            return false;
+        const fields = struct_ty.data.record.fields;
+        if (fields.len == 0) {
+            try p.errTok(.empty_aggregate_init_braces, first_tok);
+            return error.ParsingFailed;
         }
         const struct_il = il.*;
-        while (index < field_count) : (index += 1) {
-            const field = struct_ty.data.record.fields[index];
+        while (index < fields.len) : (index += 1) {
+            const field = fields[index];
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, index);
-            if (try p.findScalarInitializer(il, ty)) return true;
+            if (il.*.node == .none and actual_ty.eql(field.ty, p.comp, false)) return true;
+            if (try p.findScalarInitializer(il, ty, actual_ty, first_tok)) return true;
         }
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
+        if (il.*.node != .none) return false;
+        if (actual_ty.eql(ty.*, p.pp.comp, false)) return true;
         if (union_ty.data.record.fields.len == 0) {
-            if (p.tok_ids[p.tok_i] != .l_brace) {
-                try p.err(.empty_aggregate_init_braces);
-                return error.ParsingFailed;
-            }
-            return false;
+            try p.errTok(.empty_aggregate_init_braces, first_tok);
+            return error.ParsingFailed;
         }
         ty.* = union_ty.data.record.fields[0].ty;
         il.* = try il.*.find(p.gpa, 0);
-        if (try p.findScalarInitializer(il, ty)) return true;
+        // if (il.*.node == .none and actual_ty.eql(ty, p.pp.comp, false)) return true;
+        if (try p.findScalarInitializer(il, ty, actual_ty, first_tok)) return true;
         return false;
     }
     return il.*.node == .none;
@@ -2997,6 +3004,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
 
 fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: *?usize) Error!bool {
     if (ty.isArray()) {
+        if (il.*.node != .none) return false;
         var index = il.*.list.items.len;
         if (index != 0) index = il.*.list.items[index - 1].index + 1;
         if (start_index.*) |*some| {
@@ -3014,6 +3022,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         }
         return false;
     } else if (ty.get(.@"struct")) |struct_ty| {
+        if (il.*.node != .none) return false;
         var index = il.*.list.items.len;
         if (index != 0) index = il.*.list.items[index - 1].index + 1;
         if (start_index.*) |*some| {
@@ -3029,6 +3038,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         }
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
+        if (il.*.node != .none) return false;
         if (start_index.*) |_| return false; // overrides
         if (union_ty.data.record.fields.len == 0) return false;
 
@@ -3231,6 +3241,9 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         return try p.addNode(arr_init_node);
     } else if (init_ty.get(.@"struct")) |struct_ty| {
         assert(!struct_ty.hasIncompleteSize());
+        if (il.node != .none) {
+            return il.node;
+        }
 
         const list_buf_top = p.list_buf.items.len;
         defer p.list_buf.items.len = list_buf_top;
@@ -3264,6 +3277,10 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         }
         return try p.addNode(struct_init_node);
     } else if (init_ty.get(.@"union")) |union_ty| {
+        if (il.node != .none) {
+            return il.node;
+        }
+
         var union_init_node: Tree.Node = .{
             .tag = .union_init_expr,
             .ty = init_ty,
