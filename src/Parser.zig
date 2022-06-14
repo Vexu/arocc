@@ -2812,7 +2812,7 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
     if (!target.isArray()) return false;
 
     const is_str_lit = p.nodeIs(item.node, .string_literal_expr);
-    if (!is_str_lit and !p.nodeIs(item.node, .compound_literal_expr)) {
+    if (!is_str_lit and !p.nodeIs(item.node, .compound_literal_expr) or !item.ty.isArray()) {
         try p.errTok(.array_init_str, tok);
         return true; // do not do further coercion
     }
