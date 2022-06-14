@@ -328,7 +328,7 @@ pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.E
 
 pub fn err(p: *Parser, tag: Diagnostics.Tag) Compilation.Error!void {
     @setCold(true);
-    return p.errTok(tag, p.tok_i);
+    return p.errExtra(tag, p.tok_i, .{ .none = {} });
 }
 
 pub fn todo(p: *Parser, msg: []const u8) Error {
@@ -2560,7 +2560,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         return true;
     };
 
-    const is_scalar = init_ty.isInt() or init_ty.isFloat() or init_ty.isPtr();
+    const is_scalar = init_ty.isScalar();
     if (p.eatToken(.r_brace)) |_| {
         if (is_scalar) try p.errTok(.empty_scalar_init, l_brace);
         if (il.tok != 0) {
@@ -2926,7 +2926,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     try item.lvalConversion(p);
     if (unqual_ty.is(.bool)) {
         // this is ridiculous but it's what clang does
-        if (item.ty.isInt() or item.ty.isFloat() or item.ty.isPtr()) {
+        if (item.ty.isScalar()) {
             try item.boolCast(p, unqual_ty, tok);
         } else {
             try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
@@ -2994,7 +2994,7 @@ fn isStringInit(p: *Parser, ty: Type) bool {
 
 /// Convert InitList into an AST
 fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
-    if (init_ty.isInt() or init_ty.isFloat() or init_ty.isPtr()) {
+    if (init_ty.isScalar()) {
         if (il.node == .none) {
             return p.addNode(.{ .tag = .default_init_expr, .ty = init_ty, .data = undefined });
         }
@@ -3812,7 +3812,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     // Return type conversion is done as if it was assignment
     if (ret_ty.is(.bool)) {
         // this is ridiculous but it's what clang does
-        if (e.ty.isInt() or e.ty.isFloat() or e.ty.isPtr()) {
+        if (e.ty.isScalar()) {
             try e.boolCast(p, ret_ty, e_tok);
         } else {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
@@ -4441,7 +4441,7 @@ fn assignExpr(p: *Parser) Error!Result {
     const e_msg = " from incompatible type ";
     if (lhs.ty.is(.bool)) {
         // this is ridiculous but it's what clang does
-        if (rhs.ty.isInt() or rhs.ty.isFloat() or rhs.ty.isPtr()) {
+        if (rhs.ty.isScalar()) {
             try rhs.boolCast(p, unqual_ty, tok);
         } else {
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
@@ -4520,7 +4520,7 @@ fn condExpr(p: *Parser) Error!Result {
     try cond.lvalConversion(p);
     const saved_eval = p.no_eval;
 
-    if (!cond.ty.isInt() and !cond.ty.isFloat() and !cond.ty.isPtr()) {
+    if (!cond.ty.isScalar()) {
         try p.errStr(.cond_expr_type, cond_tok, try p.typeStr(cond.ty));
         return error.ParsingFailed;
     }
@@ -4881,7 +4881,7 @@ fn castExpr(p: *Parser) Error!Result {
         if (ty.is(.void)) {
             // everything can cast to void
             operand.val.tag = .unavailable;
-        } else if (ty.isInt() or ty.isFloat() or ty.isPtr()) cast: {
+        } else if (ty.isScalar()) cast: {
             try operand.lvalConversion(p);
 
             const old_float = operand.ty.isFloat();
@@ -5203,7 +5203,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             var operand = try p.castExpr();
             try operand.expect(p);
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
+            if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
@@ -5227,7 +5227,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             var operand = try p.castExpr();
             try operand.expect(p);
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
+            if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
@@ -5270,7 +5270,7 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
             try operand.lvalConversion(p);
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isPtr())
+            if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
@@ -5378,7 +5378,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             defer p.tok_i += 1;
 
             var operand = lhs;
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
+            if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
@@ -5394,7 +5394,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             defer p.tok_i += 1;
 
             var operand = lhs;
-            if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isReal() and !operand.ty.isPtr())
+            if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
@@ -5587,7 +5587,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             }
         } else if (p_ty.is(.bool)) {
             // this is ridiculous but it's what clang does
-            if (arg.ty.isInt() or arg.ty.isFloat() or arg.ty.isPtr()) {
+            if (arg.ty.isScalar()) {
                 try arg.boolCast(p, p_ty, params[arg_count].name_tok);
             } else {
                 try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));

@@ -326,6 +326,10 @@ pub fn isArray(ty: Type) bool {
     };
 }
 
+pub fn isScalar(ty: Type) bool {
+    return ty.isInt() or ty.isFloat() or ty.isPtr();
+}
+
 pub fn isPtr(ty: Type) bool {
     return switch (ty.specifier) {
         .pointer,
