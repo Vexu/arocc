@@ -338,7 +338,21 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         try pp.expectNl(&tokenizer);
                     },
                     .keyword_include => try pp.include(&tokenizer, .first),
-                    .keyword_include_next => try pp.include(&tokenizer, .next),
+                    .keyword_include_next => {
+                        try pp.comp.diag.add(.{
+                            .tag = .include_next,
+                            .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
+                        }, &.{});
+                        if (pp.include_depth == 0) {
+                            try pp.comp.diag.add(.{
+                                .tag = .include_next_outside_header,
+                                .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
+                            }, &.{});
+                            try pp.include(&tokenizer, .first);
+                        } else {
+                            try pp.include(&tokenizer, .next);
+                        }
+                    },
                     .keyword_pragma => try pp.pragma(&tokenizer, directive, null, &.{}),
                     .keyword_line => {
                         // #line number "file"
@@ -1979,9 +1993,13 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
 
     // Find the file.
     const filename = tok_slice[1 .. tok_slice.len - 1];
-    const cwd_source_id = if (filename_tok.id == .string_literal) first.source else null;
+    const include_type: Compilation.IncludeType = switch (filename_tok.id) {
+        .string_literal => .quotes,
+        .macro_string => .angle_brackets,
+        else => unreachable,
+    };
 
-    return (try pp.comp.findInclude(filename, cwd_source_id, which)) orelse
+    return (try pp.comp.findInclude(filename, first.source, include_type, which)) orelse
         pp.fatal(first, "'{s}' not found", .{filename});
 }
 

@@ -131,6 +131,11 @@ pub fn main() !void {
 
     try initial_comp.include_dirs.append(cases_include_dir);
 
+    const cases_next_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include", "next" });
+    defer gpa.free(cases_next_include_dir);
+
+    try initial_comp.include_dirs.append(cases_next_include_dir);
+
     try initial_comp.addDefaultPragmaHandlers();
     try initial_comp.defineSystemIncludes();
 
