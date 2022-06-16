@@ -62,6 +62,11 @@ void mod_assign_float(void) {
     x %= 1.0f;
 }
 
+void binary_conditional(void) {
+    (void)(1 ?: 2.);
+    (void)1.2 ?: (void)2;
+}
+
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
     "binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')" \
@@ -85,3 +90,4 @@ void mod_assign_float(void) {
     "binary expressions.c:57:12: error: cannot take the address of an rvalue" \
     "binary expressions.c:57:9: error: invalid operands to binary expression ('double' and 'int *')" \
     "binary expressions.c:62:7: error: invalid operands to binary expression ('int' and 'float')" \
+    "binary expressions.c:67:5: error: used type 'void' where arithmetic or pointer type is required" \

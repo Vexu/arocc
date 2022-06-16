@@ -15,3 +15,9 @@ typedef int A;
 typedef A B;
 typedef A C;
 typedef C B;
+
+typedef int I[2];
+void baz(I const a, const I b) {
+    b += 1;
+    a += 1;
+}

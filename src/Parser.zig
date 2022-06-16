@@ -771,11 +771,16 @@ fn decl(p: *Parser) Error!bool {
                 }
 
                 while (true) {
+                    const attr_buf_top_declarator = p.attr_buf.len;
+                    defer p.attr_buf.len = attr_buf_top_declarator;
+
                     var d = (try p.declarator(param_decl_spec.ty, .normal)) orelse {
                         try p.errTok(.missing_declaration, first_tok);
                         _ = try p.expectToken(.semicolon);
                         continue :param_loop;
                     };
+                    try p.attributeSpecifier();
+
                     if (d.ty.hasIncompleteSize() and !d.ty.is(.void)) try p.errStr(.parameter_incomplete_ty, d.name, try p.typeStr(d.ty));
                     if (d.ty.isFunc()) {
                         // Params declared as functions are converted to function pointers.
@@ -803,6 +808,7 @@ fn decl(p: *Parser) Error!bool {
                     } else {
                         try p.errStr(.parameter_missing, d.name, name_str);
                     }
+                    d.ty = try p.withAttributes(d.ty, attr_buf_top_declarator);
 
                     // bypass redefinition check to avoid duplicate errors
                     try p.syms.syms.append(p.pp.comp.gpa, .{
@@ -870,8 +876,6 @@ fn decl(p: *Parser) Error!bool {
     while (true) {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         const tag = try decl_spec.validate(p, &init_d.d.ty, init_d.initializer.node != .none);
-        //        const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
-        //        init_d.d.ty = try init_d.d.ty.withAttributes(p.arena, attrs);
 
         const node = try p.addNode(.{ .ty = init_d.d.ty, .tag = tag, .data = .{
             .decl = .{ .name = init_d.d.name, .node = init_d.initializer.node },
@@ -1414,11 +1418,19 @@ fn attributeSpecifier(p: *Parser) Error!void {
 
 /// initDeclarator : declarator assembly? attributeSpecifier? ('=' initializer)?
 fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
+
     var init_d = InitDeclarator{
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
+
+    try p.attributeSpecifier(); // if (init_d.d.ty.isFunc()) .function else .variable
     _ = try p.assembly(.decl_label);
     try p.attributeSpecifier(); // if (init_d.d.ty.isFunc()) .function else .variable
+
+    init_d.d.ty = try p.withAttributes(init_d.d.ty, attr_buf_top);
+
     if (p.eatToken(.equal)) |eq| init: {
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
             try p.errTok(.illegal_initializer, eq);
@@ -1782,8 +1794,6 @@ fn recordDeclarator(p: *Parser) Error!bool {
             name_tok = d.name;
             ty = d.ty;
         }
-        try p.attributeSpecifier(); // .record
-        ty = try p.withAttributes(ty, attr_buf_top);
 
         if (p.eatToken(.colon)) |_| bits: {
             const bits_tok = p.tok_i;
@@ -1816,6 +1826,9 @@ fn recordDeclarator(p: *Parser) Error!bool {
             bits = res.val.getInt(u29);
             bits_node = res.node;
         }
+
+        try p.attributeSpecifier(); // .record
+        ty = try p.withAttributes(ty, attr_buf_top);
 
         if (name_tok == 0 and bits_node == .none) unnamed: {
             if (ty.is(.@"enum") or ty.hasIncompleteSize()) break :unnamed;
@@ -2146,16 +2159,12 @@ fn declarator(
     const start = p.tok_i;
     var d = Declarator{ .name = 0, .ty = try p.pointer(base_type) };
 
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
-
     const maybe_ident = p.tok_i;
     if (kind != .abstract and (try p.eatIdentifier()) != null) {
         d.name = maybe_ident;
         const combine_tok = p.tok_i;
         d.ty = try p.directDeclarator(d.ty, &d, kind);
         try d.ty.validateCombinedType(p, combine_tok);
-        d.ty = try p.withAttributes(d.ty, attr_buf_top);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
         var res = (try p.declarator(.{ .specifier = .void }, kind)) orelse {
@@ -2180,7 +2189,6 @@ fn declarator(
         return error.ParsingFailed;
     }
     try d.ty.validateCombinedType(p, expected_ident);
-    d.ty = try p.withAttributes(d.ty, attr_buf_top);
     if (start == p.tok_i) return null;
     return d;
 }
@@ -2199,8 +2207,18 @@ fn declarator(
 ///  | '[' '*' ']'
 ///  | '(' paramDecls? ')'
 fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: DeclaratorKind) Error!Type {
-    try p.attributeSpecifier();
     if (p.eatToken(.l_bracket)) |l_bracket| {
+        if (p.tok_ids[p.tok_i] == .l_bracket) {
+            switch (kind) {
+                .normal, .record => if (p.pp.comp.langopts.standard.atLeast(.c2x)) {
+                    p.tok_i -= 1;
+                    return base_type;
+                },
+                .param, .abstract => {},
+            }
+            try p.err(.expected_expr);
+            return error.ParsingFailed;
+        }
         var res_ty = Type{
             // so that we can get any restrict type that might be present
             .specifier = .pointer,
@@ -2818,7 +2836,7 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
     if (!target.isArray()) return false;
 
     const is_str_lit = p.nodeIs(item.node, .string_literal_expr);
-    if (!is_str_lit and !p.nodeIs(item.node, .compound_literal_expr)) {
+    if (!is_str_lit and !p.nodeIs(item.node, .compound_literal_expr) or !item.ty.isArray()) {
         try p.errTok(.array_init_str, tok);
         return true; // do not do further coercion
     }
@@ -4429,9 +4447,19 @@ fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
 
 /// condExpr : lorExpr ('?' expression? ':' condExpr)?
 fn condExpr(p: *Parser) Error!Result {
+    const cond_tok = p.tok_i;
     var cond = try p.lorExpr();
     if (cond.empty(p) or p.eatToken(.question_mark) == null) return cond;
+    try cond.lvalConversion(p);
     const saved_eval = p.no_eval;
+
+    if (!cond.ty.isInt() and !cond.ty.isFloat() and !cond.ty.isPtr()) {
+        try p.errStr(.cond_expr_type, cond_tok, try p.typeStr(cond.ty));
+        return error.ParsingFailed;
+    }
+
+    // Prepare for possible binary conditional expression.
+    var maybe_colon = p.eatToken(.colon);
 
     // Depending on the value of the condition, avoid evaluating unreachable branches.
     var then_expr = blk: {
@@ -4439,7 +4467,22 @@ fn condExpr(p: *Parser) Error!Result {
         if (cond.val.tag != .unavailable and !cond.val.getBool()) p.no_eval = true;
         break :blk try p.expr();
     };
-    try then_expr.expect(p); // TODO binary cond expr
+    try then_expr.expect(p);
+
+    // If we saw a colon then this is a binary conditional expression.
+    if (maybe_colon) |colon| {
+        var cond_then = cond;
+        cond_then.node = try p.addNode(.{ .tag = .cond_dummy_expr, .ty = cond.ty, .data = .{ .un = cond.node } });
+        _ = try cond_then.adjustTypes(colon, &then_expr, p, .conditional);
+        cond.ty = then_expr.ty;
+        cond.node = try p.addNode(.{
+            .tag = .binary_cond_expr,
+            .ty = cond.ty,
+            .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ cond_then.node, then_expr.node })).start } },
+        });
+        return cond;
+    }
+
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;

@@ -271,8 +271,10 @@ pub const Tag = enum(u8) {
 
     /// lhs , rhs
     comma_expr,
-    /// lhs ?: rhs
+    /// lhs ? data[0] : data[1]
     binary_cond_expr,
+    /// Used as the base for casts of the lhs in `binary_cond_expr`.
+    cond_dummy_expr,
     /// lhs ? data[0] : data[1]
     cond_expr,
     /// lhs = rhs
@@ -503,6 +505,7 @@ pub const Tag = enum(u8) {
             .array_filler_expr,
             .default_init_expr,
             .implicit_static_var,
+            .cond_dummy_expr,
             => true,
             else => false,
         };
@@ -837,7 +840,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try tree.dumpNode(data.un, level + delta, w);
             }
         },
-        .cond_expr, .if_then_else_stmt, .builtin_choose_expr => {
+        .binary_cond_expr, .cond_expr, .if_then_else_stmt, .builtin_choose_expr => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
             try tree.dumpNode(data.if3.cond, level + delta, w);
@@ -1001,7 +1004,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             }
         },
         .comma_expr,
-        .binary_cond_expr,
         .assign_expr,
         .mul_assign_expr,
         .div_assign_expr,
@@ -1162,6 +1164,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.print("{d}\n", .{data.int});
             util.setColor(.reset, w);
         },
-        .default_init_expr => {},
+        .default_init_expr, .cond_dummy_expr => {},
     }
 }

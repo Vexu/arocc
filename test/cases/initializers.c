@@ -114,6 +114,8 @@ union {
 
 } empty = {{'a', 'b'}};
 
+int invalid_init[] = (int){1};
+
 #define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
@@ -160,3 +162,4 @@ union {
     "initializers.c:115:12: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
     "initializers.c:115:13: note: previous initialization" \
     "initializers.c:115:12: warning: excess elements in struct initializer [-Wexcess-initializers]" \
+    "initializers.c:117:22: error: array initializer must be an initializer list or wide string literal" \
