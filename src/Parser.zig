@@ -156,7 +156,7 @@ record: struct {
 record_members: std.ArrayListUnmanaged(struct { tok: TokenIndex, name: []const u8 }) = .{},
 @"switch": ?*Switch = null,
 in_loop: bool = false,
-pragma_pack: u8 = 8,
+pragma_pack: ?u8 = null,
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
     if (codepoint <= 0x7F) return false;
@@ -1694,11 +1694,6 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         if (field.ty.hasIncompleteSize()) break;
     } else {
         record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
-        // TODO: plumb in.
-        const rl = @import("RecordLayout.zig");
-
-        rl.recordLayout(&try p.withAttributes(ty, attr_buf_top), p );
-        //std.debug.print("record {s} is {any}\n", .{record_ty.name, record_ty.type_layout});
     }
 
     if (p.record_buf.items.len == record_buf_top) {
@@ -1715,6 +1710,13 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     if (ty.specifier == .attributed and symbol_index != null) {
         p.syms.syms.items(.ty)[symbol_index.?] = ty;
     }
+
+    if( !ty.hasIncompleteSize() ) {
+        const rl = @import("RecordLayout.zig");
+
+        rl.recordLayout(&ty, p );
+    }
+
 
     // finish by creating a node
     var node: Tree.Node = .{

@@ -63,7 +63,8 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
                     try p.pp.comp.diag.add(.{
                         .tag = .pragma_pack_show,
                         .loc = arg.loc,
-                        .extra = .{ .unsigned = p.pragma_pack },
+                        // .extra = .{ .unsigned = p.pragma_pack },
+                        .extra = .{ .unsigned = p.pragma_pack orelse 8 },
                     }, arg.expansionSlice());
                 },
                 .push, .pop => {
@@ -96,7 +97,7 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
                         }
                     }
                     if (action == .push) {
-                        try pack.stack.append(p.pp.comp.gpa, .{ .label = label orelse "", .val = p.pragma_pack });
+                        try pack.stack.append(p.pp.comp.gpa, .{ .label = label orelse "", .val = p.pragma_pack orelse 8 });
                     } else {
                         pack.pop(p, label);
                         if (new_val != null) {
@@ -120,7 +121,7 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
         .r_paren => if (apple_or_xl) {
             pack.pop(p, null);
         } else {
-            p.pragma_pack = 8;
+            p.pragma_pack = null;
         },
         .integer_literal => {
             idx += 1;
@@ -169,7 +170,7 @@ fn pop(pack: *Pack, p: *Parser, maybe_label: ?[]const u8) void {
         }
     } else {
         const prev = pack.stack.popOrNull() orelse {
-            p.pragma_pack = 2;
+            p.pragma_pack = null;
             return;
         };
         p.pragma_pack = prev.val;

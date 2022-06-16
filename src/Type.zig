@@ -474,7 +474,7 @@ pub fn isEnumOrRecord(ty: Type) bool {
     };
 }
 
-pub fn isRecord( ty: Type ) bool {
+pub fn isRecord( ty: *const Type ) bool {
     return ty.getRecord() != null;
 }
 
