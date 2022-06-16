@@ -144,13 +144,13 @@ fn layoutRegluarField(
     var fld_align_bits = fld_layout.field_alignment_bits;
     // std.debug.print("1:{}\n", .{fld_align_bits});
     if (record_context.attr_packed or fld.ty.isPacked()) {
-        std.debug.print("rf:packed\n",.{});
+        // std.debug.print("rf:packed\n",.{});
         fld_align_bits = BITS_PER_BYTE;
     }
     // std.debug.print("2:{}\n", .{fld_align_bits});
     
     if( annotationAlignment(&fld.ty, comp) ) |anno| {
-        std.debug.print("anno says {}\n", .{anno});
+        // std.debug.print("anno says {}\n", .{anno});
         fld_align_bits = std.math.max( fld_align_bits, anno );
     }
 
@@ -205,10 +205,10 @@ fn layoutBitField(
 
     const attr_packed = record_context.attr_packed or fld.ty.isPacked();
     const has_packing_annotation = attr_packed or record_context.max_field_align_bits != null;
-    std.debug.print("ap:{} hasPa:{}\n", .{attr_packed,has_packing_annotation});
+    // std.debug.print("ap:{} hasPa:{}\n", .{attr_packed,has_packing_annotation});
     
     const annotation_alignment:u29 = annotationAlignment(&fld.ty, comp) orelse 1;
-    std.debug.print("saa:{}\n", .{annotation_alignment});
+    // std.debug.print("saa:{}\n", .{annotation_alignment});
 
     var first_unused_bit: u29 = if (record_context.is_union) 0 else record_context.size_bits;
 
@@ -234,7 +234,7 @@ fn layoutBitField(
         }
     } else {
         assert(comp.mimic == .clang);
-        std.debug.print("clang\n", .{});
+        // std.debug.print("clang\n", .{});
 
         // std.debug.print("aa:{} rc.fa:{} fa:{}\n", .{annotation_alignment, record_context.max_field_align_bits, field_align_bits});
         // On Clang, the alignment requested by annotations is not respected if it is
