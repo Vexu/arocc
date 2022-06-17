@@ -1807,7 +1807,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 
 // Handle a #include directive.
 fn include(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
-    const new_source = findIncludeSource(pp, tokenizer) catch |er| switch (er) {
+    const first = tokenizer.nextNoWS();
+
+    const new_source = findIncludeSource(pp, first, tokenizer) catch |er| switch (er) {
         error.InvalidInclude => return,
         else => |e| return e,
     };
@@ -1815,7 +1817,13 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     // Prevent stack overflow
     pp.include_depth += 1;
     defer pp.include_depth -= 1;
-    if (pp.include_depth > max_include_depth) return;
+    if (pp.include_depth > max_include_depth) {
+        try pp.comp.diag.add(.{
+            .tag = .too_many_includes,
+            .loc = .{ .id = first.source, .byte_offset = first.start, .line = first.line },
+        }, &.{});
+        return error.StopPreprocessing;
+    }
 
     _ = pp.preprocessExtra(new_source) catch |err| switch (err) {
         error.StopPreprocessing => {},
@@ -1931,9 +1939,7 @@ fn findIncludeFilenameToken(
     return filename_tok;
 }
 
-fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer) !Source {
-    var first = tokenizer.nextNoWS();
-
+fn findIncludeSource(pp: *Preprocessor, first: RawToken, tokenizer: *Tokenizer) !Source {
     const filename_tok = try pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof);
 
     // Check for empty filename.
