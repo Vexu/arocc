@@ -1758,6 +1758,10 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const too_many_includes = struct {
+        const msg = "#include nested too deeply";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
