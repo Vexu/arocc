@@ -14,6 +14,11 @@ void foo(void) {
   a = is_unavailable_with_msg;
 }
 
+enum __attribute__((aligned)) Attributed {
+  Val,
+};
+_Static_assert(sizeof(enum Attributed) == sizeof(int), "enum size");
+
 #define EXPECTED_ERRORS "enum attributes.c:11:7: warning: 'is_deprecated' is deprecated [-Wdeprecated-declarations]" \
   "enum attributes.c:2:33: note: 'is_deprecated' has been explicitly marked deprecated here" \
   "enum attributes.c:12:7: warning: 'is_deprecated_with_msg' is deprecated: I am deprecated [-Wdeprecated-declarations]" \
