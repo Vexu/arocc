@@ -1956,21 +1956,6 @@ fn enumSpec(p: *Parser) Error!Type {
         }
         break :enum_ty try Type.Enum.create(p.arena, p.tokSlice(ident));
     } else try Type.Enum.create(p.arena, try p.getAnonymousName(enum_tok));
-    const ty = try p.withAttributes(
-        .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
-        attr_buf_top,
-    );
-
-    // declare a symbol for the type
-    if (maybe_ident != null and !defined) {
-        try p.syms.syms.append(p.pp.comp.gpa, .{
-            .kind = .@"enum",
-            .name = p.tokSlice(maybe_ident.?),
-            .ty = ty,
-            .tok = maybe_ident.?,
-            .val = .{},
-        });
-    }
 
     // reserve space for this enum
     try p.decl_buf.append(.none);
@@ -1996,6 +1981,22 @@ fn enumSpec(p: *Parser) Error!Type {
     if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
     try p.expectClosing(l_brace, .r_brace);
     try p.attributeSpecifier(); // record
+
+    const ty = try p.withAttributes(
+        .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
+        attr_buf_top,
+    );
+
+    // declare a symbol for the type
+    if (maybe_ident != null and !defined) {
+        try p.syms.syms.append(p.pp.comp.gpa, .{
+            .kind = .@"enum",
+            .name = p.tokSlice(maybe_ident.?),
+            .ty = ty,
+            .tok = maybe_ident.?,
+            .val = .{},
+        });
+    }
 
     // finish by creating a node
     var node: Tree.Node = .{ .tag = .enum_decl_two, .ty = ty, .data = .{
