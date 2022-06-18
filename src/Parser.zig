@@ -1558,7 +1558,8 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             },
             .keyword_enum => {
                 const tag_tok = p.tok_i;
-                try ty.combine(p, .{ .@"enum" = try p.enumSpec() }, tag_tok);
+                const enum_ty = try p.enumSpec();
+                try ty.combine(p, Type.Builder.fromType(enum_ty), tag_tok);
                 continue;
             },
             .identifier, .extended_identifier => {
@@ -1910,7 +1911,7 @@ fn specQual(p: *Parser) Error!?Type {
 /// enumSpec
 ///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
 ///  | keyword_enum IDENTIFIER
-fn enumSpec(p: *Parser) Error!*Type.Enum {
+fn enumSpec(p: *Parser) Error!Type {
     const enum_tok = p.tok_i;
     p.tok_i += 1;
     const attr_buf_top = p.attr_buf.len;
@@ -1925,7 +1926,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
         };
         // check if this is a reference to a previous type
         if (try p.syms.findTag(p, .keyword_enum, ident)) |prev| {
-            return prev.ty.get(.@"enum").?.data.@"enum";
+            return prev.ty;
         } else {
             // this is a forward declaration, create a new enum Type.
             const enum_ty = try Type.Enum.create(p.arena, p.tokSlice(ident));
@@ -1940,7 +1941,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
                 .ty = ty,
                 .val = .{},
             });
-            return enum_ty;
+            return ty;
         }
     };
 
@@ -2015,7 +2016,7 @@ fn enumSpec(p: *Parser) Error!*Type.Enum {
         },
     }
     p.decl_buf.items[decl_buf_top - 1] = try p.addNode(node);
-    return enum_ty;
+    return ty;
 }
 
 const Enumerator = struct {
