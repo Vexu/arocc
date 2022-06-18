@@ -1351,11 +1351,7 @@ fn c2xAttribute(p: *Parser) !bool {
 }
 
 fn msvcAttribute(p: *Parser) !bool {
-    const declspec_tok = p.eatToken(.keyword_declspec) orelse return false;
-    if (!p.pp.comp.langopts.declspec_attrs) {
-        try p.errTok(.declspec_not_enabled, declspec_tok);
-        return error.ParsingFailed;
-    }
+    _ = p.eatToken(.keyword_declspec) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
     try p.msvcAttributeList();
     _ = try p.expectClosing(l_paren, .r_paren);
@@ -1570,6 +1566,14 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 continue;
             },
             .identifier, .extended_identifier => {
+                if (mem.eql(u8, p.tokSlice(p.tok_i), "__declspec")) {
+                    try p.errTok(.declspec_not_enabled, p.tok_i);
+                    p.tok_i += 1;
+                    if (p.eatToken(.l_paren)) |_| {
+                        p.skipTo(.r_paren);
+                        continue;
+                    }
+                }
                 if (ty.typedef != null) break;
                 const typedef = (try p.syms.findTypedef(p, p.tok_i, ty.specifier != .none)) orelse break;
                 if (!ty.combineTypedef(p, typedef.ty, typedef.tok)) break;

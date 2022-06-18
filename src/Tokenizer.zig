@@ -236,9 +236,17 @@ pub const Token = struct {
         keyword_asm,
         keyword_asm1,
         keyword_asm2,
+        keyword_float80,
+        keyword_float128,
+        keyword_int128,
+
+        // clang keywords
+        keyword_fp16,
 
         // ms keywords
         keyword_declspec,
+        keyword_int64,
+        keyword_int64_2,
 
         // builtins that require special parsing
         builtin_choose_expr,
@@ -332,7 +340,13 @@ pub const Token = struct {
                 .keyword_asm,
                 .keyword_asm1,
                 .keyword_asm2,
+                .keyword_float80,
+                .keyword_float128,
+                .keyword_int128,
+                .keyword_fp16,
                 .keyword_declspec,
+                .keyword_int64,
+                .keyword_int64_2,
                 => return true,
                 else => return false,
             }
@@ -545,7 +559,13 @@ pub const Token = struct {
                 .keyword_asm => "asm",
                 .keyword_asm1 => "__asm",
                 .keyword_asm2 => "__asm__",
+                .keyword_float80 => "__float80",
+                .keyword_float128 => "__float18",
+                .keyword_int128 => "__int128",
+                .keyword_fp16 => "__fp16",
                 .keyword_declspec => "__declspec",
+                .keyword_int64 => "__int64",
+                .keyword_int64_2 => "_int64",
             };
         }
 
@@ -660,6 +680,8 @@ pub const Token = struct {
             .keyword_restrict => if (standard.atLeast(.c99)) kw else .identifier,
             .keyword_typeof => if (standard.isGNU()) kw else .identifier,
             .keyword_asm => if (standard.isGNU()) kw else .identifier,
+            .keyword_declspec => if (comp.langopts.declspec_attrs) kw else .identifier,
+            .keyword_int64, .keyword_int64_2 => if (comp.langopts.ms_extensions) kw else .identifier,
             else => kw,
         };
     }
@@ -683,7 +705,10 @@ pub const Token = struct {
     }
 
     const all_kws = std.ComptimeStringMap(Id, .{
-        .{ "auto", .keyword_auto },
+        .{ "auto", auto: {
+            @setEvalBranchQuota(3000);
+            break :auto .keyword_auto;
+        } },
         .{ "break", .keyword_break },
         .{ "case", .keyword_case },
         .{ "char", .keyword_char },
@@ -770,9 +795,17 @@ pub const Token = struct {
         .{ "asm", .keyword_asm },
         .{ "__asm", .keyword_asm1 },
         .{ "__asm__", .keyword_asm2 },
+        .{ "__float80", .keyword_float80 },
+        .{ "__float128", .keyword_float128 },
+        .{ "__int128", .keyword_int128 },
+
+        // clang keywords
+        .{ "__fp16", .keyword_fp16 },
 
         // ms keywords
         .{ "__declspec", .keyword_declspec },
+        .{ "__int64", .keyword_int64 },
+        .{ "_int64", .keyword_int64_2 },
 
         // builtins that require special parsing
         .{ "__builtin_choose_expr", .builtin_choose_expr },
@@ -1825,7 +1858,7 @@ test "keywords" {
         \\struct switch typedef union unsigned void volatile 
         \\while _Bool _Complex _Imaginary inline restrict _Alignas 
         \\_Alignof _Atomic _Generic _Noreturn _Static_assert _Thread_local 
-        \\__attribute __attribute__ __declspec
+        \\__attribute __attribute__
         \\
     , &.{
         .keyword_auto,
@@ -1880,7 +1913,6 @@ test "keywords" {
         .nl,
         .keyword_attribute1,
         .keyword_attribute2,
-        .keyword_declspec,
         .nl,
     });
 }

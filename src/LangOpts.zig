@@ -74,6 +74,7 @@ standard: Standard = .default,
 short_enums: bool = false,
 dollars_in_identifiers: bool = true,
 declspec_attrs: bool = false,
+ms_extensions: bool = false,
 /// true or false if digraph support explicitly enabled/disabled with -fdigraphs/-fno-digraphs
 digraphs: ?bool = null,
 
@@ -83,10 +84,12 @@ pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!voi
 
 pub fn enableMSExtensions(self: *LangOpts) void {
     self.declspec_attrs = true;
+    self.ms_extensions = true;
 }
 
 pub fn disableMSExtensions(self: *LangOpts) void {
     self.declspec_attrs = false;
+    self.ms_extensions = true;
 }
 
 pub fn hasDigraphs(self: *const LangOpts) bool {
