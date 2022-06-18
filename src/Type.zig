@@ -206,14 +206,19 @@ pub const Specifier = enum {
     ulong,
     long_long,
     ulong_long,
+    int128,
+    uint128,
 
     // floating point numbers
+    fp16,
     float,
     double,
     long_double,
     complex_float,
     complex_double,
     complex_long_double,
+    float80,
+    float128,
 
     // data.sub_type
     pointer,
@@ -341,7 +346,10 @@ pub fn isPtr(ty: Type) bool {
 
 pub fn isInt(ty: Type) bool {
     return switch (ty.specifier) {
-        .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
+        // zig fmt: off
+        .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong,
+        .long_long, .ulong_long, .int128, .uint128 => true,
+        // zig fmt: on
         .typeof_type => ty.data.sub_type.isInt(),
         .typeof_expr => ty.data.expr.ty.isInt(),
         .attributed => ty.data.attributed.base.isInt(),
@@ -351,7 +359,10 @@ pub fn isInt(ty: Type) bool {
 
 pub fn isFloat(ty: Type) bool {
     return switch (ty.specifier) {
-        .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double => true,
+        // zig fmt: off
+        .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double,
+        .fp16, .float80, .float128 => true,
+        // zig fmt: on
         .typeof_type => ty.data.sub_type.isFloat(),
         .typeof_expr => ty.data.expr.ty.isFloat(),
         .attributed => ty.data.attributed.base.isFloat(),
@@ -517,6 +528,8 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
             .ulong => .ulong,
             .long_long => .long_long,
             .ulong_long => .ulong_long,
+            .int128 => .int128,
+            .uint128 => .uint128,
             .typeof_type => return ty.data.sub_type.integerPromotion(comp),
             .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
             .attributed => return ty.data.attributed.base.integerPromotion(comp),
@@ -646,12 +659,16 @@ pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
             else => 4,
         },
         .long_long, .ulong_long => 8,
+        .int128, .uint128 => 8,
+        .fp16 => 2,
         .float => 4,
         .double => 8,
         .long_double => 16,
         .complex_float => 8,
         .complex_double => 16,
         .complex_long_double => 32,
+        .float80 => 16,
+        .float128 => 16,
         .pointer,
         .decayed_array,
         .decayed_static_array,
@@ -711,9 +728,12 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
             else => 4,
         },
         .long_long, .ulong_long => 8,
+        .int128, .uint128 => 16,
+        .fp16 => 2,
         .float, .complex_float => 4,
         .double, .complex_double => 8,
         .long_double, .complex_long_double => 16,
+        .float80, .float128 => 16,
         .pointer,
         .decayed_array,
         .decayed_static_array,
@@ -869,6 +889,7 @@ pub fn decayArray(ty: *Type) void {
     ty.specifier = @intToEnum(Type.Specifier, @enumToInt(ty.specifier) + 1);
 }
 
+/// Combines types recursively in the order they were parsed, uses `.void` specifier as a sentinel value.
 pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
     switch (inner.specifier) {
         .pointer => return inner.data.sub_type.combine(outer, p, source_tok),
@@ -892,7 +913,8 @@ pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Pa
         .decayed_typeof_type,
         .decayed_typeof_expr,
         => unreachable, // type should not be able to decay before being combined
-        else => inner.* = outer,
+        .void => inner.* = outer,
+        else => unreachable,
     }
 }
 
@@ -989,10 +1011,16 @@ pub const Builder = struct {
         long_long_int,
         slong_long_int,
         ulong_long_int,
+        int128,
+        sint128,
+        uint128,
 
+        fp16,
         float,
         double,
         long_double,
+        float80,
+        float128,
         complex,
         complex_long,
         complex_float,
@@ -1054,10 +1082,16 @@ pub const Builder = struct {
                 .long_long_int => "long long int",
                 .slong_long_int => "signed long long int",
                 .ulong_long_int => "unsigned long long int",
+                .int128 => "__int128",
+                .sint128 => "signed __int128",
+                .uint128 => "unsigned __int128",
 
+                .fp16 => "__fp16",
                 .float => "float",
                 .double => "double",
                 .long_double => "long double",
+                .float80 => "__float80",
+                .float128 => "__float128",
                 .complex => "_Complex",
                 .complex_long => "_Complex long",
                 .complex_float => "_Complex float",
@@ -1132,10 +1166,15 @@ pub const Builder = struct {
             .ulong, .ulong_int => ty.specifier = .ulong,
             .long_long, .slong_long, .long_long_int, .slong_long_int => ty.specifier = .long_long,
             .ulong_long, .ulong_long_int => ty.specifier = .ulong_long,
+            .int128, .sint128 => ty.specifier = .int128,
+            .uint128 => ty.specifier = .uint128,
 
+            .fp16 => ty.specifier = .fp16,
             .float => ty.specifier = .float,
             .double => ty.specifier = .double,
             .long_double => ty.specifier = .long_double,
+            .float80 => ty.specifier = .float80,
+            .float128 => ty.specifier = .float128,
             .complex_float => ty.specifier = .complex_float,
             .complex_double => ty.specifier = .complex_double,
             .complex_long_double => ty.specifier = .complex_long_double,
@@ -1313,6 +1352,7 @@ pub const Builder = struct {
                 .long_int => .slong_int,
                 .long_long => .slong_long,
                 .long_long_int => .slong_long_int,
+                .int128 => .sint128,
                 .sshort,
                 .sshort_int,
                 .sint,
@@ -1320,6 +1360,7 @@ pub const Builder = struct {
                 .slong_int,
                 .slong_long,
                 .slong_long_int,
+                .sint128,
                 => return b.duplicateSpec(p, "signed"),
                 else => return b.cannotCombine(p, source_tok),
             },
@@ -1333,6 +1374,7 @@ pub const Builder = struct {
                 .long_int => .ulong_int,
                 .long_long => .ulong_long,
                 .long_long_int => .ulong_long_int,
+                .int128 => .uint128,
                 .ushort,
                 .ushort_int,
                 .uint,
@@ -1340,6 +1382,7 @@ pub const Builder = struct {
                 .ulong_int,
                 .ulong_long,
                 .ulong_long_int,
+                .uint128,
                 => return b.duplicateSpec(p, "unsigned"),
                 else => return b.cannotCombine(p, source_tok),
             },
@@ -1446,8 +1489,13 @@ pub const Builder = struct {
             .ulong => .ulong,
             .long_long => .long_long,
             .ulong_long => .ulong_long,
+            .int128 => .int128,
+            .uint128 => .uint128,
+            .fp16 => .fp16,
             .float => .float,
             .double => .double,
+            .float80 => .float80,
+            .float128 => .float128,
             .long_double => .long_double,
             .complex_float => .complex_float,
             .complex_double => .complex_double,

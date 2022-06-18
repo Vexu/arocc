@@ -247,6 +247,12 @@ pub const Token = struct {
         keyword_declspec,
         keyword_int64,
         keyword_int64_2,
+        keyword_int32,
+        keyword_int32_2,
+        keyword_int16,
+        keyword_int16_2,
+        keyword_int8,
+        keyword_int8_2,
 
         // builtins that require special parsing
         builtin_choose_expr,
@@ -347,6 +353,12 @@ pub const Token = struct {
                 .keyword_declspec,
                 .keyword_int64,
                 .keyword_int64_2,
+                .keyword_int32,
+                .keyword_int32_2,
+                .keyword_int16,
+                .keyword_int16_2,
+                .keyword_int8,
+                .keyword_int8_2,
                 => return true,
                 else => return false,
             }
@@ -566,6 +578,12 @@ pub const Token = struct {
                 .keyword_declspec => "__declspec",
                 .keyword_int64 => "__int64",
                 .keyword_int64_2 => "_int64",
+                .keyword_int32 => "__int32",
+                .keyword_int32_2 => "_int32",
+                .keyword_int16 => "__int16",
+                .keyword_int16_2 => "_int16",
+                .keyword_int8 => "__int8",
+                .keyword_int8_2 => "_int8",
             };
         }
 
@@ -681,7 +699,15 @@ pub const Token = struct {
             .keyword_typeof => if (standard.isGNU()) kw else .identifier,
             .keyword_asm => if (standard.isGNU()) kw else .identifier,
             .keyword_declspec => if (comp.langopts.declspec_attrs) kw else .identifier,
-            .keyword_int64, .keyword_int64_2 => if (comp.langopts.ms_extensions) kw else .identifier,
+            .keyword_int64,
+            .keyword_int64_2,
+            .keyword_int32,
+            .keyword_int32_2,
+            .keyword_int16,
+            .keyword_int16_2,
+            .keyword_int8,
+            .keyword_int8_2,
+            => if (comp.langopts.ms_extensions) kw else .identifier,
             else => kw,
         };
     }
@@ -806,6 +832,12 @@ pub const Token = struct {
         .{ "__declspec", .keyword_declspec },
         .{ "__int64", .keyword_int64 },
         .{ "_int64", .keyword_int64_2 },
+        .{ "__int32", .keyword_int32 },
+        .{ "_int32", .keyword_int32_2 },
+        .{ "__int16", .keyword_int16 },
+        .{ "_int16", .keyword_int16_2 },
+        .{ "__int8", .keyword_int8 },
+        .{ "_int8", .keyword_int8_2 },
 
         // builtins that require special parsing
         .{ "__builtin_choose_expr", .builtin_choose_expr },

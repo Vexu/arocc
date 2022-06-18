@@ -524,6 +524,16 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
 
     {
+        try p.syms.defineTypedef(&p, "__int128_t", .{ .specifier = .int128 }, 0, .none);
+        try p.syms.defineTypedef(&p, "__uint128_t", .{ .specifier = .uint128 }, 0, .none);
+
+        const elem_ty = try p.arena.create(Type);
+        elem_ty.* = .{ .specifier = .char };
+        try p.syms.defineTypedef(&p, "__builtin_ms_va_list", .{
+            .specifier = .pointer,
+            .data = .{ .sub_type = elem_ty },
+        }, 0, .none);
+
         const ty = &pp.comp.types.va_list;
         try p.syms.defineTypedef(&p, "__builtin_va_list", ty.*, 0, .none);
 
@@ -1518,15 +1528,20 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
         switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try ty.combine(p, .void, p.tok_i),
             .keyword_bool => try ty.combine(p, .bool, p.tok_i),
-            .keyword_char => try ty.combine(p, .char, p.tok_i),
-            .keyword_short => try ty.combine(p, .short, p.tok_i),
-            .keyword_int => try ty.combine(p, .int, p.tok_i),
+            .keyword_int8, .keyword_int8_2, .keyword_char => try ty.combine(p, .char, p.tok_i),
+            .keyword_int16, .keyword_int16_2, .keyword_short => try ty.combine(p, .short, p.tok_i),
+            .keyword_int32, .keyword_int32_2, .keyword_int => try ty.combine(p, .int, p.tok_i),
             .keyword_long => try ty.combine(p, .long, p.tok_i),
+            .keyword_int64, .keyword_int64_2 => try ty.combine(p, .long_long, p.tok_i),
+            .keyword_int128 => try ty.combine(p, .int128, p.tok_i),
             .keyword_signed => try ty.combine(p, .signed, p.tok_i),
             .keyword_unsigned => try ty.combine(p, .unsigned, p.tok_i),
+            .keyword_fp16 => try ty.combine(p, .fp16, p.tok_i),
             .keyword_float => try ty.combine(p, .float, p.tok_i),
             .keyword_double => try ty.combine(p, .double, p.tok_i),
             .keyword_complex => try ty.combine(p, .complex, p.tok_i),
+            .keyword_float80 => try ty.combine(p, .float80, p.tok_i),
+            .keyword_float128 => try ty.combine(p, .float128, p.tok_i),
             .keyword_atomic => {
                 const atomic_tok = p.tok_i;
                 p.tok_i += 1;
@@ -2270,6 +2285,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                     try p.errTok(.variable_len_array_file_scope, d.name);
                 }
                 const expr_ty = try p.arena.create(Type.Expr);
+                expr_ty.ty = .{ .specifier = .void };
                 expr_ty.node = size.node;
                 res_ty.data = .{ .expr = expr_ty };
                 res_ty.specifier = .variable_len_array;
@@ -2277,10 +2293,12 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 if (static) |some| try p.errTok(.useless_static, some);
             } else if (star) |_| {
                 const elem_ty = try p.arena.create(Type);
+                elem_ty.* = .{ .specifier = .void };
                 res_ty.data = .{ .sub_type = elem_ty };
                 res_ty.specifier = .unspecified_variable_len_array;
             } else {
                 const arr_ty = try p.arena.create(Type.Array);
+                arr_ty.elem = .{ .specifier = .void };
                 arr_ty.len = 0;
                 res_ty.data = .{ .array = arr_ty };
                 res_ty.specifier = .incomplete_array;
@@ -2292,6 +2310,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 try p.errTok(.negative_array_size, l_bracket);
             }
             const arr_ty = try p.arena.create(Type.Array);
+            arr_ty.elem = .{ .specifier = .void };
             if (size_val.compare(.gt, Value.int(max_elems), size_t, p.pp.comp)) {
                 try p.errTok(.array_too_large, l_bracket);
                 arr_ty.len = max_elems;
@@ -2309,6 +2328,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
 
         const func_ty = try p.arena.create(Type.Func);
         func_ty.params = &.{};
+        func_ty.return_type.specifier = .void;
         var specifier: Type.Specifier = .func;
 
         if (p.eatToken(.ellipsis)) |_| {
