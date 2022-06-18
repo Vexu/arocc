@@ -1554,14 +1554,10 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     ty.qual.atomic = atomic_tok;
                 continue;
             },
-            .keyword_struct => {
+            .keyword_struct, .keyword_union => {
                 const tag_tok = p.tok_i;
-                try ty.combine(p, .{ .@"struct" = try p.recordSpec() }, tag_tok);
-                continue;
-            },
-            .keyword_union => {
-                const tag_tok = p.tok_i;
-                try ty.combine(p, .{ .@"union" = try p.recordSpec() }, tag_tok);
+                const record_ty = try p.recordSpec();
+                try ty.combine(p, Type.Builder.fromType(record_ty), tag_tok);
                 continue;
             },
             .keyword_enum => {
@@ -1602,7 +1598,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
 /// recordSpec
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
-fn recordSpec(p: *Parser) Error!*Type.Record {
+fn recordSpec(p: *Parser) Error!Type {
     const kind_tok = p.tok_i;
     const is_struct = p.tok_ids[kind_tok] == .keyword_struct;
     p.tok_i += 1;
@@ -1618,8 +1614,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         };
         // check if this is a reference to a previous type
         if (try p.syms.findTag(p, p.tok_ids[kind_tok], ident)) |prev| {
-            const record_ty = prev.ty.get(.@"struct") orelse prev.ty.get(.@"union") orelse return error.ParsingFailed;
-            return record_ty.data.record;
+            return prev.ty;
         } else {
             // this is a forward declaration, create a new record Type.
             const record_ty = try Type.Record.create(p.arena, p.tokSlice(ident));
@@ -1634,7 +1629,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
                 .ty = ty,
                 .val = .{},
             });
-            return record_ty;
+            return ty;
         }
     };
 
@@ -1743,7 +1738,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
         },
     }
     p.decl_buf.items[decl_buf_top - 1] = try p.addNode(node);
-    return record_ty;
+    return ty;
 }
 
 /// recordDecl
