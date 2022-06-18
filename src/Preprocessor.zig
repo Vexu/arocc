@@ -468,23 +468,15 @@ fn expectNl(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
 fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     const start = pp.tokens.len;
     defer {
-        for (pp.tokens.items(.expansion_locs)[start..]) |loc| Token.free(loc, pp.comp.gpa);
+        for (pp.top_expansion_buf.items) |tok| Token.free(tok.expansion_locs, pp.comp.gpa);
         pp.tokens.len = start;
     }
 
-    while (true) {
+    pp.top_expansion_buf.items.len = 0;
+    const eof = while (true) {
         var tok = tokenizer.next();
         switch (tok.id) {
-            .nl, .eof => {
-                if (pp.tokens.len == start) {
-                    try pp.err(tok, .expected_value_in_expr);
-                    try pp.expectNl(tokenizer);
-                    return false;
-                }
-                tok.id = .eof;
-                try pp.tokens.append(pp.comp.gpa, tokFromRaw(tok));
-                break;
-            },
+            .nl, .eof => break tok,
             .keyword_defined => {
                 const first = tokenizer.nextNoWS();
                 const macro_tok = if (first.id == .l_paren) tokenizer.nextNoWS() else first;
@@ -498,24 +490,33 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                 }
                 tok.id = if (pp.defines.get(pp.tokSlice(macro_tok)) != null) .one else .zero;
             },
-            .whitespace => continue,
+            .whitespace => if (pp.top_expansion_buf.items.len == 0) continue,
             else => {},
         }
-        try pp.expandMacro(tokenizer, tok);
+        try pp.top_expansion_buf.append(tokFromRaw(tok));
+    } else unreachable;
+    if (pp.top_expansion_buf.items.len != 0) {
+        pp.expansion_source_loc = pp.top_expansion_buf.items[0].loc;
+        try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, false);
     }
-
-    if (!pp.tokens.items(.id)[start].validPreprocessorExprStart()) {
-        const tok = pp.tokens.get(start);
+    if (pp.top_expansion_buf.items.len == 0) {
+        try pp.err(eof, .expected_value_in_expr);
+        return false;
+    }
+    if (!pp.top_expansion_buf.items[0].id.validPreprocessorExprStart()) {
+        const tok = pp.top_expansion_buf.items[0];
         try pp.comp.diag.add(.{
             .tag = .invalid_preproc_expr_start,
             .loc = tok.loc,
         }, tok.expansionSlice());
         return false;
     }
+
     // validate the tokens in the expression
-    for (pp.tokens.items(.id)[start..]) |*id, i| {
-        const tok = pp.tokens.get(start + i);
-        switch (id.*) {
+    try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, pp.top_expansion_buf.items.len);
+    for (pp.top_expansion_buf.items) |_, i| {
+        var tok = pp.top_expansion_buf.items[i];
+        switch (tok.id) {
             .string_literal,
             .string_literal_utf_16,
             .string_literal_utf_8,
@@ -571,17 +572,23 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                 }, tok.expansionSlice());
                 return false;
             },
-            else => if (id.isMacroIdentifier()) {
+            .macro_ws, .whitespace => continue,
+            else => if (tok.id.isMacroIdentifier()) {
                 try pp.comp.diag.add(.{
                     .tag = .undefined_macro,
                     .loc = tok.loc,
                     .extra = .{ .str = pp.expandedSlice(tok) },
                 }, tok.expansionSlice());
 
-                id.* = .zero; // undefined macro
+                tok.id = .zero; // undefined macro
             },
         }
+        pp.tokens.appendAssumeCapacity(tok);
     }
+    try pp.tokens.append(pp.comp.gpa, .{
+        .id = .eof,
+        .loc = tokFromRaw(eof).loc,
+    });
 
     // Actually parse it.
     var parser = Parser{
@@ -1210,7 +1217,7 @@ fn collectMacroFuncArguments(
     end_idx: *usize,
     extend_buf: bool,
     is_builtin: bool,
-) Error!(?MacroArguments) {
+) !MacroArguments {
     const name_tok = buf.items[start_idx.*];
     const saved_tokenizer = tokenizer.*;
     const old_end = end_idx.*;
@@ -1231,7 +1238,7 @@ fn collectMacroFuncArguments(
                 // Not a macro function call, go over normal identifier, rewind
                 tokenizer.* = saved_tokenizer;
                 end_idx.* = old_end;
-                return null;
+                return error.MissingLParen;
             },
         }
     }
@@ -1276,17 +1283,17 @@ fn collectMacroFuncArguments(
                 }
             },
             .eof => {
-                const owned = curArgument.toOwnedSlice();
-                errdefer pp.comp.gpa.free(owned);
-                try args.append(owned);
-                deinitMacroArguments(pp.comp.gpa, &args);
+                {
+                    const owned = curArgument.toOwnedSlice();
+                    errdefer pp.comp.gpa.free(owned);
+                    try args.append(owned);
+                }
                 tokenizer.* = saved_tokenizer;
-                end_idx.* = old_end;
                 try pp.comp.diag.add(
                     .{ .tag = .unterminated_macro_arg_list, .loc = name_tok.loc },
                     name_tok.expansionSlice(),
                 );
-                return null;
+                return error.Unterminated;
             },
             .nl, .whitespace => {
                 try curArgument.append(.{ .id = .macro_ws, .loc = tok.loc });
@@ -1329,16 +1336,26 @@ fn expandMacroExhaustive(
                 if (macro.is_func) {
                     var macro_scan_idx = idx;
                     // to be saved in case this doesn't turn out to be a call
-                    const args = (try pp.collectMacroFuncArguments(
+                    const args = pp.collectMacroFuncArguments(
                         tokenizer,
                         buf,
                         &macro_scan_idx,
                         &moving_end_idx,
                         extend_buf,
                         macro.is_builtin,
-                    )) orelse {
-                        idx += 1;
-                        break :macro_handler;
+                    ) catch |err| switch (err) {
+                        error.MissingLParen => {
+                            idx += 1;
+                            break :macro_handler;
+                        },
+                        error.Unterminated => {
+                            const tokens_removed = macro_scan_idx - idx;
+                            for (buf.items[idx .. idx + tokens_removed]) |tok| Token.free(tok.expansion_locs, pp.comp.gpa);
+                            try buf.replaceRange(idx, tokens_removed, &.{});
+                            moving_end_idx -|= tokens_removed;
+                            break :macro_handler;
+                        },
+                        else => |e| return e,
                     };
                     defer {
                         for (args.items) |item| {
