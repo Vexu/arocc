@@ -1689,6 +1689,11 @@ const messages = struct {
         const kind = .off;
         const opt = "undef";
     };
+    const fn_macro_undefined = struct {
+        const msg = "function-like macro '{s}' is not defined";
+        const extra = .str;
+        const kind = .@"error";
+    };
     const preprocessing_directive_only = struct {
         const msg = "'{s}' must be used within a preprocessing directive";
         const extra = .tok_id_expected;

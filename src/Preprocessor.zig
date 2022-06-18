@@ -580,6 +580,17 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                     .extra = .{ .str = pp.expandedSlice(tok) },
                 }, tok.expansionSlice());
 
+                if (i + 1 < pp.top_expansion_buf.items.len and
+                    pp.top_expansion_buf.items[i + 1].id == .l_paren)
+                {
+                    try pp.comp.diag.add(.{
+                        .tag = .fn_macro_undefined,
+                        .loc = tok.loc,
+                        .extra = .{ .str = pp.expandedSlice(tok) },
+                    }, tok.expansionSlice());
+                    return false;
+                }
+
                 tok.id = .zero; // undefined macro
             },
         }
