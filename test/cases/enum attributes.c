@@ -19,6 +19,11 @@ enum __attribute__((aligned(16))) Attributed {
 };
 _Static_assert(_Alignof(enum Attributed) == 16, "enum align");
 
+enum Trailing {
+  Foo
+} __attribute__((aligned(32)));
+_Static_assert(_Alignof(enum Trailing) == 32, "enum align");
+
 #define EXPECTED_ERRORS "enum attributes.c:11:7: warning: 'is_deprecated' is deprecated [-Wdeprecated-declarations]" \
   "enum attributes.c:2:33: note: 'is_deprecated' has been explicitly marked deprecated here" \
   "enum attributes.c:12:7: warning: 'is_deprecated_with_msg' is deprecated: I am deprecated [-Wdeprecated-declarations]" \
