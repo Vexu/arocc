@@ -624,7 +624,7 @@ pub fn sizeCompare(a: Type, b: Type, comp: *Compilation) TypeSizeOrder {
 }
 
 /// Size of type as reported by sizeof
-pub fn sizeof(ty: Type, comp: *Compilation) ?u64 {
+pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
     // TODO get target from compilation
     return switch (ty.specifier) {
         .variable_len_array, .unspecified_variable_len_array, .incomplete_array => return null,
