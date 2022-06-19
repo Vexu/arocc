@@ -205,6 +205,7 @@ pub const Token = struct {
 
         // Preprocessor directives
         keyword_include,
+        keyword_include_next,
         keyword_define,
         keyword_defined,
         keyword_undef,
@@ -263,6 +264,7 @@ pub const Token = struct {
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
                 .keyword_include,
+                .keyword_include_next,
                 .keyword_define,
                 .keyword_defined,
                 .keyword_undef,
@@ -368,6 +370,7 @@ pub const Token = struct {
         pub fn simplifyMacroKeyword(id: *Id) void {
             switch (id.*) {
                 .keyword_include,
+                .keyword_include_next,
                 .keyword_define,
                 .keyword_defined,
                 .keyword_undef,
@@ -538,6 +541,7 @@ pub const Token = struct {
                 .keyword_static_assert => "_Static_assert",
                 .keyword_thread_local => "_Thread_local",
                 .keyword_include => "include",
+                .keyword_include_next => "include_next",
                 .keyword_define => "define",
                 .keyword_defined => "defined",
                 .keyword_undef => "undef",
@@ -787,6 +791,7 @@ pub const Token = struct {
 
         // Preprocessor directives
         .{ "include", .keyword_include },
+        .{ "include_next", .keyword_include_next },
         .{ "define", .keyword_define },
         .{ "defined", .keyword_defined },
         .{ "undef", .keyword_undef },
@@ -1952,6 +1957,7 @@ test "keywords" {
 test "preprocessor keywords" {
     try expectTokens(
         \\#include
+        \\#include_next
         \\#define
         \\#ifdef
         \\#ifndef
@@ -1961,6 +1967,9 @@ test "preprocessor keywords" {
     , &.{
         .hash,
         .keyword_include,
+        .nl,
+        .hash,
+        .keyword_include_next,
         .nl,
         .hash,
         .keyword_define,

@@ -131,6 +131,9 @@ pub const Options = packed struct {
     @"gnu-folding-constant": Kind = .default,
     undef: Kind = .default,
     @"ignored-pragmas": Kind = .default,
+    @"gnu-include-next": Kind = .default,
+    @"include-next-outside-header": Kind = .default,
+    @"include-next-absolute-path": Kind = .default,
 };
 
 const messages = struct {
@@ -1778,6 +1781,17 @@ const messages = struct {
         const extra = .unsigned;
         const kind = .off;
         const opt = "pedantic";
+    };
+    const include_next = struct {
+        const msg = "#include_next is a language extension";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "gnu-include-next";
+    };
+    const include_next_outside_header = struct {
+        const msg = "#include_next in primary source file; will search from start of include path";
+        const kind = .warning;
+        const opt = "include-next-outside-header";
     };
 };
 

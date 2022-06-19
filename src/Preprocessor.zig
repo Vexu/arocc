@@ -337,7 +337,22 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         _ = pp.defines.remove(macro_name);
                         try pp.expectNl(&tokenizer);
                     },
-                    .keyword_include => try pp.include(&tokenizer),
+                    .keyword_include => try pp.include(&tokenizer, .first),
+                    .keyword_include_next => {
+                        try pp.comp.diag.add(.{
+                            .tag = .include_next,
+                            .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
+                        }, &.{});
+                        if (pp.include_depth == 0) {
+                            try pp.comp.diag.add(.{
+                                .tag = .include_next_outside_header,
+                                .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
+                            }, &.{});
+                            try pp.include(&tokenizer, .first);
+                        } else {
+                            try pp.include(&tokenizer, .next);
+                        }
+                    },
                     .keyword_pragma => try pp.pragma(&tokenizer, directive, null, &.{}),
                     .keyword_line => {
                         // #line number "file"
@@ -1834,10 +1849,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 }
 
 // Handle a #include directive.
-fn include(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
+fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInclude) MacroError!void {
     const first = tokenizer.nextNoWS();
-
-    const new_source = findIncludeSource(pp, first, tokenizer) catch |er| switch (er) {
+    const new_source = findIncludeSource(pp, tokenizer, first, which) catch |er| switch (er) {
         error.InvalidInclude => return,
         else => |e| return e,
     };
@@ -1967,7 +1981,7 @@ fn findIncludeFilenameToken(
     return filename_tok;
 }
 
-fn findIncludeSource(pp: *Preprocessor, first: RawToken, tokenizer: *Tokenizer) !Source {
+fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, which: Compilation.WhichInclude) !Source {
     const filename_tok = try pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof);
 
     // Check for empty filename.
@@ -1979,9 +1993,13 @@ fn findIncludeSource(pp: *Preprocessor, first: RawToken, tokenizer: *Tokenizer) 
 
     // Find the file.
     const filename = tok_slice[1 .. tok_slice.len - 1];
-    const cwd_source_id = if (filename_tok.id == .string_literal) first.source else null;
+    const include_type: Compilation.IncludeType = switch (filename_tok.id) {
+        .string_literal => .quotes,
+        .macro_string => .angle_brackets,
+        else => unreachable,
+    };
 
-    return (try pp.comp.findInclude(filename, cwd_source_id)) orelse
+    return (try pp.comp.findInclude(filename, first.source, include_type, which)) orelse
         pp.fatal(first, "'{s}' not found", .{filename});
 }
 
