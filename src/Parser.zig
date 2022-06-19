@@ -3620,7 +3620,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
         }
         try p.decl_buf.append(s);
 
-        if (noreturn_index == null and p.nodeIsNoreturn(s)) {
+        if (noreturn_index == null and p.nodeIsNoreturn(s) == .yes) {
             noreturn_index = p.tok_i;
             noreturn_label_count = p.label_count;
         }
@@ -3634,11 +3634,18 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
         // if new labels were defined we cannot be certain that the code is unreachable
         if (some != p.tok_i - 1 and noreturn_label_count == p.label_count) try p.errTok(.unreachable_code, some);
     }
-    if (is_fn_body and (p.decl_buf.items.len == decl_buf_top or !p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]))) {
-        if (!p.func.ty.?.returnType().is(.void)) try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func.name));
-        try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.func.ty.?.returnType(), .data = undefined }));
-    }
     if (is_fn_body) {
+        const last_noreturn = if (p.decl_buf.items.len == decl_buf_top)
+            .no
+        else
+            p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]);
+
+        if (last_noreturn != .yes) {
+            if (last_noreturn == .no and !p.func.ty.?.returnType().is(.void)) {
+                try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func.name));
+            }
+            try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.func.ty.?.returnType(), .data = undefined }));
+        }
         if (p.func.ident) |some| try p.decl_buf.insert(decl_buf_top, some.node);
         if (p.func.pretty_ident) |some| try p.decl_buf.insert(decl_buf_top, some.node);
     }
@@ -3660,18 +3667,27 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
     return try p.addNode(node);
 }
 
-fn nodeIsNoreturn(p: *Parser, node: NodeIndex) bool {
+const NoreturnKind = enum { no, yes, complex };
+
+fn nodeIsNoreturn(p: *Parser, node: NodeIndex) NoreturnKind {
     switch (p.nodes.items(.tag)[@enumToInt(node)]) {
-        .break_stmt, .continue_stmt, .return_stmt => return true,
+        .break_stmt, .continue_stmt, .return_stmt => return .yes,
         .if_then_else_stmt => {
             const data = p.data.items[p.nodes.items(.data)[@enumToInt(node)].if3.body..];
-            return p.nodeIsNoreturn(data[0]) and p.nodeIsNoreturn(data[1]);
+            switch (p.nodeIsNoreturn(data[0])) {
+                .yes, .complex => |kind| return kind,
+                .no => {},
+            }
+            switch (p.nodeIsNoreturn(data[1])) {
+                .yes, .complex => |kind| return kind,
+                .no => return .no,
+            }
         },
         .compound_stmt_two => {
             const data = p.nodes.items(.data)[@enumToInt(node)];
             if (data.bin.rhs != .none) return p.nodeIsNoreturn(data.bin.rhs);
             if (data.bin.lhs != .none) return p.nodeIsNoreturn(data.bin.lhs);
-            return false;
+            return .no;
         },
         .compound_stmt => {
             const data = p.nodes.items(.data)[@enumToInt(node)];
@@ -3681,7 +3697,13 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) bool {
             const data = p.nodes.items(.data)[@enumToInt(node)];
             return p.nodeIsNoreturn(data.decl.node);
         },
-        else => return false,
+        .switch_stmt => {
+            const data = p.nodes.items(.data)[@enumToInt(node)];
+            if (data.bin.rhs == .none) return .complex;
+            if (p.nodeIsNoreturn(data.bin.rhs) == .yes) return .yes;
+            return .complex;
+        },
+        else => return .no,
     }
 }
 
