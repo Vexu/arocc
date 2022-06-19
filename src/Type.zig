@@ -410,7 +410,7 @@ pub fn isConst(ty: Type) bool {
     };
 }
 
-pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
+pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
     return switch (ty.specifier) {
         .char => return getCharSignedness(comp) == .unsigned,
         .uchar, .ushort, .uint, .ulong, .ulong_long, .bool => true,
@@ -603,7 +603,7 @@ pub fn hasField(ty: Type, name: []const u8) bool {
     return false;
 }
 
-pub fn getCharSignedness(comp: *Compilation) std.builtin.Signedness {
+pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
     switch (comp.target.cpu.arch) {
         .aarch64,
         .aarch64_32,
