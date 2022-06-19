@@ -1767,6 +1767,18 @@ const messages = struct {
         const msg = "#include nested too deeply";
         const kind = .@"error";
     };
+    const enumerator_too_small = struct {
+        const msg = "ISO C restricts enumerator values to range of 'int' ({d} is too small)";
+        const extra = .signed;
+        const kind = .off;
+        const opt = "pedantic";
+    };
+    const enumerator_too_large = struct {
+        const msg = "ISO C restricts enumerator values to range of 'int' ({d} is too large)";
+        const extra = .unsigned;
+        const kind = .off;
+        const opt = "pedantic";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
