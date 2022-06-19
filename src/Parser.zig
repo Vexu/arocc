@@ -82,6 +82,8 @@ const ConstDeclFoldingMode = enum {
 
 // values from preprocessor
 pp: *Preprocessor,
+comp: *Compilation,
+gpa: mem.Allocator,
 tok_ids: []const Token.Id,
 tok_i: TokenIndex = 0,
 
@@ -140,7 +142,7 @@ record: struct {
                 break;
             }
         }
-        try p.record_members.append(p.pp.comp.gpa, .{ .name = name, .tok = tok });
+        try p.record_members.append(p.gpa, .{ .name = name, .tok = tok });
     }
 
     fn addFieldsFromAnonymous(r: @This(), p: *Parser, ty: Type) Error!void {
@@ -197,7 +199,7 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
 
             if (mem.indexOfScalar(u8, slice, '$')) |i| {
                 loc.byte_offset += @intCast(u32, i);
-                try p.pp.comp.diag.add(.{
+                try p.comp.diag.add(.{
                     .tag = .dollar_in_identifier_extension,
                     .loc = loc,
                 }, &.{});
@@ -205,7 +207,7 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
             }
 
             while (it.nextCodepoint()) |c| {
-                if (try checkIdentifierCodepoint(p.pp.comp, c, loc)) break;
+                if (try checkIdentifierCodepoint(p.comp, c, loc)) break;
                 loc.byte_offset += std.unicode.utf8CodepointSequenceLength(c) catch unreachable;
             }
         },
@@ -214,7 +216,7 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
     p.tok_i += 1;
 
     // Handle illegal '$' characters in identifiers
-    if (!p.pp.comp.langopts.dollars_in_identifiers) {
+    if (!p.comp.langopts.dollars_in_identifiers) {
         if (p.tok_ids[p.tok_i] == .invalid and p.tokSlice(p.tok_i)[0] == '$') {
             try p.err(.dollars_in_identifiers);
             p.tok_i += 1;
@@ -254,8 +256,8 @@ pub fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
     if (p.tok_ids[tok].lexeme()) |some| return some;
     const loc = p.pp.tokens.items(.loc)[tok];
     var tmp_tokenizer = Tokenizer{
-        .buf = p.pp.comp.getSource(loc.id).buf,
-        .comp = p.pp.comp,
+        .buf = p.comp.getSource(loc.id).buf,
+        .comp = p.comp,
         .index = loc.byte_offset,
         .source = .generated,
     };
@@ -278,10 +280,10 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
 }
 
 fn errOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
-    if (res.ty.isUnsignedInt(p.pp.comp)) {
+    if (res.ty.isUnsignedInt(p.comp)) {
         try p.errExtra(.overflow_unsigned, op_tok, .{ .unsigned = res.val.data.int });
     } else {
-        try p.errExtra(.overflow_signed, op_tok, .{ .signed = res.val.signExtend(res.ty, p.pp.comp) });
+        try p.errExtra(.overflow_signed, op_tok, .{ .signed = res.val.signExtend(res.ty, p.comp) });
     }
 }
 
@@ -312,7 +314,7 @@ pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diag
         loc = prev.loc;
         loc.byte_offset += @intCast(u32, p.tokSlice(tok_i - 1).len);
     }
-    try p.pp.comp.diag.add(.{
+    try p.comp.diag.add(.{
         .tag = tag,
         .loc = loc,
         .extra = extra,
@@ -339,7 +341,7 @@ pub fn ignoredAttrStr(p: *Parser, attr: Attribute.Tag, context: Attribute.ParseC
     defer p.strings.items.len = strings_top;
 
     try p.strings.writer().print("Attribute '{s}' ignored in {s} context", .{ @tagName(attr), @tagName(context) });
-    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
 pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
@@ -348,7 +350,7 @@ pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
     defer p.strings.items.len = strings_top;
 
     try ty.print(p.strings.writer());
-    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
 pub fn typePairStr(p: *Parser, a: Type, b: Type) ![]const u8 {
@@ -366,7 +368,7 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
     try p.strings.append('\'');
     try b.print(p.strings.writer());
     try p.strings.append('\'');
-    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
 pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: f64, int_ty: Type) ![]const u8 {
@@ -380,13 +382,13 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: f64, int_ty: Ty
     const non_zero_str: []const u8 = if (is_zero) "non-zero " else "";
     if (int_ty.is(.bool)) {
         try w.print(" changes {s}value from {d} to {}", .{ non_zero_str, old_value, res.val.getBool() });
-    } else if (int_ty.isUnsignedInt(p.pp.comp)) {
+    } else if (int_ty.isUnsignedInt(p.comp)) {
         try w.print(" changes {s}value from {d} to {d}", .{ non_zero_str, old_value, res.val.getInt(u64) });
     } else {
         try w.print(" changes {s}value from {d} to {d}", .{ non_zero_str, old_value, res.val.getInt(i64) });
     }
 
-    return try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
 fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
@@ -415,14 +417,14 @@ fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?[]co
     if (msg) |m| {
         try w.print(": {s}", .{m});
     }
-    const str = try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     return p.errStr(tag, tok_i, str);
 }
 
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     if (p.in_macro) return .none;
     const res = p.nodes.len;
-    try p.nodes.append(p.pp.comp.gpa, node);
+    try p.nodes.append(p.gpa, node);
     return @intToEnum(NodeIndex, res);
 }
 
@@ -475,7 +477,7 @@ fn pragma(p: *Parser) Compilation.Error!bool {
         const end_idx = mem.indexOfScalarPos(Token.Id, p.tok_ids, p.tok_i, .nl).?;
         const pragma_len = @intCast(TokenIndex, end_idx) - p.tok_i;
         defer p.tok_i += pragma_len + 1; // skip past .nl as well
-        if (p.pp.comp.getPragma(name)) |prag| {
+        if (p.comp.getPragma(name)) |prag| {
             try prag.parserCB(p, p.tok_i);
         }
     }
@@ -490,6 +492,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     errdefer arena.deinit();
     var p = Parser{
         .pp = pp,
+        .comp = pp.comp,
+        .gpa = pp.comp.gpa,
         .arena = arena.allocator(),
         .tok_ids = pp.tokens.items(.id),
         .strings = std.ArrayList(u8).init(pp.comp.gpa),
@@ -721,7 +725,7 @@ fn decl(p: *Parser) Error!bool {
     };
     if (decl_spec.@"noreturn") |tok| {
         const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} } };
-        try p.attr_buf.append(p.pp.comp.gpa, .{ .attr = attr, .tok = tok });
+        try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = tok });
     }
     try decl_spec.warnIgnoredAttrs(p, attr_buf_top);
     var init_d = (try p.initDeclarator(&decl_spec)) orelse {
@@ -821,7 +825,7 @@ fn decl(p: *Parser) Error!bool {
                     d.ty = try p.withAttributes(d.ty, attr_buf_top_declarator);
 
                     // bypass redefinition check to avoid duplicate errors
-                    try p.syms.syms.append(p.pp.comp.gpa, .{
+                    try p.syms.syms.append(p.gpa, .{
                         .kind = .def,
                         .name = name_str,
                         .tok = d.name,
@@ -843,7 +847,7 @@ fn decl(p: *Parser) Error!bool {
                 }
 
                 // bypass redefinition check to avoid duplicate errors
-                try p.syms.syms.append(p.pp.comp.gpa, .{
+                try p.syms.syms.append(p.gpa, .{
                     .kind = .def,
                     .name = param.name,
                     .tok = param.name_tok,
@@ -952,7 +956,7 @@ fn staticAssert(p: *Parser) Error!bool {
         if (!p.nodeIs(res.node, .sizeof_expr)) try p.errTok(.static_assert_not_constant, res_token);
     } else if (!res.val.getBool()) {
         if (str.node != .none) {
-            var buf = std.ArrayList(u8).init(p.pp.comp.gpa);
+            var buf = std.ArrayList(u8).init(p.gpa);
             defer buf.deinit();
 
             const data = str.val.data.bytes;
@@ -965,7 +969,7 @@ fn staticAssert(p: *Parser) Error!bool {
             try p.errStr(
                 .static_assert_failure_message,
                 static_assert,
-                try p.pp.comp.diag.arena.allocator().dupe(u8, buf.items),
+                try p.comp.diag.arena.allocator().dupe(u8, buf.items),
             );
         } else try p.errTok(.static_assert_failure, static_assert);
     }
@@ -1211,7 +1215,7 @@ fn declSpec(p: *Parser, is_param: bool) Error!?DeclSpec {
 
 fn validateAlignas(p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !void {
     const base = ty.canonicalize(.standard);
-    const default_align = base.alignof(p.pp.comp);
+    const default_align = base.alignof(p.comp);
     for (ty.getAttributes()) |attr| {
         if (attr.tag != .aligned) continue;
         if (attr.args.aligned.alignment) |alignment| {
@@ -1306,7 +1310,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
 
 fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result) ?Diagnostics.Message {
     if (Attribute.wantsAlignment(attr, arg_idx)) {
-        return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res.val, res.ty, p.pp.comp);
+        return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res.val, res.ty, p.comp);
     }
     const node = p.nodes.get(@enumToInt(res.node));
     return Attribute.diagnose(attr, arguments, arg_idx, res.val, node);
@@ -1316,10 +1320,10 @@ fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, ar
 fn gnuAttributeList(p: *Parser) Error!void {
     if (p.tok_ids[p.tok_i] == .r_paren) return;
 
-    if (try p.attribute(.gnu, null)) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+    if (try p.attribute(.gnu, null)) |attr| try p.attr_buf.append(p.gpa, attr);
     while (p.tok_ids[p.tok_i] != .r_paren) {
         _ = try p.expectToken(.comma);
-        if (try p.attribute(.gnu, null)) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+        if (try p.attribute(.gnu, null)) |attr| try p.attr_buf.append(p.gpa, attr);
     }
 }
 
@@ -1332,20 +1336,20 @@ fn c2xAttributeList(p: *Parser) Error!void {
         } else {
             p.tok_i -= 1;
         }
-        if (try p.attribute(.c2x, namespace)) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+        if (try p.attribute(.c2x, namespace)) |attr| try p.attr_buf.append(p.gpa, attr);
         _ = p.eatToken(.comma);
     }
 }
 
 fn msvcAttributeList(p: *Parser) Error!void {
     while (p.tok_ids[p.tok_i] != .r_paren) {
-        if (try p.attribute(.declspec, null)) |attr| try p.attr_buf.append(p.pp.comp.gpa, attr);
+        if (try p.attribute(.declspec, null)) |attr| try p.attr_buf.append(p.gpa, attr);
         _ = p.eatToken(.comma);
     }
 }
 
 fn c2xAttribute(p: *Parser) !bool {
-    if (!p.pp.comp.langopts.standard.atLeast(.c2x)) return false;
+    if (!p.comp.langopts.standard.atLeast(.c2x)) return false;
     const bracket1 = p.eatToken(.l_bracket) orelse return false;
     const bracket2 = p.eatToken(.l_bracket) orelse {
         p.tok_i -= 1;
@@ -1389,9 +1393,9 @@ fn alignAs(p: *Parser) !bool {
     const align_tok = p.eatToken(.keyword_alignas) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
     if (try p.typeName()) |inner_ty| {
-        const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.pp.comp), .alignas = true };
+        const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp), .alignas = true };
         const attr = Attribute{ .tag = .aligned, .args = .{ .aligned = .{ .alignment = alignment, .__name_tok = align_tok } } };
-        try p.attr_buf.append(p.pp.comp.gpa, .{ .attr = attr, .tok = align_tok });
+        try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = align_tok });
     } else {
         const arg_start = p.tok_i;
         const res = try p.constExpr(.no_const_decl_folding);
@@ -1404,7 +1408,7 @@ fn alignAs(p: *Parser) !bool {
             }
             args.aligned.alignment.?.node = res.node;
             args.aligned.alignment.?.alignas = true;
-            try p.attr_buf.append(p.pp.comp.gpa, .{ .attr = .{ .tag = .aligned, .args = args }, .tok = align_tok });
+            try p.attr_buf.append(p.gpa, .{ .attr = .{ .tag = .aligned, .args = args }, .tok = align_tok });
         }
     }
     try p.expectClosing(l_paren, .r_paren);
@@ -1600,7 +1604,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
 
 fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) ![]const u8 {
     const loc = p.pp.tokens.items(.loc)[kind_tok];
-    const source = p.pp.comp.getSource(loc.id);
+    const source = p.comp.getSource(loc.id);
     const line_col = source.lineCol(loc);
 
     const kind_str = switch (p.tok_ids[kind_tok]) {
@@ -1642,7 +1646,7 @@ fn recordSpec(p: *Parser) Error!Type {
                 .specifier = if (is_struct) .@"struct" else .@"union",
                 .data = .{ .record = record_ty },
             }, attr_buf_top);
-            try p.syms.syms.append(p.pp.comp.gpa, .{
+            try p.syms.syms.append(p.gpa, .{
                 .kind = if (is_struct) .@"struct" else .@"union",
                 .name = record_ty.name,
                 .tok = ident,
@@ -1681,7 +1685,7 @@ fn recordSpec(p: *Parser) Error!Type {
     var symbol_index: ?usize = null;
     if (maybe_ident != null and !defined) {
         symbol_index = p.syms.syms.len;
-        try p.syms.syms.append(p.pp.comp.gpa, .{
+        try p.syms.syms.append(p.gpa, .{
             .kind = if (is_struct) .@"struct" else .@"union",
             .name = p.tokSlice(maybe_ident.?),
             .tok = maybe_ident.?,
@@ -1817,16 +1821,16 @@ fn recordDeclarator(p: *Parser) Error!bool {
             if (res.val.tag == .unavailable) {
                 try p.errTok(.expected_integer_constant_expr, bits_tok);
                 break :bits;
-            } else if (res.val.compare(.lt, Value.int(0), res.ty, p.pp.comp)) {
+            } else if (res.val.compare(.lt, Value.int(0), res.ty, p.comp)) {
                 try p.errExtra(.negative_bitwidth, first_tok, .{
-                    .signed = res.val.signExtend(res.ty, p.pp.comp),
+                    .signed = res.val.signExtend(res.ty, p.comp),
                 });
                 break :bits;
             }
 
             // incomplete size error is reported later
-            const bit_size = ty.bitSizeof(p.pp.comp) orelse break :bits;
-            if (res.val.compare(.gt, Value.int(bit_size), res.ty, p.pp.comp)) {
+            const bit_size = ty.bitSizeof(p.comp) orelse break :bits;
+            if (res.val.compare(.gt, Value.int(bit_size), res.ty, p.comp)) {
                 try p.errTok(.bitfield_too_big, name_tok);
                 break :bits;
             } else if (res.val.isZero() and name_tok != 0) {
@@ -1949,7 +1953,7 @@ fn enumSpec(p: *Parser) Error!Type {
                 .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
                 attr_buf_top,
             );
-            try p.syms.syms.append(p.pp.comp.gpa, .{
+            try p.syms.syms.append(p.gpa, .{
                 .kind = .@"enum",
                 .name = enum_ty.name,
                 .tok = ident,
@@ -2008,7 +2012,7 @@ fn enumSpec(p: *Parser) Error!Type {
 
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
-        try p.syms.syms.append(p.pp.comp.gpa, .{
+        try p.syms.syms.append(p.gpa, .{
             .kind = .@"enum",
             .name = p.tokSlice(maybe_ident.?),
             .ty = ty,
@@ -2043,7 +2047,7 @@ const Enumerator = struct {
         // to have a value of 0
         const initial_value = Value.int(@as(i64, -1));
         return .{ .res = .{
-            .ty = .{ .specifier = if (p.pp.comp.langopts.short_enums) .schar else .int },
+            .ty = .{ .specifier = if (p.comp.langopts.short_enums) .schar else .int },
             .val = initial_value,
         } };
     }
@@ -2052,7 +2056,7 @@ const Enumerator = struct {
     fn incr(e: *Enumerator, p: *Parser) !void {
         e.res.node = .none;
         _ = p;
-        _ = e.res.val.add(e.res.val, Value.int(1), e.res.ty, p.pp.comp);
+        _ = e.res.val.add(e.res.val, Value.int(1), e.res.ty, p.comp);
         // TODO adjust type if value does not fit current
     }
 
@@ -2094,16 +2098,16 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     var res = e.res;
     res.ty = try p.withAttributes(res.ty, attr_buf_top);
 
-    if (e.res.val.compare(.lt, Value.int(0), e.res.ty, p.pp.comp)) {
+    if (e.res.val.compare(.lt, Value.int(0), e.res.ty, p.comp)) {
         const val = e.res.val.getInt(i64);
-        if (val < p.pp.comp.minInt()) {
+        if (val < p.comp.minInt()) {
             try p.errExtra(.enumerator_too_small, name_tok, .{
                 .signed = val,
             });
         }
     } else {
         const val = e.res.val.getInt(u64);
-        if (val > p.pp.comp.maxInt()) {
+        if (val > p.comp.maxInt()) {
             try p.errExtra(.enumerator_too_large, name_tok, .{
                 .unsigned = val,
             });
@@ -2236,7 +2240,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
     if (p.eatToken(.l_bracket)) |l_bracket| {
         if (p.tok_ids[p.tok_i] == .l_bracket) {
             switch (kind) {
-                .normal, .record => if (p.pp.comp.langopts.standard.atLeast(.c2x)) {
+                .normal, .record => if (p.comp.langopts.standard.atLeast(.c2x)) {
                     p.tok_i -= 1;
                     return base_type;
                 },
@@ -2283,11 +2287,11 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         if (static) |_| try size.expect(p);
 
         const outer = try p.directDeclarator(base_type, d, kind);
-        var max_bits = p.pp.comp.target.cpu.arch.ptrBitWidth();
+        var max_bits = p.comp.target.cpu.arch.ptrBitWidth();
         if (max_bits > 61) max_bits = 61;
         const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
         // `outer` is validated later so it may be invalid here
-        const outer_size = if (outer.hasIncompleteSize()) 1 else outer.sizeof(p.pp.comp);
+        const outer_size = if (outer.hasIncompleteSize()) 1 else outer.sizeof(p.comp);
         const max_elems = max_bytes / std.math.max(1, outer_size orelse 1);
 
         if (!size.ty.isInt()) {
@@ -2321,13 +2325,13 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             }
         } else {
             var size_val = size.val;
-            const size_t = p.pp.comp.types.size;
-            if (size_val.compare(.lt, Value.int(0), size_t, p.pp.comp)) {
+            const size_t = p.comp.types.size;
+            if (size_val.compare(.lt, Value.int(0), size_t, p.comp)) {
                 try p.errTok(.negative_array_size, l_bracket);
             }
             const arr_ty = try p.arena.create(Type.Array);
             arr_ty.elem = .{ .specifier = .void };
-            if (size_val.compare(.gt, Value.int(max_elems), size_t, p.pp.comp)) {
+            if (size_val.compare(.gt, Value.int(max_elems), size_t, p.comp)) {
                 try p.errTok(.array_too_large, l_bracket);
                 arr_ty.len = max_elems;
             } else {
@@ -2514,7 +2518,7 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
     }
 
     var il: InitList = .{};
-    defer il.deinit(p.pp.comp.gpa);
+    defer il.deinit(p.gpa);
 
     _ = try p.initializerItem(&il, init_ty);
 
@@ -2583,9 +2587,9 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 if (index_res.val.tag == .unavailable) {
                     try p.errTok(.expected_integer_constant_expr, expr_tok);
                     return error.ParsingFailed;
-                } else if (index_res.val.compare(.lt, index_res.val.zero(), index_res.ty, p.pp.comp)) {
+                } else if (index_res.val.compare(.lt, index_res.val.zero(), index_res.ty, p.comp)) {
                     try p.errExtra(.negative_array_designator, l_bracket + 1, .{
-                        .signed = index_res.val.signExtend(index_res.ty, p.pp.comp),
+                        .signed = index_res.val.signExtend(index_res.ty, p.comp),
                     });
                     return error.ParsingFailed;
                 }
@@ -2598,7 +2602,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 const checked = index_res.val.getInt(u64);
                 cur_index_hint = cur_index_hint orelse checked;
 
-                cur_il = try cur_il.find(p.pp.comp.gpa, checked);
+                cur_il = try cur_il.find(p.gpa, checked);
                 cur_ty = cur_ty.elemType();
                 designation = true;
             } else if (p.eatToken(.period)) |period| {
@@ -2619,12 +2623,12 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                             // Recurse into anonymous field if it has a field by the name.
                             if (!f.ty.hasField(field_name)) continue;
                             cur_ty = f.ty.canonicalize(.standard);
-                            cur_il = try il.find(p.pp.comp.gpa, i);
+                            cur_il = try il.find(p.gpa, i);
                             cur_index_hint = cur_index_hint orelse i;
                             continue :outer;
                         }
                         if (std.mem.eql(u8, field_name, f.name)) {
-                            cur_il = try cur_il.find(p.pp.comp.gpa, i);
+                            cur_il = try cur_il.find(p.gpa, i);
                             cur_ty = f.ty;
                             cur_index_hint = cur_index_hint orelse i;
                             break :outer;
@@ -2644,7 +2648,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         if (is_str_init and p.isStringInit(init_ty)) {
             // discard further strings
             var tmp_il = InitList{};
-            defer tmp_il.deinit(p.pp.comp.gpa);
+            defer tmp_il.deinit(p.gpa);
             saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
         } else if (count == 0 and p.isStringInit(init_ty)) {
             is_str_init = true;
@@ -2652,7 +2656,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         } else if (is_scalar and count != 0) {
             // discard further scalars
             var tmp_il = InitList{};
-            defer tmp_il.deinit(p.pp.comp.gpa);
+            defer tmp_il.deinit(p.gpa);
             saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
         } else if (p.tok_ids[p.tok_i] == .l_brace) {
             if (designation) {
@@ -2663,7 +2667,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             } else {
                 // discard further values
                 var tmp_il = InitList{};
-                defer tmp_il.deinit(p.pp.comp.gpa);
+                defer tmp_il.deinit(p.gpa);
                 saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
                 if (!warned_excess) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
                 warned_excess = true;
@@ -2678,7 +2682,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         } else {
             // discard further values
             var tmp_il = InitList{};
-            defer tmp_il.deinit(p.pp.comp.gpa);
+            defer tmp_il.deinit(p.gpa);
             saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
             if (!warned_excess and saw) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
             warned_excess = true;
@@ -2727,7 +2731,7 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, start_index: *
         const arr_il = il.*;
         if (start_index.* < elem_count) {
             ty.* = elem_ty;
-            il.* = try arr_il.find(p.pp.comp.gpa, start_index.*);
+            il.* = try arr_il.find(p.gpa, start_index.*);
             _ = try p.findScalarInitializer(il, ty);
             return true;
         }
@@ -2747,7 +2751,7 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, start_index: *
         if (start_index.* < field_count) {
             const field = struct_ty.data.record.fields[start_index.*];
             ty.* = field.ty;
-            il.* = try struct_il.find(p.pp.comp.gpa, start_index.*);
+            il.* = try struct_il.find(p.gpa, start_index.*);
             _ = try p.findScalarInitializer(il, ty);
             return true;
         }
@@ -2777,7 +2781,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         const arr_il = il.*;
         while (index < elem_count) : (index += 1) {
             ty.* = elem_ty;
-            il.* = try arr_il.find(p.pp.comp.gpa, index);
+            il.* = try arr_il.find(p.gpa, index);
             if (try p.findScalarInitializer(il, ty)) return true;
         }
         return false;
@@ -2797,7 +2801,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
         while (index < field_count) : (index += 1) {
             const field = struct_ty.data.record.fields[index];
             ty.* = field.ty;
-            il.* = try struct_il.find(p.pp.comp.gpa, index);
+            il.* = try struct_il.find(p.gpa, index);
             if (try p.findScalarInitializer(il, ty)) return true;
         }
         return false;
@@ -2810,7 +2814,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type) Error!bool {
             return false;
         }
         ty.* = union_ty.data.record.fields[0].ty;
-        il.* = try il.*.find(p.pp.comp.gpa, 0);
+        il.* = try il.*.find(p.gpa, 0);
         if (try p.findScalarInitializer(il, ty)) return true;
         return false;
     }
@@ -2831,7 +2835,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         const elem_ty = arr_ty.elemType();
         if (index < elem_count) {
             ty.* = elem_ty;
-            il.* = try il.*.find(p.pp.comp.gpa, index);
+            il.* = try il.*.find(p.gpa, index);
             return true;
         }
         return false;
@@ -2846,7 +2850,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         const field_count = struct_ty.data.record.fields.len;
         if (index < field_count) {
             ty.* = struct_ty.data.record.fields[index].ty;
-            il.* = try il.*.find(p.pp.comp.gpa, index);
+            il.* = try il.*.find(p.gpa, index);
             return true;
         }
         return false;
@@ -2855,7 +2859,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         if (union_ty.data.record.fields.len == 0) return false;
 
         ty.* = union_ty.data.record.fields[0].ty;
-        il.* = try il.*.find(p.pp.comp.gpa, 0);
+        il.* = try il.*.find(p.gpa, 0);
         return true;
     } else {
         try p.err(.too_many_scalar_init_braces);
@@ -2875,7 +2879,7 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
     const target_spec = target.elemType().canonicalize(.standard).specifier;
     const item_spec = item.ty.elemType().canonicalize(.standard).specifier;
 
-    const compatible = target.elemType().eql(item.ty.elemType(), p.pp.comp, false) or
+    const compatible = target.elemType().eql(item.ty.elemType(), p.comp, false) or
         (is_str_lit and item_spec == .char and (target_spec == .uchar or target_spec == .schar));
     if (!compatible) {
         const e_msg = " with array of type ";
@@ -2939,10 +2943,10 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
             try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(item.ty, " to ", target));
             try item.ptrCast(p, unqual_ty);
         } else if (item.ty.isPtr()) {
-            if (!item.ty.isVoidStar() and !unqual_ty.isVoidStar() and !unqual_ty.eql(item.ty, p.pp.comp, false)) {
+            if (!item.ty.isVoidStar() and !unqual_ty.isVoidStar() and !unqual_ty.eql(item.ty, p.comp, false)) {
                 try p.errStr(.incompatible_ptr_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
                 try item.ptrCast(p, unqual_ty);
-            } else if (!unqual_ty.eql(item.ty, p.pp.comp, true)) {
+            } else if (!unqual_ty.eql(item.ty, p.comp, true)) {
                 if (!unqual_ty.elemType().qual.hasQuals(item.ty.elemType().qual)) {
                     try p.errStr(.ptr_init_discards_quals, tok, try p.typePairStrExtra(target, e_msg, item.ty));
                 }
@@ -2952,7 +2956,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
             try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
         }
     } else if (unqual_ty.isRecord()) {
-        if (!unqual_ty.eql(item.ty, p.pp.comp, false))
+        if (!unqual_ty.eql(item.ty, p.comp, false))
             try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
     } else if (unqual_ty.isArray() or unqual_ty.isFunc()) {
         // we have already issued an error for this
@@ -3148,7 +3152,7 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
         .decl_label => {
             const str = (try p.asmStr()).val.data.bytes;
             const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } } };
-            try p.attr_buf.append(p.pp.comp.gpa, .{ .attr = attr, .tok = asm_tok });
+            try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
         },
         .global => _ = try p.asmStr(),
         .stmt => return p.todo("assembly statements"),
@@ -3203,7 +3207,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.expect(p);
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
+            try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
         else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
@@ -3235,7 +3239,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.expect(p);
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
+            try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
         else
             try p.errStr(.statement_int, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
@@ -3243,7 +3247,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         const old_switch = p.@"switch";
         var @"switch" = Switch{
-            .ranges = std.ArrayList(Switch.Range).init(p.pp.comp.gpa),
+            .ranges = std.ArrayList(Switch.Range).init(p.gpa),
             .ty = cond.ty,
         };
         p.@"switch" = &@"switch";
@@ -3266,7 +3270,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.expect(p);
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
+            try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
         else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
@@ -3299,7 +3303,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.expect(p);
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
+            try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
         else if (!cond.ty.isFloat() and !cond.ty.isPtr())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
@@ -3322,7 +3326,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         // for (init
         const init_start = p.tok_i;
-        var err_start = p.pp.comp.diag.list.items.len;
+        var err_start = p.comp.diag.list.items.len;
         var init = if (!got_decl) try p.expr() else Result{};
         try init.saveValue(p);
         try init.maybeWarnUnused(p, init_start, err_start);
@@ -3334,7 +3338,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         if (cond.node != .none) {
             try cond.lvalConversion(p);
             if (cond.ty.isInt())
-                try cond.intCast(p, cond.ty.integerPromotion(p.pp.comp), cond_tok)
+                try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
             else if (!cond.ty.isFloat() and !cond.ty.isPtr())
                 try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         }
@@ -3343,7 +3347,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
         // for (init; cond; incr
         const incr_start = p.tok_i;
-        err_start = p.pp.comp.diag.list.items.len;
+        err_start = p.comp.diag.list.items.len;
         var incr = try p.expr();
         try incr.maybeWarnUnused(p, incr_start, err_start);
         try incr.saveValue(p);
@@ -3429,7 +3433,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.assembly(.stmt)) |some| return some;
 
     const expr_start = p.tok_i;
-    const err_start = p.pp.comp.diag.list.items.len;
+    const err_start = p.comp.diag.list.items.len;
 
     const e = try p.expr();
     if (e.node != .none) {
@@ -3513,22 +3517,22 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             } else if (last.tag == .unavailable) {
                 try p.errTok(.case_val_unavailable, ellipsis + 1);
                 break :check;
-            } else if (last.compare(.lt, first, some.ty, p.pp.comp)) {
+            } else if (last.compare(.lt, first, some.ty, p.comp)) {
                 try p.errTok(.empty_case_range, case + 1);
                 break :check;
             }
 
             // TODO cast to target type
-            const prev = (try some.add(p.pp.comp, first, last, case + 1)) orelse break :check;
+            const prev = (try some.add(p.comp, first, last, case + 1)) orelse break :check;
 
             // TODO check which value was already handled
-            if (some.ty.isUnsignedInt(p.pp.comp)) {
+            if (some.ty.isUnsignedInt(p.comp)) {
                 try p.errExtra(.duplicate_switch_case_unsigned, case + 1, .{
                     .unsigned = first.data.int,
                 });
             } else {
                 try p.errExtra(.duplicate_switch_case_signed, case + 1, .{
-                    .signed = first.signExtend(some.ty, p.pp.comp),
+                    .signed = first.signExtend(some.ty, p.comp),
                 });
             }
             try p.errTok(.previous_case, prev.tok);
@@ -3802,11 +3806,11 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
         } else if (e.ty.isInt()) {
             try p.errStr(.implicit_int_to_ptr, e_tok, try p.typePairStrExtra(e.ty, " to ", ret_ty));
             try e.intCast(p, ret_ty, e_tok);
-        } else if (!e.ty.isVoidStar() and !ret_ty.isVoidStar() and !ret_ty.eql(e.ty, p.pp.comp, false)) {
+        } else if (!e.ty.isVoidStar() and !ret_ty.isVoidStar() and !ret_ty.eql(e.ty, p.comp, false)) {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
     } else if (ret_ty.isRecord()) {
-        if (!ret_ty.eql(e.ty, p.pp.comp, false)) {
+        if (!ret_ty.eql(e.ty, p.comp, false)) {
             try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
         }
     } else if (ret_ty.isFunc()) {
@@ -3860,8 +3864,8 @@ const Result = struct {
         if (res.ty.is(.void) or res.node == .none) return;
         // don't warn about unused result if the expression contained errors besides other unused results
         var i = err_start;
-        while (i < p.pp.comp.diag.list.items.len) : (i += 1) {
-            if (p.pp.comp.diag.list.items[i].tag != .unused_value) return;
+        while (i < p.comp.diag.list.items.len) : (i += 1) {
+            if (p.comp.diag.list.items[i].tag != .unused_value) return;
         }
         var cur_node = res.node;
         while (true) switch (p.nodes.items(.tag)[@enumToInt(cur_node)]) {
@@ -3934,13 +3938,13 @@ const Result = struct {
 
         const a_elem = a.ty.elemType();
         const b_elem = b.ty.elemType();
-        if (a_elem.eql(b_elem, p.pp.comp, true)) return true;
+        if (a_elem.eql(b_elem, p.comp, true)) return true;
 
         var adjusted_elem_ty = try p.arena.create(Type);
         adjusted_elem_ty.* = a_elem;
 
         const has_void_star_branch = a.ty.isVoidStar() or b.ty.isVoidStar();
-        const only_quals_differ = a_elem.eql(b_elem, p.pp.comp, false);
+        const only_quals_differ = a_elem.eql(b_elem, p.comp, false);
         const pointers_compatible = only_quals_differ or has_void_star_branch;
 
         if (!pointers_compatible or has_void_star_branch) {
@@ -3952,8 +3956,8 @@ const Result = struct {
         if (pointers_compatible) {
             adjusted_elem_ty.qual = a_elem.qual.mergeCV(b_elem.qual);
         }
-        if (!adjusted_elem_ty.eql(a_elem, p.pp.comp, true)) try a.qualCast(p, adjusted_elem_ty);
-        if (!adjusted_elem_ty.eql(b_elem, p.pp.comp, true)) try b.qualCast(p, adjusted_elem_ty);
+        if (!adjusted_elem_ty.eql(a_elem, p.comp, true)) try a.qualCast(p, adjusted_elem_ty);
+        if (!adjusted_elem_ty.eql(b_elem, p.comp, true)) try b.qualCast(p, adjusted_elem_ty);
         return true;
     }
 
@@ -4002,8 +4006,8 @@ const Result = struct {
                 if (!a_scalar or !b_scalar) return a.invalidBinTy(tok, b, p);
 
                 // Do integer promotions but nothing else
-                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp), tok);
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp), tok);
+                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.comp), tok);
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp), tok);
                 return a.shouldEval(b, p);
             },
             .relational, .equality => {
@@ -4014,7 +4018,7 @@ const Result = struct {
                 if ((a_int or b_int) and !(a.val.isZero() or b.val.isZero())) {
                     try p.errStr(.comparison_ptr_int, tok, try p.typePairStr(a.ty, b.ty));
                 } else if (a_ptr and b_ptr) {
-                    if (!a.ty.isVoidStar() and !b.ty.isVoidStar() and !a.ty.eql(b.ty, p.pp.comp, false))
+                    if (!a.ty.isVoidStar() and !b.ty.isVoidStar() and !a.ty.eql(b.ty, p.comp, false))
                         try p.errStr(.comparison_distinct_ptr, tok, try p.typePairStr(a.ty, b.ty));
                 } else if (a_ptr) {
                     try b.ptrCast(p, a.ty);
@@ -4046,7 +4050,7 @@ const Result = struct {
                     return true;
                 }
                 if (a_ptr and b_ptr) return a.adjustCondExprPtrs(tok, b, p);
-                if (a.ty.isRecord() and b.ty.isRecord() and a.ty.eql(b.ty, p.pp.comp, false)) {
+                if (a.ty.isRecord() and b.ty.isRecord() and a.ty.eql(b.ty, p.comp, false)) {
                     return true;
                 }
                 return a.invalidBinTy(tok, b, p);
@@ -4056,8 +4060,8 @@ const Result = struct {
                 if (a_ptr == b_ptr or a_int == b_int) return a.invalidBinTy(tok, b, p);
 
                 // Do integer promotions but nothing else
-                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.pp.comp), tok);
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp), tok);
+                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.comp), tok);
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp), tok);
 
                 // The result type is the type of the pointer operand
                 if (a_int) a.ty = b.ty else b.ty = a.ty;
@@ -4068,12 +4072,12 @@ const Result = struct {
                 if (!a_ptr or !(b_ptr or b_int)) return a.invalidBinTy(tok, b, p);
 
                 if (a_ptr and b_ptr) {
-                    if (!a.ty.eql(b.ty, p.pp.comp, false)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.ty, b.ty));
-                    a.ty = p.pp.comp.types.ptrdiff;
+                    if (!a.ty.eql(b.ty, p.comp, false)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.ty, b.ty));
+                    a.ty = p.comp.types.ptrdiff;
                 }
 
                 // Do integer promotion on b if needed
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.pp.comp), tok);
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp), tok);
                 return a.shouldEval(b, p);
             },
             else => return a.invalidBinTy(tok, b, p),
@@ -4108,7 +4112,7 @@ const Result = struct {
             try res.un(p, .int_to_bool);
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
-            const value_change_kind = res.val.floatToInt(res.ty, bool_ty, p.pp.comp);
+            const value_change_kind = res.val.floatToInt(res.ty, bool_ty, p.comp);
             try res.floatToIntWarning(p, bool_ty, old_value, value_change_kind, tok);
             res.ty = bool_ty;
             try res.un(p, .float_to_bool);
@@ -4125,12 +4129,12 @@ const Result = struct {
             try res.un(p, .pointer_to_int);
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
-            const value_change_kind = res.val.floatToInt(res.ty, int_ty, p.pp.comp);
+            const value_change_kind = res.val.floatToInt(res.ty, int_ty, p.comp);
             try res.floatToIntWarning(p, int_ty, old_value, value_change_kind, tok);
             res.ty = int_ty;
             try res.un(p, .float_to_int);
-        } else if (!res.ty.eql(int_ty, p.pp.comp, true)) {
-            res.val.intCast(res.ty, int_ty, p.pp.comp);
+        } else if (!res.ty.eql(int_ty, p.comp, true)) {
+            res.val.intCast(res.ty, int_ty, p.comp);
             res.ty = int_ty;
             try res.un(p, .int_cast);
         }
@@ -4148,15 +4152,15 @@ const Result = struct {
 
     fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
         if (res.ty.is(.bool)) {
-            res.val.intToFloat(res.ty, float_ty, p.pp.comp);
+            res.val.intToFloat(res.ty, float_ty, p.comp);
             res.ty = float_ty;
             try res.un(p, .bool_to_float);
         } else if (res.ty.isInt()) {
-            res.val.intToFloat(res.ty, float_ty, p.pp.comp);
+            res.val.intToFloat(res.ty, float_ty, p.comp);
             res.ty = float_ty;
             try res.un(p, .int_to_float);
-        } else if (!res.ty.eql(float_ty, p.pp.comp, true)) {
-            res.val.floatCast(res.ty, float_ty, p.pp.comp);
+        } else if (!res.ty.eql(float_ty, p.comp, true)) {
+            res.val.floatCast(res.ty, float_ty, p.comp);
             res.ty = float_ty;
             try res.un(p, .float_cast);
         }
@@ -4167,7 +4171,7 @@ const Result = struct {
             res.ty = ptr_ty;
             try res.un(p, .bool_to_pointer);
         } else if (res.ty.isInt()) {
-            res.val.intCast(res.ty, ptr_ty, p.pp.comp);
+            res.val.intCast(res.ty, ptr_ty, p.comp);
             res.ty = ptr_ty;
             try res.un(p, .int_to_pointer);
         }
@@ -4214,17 +4218,17 @@ const Result = struct {
         }
 
         // Do integer promotion on both operands
-        const a_promoted = a.ty.integerPromotion(p.pp.comp);
-        const b_promoted = b.ty.integerPromotion(p.pp.comp);
-        if (a_promoted.eql(b_promoted, p.pp.comp, true)) {
+        const a_promoted = a.ty.integerPromotion(p.comp);
+        const b_promoted = b.ty.integerPromotion(p.comp);
+        if (a_promoted.eql(b_promoted, p.comp, true)) {
             // cast to promoted type
             try a.intCast(p, a_promoted, tok);
             try b.intCast(p, a_promoted, tok);
             return;
         }
 
-        const a_unsigned = a_promoted.isUnsignedInt(p.pp.comp);
-        const b_unsigned = b_promoted.isUnsignedInt(p.pp.comp);
+        const a_unsigned = a_promoted.isUnsignedInt(p.comp);
+        const b_unsigned = b_promoted.isUnsignedInt(p.comp);
         if (a_unsigned == b_unsigned) {
             // cast to greater signed or unsigned type
             const res_spec = std.math.max(@enumToInt(a_promoted.specifier), @enumToInt(b_promoted.specifier));
@@ -4278,13 +4282,13 @@ const Result = struct {
 /// expr : assignExpr (',' assignExpr)*
 fn expr(p: *Parser) Error!Result {
     var expr_start = p.tok_i;
-    var err_start = p.pp.comp.diag.list.items.len;
+    var err_start = p.comp.diag.list.items.len;
     var lhs = try p.assignExpr();
     if (p.tok_ids[p.tok_i] == .comma) try lhs.expect(p);
     while (p.eatToken(.comma)) |_| {
         try lhs.maybeWarnUnused(p, expr_start, err_start);
         expr_start = p.tok_i;
-        err_start = p.pp.comp.diag.list.items.len;
+        err_start = p.comp.diag.list.items.len;
 
         const rhs = try p.assignExpr();
         try rhs.expect(p);
@@ -4432,10 +4436,10 @@ fn assignExpr(p: *Parser) Error!Result {
             try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(rhs.ty, " to ", lhs.ty));
             try rhs.ptrCast(p, unqual_ty);
         } else if (rhs.ty.isPtr()) {
-            if (!unqual_ty.isVoidStar() and !rhs.ty.isVoidStar() and !unqual_ty.eql(rhs.ty, p.pp.comp, false)) {
+            if (!unqual_ty.isVoidStar() and !rhs.ty.isVoidStar() and !unqual_ty.eql(rhs.ty, p.comp, false)) {
                 try p.errStr(.incompatible_ptr_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
                 try rhs.ptrCast(p, unqual_ty);
-            } else if (!unqual_ty.eql(rhs.ty, p.pp.comp, true)) {
+            } else if (!unqual_ty.eql(rhs.ty, p.comp, true)) {
                 if (!unqual_ty.elemType().qual.hasQuals(rhs.ty.elemType().qual)) {
                     try p.errStr(.ptr_assign_discards_quals, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
                 }
@@ -4445,7 +4449,7 @@ fn assignExpr(p: *Parser) Error!Result {
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
         }
     } else if (unqual_ty.isRecord()) {
-        if (!unqual_ty.eql(rhs.ty, p.pp.comp, false))
+        if (!unqual_ty.eql(rhs.ty, p.comp, false))
             try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
     } else if (unqual_ty.isArray() or unqual_ty.isFunc()) {
         try p.errTok(.not_assignable, tok);
@@ -4592,7 +4596,7 @@ fn orExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
-            lhs.val = lhs.val.bitOr(rhs.val, lhs.ty, p.pp.comp);
+            lhs.val = lhs.val.bitOr(rhs.val, lhs.ty, p.comp);
         }
         try lhs.bin(p, .bit_or_expr, rhs);
     }
@@ -4608,7 +4612,7 @@ fn xorExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
-            lhs.val = lhs.val.bitXor(rhs.val, lhs.ty, p.pp.comp);
+            lhs.val = lhs.val.bitXor(rhs.val, lhs.ty, p.comp);
         }
         try lhs.bin(p, .bit_xor_expr, rhs);
     }
@@ -4624,7 +4628,7 @@ fn andExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
-            lhs.val = lhs.val.bitAnd(rhs.val, lhs.ty, p.pp.comp);
+            lhs.val = lhs.val.bitAnd(rhs.val, lhs.ty, p.comp);
         }
         try lhs.bin(p, .bit_and_expr, rhs);
     }
@@ -4644,7 +4648,7 @@ fn eqExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const op: std.math.CompareOperator = if (tag == .equal_expr) .eq else .neq;
-            const res = lhs.val.compare(op, rhs.val, lhs.ty, p.pp.comp);
+            const res = lhs.val.compare(op, rhs.val, lhs.ty, p.comp);
             lhs.val = Value.int(@boolToInt(res));
         }
         lhs.ty = .{ .specifier = .int };
@@ -4674,7 +4678,7 @@ fn compExpr(p: *Parser) Error!Result {
                 .greater_than_equal_expr => .gte,
                 else => unreachable,
             };
-            const res = lhs.val.compare(op, rhs.val, lhs.ty, p.pp.comp);
+            const res = lhs.val.compare(op, rhs.val, lhs.ty, p.comp);
             lhs.val = Value.int(@boolToInt(res));
         }
         lhs.ty = .{ .specifier = .int };
@@ -4696,9 +4700,9 @@ fn shiftExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(shr.?, &rhs, p, .integer)) {
             if (shl != null) {
-                lhs.val = lhs.val.shl(rhs.val, lhs.ty, p.pp.comp);
+                lhs.val = lhs.val.shl(rhs.val, lhs.ty, p.comp);
             } else {
-                lhs.val = lhs.val.shr(rhs.val, lhs.ty, p.pp.comp);
+                lhs.val = lhs.val.shr(rhs.val, lhs.ty, p.comp);
             }
         }
         try lhs.bin(p, tag, rhs);
@@ -4719,9 +4723,9 @@ fn addExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
-                if (lhs.val.add(lhs.val, rhs.val, lhs.ty, p.pp.comp)) try p.errOverflow(plus.?, lhs);
+                if (lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(plus.?, lhs);
             } else {
-                if (lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.pp.comp)) try p.errOverflow(minus.?, lhs);
+                if (lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(minus.?, lhs);
             }
         }
         try lhs.bin(p, tag, rhs);
@@ -4754,11 +4758,11 @@ fn mulExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(percent.?, &rhs, p, if (tag == .mod_expr) .integer else .arithmetic)) {
             if (mul != null) {
-                if (lhs.val.mul(lhs.val, rhs.val, lhs.ty, p.pp.comp)) try p.errOverflow(mul.?, lhs);
+                if (lhs.val.mul(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(mul.?, lhs);
             } else if (div != null) {
-                lhs.val = Value.div(lhs.val, rhs.val, lhs.ty, p.pp.comp);
+                lhs.val = Value.div(lhs.val, rhs.val, lhs.ty, p.comp);
             } else {
-                var res = Value.rem(lhs.val, rhs.val, lhs.ty, p.pp.comp);
+                var res = Value.rem(lhs.val, rhs.val, lhs.ty, p.comp);
                 if (res.tag == .unavailable) {
                     if (p.in_macro) {
                         // match clang behavior by defining invalid remainder to be zero in macros
@@ -4780,13 +4784,13 @@ fn mulExpr(p: *Parser) Error!Result {
 /// This will always be the last message, if present
 fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
     if (last_expr_tok == 0) return;
-    if (p.pp.comp.diag.list.items.len == 0) return;
+    if (p.comp.diag.list.items.len == 0) return;
 
     const last_expr_loc = p.pp.tokens.items(.loc)[last_expr_tok];
-    const last_msg = p.pp.comp.diag.list.items[p.pp.comp.diag.list.items.len - 1];
+    const last_msg = p.comp.diag.list.items[p.comp.diag.list.items.len - 1];
 
     if (last_msg.tag == .unused_value and last_msg.loc.eql(last_expr_loc)) {
-        p.pp.comp.diag.list.items.len = p.pp.comp.diag.list.items.len - 1;
+        p.comp.diag.list.items.len = p.comp.diag.list.items.len - 1;
     }
 }
 
@@ -4865,18 +4869,18 @@ fn castExpr(p: *Parser) Error!Result {
             if (ty.is(.bool)) {
                 operand.val.toBool();
             } else if (old_float and new_int) {
-                _ = operand.val.floatToInt(operand.ty, ty, p.pp.comp); // no warnings for explicit cast
+                _ = operand.val.floatToInt(operand.ty, ty, p.comp); // no warnings for explicit cast
             } else if (new_float and old_int) {
-                operand.val.intToFloat(operand.ty, ty, p.pp.comp);
+                operand.val.intToFloat(operand.ty, ty, p.comp);
             } else if (new_float and old_float) {
-                operand.val.floatCast(operand.ty, ty, p.pp.comp);
+                operand.val.floatCast(operand.ty, ty, p.comp);
             }
         } else {
             try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(operand.ty));
             return error.ParsingFailed;
         }
         if (ty.anyQual()) try p.errStr(.qual_cast, l_paren, try p.typeStr(ty));
-        if (ty.isInt() and operand.ty.isPtr() and ty.sizeCompare(operand.ty, p.pp.comp) == .lt) {
+        if (ty.isInt() and operand.ty.isPtr() and ty.sizeCompare(operand.ty, p.comp) == .lt) {
             try p.errStr(.cast_to_smaller_int, l_paren, try p.typePairStrExtra(ty, " from ", operand.ty));
         }
         operand.ty = ty;
@@ -4949,7 +4953,7 @@ fn builtinVaArg(p: *Parser) Error!Result {
     };
     try p.expectClosing(l_paren, .r_paren);
 
-    if (!va_list.ty.eql(p.pp.comp.types.va_list, p.pp.comp, true)) {
+    if (!va_list.ty.eql(p.comp.types.va_list, p.comp, true)) {
         try p.errStr(.incompatible_va_arg, va_list_tok, try p.typeStr(va_list.ty));
         return error.ParsingFailed;
     }
@@ -4991,14 +4995,14 @@ fn builtinOffsetof(p: *Parser) Error!Result {
     try p.expectClosing(l_paren, .r_paren);
 
     return Result{
-        .ty = p.pp.comp.types.size,
+        .ty = p.comp.types.size,
         .val = if (offsetof_expr.val.tag == .int)
             Value.int(offsetof_expr.val.data.int / 8)
         else
             offsetof_expr.val,
         .node = try p.addNode(.{
             .tag = .builtin_call_expr_one,
-            .ty = p.pp.comp.types.size,
+            .ty = p.comp.types.size,
             .data = .{ .decl = .{ .name = builtin_tok, .node = offsetof_expr.node } },
         }),
     };
@@ -5141,7 +5145,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
             return operand;
         },
         .minus => {
@@ -5153,9 +5157,9 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
             if (operand.val.tag == .int or operand.val.tag == .float) {
-                _ = operand.val.sub(operand.val.zero(), operand.val, operand.ty, p.pp.comp);
+                _ = operand.val.sub(operand.val.zero(), operand.val, operand.ty, p.comp);
             } else {
                 operand.val.tag = .unavailable;
             }
@@ -5174,10 +5178,10 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
 
             if (operand.val.tag == .int or operand.val.tag == .float) {
-                if (operand.val.add(operand.val, operand.val.one(), operand.ty, p.pp.comp))
+                if (operand.val.add(operand.val, operand.val.one(), operand.ty, p.comp))
                     try p.errOverflow(tok, operand);
             } else {
                 operand.val.tag = .unavailable;
@@ -5198,10 +5202,10 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
 
             if (operand.val.tag == .int or operand.val.tag == .float) {
-                if (operand.val.sub(operand.val, operand.val.one(), operand.ty, p.pp.comp))
+                if (operand.val.sub(operand.val, operand.val.one(), operand.ty, p.comp))
                     try p.errOverflow(tok, operand);
             } else {
                 operand.val.tag = .unavailable;
@@ -5218,9 +5222,9 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.lvalConversion(p);
             if (!operand.ty.isInt()) try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
             if (operand.ty.isInt()) {
-                try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
+                try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
                 if (operand.val.tag == .int) {
-                    operand.val = operand.val.bitNot(operand.ty, p.pp.comp);
+                    operand.val = operand.val.bitNot(operand.ty, p.comp);
                 }
             } else {
                 operand.val.tag = .unavailable;
@@ -5237,7 +5241,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat() and !operand.ty.isPtr())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), tok);
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
             if (operand.val.tag == .int) {
                 const res = Value.int(@boolToInt(!operand.val.getBool()));
                 operand.val = res;
@@ -5267,13 +5271,13 @@ fn unExpr(p: *Parser) Error!Result {
                 res = try p.parseNoEval(unExpr);
             }
 
-            if (res.ty.sizeof(p.pp.comp)) |size| {
+            if (res.ty.sizeof(p.comp)) |size| {
                 res.val = .{ .tag = .int, .data = .{ .int = size } };
             } else {
                 res.val.tag = .unavailable;
                 try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
             }
-            res.ty = p.pp.comp.types.size;
+            res.ty = p.comp.types.size;
             try res.un(p, .sizeof_expr);
             return res;
         },
@@ -5298,8 +5302,8 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.alignof_expr, expected_paren);
             }
 
-            res.val = Value.int(res.ty.alignof(p.pp.comp));
-            res.ty = p.pp.comp.types.size;
+            res.val = Value.int(res.ty.alignof(p.comp));
+            res.ty = p.comp.types.size;
             try res.un(p, .alignof_expr);
             return res;
         },
@@ -5349,7 +5353,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), p.tok_i);
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), p.tok_i);
 
             try operand.un(p, .post_dec_expr);
             return operand;
@@ -5365,7 +5369,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.pp.comp), p.tok_i);
+            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), p.tok_i);
 
             try operand.un(p, .post_dec_expr);
             return operand;
@@ -5459,7 +5463,7 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
     try expr_ty.print(p.strings.writer());
     try p.strings.append('\'');
 
-    const duped = try p.pp.comp.diag.arena.allocator().dupe(u8, p.strings.items);
+    const duped = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items);
     try p.errStr(.no_such_member, field_name_tok, duped);
     return error.ParsingFailed;
 }
@@ -5517,7 +5521,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
 
         if (arg_count >= params.len) {
-            if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.pp.comp), param_tok);
+            if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.comp), param_tok);
             if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
             try arg.saveValue(p);
             try p.list_buf.append(arg.node);
@@ -5590,12 +5594,12 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 );
                 try p.errTok(.parameter_here, params[arg_count].name_tok);
                 try arg.intCast(p, p_ty, param_tok);
-            } else if (!arg.ty.isVoidStar() and !p_ty.isVoidStar() and !p_ty.eql(arg.ty, p.pp.comp, false)) {
+            } else if (!arg.ty.isVoidStar() and !p_ty.isVoidStar() and !p_ty.eql(arg.ty, p.comp, false)) {
                 try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
                 try p.errTok(.parameter_here, params[arg_count].name_tok);
             }
         } else if (p_ty.isRecord()) {
-            if (!p_ty.eql(arg.ty, p.pp.comp, false)) {
+            if (!p_ty.eql(arg.ty, p.comp, false)) {
                 try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
                 try p.errTok(.parameter_here, params[arg_count].name_tok);
             }
@@ -5667,15 +5671,15 @@ fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !v
     if (index.val.tag == .unavailable) return;
     const len = Value.int(arr_ty.arrayLen() orelse return);
 
-    if (index.ty.isUnsignedInt(p.pp.comp)) {
-        if (index.val.compare(.gte, len, p.pp.comp.types.size, p.pp.comp))
+    if (index.ty.isUnsignedInt(p.comp)) {
+        if (index.val.compare(.gte, len, p.comp.types.size, p.comp))
             try p.errExtra(.array_after, tok, .{ .unsigned = index.val.data.int });
     } else {
-        if (index.val.compare(.lt, Value.int(0), index.ty, p.pp.comp)) {
+        if (index.val.compare(.lt, Value.int(0), index.ty, p.comp)) {
             try p.errExtra(.array_before, tok, .{
-                .signed = index.val.signExtend(index.ty, p.pp.comp),
+                .signed = index.val.signExtend(index.ty, p.comp),
             });
-        } else if (index.val.compare(.gte, len, p.pp.comp.types.size, p.pp.comp)) {
+        } else if (index.val.compare(.gte, len, p.comp.types.size, p.comp)) {
             try p.errExtra(.array_after, tok, .{ .unsigned = index.val.data.int });
         }
     }
@@ -5702,7 +5706,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         .identifier, .extended_identifier => {
             const name_tok = p.expectIdentifier() catch unreachable;
             const name = p.tokSlice(name_tok);
-            if (p.pp.comp.builtins.get(name)) |some| {
+            if (p.comp.builtins.get(name)) |some| {
                 for (p.tok_ids[p.tok_i..]) |id| switch (id) {
                     .r_paren => {}, // closing grouped expr
                     .l_paren => break, // beginning of a call
@@ -6046,7 +6050,7 @@ fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
     const ty: Type = switch (p.tok_ids[p.tok_i]) {
         .char_literal => .{ .specifier = .int },
-        .char_literal_wide => p.pp.comp.types.wchar,
+        .char_literal_wide => p.comp.types.wchar,
         .char_literal_utf_16 => .{ .specifier = .ushort },
         .char_literal_utf_32 => .{ .specifier = .ulong },
         else => unreachable,
@@ -6248,8 +6252,8 @@ fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
     var res: Result = .{ .val = Value.int(val) };
     for (specs) |spec| {
         const ty = Type{ .specifier = spec };
-        const unsigned = ty.isUnsignedInt(p.pp.comp);
-        const size = ty.sizeof(p.pp.comp).?;
+        const unsigned = ty.isUnsignedInt(p.comp);
+        const size = ty.sizeof(p.comp).?;
         res.ty = ty;
 
         if (unsigned) {
