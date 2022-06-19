@@ -699,10 +699,8 @@ pub fn bitSizeof(ty: Type, comp: *Compilation) ?u64 {
     };
 }
 
-/// Get the alignment of a type
-pub fn alignof(ty: Type, comp: *const Compilation) u29 {
-    if (ty.requestedAlignment(comp)) |requested| return requested;
-
+/// Alignment ignoring attributes
+pub fn naturalAlignof(ty: Type, comp: *const Compilation) u29 {
     // TODO get target from compilation
     return switch (ty.specifier) {
         .variable_len_array,
@@ -751,6 +749,18 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
     };
 }
 
+/// Get the alignment of a type
+pub fn alignof(ty: Type, comp: *const Compilation) u29 {
+    if (ty.requestedAlignment(comp)) |requested| return requested;
+    return ty.naturalAlignof(comp);
+}
+
+/// Alignof, but for struct fields - struct field alignment can't be
+/// reduced with attributes.
+pub fn fieldAlignof(ty: Type, comp: *const Compilation) u29 {
+    return std.math.max(ty.requestedAlignment(comp) orelse 0, ty.naturalAlignof(comp));
+}
+
 /// Canonicalize a possibly-typeof() type. If the type is not a typeof() type, simply
 /// return it. Otherwise, determine the actual qualified type.
 /// The `qual_handling` parameter can be used to return the full set of qualifiers
@@ -796,7 +806,7 @@ pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
     };
 }
 
-fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
+pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
     return switch (ty.specifier) {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.requestedAlignment(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.requestedAlignment(comp),

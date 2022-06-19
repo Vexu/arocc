@@ -1717,6 +1717,13 @@ fn recordSpec(p: *Parser) Error!Type {
         }
     }
 
+    if (p.record_buf.items.len == record_buf_top) {
+        try p.errStr(.empty_record, kind_tok, p.tokSlice(kind_tok));
+        try p.errStr(.empty_record_size, kind_tok, p.tokSlice(kind_tok));
+    }
+    try p.expectClosing(l_brace, .r_brace);
+    try p.attributeSpecifier(); // .record
+
     for (p.record_buf.items[record_buf_top..]) |field| {
         if (field.ty.hasIncompleteSize()) break;
     } else {
@@ -1736,7 +1743,7 @@ fn recordSpec(p: *Parser) Error!Type {
             for (record_ty.fields) |f| {
                 const field_size_opt = f.ty.sizeof(p.pp.comp);
                 if (field_size_opt) |field_size| {
-                    const field_align = f.ty.alignof(p.pp.comp);
+                    const field_align = f.ty.fieldAlignof(p.pp.comp);
                     largest_field_size = std.math.max(field_size, largest_field_size);
                     largest_field_align = std.math.max(field_align, largest_field_align);
                     const offset_needed = @divTrunc(total_size + (field_align - 1), field_align) * field_align;
@@ -1765,13 +1772,6 @@ fn recordSpec(p: *Parser) Error!Type {
             record_ty.alignment = largest_field_align;
         }
     }
-
-    if (p.record_buf.items.len == record_buf_top) {
-        try p.errStr(.empty_record, kind_tok, p.tokSlice(kind_tok));
-        try p.errStr(.empty_record_size, kind_tok, p.tokSlice(kind_tok));
-    }
-    try p.expectClosing(l_brace, .r_brace);
-    try p.attributeSpecifier(); // .record
 
     ty = try p.withAttributes(.{
         .specifier = if (is_struct) .@"struct" else .@"union",
