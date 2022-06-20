@@ -2110,14 +2110,14 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 
     if (e.res.val.compare(.lt, Value.int(0), e.res.ty, p.comp)) {
         const val = e.res.val.getInt(i64);
-        if (val < p.comp.minInt()) {
+        if (val < (Type{ .specifier = .int }).minInt(p.comp)) {
             try p.errExtra(.enumerator_too_small, name_tok, .{
                 .signed = val,
             });
         }
     } else {
         const val = e.res.val.getInt(u64);
-        if (val > p.comp.maxInt()) {
+        if (val > (Type{ .specifier = .int }).maxInt(p.comp)) {
             try p.errExtra(.enumerator_too_large, name_tok, .{
                 .unsigned = val,
             });

@@ -469,26 +469,6 @@ fn generateVaListType(comp: *Compilation) !Type {
     return ty;
 }
 
-pub fn minInt(comp: *const Compilation) i64 {
-    const ty = Type{ .specifier = .int };
-    return switch (ty.sizeof(comp).?) {
-        2 => std.math.minInt(i16),
-        4 => std.math.minInt(i32),
-        8 => std.math.minInt(i64),
-        else => unreachable,
-    };
-}
-
-pub fn maxInt(comp: *const Compilation) u64 {
-    const ty = Type{ .specifier = .int };
-    return switch (ty.sizeof(comp).?) {
-        2 => std.math.maxInt(i16),
-        4 => std.math.maxInt(i32),
-        8 => std.math.maxInt(i64),
-        else => unreachable,
-    };
-}
-
 fn generateIntMax(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {
     const bit_count = @intCast(u8, ty.sizeof(comp).? * 8);
     const unsigned = ty.isUnsignedInt(comp);
