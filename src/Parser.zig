@@ -2063,11 +2063,22 @@ const Enumerator = struct {
     }
 
     /// Increment enumerator value adjusting type if needed.
-    fn incr(e: *Enumerator, p: *Parser) !void {
+    fn incr(e: *Enumerator, p: *Parser, tok: TokenIndex) !void {
         e.res.node = .none;
-        _ = p;
-        _ = e.res.val.add(e.res.val, Value.int(1), e.res.ty, p.comp);
-        // TODO adjust type if value does not fit current
+        const old_val = e.res.val;
+        if (e.res.val.add(e.res.val, Value.int(1), e.res.ty, p.comp)) {
+            const new_ty = if (p.comp.nextLargestIntSameSign(e.res.ty)) |larger| blk: {
+                try p.errTok(.enumerator_overflow, tok);
+                break :blk larger;
+            } else blk: {
+                const byte_size = e.res.ty.sizeof(p.comp).?;
+                const bit_size = @intCast(u8, if (e.res.ty.isUnsignedInt(p.comp)) byte_size * 8 else byte_size * 8 - 1);
+                try p.errExtra(.enum_not_representable, tok, .{ .pow_2_as_string = bit_size });
+                break :blk Type{ .specifier = .ulong_long };
+            };
+            e.res.ty = new_ty;
+            _ = e.res.val.add(old_val, Value.int(1), e.res.ty, p.comp);
+        }
     }
 
     /// Set enumerator value to specified value, adjusting type if needed.
@@ -2093,34 +2104,38 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     defer p.attr_buf.len = attr_buf_top;
     try p.attributeSpecifier();
 
+    const err_start = p.comp.diag.list.items.len;
     if (p.eatToken(.equal)) |_| {
         const specified = try p.constExpr(.gnu_folding_extension);
         if (specified.val.tag == .unavailable) {
             try p.errTok(.enum_val_unavailable, name_tok + 2);
-            try e.incr(p);
+            try e.incr(p, name_tok);
         } else {
             try e.set(p, specified);
         }
     } else {
-        try e.incr(p);
+        try e.incr(p, name_tok);
     }
 
     var res = e.res;
     res.ty = try p.withAttributes(res.ty, attr_buf_top);
 
-    if (e.res.val.compare(.lt, Value.int(0), e.res.ty, p.comp)) {
-        const val = e.res.val.getInt(i64);
-        if (val < (Type{ .specifier = .int }).minInt(p.comp)) {
-            try p.errExtra(.enumerator_too_small, name_tok, .{
-                .signed = val,
-            });
-        }
-    } else {
-        const val = e.res.val.getInt(u64);
-        if (val > (Type{ .specifier = .int }).maxInt(p.comp)) {
-            try p.errExtra(.enumerator_too_large, name_tok, .{
-                .unsigned = val,
-            });
+    if (err_start == p.comp.diag.list.items.len) {
+        // only do these warnings if we didn't already warn about overflow or non-representable values
+        if (e.res.val.compare(.lt, Value.int(0), e.res.ty, p.comp)) {
+            const val = e.res.val.getInt(i64);
+            if (val < (Type{ .specifier = .int }).minInt(p.comp)) {
+                try p.errExtra(.enumerator_too_small, name_tok, .{
+                    .signed = val,
+                });
+            }
+        } else {
+            const val = e.res.val.getInt(u64);
+            if (val > (Type{ .specifier = .int }).maxInt(p.comp)) {
+                try p.errExtra(.enumerator_too_large, name_tok, .{
+                    .unsigned = val,
+                });
+            }
         }
     }
 

@@ -483,6 +483,20 @@ fn generateSizeofType(comp: *Compilation, w: anytype, name: []const u8, ty: Type
     try w.print("#define {s} {d}\n", .{ name, ty.sizeof(comp).? });
 }
 
+pub fn nextLargestIntSameSign(comp: *const Compilation, ty: Type) ?Type {
+    assert(ty.isInt());
+    const specifiers = if (ty.isUnsignedInt(comp))
+        [_]Type.Specifier{ .short, .int, .long, .long_long }
+    else
+        [_]Type.Specifier{ .ushort, .uint, .ulong, .ulong_long };
+    const size = ty.sizeof(comp).?;
+    for (specifiers) |specifier| {
+        const candidate = Type{ .specifier = specifier };
+        if (candidate.sizeof(comp).? > size) return candidate;
+    }
+    return null;
+}
+
 pub fn defineSystemIncludes(comp: *Compilation) !void {
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var search_path: []const u8 = std.fs.selfExePath(&buf) catch return error.SelfExeNotFound;
