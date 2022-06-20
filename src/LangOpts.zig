@@ -3,7 +3,13 @@ const DiagnosticTag = @import("Diagnostics.zig").Tag;
 
 const LangOpts = @This();
 
-const Standard = enum {
+pub const Compiler = enum {
+    clang,
+    gcc,
+    msvc,
+};
+
+pub const Standard = enum {
     /// ISO C 1990
     c89,
     /// ISO C 1990 with amendment 1
@@ -69,11 +75,13 @@ const Standard = enum {
     }
 };
 
+emulate: Compiler = .clang,
 standard: Standard = .default,
 /// -fshort-enums option, makes enums only take up as much space as they need to hold all the values.
 short_enums: bool = false,
 dollars_in_identifiers: bool = true,
 declspec_attrs: bool = false,
+ms_extensions: bool = false,
 /// true or false if digraph support explicitly enabled/disabled with -fdigraphs/-fno-digraphs
 digraphs: ?bool = null,
 
@@ -83,12 +91,19 @@ pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!voi
 
 pub fn enableMSExtensions(self: *LangOpts) void {
     self.declspec_attrs = true;
+    self.ms_extensions = true;
 }
 
 pub fn disableMSExtensions(self: *LangOpts) void {
     self.declspec_attrs = false;
+    self.ms_extensions = true;
 }
 
 pub fn hasDigraphs(self: *const LangOpts) bool {
     return self.digraphs orelse self.standard.atLeast(.gnu89);
+}
+
+pub fn setEmulatedCompiler(self: *LangOpts, compiler: Compiler) void {
+    self.emulate = compiler;
+    if (compiler == .msvc) self.enableMSExtensions();
 }

@@ -131,6 +131,9 @@ pub const Options = packed struct {
     @"gnu-folding-constant": Kind = .default,
     undef: Kind = .default,
     @"ignored-pragmas": Kind = .default,
+    @"gnu-include-next": Kind = .default,
+    @"include-next-outside-header": Kind = .default,
+    @"include-next-absolute-path": Kind = .default,
 };
 
 const messages = struct {
@@ -1458,6 +1461,11 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const cli_invalid_emulate = struct {
+        const msg = "invalid compiler '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
     const cli_unknown_arg = struct {
         const msg = "unknown argument '{s}'";
         const extra = .str;
@@ -1689,6 +1697,11 @@ const messages = struct {
         const kind = .off;
         const opt = "undef";
     };
+    const fn_macro_undefined = struct {
+        const msg = "function-like macro '{s}' is not defined";
+        const extra = .str;
+        const kind = .@"error";
+    };
     const preprocessing_directive_only = struct {
         const msg = "'{s}' must be used within a preprocessing directive";
         const extra = .tok_id_expected;
@@ -1757,6 +1770,33 @@ const messages = struct {
         const msg = "used type '{s}' where arithmetic or pointer type is required";
         const extra = .str;
         const kind = .@"error";
+    };
+    const too_many_includes = struct {
+        const msg = "#include nested too deeply";
+        const kind = .@"error";
+    };
+    const enumerator_too_small = struct {
+        const msg = "ISO C restricts enumerator values to range of 'int' ({d} is too small)";
+        const extra = .signed;
+        const kind = .off;
+        const opt = "pedantic";
+    };
+    const enumerator_too_large = struct {
+        const msg = "ISO C restricts enumerator values to range of 'int' ({d} is too large)";
+        const extra = .unsigned;
+        const kind = .off;
+        const opt = "pedantic";
+    };
+    const include_next = struct {
+        const msg = "#include_next is a language extension";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "gnu-include-next";
+    };
+    const include_next_outside_header = struct {
+        const msg = "#include_next in primary source file; will search from start of include path";
+        const kind = .warning;
+        const opt = "include-next-outside-header";
     };
 };
 

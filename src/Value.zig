@@ -490,6 +490,7 @@ pub fn dump(v: Value, ty: Type, comp: *Compilation, w: anytype) !void {
         else {
             try w.print("{d}", .{v.signExtend(ty, comp)});
         },
+        .bytes => try w.print("\"{s}\"", .{v.data.bytes}),
         // std.fmt does @as instead of @floatCast
         .float => try w.print("{d}", .{@floatCast(f64, v.data.float)}),
         else => try w.print("({s})", .{@tagName(v.tag)}),

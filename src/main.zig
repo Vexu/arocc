@@ -4,9 +4,10 @@ const Allocator = mem.Allocator;
 const process = std.process;
 const Codegen = @import("Codegen.zig");
 const Compilation = @import("Compilation.zig");
-const Source = @import("Source.zig");
+const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
+const Source = @import("Source.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -37,6 +38,9 @@ pub fn main() u8 {
             return 1;
         },
     };
+    if (comp.target.abi == .msvc or comp.target.os.tag == .windows) {
+        comp.langopts.setEmulatedCompiler(.msvc);
+    }
 
     mainExtra(&comp, args) catch |err| switch (err) {
         error.OutOfMemory => {
@@ -79,6 +83,8 @@ const usage =
     \\  -fno-short-enums        Use "int" as the tag type for enums
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
+    \\  --emulate=[clang|gcc|msvc]
+    \\                          Select which C compiler to emulate (default clang)
     \\  -o <file>               Write output to <file>
     \\  -pedantic               Warn on language extensions
     \\  -std=<standard>         Specify language standard
@@ -197,6 +203,13 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
                     path = args[i];
                 }
                 try comp.system_include_dirs.append(path);
+            } else if (mem.startsWith(u8, arg, "--emulate=")) {
+                const compiler_str = arg["--emulate=".len..];
+                const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
+                    try comp.diag.add(.{ .tag = .cli_invalid_emulate, .extra = .{ .str = arg } }, &.{});
+                    continue;
+                };
+                comp.langopts.setEmulatedCompiler(compiler);
             } else if (mem.startsWith(u8, arg, "-o")) {
                 var file = arg["-o".len..];
                 if (file.len == 0) {
@@ -226,14 +239,17 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
             } else if (mem.startsWith(u8, arg, "-std=")) {
                 const standard = arg["-std=".len..];
                 comp.langopts.setStandard(standard) catch
-                    try comp.diag.add(.{ .tag = .cli_invalid_standard, .extra = .{ .str = standard } }, &.{});
+                    try comp.diag.add(.{ .tag = .cli_invalid_standard, .extra = .{ .str = arg } }, &.{});
             } else if (mem.startsWith(u8, arg, "--target=")) {
                 const triple = arg["--target=".len..];
                 const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch {
-                    try comp.diag.add(.{ .tag = .cli_invalid_target, .extra = .{ .str = triple } }, &.{});
+                    try comp.diag.add(.{ .tag = .cli_invalid_target, .extra = .{ .str = arg } }, &.{});
                     continue;
                 };
                 comp.target = cross.toTarget(); // TODO deprecated
+                if (comp.target.abi == .msvc or comp.target.os.tag == .windows) {
+                    comp.langopts.setEmulatedCompiler(.msvc);
+                }
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 comp.verbose_ast = true;
             } else {

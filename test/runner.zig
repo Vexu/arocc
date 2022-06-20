@@ -131,6 +131,11 @@ pub fn main() !void {
 
     try initial_comp.include_dirs.append(cases_include_dir);
 
+    const cases_next_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include", "next" });
+    defer gpa.free(cases_next_include_dir);
+
+    try initial_comp.include_dirs.append(cases_next_include_dir);
+
     try initial_comp.addDefaultPragmaHandlers();
     try initial_comp.defineSystemIncludes();
 
@@ -230,7 +235,11 @@ pub fn main() !void {
                 const expaned_path = try std.fs.path.join(gpa, &.{ args[1], "expanded", std.fs.path.basename(path) });
                 defer gpa.free(expaned_path);
 
-                break :blk try std.fs.cwd().readFileAlloc(gpa, expaned_path, std.math.maxInt(u32));
+                break :blk std.fs.cwd().readFileAlloc(gpa, expaned_path, std.math.maxInt(u32)) catch |err| {
+                    fail_count += 1;
+                    progress.log("could not open expanded file '{s}': {s}\n", .{ path, @errorName(err) });
+                    continue;
+                };
             };
             defer gpa.free(expected_output);
 

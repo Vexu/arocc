@@ -106,7 +106,7 @@ typedef struct {
 
 __attribute__(()) // test attribute at eof
 
-#define TESTS_SKIPPED 5
+#define TESTS_SKIPPED 4
 
 #define EXPECTED_ERRORS \
 	/* "attributes.c:8:26: warning: Attribute 'noreturn' ignored in variable context [-Wignored-attributes]" */ \

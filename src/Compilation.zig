@@ -495,6 +495,26 @@ fn generateVaListType(comp: *Compilation) !Type {
     return ty;
 }
 
+pub fn minInt(comp: *const Compilation) i64 {
+    const ty = Type{ .specifier = .int };
+    return switch (ty.sizeof(comp).?) {
+        2 => std.math.minInt(i16),
+        4 => std.math.minInt(i32),
+        8 => std.math.minInt(i64),
+        else => unreachable,
+    };
+}
+
+pub fn maxInt(comp: *const Compilation) u64 {
+    const ty = Type{ .specifier = .int };
+    return switch (ty.sizeof(comp).?) {
+        2 => std.math.maxInt(i16),
+        4 => std.math.maxInt(i32),
+        8 => std.math.maxInt(i64),
+        else => unreachable,
+    };
+}
+
 fn generateIntMax(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {
     const bit_count = @intCast(u8, ty.sizeof(comp).? * 8);
     const unsigned = ty.isUnsignedInt(comp);
@@ -724,9 +744,49 @@ pub fn hasInclude(comp: *const Compilation, filename: []const u8, cwd_source_id:
     return false;
 }
 
-pub fn findInclude(comp: *Compilation, filename: []const u8, cwd_source_id: ?Source.Id) !?Source {
+pub const WhichInclude = enum {
+    first,
+    next,
+};
+
+pub const IncludeType = enum {
+    quotes,
+    angle_brackets,
+};
+
+pub fn findInclude(
+    comp: *Compilation,
+    filename: []const u8,
+    includer_token_source: Source.Id,
+    include_type: IncludeType,
+    which: WhichInclude,
+) !?Source {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    if (std.fs.path.isAbsolute(filename)) {
+        if (which == .next) return null;
+        return if (comp.addSourceFromPath(filename)) |some|
+            some
+        else |err| switch (err) {
+            error.OutOfMemory => |e| return e,
+            else => null,
+        };
+    }
+    const cwd_source_id = switch (include_type) {
+        .quotes => switch (which) {
+            .first => includer_token_source,
+            .next => null,
+        },
+        .angle_brackets => null,
+    };
     var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
+
+    if (which == .next) {
+        const path = comp.getSource(includer_token_source).path;
+        const includer_path = std.fs.path.dirname(path) orelse ".";
+        while (it.next()) |dir| {
+            if (mem.eql(u8, includer_path, dir)) break;
+        }
+    }
 
     while (it.nextWithFile(filename)) |path| {
         if (comp.addSourceFromPath(path)) |some|

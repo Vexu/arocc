@@ -68,6 +68,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!*Object {
             .static_var,
             .threadlocal_var,
             .threadlocal_static_var,
+            .implicit_static_var,
             => c.genVar(decl) catch |err| switch (err) {
                 error.FatalError => return error.FatalError,
                 error.OutOfMemory => return error.OutOfMemory,
