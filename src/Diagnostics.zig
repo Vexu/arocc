@@ -1461,6 +1461,11 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const cli_invalid_emulate = struct {
+        const msg = "invalid compiler '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
     const cli_unknown_arg = struct {
         const msg = "unknown argument '{s}'";
         const extra = .str;
