@@ -99,12 +99,20 @@ pub fn findSymbol(s: *SymbolStack, p: *Parser, name_tok: TokenIndex) ?Symbol {
     return null;
 }
 
-pub fn findTag(s: *SymbolStack, p: *Parser, kind: Token.Id, name_tok: TokenIndex) !?Symbol {
+pub fn findTag(
+    s: *SymbolStack,
+    p: *Parser,
+    kind: Token.Id,
+    name_tok: TokenIndex,
+    next_tok_id: Token.Id,
+) !?Symbol {
     const name = p.tokSlice(name_tok);
     const kinds = s.syms.items(.kind);
     const names = s.syms.items(.name);
+    // `tag Name;` should always result in a new type if in a new scope.
+    const end = if (next_tok_id == .semicolon) s.scopeEnd() else 0;
     var i = s.syms.len;
-    while (i > 0) {
+    while (i > end) {
         i -= 1;
         switch (kinds[i]) {
             .@"enum" => if (mem.eql(u8, names[i], name)) {
@@ -123,7 +131,7 @@ pub fn findTag(s: *SymbolStack, p: *Parser, kind: Token.Id, name_tok: TokenIndex
         }
     } else return null;
 
-    if (i <= s.scopeEnd()) return null;
+    if (i < s.scopeEnd()) return null;
     try p.errStr(.wrong_tag, name_tok, name);
     try p.errTok(.previous_definition, s.syms.items(.tok)[i]);
     return null;

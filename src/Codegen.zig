@@ -39,6 +39,9 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!*Object {
             .struct_decl,
             .union_decl,
             .enum_decl,
+            .struct_forward_decl,
+            .union_forward_decl,
+            .enum_forward_decl,
             => {},
 
             // define symbol
