@@ -2051,6 +2051,8 @@ fn enumSpec(p: *Parser) Error!Type {
 
 const Enumerator = struct {
     res: Result,
+    num_positive_bits: usize = 0,
+    num_negative_bits: usize = 0,
 
     fn init(p: *Parser) Enumerator {
         // Enumerator value is captured after increment in p.enumerator(), and we want the first enumeration constant
@@ -2119,6 +2121,12 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 
     var res = e.res;
     res.ty = try p.withAttributes(res.ty, attr_buf_top);
+
+    if (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, Value.int(0), res.ty, p.comp)) {
+        e.num_positive_bits = std.math.max(e.num_positive_bits, res.val.minUnsignedBits(res.ty, p.comp));
+    } else {
+        e.num_negative_bits = std.math.max(e.num_negative_bits, res.val.minSignedBits(res.ty, p.comp));
+    }
 
     if (err_start == p.comp.diag.list.items.len) {
         // only do these warnings if we didn't already warn about overflow or non-representable values
