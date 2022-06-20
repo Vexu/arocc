@@ -97,8 +97,8 @@ int baz;
 {
 }
 
-_Static_assert(sizeof(struct S2) == 4, "sizeof aligned struct"); // TODO :should be 8
-_Static_assert(_Alignof(union U1) == 4, "_Alignof aligned union"); // TODO :should be 8
+_Static_assert(sizeof(struct S2) == 8, "sizeof aligned struct");
+_Static_assert(_Alignof(union U1) == 8, "_Alignof aligned union");
 
 typedef struct {
     short i:1 __attribute__((aligned(8)));

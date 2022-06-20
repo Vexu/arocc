@@ -1724,7 +1724,7 @@ fn recordSpec(p: *Parser) Error!*Type.Record {
     }
 
     if( !ty.hasIncompleteSize() ) {
-        const rl = @import("RecordLayout.zig");
+        const rl = @import("record_layout.zig");
 
         rl.recordLayout(&ty, p );
     }

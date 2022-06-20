@@ -54,7 +54,7 @@ pub fn computeLayout(ty: *Type, p: *const Parser, type_layout: *TypeLayout) void
         layoutEnum(ty, p.pp.comp, type_layout);
     } else {
         type_layout.size_bits = @intCast(u29, ty.bitSizeof(p.pp.comp).?);
-        type_layout.pointer_alignment_bits = std.math.max(rawAlignOf(ty, p.pp.comp) * BITS_PER_BYTE, type_layout.size_bits);
+        type_layout.pointer_alignment_bits = rawAlignOf(ty, p.pp.comp) * BITS_PER_BYTE;
         type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
         type_layout.required_alignmnet_bits = BITS_PER_BYTE;
         // std.debug.print("basic layout of {s} is {any}\n", .{ty.specifier, type_layout  });
@@ -87,11 +87,11 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
         .attr_packed =  ty.isPacked(),
         .max_field_align_bits = pack_value,
         .aligned_bits = req_align,
-        .is_union = ty.specifier == .@"union",
+        .is_union = record_ty.specifier == .@"union",
         .size_bits = 0,
     };
 
-    // std.debug.print("new-record {s} context {any}\n", .{rec.name, record_context});
+    // std.debug.print("new-record {s} {any}\n", .{rec.name, record_context});
 
     for (rec.fields) |*fld| {
     
@@ -250,12 +250,14 @@ fn layoutBitField(
             var does_field_cross_boundary = first_unused_bit % ty_fld_algn_bits + bit_width > ty_size_bits;
 
             if (does_field_cross_boundary)
+                // std.debug.print("clagn cross boundary", .{});
                 field_align_bits = std.math.max(field_align_bits, ty_fld_algn_bits);
         }
     }
 
     var offset_bits = alignTo(first_unused_bit, field_align_bits);
     record_context.size_bits = std.math.max(record_context.size_bits, offset_bits + bit_width);
+    // std.debug.print("bw:{} fub:{} fab:{} ob:{} rc.sb:{}\n", .{bit_width, first_unused_bit, field_align_bits, offset_bits, record_context.size_bits});
 
     // Unnamed fields do not contribute to the record alignment except on a few targets.
     // See test case 0079.
@@ -272,11 +274,12 @@ fn layoutBitField(
             // record is ignored. See test case 0076.
             inherited_align_bits = std.math.max( ty_fld_algn_bits, annotation_alignment );
             inherited_align_bits = std.math.min( inherited_align_bits, max_align_bits);
-            std.debug.print("inhb:{} ty_fld:{} aa:{} max:{}\n", .{inherited_align_bits, ty_fld_algn_bits, annotation_alignment, max_align_bits});
+            // std.debug.print("inhb:{} ty_fld:{} aa:{} max:{}\n", .{inherited_align_bits, ty_fld_algn_bits, annotation_alignment, max_align_bits});
         } else if( attr_packed ) {
             // Otherwise, if the field or the record is packed, the field alignment is 1 bit unless
             // it is explicitly increased with __attribute__((aligned)). See test case 0077.
             inherited_align_bits = annotation_alignment;
+            // std.debug.print("attr_packed inh:{}\n", .{inherited_align_bits});
         } else {
             // Otherwise, the field alignment is the field alignment of the underlying type unless
             // it is explicitly increased with __attribute__((aligned)). See test case 0078.
@@ -322,7 +325,7 @@ fn layoutArray(ty: *const Type, p: *const Parser, type_layout: *TypeLayout) void
 fn layoutEnum(ty: *const Type, comp: *const Compilation, type_layout: *TypeLayout) void {
     std.debug.assert(ty.isEnum());
 
-    var alignment = rawAlignOf(ty, comp);
+    var alignment = ty.alignof(comp);
 
     type_layout.size_bits = @intCast(u29, ty.bitSizeof(comp).?);
     type_layout.pointer_alignment_bits = alignment * BITS_PER_BYTE;
@@ -340,7 +343,9 @@ fn layoutEnum(ty: *const Type, comp: *const Compilation, type_layout: *TypeLayou
 
 
 fn alignTo(n: u29, m: u29) u29 {
-    assert(std.math.isPowerOfTwo(m));
+    if( !std.math.isPowerOfTwo(m) ) {
+        std.debug.panic("align pow fail. n:{} m:{}\n", .{n,m});
+    }
     var mask = m - 1;
     var res: u29 = 0;
     if (@addWithOverflow(u29, n, mask, &res)) {
@@ -353,18 +358,15 @@ fn alignTo(n: u29, m: u29) u29 {
 
 
 fn annotationAlignment(ty:*const Type, comp: *const Compilation ) ?u29 {
-    // var req_align:?u29 = null;
-    // if(ty.getAttribute(.aligned)) |args| {
-    //     if( args.alignment ) |al| {
-    //         req_align = al.requested * BITS_PER_BYTE;
-    //     } else {
-    //         req_align = comp.defaultAlignment();
-    //     }
-    // }
-    // return req_align;
-    _=ty;
-    _=comp;
-    return null;
+    var req_align:?u29 = null;
+    if(ty.getAttribute(.aligned)) |args| {
+        if( args.alignment ) |al| {
+            req_align = al.requested * BITS_PER_BYTE;
+        } else {
+            req_align = comp.defaultAlignment() * BITS_PER_BYTE;
+        }
+    }
+    return req_align;
 }
 
 
