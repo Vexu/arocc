@@ -1379,8 +1379,9 @@ fn expandMacroExhaustive(
                             break :macro_handler;
                         },
                         error.Unterminated => {
+                            if (pp.comp.langopts.emulate == .gcc) idx += 1;
                             const tokens_removed = macro_scan_idx - idx;
-                            for (buf.items[idx .. idx + tokens_removed]) |tok| Token.free(tok.expansion_locs, pp.gpa);
+                            for (buf.items[idx..][0..tokens_removed]) |tok| Token.free(tok.expansion_locs, pp.gpa);
                             try buf.replaceRange(idx, tokens_removed, &.{});
                             moving_end_idx -|= tokens_removed;
                             break :macro_handler;
