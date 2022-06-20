@@ -127,6 +127,12 @@ struct A {
 } a1;
 struct B b1;
 
+void qux(void) {
+    enum A;
+    struct A e;
+}
+struct A;
+struct A a2;
 
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
@@ -150,3 +156,6 @@ struct B b1;
     "containers.c:106:9: error: flexible array member is not at the end of struct" \
     "containers.c:116:9: error: flexible array member in union is not allowed" \
     "containers.c:120:19: error: field has incomplete type 'enum EnumTest1'" \
+    "containers.c:132:12: error: use of 'A' with tag type that does not match previous definition" \
+    "containers.c:131:10: note: previous definition is here" \
+    "containers.c:132:14: error: variable has incomplete type 'struct A'" \

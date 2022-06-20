@@ -214,6 +214,12 @@ pub const Tag = enum(u8) {
     union_decl,
     /// { range }
     enum_decl,
+    /// struct Name;
+    struct_forward_decl,
+    /// union Name;
+    union_forward_decl,
+    /// enum Name;
+    enum_forward_decl,
 
     /// name = node
     enum_field_decl,
@@ -1164,6 +1170,11 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.print("{d}\n", .{data.int});
             util.setColor(.reset, w);
         },
-        .default_init_expr, .cond_dummy_expr => {},
+        .struct_forward_decl,
+        .union_forward_decl,
+        .enum_forward_decl,
+        .default_init_expr,
+        .cond_dummy_expr,
+        => {},
     }
 }

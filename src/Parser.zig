@@ -1637,7 +1637,7 @@ fn recordSpec(p: *Parser) Error!Type {
             return error.ParsingFailed;
         };
         // check if this is a reference to a previous type
-        if (try p.syms.findTag(p, p.tok_ids[kind_tok], ident)) |prev| {
+        if (try p.syms.findTag(p, p.tok_ids[kind_tok], ident, p.tok_ids[p.tok_i])) |prev| {
             return prev.ty;
         } else {
             // this is a forward declaration, create a new record Type.
@@ -1653,6 +1653,11 @@ fn recordSpec(p: *Parser) Error!Type {
                 .ty = ty,
                 .val = .{},
             });
+            try p.decl_buf.append(try p.addNode(.{
+                .tag = if (is_struct) .struct_forward_decl else .union_forward_decl,
+                .ty = ty,
+                .data = undefined,
+            }));
             return ty;
         }
     };
@@ -1944,7 +1949,7 @@ fn enumSpec(p: *Parser) Error!Type {
             return error.ParsingFailed;
         };
         // check if this is a reference to a previous type
-        if (try p.syms.findTag(p, .keyword_enum, ident)) |prev| {
+        if (try p.syms.findTag(p, .keyword_enum, ident, p.tok_ids[p.tok_i])) |prev| {
             return prev.ty;
         } else {
             // this is a forward declaration, create a new enum Type.
@@ -1960,6 +1965,11 @@ fn enumSpec(p: *Parser) Error!Type {
                 .ty = ty,
                 .val = .{},
             });
+            try p.decl_buf.append(try p.addNode(.{
+                .tag = .enum_forward_decl,
+                .ty = ty,
+                .data = undefined,
+            }));
             return ty;
         }
     };
