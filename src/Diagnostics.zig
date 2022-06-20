@@ -1810,6 +1810,11 @@ const messages = struct {
         const opt = "enum-too-large";
         const extra = .pow_2_as_string;
     };
+    const enum_too_large = struct {
+        const msg = "enumeration values exceed range of largest integer";
+        const kind = .warning;
+        const opt = "enum-too-large";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
