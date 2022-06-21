@@ -17,8 +17,16 @@ _Static_assert(F == 9223372036854775807LL, "F");
 _Static_assert(G == 9223372036854775808ULL, "G");
 _Static_assert(H == 18446744073709551615ULL, "H");
 
-#if __INT_MAX__ == 2147483647 && __LONG_LONG_MAX__ == 9223372036854775807
+#if __INT_MAX__ == 2147483647 && __LONG_MAX__ == 9223372036854775807 && __LONG_LONG_MAX__ == 9223372036854775807
+// Mac & Linux
 #define EXPECTED_ERRORS "enum overflow.c:3:5: warning: overflow in enumeration value" \
+    "enum overflow.c:7:5: warning: incremented enumerator value 9223372036854775808 is not representable in the largest integer type [-Wenum-too-large]" \
+    "enum overflow.c:9:5: warning: incremented enumerator value 18446744073709551616 is not representable in the largest integer type [-Wenum-too-large]" \
+
+#elif __INT_MAX__ == 2147483647 && __LONG_MAX__ == 2147483647 && __LONG_LONG_MAX__ == 9223372036854775807
+//Windows
+#define EXPECTED_ERRORS "enum overflow.c:3:5: warning: overflow in enumeration value" \
+    "enum overflow.c:5:5: warning: overflow in enumeration value" \
     "enum overflow.c:7:5: warning: incremented enumerator value 9223372036854775808 is not representable in the largest integer type [-Wenum-too-large]" \
     "enum overflow.c:9:5: warning: incremented enumerator value 18446744073709551616 is not representable in the largest integer type [-Wenum-too-large]" \
 
