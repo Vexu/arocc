@@ -2019,7 +2019,9 @@ fn enumSpec(p: *Parser) Error!Type {
         .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
         attr_buf_top,
     );
-    enum_ty.tag_ty = try e.tagType(p, ty.hasAttribute(.@"packed") or p.comp.langopts.short_enums, maybe_ident orelse enum_tok);
+    const is_packed = ty.hasAttribute(.@"packed") or p.comp.langopts.short_enums;
+    const tag_spec = try e.tagSpec(p, is_packed, maybe_ident orelse enum_tok);
+    enum_ty.tag_ty = .{ .specifier = tag_spec };
 
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
@@ -2086,60 +2088,38 @@ const Enumerator = struct {
         // TODO adjust res type to try to fit with the previous type
     }
 
-    fn tagType(e: *Enumerator, p: *Parser, is_packed: bool, tok: TokenIndex) !Type {
-        var best_type: Type = undefined;
-        var best_width: u64 = undefined;
-        var best_promotion_type: Type = undefined;
+    fn tagSpec(e: *const Enumerator, p: *Parser, is_packed: bool, tok: TokenIndex) !Type.Specifier {
         const char_width = (Type{ .specifier = .schar }).sizeof(p.comp).? * 8;
         const short_width = (Type{ .specifier = .short }).sizeof(p.comp).? * 8;
         const int_width = (Type{ .specifier = .int }).sizeof(p.comp).? * 8;
         if (e.num_negative_bits > 0) {
             if (is_packed and e.num_negative_bits <= char_width and e.num_positive_bits < char_width) {
-                best_type = .{ .specifier = .schar };
-                best_width = char_width;
+                return .schar;
             } else if (is_packed and e.num_negative_bits <= short_width and e.num_positive_bits < short_width) {
-                best_type = .{ .specifier = .short };
-                best_width = short_width;
+                return .short;
             } else if (e.num_negative_bits <= int_width and e.num_positive_bits < int_width) {
-                best_type = .{ .specifier = .int };
-                best_width = int_width;
-            } else {
-                best_width = (Type{ .specifier = .long }).sizeof(p.comp).? * 8;
-                if (e.num_negative_bits <= best_width and e.num_positive_bits < best_width) {
-                    best_type = .{ .specifier = .long };
-                } else {
-                    best_width = (Type{ .specifier = .long_long }).sizeof(p.comp).? * 8;
-                    if (e.num_negative_bits > best_width or e.num_positive_bits >= best_width) {
-                        try p.errTok(.enum_too_large, tok);
-                    }
-                    best_type = .{ .specifier = .long_long };
-                }
+                return .int;
             }
-            best_promotion_type = if (best_width <= int_width) .{ .specifier = .int } else best_type;
-        } else {
-            if (is_packed and e.num_positive_bits <= char_width) {
-                best_type = .{ .specifier = .uchar };
-                best_width = char_width;
-                best_promotion_type = .{ .specifier = .int };
-            } else if (is_packed and e.num_positive_bits <= short_width) {
-                best_type = .{ .specifier = .ushort };
-                best_width = short_width;
-                best_promotion_type = .{ .specifier = .int };
-            } else if (e.num_positive_bits <= int_width) {
-                best_type = .{ .specifier = .uint };
-                best_width = int_width;
-                best_promotion_type = best_type;
-            } else if (e.num_positive_bits <= (Type{ .specifier = .long }).sizeof(p.comp).? * 8) {
-                best_type = .{ .specifier = .ulong };
-                best_width = (Type{ .specifier = .long }).sizeof(p.comp).? * 8;
-                best_promotion_type = best_type;
-            } else {
-                best_type = .{ .specifier = .ulong_long };
-                best_width = best_type.sizeof(p.comp).? * 8;
-                best_promotion_type = best_type;
+            const long_width = (Type{ .specifier = .long }).sizeof(p.comp).? * 8;
+            if (e.num_negative_bits <= long_width and e.num_positive_bits < long_width) {
+                return .long;
             }
+            const long_long_width = (Type{ .specifier = .long_long }).sizeof(p.comp).? * 8;
+            if (e.num_negative_bits > long_long_width or e.num_positive_bits >= long_long_width) {
+                try p.errTok(.enum_too_large, tok);
+            }
+            return .long_long;
         }
-        return best_type;
+        if (is_packed and e.num_positive_bits <= char_width) {
+            return .uchar;
+        } else if (is_packed and e.num_positive_bits <= short_width) {
+            return .ushort;
+        } else if (e.num_positive_bits <= int_width) {
+            return .uint;
+        } else if (e.num_positive_bits <= (Type{ .specifier = .long }).sizeof(p.comp).? * 8) {
+            return .ulong;
+        }
+        return .ulong_long;
     }
 };
 
