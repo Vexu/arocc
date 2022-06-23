@@ -2020,8 +2020,8 @@ fn enumSpec(p: *Parser) Error!Type {
         attr_buf_top,
     );
     const is_packed = ty.hasAttribute(.@"packed") or p.comp.langopts.short_enums;
-    const tag_spec = try e.tagSpec(p, is_packed, maybe_ident orelse enum_tok);
-    enum_ty.tag_ty = .{ .specifier = tag_spec };
+    const tag_specifier = try e.getTypeSpecifier(p, is_packed, maybe_ident orelse enum_tok);
+    enum_ty.tag_ty = .{ .specifier = tag_specifier };
 
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
@@ -2088,7 +2088,7 @@ const Enumerator = struct {
         // TODO adjust res type to try to fit with the previous type
     }
 
-    fn tagSpec(e: *const Enumerator, p: *Parser, is_packed: bool, tok: TokenIndex) !Type.Specifier {
+    fn getTypeSpecifier(e: *const Enumerator, p: *Parser, is_packed: bool, tok: TokenIndex) !Type.Specifier {
         const char_width = (Type{ .specifier = .schar }).sizeof(p.comp).? * 8;
         const short_width = (Type{ .specifier = .short }).sizeof(p.comp).? * 8;
         const int_width = (Type{ .specifier = .int }).sizeof(p.comp).? * 8;
