@@ -752,18 +752,25 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
 }
 
 pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
-    return switch (ty.specifier) {
-        .bool => 1,
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
-        .attributed => ty.data.attributed.base.bitSizeof(comp),
-        else => 8 * (ty.sizeof(comp) orelse return null),
-    };
+    var sz = ty.sizeof(comp) orelse return null;
+    return 8 * sz;
 }
 
 /// Get the alignment of a type
 pub fn alignof(ty: Type, comp: *const Compilation) u29 {
-    if (ty.requestedAlignment(comp)) |requested| return requested;
+
+    
+    if (ty.requestedAlignment(comp)) |requested| {
+        
+        // don't return the attribute for records that have already been laid out
+        if( ty.getRecord()) |rec_ty| {
+            const rec = rec_ty.data.record;
+            if( !rec.isIncomplete() ) {
+                return rec.alignment;
+            }
+        }
+        return requested;
+    }
 
     // TODO get target from compilation
     return switch (ty.specifier) {

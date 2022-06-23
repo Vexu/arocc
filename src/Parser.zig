@@ -4828,7 +4828,7 @@ fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
 ///  | '(' typeName ')' '{' initializerItems '}'
 ///  | __builtin_choose_expr '(' constExpr ',' assignExpr ',' assignExpr ')'
 ///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
-///  | __builtin_offsetof '(' typeName ',' offsetofMemberDesignator ')'
+///  | __builtin_bitoffsetof '(' typeName ',' offsetofMemberDesignator ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| cast_expr: {
@@ -4919,7 +4919,7 @@ fn castExpr(p: *Parser) Error!Result {
     switch (p.tok_ids[p.tok_i]) {
         .builtin_choose_expr => return p.builtinChooseExpr(),
         .builtin_va_arg => return p.builtinVaArg(),
-        .builtin_offsetof => return p.builtinOffsetof(),
+        .builtin_bitoffsetof => return p.builtinBitOffsetof(),
         // TODO: other special-cased builtins
         else => {},
     }
@@ -4993,7 +4993,7 @@ fn builtinVaArg(p: *Parser) Error!Result {
     }) };
 }
 
-fn builtinOffsetof(p: *Parser) Error!Result {
+fn builtinBitOffsetof(p: *Parser) Error!Result {
     const builtin_tok = p.tok_i;
     p.tok_i += 1;
 
@@ -5007,11 +5007,11 @@ fn builtinOffsetof(p: *Parser) Error!Result {
     };
 
     if (!ty.isRecord()) {
-        try p.errStr(.offsetof_ty, ty_tok, try p.typeStr(ty));
+        try p.errStr(.bitoffsetof_ty, ty_tok, try p.typeStr(ty));
         p.skipTo(.r_paren);
         return error.ParsingFailed;
     } else if (ty.hasIncompleteSize()) {
-        try p.errStr(.offsetof_incomplete, ty_tok, try p.typeStr(ty));
+        try p.errStr(.bitoffsetof_incomplete, ty_tok, try p.typeStr(ty));
         p.skipTo(.r_paren);
         return error.ParsingFailed;
     }
@@ -5052,7 +5052,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
             const field_name = p.tokSlice(field_name_tok);
 
             if (!lhs.ty.isRecord()) {
-                try p.errStr(.offsetof_ty, field_name_tok, try p.typeStr(lhs.ty));
+                try p.errStr(.bitoffsetof_ty, field_name_tok, try p.typeStr(lhs.ty));
                 return error.ParsingFailed;
             }
             try p.validateFieldAccess(lhs.ty, lhs.ty, field_name_tok, field_name);
@@ -5067,7 +5067,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
             _ = try p.expectClosing(l_bracket_tok, .r_bracket);
 
             if (!lhs.ty.isArray()) {
-                try p.errStr(.offsetof_array, l_bracket_tok, try p.typeStr(lhs.ty));
+                try p.errStr(.bitoffsetof_array, l_bracket_tok, try p.typeStr(lhs.ty));
                 return error.ParsingFailed;
             }
             var ptr = lhs;
@@ -5497,7 +5497,8 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
 }
 
 fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: []const u8, is_arrow: bool, offset_bits:*usize) Error!Result {
-    for (record_ty.data.record.fields) |f, i| {
+    var inner_ty = record_ty.getRecord() orelse std.debug.panic("\nfieldAccessExtra called w/ non-record type: {any}\n",.{record_ty});
+    for (inner_ty.data.record.fields) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
             const inner = try p.addNode(.{
