@@ -201,7 +201,7 @@ pub fn main() !void {
             // for now we're just going CLANG and Target::X86_64UnknownLinuxGnu
             // aro ignores the first arg in the list?
             try cmd_args.append("-DD");
-            try cmd_args.append("-DX8664_UNKNOWN_LINUX_GNU");
+            try cmd_args.append("-DX8664_UNKNOWN_LINUX_MUSL");
             try cmd_args.append("-DCHECK_OFFSETS");
             if (!skip_extras) try cmd_args.append("-DEXTRA_TESTS");
             try cmd_args.append("-Wno-ignored-pragmas");

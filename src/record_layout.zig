@@ -35,7 +35,7 @@ const int_type = Type{ .specifier = .int };
 
 pub const BITS_PER_BYTE: u29 = 8;
 
-pub fn computeLayout(ty: *Type, p: *const Parser, type_layout: *TypeLayout) void {
+pub fn computeLayout(ty: Type, p: *const Parser, type_layout: *TypeLayout) void {
     if (ty.isRecord()) {
         const record_ty = ty.getRecord() orelse unreachable;
         const rec = record_ty.data.record;
@@ -51,7 +51,7 @@ pub fn computeLayout(ty: *Type, p: *const Parser, type_layout: *TypeLayout) void
         layoutEnum(ty, p.pp.comp, type_layout);
     } else {
         type_layout.size_bits = @intCast(u29, ty.bitSizeof(p.pp.comp).?);
-        type_layout.pointer_alignment_bits = rawAlignOf(ty, p.pp.comp) * BITS_PER_BYTE;
+        type_layout.pointer_alignment_bits = ty.rawAlignOf(p.pp.comp) * BITS_PER_BYTE;
         type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
         type_layout.required_alignmnet_bits = BITS_PER_BYTE;
     }
@@ -90,7 +90,7 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
             .required_alignmnet_bits = 0,
         };
         // recursion
-        computeLayout(&fld.ty, p, &type_layout);
+        computeLayout(fld.ty, p, &type_layout);
 
         if (fld.bit_width != null) {
             layoutBitField(p.pp.comp, fld, &type_layout, &record_context);
@@ -251,7 +251,7 @@ fn layoutBitField(
     fld.layout.offset_bits = offset_bits;
 }
 
-fn layoutArray(ty: *const Type, p: *const Parser, type_layout: *TypeLayout) void {
+fn layoutArray(ty: Type, p: *const Parser, type_layout: *TypeLayout) void {
     var ar_ty = ty.getArray() orelse unreachable; // strip any alignment / typedef
 
     if (ar_ty.data.array.len > std.math.maxInt(u29)) {
@@ -260,7 +260,7 @@ fn layoutArray(ty: *const Type, p: *const Parser, type_layout: *TypeLayout) void
     }
     const a_len = @intCast(u29, ar_ty.data.array.len);
 
-    computeLayout(&ar_ty.data.array.elem, p, type_layout);
+    computeLayout(ar_ty.data.array.elem, p, type_layout);
 
     var full_size: u29 = 0;
     if (@mulWithOverflow(u29, type_layout.size_bits, a_len, &full_size)) {
@@ -272,7 +272,7 @@ fn layoutArray(ty: *const Type, p: *const Parser, type_layout: *TypeLayout) void
     type_layout.pointer_alignment_bits = type_layout.field_alignment_bits;
 }
 
-fn layoutEnum(ty: *const Type, comp: *const Compilation, type_layout: *TypeLayout) void {
+fn layoutEnum(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
     std.debug.assert(ty.isEnum());
 
     var alignment = ty.alignof(comp);
@@ -316,14 +316,6 @@ fn annotationAlignment(ty: *const Type, comp: *const Compilation) ?u29 {
     return req_align;
 }
 
-fn rawAlignOf(ty: *const Type, comp: *const Compilation) u29 {
-    return switch (ty.specifier) {
-        .typeof_type, .decayed_typeof_type => rawAlignOf(ty.data.sub_type, comp),
-        .typeof_expr, .decayed_typeof_expr => rawAlignOf(&ty.data.expr.ty, comp),
-        .attributed => rawAlignOf(&ty.data.attributed.base, comp),
-        else => ty.alignof(comp),
-    };
-}
 
 //
 // TODO: Move all these to Compilation?

@@ -19,6 +19,7 @@ const CharInfo = @import("CharInfo.zig");
 const Value = @import("Value.zig");
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
+const RecordLayout = @import("record_layout.zig");
 
 const Parser = @This();
 
@@ -1743,9 +1744,8 @@ fn recordSpec(p: *Parser) Error!Type {
     }
 
     if (!ty.hasIncompleteSize()) {
-        const rl = @import("record_layout.zig");
 
-        rl.recordLayout(&ty, p);
+        RecordLayout.recordLayout(&ty, p);
     }
 
     // finish by creating a node

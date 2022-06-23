@@ -817,6 +817,17 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
     };
 }
 
+// get alignment ignoring any annotations/attributions
+pub fn rawAlignOf(ty: Type, comp: *const Compilation) u29 {
+    return switch (ty.specifier) {
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.rawAlignOf(comp),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.rawAlignOf(comp),
+        .attributed => ty.data.attributed.base.rawAlignOf(comp),
+        else => ty.alignof(comp),
+    };
+}
+
+
 /// Canonicalize a possibly-typeof() type. If the type is not a typeof() type, simply
 /// return it. Otherwise, determine the actual qualified type.
 /// The `qual_handling` parameter can be used to return the full set of qualifiers
