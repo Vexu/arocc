@@ -2061,6 +2061,8 @@ const Enumerator = struct {
     },
     num_positive_bits: usize = 0,
     num_negative_bits: usize = 0,
+    /// TODO: support `enum E : TYPE { ... }` syntax (clang and MSVC only) and store specifier here
+    tag_specifier: ?Type.Specifier = null,
 
     /// Increment enumerator value adjusting type if needed.
     fn incr(e: *Enumerator, p: *Parser, tok: TokenIndex) !void {
@@ -2089,6 +2091,8 @@ const Enumerator = struct {
     }
 
     fn getTypeSpecifier(e: *const Enumerator, p: *Parser, is_packed: bool, tok: TokenIndex) !Type.Specifier {
+        if (e.tag_specifier orelse p.comp.fixedEnumTagSpecifier()) |tag_specifier| return tag_specifier;
+
         const char_width = (Type{ .specifier = .schar }).sizeof(p.comp).? * 8;
         const short_width = (Type{ .specifier = .short }).sizeof(p.comp).? * 8;
         const int_width = (Type{ .specifier = .int }).sizeof(p.comp).? * 8;

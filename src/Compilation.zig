@@ -497,6 +497,19 @@ pub fn nextLargestIntSameSign(comp: *const Compilation, ty: Type) ?Type {
     return null;
 }
 
+/// If `enum E { ... }` syntax has a fixed underlying integer type regardless of the presence of
+/// __attribute__((packed)) or the range of values of the corresponding enumerator constants,
+/// specify it here.
+/// TODO: likely incomplete
+pub fn fixedEnumTagSpecifier(comp: *const Compilation) ?Type.Specifier {
+    switch (comp.langopts.emulate) {
+        .msvc => return .int,
+        .clang => if (comp.target.os.tag == .windows) return .int,
+        .gcc => {},
+    }
+    return null;
+}
+
 pub fn defineSystemIncludes(comp: *Compilation) !void {
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var search_path: []const u8 = std.fs.selfExePath(&buf) catch return error.SelfExeNotFound;
