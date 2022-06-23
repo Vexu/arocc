@@ -183,7 +183,7 @@ fn layoutBitField(
 
     if (bit_width == 0) {
         field_align_bits = std.math.max(ty_fld_algn_bits, annotation_alignment);
-    } else if (comp.mimic == .gcc) {
+    } else if (comp.langopts.emulate == .gcc) {
         std.debug.panic("gcc not working yet", .{});
         field_align_bits = annotation_alignment;
         if (record_context.max_field_align_bits) |max_bits| {
@@ -200,7 +200,7 @@ fn layoutBitField(
             }
         }
     } else {
-        assert(comp.mimic == .clang);
+        assert(comp.langopts.emulate == .clang);
 
         // On Clang, the alignment requested by annotations is not respected if it is
         // larger than the value of #pragma pack. See test case 0083.
@@ -283,7 +283,7 @@ fn layoutEnum(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void
     type_layout.required_alignmnet_bits = BITS_PER_BYTE;
 
     // only clang honers requested alignment
-    if (comp.mimic == .clang) {
+    if (comp.langopts.emulate == .clang) {
         if (ty.requestedAlignment(comp)) |req_align| {
             type_layout.field_alignment_bits = std.math.max(type_layout.field_alignment_bits, req_align);
             type_layout.pointer_alignment_bits = std.math.min(type_layout.pointer_alignment_bits, req_align);
