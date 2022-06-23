@@ -128,6 +128,10 @@ pub const Node = struct {
             field_index: u32,
             node: NodeIndex,
         },
+        cast: struct {
+            operand: NodeIndex,
+            kind: CastKind,
+        },
         int: u64,
 
         pub fn forDecl(data: Data, tree: Tree) struct {
@@ -165,6 +169,75 @@ pub const Node = struct {
     };
 
     pub const List = std.MultiArrayList(Node);
+};
+
+pub const CastKind = enum(u8) {
+    /// Does nothing except possibly add qualifiers
+    no_op,
+    /// Interpret one bit pattern as another. Used for operands which have the same
+    /// size and unrelated types, e.g. casting one pointer type to another
+    bitcast,
+    /// Convert T[] to T *
+    array_to_pointer,
+    /// Converts an lvalue to an rvalue
+    lval_to_rval,
+    /// Convert a function type to a pointer to a function
+    function_to_pointer,
+    /// Convert a pointer type to a _Bool
+    pointer_to_bool,
+    /// Convert a pointer type to an integer type
+    pointer_to_int,
+    /// Convert _Bool to an integer type
+    bool_to_int,
+    /// Convert _Bool to a floating type
+    bool_to_float,
+    /// Convert a _Bool to a pointer; will cause a  warning
+    bool_to_pointer,
+    /// Convert an integer type to _Bool
+    int_to_bool,
+    /// Convert an integer to a floating
+    int_to_float,
+    /// Convert an integer type to a pointer type
+    int_to_pointer,
+    /// Convert a floating type to a _Bool
+    float_to_bool,
+    /// Convert a floating type to an integer
+    float_to_int,
+    /// Convert one integer type to another
+    int_cast,
+    /// Convert one floating type to another
+    float_cast,
+    /// Convert type to void
+    to_void,
+    /// Convert a literal 0 to a null pointer
+    null_to_pointer,
+    /// GNU cast-to-union extension
+    union_cast,
+
+    pub fn fromExplicitCast(to: Type, from: Type, comp: *Compilation) CastKind {
+        if (to.eql(from, comp, false)) return .no_op;
+        if (to.is(.bool)) {
+            if (from.isPtr()) return .pointer_to_bool;
+            if (from.isInt()) return .int_to_bool;
+            if (from.isFloat()) return .float_to_bool;
+        } else if (to.isInt()) {
+            if (from.is(.bool)) return .bool_to_int;
+            if (from.isInt()) return .int_cast;
+            if (from.isPtr()) return .pointer_to_int;
+            if (from.isFloat()) return .float_to_int;
+        } else if (to.isPtr()) {
+            if (from.isArray()) return .array_to_pointer;
+            if (from.isPtr()) return .bitcast;
+            if (from.isFunc()) return .function_to_pointer;
+            if (from.is(.bool)) return .bool_to_pointer;
+            if (from.isInt()) return .int_to_pointer;
+        } else if (to.isFloat()) {
+            if (from.is(.bool)) return .bool_to_float;
+            if (from.isInt()) return .int_to_float;
+            if (from.isFloat()) return .float_cast;
+        }
+        unreachable;
+    }
 };
 
 pub const Tag = enum(u8) {
@@ -341,8 +414,10 @@ pub const Tag = enum(u8) {
     div_expr,
     /// lhs % rhs
     mod_expr,
-    /// Explicit (type)un
-    cast_expr,
+    /// Explicit: (type) cast
+    explicit_cast,
+    /// Implicit: cast
+    implicit_cast,
     /// &un
     addr_of_expr,
     /// &&decl_ref
@@ -428,48 +503,6 @@ pub const Tag = enum(u8) {
     /// (ty){ un }
     compound_literal_expr,
 
-    // ====== Implicit casts ======
-
-    /// Convert T[] to T *
-    array_to_pointer,
-    /// Converts an lvalue to an rvalue
-    lval_to_rval,
-    /// Convert a function type to a pointer to a function
-    function_to_pointer,
-    /// Convert a pointer type to a _Bool
-    pointer_to_bool,
-    /// Convert a pointer type to an integer type
-    pointer_to_int,
-    /// Convert _Bool to an integer type
-    bool_to_int,
-    /// Convert _Bool to a floating type
-    bool_to_float,
-    /// Convert a _Bool to a pointer; will cause a  warning
-    bool_to_pointer,
-    /// Convert an integer type to _Bool
-    int_to_bool,
-    /// Convert an integer to a floating
-    int_to_float,
-    /// Convert an integer type to a pointer type
-    int_to_pointer,
-    /// Convert a floating type to a _Bool
-    float_to_bool,
-    /// Convert a floating type to an integer
-    float_to_int,
-    /// Convert one integer type to another
-    int_cast,
-    /// Convert one floating type to another
-    float_cast,
-    /// Convert pointer to one with same child type but more CV-quals,
-    /// OR to appropriately-qualified void *
-    /// only appears on the branches of a conditional expr
-    qual_cast,
-    /// Convert type to void; only appears on the branches of a conditional expr
-    to_void,
-
-    /// Convert a literal 0 to a null pointer
-    null_to_pointer,
-
     /// Inserted at the end of a function body if no return stmt is found.
     /// ty is the functions return type
     implicit_return,
@@ -489,25 +522,8 @@ pub const Tag = enum(u8) {
 
     pub fn isImplicit(tag: Tag) bool {
         return switch (tag) {
-            .array_to_pointer,
-            .lval_to_rval,
-            .function_to_pointer,
-            .pointer_to_bool,
-            .pointer_to_int,
-            .bool_to_int,
-            .bool_to_float,
-            .bool_to_pointer,
-            .int_to_bool,
-            .int_to_float,
-            .int_to_pointer,
-            .float_to_bool,
-            .float_to_int,
-            .int_cast,
-            .float_cast,
-            .to_void,
+            .implicit_cast,
             .implicit_return,
-            .qual_cast,
-            .null_to_pointer,
             .array_filler_expr,
             .default_init_expr,
             .implicit_static_var,
@@ -613,6 +629,7 @@ fn dumpAttribute(attr: Attribute, writer: anytype) !void {
                 try writer.writeByte('\n');
                 return;
             }
+            try writer.writeByte(' ');
             inline for (@typeInfo(@TypeOf(args)).Struct.fields) |f, i| {
                 if (comptime std.mem.eql(u8, f.name, "__name_tok")) continue;
                 if (i != 0) {
@@ -651,34 +668,38 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
     const ty = tree.nodes.items(.ty)[@enumToInt(node)];
     try w.writeByteNTimes(' ', level);
 
-    util.setColor(if (tag.isImplicit()) IMPLICIT else TAG, w);
+    if (tree.comp.diag.color) util.setColor(if (tag.isImplicit()) IMPLICIT else TAG, w);
     try w.print("{s}: ", .{@tagName(tag)});
-    util.setColor(TYPE, w);
+    if (tag == .implicit_cast or tag == .explicit_cast) {
+        if (tree.comp.diag.color) util.setColor(.white, w);
+        try w.print("({s}) ", .{@tagName(data.cast.kind)});
+    }
+    if (tree.comp.diag.color) util.setColor(TYPE, w);
     try w.writeByte('\'');
     try ty.dump(w);
     try w.writeByte('\'');
 
     if (isLval(tree.nodes, tree.data, tree.value_map, node)) {
-        util.setColor(ATTRIBUTE, w);
+        if (tree.comp.diag.color) util.setColor(ATTRIBUTE, w);
         try w.writeAll(" lvalue");
     }
     if (tree.value_map.get(node)) |val| {
-        util.setColor(LITERAL, w);
+        if (tree.comp.diag.color) util.setColor(LITERAL, w);
         try w.writeAll(" (value: ");
         try val.dump(ty, tree.comp, w);
         try w.writeByte(')');
     }
     try w.writeAll("\n");
-    util.setColor(.reset, w);
+    if (tree.comp.diag.color) util.setColor(.reset, w);
 
     if (ty.specifier == .attributed) {
-        util.setColor(ATTRIBUTE, w);
+        if (tree.comp.diag.color) util.setColor(ATTRIBUTE, w);
         for (ty.data.attributed.attributes) |attr| {
             try w.writeByteNTimes(' ', level + half);
-            try w.print("attr: {s} ", .{@tagName(attr.tag)});
+            try w.print("attr: {s}", .{@tagName(attr.tag)});
             try dumpAttribute(attr, w);
         }
-        util.setColor(.reset, w);
+        if (tree.comp.diag.color) util.setColor(.reset, w);
     }
 
     switch (tag) {
@@ -700,9 +721,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
         },
         .fn_def,
         .static_fn_def,
@@ -711,9 +732,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("body:\n");
             try tree.dumpNode(data.decl.node, level + delta, w);
@@ -729,9 +750,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("init:\n");
@@ -741,9 +762,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .enum_field_decl => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("value:\n");
@@ -754,9 +775,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             if (data.decl.name != 0) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("name: ");
-                util.setColor(NAME, w);
+                if (tree.comp.diag.color) util.setColor(NAME, w);
                 try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
-                util.setColor(.reset, w);
+                if (tree.comp.diag.color) util.setColor(.reset, w);
             }
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
@@ -792,9 +813,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .union_init_expr => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("field index: ");
-            util.setColor(LITERAL, w);
+            if (tree.comp.diag.color) util.setColor(LITERAL, w);
             try w.print("{d}\n", .{data.union_init.field_index});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
             if (data.union_init.node != .none) {
                 try tree.dumpNode(data.union_init.node, level + delta, w);
             }
@@ -805,9 +826,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .labeled_stmt => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("label: ");
-            util.setColor(LITERAL, w);
+            if (tree.comp.diag.color) util.setColor(LITERAL, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("stmt:\n");
@@ -949,9 +970,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .goto_stmt, .addr_of_label => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("label: ");
-            util.setColor(LITERAL, w);
+            if (tree.comp.diag.color) util.setColor(LITERAL, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl_ref)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
         },
         .continue_stmt, .break_stmt, .implicit_return, .null_stmt => {},
         .return_stmt => {
@@ -963,9 +984,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         },
         .attr_arg_ident => {
             try w.writeByteNTimes(' ', level + half);
-            util.setColor(ATTRIBUTE, w);
+            if (tree.comp.diag.color) util.setColor(ATTRIBUTE, w);
             try w.print("name: {s}\n", .{tree.tokSlice(data.decl_ref)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
         },
         .call_expr => {
             try w.writeByteNTimes(' ', level + half);
@@ -989,9 +1010,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .builtin_call_expr => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{tree.tokSlice(@enumToInt(tree.data[data.range.start]))});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("args:\n");
@@ -1000,9 +1021,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .builtin_call_expr_one => {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
             if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("arg:\n");
@@ -1047,7 +1068,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
             try w.writeAll("rhs:\n");
             try tree.dumpNode(data.bin.rhs, level + delta, w);
         },
-        .cast_expr,
+        .explicit_cast, .implicit_cast => try tree.dumpNode(data.cast.operand, level + delta, w),
         .addr_of_expr,
         .computed_goto_stmt,
         .deref_expr,
@@ -1068,16 +1089,16 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .decl_ref_expr => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl_ref)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
         },
         .enumeration_ref => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{tree.tokSlice(data.decl_ref)});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
         },
         .int_literal,
         .char_literal,
@@ -1096,9 +1117,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
 
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");
-            util.setColor(NAME, w);
+            if (tree.comp.diag.color) util.setColor(NAME, w);
             try w.print("{s}\n", .{lhs_ty.data.record.fields[data.member.index].name});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
         },
         .array_access_expr => {
             if (data.bin.lhs != .none) {
@@ -1142,33 +1163,12 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .generic_association_expr, .generic_default_expr, .stmt_expr, .imaginary_literal => {
             try tree.dumpNode(data.un, level + delta, w);
         },
-        .array_to_pointer,
-        .lval_to_rval,
-        .function_to_pointer,
-        .pointer_to_bool,
-        .pointer_to_int,
-        .bool_to_int,
-        .bool_to_float,
-        .bool_to_pointer,
-        .int_to_bool,
-        .int_to_float,
-        .int_to_pointer,
-        .float_to_bool,
-        .float_to_int,
-        .int_cast,
-        .float_cast,
-        .to_void,
-        .qual_cast,
-        .null_to_pointer,
-        => {
-            try tree.dumpNode(data.un, level + delta, w);
-        },
         .array_filler_expr => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("count: ");
-            util.setColor(LITERAL, w);
+            if (tree.comp.diag.color) util.setColor(LITERAL, w);
             try w.print("{d}\n", .{data.int});
-            util.setColor(.reset, w);
+            if (tree.comp.diag.color) util.setColor(.reset, w);
         },
         .struct_forward_decl,
         .union_forward_decl,

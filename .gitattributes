@@ -1,4 +1,5 @@
 *.zig text eol=lf
 test/cases/expanded/* text eol=lf
+test/cases/ast/* text eol=lf 
 
 deps/** linguist-vendored

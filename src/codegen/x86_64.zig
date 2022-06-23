@@ -145,8 +145,14 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
         else
             return func.genCall(data.bin.lhs, &.{}),
         .call_expr => return func.genCall(func.c.tree.data[data.range.start], func.c.tree.data[data.range.start + 1 .. data.range.end]),
-        .function_to_pointer => return func.genNode(data.un), // no-op
-        .array_to_pointer => return func.genNode(data.un), // no-op
+        .explicit_cast, .implicit_cast => {
+            switch (data.cast.kind) {
+                .function_to_pointer,
+                .array_to_pointer,
+                => return func.genNode(data.cast.operand), // no-op
+                else => return func.c.comp.diag.fatalNoSrc("TODO x86_64 genNode for cast {s}\n", .{@tagName(data.cast.kind)}),
+            }
+        },
         .decl_ref_expr => {
             // TODO locals and arguments
             return Value{ .symbol = func.c.tree.tokSlice(data.decl_ref) };
