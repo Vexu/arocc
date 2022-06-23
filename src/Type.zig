@@ -1292,8 +1292,9 @@ pub const Builder = struct {
         if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
 
-    fn duplicateSpec(b: *Builder, p: *Parser, spec: []const u8) !void {
+    fn duplicateSpec(b: *Builder, p: *Parser, source_tok: TokenIndex, spec: []const u8) !void {
         if (b.error_on_invalid) return error.CannotCombine;
+        if (p.comp.langopts.emulate != .clang) return b.cannotCombine(p, source_tok);
         try p.errStr(.duplicate_decl_spec, p.tok_i, spec);
     }
 
@@ -1357,6 +1358,7 @@ pub const Builder = struct {
                 .long_long => .slong_long,
                 .long_long_int => .slong_long_int,
                 .int128 => .sint128,
+                .signed,
                 .sshort,
                 .sshort_int,
                 .sint,
@@ -1365,7 +1367,7 @@ pub const Builder = struct {
                 .slong_long,
                 .slong_long_int,
                 .sint128,
-                => return b.duplicateSpec(p, "signed"),
+                => return b.duplicateSpec(p, source_tok, "signed"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .unsigned => b.specifier = switch (b.specifier) {
@@ -1379,6 +1381,7 @@ pub const Builder = struct {
                 .long_long => .ulong_long,
                 .long_long_int => .ulong_long_int,
                 .int128 => .uint128,
+                .unsigned,
                 .ushort,
                 .ushort_int,
                 .uint,
@@ -1387,14 +1390,13 @@ pub const Builder = struct {
                 .ulong_long,
                 .ulong_long_int,
                 .uint128,
-                => return b.duplicateSpec(p, "unsigned"),
+                => return b.duplicateSpec(p, source_tok, "unsigned"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .char => b.specifier = switch (b.specifier) {
                 .none => .char,
                 .unsigned => .uchar,
                 .signed => .schar,
-                .char, .schar, .uchar => return b.duplicateSpec(p, "char"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .short => b.specifier = switch (b.specifier) {
@@ -1416,19 +1418,6 @@ pub const Builder = struct {
                 .long_long => .long_long_int,
                 .slong_long => .slong_long_int,
                 .ulong_long => .ulong_long_int,
-                .int,
-                .sint,
-                .uint,
-                .short_int,
-                .sshort_int,
-                .ushort_int,
-                .long_int,
-                .slong_int,
-                .ulong_int,
-                .long_long_int,
-                .slong_long_int,
-                .ulong_long_int,
-                => return b.duplicateSpec(p, "int"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .long => b.specifier = switch (b.specifier) {
@@ -1439,14 +1428,18 @@ pub const Builder = struct {
                 .int => .long_int,
                 .sint => .slong_int,
                 .ulong => .ulong_long,
-                .long_long, .ulong_long => return b.duplicateSpec(p, "long"),
                 .complex => .complex_long,
+                else => return b.cannotCombine(p, source_tok),
+            },
+            .int128 => b.specifier = switch (b.specifier) {
+                .none => .int128,
+                .unsigned => .uint128,
+                .signed => .sint128,
                 else => return b.cannotCombine(p, source_tok),
             },
             .float => b.specifier = switch (b.specifier) {
                 .none => .float,
                 .complex => .complex_float,
-                .complex_float, .float => return b.duplicateSpec(p, "float"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .double => b.specifier = switch (b.specifier) {
@@ -1454,11 +1447,6 @@ pub const Builder = struct {
                 .long => .long_double,
                 .complex_long => .complex_long_double,
                 .complex => .complex_double,
-                .long_double,
-                .complex_long_double,
-                .complex_double,
-                .double,
-                => return b.duplicateSpec(p, "double"),
                 else => return b.cannotCombine(p, source_tok),
             },
             .complex => b.specifier = switch (b.specifier) {
@@ -1472,7 +1460,7 @@ pub const Builder = struct {
                 .complex_float,
                 .complex_double,
                 .complex_long_double,
-                => return b.duplicateSpec(p, "_Complex"),
+                => return b.duplicateSpec(p, source_tok, "_Complex"),
                 else => return b.cannotCombine(p, source_tok),
             },
         }
