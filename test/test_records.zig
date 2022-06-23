@@ -78,24 +78,22 @@ fn testAllAllocationFailures(cases: [][]const u8) !void {
 }
 
 const non_working_tests = std.ComptimeStringMap(void, .{
-        // attributes on field not supported (exclude attributes on types to get working)
-        .{"0007"}, .{"0008"}, .{"0010"}, .{"0011"}, .{"0014"}, .{"0028"}, .{"0029"}, .{"0044"}, .{"0045"}, .{"0046"}, .{"0058"},
-        .{"0066"}, .{"0070"}, .{"0080"}, .{"0081"}, .{"0082"}, .{"0084"}, .{"0085"}, .{"0086"},
-        // // enum attr packed issue.
-        .{"0055"}, .{"0060"}, .{"0062"},
-        // unknown failure.
-        .{"0050"},
-        // clang-13 fails
-        .{"0006"}, .{"0016"}, .{"0051"}, .{"0063"}, .{"0068"}, .{"0083"},
-
+    // attributes on field not supported (exclude attributes on types to get working)
+    .{"0007"}, .{"0008"}, .{"0010"}, .{"0011"}, .{"0014"}, .{"0028"}, .{"0029"}, .{"0044"}, .{"0045"}, .{"0046"}, .{"0058"},
+    .{"0066"}, .{"0070"}, .{"0080"}, .{"0081"}, .{"0084"}, .{"0085"}, .{"0086"},
+    // // enum attr packed issue.
+    .{"0055"}, .{"0060"}, .{"0062"},
+    // __int128 issue
+    .{"0050"},
+    // clang-13 fails
+    .{"0006"}, .{"0016"}, .{"0051"}, .{"0063"}, .{"0068"}, .{"0083"},
 });
 
-const skip_extra_tests = [_][]const u8 {
+const skip_extra_tests = [_][]const u8{
     // clang-13 works w/ all the extra tests.
     // more work for arocc
     "0076", "0079", "0087", "0088",
 };
-
 
 pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
@@ -130,18 +128,17 @@ pub fn main() !void {
                 continue;
             }
 
-            if( std.mem.count(u8, entry.name,"_test.c") == 1 ) {
-                if( !non_working_tests.has(entry.name[0..4]) ) {
+            if (std.mem.count(u8, entry.name, "_test.c") == 1) {
+                if (!non_working_tests.has(entry.name[0..4])) {
                     defer buf.items.len = 0;
                     try buf.writer().print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
                     try cases.append(try gpa.dupe(u8, buf.items));
-                } 
+                }
             }
         }
     }
 
-
-    std.sort.sort([]const u8, cases.items, u8, std.mem.lessThan );
+    std.sort.sort([]const u8, cases.items, u8, std.mem.lessThan);
 
     var progress = std.Progress{};
     const root_node = progress.start("Test", cases.items.len);
@@ -175,7 +172,6 @@ pub fn main() !void {
             comp.deinit();
         }
 
-
         const case = std.mem.sliceTo(std.fs.path.basename(path), '.');
         var case_node = root_node.start(case, 0);
         case_node.activate();
@@ -188,7 +184,6 @@ pub fn main() !void {
             continue;
         };
 
-
         var macro_buf = std.ArrayList(u8).init(comp.gpa);
         defer macro_buf.deinit();
 
@@ -198,7 +193,7 @@ pub fn main() !void {
 
             var skip_extras = false;
             for (skip_extra_tests) |skip| {
-                if( std.mem.count(u8,path,skip) > 0 ) {
+                if (std.mem.count(u8, path, skip) > 0) {
                     skip_extras = true;
                     break;
                 }
@@ -208,10 +203,10 @@ pub fn main() !void {
             try cmd_args.append("-DD");
             try cmd_args.append("-DX8664_UNKNOWN_LINUX_GNU");
             try cmd_args.append("-DCHECK_OFFSETS");
-            if( !skip_extras ) try cmd_args.append("-DEXTRA_TESTS");
+            if (!skip_extras) try cmd_args.append("-DEXTRA_TESTS");
             try cmd_args.append("-Wno-ignored-pragmas");
             var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
-            _=try aro.parseArgs(&comp, std.io.null_writer, &source_files, macro_buf.writer(), cmd_args.items);        
+            _ = try aro.parseArgs(&comp, std.io.null_writer, &source_files, macro_buf.writer(), cmd_args.items);
         }
 
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);

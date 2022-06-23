@@ -192,7 +192,6 @@ const FieldLayout = struct {
     size_bits: u29,
 };
 
-
 // TODO improve memory usage
 pub const Record = struct {
     name: []const u8,
@@ -201,7 +200,7 @@ pub const Record = struct {
     // and change code to use TypeLayout.
     size: u64,
     alignment: u29,
-    type_layout:TypeLayout,
+    type_layout: TypeLayout,
 
     pub const Field = struct {
         name: []const u8,
@@ -209,7 +208,7 @@ pub const Record = struct {
         /// zero for anonymous fields
         name_tok: TokenIndex = 0,
         bit_width: ?u29 = null,
-        layout:FieldLayout,
+        layout: FieldLayout,
 
         pub fn isAnonymousRecord(f: Field) bool {
             return f.name_tok == 0 and f.ty.isRecord();
@@ -485,7 +484,7 @@ pub fn isEnumOrRecord(ty: Type) bool {
     };
 }
 
-pub fn isRecord( ty: *const Type ) bool {
+pub fn isRecord(ty: *const Type) bool {
     return ty.getRecord() != null;
 }
 
@@ -758,14 +757,12 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
 
 /// Get the alignment of a type
 pub fn alignof(ty: Type, comp: *const Compilation) u29 {
-
-    
     if (ty.requestedAlignment(comp)) |requested| {
-        
+
         // don't return the attribute for records that have already been laid out
-        if( ty.getRecord()) |rec_ty| {
+        if (ty.getRecord()) |rec_ty| {
             const rec = rec_ty.data.record;
-            if( !rec.isIncomplete() ) {
+            if (!rec.isIncomplete()) {
                 return rec.alignment;
             }
         }
@@ -902,7 +899,6 @@ pub fn isPacked(ty: Type) bool {
         else => false,
     };
 }
-
 
 pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifiers: bool) bool {
     const a = a_param.canonicalize(.standard);

@@ -1742,12 +1742,11 @@ fn recordSpec(p: *Parser) Error!Type {
         p.syms.syms.items(.ty)[symbol_index.?] = ty;
     }
 
-    if( !ty.hasIncompleteSize() ) {
+    if (!ty.hasIncompleteSize()) {
         const rl = @import("record_layout.zig");
 
-        rl.recordLayout(&ty, p );
+        rl.recordLayout(&ty, p);
     }
-
 
     // finish by creating a node
     var node: Tree.Node = .{
@@ -1857,7 +1856,10 @@ fn recordDeclarator(p: *Parser) Error!bool {
                     .name = try p.getAnonymousName(first_tok),
                     .ty = ty,
                     .bit_width = null,
-                    .layout = .{ .offset_bits = 0, .size_bits = 0, },
+                    .layout = .{
+                        .offset_bits = 0,
+                        .size_bits = 0,
+                    },
                 });
                 const node = try p.addNode(.{
                     .tag = .indirect_record_field_decl,
@@ -1875,7 +1877,10 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 .ty = ty,
                 .name_tok = name_tok,
                 .bit_width = bits,
-                .layout = .{ .offset_bits = 0, .size_bits = 0, },
+                .layout = .{
+                    .offset_bits = 0,
+                    .size_bits = 0,
+                },
             });
             if (name_tok != 0) try p.record.addField(p, name_tok);
             const node = try p.addNode(.{
@@ -5041,7 +5046,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
     try p.validateFieldAccess(base_ty, base_ty, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
 
-    var offet_num:usize=0;
+    var offet_num: usize = 0;
     var lhs = try p.fieldAccessExtra(base_node, base_ty, base_field_name, false, &offet_num);
     var bit_offset = Value.int(offet_num);
 
@@ -5478,7 +5483,7 @@ fn fieldAccess(
 
     const field_name = p.tokSlice(field_name_tok);
     try p.validateFieldAccess(record_ty, expr_ty, field_name_tok, field_name);
-    var bit_offset:usize=0;
+    var bit_offset: usize = 0;
     return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, &bit_offset);
 }
 
@@ -5496,8 +5501,8 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
     return error.ParsingFailed;
 }
 
-fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: []const u8, is_arrow: bool, offset_bits:*usize) Error!Result {
-    var inner_ty = record_ty.getRecord() orelse std.debug.panic("\nfieldAccessExtra called w/ non-record type: {any}\n",.{record_ty});
+fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: []const u8, is_arrow: bool, offset_bits: *usize) Error!Result {
+    var inner_ty = record_ty.getRecord() orelse std.debug.panic("\nfieldAccessExtra called w/ non-record type: {any}\n", .{record_ty});
     for (inner_ty.data.record.fields) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;

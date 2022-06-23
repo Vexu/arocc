@@ -30,7 +30,6 @@ pub const Dialect = enum {
     mingw,
 };
 
-
 gpa: Allocator,
 sources: std.StringArrayHashMap(Source),
 diag: Diagnostics,
@@ -39,8 +38,8 @@ system_include_dirs: std.ArrayList([]const u8),
 output_name: ?[]const u8 = null,
 builtin_header_path: ?[]u8 = null,
 target: std.Target = @import("builtin").target,
-mimic:MimicCompiler = .clang,
-dialect:Dialect = .sysv,
+mimic: MimicCompiler = .clang,
+dialect: Dialect = .sysv,
 pragma_handlers: std.StringArrayHashMap(*Pragma),
 only_preprocess: bool = false,
 only_compile: bool = false,
@@ -436,49 +435,64 @@ fn generateVaListType(comp: *Compilation) !Type {
         .void_ptr => ty = .{ .specifier = .void },
         .aarch64_va_list => {
             const record_ty = try arena.create(Type.Record);
-            record_ty.* = .{
-                .name = "__va_list_tag",
-                .fields = try arena.alloc(Type.Record.Field, 5),
-                .size = 32,
-                .alignment = 8,
-                .type_layout = .{
-                    .size_bits = 0,
-                    .field_alignment_bits = 0,
-                    .pointer_alignment_bits = 0,
-                    .required_alignmnet_bits = 0,
-                }
-            };
+            record_ty.* = .{ .name = "__va_list_tag", .fields = try arena.alloc(Type.Record.Field, 5), .size = 32, .alignment = 8, .type_layout = .{
+                .size_bits = 0,
+                .field_alignment_bits = 0,
+                .pointer_alignment_bits = 0,
+                .required_alignmnet_bits = 0,
+            } };
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
             const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
-            record_ty.fields[0] = .{ .name = "__stack", .ty = void_ptr, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
-            record_ty.fields[1] = .{ .name = "__gr_top", .ty = void_ptr, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
-            record_ty.fields[2] = .{ .name = "__vr_top", .ty = void_ptr, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
-            record_ty.fields[3] = .{ .name = "__gr_offs", .ty = .{ .specifier = .int }, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
-            record_ty.fields[4] = .{ .name = "__vr_offs", .ty = .{ .specifier = .int }, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
+            record_ty.fields[0] = .{ .name = "__stack", .ty = void_ptr, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
+            record_ty.fields[1] = .{ .name = "__gr_top", .ty = void_ptr, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
+            record_ty.fields[2] = .{ .name = "__vr_top", .ty = void_ptr, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
+            record_ty.fields[3] = .{ .name = "__gr_offs", .ty = .{ .specifier = .int }, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
+            record_ty.fields[4] = .{ .name = "__vr_offs", .ty = .{ .specifier = .int }, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
         },
         .x86_64_va_list => {
             const record_ty = try arena.create(Type.Record);
-            record_ty.* = .{
-                .name = "__va_list_tag",
-                .fields = try arena.alloc(Type.Record.Field, 4),
-                .size = 24,
-                .alignment = 8,
-                .type_layout = .{
-                    .size_bits = 0,
-                    .field_alignment_bits = 0,
-                    .pointer_alignment_bits = 0,
-                    .required_alignmnet_bits = 0,
-                }
-            };
+            record_ty.* = .{ .name = "__va_list_tag", .fields = try arena.alloc(Type.Record.Field, 4), .size = 24, .alignment = 8, .type_layout = .{
+                .size_bits = 0,
+                .field_alignment_bits = 0,
+                .pointer_alignment_bits = 0,
+                .required_alignmnet_bits = 0,
+            } };
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
             const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
-            record_ty.fields[0] = .{ .name = "gp_offset", .ty = .{ .specifier = .uint }, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
-            record_ty.fields[1] = .{ .name = "fp_offset", .ty = .{ .specifier = .uint }, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
-            record_ty.fields[2] = .{ .name = "overflow_arg_area", .ty = void_ptr, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
-            record_ty.fields[3] = .{ .name = "reg_save_area", .ty = void_ptr, .layout = .{ .offset_bits = 0, .size_bits = 0, } };
+            record_ty.fields[0] = .{ .name = "gp_offset", .ty = .{ .specifier = .uint }, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
+            record_ty.fields[1] = .{ .name = "fp_offset", .ty = .{ .specifier = .uint }, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
+            record_ty.fields[2] = .{ .name = "overflow_arg_area", .ty = void_ptr, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
+            record_ty.fields[3] = .{ .name = "reg_save_area", .ty = void_ptr, .layout = .{
+                .offset_bits = 0,
+                .size_bits = 0,
+            } };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
         },
     }
