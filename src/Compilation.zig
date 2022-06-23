@@ -19,7 +19,6 @@ pub const Error = error{
     FatalError,
 } || Allocator.Error;
 
-
 gpa: Allocator,
 sources: std.StringArrayHashMap(Source),
 diag: Diagnostics,
