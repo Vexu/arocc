@@ -663,7 +663,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
             else => 4,
         },
         .long_long, .ulong_long => 8,
-        .int128, .uint128 => 8,
+        .int128, .uint128 => 16,
         .fp16 => 2,
         .float => 4,
         .double => 8,
