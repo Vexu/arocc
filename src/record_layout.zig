@@ -316,7 +316,6 @@ fn annotationAlignment(ty: *const Type, comp: *const Compilation) ?u29 {
     return req_align;
 }
 
-
 //
 // TODO: Move all these to Compilation?
 //

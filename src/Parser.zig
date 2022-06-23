@@ -1744,7 +1744,6 @@ fn recordSpec(p: *Parser) Error!Type {
     }
 
     if (!ty.hasIncompleteSize()) {
-
         RecordLayout.recordLayout(&ty, p);
     }
 

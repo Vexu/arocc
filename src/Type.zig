@@ -827,7 +827,6 @@ pub fn rawAlignOf(ty: Type, comp: *const Compilation) u29 {
     };
 }
 
-
 /// Canonicalize a possibly-typeof() type. If the type is not a typeof() type, simply
 /// return it. Otherwise, determine the actual qualified type.
 /// The `qual_handling` parameter can be used to return the full set of qualifiers
