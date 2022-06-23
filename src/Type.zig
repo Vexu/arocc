@@ -363,6 +363,10 @@ pub fn isArray(ty: Type) bool {
     };
 }
 
+pub fn isScalar(ty: Type) bool {
+    return ty.isInt() or ty.isFloat() or ty.isPtr();
+}
+
 pub fn isPtr(ty: Type) bool {
     return switch (ty.specifier) {
         .pointer,
@@ -720,7 +724,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
             else => 4,
         },
         .long_long, .ulong_long => 8,
-        .int128, .uint128 => 8,
+        .int128, .uint128 => 16,
         .fp16 => 2,
         .float => 4,
         .double => 8,
