@@ -13,20 +13,20 @@ var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 const non_working_tests = std.ComptimeStringMap(void, .{
     // attributes on field not supported (exclude attributes on types to get working)
-    .{"0007"}, .{"0008"}, .{"0010"}, .{"0011"}, .{"0014"}, .{"0028"}, .{"0029"}, .{"0044"}, .{"0045"}, .{"0046"}, .{"0058"},
-    .{"0066"}, .{"0070"}, .{"0080"}, .{"0081"}, .{"0084"}, .{"0085"}, .{"0086"},
-    // // enum attr packed issue.
-    .{"0055"}, .{"0060"}, .{"0062"},
+    // see issue #300
+    .{"0007"}, .{"0008"}, .{"0010"}, .{"0011"}, .{"0014"}, .{"0017"}, .{"0018"}, .{"0025"},
+    .{"0026"}, .{"0028"}, .{"0029"}, .{"0044"}, .{"0042"}, .{"0045"}, .{"0046"}, .{"0058"},
+    .{"0066"}, .{"0070"}, .{"0072"}, .{"0080"}, .{"0081"}, .{"0084"}, .{"0085"}, .{"0086"},
     // __int128 issue
     .{"0050"},
-    // clang-13 fails
-    .{"0006"}, .{"0016"}, .{"0051"}, .{"0063"}, .{"0068"}, .{"0083"},
+    // TODO: figure out
+    .{"0006"}, .{"0068"},
 });
 
 const skip_extra_tests = [_][]const u8{
     // clang-13 works w/ all the extra tests.
     // more work for arocc
-    "0076", "0079", "0087", "0088",
+    "0076", "0079", "0087", "0088", "0055", "0060", "0062",
 };
 
 pub fn main() !void {
@@ -135,11 +135,12 @@ pub fn main() !void {
             }
             // for now we're just going CLANG and Target::X86_64UnknownLinuxGnu
             const mac_writer = macro_buf.writer();
-            _ = try mac_writer.write("#define X8664_UNKNOWN_LINUX_MUSL\n");
+            _ = try mac_writer.write("#define X8664_UNKNOWN_NETBSD\n");
             _ = try mac_writer.write("#define CHECK_OFFSETS\n");
             if (!skip_extras) _ = try mac_writer.write("#define EXTRA_TESTS\n");
-            // try macro_buf.append("-Wno-ignored-pragmas");
+            // TODO: only turn these of for the files we know emit these warnings
             comp.diag.options.@"ignored-pragmas" = .off;
+            comp.diag.options.@"implicitly-unsigned-literal" = .off;
             var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
             _ = try aro.parseArgs(&comp, std.io.null_writer, &source_files, mac_writer, cmd_args.items);
         }
