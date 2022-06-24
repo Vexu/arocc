@@ -358,14 +358,14 @@ const bin_overflow = struct {
                 }
 
                 if (ty.isUnsignedInt(comp)) switch (size) {
-                    1 => unreachable, // promoted to int
-                    2 => unreachable, // promoted to int
+                    1 => return intFunc(u8, res, a, b),
+                    2 => return intFunc(u16, res, a, b),
                     4 => return intFunc(u32, res, a, b),
                     8 => return intFunc(u64, res, a, b),
                     else => unreachable,
                 } else switch (size) {
-                    1 => unreachable, // promoted to int
-                    2 => unreachable, // promoted to int
+                    1 => return intFunc(u8, res, a, b),
+                    2 => return intFunc(u16, res, a, b),
                     4 => return intFunc(i32, res, a, b),
                     8 => return intFunc(i64, res, a, b),
                     else => unreachable,
@@ -532,14 +532,14 @@ pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp:
     switch (a.tag) {
         .unavailable => return true,
         .int => if (ty.isUnsignedInt(comp)) switch (size) {
-            1 => unreachable, // promoted to int
-            2 => unreachable, // promoted to int
+            1 => return S.doICompare(u8, a, op, b),
+            2 => return S.doICompare(u16, a, op, b),
             4 => return S.doICompare(u32, a, op, b),
             8 => return S.doICompare(u64, a, op, b),
             else => unreachable,
         } else switch (size) {
-            1 => unreachable, // promoted to int
-            2 => unreachable, // promoted to int
+            1 => return S.doICompare(u8, a, op, b),
+            2 => return S.doICompare(u16, a, op, b),
             4 => return S.doICompare(i32, a, op, b),
             8 => return S.doICompare(i64, a, op, b),
             else => unreachable,

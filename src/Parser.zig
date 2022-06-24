@@ -1933,8 +1933,8 @@ fn specQual(p: *Parser) Error!?Type {
 }
 
 /// enumSpec
-///  : keyword_enum IDENTIFIER? { enumerator (',' enumerator)? ',') }
-///  | keyword_enum IDENTIFIER
+///  : keyword_enum IDENTIFIER? (: typeName)? { enumerator (',' enumerator)? ',') }
+///  | keyword_enum IDENTIFIER (: typeName)?
 fn enumSpec(p: *Parser) Error!Type {
     const enum_tok = p.tok_i;
     p.tok_i += 1;
@@ -1943,6 +1943,21 @@ fn enumSpec(p: *Parser) Error!Type {
     try p.attributeSpecifier(); // record
 
     const maybe_ident = try p.eatIdentifier();
+    const fixed_ty = if (p.eatToken(.colon)) |colon| fixed: {
+        const fixed = (try p.typeName()) orelse {
+            if (p.record.kind != .invalid) {
+                // This is a bit field.
+                p.tok_i -= 1;
+                break :fixed null;
+            }
+            try p.err(.expected_type);
+            try p.errTok(.enum_fixed, colon);
+            break :fixed null;
+        };
+        try p.errTok(.enum_fixed, colon);
+        break :fixed fixed;
+    } else null;
+
     const l_brace = p.eatToken(.l_brace) orelse {
         const ident = maybe_ident orelse {
             try p.err(.ident_or_l_brace);
@@ -1950,10 +1965,11 @@ fn enumSpec(p: *Parser) Error!Type {
         };
         // check if this is a reference to a previous type
         if (try p.syms.findTag(p, .keyword_enum, ident, p.tok_ids[p.tok_i])) |prev| {
+            try p.checkEnumFixedTy(fixed_ty, ident, prev);
             return prev.ty;
         } else {
             // this is a forward declaration, create a new enum Type.
-            const enum_ty = try Type.Enum.create(p.arena, p.tokSlice(ident));
+            const enum_ty = try Type.Enum.create(p.arena, p.tokSlice(ident), fixed_ty);
             const ty = try p.withAttributes(
                 .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
                 attr_buf_top,
@@ -1978,17 +1994,19 @@ fn enumSpec(p: *Parser) Error!Type {
     var defined = false;
     const enum_ty: *Type.Enum = if (maybe_ident) |ident| enum_ty: {
         if (try p.syms.defineTag(p, .keyword_enum, ident)) |prev| {
-            if (!prev.ty.hasIncompleteSize()) {
+            const enum_ty = prev.ty.get(.@"enum").?.data.@"enum";
+            if (!enum_ty.isIncomplete() and !enum_ty.fixed) {
                 // if the enum isn't incomplete, this is a redefinition
                 try p.errStr(.redefinition, ident, p.tokSlice(ident));
                 try p.errTok(.previous_definition, prev.tok);
             } else {
+                try p.checkEnumFixedTy(fixed_ty, ident, prev);
                 defined = true;
-                break :enum_ty prev.ty.get(.@"enum").?.data.@"enum";
+                break :enum_ty enum_ty;
             }
         }
-        break :enum_ty try Type.Enum.create(p.arena, p.tokSlice(ident));
-    } else try Type.Enum.create(p.arena, try p.getAnonymousName(enum_tok));
+        break :enum_ty try Type.Enum.create(p.arena, p.tokSlice(ident), fixed_ty);
+    } else try Type.Enum.create(p.arena, try p.getAnonymousName(enum_tok), fixed_ty);
 
     // reserve space for this enum
     try p.decl_buf.append(.none);
@@ -2002,7 +2020,7 @@ fn enumSpec(p: *Parser) Error!Type {
         p.enum_buf.items.len = enum_buf_top;
     }
 
-    var e = Enumerator{};
+    var e = Enumerator.init(fixed_ty);
     while (try p.enumerator(&e)) |field_and_node| {
         try p.enum_buf.append(field_and_node.field);
         try p.list_buf.append(field_and_node.node);
@@ -2020,8 +2038,10 @@ fn enumSpec(p: *Parser) Error!Type {
         attr_buf_top,
     );
     const is_packed = ty.hasAttribute(.@"packed") or p.comp.langopts.short_enums;
-    const tag_specifier = try e.getTypeSpecifier(p, is_packed, maybe_ident orelse enum_tok);
-    enum_ty.tag_ty = .{ .specifier = tag_specifier };
+    if (!enum_ty.fixed) {
+        const tag_specifier = try e.getTypeSpecifier(p, is_packed, maybe_ident orelse enum_tok);
+        enum_ty.tag_ty = .{ .specifier = tag_specifier };
+    }
 
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
@@ -2052,29 +2072,64 @@ fn enumSpec(p: *Parser) Error!Type {
     return ty;
 }
 
+fn checkEnumFixedTy(p: *Parser, fixed_ty: ?Type, ident_tok: TokenIndex, prev: Symbol) !void {
+    const enum_ty = prev.ty.get(.@"enum").?.data.@"enum";
+    if (fixed_ty) |some| {
+        if (!enum_ty.fixed) {
+            try p.errTok(.enum_prev_nonfixed, ident_tok);
+            try p.errTok(.previous_definition, prev.tok);
+            return error.ParsingFailed;
+        }
+
+        if (!enum_ty.tag_ty.eql(some, p.comp, false)) {
+            const str = try p.typePairStrExtra(some, " (was ", enum_ty.tag_ty);
+            try p.errStr(.enum_different_explicit_ty, ident_tok, str);
+            try p.errTok(.previous_definition, prev.tok);
+            return error.ParsingFailed;
+        }
+    } else if (enum_ty.fixed) {
+        try p.errTok(.enum_prev_fixed, ident_tok);
+        try p.errTok(.previous_definition, prev.tok);
+        return error.ParsingFailed;
+    }
+}
+
 const Enumerator = struct {
-    res: Result = .{
-        .ty = .{ .specifier = .int },
-        // Enumerator value is captured after increment in p.enumerator(), and we want the first enumeration constant
-        // to have a value of 0
-        .val = Value.int(@as(i64, -1)),
-    },
+    res: Result,
     num_positive_bits: usize = 0,
     num_negative_bits: usize = 0,
-    /// TODO: support `enum E : TYPE { ... }` syntax (clang and MSVC only) and store specifier here
-    tag_specifier: ?Type.Specifier = null,
+    fixed: bool,
+
+    fn init(fixed_ty: ?Type) Enumerator {
+        return .{
+            .res = .{
+                .ty = fixed_ty orelse .{ .specifier = .int },
+                .val = .{ .tag = .unavailable },
+            },
+            .fixed = fixed_ty != null,
+        };
+    }
 
     /// Increment enumerator value adjusting type if needed.
     fn incr(e: *Enumerator, p: *Parser, tok: TokenIndex) !void {
         e.res.node = .none;
         const old_val = e.res.val;
+        if (old_val.tag == .unavailable) {
+            // First enumerator, set to 0 fits in all types.
+            e.res.val = Value.int(0);
+            return;
+        }
         if (e.res.val.add(e.res.val, Value.int(1), e.res.ty, p.comp)) {
+            const byte_size = e.res.ty.sizeof(p.comp).?;
+            const bit_size = @intCast(u8, if (e.res.ty.isUnsignedInt(p.comp)) byte_size * 8 else byte_size * 8 - 1);
+            if (e.fixed) {
+                try p.errStr(.enum_not_representable_fixed, tok, try p.typeStr(e.res.ty));
+                return;
+            }
             const new_ty = if (p.comp.nextLargestIntSameSign(e.res.ty)) |larger| blk: {
                 try p.errTok(.enumerator_overflow, tok);
                 break :blk larger;
             } else blk: {
-                const byte_size = e.res.ty.sizeof(p.comp).?;
-                const bit_size = @intCast(u8, if (e.res.ty.isUnsignedInt(p.comp)) byte_size * 8 else byte_size * 8 - 1);
                 try p.errExtra(.enum_not_representable, tok, .{ .pow_2_as_string = bit_size });
                 break :blk Type{ .specifier = .ulong_long };
             };
@@ -2083,15 +2138,26 @@ const Enumerator = struct {
         }
     }
 
-    /// Set enumerator value to specified value, adjusting type if needed.
-    fn set(e: *Enumerator, p: *Parser, res: Result) !void {
-        _ = p;
-        e.res = res;
-        // TODO adjust res type to try to fit with the previous type
+    /// Set enumerator value to specified value.
+    fn set(e: *Enumerator, p: *Parser, res: Result, tok: TokenIndex) !void {
+        if (e.fixed and !res.ty.eql(e.res.ty, p.comp, false)) {
+            if (res.val.compare(.gt, Value.int(e.res.ty.maxInt(p.comp)), res.ty, p.comp) or
+                res.val.compare(.lt, Value.int(e.res.ty.minInt(p.comp)), res.ty, p.comp))
+            {
+                try p.errStr(.enum_not_representable_fixed, tok, try p.typeStr(e.res.ty));
+                return error.ParsingFailed;
+            }
+            var copy = res;
+            copy.ty = e.res.ty;
+            try copy.implicitCast(p, .int_cast);
+            e.res = copy;
+        } else {
+            e.res = res;
+        }
     }
 
     fn getTypeSpecifier(e: *const Enumerator, p: *Parser, is_packed: bool, tok: TokenIndex) !Type.Specifier {
-        if (e.tag_specifier orelse p.comp.fixedEnumTagSpecifier()) |tag_specifier| return tag_specifier;
+        if (p.comp.fixedEnumTagSpecifier()) |tag_specifier| return tag_specifier;
 
         const char_width = (Type{ .specifier = .schar }).sizeof(p.comp).? * 8;
         const short_width = (Type{ .specifier = .short }).sizeof(p.comp).? * 8;
@@ -2149,7 +2215,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
             try p.errTok(.enum_val_unavailable, name_tok + 2);
             try e.incr(p, name_tok);
         } else {
-            try e.set(p, specified);
+            try e.set(p, specified, name_tok);
         }
     } else {
         try e.incr(p, name_tok);

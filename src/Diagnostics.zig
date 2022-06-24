@@ -136,6 +136,7 @@ pub const Options = packed struct {
     @"include-next-outside-header": Kind = .default,
     @"include-next-absolute-path": Kind = .default,
     @"enum-too-large": Kind = .default,
+    @"fixed-enum-extension": Kind = .default,
 };
 
 const messages = struct {
@@ -1815,6 +1816,31 @@ const messages = struct {
         const kind = .warning;
         const opt = "enum-too-large";
     };
+    const enum_fixed = struct {
+        const msg = "enumeration types with a fixed underlying type are a Clang extension";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "fixed-enum-extension";
+    };
+    const enum_prev_nonfixed = struct {
+        const msg = "enumeration previously declared with nonfixed underlying type";
+        const kind = .@"error";
+    };
+    const enum_prev_fixed = struct {
+        const msg = "enumeration previously declared with fixed underlying type";
+        const kind = .@"error";
+    };
+    const enum_different_explicit_ty = struct {
+        // str will be like 'new' (was 'old'
+        const msg = "enumeration redeclared with different underlying type {s})";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const enum_not_representable_fixed = struct {
+        const msg = "enumerator value is not representable in the underlying type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -2038,7 +2064,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                             @tagName(msg.extra.ignored_record_attr.tag),
                             @tagName(msg.extra.ignored_record_attr.specifier),
                         }),
-                        else => unreachable,
+                        else => @compileError("invalid extra kind " ++ @tagName(info.extra)),
                     }
                 } else {
                     m.write(info.msg);

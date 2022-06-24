@@ -139,6 +139,7 @@ pub const Enum = struct {
     name: []const u8,
     tag_ty: Type,
     fields: []Field,
+    fixed: bool,
 
     pub const Field = struct {
         name: []const u8,
@@ -151,10 +152,12 @@ pub const Enum = struct {
         return e.fields.len == std.math.maxInt(usize);
     }
 
-    pub fn create(allocator: std.mem.Allocator, name: []const u8) !*Enum {
+    pub fn create(allocator: std.mem.Allocator, name: []const u8, fixed_ty: ?Type) !*Enum {
         var e = try allocator.create(Enum);
         e.name = name;
         e.fields.len = std.math.maxInt(usize);
+        if (fixed_ty) |some| e.tag_ty = some;
+        e.fixed = fixed_ty != null;
         return e;
     }
 };
@@ -545,7 +548,7 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
         .void, .incomplete_array => true,
-        .@"enum" => ty.data.@"enum".isIncomplete(),
+        .@"enum" => ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed,
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
         .typeof_type => ty.data.sub_type.hasIncompleteSize(),
@@ -708,7 +711,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .array => if (ty.data.array.elem.sizeof(comp)) |size| size * ty.data.array.len else null,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
-        .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
+        .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) null else ty.data.@"enum".tag_ty.sizeof(comp),
         .typeof_type => ty.data.sub_type.sizeof(comp),
         .typeof_expr => ty.data.expr.ty.sizeof(comp),
         .attributed => ty.data.attributed.base.sizeof(comp),
@@ -770,7 +773,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else ty.data.record.alignment,
-        .@"enum" => if (ty.data.@"enum".isIncomplete()) 0 else ty.data.@"enum".tag_ty.alignof(comp),
+        .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
         .attributed => ty.data.attributed.base.alignof(comp),
@@ -1632,7 +1635,12 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
     try ty.qual.dump(w);
 
     switch (ty.specifier) {
-        .@"enum" => try w.print("enum {s}", .{ty.data.@"enum".name}),
+        .@"enum" => if (ty.data.@"enum".fixed) {
+            try w.print("enum {s}: ", .{ty.data.@"enum".name});
+            try ty.data.@"enum".tag_ty.dump(w);
+        } else {
+            try w.print("enum {s}", .{ty.data.@"enum".name});
+        },
         .@"struct" => try w.print("struct {s}", .{ty.data.record.name}),
         .@"union" => try w.print("union {s}", .{ty.data.record.name}),
         else => try w.writeAll(Builder.fromType(ty).str().?),
@@ -1739,8 +1747,14 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try ty.data.array.elem.dump(w);
         },
         .@"enum" => {
-            try w.print("enum {s}", .{ty.data.@"enum".name});
-            if (dump_detailed_containers) try dumpEnum(ty.data.@"enum", w);
+            const enum_ty = ty.data.@"enum";
+            if (enum_ty.isIncomplete() and !enum_ty.fixed) {
+                try w.print("enum {s}", .{enum_ty.name});
+            } else {
+                try w.print("enum {s}: ", .{enum_ty.name});
+                try enum_ty.tag_ty.dump(w);
+            }
+            if (dump_detailed_containers) try dumpEnum(enum_ty, w);
         },
         .@"struct" => {
             try w.print("struct {s}", .{ty.data.record.name});
