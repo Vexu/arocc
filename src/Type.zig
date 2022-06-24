@@ -139,6 +139,7 @@ pub const Enum = struct {
     name: []const u8,
     tag_ty: Type,
     fields: []Field,
+    fixed: bool,
 
     pub const Field = struct {
         name: []const u8,
@@ -151,10 +152,12 @@ pub const Enum = struct {
         return e.fields.len == std.math.maxInt(usize);
     }
 
-    pub fn create(allocator: std.mem.Allocator, name: []const u8) !*Enum {
+    pub fn create(allocator: std.mem.Allocator, name: []const u8, fixed_ty: ?Type) !*Enum {
         var e = try allocator.create(Enum);
         e.name = name;
         e.fields.len = std.math.maxInt(usize);
+        if (fixed_ty) |some| e.tag_ty = some;
+        e.fixed = fixed_ty != null;
         return e;
     }
 };
@@ -281,6 +284,8 @@ data: union {
 } = .{ .none = {} },
 specifier: Specifier,
 qual: Qualifiers = .{},
+
+pub const int = Type{ .specifier = .int };
 
 /// Determine if type matches the given specifier, recursing into typeof
 /// types if necessary.
@@ -410,7 +415,7 @@ pub fn isConst(ty: Type) bool {
     };
 }
 
-pub fn isUnsignedInt(ty: Type, comp: *Compilation) bool {
+pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
     return switch (ty.specifier) {
         .char => return getCharSignedness(comp) == .unsigned,
         .uchar, .ushort, .uint, .ulong, .ulong_long, .bool => true,
@@ -545,7 +550,7 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
         .void, .incomplete_array => true,
-        .@"enum" => ty.data.@"enum".isIncomplete(),
+        .@"enum" => ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed,
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
         .typeof_type => ty.data.sub_type.hasIncompleteSize(),
@@ -603,7 +608,7 @@ pub fn hasField(ty: Type, name: []const u8) bool {
     return false;
 }
 
-pub fn getCharSignedness(comp: *Compilation) std.builtin.Signedness {
+pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
     switch (comp.target.cpu.arch) {
         .aarch64,
         .aarch64_32,
@@ -621,6 +626,29 @@ pub fn getCharSignedness(comp: *Compilation) std.builtin.Signedness {
         => return .unsigned,
         else => return .signed,
     }
+}
+
+pub fn minInt(ty: Type, comp: *const Compilation) i64 {
+    std.debug.assert(ty.isInt());
+    if (ty.isUnsignedInt(comp)) return 0;
+    return switch (ty.sizeof(comp).?) {
+        1 => std.math.minInt(i8),
+        2 => std.math.minInt(i16),
+        4 => std.math.minInt(i32),
+        8 => std.math.minInt(i64),
+        else => unreachable,
+    };
+}
+
+pub fn maxInt(ty: Type, comp: *const Compilation) u64 {
+    std.debug.assert(ty.isInt());
+    return switch (ty.sizeof(comp).?) {
+        1 => if (ty.isUnsignedInt(comp)) @as(u64, std.math.maxInt(u8)) else std.math.maxInt(i8),
+        2 => if (ty.isUnsignedInt(comp)) @as(u64, std.math.maxInt(u16)) else std.math.maxInt(i16),
+        4 => if (ty.isUnsignedInt(comp)) @as(u64, std.math.maxInt(u32)) else std.math.maxInt(i32),
+        8 => if (ty.isUnsignedInt(comp)) @as(u64, std.math.maxInt(u64)) else std.math.maxInt(i64),
+        else => unreachable,
+    };
 }
 
 const TypeSizeOrder = enum {
@@ -685,7 +713,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .array => if (ty.data.array.elem.sizeof(comp)) |size| size * ty.data.array.len else null,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
-        .@"enum" => if (ty.data.@"enum".isIncomplete()) null else ty.data.@"enum".tag_ty.sizeof(comp),
+        .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) null else ty.data.@"enum".tag_ty.sizeof(comp),
         .typeof_type => ty.data.sub_type.sizeof(comp),
         .typeof_expr => ty.data.expr.ty.sizeof(comp),
         .attributed => ty.data.attributed.base.sizeof(comp),
@@ -747,7 +775,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else ty.data.record.alignment,
-        .@"enum" => if (ty.data.@"enum".isIncomplete()) 0 else ty.data.@"enum".tag_ty.alignof(comp),
+        .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
         .attributed => ty.data.attributed.base.alignof(comp),
@@ -1536,6 +1564,13 @@ pub fn getAttribute(ty: Type, comptime tag: Attribute.Tag) ?Attribute.ArgumentsF
     }
 }
 
+pub fn hasAttribute(ty: Type, tag: Attribute.Tag) bool {
+    for (ty.getAttributes()) |attr| {
+        if (attr.tag == tag) return true;
+    }
+    return false;
+}
+
 /// Print type in C style
 pub fn print(ty: Type, w: anytype) @TypeOf(w).Error!void {
     _ = try ty.printPrologue(w);
@@ -1602,7 +1637,12 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
     try ty.qual.dump(w);
 
     switch (ty.specifier) {
-        .@"enum" => try w.print("enum {s}", .{ty.data.@"enum".name}),
+        .@"enum" => if (ty.data.@"enum".fixed) {
+            try w.print("enum {s}: ", .{ty.data.@"enum".name});
+            try ty.data.@"enum".tag_ty.dump(w);
+        } else {
+            try w.print("enum {s}", .{ty.data.@"enum".name});
+        },
         .@"struct" => try w.print("struct {s}", .{ty.data.record.name}),
         .@"union" => try w.print("union {s}", .{ty.data.record.name}),
         else => try w.writeAll(Builder.fromType(ty).str().?),
@@ -1709,8 +1749,14 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try ty.data.array.elem.dump(w);
         },
         .@"enum" => {
-            try w.print("enum {s}", .{ty.data.@"enum".name});
-            if (dump_detailed_containers) try dumpEnum(ty.data.@"enum", w);
+            const enum_ty = ty.data.@"enum";
+            if (enum_ty.isIncomplete() and !enum_ty.fixed) {
+                try w.print("enum {s}", .{enum_ty.name});
+            } else {
+                try w.print("enum {s}: ", .{enum_ty.name});
+                try enum_ty.tag_ty.dump(w);
+            }
+            if (dump_detailed_containers) try dumpEnum(enum_ty, w);
         },
         .@"struct" => {
             try w.print("struct {s}", .{ty.data.record.name});

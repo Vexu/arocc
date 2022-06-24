@@ -65,6 +65,86 @@ pub fn signExtend(v: Value, old_ty: Type, comp: *Compilation) i64 {
     };
 }
 
+/// Number of bits needed to hold `v` which is of type `ty`.
+/// Asserts that `v` is not negative
+pub fn minUnsignedBits(v: Value, ty: Type, comp: *const Compilation) usize {
+    assert(v.compare(.gte, Value.int(0), ty, comp));
+    return switch (ty.sizeof(comp).?) {
+        1 => 8 - @clz(u8, v.getInt(u8)),
+        2 => 16 - @clz(u16, v.getInt(u16)),
+        4 => 32 - @clz(u32, v.getInt(u32)),
+        8 => 64 - @clz(u64, v.getInt(u64)),
+        else => unreachable,
+    };
+}
+
+test "minUnsignedBits" {
+    const Test = struct {
+        fn checkIntBits(comp: *const Compilation, specifier: Type.Specifier, v: u64, expected: usize) !void {
+            const val = Value.int(v);
+            try std.testing.expectEqual(expected, val.minUnsignedBits(.{ .specifier = specifier }, comp));
+        }
+    };
+
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+    comp.target = (try std.zig.CrossTarget.parse(.{ .arch_os_abi = "x86_64-linux-gnu" })).toTarget();
+
+    try Test.checkIntBits(&comp, .int, 0, 0);
+    try Test.checkIntBits(&comp, .int, 1, 1);
+    try Test.checkIntBits(&comp, .int, 2, 2);
+    try Test.checkIntBits(&comp, .int, std.math.maxInt(i8), 7);
+    try Test.checkIntBits(&comp, .int, std.math.maxInt(u8), 8);
+    try Test.checkIntBits(&comp, .int, std.math.maxInt(i16), 15);
+    try Test.checkIntBits(&comp, .int, std.math.maxInt(u16), 16);
+    try Test.checkIntBits(&comp, .int, std.math.maxInt(i32), 31);
+    try Test.checkIntBits(&comp, .uint, std.math.maxInt(u32), 32);
+    try Test.checkIntBits(&comp, .long, std.math.maxInt(i64), 63);
+    try Test.checkIntBits(&comp, .ulong, std.math.maxInt(u64), 64);
+    try Test.checkIntBits(&comp, .long_long, std.math.maxInt(i64), 63);
+    try Test.checkIntBits(&comp, .ulong_long, std.math.maxInt(u64), 64);
+}
+
+/// Minimum number of bits needed to represent `v` in 2's complement notation
+/// Asserts that `v` is negative.
+pub fn minSignedBits(v: Value, ty: Type, comp: *const Compilation) usize {
+    assert(v.compare(.lt, Value.int(0), ty, comp));
+    return switch (ty.sizeof(comp).?) {
+        1 => 8 - @clz(u8, ~v.getInt(u8)) + 1,
+        2 => 16 - @clz(u16, ~v.getInt(u16)) + 1,
+        4 => 32 - @clz(u32, ~v.getInt(u32)) + 1,
+        8 => 64 - @clz(u64, ~v.getInt(u64)) + 1,
+        else => unreachable,
+    };
+}
+
+test "minSignedBits" {
+    const Test = struct {
+        fn checkIntBits(comp: *const Compilation, specifier: Type.Specifier, v: i64, expected: usize) !void {
+            const val = Value.int(v);
+            try std.testing.expectEqual(expected, val.minSignedBits(.{ .specifier = specifier }, comp));
+        }
+    };
+
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+    comp.target = (try std.zig.CrossTarget.parse(.{ .arch_os_abi = "x86_64-linux-gnu" })).toTarget();
+
+    for ([_]Type.Specifier{ .int, .long, .long_long }) |specifier| {
+        try Test.checkIntBits(&comp, specifier, -1, 1);
+        try Test.checkIntBits(&comp, specifier, -2, 2);
+        try Test.checkIntBits(&comp, specifier, -10, 5);
+        try Test.checkIntBits(&comp, specifier, -101, 8);
+
+        try Test.checkIntBits(&comp, specifier, std.math.minInt(i8), 8);
+        try Test.checkIntBits(&comp, specifier, std.math.minInt(i16), 16);
+        try Test.checkIntBits(&comp, specifier, std.math.minInt(i32), 32);
+    }
+
+    try Test.checkIntBits(&comp, .long, std.math.minInt(i64), 64);
+    try Test.checkIntBits(&comp, .long_long, std.math.minInt(i64), 64);
+}
+
 pub const FloatToIntChangeKind = enum {
     /// value did not change
     none,
@@ -278,14 +358,14 @@ const bin_overflow = struct {
                 }
 
                 if (ty.isUnsignedInt(comp)) switch (size) {
-                    1 => unreachable, // promoted to int
-                    2 => unreachable, // promoted to int
+                    1 => return intFunc(u8, res, a, b),
+                    2 => return intFunc(u16, res, a, b),
                     4 => return intFunc(u32, res, a, b),
                     8 => return intFunc(u64, res, a, b),
                     else => unreachable,
                 } else switch (size) {
-                    1 => unreachable, // promoted to int
-                    2 => unreachable, // promoted to int
+                    1 => return intFunc(u8, res, a, b),
+                    2 => return intFunc(u16, res, a, b),
                     4 => return intFunc(i32, res, a, b),
                     8 => return intFunc(i64, res, a, b),
                     else => unreachable,
@@ -434,7 +514,7 @@ pub fn bitNot(v: Value, ty: Type, comp: *Compilation) Value {
     return out;
 }
 
-pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp: *Compilation) bool {
+pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp: *const Compilation) bool {
     assert(a.tag == b.tag);
     const S = struct {
         inline fn doICompare(comptime T: type, aa: Value, opp: std.math.CompareOperator, bb: Value) bool {
@@ -452,14 +532,14 @@ pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp:
     switch (a.tag) {
         .unavailable => return true,
         .int => if (ty.isUnsignedInt(comp)) switch (size) {
-            1 => unreachable, // promoted to int
-            2 => unreachable, // promoted to int
+            1 => return S.doICompare(u8, a, op, b),
+            2 => return S.doICompare(u16, a, op, b),
             4 => return S.doICompare(u32, a, op, b),
             8 => return S.doICompare(u64, a, op, b),
             else => unreachable,
         } else switch (size) {
-            1 => unreachable, // promoted to int
-            2 => unreachable, // promoted to int
+            1 => return S.doICompare(u8, a, op, b),
+            2 => return S.doICompare(u16, a, op, b),
             4 => return S.doICompare(i32, a, op, b),
             8 => return S.doICompare(i64, a, op, b),
             else => unreachable,
