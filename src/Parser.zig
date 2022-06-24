@@ -2027,14 +2027,13 @@ fn enumSpec(p: *Parser) Error!Type {
         p.enum_buf.items.len = enum_buf_top;
     }
 
+    const sym_stack_top = p.syms.syms.len;
     var e = Enumerator.init(fixed_ty);
     while (try p.enumerator(&e)) |field_and_node| {
         try p.enum_buf.append(field_and_node.field);
         try p.list_buf.append(field_and_node.node);
         if (p.eatToken(.comma) == null) break;
     }
-    enum_ty.fields = try p.arena.dupe(Type.Enum.Field, p.enum_buf.items[enum_buf_top..]);
-    enum_ty.tag_ty = e.res.ty;
 
     if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
     try p.expectClosing(l_brace, .r_brace);
@@ -2051,6 +2050,42 @@ fn enumSpec(p: *Parser) Error!Type {
         enum_ty.tag_ty = .{ .specifier = tag_specifier };
     }
 
+    const enum_fields = p.enum_buf.items[enum_buf_top..];
+    const field_nodes = p.list_buf.items[list_buf_top..];
+
+    if (fixed_ty == null) {
+        const vals = p.syms.syms.items(.val)[sym_stack_top..];
+        const types = p.syms.syms.items(.ty)[sym_stack_top..];
+
+        for (enum_fields) |*field, i| {
+            if (field.ty.eql(Type.int, p.comp, false)) continue;
+
+            var res = Result{ .node = field.node, .ty = field.ty, .val = vals[i] };
+            const dest_ty = if (p.comp.fixedEnumTagSpecifier()) |some|
+                Type{ .specifier = some }
+            else if (res.intFitsInType(p, Type.int))
+                Type.int
+            else if (!res.ty.eql(enum_ty.tag_ty, p.comp, false))
+                enum_ty.tag_ty
+            else
+                continue;
+
+            vals[i].intCast(field.ty, dest_ty, p.comp);
+            types[i] = dest_ty;
+            p.nodes.items(.ty)[@enumToInt(field_nodes[i])] = dest_ty;
+            field.ty = dest_ty;
+            res.ty = dest_ty;
+
+            if (res.node != .none) {
+                try res.implicitCast(p, .int_cast);
+                field.node = res.node;
+                p.nodes.items(.data)[@enumToInt(field_nodes[i])].decl.node = res.node;
+            }
+        }
+    }
+
+    enum_ty.fields = try p.arena.dupe(Type.Enum.Field, enum_fields);
+
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
         try p.syms.syms.append(p.gpa, .{
@@ -2066,7 +2101,6 @@ fn enumSpec(p: *Parser) Error!Type {
     var node: Tree.Node = .{ .tag = .enum_decl_two, .ty = ty, .data = .{
         .bin = .{ .lhs = .none, .rhs = .none },
     } };
-    const field_nodes = p.list_buf.items[list_buf_top..];
     switch (field_nodes.len) {
         0 => {},
         1 => node.data = .{ .bin = .{ .lhs = field_nodes[0], .rhs = .none } },
@@ -2149,9 +2183,7 @@ const Enumerator = struct {
     /// Set enumerator value to specified value.
     fn set(e: *Enumerator, p: *Parser, res: Result, tok: TokenIndex) !void {
         if (e.fixed and !res.ty.eql(e.res.ty, p.comp, false)) {
-            if (res.val.compare(.gt, Value.int(e.res.ty.maxInt(p.comp)), res.ty, p.comp) or
-                res.val.compare(.lt, Value.int(e.res.ty.minInt(p.comp)), res.ty, p.comp))
-            {
+            if (!res.intFitsInType(p, e.res.ty)) {
                 try p.errStr(.enum_not_representable_fixed, tok, try p.typeStr(e.res.ty));
                 return error.ParsingFailed;
             }
@@ -2161,6 +2193,7 @@ const Enumerator = struct {
             e.res = copy;
         } else {
             e.res = res;
+            try e.res.intCast(p, e.res.ty.integerPromotion(p.comp), tok);
         }
     }
 
@@ -4412,7 +4445,7 @@ const Result = struct {
 
         // cast to the unsigned type with greater rank
         const a_larger = @enumToInt(a_promoted.specifier) > @enumToInt(b_promoted.specifier);
-        const b_larger = @enumToInt(b_promoted.specifier) > @enumToInt(b_promoted.specifier);
+        const b_larger = @enumToInt(b_promoted.specifier) > @enumToInt(a_promoted.specifier);
         if (a_unsigned) {
             const target = if (a_larger) a_promoted else b_promoted;
             try a.intCast(p, target, tok);
@@ -4483,6 +4516,8 @@ const Result = struct {
                 res.val.intToFloat(res.ty, to, p.comp);
             } else if (new_float and old_float) {
                 res.val.floatCast(res.ty, to, p.comp);
+            } else if (old_int and new_int) {
+                res.val.intCast(res.ty, to, p.comp);
             }
         } else {
             try p.errStr(.invalid_cast_type, tok, try p.typeStr(res.ty));
@@ -4499,6 +4534,13 @@ const Result = struct {
             .ty = res.ty,
             .data = .{ .cast = .{ .operand = res.node, .kind = cast_kind } },
         });
+    }
+
+    fn intFitsInType(res: Result, p: *Parser, ty: Type) bool {
+        const max_int = Value.int(ty.maxInt(p.comp));
+        const min_int = Value.int(ty.minInt(p.comp));
+        return res.val.compare(.lte, max_int, res.ty, p.comp) and
+            (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, min_int, res.ty, p.comp));
     }
 };
 

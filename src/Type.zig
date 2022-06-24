@@ -285,6 +285,8 @@ data: union {
 specifier: Specifier,
 qual: Qualifiers = .{},
 
+pub const int = Type{ .specifier = .int };
+
 /// Determine if type matches the given specifier, recursing into typeof
 /// types if necessary.
 pub fn is(ty: Type, specifier: Specifier) bool {
