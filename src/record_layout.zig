@@ -289,17 +289,12 @@ fn layoutEnum(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void
     }
 }
 
-fn alignTo(n: u29, m: u29) u29 {
-    if (!std.math.isPowerOfTwo(m)) {
-        std.debug.panic("align pow fail. n:{} m:{}\n", .{ n, m });
+fn alignTo(addr: u29, alignment: u29) u29 {
+    const tmp = std.mem.alignForward(addr, alignment);
+    if (tmp > std.math.maxInt(u29)) {
+        unreachable;
     }
-    var mask = m - 1;
-    var res: u29 = 0;
-    if (@addWithOverflow(u29, n, mask, &res)) {
-        std.debug.panic("alingTo overflow", .{});
-    } else {
-        return res & ~mask;
-    }
+    return @truncate(u29, tmp);
 }
 
 fn annotationAlignment(ty: *const Type, comp: *const Compilation) ?u29 {
