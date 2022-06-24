@@ -416,7 +416,7 @@ pub fn main() !void {
 }
 
 // returns true if passed
-fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std.ArrayList(u8)) !?bool {
+pub fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std.ArrayList(u8)) !?bool {
     const macro = pp.defines.get("EXPECTED_ERRORS") orelse return null;
 
     const expected_count = pp.comp.diag.list.items.len;

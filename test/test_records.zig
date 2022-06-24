@@ -2,6 +2,7 @@ const std = @import("std");
 const build_options = @import("build_options");
 const print = std.debug.print;
 const aro = @import("aro");
+const Runner = @import("runner.zig");
 const Codegen = aro.Codegen;
 const Tree = aro.Tree;
 const Token = Tree.Token;
@@ -179,7 +180,7 @@ pub fn main() !void {
         defer tree.deinit();
         tree.dump(std.io.null_writer) catch {};
 
-        if (try checkExpectedErrors(&pp, &progress, &buf)) |some| {
+        if (try Runner.checkExpectedErrors(&pp, &progress, &buf)) |some| {
             if (some) ok_count += 1 else fail_count += 1;
             continue;
         }
@@ -199,153 +200,3 @@ pub fn main() !void {
         std.process.exit(1);
     }
 }
-
-// returns true if passed
-fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std.ArrayList(u8)) !?bool {
-    const macro = pp.defines.get("EXPECTED_ERRORS") orelse return null;
-
-    const expected_count = pp.comp.diag.list.items.len;
-    var m = MsgWriter.init(pp.comp.gpa);
-    defer m.deinit();
-    aro.Diagnostics.renderExtra(pp.comp, &m);
-
-    if (macro.is_func) {
-        progress.log("invalid EXPECTED_ERRORS {}\n", .{macro});
-        return false;
-    }
-
-    var count: usize = 0;
-    for (macro.tokens) |str| {
-        if (str.id == .macro_ws) continue;
-        if (str.id != .string_literal) {
-            progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
-            return false;
-        }
-        defer count += 1;
-        if (count >= expected_count) continue;
-
-        defer buf.items.len = 0;
-        // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-        std.debug.assert((try std.zig.string_literal.parseAppend(buf, pp.tokSlice(str))) == .success);
-        try buf.append('\n');
-        const expected_error = buf.items;
-
-        const index = std.mem.indexOf(u8, m.buf.items, expected_error);
-        if (index == null) {
-            progress.log(
-                \\
-                \\======= expected to find error =======
-                \\{s}
-                \\
-                \\=== but output does not contain it ===
-                \\{s}
-                \\
-                \\
-            , .{ expected_error, m.buf.items });
-            return false;
-        }
-    }
-
-    if (count != expected_count) {
-        progress.log(
-            \\EXPECTED_ERRORS missing errors, expected {d} found {d},
-            \\=== actual output ===
-            \\{s}
-            \\
-            \\
-        , .{ count, expected_count, m.buf.items });
-        return false;
-    }
-    return true;
-}
-
-const MsgWriter = struct {
-    buf: std.ArrayList(u8),
-
-    fn init(gpa: std.mem.Allocator) MsgWriter {
-        return .{
-            .buf = std.ArrayList(u8).init(gpa),
-        };
-    }
-
-    fn deinit(m: *MsgWriter) void {
-        m.buf.deinit();
-    }
-
-    pub fn print(m: *MsgWriter, comptime fmt: []const u8, args: anytype) void {
-        m.buf.writer().print(fmt, args) catch {};
-    }
-
-    pub fn write(m: *MsgWriter, msg: []const u8) void {
-        m.buf.writer().writeAll(msg) catch {};
-    }
-
-    pub fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
-        m.print("{s}:{d}:{d}: ", .{ path, line, col });
-    }
-
-    pub fn start(m: *MsgWriter, kind: aro.Diagnostics.Kind) void {
-        m.print("{s}: ", .{@tagName(kind)});
-    }
-
-    pub fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32, end_with_splice: bool) void {
-        const line = maybe_line orelse {
-            m.write("\n");
-            return;
-        };
-        const trailer = if (end_with_splice) "\\ " else "";
-        m.print("\n{s}{s}\n", .{ line, trailer });
-        m.print("{s: >[1]}^\n", .{ "", col });
-    }
-};
-
-const StmtTypeDumper = struct {
-    types: std.ArrayList([]const u8),
-
-    fn deinit(self: *StmtTypeDumper, allocator: std.mem.Allocator) void {
-        for (self.types.items) |t| {
-            allocator.free(t);
-        }
-        self.types.deinit();
-    }
-
-    fn init(allocator: std.mem.Allocator) StmtTypeDumper {
-        return .{
-            .types = std.ArrayList([]const u8).init(allocator),
-        };
-    }
-
-    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: NodeIndex, m: *MsgWriter) AllocatorError!void {
-        if (node == .none) return;
-        const tag = tree.nodes.items(.tag)[@enumToInt(node)];
-        if (tag == .implicit_return) return;
-        const ty = tree.nodes.items(.ty)[@enumToInt(node)];
-        ty.dump(m.buf.writer()) catch {};
-        const owned = m.buf.toOwnedSlice();
-        errdefer m.buf.allocator.free(owned);
-        try self.types.append(owned);
-    }
-
-    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, decl_idx: NodeIndex, allocator: std.mem.Allocator) AllocatorError!void {
-        var m = MsgWriter.init(allocator);
-        defer m.deinit();
-
-        const idx = @enumToInt(decl_idx);
-
-        const tag = tree.nodes.items(.tag)[idx];
-        const data = tree.nodes.items(.data)[idx];
-
-        switch (tag) {
-            .compound_stmt_two => {
-                try self.dumpNode(tree, data.bin.lhs, &m);
-                try self.dumpNode(tree, data.bin.rhs, &m);
-            },
-            .compound_stmt => {
-                for (tree.data[data.range.start..data.range.end]) |stmt| {
-                    try self.dumpNode(tree, stmt, &m);
-                }
-            },
-            else => unreachable,
-        }
-    }
-};
