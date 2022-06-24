@@ -1662,6 +1662,9 @@ fn recordSpec(p: *Parser) Error!Type {
         }
     };
 
+    var done = false;
+    errdefer if (!done) p.skipTo(.r_brace);
+
     // Get forward declared type or create a new one
     var defined = false;
     const record_ty: *Type.Record = if (maybe_ident) |ident| record_ty: {
@@ -1740,6 +1743,7 @@ fn recordSpec(p: *Parser) Error!Type {
         try p.errStr(.empty_record_size, kind_tok, p.tokSlice(kind_tok));
     }
     try p.expectClosing(l_brace, .r_brace);
+    done = true;
     try p.attributeSpecifier(); // .record
 
     ty = try p.withAttributes(.{
@@ -1990,6 +1994,9 @@ fn enumSpec(p: *Parser) Error!Type {
         }
     };
 
+    var done = false;
+    errdefer if (!done) p.skipTo(.r_brace);
+
     // Get forward declared type or create a new one
     var defined = false;
     const enum_ty: *Type.Enum = if (maybe_ident) |ident| enum_ty: {
@@ -2031,6 +2038,7 @@ fn enumSpec(p: *Parser) Error!Type {
 
     if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
     try p.expectClosing(l_brace, .r_brace);
+    done = true;
     try p.attributeSpecifier(); // record
 
     const ty = try p.withAttributes(
