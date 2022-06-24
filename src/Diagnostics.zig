@@ -48,6 +48,7 @@ pub const Message = struct {
         },
         actual_codepoint: u21,
         unsigned: u64,
+        pow_2_as_string: u8,
         signed: i64,
         none: void,
     };
@@ -134,6 +135,8 @@ pub const Options = packed struct {
     @"gnu-include-next": Kind = .default,
     @"include-next-outside-header": Kind = .default,
     @"include-next-absolute-path": Kind = .default,
+    @"enum-too-large": Kind = .default,
+    @"fixed-enum-extension": Kind = .default,
 };
 
 const messages = struct {
@@ -1798,6 +1801,46 @@ const messages = struct {
         const kind = .warning;
         const opt = "include-next-outside-header";
     };
+    const enumerator_overflow = struct {
+        const msg = "overflow in enumeration value";
+        const kind = .warning;
+    };
+    const enum_not_representable = struct {
+        const msg = "incremented enumerator value {s} is not representable in the largest integer type";
+        const kind = .warning;
+        const opt = "enum-too-large";
+        const extra = .pow_2_as_string;
+    };
+    const enum_too_large = struct {
+        const msg = "enumeration values exceed range of largest integer";
+        const kind = .warning;
+        const opt = "enum-too-large";
+    };
+    const enum_fixed = struct {
+        const msg = "enumeration types with a fixed underlying type are a Clang extension";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "fixed-enum-extension";
+    };
+    const enum_prev_nonfixed = struct {
+        const msg = "enumeration previously declared with nonfixed underlying type";
+        const kind = .@"error";
+    };
+    const enum_prev_fixed = struct {
+        const msg = "enumeration previously declared with fixed underlying type";
+        const kind = .@"error";
+    };
+    const enum_different_explicit_ty = struct {
+        // str will be like 'new' (was 'old'
+        const msg = "enumeration redeclared with different underlying type {s})";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const enum_not_representable_fixed = struct {
+        const msg = "enumerator value is not representable in the underlying type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -1933,6 +1976,13 @@ pub fn render(comp: *Compilation) void {
     renderExtra(comp, &m);
 }
 
+/// This is a workaround for a stage1 bug when constructing an anonymous struct with a
+/// runtime conditional value
+/// See https://github.com/ziglang/zig/issues/5230
+const Pow2String = struct {
+    @"0": []const u8,
+};
+
 pub fn renderExtra(comp: *Compilation, m: anytype) void {
     var errors: u32 = 0;
     var warnings: u32 = 0;
@@ -1998,6 +2048,13 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                         }),
                         .actual_codepoint => m.print(info.msg, .{msg.extra.actual_codepoint}),
                         .unsigned => m.print(info.msg, .{msg.extra.unsigned}),
+                        .pow_2_as_string => m.print(info.msg, Pow2String{ .@"0" = switch (msg.extra.pow_2_as_string) {
+                            63 => "9223372036854775808",
+                            64 => "18446744073709551616",
+                            127 => "170141183460469231731687303715884105728",
+                            128 => "340282366920938463463374607431768211456",
+                            else => unreachable,
+                        } }),
                         .signed => m.print(info.msg, .{msg.extra.signed}),
                         .attr_enum => m.print(info.msg, .{
                             @tagName(msg.extra.attr_enum.tag),
@@ -2007,7 +2064,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                             @tagName(msg.extra.ignored_record_attr.tag),
                             @tagName(msg.extra.ignored_record_attr.specifier),
                         }),
-                        else => unreachable,
+                        else => @compileError("invalid extra kind " ++ @tagName(info.extra)),
                     }
                 } else {
                     m.write(info.msg);

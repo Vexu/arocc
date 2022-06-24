@@ -474,26 +474,6 @@ fn generateVaListType(comp: *Compilation) !Type {
     return ty;
 }
 
-pub fn minInt(comp: *const Compilation) i64 {
-    const ty = Type{ .specifier = .int };
-    return switch (ty.sizeof(comp).?) {
-        2 => std.math.minInt(i16),
-        4 => std.math.minInt(i32),
-        8 => std.math.minInt(i64),
-        else => unreachable,
-    };
-}
-
-pub fn maxInt(comp: *const Compilation) u64 {
-    const ty = Type{ .specifier = .int };
-    return switch (ty.sizeof(comp).?) {
-        2 => std.math.maxInt(i16),
-        4 => std.math.maxInt(i32),
-        8 => std.math.maxInt(i64),
-        else => unreachable,
-    };
-}
-
 fn generateIntMax(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {
     const bit_count = @intCast(u8, ty.sizeof(comp).? * 8);
     const unsigned = ty.isUnsignedInt(comp);
@@ -506,6 +486,33 @@ fn generateIntMax(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !v
 
 fn generateSizeofType(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {
     try w.print("#define {s} {d}\n", .{ name, ty.sizeof(comp).? });
+}
+
+pub fn nextLargestIntSameSign(comp: *const Compilation, ty: Type) ?Type {
+    assert(ty.isInt());
+    const specifiers = if (ty.isUnsignedInt(comp))
+        [_]Type.Specifier{ .short, .int, .long, .long_long }
+    else
+        [_]Type.Specifier{ .ushort, .uint, .ulong, .ulong_long };
+    const size = ty.sizeof(comp).?;
+    for (specifiers) |specifier| {
+        const candidate = Type{ .specifier = specifier };
+        if (candidate.sizeof(comp).? > size) return candidate;
+    }
+    return null;
+}
+
+/// If `enum E { ... }` syntax has a fixed underlying integer type regardless of the presence of
+/// __attribute__((packed)) or the range of values of the corresponding enumerator constants,
+/// specify it here.
+/// TODO: likely incomplete
+pub fn fixedEnumTagSpecifier(comp: *const Compilation) ?Type.Specifier {
+    switch (comp.langopts.emulate) {
+        .msvc => return .int,
+        .clang => if (comp.target.os.tag == .windows) return .int,
+        .gcc => {},
+    }
+    return null;
 }
 
 pub fn defineSystemIncludes(comp: *Compilation) !void {
