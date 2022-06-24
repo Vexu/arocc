@@ -33,7 +33,7 @@ const int_type = Type{ .specifier = .int };
 
 pub const BITS_PER_BYTE: u29 = 8;
 
-pub fn computeLayout(ty: Type, p: *const Parser, type_layout: *TypeLayout) void {
+pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
     if (ty.isRecord()) {
         const record_ty = ty.getRecord() orelse unreachable;
         const rec = record_ty.data.record;
@@ -44,30 +44,32 @@ pub fn computeLayout(ty: Type, p: *const Parser, type_layout: *TypeLayout) void 
             unreachable;
         }
     } else if (ty.isArray()) {
-        layoutArray(ty, p, type_layout);
+        layoutArray(ty, comp, type_layout);
     } else if (ty.is(.@"enum")) {
-        layoutEnum(ty, p.pp.comp, type_layout);
+        layoutEnum(ty, comp, type_layout);
     } else {
-        type_layout.size_bits = @intCast(u29, ty.bitSizeof(p.pp.comp).?);
-        type_layout.pointer_alignment_bits = ty.naturalAlignment(p.pp.comp) * BITS_PER_BYTE;
+        type_layout.size_bits = @intCast(u29, ty.bitSizeof(comp).?);
+        type_layout.pointer_alignment_bits = ty.naturalAlignment(comp) * BITS_PER_BYTE;
         type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
         type_layout.required_alignmnet_bits = BITS_PER_BYTE;
     }
 }
 
-pub fn recordLayout(ty: *Type, p: *const Parser) void {
+pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser) void {
     const record_ty = ty.getRecord().?;
     const rec = record_ty.data.record;
 
     var pack_value: ?u29 = null;
-    if (p.pragma_pack) |pak| {
-        const pv = @intCast(u29, pak) * BITS_PER_BYTE;
-        if (pv >= 8 and pv <= 128 and std.math.isPowerOfTwo(pv)) {
-            pack_value = pv;
+    if (parser) |p| {
+        if (p.pragma_pack) |pak| {
+            const pv = @intCast(u29, pak) * BITS_PER_BYTE;
+            if (pv >= 8 and pv <= 128 and std.math.isPowerOfTwo(pv)) {
+                pack_value = pv;
+            }
         }
     }
 
-    var req_align: u29 = annotationAlignment(ty, p.pp.comp) orelse BITS_PER_BYTE;
+    var req_align: u29 = annotationAlignment(ty, comp) orelse BITS_PER_BYTE;
 
     var record_context = RecordContext{
         .attr_packed = ty.isPacked(),
@@ -87,12 +89,12 @@ pub fn recordLayout(ty: *Type, p: *const Parser) void {
             .required_alignmnet_bits = 0,
         };
         // recursion
-        computeLayout(fld.ty, p, &type_layout);
+        computeLayout(fld.ty, comp, &type_layout);
 
         if (fld.bit_width != null) {
-            layoutBitField(p.pp.comp, fld, &type_layout, &record_context);
+            layoutBitField(comp, fld, &type_layout, &record_context);
         } else {
-            layoutRegluarField(p.pp.comp, fld, type_layout, &record_context);
+            layoutRegluarField(comp, fld, type_layout, &record_context);
         }
         // std.debug.print("fld-post {s}\n\tfld_type_layout:{any}\n\tcontext:{any}\n\tlayout:{any}\n", .{fld.name,type_layout, record_context, fld.layout});
     }
@@ -247,7 +249,7 @@ fn layoutBitField(
     fld.layout.offset_bits = offset_bits;
 }
 
-fn layoutArray(ty: Type, p: *const Parser, type_layout: *TypeLayout) void {
+fn layoutArray(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
     var ar_ty = ty.getArray() orelse unreachable; // strip any alignment / typedef
 
     if (ar_ty.data.array.len > std.math.maxInt(u29)) {
@@ -256,7 +258,7 @@ fn layoutArray(ty: Type, p: *const Parser, type_layout: *TypeLayout) void {
     }
     const a_len = @intCast(u29, ar_ty.data.array.len);
 
-    computeLayout(ar_ty.data.array.elem, p, type_layout);
+    computeLayout(ar_ty.data.array.elem, comp, type_layout);
 
     var full_size: u29 = 0;
     if (@mulWithOverflow(u29, type_layout.size_bits, a_len, &full_size)) {

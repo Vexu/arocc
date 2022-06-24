@@ -1749,7 +1749,7 @@ fn recordSpec(p: *Parser) Error!Type {
     }
 
     if (!ty.hasIncompleteSize()) {
-        RecordLayout.recordLayout(&ty, p);
+        RecordLayout.recordLayout(&ty, p.pp.comp, p);
     }
 
     // finish by creating a node

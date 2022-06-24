@@ -160,26 +160,26 @@ pub const Enum = struct {
 };
 
 pub const TypeLayout = struct {
-    /// The size of the type in bits.
-    ///
-    /// This is the value returned by `sizeof` and C and `std::mem::size_of` in Rust
-    /// (but in bits instead of bytes). This is a multiple of `pointer_alignment_bits`.
+        /// The size of the type in bits.
+        ///
+        /// This is the value returned by `sizeof` and C and `std::mem::size_of` in Rust
+        /// (but in bits instead of bytes). This is a multiple of `pointer_alignment_bits`.
     size_bits: u29,
-    /// The alignment of the type, in bits, when used as a field in a record.
-    ///
-    /// This is usually the value returned by `_Alignof` in C, but there are some edge
-    /// cases in GCC where `_Alignof` returns a smaller value.
+        /// The alignment of the type, in bits, when used as a field in a record.
+        ///
+        /// This is usually the value returned by `_Alignof` in C, but there are some edge
+        /// cases in GCC where `_Alignof` returns a smaller value.
     field_alignment_bits: u29,
-    /// The alignment, in bits, of valid pointers to this type.
-    ///
-    /// This is the value returned by `std::mem::align_of` in Rust
-    /// (but in bits instead of bytes). `size_bits` is a multiple of this value.
+        /// The alignment, in bits, of valid pointers to this type.
+        ///
+        /// This is the value returned by `std::mem::align_of` in Rust
+        /// (but in bits instead of bytes). `size_bits` is a multiple of this value.
     pointer_alignment_bits: u29,
-    /// The required alignment of the type in bits.
-    ///
-    /// This value is only used by MSVC targets. It is 8 on all other
-    /// targets. On MSVC targets, this value restricts the effects of `#pragma pack` except
-    /// in some cases involving bit-fields.
+        /// The required alignment of the type in bits.
+        ///
+        /// This value is only used by MSVC targets. It is 8 on all other
+        /// targets. On MSVC targets, this value restricts the effects of `#pragma pack` except
+        /// in some cases involving bit-fields.
     required_alignmnet_bits: u29,
 };
 
