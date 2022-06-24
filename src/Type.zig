@@ -468,16 +468,6 @@ pub fn getArray(ty: *const Type) ?*const Type {
     };
 }
 
-pub fn isEnum(ty: Type) bool {
-    return switch (ty.specifier) {
-        .@"enum" => true,
-        .typeof_type => ty.data.sub_type.isEnum(),
-        .typeof_expr => ty.data.expr.ty.isEnum(),
-        .attributed => ty.data.attributed.base.isEnum(),
-        else => false,
-    };
-}
-
 pub fn isEnumOrRecord(ty: Type) bool {
     return switch (ty.specifier) {
         .@"enum", .@"struct", .@"union" => true,
@@ -755,8 +745,13 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
 }
 
 pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
-    var sz = ty.sizeof(comp) orelse return null;
-    return 8 * sz;
+    return switch (ty.specifier) {
+        .bool => 1,
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
+        .attributed => ty.data.attributed.base.bitSizeof(comp),
+        else => 8 * (ty.sizeof(comp) orelse return null),
+    };
 }
 
 /// Get the alignment of a type
@@ -822,11 +817,11 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
 }
 
 // get alignment ignoring any annotations/attributions
-pub fn rawAlignOf(ty: Type, comp: *const Compilation) u29 {
+pub fn naturalAlignment(ty: Type, comp: *const Compilation) u29 {
     return switch (ty.specifier) {
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.rawAlignOf(comp),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.rawAlignOf(comp),
-        .attributed => ty.data.attributed.base.rawAlignOf(comp),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.naturalAlignment(comp),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.naturalAlignment(comp),
+        .attributed => ty.data.attributed.base.naturalAlignment(comp),
         else => ty.alignof(comp),
     };
 }

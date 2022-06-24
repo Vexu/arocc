@@ -258,6 +258,7 @@ pub const Token = struct {
         // builtins that require special parsing
         builtin_choose_expr,
         builtin_va_arg,
+        builtin_offsetof,
         builtin_bitoffsetof,
 
         /// Return true if token is identifier or keyword.
@@ -341,6 +342,7 @@ pub const Token = struct {
                 .keyword_alignof2,
                 .builtin_choose_expr,
                 .builtin_va_arg,
+                .builtin_offsetof,
                 .builtin_bitoffsetof,
                 .keyword_attribute1,
                 .keyword_attribute2,
@@ -568,6 +570,7 @@ pub const Token = struct {
                 .keyword_typeof2 => "__typeof__",
                 .builtin_choose_expr => "__builtin_choose_expr",
                 .builtin_va_arg => "__builtin_va_arg",
+                .builtin_offsetof => "__builtin_offsetof",
                 .builtin_bitoffsetof => "__builtin_bitoffsetof",
                 .keyword_attribute1 => "__attribute",
                 .keyword_attribute2 => "__attribute__",
@@ -601,6 +604,7 @@ pub const Token = struct {
                 .macro_pretty_func,
                 .builtin_choose_expr,
                 .builtin_va_arg,
+                .builtin_offsetof,
                 .builtin_bitoffsetof,
                 => "an identifier",
                 .string_literal,
@@ -847,6 +851,7 @@ pub const Token = struct {
         // builtins that require special parsing
         .{ "__builtin_choose_expr", .builtin_choose_expr },
         .{ "__builtin_va_arg", .builtin_va_arg },
+        .{ "__builtin_offsetof", .builtin_offsetof },
         .{ "__builtin_bitoffsetof", .builtin_bitoffsetof },
     });
 };

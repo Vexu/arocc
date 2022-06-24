@@ -1712,18 +1712,18 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
-    const bitoffsetof_ty = struct {
-        const msg = "bitoffsetof requires struct or union type, '{s}' invalid";
+    const offsetof_ty = struct {
+        const msg = "offsetof requires struct or union type, '{s}' invalid";
         const extra = .str;
         const kind = .@"error";
     };
-    const bitoffsetof_incomplete = struct {
-        const msg = "bitoffsetof of incomplete type '{s}'";
+    const offsetof_incomplete = struct {
+        const msg = "offsetof of incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const bitoffsetof_array = struct {
-        const msg = "bitoffsetof requires array type, '{s}' invalid";
+    const offsetof_array = struct {
+        const msg = "offsetof requires array type, '{s}' invalid";
         const extra = .str;
         const kind = .@"error";
     };

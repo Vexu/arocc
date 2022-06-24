@@ -13,5 +13,5 @@ typedef struct {
 } max_align_t;
 
 #define NULL ((void*)0)
-/* TODO implement offsetof */
-#define offsetof(T, member) __builtin_bitoffsetof(T, member)
+#define offsetof(T, member) __builtin_offsetof(T, member)
+#define bitoffsetof(T, member) __builtin_bitoffsetof(T, member)

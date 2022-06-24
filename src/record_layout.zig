@@ -8,8 +8,6 @@ const Record = Type.Record;
 const Field = Record.Field;
 const TypeLayout = Type.TypeLayout;
 
-const assert = std.debug.assert;
-
 // almost all the code for record layout
 // was liberally copied from this repro
 // https://github.com/mahkoh/repr-c
@@ -43,23 +41,22 @@ pub fn computeLayout(ty: Type, p: *const Parser, type_layout: *TypeLayout) void 
             type_layout.* = rec.type_layout;
         } else {
             // I don't think this should ever happen...
-            std.debug.panic("field of type record not laid out.", .{});
+            unreachable;
         }
     } else if (ty.isArray()) {
         layoutArray(ty, p, type_layout);
-    } else if (ty.isEnum()) {
+    } else if (ty.is(.@"enum")) {
         layoutEnum(ty, p.pp.comp, type_layout);
     } else {
         type_layout.size_bits = @intCast(u29, ty.bitSizeof(p.pp.comp).?);
-        type_layout.pointer_alignment_bits = ty.rawAlignOf(p.pp.comp) * BITS_PER_BYTE;
+        type_layout.pointer_alignment_bits = ty.naturalAlignment(p.pp.comp) * BITS_PER_BYTE;
         type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
         type_layout.required_alignmnet_bits = BITS_PER_BYTE;
     }
 }
 
 pub fn recordLayout(ty: *Type, p: *const Parser) void {
-    assert(ty.isRecord());
-    const record_ty = ty.getRecord() orelse unreachable;
+    const record_ty = ty.getRecord().?;
     const rec = record_ty.data.record;
 
     var pack_value: ?u29 = null;
@@ -147,8 +144,7 @@ fn layoutBitField(
     fld_layout: *TypeLayout,
     record_context: *RecordContext,
 ) void {
-    assert(fld.bit_width != null);
-    const bit_width = fld.bit_width orelse unreachable;
+    const bit_width = fld.bit_width.?;
 
     const ty_size_bits = fld_layout.size_bits;
     var ty_fld_algn_bits = fld_layout.field_alignment_bits;
@@ -157,7 +153,7 @@ fn layoutBitField(
         // TODO: errror msg.
     }
 
-    if (ignoreNonZeroSizedBitfieldTypeAlignment(comp)) {
+    if (comp.ignoreNonZeroSizedBitfieldTypeAlignment()) {
         ty_fld_algn_bits = 1;
     }
 
@@ -167,7 +163,7 @@ fn layoutBitField(
             std.debug.panic("size of bit field exteends size of type {any}", .{fld});
         }
     } else {
-        if (minZeroWidthBitfieldAlignment(comp)) |target_align| {
+        if (comp.minZeroWidthBitfieldAlignment()) |target_align| {
             ty_fld_algn_bits = std.math.max(ty_fld_algn_bits, target_align);
         }
     }
@@ -200,7 +196,7 @@ fn layoutBitField(
             }
         }
     } else {
-        assert(comp.langopts.emulate == .clang);
+        std.debug.assert(comp.langopts.emulate == .clang);
 
         // On Clang, the alignment requested by annotations is not respected if it is
         // larger than the value of #pragma pack. See test case 0083.
@@ -223,7 +219,7 @@ fn layoutBitField(
 
     // Unnamed fields do not contribute to the record alignment except on a few targets.
     // See test case 0079.
-    if (fld.name_tok != 0 or minZeroWidthBitfieldAlignment(comp) != null) {
+    if (fld.name_tok != 0 or comp.minZeroWidthBitfieldAlignment() != null) {
         var inherited_align_bits: u29 = undefined;
 
         if (bit_width == 0) {
@@ -273,7 +269,7 @@ fn layoutArray(ty: Type, p: *const Parser, type_layout: *TypeLayout) void {
 }
 
 fn layoutEnum(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
-    std.debug.assert(ty.isEnum());
+    std.debug.assert(ty.is(.@"enum"));
 
     var alignment = ty.alignof(comp);
 
@@ -314,61 +310,4 @@ fn annotationAlignment(ty: *const Type, comp: *const Compilation) ?u29 {
         }
     }
     return req_align;
-}
-
-//
-// TODO: Move all these to Compilation?
-//
-
-fn ignoreNonZeroSizedBitfieldTypeAlignment(comp: *const Compilation) bool {
-    switch (comp.target.cpu.arch) {
-        .avr => return true,
-        .arm => {
-            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
-                switch (comp.target.os.tag) {
-                    .ios => return true,
-                    else => return false,
-                }
-            }
-        },
-        else => return false,
-    }
-    return false;
-}
-
-fn minZeroWidthBitfieldAlignment(comp: *const Compilation) ?u29 {
-    switch (comp.target.cpu.arch) {
-        .avr => return 8,
-        .arm => {
-            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
-                switch (comp.target.os.tag) {
-                    .ios => return 32,
-                    else => return null,
-                }
-            } else return null;
-        },
-        else => return null,
-    }
-}
-
-// TODO : very likely not correct.
-fn unnamedFieldAffectsAlignment(comp: *const Compilation) bool {
-    switch (comp.target.cpu.arch) {
-        .arch64 => {
-            if (comp.target.os.isDarwin() or comp.target.os.tag == .windows) return false;
-        },
-        .armeb => {
-            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
-                if (comp.target.abi.default(comp.target.cpu.arch, comp.target.os) == .eabi) return true;
-            }
-        },
-    }
-    return false;
-}
-
-fn packAllEnums(comp: *const Compilation) bool {
-    return switch (comp.target.cpu.arch) {
-        .hexagon => true,
-        else => false,
-    };
 }

@@ -865,6 +865,59 @@ pub fn isTlsSupported(comp: *Compilation) bool {
     };
 }
 
+pub fn ignoreNonZeroSizedBitfieldTypeAlignment(comp: *const Compilation) bool {
+    switch (comp.target.cpu.arch) {
+        .avr => return true,
+        .arm => {
+            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
+                switch (comp.target.os.tag) {
+                    .ios => return true,
+                    else => return false,
+                }
+            }
+        },
+        else => return false,
+    }
+    return false;
+}
+
+pub fn minZeroWidthBitfieldAlignment(comp: *const Compilation) ?u29 {
+    switch (comp.target.cpu.arch) {
+        .avr => return 8,
+        .arm => {
+            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
+                switch (comp.target.os.tag) {
+                    .ios => return 32,
+                    else => return null,
+                }
+            } else return null;
+        },
+        else => return null,
+    }
+}
+
+// TODO : this is not complete.
+pub fn unnamedFieldAffectsAlignment(comp: *const Compilation) bool {
+    switch (comp.target.cpu.arch) {
+        .arch64 => {
+            if (comp.target.os.isDarwin() or comp.target.os.tag == .windows) return false;
+        },
+        .armeb => {
+            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
+                if (comp.target.abi.default(comp.target.cpu.arch, comp.target.os) == .eabi) return true;
+            }
+        },
+    }
+    return false;
+}
+
+pub fn packAllEnums(comp: *const Compilation) bool {
+    return switch (comp.target.cpu.arch) {
+        .hexagon => true,
+        else => false,
+    };
+}
+
 /// Default alignment (in bytes) for __attribute__((aligned)) when no alignment is specified
 pub fn defaultAlignment(comp: *const Compilation) u29 {
     switch (comp.target.cpu.arch) {

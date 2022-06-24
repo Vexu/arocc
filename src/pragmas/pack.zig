@@ -170,7 +170,7 @@ fn pop(pack: *Pack, p: *Parser, maybe_label: ?[]const u8) void {
         }
     } else {
         const prev = pack.stack.popOrNull() orelse {
-            p.pragma_pack = null;
+            p.pragma_pack = 2;
             return;
         };
         p.pragma_pack = prev.val;

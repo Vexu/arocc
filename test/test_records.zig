@@ -10,73 +10,6 @@ const AllocatorError = std.mem.Allocator.Error;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !void {
-    if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
-        var test_args = std.ArrayList([]const u8).init(comp.gpa);
-        defer test_args.deinit();
-        const nl = std.mem.indexOfAny(u8, file.buf, "\n\r") orelse file.buf.len;
-        var it = std.mem.tokenize(u8, file.buf[0..nl], " ");
-        while (it.next()) |some| try test_args.append(some);
-
-        var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
-        _ = try aro.parseArgs(comp, std.io.null_writer, &source_files, macro_buf, test_args.items);
-    }
-}
-
-fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
-    var comp = aro.Compilation.init(allocator);
-    defer comp.deinit();
-
-    try comp.addDefaultPragmaHandlers();
-    try comp.defineSystemIncludes();
-
-    const file = try comp.addSourceFromPath(path);
-    var macro_buf = std.ArrayList(u8).init(comp.gpa);
-    defer macro_buf.deinit();
-
-    try addCommandLineArgs(&comp, file, macro_buf.writer());
-    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
-
-    const builtin_macros = try comp.generateBuiltinMacros();
-
-    var pp = aro.Preprocessor.init(&comp);
-    defer pp.deinit();
-    try pp.addBuiltinMacros();
-
-    _ = try pp.preprocess(builtin_macros);
-    _ = try pp.preprocess(user_macros);
-
-    const eof = pp.preprocess(file) catch |err| {
-        if (!std.unicode.utf8ValidateSlice(file.buf)) {
-            if (comp.diag.list.items.len > 0 and comp.diag.list.items[comp.diag.list.items.len - 1].tag == .invalid_utf8) {
-                return;
-            }
-        }
-        return err;
-    };
-    try pp.tokens.append(allocator, eof);
-
-    var tree = try aro.Parser.parse(&pp);
-    defer tree.deinit();
-    tree.dump(std.io.null_writer) catch {};
-}
-
-fn testAllAllocationFailures(cases: [][]const u8) !void {
-    var progress = std.Progress{};
-    const root_node = progress.start("Memory Allocation Test", cases.len);
-
-    for (cases) |case| {
-        const case_name = std.mem.sliceTo(std.fs.path.basename(case), '.');
-        var case_node = root_node.start(case_name, 0);
-        case_node.activate();
-        defer case_node.end();
-        progress.refresh();
-
-        try std.testing.checkAllAllocationFailures(std.testing.allocator, testOne, .{case});
-    }
-    root_node.end();
-}
-
 const non_working_tests = std.ComptimeStringMap(void, .{
     // attributes on field not supported (exclude attributes on types to get working)
     .{"0007"}, .{"0008"}, .{"0010"}, .{"0011"}, .{"0014"}, .{"0028"}, .{"0029"}, .{"0044"}, .{"0045"}, .{"0046"}, .{"0058"},
@@ -160,7 +93,8 @@ pub fn main() !void {
     var ok_count: u32 = 0;
     var fail_count: u32 = 0;
     var skip_count: u32 = 0;
-    next_test: for (cases.items) |path| {
+    // next_test: for (cases.items) |path| {
+    for (cases.items) |path| {
         var comp = initial_comp;
         defer {
             // preserve some values
@@ -199,14 +133,14 @@ pub fn main() !void {
                 }
             }
             // for now we're just going CLANG and Target::X86_64UnknownLinuxGnu
-            // aro ignores the first arg in the list?
-            try cmd_args.append("-DD");
-            try cmd_args.append("-DX8664_UNKNOWN_LINUX_MUSL");
-            try cmd_args.append("-DCHECK_OFFSETS");
-            if (!skip_extras) try cmd_args.append("-DEXTRA_TESTS");
-            try cmd_args.append("-Wno-ignored-pragmas");
+            const mac_writer = macro_buf.writer();
+            _ = try mac_writer.write("#define X8664_UNKNOWN_LINUX_MUSL\n");
+            _ = try mac_writer.write("#define CHECK_OFFSETS\n");
+            if (!skip_extras) _ = try mac_writer.write("#define EXTRA_TESTS\n");
+            // try macro_buf.append("-Wno-ignored-pragmas");
+            comp.diag.options.@"ignored-pragmas" = .off;
             var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
-            _ = try aro.parseArgs(&comp, std.io.null_writer, &source_files, macro_buf.writer(), cmd_args.items);
+            _ = try aro.parseArgs(&comp, std.io.null_writer, &source_files, mac_writer, cmd_args.items);
         }
 
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
@@ -236,95 +170,14 @@ pub fn main() !void {
         };
         try pp.tokens.append(gpa, eof);
 
-        if (comp.only_preprocess) {
-            if (try checkExpectedErrors(&pp, &progress, &buf)) |some| {
-                if (!some) {
-                    fail_count += 1;
-                    continue;
-                }
-            } else {
-                comp.renderErrors();
-                if (comp.diag.errors != 0) {
-                    fail_count += 1;
-                    continue;
-                }
-            }
-
-            const expected_output = blk: {
-                const expaned_path = try std.fs.path.join(gpa, &.{ args[1], "expanded", std.fs.path.basename(path) });
-                defer gpa.free(expaned_path);
-
-                break :blk std.fs.cwd().readFileAlloc(gpa, expaned_path, std.math.maxInt(u32)) catch |err| {
-                    fail_count += 1;
-                    progress.log("could not open expanded file '{s}': {s}\n", .{ path, @errorName(err) });
-                    continue;
-                };
-            };
-            defer gpa.free(expected_output);
-
-            var output = std.ArrayList(u8).init(gpa);
-            defer output.deinit();
-
-            try pp.prettyPrintTokens(output.writer());
-
-            if (std.testing.expectEqualStrings(expected_output, output.items))
-                ok_count += 1
-            else |_|
-                fail_count += 1;
+        comp.renderErrors();
+        if (comp.diag.errors != 0) {
+            fail_count += 1;
             continue;
         }
-
-        const expected_types = pp.defines.get("EXPECTED_TYPES");
-
         var tree = try aro.Parser.parse(&pp);
         defer tree.deinit();
         tree.dump(std.io.null_writer) catch {};
-
-        if (expected_types) |types| {
-            const test_fn = for (tree.root_decls) |decl| {
-                if (tree.nodes.items(.tag)[@enumToInt(decl)] == .fn_def) break tree.nodes.items(.data)[@enumToInt(decl)];
-            } else {
-                fail_count += 1;
-                progress.log("EXPECTED_TYPES requires a function to be defined\n", .{});
-                break;
-            };
-
-            var actual = StmtTypeDumper.init(gpa);
-            defer actual.deinit(gpa);
-
-            try actual.dump(&tree, test_fn.decl.node, gpa);
-
-            var i: usize = 0;
-            for (types.tokens) |str| {
-                if (str.id == .macro_ws) continue;
-                if (str.id != .string_literal) {
-                    fail_count += 1;
-                    progress.log("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
-                    continue :next_test;
-                }
-                defer i += 1;
-                if (i >= actual.types.items.len) continue;
-
-                const expected_type = std.mem.trim(u8, pp.tokSlice(str), "\"");
-                const actual_type = actual.types.items[i];
-                if (!std.mem.eql(u8, expected_type, actual_type)) {
-                    fail_count += 1;
-                    progress.log("expected type '{s}' did not match actual type '{s}'\n", .{
-                        expected_type,
-                        actual_type,
-                    });
-                    continue :next_test;
-                }
-            }
-            if (i != actual.types.items.len) {
-                fail_count += 1;
-                progress.log(
-                    "EXPECTED_TYPES count differs: expected {d} found {d}\n",
-                    .{ i, actual.types.items.len },
-                );
-                continue;
-            }
-        }
 
         if (try checkExpectedErrors(&pp, &progress, &buf)) |some| {
             if (some) ok_count += 1 else fail_count += 1;
@@ -332,75 +185,6 @@ pub fn main() !void {
         }
 
         comp.renderErrors();
-
-        if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
-            if (comp.diag.errors != 0) break :blk;
-
-            if (macro.is_func) {
-                fail_count += 1;
-                progress.log("invalid EXPECTED_OUTPUT {}\n", .{macro});
-                continue;
-            }
-
-            if (macro.tokens.len != 1 or macro.tokens[0].id != .string_literal) {
-                fail_count += 1;
-                progress.log("EXPECTED_OUTPUT takes exactly one string", .{});
-                continue;
-            }
-
-            defer buf.items.len = 0;
-            // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-            std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSlice(macro.tokens[0]))) == .success);
-            const expected_output = buf.items;
-
-            const obj_name = "test_object.o";
-            {
-                const obj = try Codegen.generateTree(&comp, tree);
-                defer obj.deinit();
-
-                const out_file = try std.fs.cwd().createFile(obj_name, .{});
-                defer out_file.close();
-
-                try obj.finish(out_file);
-            }
-
-            var child = std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
-            child.stdout_behavior = .Pipe;
-
-            try child.spawn();
-
-            const stdout = try child.stdout.?.reader().readAllAlloc(gpa, std.math.maxInt(u16));
-            defer gpa.free(stdout);
-
-            switch (try child.wait()) {
-                .Exited => |code| if (code != 0) {
-                    fail_count += 1;
-                    continue;
-                },
-                else => {
-                    fail_count += 1;
-                    continue;
-                },
-            }
-
-            if (!std.mem.eql(u8, expected_output, stdout)) {
-                fail_count += 1;
-                progress.log(
-                    \\
-                    \\======= expected output =======
-                    \\{s}
-                    \\
-                    \\=== but output does not contain it ===
-                    \\{s}
-                    \\
-                    \\
-                , .{ expected_output, stdout });
-                break;
-            }
-
-            ok_count += 1;
-            continue;
-        }
 
         if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
     }
