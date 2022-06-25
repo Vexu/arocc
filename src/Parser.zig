@@ -708,7 +708,7 @@ fn decl(p: *Parser) Error!bool {
 
     try p.attributeSpecifier();
 
-    var decl_spec = if (try p.declSpec(false)) |some| some else blk: {
+    var decl_spec = if (try p.declSpec()) |some| some else blk: {
         if (p.func.ty != null) {
             p.tok_i = first_tok;
             return false;
@@ -721,7 +721,7 @@ fn decl(p: *Parser) Error!bool {
             } else return false,
         }
         var spec: Type.Builder = .{};
-        break :blk DeclSpec{ .ty = try spec.finish(p, p.attr_buf.len) };
+        break :blk DeclSpec{ .ty = try spec.finish(p) };
     };
     if (decl_spec.@"noreturn") |tok| {
         const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} } };
@@ -778,7 +778,7 @@ fn decl(p: *Parser) Error!bool {
             defer p.param_buf.items.len = param_buf_top;
 
             param_loop: while (true) {
-                const param_decl_spec = (try p.declSpec(true)) orelse break;
+                const param_decl_spec = (try p.declSpec()) orelse break;
                 if (p.eatToken(.semicolon)) |semi| {
                     try p.errTok(.missing_declaration, semi);
                     continue :param_loop;
@@ -823,6 +823,7 @@ fn decl(p: *Parser) Error!bool {
                         try p.errStr(.parameter_missing, d.name, name_str);
                     }
                     d.ty = try p.withAttributes(d.ty, attr_buf_top_declarator);
+                    try p.validateAlignas(d.ty, .alignas_on_param);
 
                     // bypass redefinition check to avoid duplicate errors
                     try p.syms.syms.append(p.gpa, .{
@@ -1140,11 +1141,9 @@ fn typeof(p: *Parser) Error!?Type {
 ///  | keyword_auto
 ///  | keyword_register
 /// funcSpec : keyword_inline | keyword_noreturn
-fn declSpec(p: *Parser, is_param: bool) Error!?DeclSpec {
+fn declSpec(p: *Parser) Error!?DeclSpec {
     var d: DeclSpec = .{ .ty = .{ .specifier = undefined } };
     var spec: Type.Builder = .{};
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
 
     const start = p.tok_i;
     while (true) {
@@ -1208,8 +1207,7 @@ fn declSpec(p: *Parser, is_param: bool) Error!?DeclSpec {
 
     if (p.tok_i == start) return null;
 
-    d.ty = try spec.finish(p, attr_buf_top);
-    if (is_param) try p.validateAlignas(d.ty, .alignas_on_param);
+    d.ty = try spec.finish(p);
     return d;
 }
 
@@ -1388,37 +1386,9 @@ fn gnuAttribute(p: *Parser) !bool {
     return true;
 }
 
-/// alignAs : keyword_alignas '(' (typeName | constExpr ) ')'
-fn alignAs(p: *Parser) !bool {
-    const align_tok = p.eatToken(.keyword_alignas) orelse return false;
-    const l_paren = try p.expectToken(.l_paren);
-    if (try p.typeName()) |inner_ty| {
-        const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp), .alignas = true };
-        const attr = Attribute{ .tag = .aligned, .args = .{ .aligned = .{ .alignment = alignment, .__name_tok = align_tok } } };
-        try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = align_tok });
-    } else {
-        const arg_start = p.tok_i;
-        const res = try p.constExpr(.no_const_decl_folding);
-        if (!res.val.isZero()) {
-            var args = Attribute.initArguments(.aligned, align_tok);
-            if (p.diagnose(.aligned, &args, 0, res)) |msg| {
-                try p.errExtra(msg.tag, arg_start, msg.extra);
-                p.skipTo(.r_paren);
-                return error.ParsingFailed;
-            }
-            args.aligned.alignment.?.node = res.node;
-            args.aligned.alignment.?.alignas = true;
-            try p.attr_buf.append(p.gpa, .{ .attr = .{ .tag = .aligned, .args = args }, .tok = align_tok });
-        }
-    }
-    try p.expectClosing(l_paren, .r_paren);
-    return true;
-}
-
 /// attributeSpecifier : (keyword_attribute '( '(' attributeList ')' ')')*
 fn attributeSpecifier(p: *Parser) Error!void {
     while (true) {
-        if (try p.alignAs()) continue;
         if (try p.gnuAttribute()) continue;
         if (try p.c2xAttribute()) continue;
         if (try p.msvcAttribute()) continue;
@@ -1567,6 +1537,32 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     try p.errStr(.duplicate_decl_spec, atomic_tok, "atomic")
                 else
                     ty.qual.atomic = atomic_tok;
+                continue;
+            },
+            .keyword_alignas => {
+                const align_tok = p.tok_i;
+                p.tok_i += 1;
+                const l_paren = try p.expectToken(.l_paren);
+                if (try p.typeName()) |inner_ty| {
+                    const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp), .alignas = true };
+                    const attr = Attribute{ .tag = .aligned, .args = .{ .aligned = .{ .alignment = alignment, .__name_tok = align_tok } } };
+                    try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = align_tok });
+                } else {
+                    const arg_start = p.tok_i;
+                    const res = try p.constExpr(.no_const_decl_folding);
+                    if (!res.val.isZero()) {
+                        var args = Attribute.initArguments(.aligned, align_tok);
+                        if (p.diagnose(.aligned, &args, 0, res)) |msg| {
+                            try p.errExtra(msg.tag, arg_start, msg.extra);
+                            p.skipTo(.r_paren);
+                            return error.ParsingFailed;
+                        }
+                        args.aligned.alignment.?.node = res.node;
+                        args.aligned.alignment.?.alignas = true;
+                        try p.attr_buf.append(p.gpa, .{ .attr = .{ .tag = .aligned, .args = args }, .tok = align_tok });
+                    }
+                }
+                try p.expectClosing(l_paren, .r_paren);
                 continue;
             },
             .keyword_struct, .keyword_union => {
@@ -1929,7 +1925,8 @@ fn specQual(p: *Parser) Error!?Type {
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
     if (try p.typeSpec(&spec)) {
-        const ty = try spec.finish(p, attr_buf_top);
+        var ty = try spec.finish(p);
+        ty = try p.withAttributes(ty, attr_buf_top);
         try p.validateAlignas(ty, .align_ignored);
         return ty;
     }
@@ -2606,13 +2603,15 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
     defer p.syms.popScope();
 
     while (true) {
-        const param_decl_spec = if (try p.declSpec(true)) |some|
+        const attr_buf_top = p.attr_buf.len;
+        defer p.attr_buf.len = attr_buf_top;
+        const param_decl_spec = if (try p.declSpec()) |some|
             some
         else if (p.param_buf.items.len == param_buf_top)
             return null
         else blk: {
             var spec: Type.Builder = .{};
-            break :blk DeclSpec{ .ty = try spec.finish(p, p.attr_buf.len) };
+            break :blk DeclSpec{ .ty = try spec.finish(p) };
         };
 
         var name_tok: TokenIndex = 0;
@@ -2620,17 +2619,16 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
         var param_ty = param_decl_spec.ty;
         if (try p.declarator(param_decl_spec.ty, .param)) |some| {
             if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
-
-            const attr_buf_top = p.attr_buf.len;
-            defer p.attr_buf.len = attr_buf_top;
             try p.attributeSpecifier();
 
             name_tok = some.name;
-            param_ty = try p.withAttributes(some.ty, attr_buf_top);
+            param_ty = some.ty;
             if (some.name != 0) {
                 try p.syms.defineParam(p, param_ty, name_tok);
             }
         }
+        param_ty = try p.withAttributes(param_ty, attr_buf_top);
+        try p.validateAlignas(param_ty, .alignas_on_param);
 
         if (param_ty.isFunc()) {
             // params declared as functions are converted to function pointers
