@@ -4489,33 +4489,6 @@ const Result = struct {
                 .arg => return p.typePairStrExtra(src_ty, " to parameter of incompatible type ", dest_ty),
             }
         }
-
-        fn incompatible(ctx: CoerceContext, p: *Parser, tok: TokenIndex, dest_ty: Type, src_ty: Type) !void {
-            try p.errStr(switch (ctx) {
-                .assign => .incompatible_assign,
-                .init => .incompatible_init,
-                .ret => .incompatible_return,
-                .arg => .incompatible_arg,
-            }, tok, try ctx.typePairStr(p, dest_ty, src_ty));
-        }
-
-        fn incompatiblePtr(ctx: CoerceContext, p: *Parser, tok: TokenIndex, dest_ty: Type, src_ty: Type) !void {
-            try p.errStr(switch (ctx) {
-                .assign => .incompatible_ptr_assign,
-                .init => .incompatible_ptr_init,
-                .ret => .incompatible_return,
-                .arg => .incompatible_arg,
-            }, tok, try ctx.typePairStr(p, dest_ty, src_ty));
-        }
-
-        fn ptrDiscardsQualifiers(ctx: CoerceContext, p: *Parser, tok: TokenIndex, dest_ty: Type, src_ty: Type) !void {
-            try p.errStr(switch (ctx) {
-                .assign => .ptr_assign_discards_quals,
-                .init => .ptr_init_discards_quals,
-                .ret => .ptr_ret_discards_quals,
-                .arg => .ptr_arg_discards_quals,
-            }, tok, try ctx.typePairStr(p, dest_ty, src_ty));
-        }
     };
 
     /// Perform assignment-like coercion to `dest_ty`.
@@ -4557,12 +4530,22 @@ const Result = struct {
                 return; // ok
             } else if (unqual_ty.eql(res.ty, p.comp, false)) {
                 if (!unqual_ty.elemType().qual.hasQuals(res.ty.elemType().qual)) {
-                    try ctx.ptrDiscardsQualifiers(p, tok, dest_ty, res.ty);
+                    try p.errStr(switch (ctx) {
+                        .assign => .ptr_assign_discards_quals,
+                        .init => .ptr_init_discards_quals,
+                        .ret => .ptr_ret_discards_quals,
+                        .arg => .ptr_arg_discards_quals,
+                    }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 }
                 try res.ptrCast(p, unqual_ty);
                 return;
             } else if (res.ty.isPtr()) {
-                try ctx.incompatiblePtr(p, tok, dest_ty, res.ty);
+                try p.errStr(switch (ctx) {
+                    .assign => .incompatible_ptr_assign,
+                    .init => .incompatible_ptr_init,
+                    .ret => .incompatible_return,
+                    .arg => .incompatible_arg,
+                }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 try ctx.note(p);
                 try res.ptrCast(p, unqual_ty);
                 return;
@@ -4586,7 +4569,12 @@ const Result = struct {
             return error.ParsingFailed;
         }
 
-        try ctx.incompatible(p, tok, dest_ty, res.ty);
+        try p.errStr(switch (ctx) {
+            .assign => .incompatible_assign,
+            .init => .incompatible_init,
+            .ret => .incompatible_return,
+            .arg => .incompatible_arg,
+        }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
         try ctx.note(p);
     }
 };
