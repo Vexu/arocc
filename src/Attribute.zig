@@ -1,13 +1,14 @@
 const std = @import("std");
 const mem = std.mem;
-const Tree = @import("Tree.zig");
-const Diagnostics = @import("Diagnostics.zig");
-const Value = @import("Value.zig");
+const TypeInfo = std.builtin.TypeInfo;
 const Compilation = @import("Compilation.zig");
-const Type = @import("Type.zig");
+const Diagnostics = @import("Diagnostics.zig");
+const Parser = @import("Parser.zig");
+const Tree = @import("Tree.zig");
 const NodeIndex = Tree.NodeIndex;
 const TokenIndex = Tree.TokenIndex;
-const TypeInfo = std.builtin.TypeInfo;
+const Type = @import("Type.zig");
+const Value = @import("Value.zig");
 
 const Attribute = @This();
 
@@ -975,4 +976,194 @@ fn normalize(name: []const u8) []const u8 {
         return name[2 .. name.len - 2];
     }
     return name;
+}
+
+fn ignoredAttrErr(p: *Parser, tok: TokenIndex, attr: Attribute.Tag, context: []const u8) !void {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    try p.strings.writer().print("attribute '{s}' ignored on {s}", .{ @tagName(attr), context });
+    const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    try p.errStr(.ignored_attribute, tok, str);
+}
+
+pub const applyParameterAttributes = applyVariableAttributes;
+pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    _ = attrs;
+    _ = p;
+    // return switch (tag) {
+    //     .alias,
+    //     .aligned,
+    //     .alloc_size,
+    //     .cleanup,
+    //     .common,
+    //     .copy,
+    //     .deprecated,
+    //     .mode,
+    //     .nocommon,
+    //     .noinit,
+    //     .nonstring,
+    //     .@"packed",
+    //     .persistent,
+    //     .retain,
+    //     .section,
+    //     .tls_model,
+    //     .unavailable,
+    //     .uninitialized,
+    //     .unused,
+    //     .used,
+    //     .vector_size,
+    //     .visibility,
+    //     .warn_if_not_aligned,
+    //     .weak,
+    //     => true,
+    //     else => false,
+    // };
+    return ty;
+}
+
+pub const applyFieldAttributes = applyTypeAttributes;
+pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    _ = attrs;
+    _ = p;
+    // return switch (tag) {
+    //     .aligned,
+    //     .alloc_size,
+    //     .copy,
+    //     .deprecated,
+    //     .designated_init,
+    //     .may_alias,
+    //     .mode,
+    //     .@"packed",
+    //     .scalar_storage_order,
+    //     .transparent_union,
+    //     .unavailable,
+    //     .unused,
+    //     .vector_size,
+    //     .warn_if_not_aligned,
+    //     => true,
+    //     else => false,
+    // };
+    return ty;
+}
+
+pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    _ = attrs;
+    _ = p;
+    // return switch (tag) {
+    //     .access,
+    //     .alias,
+    //     .aligned,
+    //     .alloc_align,
+    //     .alloc_size,
+    //     .always_inline,
+    //     .artificial,
+    //     .assume_aligned,
+    //     .cold,
+    //     .@"const",
+    //     .constructor,
+    //     .copy,
+    //     .deprecated,
+    //     .destructor,
+    //     .@"error",
+    //     .externally_visible,
+    //     .flatten,
+    //     .format,
+    //     .format_arg,
+    //     .gnu_inline,
+    //     .hot,
+    //     .ifunc,
+    //     .interrupt,
+    //     .interrupt_handler,
+    //     .leaf,
+    //     .malloc,
+    //     .no_address_safety_analysis,
+    //     .no_icf,
+    //     .no_instrument_function,
+    //     .no_profile_instrument_function,
+    //     .no_reorder,
+    //     .no_sanitize,
+    //     .no_sanitize_address,
+    //     .no_sanitize_coverage,
+    //     .no_sanitize_thread,
+    //     .no_sanitize_undefined,
+    //     .no_split_stack,
+    //     .no_stack_limit,
+    //     .no_stack_protector,
+    //     .noclone,
+    //     .@"noinline",
+    //     .noipa,
+    //     .nonnull,
+    //     .noplt,
+    //     .noreturn,
+    //     .nothrow,
+    //     .optimize,
+    //     .patchable_function_entry,
+    //     .pure,
+    //     .retain,
+    //     .returns_nonnull,
+    //     .returns_twice,
+    //     .section,
+    //     .sentinel,
+    //     .simd,
+    //     .stack_protect,
+    //     .symver,
+    //     .target,
+    //     .target_clones,
+    //     .unavailable,
+    //     .unused,
+    //     .used,
+    //     .visibility,
+    //     .warn_unused_result,
+    //     .warning,
+    //     .weak,
+    //     .weakref,
+    //     .zero_call_used_regs,
+    //     => true,
+    //     else => false,
+    // };
+    return ty;
+}
+
+pub fn applyLabelAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    p.attr_application_buf.items.len = 0;
+    for (attrs) |attr, i| switch (attr.tag) {
+        .cold, .hot, .unused => try p.attr_application_buf.append(p.gpa, attr),
+        else => try ignoredAttrErr(p, toks[i], attr.tag, "labels"),
+    };
+    return ty.withAttributes(p.arena, p.attr_application_buf.items);
+}
+
+pub fn applyStatementAttributes(p: *Parser, ty: Type, expr_start: TokenIndex, attr_buf_start: usize) !Type {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    p.attr_application_buf.items.len = 0;
+    for (attrs) |attr, i| switch (attr.tag) {
+        .fallthrough => if (p.tok_ids[p.tok_i] != .keyword_case and p.tok_ids[p.tok_i] != .keyword_default) {
+            // TODO: this condition is not completely correct; the last statement of a compound
+            // statement is also valid if it precedes a switch label (so intervening '}' are ok,
+            // but only if they close a compound statement)
+            try p.errTok(.invalid_fallthrough, expr_start);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+        },
+        else => try p.errStr(.cannot_apply_attribute_to_statement, toks[i], @tagName(attr.tag)),
+    };
+    return ty.withAttributes(p.arena, p.attr_application_buf.items);
+}
+
+pub fn applyEnumeratorAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    p.attr_application_buf.items.len = 0;
+    for (attrs) |attr, i| switch (attr.tag) {
+        .deprecated, .unavailable => try p.attr_application_buf.append(p.gpa, attr),
+        else => try ignoredAttrErr(p, toks[i], attr.tag, "enums"),
+    };
+    return ty.withAttributes(p.arena, p.attr_application_buf.items);
 }

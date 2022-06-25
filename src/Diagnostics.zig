@@ -1207,7 +1207,8 @@ const messages = struct {
         const kind = .@"error";
     };
     const cannot_apply_attribute_to_statement = struct {
-        const msg = "attribute cannot be applied to a statement";
+        const msg = "'{s}' attribute cannot be applied to a statement";
+        const extra = .str;
         const kind = .@"error";
     };
     const builtin_macro_redefined = struct {
