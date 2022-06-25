@@ -901,7 +901,7 @@ const messages = struct {
         const all = true;
     };
     const incompatible_return = struct {
-        const msg = "returning '{s}' from a function with incompatible result type";
+        const msg = "returning {s}";
         const extra = .str;
         const kind = .@"error";
     };
@@ -925,8 +925,8 @@ const messages = struct {
         const kind = .@"error";
         const all = true;
     };
-    const incompatible_param = struct {
-        const msg = "passing '{s}' to parameter of incompatible type";
+    const incompatible_arg = struct {
+        const msg = "passing {s}";
         const extra = .str;
         const kind = .@"error";
     };
@@ -1174,6 +1174,18 @@ const messages = struct {
     };
     const ptr_assign_discards_quals = struct {
         const msg = "assigning to {s} discards qualifiers";
+        const extra = .str;
+        const opt = "incompatible-pointer-types-discards-qualifiers";
+        const kind = .warning;
+    };
+    const ptr_ret_discards_quals = struct {
+        const msg = "returning {s} discards qualifiers";
+        const extra = .str;
+        const opt = "incompatible-pointer-types-discards-qualifiers";
+        const kind = .warning;
+    };
+    const ptr_arg_discards_quals = struct {
+        const msg = "passing {s} discards qualifiers";
         const extra = .str;
         const opt = "incompatible-pointer-types-discards-qualifiers";
         const kind = .warning;

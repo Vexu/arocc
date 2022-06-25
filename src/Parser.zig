@@ -3093,60 +3093,8 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
 fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     if (target.is(.void)) return; // Do not do type coercion on excess items
 
-    // item does not need to be qualified
-    var unqual_ty = target.canonicalize(.standard);
-    unqual_ty.qual = .{};
-    const e_msg = " from incompatible type ";
     try item.lvalConversion(p);
-    if (unqual_ty.is(.bool)) {
-        // this is ridiculous but it's what clang does
-        if (item.ty.isScalar()) {
-            try item.boolCast(p, unqual_ty, tok);
-        } else {
-            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-        }
-    } else if (unqual_ty.isInt()) {
-        if (item.ty.isInt() or item.ty.isFloat()) {
-            try item.intCast(p, unqual_ty, tok);
-        } else if (item.ty.isPtr()) {
-            try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(item.ty, " to ", target));
-            try item.intCast(p, unqual_ty, tok);
-        } else {
-            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-        }
-    } else if (unqual_ty.isFloat()) {
-        if (item.ty.isInt() or item.ty.isFloat()) {
-            try item.floatCast(p, unqual_ty);
-        } else {
-            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-        }
-    } else if (unqual_ty.isPtr()) {
-        if (item.val.isZero()) {
-            try item.nullCast(p, target);
-        } else if (item.ty.isInt()) {
-            try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(item.ty, " to ", target));
-            try item.ptrCast(p, unqual_ty);
-        } else if (item.ty.isPtr()) {
-            if (!item.ty.isVoidStar() and !unqual_ty.isVoidStar() and !unqual_ty.eql(item.ty, p.comp, false)) {
-                try p.errStr(.incompatible_ptr_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-                try item.ptrCast(p, unqual_ty);
-            } else if (!unqual_ty.eql(item.ty, p.comp, true)) {
-                if (!unqual_ty.elemType().qual.hasQuals(item.ty.elemType().qual)) {
-                    try p.errStr(.ptr_init_discards_quals, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-                }
-                try item.ptrCast(p, unqual_ty);
-            }
-        } else {
-            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-        }
-    } else if (unqual_ty.isRecord()) {
-        if (!unqual_ty.eql(item.ty, p.comp, false))
-            try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-    } else if (unqual_ty.isArray() or unqual_ty.isFunc()) {
-        // we have already issued an error for this
-    } else {
-        try p.errStr(.incompatible_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
-    }
+    try item.coerce(p, target, tok, .init);
 }
 
 fn isStringInit(p: *Parser, ty: Type) bool {
@@ -3577,16 +3525,16 @@ fn stmt(p: *Parser) Error!NodeIndex {
             try e.lvalConversion(p);
             p.computed_goto_tok = p.computed_goto_tok orelse goto_tok;
             if (!e.ty.isPtr()) {
-                if (!e.ty.isInt()) {
-                    try p.errStr(.incompatible_param, expr_tok, try p.typeStr(e.ty));
-                    return error.ParsingFailed;
-                }
                 const elem_ty = try p.arena.create(Type);
                 elem_ty.* = .{ .specifier = .void, .qual = .{ .@"const" = true } };
                 const result_ty = Type{
                     .specifier = .pointer,
                     .data = .{ .sub_type = elem_ty },
                 };
+                if (!e.ty.isInt()) {
+                    try p.errStr(.incompatible_arg, expr_tok, try p.typePairStrExtra(e.ty, " to parameter of incompatible type ", result_ty));
+                    return error.ParsingFailed;
+                }
                 if (e.val.isZero()) {
                     try e.nullCast(p, result_ty);
                 } else {
@@ -3832,7 +3780,8 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
             p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]);
 
         if (last_noreturn != .yes) {
-            if (last_noreturn == .no and !p.func.ty.?.returnType().is(.void)) {
+            const ret_ty = p.func.ty.?.returnType();
+            if (last_noreturn == .no and !ret_ty.is(.void) and !ret_ty.isFunc() and !ret_ty.isArray()) {
                 try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func.name));
             }
             try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.func.ty.?.returnType(), .data = undefined }));
@@ -3990,45 +3939,7 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     }
 
     try e.lvalConversion(p);
-    // Return type conversion is done as if it was assignment
-    if (ret_ty.is(.bool)) {
-        // this is ridiculous but it's what clang does
-        if (e.ty.isScalar()) {
-            try e.boolCast(p, ret_ty, e_tok);
-        } else {
-            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
-        }
-    } else if (ret_ty.isInt()) {
-        if (e.ty.isInt() or e.ty.isFloat()) {
-            try e.intCast(p, ret_ty, e_tok);
-        } else if (e.ty.isPtr()) {
-            try p.errStr(.implicit_ptr_to_int, e_tok, try p.typePairStrExtra(e.ty, " to ", ret_ty));
-            try e.intCast(p, ret_ty, e_tok);
-        } else {
-            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
-        }
-    } else if (ret_ty.isFloat()) {
-        if (e.ty.isInt() or e.ty.isFloat()) {
-            try e.floatCast(p, ret_ty);
-        } else {
-            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
-        }
-    } else if (ret_ty.isPtr()) {
-        if (e.val.isZero()) {
-            try e.nullCast(p, ret_ty);
-        } else if (e.ty.isInt()) {
-            try p.errStr(.implicit_int_to_ptr, e_tok, try p.typePairStrExtra(e.ty, " to ", ret_ty));
-            try e.intCast(p, ret_ty, e_tok);
-        } else if (!e.ty.isVoidStar() and !ret_ty.isVoidStar() and !ret_ty.eql(e.ty, p.comp, false)) {
-            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
-        }
-    } else if (ret_ty.isRecord()) {
-        if (!ret_ty.eql(e.ty, p.comp, false)) {
-            try p.errStr(.incompatible_return, e_tok, try p.typeStr(e.ty));
-        }
-    } else if (ret_ty.isFunc()) {
-        // Syntax error reported earlier; just let this return as-is since it is a parse failure anyway
-    } else unreachable;
+    try e.coerce(p, ret_ty, e_tok, .ret);
 
     try e.saveValue(p);
     return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
@@ -4557,6 +4468,127 @@ const Result = struct {
         return res.val.compare(.lte, max_int, res.ty, p.comp) and
             (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, min_int, res.ty, p.comp));
     }
+
+    const CoerceContext = union(enum) {
+        assign,
+        init,
+        ret,
+        arg: TokenIndex,
+
+        fn note(ctx: CoerceContext, p: *Parser) !void {
+            switch (ctx) {
+                .arg => |tok| try p.errTok(.parameter_here, tok),
+                else => {},
+            }
+        }
+
+        fn typePairStr(ctx: CoerceContext, p: *Parser, dest_ty: Type, src_ty: Type) ![]const u8 {
+            switch (ctx) {
+                .assign, .init => return p.typePairStrExtra(dest_ty, " from incompatible type ", src_ty),
+                .ret => return p.typePairStrExtra(src_ty, " from a function with incompatible result type ", dest_ty),
+                .arg => return p.typePairStrExtra(src_ty, " to parameter of incompatible type ", dest_ty),
+            }
+        }
+
+        fn incompatible(ctx: CoerceContext, p: *Parser, tok: TokenIndex, dest_ty: Type, src_ty: Type) !void {
+            try p.errStr(switch (ctx) {
+                .assign => .incompatible_assign,
+                .init => .incompatible_init,
+                .ret => .incompatible_return,
+                .arg => .incompatible_arg,
+            }, tok, try ctx.typePairStr(p, dest_ty, src_ty));
+        }
+
+        fn incompatiblePtr(ctx: CoerceContext, p: *Parser, tok: TokenIndex, dest_ty: Type, src_ty: Type) !void {
+            try p.errStr(switch (ctx) {
+                .assign => .incompatible_ptr_assign,
+                .init => .incompatible_ptr_init,
+                .ret => .incompatible_return,
+                .arg => .incompatible_arg,
+            }, tok, try ctx.typePairStr(p, dest_ty, src_ty));
+        }
+
+        fn ptrDiscardsQualifiers(ctx: CoerceContext, p: *Parser, tok: TokenIndex, dest_ty: Type, src_ty: Type) !void {
+            try p.errStr(switch (ctx) {
+                .assign => .ptr_assign_discards_quals,
+                .init => .ptr_init_discards_quals,
+                .ret => .ptr_ret_discards_quals,
+                .arg => .ptr_arg_discards_quals,
+            }, tok, try ctx.typePairStr(p, dest_ty, src_ty));
+        }
+    };
+
+    /// Perform assignment-like coercion to `dest_ty`.
+    fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) !void {
+        // Subject of the coercion does not need to be qualified.
+        var unqual_ty = dest_ty.canonicalize(.standard);
+        unqual_ty.qual = .{};
+        if (unqual_ty.is(.bool)) {
+            if (res.ty.isScalar()) {
+                // this is ridiculous but it's what clang does
+                try res.boolCast(p, unqual_ty, tok);
+                return;
+            }
+        } else if (unqual_ty.isInt()) {
+            if (res.ty.isInt() or res.ty.isFloat()) {
+                try res.intCast(p, unqual_ty, tok);
+                return;
+            } else if (res.ty.isPtr()) {
+                try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
+                try ctx.note(p);
+                try res.intCast(p, unqual_ty, tok);
+                return;
+            }
+        } else if (unqual_ty.isFloat()) {
+            if (res.ty.isInt() or res.ty.isFloat()) {
+                try res.floatCast(p, unqual_ty);
+                return;
+            }
+        } else if (unqual_ty.isPtr()) {
+            if (res.val.isZero()) {
+                try res.nullCast(p, dest_ty);
+                return;
+            } else if (res.ty.isInt()) {
+                try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
+                try ctx.note(p);
+                try res.ptrCast(p, unqual_ty);
+                return;
+            } else if (res.ty.isVoidStar() or unqual_ty.isVoidStar() or unqual_ty.eql(res.ty, p.comp, true)) {
+                return; // ok
+            } else if (unqual_ty.eql(res.ty, p.comp, false)) {
+                if (!unqual_ty.elemType().qual.hasQuals(res.ty.elemType().qual)) {
+                    try ctx.ptrDiscardsQualifiers(p, tok, dest_ty, res.ty);
+                }
+                try res.ptrCast(p, unqual_ty);
+                return;
+            } else if (res.ty.isPtr()) {
+                try ctx.incompatiblePtr(p, tok, dest_ty, res.ty);
+                try ctx.note(p);
+                try res.ptrCast(p, unqual_ty);
+                return;
+            }
+        } else if (unqual_ty.isRecord()) {
+            if (unqual_ty.eql(res.ty, p.comp, false)) {
+                return; // ok
+            }
+
+            if (ctx == .arg) if (unqual_ty.get(.@"union")) |union_ty| {
+                // TODO handle transparent_union
+                _ = union_ty;
+            };
+        } else {
+            if (ctx == .assign and (unqual_ty.isArray() or unqual_ty.isFunc())) {
+                try p.errTok(.not_assignable, tok);
+                return;
+            }
+            // This case should not be possible and an error should have already been emitted but we
+            // might still have attempted to parse further so return error.ParsingFailed here to stop.
+            return error.ParsingFailed;
+        }
+
+        try ctx.incompatible(p, tok, dest_ty, res.ty);
+        try ctx.note(p);
+    }
 };
 
 /// expr : assignExpr (',' assignExpr)*
@@ -4683,59 +4715,7 @@ fn assignExpr(p: *Parser) Error!Result {
         else => unreachable,
     }
 
-    // rhs does not need to be qualified
-    var unqual_ty = lhs.ty.canonicalize(.standard);
-    unqual_ty.qual = .{};
-    const e_msg = " from incompatible type ";
-    if (lhs.ty.is(.bool)) {
-        // this is ridiculous but it's what clang does
-        if (rhs.ty.isScalar()) {
-            try rhs.boolCast(p, unqual_ty, tok);
-        } else {
-            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-        }
-    } else if (unqual_ty.isInt()) {
-        if (rhs.ty.isInt() or rhs.ty.isFloat()) {
-            try rhs.intCast(p, unqual_ty, tok);
-        } else if (rhs.ty.isPtr()) {
-            try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(rhs.ty, " to ", lhs.ty));
-            try rhs.intCast(p, unqual_ty, tok);
-        } else {
-            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-        }
-    } else if (unqual_ty.isFloat()) {
-        if (rhs.ty.isInt() or rhs.ty.isFloat()) {
-            try rhs.floatCast(p, unqual_ty);
-        } else {
-            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-        }
-    } else if (unqual_ty.isPtr()) {
-        if (rhs.val.isZero()) {
-            try rhs.nullCast(p, lhs.ty);
-        } else if (rhs.ty.isInt()) {
-            try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(rhs.ty, " to ", lhs.ty));
-            try rhs.ptrCast(p, unqual_ty);
-        } else if (rhs.ty.isPtr()) {
-            if (!unqual_ty.isVoidStar() and !rhs.ty.isVoidStar() and !unqual_ty.eql(rhs.ty, p.comp, false)) {
-                try p.errStr(.incompatible_ptr_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-                try rhs.ptrCast(p, unqual_ty);
-            } else if (!unqual_ty.eql(rhs.ty, p.comp, true)) {
-                if (!unqual_ty.elemType().qual.hasQuals(rhs.ty.elemType().qual)) {
-                    try p.errStr(.ptr_assign_discards_quals, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-                }
-                try rhs.ptrCast(p, unqual_ty);
-            }
-        } else {
-            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-        }
-    } else if (unqual_ty.isRecord()) {
-        if (!unqual_ty.eql(rhs.ty, p.comp, false))
-            try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-    } else if (unqual_ty.isArray() or unqual_ty.isFunc()) {
-        try p.errTok(.not_assignable, tok);
-    } else {
-        try p.errStr(.incompatible_assign, tok, try p.typePairStrExtra(lhs.ty, e_msg, rhs.ty));
-    }
+    try rhs.coerce(p, lhs.ty, tok, .assign);
 
     try lhs.bin(p, tag, rhs);
     return lhs;
@@ -5795,60 +5775,8 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             {
                 try p.errTok(.va_start_not_last_param, param_tok);
             }
-        } else if (p_ty.is(.bool)) {
-            // this is ridiculous but it's what clang does
-            if (arg.ty.isScalar()) {
-                try arg.boolCast(p, p_ty, params[arg_count].name_tok);
-            } else {
-                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                try p.errTok(.parameter_here, params[arg_count].name_tok);
-            }
-        } else if (p_ty.isInt()) {
-            if (arg.ty.isInt() or arg.ty.isFloat()) {
-                try arg.intCast(p, p_ty, param_tok);
-            } else if (arg.ty.isPtr()) {
-                try p.errStr(
-                    .implicit_ptr_to_int,
-                    param_tok,
-                    try p.typePairStrExtra(arg.ty, " to ", p_ty),
-                );
-                try p.errTok(.parameter_here, params[arg_count].name_tok);
-                try arg.intCast(p, p_ty, param_tok);
-            } else {
-                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                try p.errTok(.parameter_here, params[arg_count].name_tok);
-            }
-        } else if (p_ty.isFloat()) {
-            if (arg.ty.isInt() or arg.ty.isFloat()) {
-                try arg.floatCast(p, p_ty);
-            } else {
-                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                try p.errTok(.parameter_here, params[arg_count].name_tok);
-            }
-        } else if (p_ty.isPtr()) {
-            if (arg.val.isZero()) {
-                try arg.nullCast(p, p_ty);
-            } else if (arg.ty.isInt()) {
-                try p.errStr(
-                    .implicit_int_to_ptr,
-                    param_tok,
-                    try p.typePairStrExtra(arg.ty, " to ", p_ty),
-                );
-                try p.errTok(.parameter_here, params[arg_count].name_tok);
-                try arg.intCast(p, p_ty, param_tok);
-            } else if (!arg.ty.isVoidStar() and !p_ty.isVoidStar() and !p_ty.eql(arg.ty, p.comp, false)) {
-                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                try p.errTok(.parameter_here, params[arg_count].name_tok);
-            }
-        } else if (p_ty.isRecord()) {
-            if (!p_ty.eql(arg.ty, p.comp, false)) {
-                try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-                try p.errTok(.parameter_here, params[arg_count].name_tok);
-            }
         } else {
-            // should be unreachable
-            try p.errStr(.incompatible_param, param_tok, try p.typeStr(arg.ty));
-            try p.errTok(.parameter_here, params[arg_count].name_tok);
+            try arg.coerce(p, p_ty, param_tok, .{ .arg = params[arg_count].name_tok });
         }
 
         try arg.saveValue(p);
@@ -6299,7 +6227,7 @@ fn charLiteral(p: *Parser) Error!Result {
     };
     const max: u32 = switch (p.tok_ids[p.tok_i]) {
         .char_literal => std.math.maxInt(u8),
-        .char_literal_wide => std.math.maxInt(u32), // TODO correct
+        .char_literal_wide => @intCast(u32, p.comp.types.wchar.maxInt(p.comp)),
         .char_literal_utf_16 => std.math.maxInt(u16),
         .char_literal_utf_32 => std.math.maxInt(u32),
         else => unreachable,
