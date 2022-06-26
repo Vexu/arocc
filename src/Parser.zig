@@ -103,6 +103,7 @@ param_buf: std.ArrayList(Type.Func.Param),
 enum_buf: std.ArrayList(Type.Enum.Field),
 record_buf: std.ArrayList(Type.Record.Field),
 attr_buf: std.MultiArrayList(TentativeAttribute) = .{},
+attr_application_buf: std.ArrayListUnmanaged(Attribute) = .{},
 
 // configuration and miscellaneous info
 no_eval: bool = false,
@@ -336,14 +337,6 @@ pub fn todo(p: *Parser, msg: []const u8) Error {
     return error.ParsingFailed;
 }
 
-pub fn ignoredAttrStr(p: *Parser, attr: Attribute.Tag, context: Attribute.ParseContext) ![]const u8 {
-    const strings_top = p.strings.items.len;
-    defer p.strings.items.len = strings_top;
-
-    try p.strings.writer().print("Attribute '{s}' ignored in {s} context", .{ @tagName(attr), @tagName(context) });
-    return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
-}
-
 pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
     if (Type.Builder.fromType(ty).str()) |str| return str;
     const strings_top = p.strings.items.len;
@@ -392,6 +385,24 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: f64, int_ty: Ty
 }
 
 fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
+    if (ty.getAttribute(.@"error")) |@"error"| {
+        const strings_top = p.strings.items.len;
+        defer p.strings.items.len = strings_top;
+
+        const w = p.strings.writer();
+        try w.print("call to '{s}' declared with attribute error: {s}", .{ p.tokSlice(@"error".__name_tok), @"error".msg });
+        const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+        try p.errStr(.error_attribute, usage_tok, str);
+    }
+    if (ty.getAttribute(.warning)) |warning| {
+        const strings_top = p.strings.items.len;
+        defer p.strings.items.len = strings_top;
+
+        const w = p.strings.writer();
+        try w.print("call to '{s}' declared with attribute warning: {s}", .{ p.tokSlice(warning.__name_tok), warning.msg });
+        const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+        try p.errStr(.warning_attribute, usage_tok, str);
+    }
     if (ty.getAttribute(.unavailable)) |unavailable| {
         try p.errDeprecated(.unavailable, usage_tok, unavailable.msg);
         try p.errStr(.unavailable_note, unavailable.__name_tok, p.tokSlice(decl_tok));
@@ -522,6 +533,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.record_buf.deinit();
         p.record_members.deinit(pp.comp.gpa);
         p.attr_buf.deinit(pp.comp.gpa);
+        p.attr_application_buf.deinit(pp.comp.gpa);
     }
 
     // NodeIndex 0 must be invalid
@@ -690,11 +702,6 @@ fn skipTo(p: *Parser, id: Token.Id) void {
     }
 }
 
-pub fn withAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    return ty.withAttributes(p.arena, attrs);
-}
-
 // ====== declarations ======
 
 /// decl
@@ -724,23 +731,34 @@ fn decl(p: *Parser) Error!bool {
         break :blk DeclSpec{ .ty = try spec.finish(p) };
     };
     if (decl_spec.@"noreturn") |tok| {
-        const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} } };
+        const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} }, .syntax = .keyword };
         try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = tok });
     }
-    try decl_spec.warnIgnoredAttrs(p, attr_buf_top);
-    var init_d = (try p.initDeclarator(&decl_spec)) orelse {
+    var init_d = (try p.initDeclarator(&decl_spec, attr_buf_top)) orelse {
         _ = try p.expectToken(.semicolon);
         if (decl_spec.ty.is(.@"enum") or
             (decl_spec.ty.isRecord() and !decl_spec.ty.isAnonymousRecord() and
             !decl_spec.ty.isTypeof())) // we follow GCC and clang's behavior here
+        {
+            const specifier = decl_spec.ty.canonicalize(.standard).specifier;
+            const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
+            const toks = p.attr_buf.items(.tok)[attr_buf_top..];
+            for (attrs) |attr, i| {
+                try p.errExtra(.ignored_record_attr, toks[i], .{
+                    .ignored_record_attr = .{ .tag = attr.tag, .specifier = switch (specifier) {
+                        .@"enum" => .@"enum",
+                        .@"struct" => .@"struct",
+                        .@"union" => .@"union",
+                        else => unreachable,
+                    } },
+                });
+            }
             return true;
+        }
 
         try p.errTok(.missing_declaration, first_tok);
         return true;
     };
-
-    init_d.d.ty = try p.withAttributes(init_d.d.ty, attr_buf_top);
-    try p.validateAlignas(init_d.d.ty, null);
 
     // Check for function definition.
     if (init_d.d.func_declarator != null and init_d.initializer.node == .none and init_d.d.ty.isFunc()) fn_def: {
@@ -822,8 +840,7 @@ fn decl(p: *Parser) Error!bool {
                     } else {
                         try p.errStr(.parameter_missing, d.name, name_str);
                     }
-                    d.ty = try p.withAttributes(d.ty, attr_buf_top_declarator);
-                    try p.validateAlignas(d.ty, .alignas_on_param);
+                    d.ty = try Attribute.applyParameterAttributes(p, d.ty, attr_buf_top_declarator, .alignas_on_param);
 
                     // bypass redefinition check to avoid duplicate errors
                     try p.syms.syms.append(p.gpa, .{
@@ -915,7 +932,7 @@ fn decl(p: *Parser) Error!bool {
 
         if (p.eatToken(.comma) == null) break;
 
-        init_d = (try p.initDeclarator(&decl_spec)) orelse {
+        init_d = (try p.initDeclarator(&decl_spec, attr_buf_top)) orelse {
             try p.err(.expected_ident_or_l_paren);
             continue;
         };
@@ -1070,23 +1087,6 @@ pub const DeclSpec = struct {
             }
         }
     }
-
-    fn warnIgnoredAttrs(d: DeclSpec, p: *Parser, attr_buf_start: usize) !void {
-        if (!d.ty.isEnumOrRecord()) return;
-
-        var i = attr_buf_start;
-        while (i < p.attr_buf.len) : (i += 1) {
-            const ignored_attr = p.attr_buf.get(i);
-            try p.errExtra(.ignored_record_attr, ignored_attr.tok, .{
-                .ignored_record_attr = .{ .tag = ignored_attr.attr.tag, .specifier = switch (d.ty.specifier) {
-                    .@"enum" => .@"enum",
-                    .@"struct" => .@"struct",
-                    .@"union" => .@"union",
-                    else => continue,
-                } },
-            });
-        }
-    }
 };
 
 /// typeof
@@ -1211,25 +1211,6 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
     return d;
 }
 
-fn validateAlignas(p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !void {
-    const base = ty.canonicalize(.standard);
-    const default_align = base.alignof(p.comp);
-    for (ty.getAttributes()) |attr| {
-        if (attr.tag != .aligned) continue;
-        if (attr.args.aligned.alignment) |alignment| {
-            if (!alignment.alignas) continue;
-
-            const align_tok = attr.args.aligned.__name_tok;
-            if (tag) |t| try p.errTok(t, align_tok);
-            if (ty.isFunc()) {
-                try p.errTok(.alignas_on_func, align_tok);
-            } else if (alignment.requested < default_align) {
-                try p.errExtra(.minimum_alignment, align_tok, .{ .unsigned = default_align });
-            }
-        }
-    }
-}
-
 const InitDeclarator = struct { d: Declarator, initializer: Result = .{} };
 
 /// attribute
@@ -1303,7 +1284,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
         try p.errExtra(.attribute_not_enough_args, name_tok, .{ .attr_arg_count = .{ .attribute = attr, .expected = required_count } });
         return error.ParsingFailed;
     }
-    return TentativeAttribute{ .attr = .{ .tag = attr, .args = arguments }, .tok = name_tok };
+    return TentativeAttribute{ .attr = .{ .tag = attr, .args = arguments, .syntax = kind.toSyntax() }, .tok = name_tok };
 }
 
 fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result) ?Diagnostics.Message {
@@ -1397,19 +1378,25 @@ fn attributeSpecifier(p: *Parser) Error!void {
 }
 
 /// initDeclarator : declarator assembly? attributeSpecifier? ('=' initializer)?
-fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
+fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?InitDeclarator {
+    const this_attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = this_attr_buf_top;
 
     var init_d = InitDeclarator{
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
 
-    try p.attributeSpecifier(); // if (init_d.d.ty.isFunc()) .function else .variable
+    try p.attributeSpecifier();
     _ = try p.assembly(.decl_label);
-    try p.attributeSpecifier(); // if (init_d.d.ty.isFunc()) .function else .variable
+    try p.attributeSpecifier();
 
-    init_d.d.ty = try p.withAttributes(init_d.d.ty, attr_buf_top);
+    if (decl_spec.storage_class == .typedef) {
+        init_d.d.ty = try Attribute.applyTypeAttributes(p, init_d.d.ty, attr_buf_top, null);
+    } else if (init_d.d.ty.isFunc()) {
+        init_d.d.ty = try Attribute.applyFunctionAttributes(p, init_d.d.ty, attr_buf_top);
+    } else {
+        init_d.d.ty = try Attribute.applyVariableAttributes(p, init_d.d.ty, attr_buf_top, null);
+    }
 
     if (p.eatToken(.equal)) |eq| init: {
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
@@ -1492,7 +1479,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec) Error!?InitDeclarator {
 fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
-        try p.attributeSpecifier(); // .typedef
+        try p.attributeSpecifier();
 
         if (try p.typeof()) |inner_ty| {
             try ty.combineFromTypeof(p, inner_ty, start);
@@ -1544,9 +1531,13 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 p.tok_i += 1;
                 const l_paren = try p.expectToken(.l_paren);
                 if (try p.typeName()) |inner_ty| {
-                    const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp), .alignas = true };
-                    const attr = Attribute{ .tag = .aligned, .args = .{ .aligned = .{ .alignment = alignment, .__name_tok = align_tok } } };
-                    try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = align_tok });
+                    const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp) };
+                    try p.attr_buf.append(p.gpa, .{
+                        .attr = .{ .tag = .aligned, .args = .{
+                            .aligned = .{ .alignment = alignment, .__name_tok = align_tok },
+                        }, .syntax = .keyword },
+                        .tok = align_tok,
+                    });
                 } else {
                     const arg_start = p.tok_i;
                     const res = try p.constExpr(.no_const_decl_folding);
@@ -1558,8 +1549,10 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                             return error.ParsingFailed;
                         }
                         args.aligned.alignment.?.node = res.node;
-                        args.aligned.alignment.?.alignas = true;
-                        try p.attr_buf.append(p.gpa, .{ .attr = .{ .tag = .aligned, .args = args }, .tok = align_tok });
+                        try p.attr_buf.append(p.gpa, .{
+                            .attr = .{ .tag = .aligned, .args = args, .syntax = .keyword },
+                            .tok = align_tok,
+                        });
                     }
                 }
                 try p.expectClosing(l_paren, .r_paren);
@@ -1624,7 +1617,7 @@ fn recordSpec(p: *Parser) Error!Type {
     p.tok_i += 1;
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
-    try p.attributeSpecifier(); // .record
+    try p.attributeSpecifier();
 
     const maybe_ident = try p.eatIdentifier();
     const l_brace = p.eatToken(.l_brace) orelse {
@@ -1638,10 +1631,10 @@ fn recordSpec(p: *Parser) Error!Type {
         } else {
             // this is a forward declaration, create a new record Type.
             const record_ty = try Type.Record.create(p.arena, p.tokSlice(ident));
-            const ty = try p.withAttributes(.{
+            const ty = try Attribute.applyTypeAttributes(p, .{
                 .specifier = if (is_struct) .@"struct" else .@"union",
                 .data = .{ .record = record_ty },
-            }, attr_buf_top);
+            }, attr_buf_top, null);
             try p.syms.syms.append(p.gpa, .{
                 .kind = if (is_struct) .@"struct" else .@"union",
                 .name = record_ty.name,
@@ -1740,12 +1733,12 @@ fn recordSpec(p: *Parser) Error!Type {
     }
     try p.expectClosing(l_brace, .r_brace);
     done = true;
-    try p.attributeSpecifier(); // .record
+    try p.attributeSpecifier();
 
-    ty = try p.withAttributes(.{
+    ty = try Attribute.applyTypeAttributes(p, .{
         .specifier = if (is_struct) .@"struct" else .@"union",
         .data = .{ .record = record_ty },
-    }, attr_buf_top);
+    }, attr_buf_top, null);
     if (ty.specifier == .attributed and symbol_index != null) {
         p.syms.syms.items(.ty)[symbol_index.?] = ty;
     }
@@ -1802,7 +1795,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         const this_decl_top = p.attr_buf.len;
         defer p.attr_buf.len = this_decl_top;
 
-        try p.attributeSpecifier(); // .record
+        try p.attributeSpecifier();
 
         // 0 means unnamed
         var name_tok: TokenIndex = 0;
@@ -1847,8 +1840,8 @@ fn recordDeclarator(p: *Parser) Error!bool {
             bits_node = res.node;
         }
 
-        try p.attributeSpecifier(); // .record
-        ty = try p.withAttributes(ty, attr_buf_top);
+        try p.attributeSpecifier();
+        ty = try Attribute.applyFieldAttributes(p, ty, attr_buf_top, null);
 
         if (name_tok == 0 and bits_node == .none) unnamed: {
             if (ty.is(.@"enum") or ty.hasIncompleteSize()) break :unnamed;
@@ -1908,27 +1901,11 @@ fn recordDeclarator(p: *Parser) Error!bool {
     return true;
 }
 
-fn checkAlignasUsage(p: *Parser, tag: Diagnostics.Tag, attr_buf_start: usize) !void {
-    var i = attr_buf_start;
-    while (i < p.attr_buf.len) : (i += 1) {
-        const tentative_attr = p.attr_buf.get(i);
-        if (tentative_attr.attr.tag != .aligned) continue;
-        if (tentative_attr.attr.args.aligned.alignment) |alignment| {
-            if (alignment.alignas) try p.errTok(tag, tentative_attr.tok);
-        }
-    }
-}
-
 /// specQual : (typeSpec | typeQual | alignSpec)+
 fn specQual(p: *Parser) Error!?Type {
     var spec: Type.Builder = .{};
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
     if (try p.typeSpec(&spec)) {
-        var ty = try spec.finish(p);
-        ty = try p.withAttributes(ty, attr_buf_top);
-        try p.validateAlignas(ty, .align_ignored);
-        return ty;
+        return try spec.finish(p);
     }
     return null;
 }
@@ -1941,7 +1918,7 @@ fn enumSpec(p: *Parser) Error!Type {
     p.tok_i += 1;
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
-    try p.attributeSpecifier(); // record
+    try p.attributeSpecifier();
 
     const maybe_ident = try p.eatIdentifier();
     const fixed_ty = if (p.eatToken(.colon)) |colon| fixed: {
@@ -1971,10 +1948,10 @@ fn enumSpec(p: *Parser) Error!Type {
         } else {
             // this is a forward declaration, create a new enum Type.
             const enum_ty = try Type.Enum.create(p.arena, p.tokSlice(ident), fixed_ty);
-            const ty = try p.withAttributes(
-                .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
-                attr_buf_top,
-            );
+            const ty = try Attribute.applyTypeAttributes(p, .{
+                .specifier = .@"enum",
+                .data = .{ .@"enum" = enum_ty },
+            }, attr_buf_top, null);
             try p.syms.syms.append(p.gpa, .{
                 .kind = .@"enum",
                 .name = enum_ty.name,
@@ -2035,12 +2012,12 @@ fn enumSpec(p: *Parser) Error!Type {
     if (p.enum_buf.items.len == enum_buf_top) try p.err(.empty_enum);
     try p.expectClosing(l_brace, .r_brace);
     done = true;
-    try p.attributeSpecifier(); // record
+    try p.attributeSpecifier();
 
-    const ty = try p.withAttributes(
-        .{ .specifier = .@"enum", .data = .{ .@"enum" = enum_ty } },
-        attr_buf_top,
-    );
+    const ty = try Attribute.applyTypeAttributes(p, .{
+        .specifier = .@"enum",
+        .data = .{ .@"enum" = enum_ty },
+    }, attr_buf_top, null);
     const is_packed = ty.hasAttribute(.@"packed") or p.comp.langopts.short_enums;
     if (!enum_ty.fixed) {
         const tag_specifier = try e.getTypeSpecifier(p, is_packed, maybe_ident orelse enum_tok);
@@ -2260,7 +2237,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     }
 
     var res = e.res;
-    res.ty = try p.withAttributes(res.ty, attr_buf_top);
+    res.ty = try Attribute.applyEnumeratorAttributes(p, res.ty, attr_buf_top);
 
     if (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, Value.int(0), res.ty, p.comp)) {
         e.num_positive_bits = std.math.max(e.num_positive_bits, res.val.minUnsignedBits(res.ty, p.comp));
@@ -2627,8 +2604,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
                 try p.syms.defineParam(p, param_ty, name_tok);
             }
         }
-        param_ty = try p.withAttributes(param_ty, attr_buf_top);
-        try p.validateAlignas(param_ty, .alignas_on_param);
+        param_ty = try Attribute.applyParameterAttributes(p, param_ty, attr_buf_top, .alignas_on_param);
 
         if (param_ty.isFunc()) {
             // params declared as functions are converted to function pointers
@@ -2670,11 +2646,14 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
 
 /// typeName : specQual abstractDeclarator
 fn typeName(p: *Parser) Error!?Type {
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
     var ty = (try p.specQual()) orelse return null;
     if (try p.declarator(ty, .abstract)) |some| {
         if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
-        return some.ty;
-    } else return ty;
+        return try Attribute.applyTypeAttributes(p, some.ty, attr_buf_top, .align_ignored);
+    }
+    return try Attribute.applyTypeAttributes(p, ty, attr_buf_top, .align_ignored);
 }
 
 /// initializer
@@ -2817,6 +2796,10 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         defer index_hint = cur_index_hint orelse null;
 
         if (designation) _ = try p.expectToken(.equal);
+
+        if (!designation and cur_ty.hasAttribute(.designated_init)) {
+            try p.err(.designated_init_needed);
+        }
 
         var saw = false;
         if (is_str_init and p.isStringInit(init_ty)) {
@@ -3290,7 +3273,7 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
     switch (kind) {
         .decl_label => {
             const str = (try p.asmStr()).val.data.bytes;
-            const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } } };
+            const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } }, .syntax = .keyword };
             try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
         },
         .global => _ = try p.asmStr(),
@@ -3583,19 +3566,11 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
-    try p.attributeSpecifier(); // statement
+    try p.attributeSpecifier();
 
     if (p.eatToken(.semicolon)) |_| {
         var null_node: Tree.Node = .{ .tag = .null_stmt, .data = undefined };
-        null_node.ty = try p.withAttributes(null_node.ty, attr_buf_top);
-        if (null_node.ty.getAttribute(.fallthrough) != null) {
-            if (p.tok_ids[p.tok_i] != .keyword_case and p.tok_ids[p.tok_i] != .keyword_default) {
-                // TODO: this condition is not completely correct; the last statement of a compound
-                // statement is also valid if it precedes a switch label (so intervening '}' are ok,
-                // but only if they close a compound statement)
-                try p.errTok(.invalid_fallthrough, expr_start);
-            }
-        }
+        null_node.ty = try Attribute.applyStatementAttributes(p, null_node.ty, expr_start, attr_buf_top);
         return p.addNode(null_node);
     }
 
@@ -3630,12 +3605,14 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         p.tok_i += 1;
         const attr_buf_top = p.attr_buf.len;
         defer p.attr_buf.len = attr_buf_top;
-        try p.attributeSpecifier(); // label
+        try p.attributeSpecifier();
 
-        return try p.addNode(.{
+        var labeled_stmt = Tree.Node{
             .tag = .labeled_stmt,
             .data = .{ .decl = .{ .name = name_tok, .node = try p.stmt() } },
-        });
+        };
+        labeled_stmt.ty = try Attribute.applyLabelAttributes(p, labeled_stmt.ty, attr_buf_top);
+        return try p.addNode(labeled_stmt);
     } else if (p.eatToken(.keyword_case)) |case| {
         const first_item = try p.constExpr(.gnu_folding_extension);
         const ellipsis = p.tok_i;
@@ -3930,6 +3907,10 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     _ = try p.expectToken(.semicolon);
     const ret_ty = p.func.ty.?.returnType();
 
+    if (p.func.ty.?.hasAttribute(.noreturn)) {
+        try p.errStr(.invalid_noreturn, e_tok, p.tokSlice(p.func.name));
+    }
+
     if (e.node == .none) {
         if (!ret_ty.is(.void)) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func.name));
         return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
@@ -4005,13 +3986,25 @@ const Result = struct {
             .bit_and_assign_expr,
             .bit_xor_assign_expr,
             .bit_or_assign_expr,
-            .call_expr,
-            .call_expr_one,
             .pre_inc_expr,
             .pre_dec_expr,
             .post_inc_expr,
             .post_dec_expr,
             => return,
+            .call_expr_one => {
+                const fn_ptr = p.nodes.items(.data)[@enumToInt(cur_node)].bin.lhs;
+                const fn_ty = p.nodes.items(.ty)[@enumToInt(fn_ptr)].elemType();
+                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, "TODO get name");
+                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, "TODO get name");
+                return;
+            },
+            .call_expr => {
+                const fn_ptr = p.data.items[p.nodes.items(.data)[@enumToInt(cur_node)].range.start];
+                const fn_ty = p.nodes.items(.ty)[@enumToInt(fn_ptr)].elemType();
+                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, "TODO get name");
+                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, "TODO get name");
+                return;
+            },
             .stmt_expr => {
                 const body = p.nodes.items(.data)[@enumToInt(cur_node)].un;
                 switch (p.nodes.items(.tag)[@enumToInt(body)]) {
@@ -4474,10 +4467,12 @@ const Result = struct {
         init,
         ret,
         arg: TokenIndex,
+        transparent_union,
 
         fn note(ctx: CoerceContext, p: *Parser) !void {
             switch (ctx) {
                 .arg => |tok| try p.errTok(.parameter_here, tok),
+                .transparent_union => unreachable,
                 else => {},
             }
         }
@@ -4487,12 +4482,21 @@ const Result = struct {
                 .assign, .init => return p.typePairStrExtra(dest_ty, " from incompatible type ", src_ty),
                 .ret => return p.typePairStrExtra(src_ty, " from a function with incompatible result type ", dest_ty),
                 .arg => return p.typePairStrExtra(src_ty, " to parameter of incompatible type ", dest_ty),
+                .transparent_union => unreachable,
             }
         }
     };
 
     /// Perform assignment-like coercion to `dest_ty`.
-    fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) !void {
+    fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) Error!void {
+        return res.coerceExtra(p, dest_ty, tok, ctx) catch |err| switch (err) {
+            error.TransparentUnionFailed => unreachable,
+            else => |e| return e,
+        };
+    }
+
+    const Stage1Limitation = Error || error{TransparentUnionFailed};
+    fn coerceExtra(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) Stage1Limitation!void {
         // Subject of the coercion does not need to be qualified.
         var unqual_ty = dest_ty.canonicalize(.standard);
         unqual_ty.qual = .{};
@@ -4507,6 +4511,7 @@ const Result = struct {
                 try res.intCast(p, unqual_ty, tok);
                 return;
             } else if (res.ty.isPtr()) {
+                if (ctx == .transparent_union) return error.TransparentUnionFailed;
                 try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
                 try ctx.note(p);
                 try res.intCast(p, unqual_ty, tok);
@@ -4522,6 +4527,7 @@ const Result = struct {
                 try res.nullCast(p, dest_ty);
                 return;
             } else if (res.ty.isInt()) {
+                if (ctx == .transparent_union) return error.TransparentUnionFailed;
                 try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
                 try ctx.note(p);
                 try res.ptrCast(p, unqual_ty);
@@ -4535,6 +4541,7 @@ const Result = struct {
                         .init => .ptr_init_discards_quals,
                         .ret => .ptr_ret_discards_quals,
                         .arg => .ptr_arg_discards_quals,
+                        .transparent_union => return error.TransparentUnionFailed,
                     }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 }
                 try res.ptrCast(p, unqual_ty);
@@ -4545,6 +4552,7 @@ const Result = struct {
                     .init => .incompatible_ptr_init,
                     .ret => .incompatible_return,
                     .arg => .incompatible_arg,
+                    .transparent_union => return error.TransparentUnionFailed,
                 }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 try ctx.note(p);
                 try res.ptrCast(p, unqual_ty);
@@ -4556,13 +4564,26 @@ const Result = struct {
             }
 
             if (ctx == .arg) if (unqual_ty.get(.@"union")) |union_ty| {
-                // TODO handle transparent_union
-                _ = union_ty;
+                if (dest_ty.hasAttribute(.transparent_union)) transparent_union: {
+                    res.coerceExtra(p, union_ty.data.record.fields[0].ty, tok, .transparent_union) catch |err| switch (err) {
+                        error.TransparentUnionFailed => break :transparent_union,
+                        else => |e| return e,
+                    };
+                    res.node = try p.addNode(.{
+                        .tag = .union_init_expr,
+                        .ty = dest_ty,
+                        .data = .{ .union_init = .{ .field_index = 0, .node = res.node } },
+                    });
+                    res.ty = dest_ty;
+                    return;
+                }
             };
         } else {
             if (ctx == .assign and (unqual_ty.isArray() or unqual_ty.isFunc())) {
                 try p.errTok(.not_assignable, tok);
                 return;
+            } else if (ctx == .transparent_union) {
+                return error.TransparentUnionFailed;
             }
             // This case should not be possible and an error should have already been emitted but we
             // might still have attempted to parse further so return error.ParsingFailed here to stop.
@@ -4574,6 +4595,7 @@ const Result = struct {
             .init => .incompatible_init,
             .ret => .incompatible_return,
             .arg => .incompatible_arg,
+            .transparent_union => return error.TransparentUnionFailed,
         }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
         try ctx.note(p);
     }
