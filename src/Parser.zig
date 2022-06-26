@@ -809,7 +809,6 @@ fn decl(p: *Parser) Error!bool {
                         try p.errStr(.parameter_missing, d.name, name_str);
                     }
                     d.ty = try Attribute.applyParameterAttributes(p, d.ty, attr_buf_top_declarator);
-                    try p.validateAlignas(d.ty, .alignas_on_param);
 
                     // bypass redefinition check to avoid duplicate errors
                     try p.syms.syms.append(p.gpa, .{
@@ -1198,26 +1197,6 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
     return d;
 }
 
-// TODO move to Attribute.zig
-fn validateAlignas(p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !void {
-    const base = ty.canonicalize(.standard);
-    const default_align = base.alignof(p.comp);
-    for (ty.getAttributes()) |attr| {
-        if (attr.tag != .aligned) continue;
-        if (attr.args.aligned.alignment) |alignment| {
-            if (attr.syntax != .keyword) continue;
-
-            const align_tok = attr.args.aligned.__name_tok;
-            if (tag) |t| try p.errTok(t, align_tok);
-            if (ty.isFunc()) {
-                try p.errTok(.alignas_on_func, align_tok);
-            } else if (alignment.requested < default_align) {
-                try p.errExtra(.minimum_alignment, align_tok, .{ .unsigned = default_align });
-            }
-        }
-    }
-}
-
 const InitDeclarator = struct { d: Declarator, initializer: Result = .{} };
 
 /// attribute
@@ -1398,13 +1377,12 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     try p.attributeSpecifier();
 
     if (decl_spec.storage_class == .typedef) {
-        init_d.d.ty = try Attribute.applyTypeAttributes(p, init_d.d.ty, attr_buf_top);
+        init_d.d.ty = try Attribute.applyTypeAttributes(p, init_d.d.ty, attr_buf_top, null);
     } else if (init_d.d.ty.isFunc()) {
         init_d.d.ty = try Attribute.applyFunctionAttributes(p, init_d.d.ty, attr_buf_top);
     } else {
         init_d.d.ty = try Attribute.applyVariableAttributes(p, init_d.d.ty, attr_buf_top);
     }
-    try p.validateAlignas(init_d.d.ty, null);
 
     if (p.eatToken(.equal)) |eq| init: {
         if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
@@ -1642,7 +1620,7 @@ fn recordSpec(p: *Parser) Error!Type {
             const ty = try Attribute.applyTypeAttributes(p, .{
                 .specifier = if (is_struct) .@"struct" else .@"union",
                 .data = .{ .record = record_ty },
-            }, attr_buf_top);
+            }, attr_buf_top, null);
             try p.syms.syms.append(p.gpa, .{
                 .kind = if (is_struct) .@"struct" else .@"union",
                 .name = record_ty.name,
@@ -1746,7 +1724,7 @@ fn recordSpec(p: *Parser) Error!Type {
     ty = try Attribute.applyTypeAttributes(p, .{
         .specifier = if (is_struct) .@"struct" else .@"union",
         .data = .{ .record = record_ty },
-    }, attr_buf_top);
+    }, attr_buf_top, null);
     if (ty.specifier == .attributed and symbol_index != null) {
         p.syms.syms.items(.ty)[symbol_index.?] = ty;
     }
@@ -1849,7 +1827,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         }
 
         try p.attributeSpecifier();
-        ty = try Attribute.applyFieldAttributes(p, ty, attr_buf_top);
+        ty = try Attribute.applyFieldAttributes(p, ty, attr_buf_top, null);
 
         if (name_tok == 0 and bits_node == .none) unnamed: {
             if (ty.is(.@"enum") or ty.hasIncompleteSize()) break :unnamed;
@@ -1912,14 +1890,8 @@ fn recordDeclarator(p: *Parser) Error!bool {
 /// specQual : (typeSpec | typeQual | alignSpec)+
 fn specQual(p: *Parser) Error!?Type {
     var spec: Type.Builder = .{};
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
     if (try p.typeSpec(&spec)) {
-        var ty = try spec.finish(p);
-        // TODO complain about attributes
-        // ty = try p.withAttributes(ty, attr_buf_top);
-        // try p.validateAlignas(ty, .align_ignored);
-        return ty;
+        return try spec.finish(p);
     }
     return null;
 }
@@ -1965,7 +1937,7 @@ fn enumSpec(p: *Parser) Error!Type {
             const ty = try Attribute.applyTypeAttributes(p, .{
                 .specifier = .@"enum",
                 .data = .{ .@"enum" = enum_ty },
-            }, attr_buf_top);
+            }, attr_buf_top, null);
             try p.syms.syms.append(p.gpa, .{
                 .kind = .@"enum",
                 .name = enum_ty.name,
@@ -2031,7 +2003,7 @@ fn enumSpec(p: *Parser) Error!Type {
     const ty = try Attribute.applyTypeAttributes(p, .{
         .specifier = .@"enum",
         .data = .{ .@"enum" = enum_ty },
-    }, attr_buf_top);
+    }, attr_buf_top, null);
     const is_packed = ty.hasAttribute(.@"packed") or p.comp.langopts.short_enums;
     if (!enum_ty.fixed) {
         const tag_specifier = try e.getTypeSpecifier(p, is_packed, maybe_ident orelse enum_tok);
@@ -2619,7 +2591,6 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             }
         }
         param_ty = try Attribute.applyParameterAttributes(p, param_ty, attr_buf_top);
-        try p.validateAlignas(param_ty, .alignas_on_param);
 
         if (param_ty.isFunc()) {
             // params declared as functions are converted to function pointers
@@ -2661,11 +2632,14 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
 
 /// typeName : specQual abstractDeclarator
 fn typeName(p: *Parser) Error!?Type {
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
     var ty = (try p.specQual()) orelse return null;
     if (try p.declarator(ty, .abstract)) |some| {
         if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
-        return some.ty;
-    } else return ty;
+        return try Attribute.applyTypeAttributes(p, some.ty, attr_buf_top, .align_ignored);
+    }
+    return try Attribute.applyTypeAttributes(p, ty, attr_buf_top, .align_ignored);
 }
 
 /// initializer
@@ -2808,6 +2782,10 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         defer index_hint = cur_index_hint orelse null;
 
         if (designation) _ = try p.expectToken(.equal);
+
+        if (!designation and cur_ty.hasAttribute(.designated_init)) {
+            try p.err(.designated_init_needed);
+        }
 
         var saw = false;
         if (is_str_init and p.isStringInit(init_ty)) {

@@ -137,6 +137,7 @@ pub const Options = packed struct {
     @"include-next-absolute-path": Kind = .default,
     @"enum-too-large": Kind = .default,
     @"fixed-enum-extension": Kind = .default,
+    @"designated-init": Kind = .default,
 };
 
 const messages = struct {
@@ -1853,6 +1854,36 @@ const messages = struct {
         const msg = "enumerator value is not representable in the underlying type '{s}'";
         const extra = .str;
         const kind = .@"error";
+    };
+    const transparent_union_wrong_type = struct {
+        const msg = "'transparent_union' attribute only applies to unions";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const transparent_union_one_field = struct {
+        const msg = "transparent union definition must contain at least one field; transparent_union attribute ignored";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const transparent_union_size = struct {
+        const msg = "size of field {s} bits) does not match the size of the first field in transparent union; transparent_union attribute ignored";
+        const extra = .str;
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const transparent_union_size_note = struct {
+        const msg = "size of first field is {d}";
+        const extra = .unsigned;
+        const kind = .note;
+    };
+    const designated_init_invalid = struct {
+        const msg = "'designated_init' attribute is only valid on 'struct' type'";
+        const kind = .@"error";
+    };
+    const designated_init_needed = struct {
+        const msg = "positional initialization of field in 'struct' declared with 'designated_init' attribute";
+        const opt = "designated-init";
+        const kind = .warning;
     };
 };
 

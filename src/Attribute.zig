@@ -1039,29 +1039,33 @@ pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
 }
 
 pub const applyFieldAttributes = applyTypeAttributes;
-pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Diagnostics.Tag) !Type {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    _ = attrs;
-    _ = p;
-    // return switch (tag) {
-    //     .aligned,
-    //     .alloc_size,
-    //     .copy,
-    //     .deprecated,
-    //     .designated_init,
-    //     .may_alias,
-    //     .mode,
-    //     .@"packed",
-    //     .scalar_storage_order,
-    //     .transparent_union,
-    //     .unavailable,
-    //     .unused,
-    //     .vector_size,
-    //     .warn_if_not_aligned,
-    //     => true,
-    //     else => false,
-    // };
-    return ty;
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    p.attr_application_buf.items.len = 0;
+    var base_ty = ty;
+    if (base_ty.specifier == .attributed) base_ty = base_ty.data.attributed.base;
+    for (attrs) |attr, i| switch (attr.tag) {
+        // zig fmt: off
+        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode,
+         => try p.attr_application_buf.append(p.gpa, attr),
+        // zig fmt: on
+        .transparent_union => try attr.applyTransparentUnion(p, toks[i], base_ty),
+        .vector_size => try attr.applyVectorSize(p, toks[i], &base_ty),
+        .aligned => try attr.applyAligned(p, base_ty, tag),
+        .designated_init => if (base_ty.is(.@"struct")) {
+            try p.attr_application_buf.append(p.gpa, attr);
+        } else {
+            try p.errTok(.designated_init_invalid, toks[i]);
+        },
+        .alloc_size,
+        .copy,
+        .scalar_storage_order,
+        .nonstring,
+        => std.debug.panic("apply type attribute {s}", .{@tagName(attr.tag)}),
+        else => try ignoredAttrErr(p, toks[i], attr.tag, "types"),
+    };
+    return ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
 pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
@@ -1181,4 +1185,50 @@ pub fn applyEnumeratorAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !T
         else => try ignoredAttrErr(p, toks[i], attr.tag, "enums"),
     };
     return ty.withAttributes(p.arena, p.attr_application_buf.items);
+}
+
+fn applyAligned(attr: Attribute, p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !void {
+    const base = ty.canonicalize(.standard);
+    const default_align = base.alignof(p.comp);
+    if (attr.args.aligned.alignment) |alignment| alignas: {
+        if (attr.syntax != .keyword) break :alignas;
+
+        const align_tok = attr.args.aligned.__name_tok;
+        if (tag) |t| try p.errTok(t, align_tok);
+        if (ty.isFunc()) {
+            try p.errTok(.alignas_on_func, align_tok);
+        } else if (alignment.requested < default_align) {
+            try p.errExtra(.minimum_alignment, align_tok, .{ .unsigned = default_align });
+        }
+    }
+    try p.attr_application_buf.append(p.gpa, attr);
+}
+
+fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type) !void {
+    const union_ty = ty.get(.@"union") orelse {
+        return p.errTok(.transparent_union_wrong_type, tok);
+    };
+    // TODO validate union defined at end
+    if (union_ty.data.record.isIncomplete()) return;
+    const fields = union_ty.data.record.fields;
+    if (fields.len == 0) {
+        return p.errTok(.transparent_union_one_field, tok);
+    }
+    const first_field_size = fields[0].ty.bitSizeof(p.comp).?;
+    for (fields[1..]) |field| {
+        const field_size = field.ty.bitSizeof(p.comp).?;
+        if (field_size == first_field_size) continue;
+        const str = try std.fmt.allocPrint(p.comp.diag.arena.allocator(), "'{s}' ({d}", .{ field.name, field_size });
+        try p.errStr(.transparent_union_size, field.name_tok, str);
+        return p.errExtra(.transparent_union_size_note, fields[0].name_tok, .{ .unsigned = first_field_size });
+    }
+
+    try p.attr_application_buf.append(p.gpa, attr);
+}
+
+fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, ty: *Type) !void {
+    _ = attr;
+    _ = tok;
+    _ = ty;
+    return p.todo("apply vector_size attribute");
 }
