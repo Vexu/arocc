@@ -716,7 +716,6 @@ fn decl(p: *Parser) Error!bool {
         const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} }, .syntax = .keyword };
         try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = tok });
     }
-    try decl_spec.warnIgnoredAttrs(p, attr_buf_top);
     var init_d = (try p.initDeclarator(&decl_spec, attr_buf_top)) orelse {
         _ = try p.expectToken(.semicolon);
         if (decl_spec.ty.is(.@"enum") or
@@ -808,7 +807,7 @@ fn decl(p: *Parser) Error!bool {
                     } else {
                         try p.errStr(.parameter_missing, d.name, name_str);
                     }
-                    d.ty = try Attribute.applyParameterAttributes(p, d.ty, attr_buf_top_declarator);
+                    d.ty = try Attribute.applyParameterAttributes(p, d.ty, attr_buf_top_declarator, .alignas_on_param);
 
                     // bypass redefinition check to avoid duplicate errors
                     try p.syms.syms.append(p.gpa, .{
@@ -1053,24 +1052,6 @@ pub const DeclSpec = struct {
                 if (is_extern) return .extern_var;
                 return .@"var";
             }
-        }
-    }
-
-    // TODO move to Attribute.zig
-    fn warnIgnoredAttrs(d: DeclSpec, p: *Parser, attr_buf_start: usize) !void {
-        if (!d.ty.isEnumOrRecord()) return;
-
-        var i = attr_buf_start;
-        while (i < p.attr_buf.len) : (i += 1) {
-            const ignored_attr = p.attr_buf.get(i);
-            try p.errExtra(.ignored_record_attr, ignored_attr.tok, .{
-                .ignored_record_attr = .{ .tag = ignored_attr.attr.tag, .specifier = switch (d.ty.specifier) {
-                    .@"enum" => .@"enum",
-                    .@"struct" => .@"struct",
-                    .@"union" => .@"union",
-                    else => continue,
-                } },
-            });
         }
     }
 };
@@ -1381,7 +1362,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     } else if (init_d.d.ty.isFunc()) {
         init_d.d.ty = try Attribute.applyFunctionAttributes(p, init_d.d.ty, attr_buf_top);
     } else {
-        init_d.d.ty = try Attribute.applyVariableAttributes(p, init_d.d.ty, attr_buf_top);
+        init_d.d.ty = try Attribute.applyVariableAttributes(p, init_d.d.ty, attr_buf_top, null);
     }
 
     if (p.eatToken(.equal)) |eq| init: {
@@ -2590,7 +2571,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
                 try p.syms.defineParam(p, param_ty, name_tok);
             }
         }
-        param_ty = try Attribute.applyParameterAttributes(p, param_ty, attr_buf_top);
+        param_ty = try Attribute.applyParameterAttributes(p, param_ty, attr_buf_top, .alignas_on_param);
 
         if (param_ty.isFunc()) {
             // params declared as functions are converted to function pointers

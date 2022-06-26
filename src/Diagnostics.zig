@@ -1885,6 +1885,27 @@ const messages = struct {
         const opt = "designated-init";
         const kind = .warning;
     };
+    const ignore_common = struct {
+        const msg = "ignoring attribute 'common' because it conflicts with attribute 'nocommon'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_nocommon = struct {
+        const msg = "ignoring attribute 'nocommon' because it conflicts with attribute 'common'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const non_string_ignored = struct {
+        const msg = "'nonstring' attribute ignored on objects of type '{s}'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const local_variable_attribute = struct {
+        const msg = "'{s}' attribute only applies to local variables";
+        const extra = .str;
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

@@ -1003,39 +1003,57 @@ fn ignoredAttrErr(p: *Parser, tok: TokenIndex, attr: Attribute.Tag, context: []c
 }
 
 pub const applyParameterAttributes = applyVariableAttributes;
-pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Diagnostics.Tag) !Type {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    _ = attrs;
-    _ = p;
-    // return switch (tag) {
-    //     .alias,
-    //     .aligned,
-    //     .alloc_size,
-    //     .cleanup,
-    //     .common,
-    //     .copy,
-    //     .deprecated,
-    //     .mode,
-    //     .nocommon,
-    //     .noinit,
-    //     .nonstring,
-    //     .@"packed",
-    //     .persistent,
-    //     .retain,
-    //     .section,
-    //     .tls_model,
-    //     .unavailable,
-    //     .uninitialized,
-    //     .unused,
-    //     .used,
-    //     .vector_size,
-    //     .visibility,
-    //     .warn_if_not_aligned,
-    //     .weak,
-    //     => true,
-    //     else => false,
-    // };
-    return ty;
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    p.attr_application_buf.items.len = 0;
+    var base_ty = ty;
+    if (base_ty.specifier == .attributed) base_ty = base_ty.data.attributed.base;
+    var common = false;
+    var nocommon = false;
+    for (attrs) |attr, i| switch (attr.tag) {
+        // zig fmt: off
+        .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
+        .noinit, .retain, .persistent, .section, .mode, .asm_label,
+         => try p.attr_application_buf.append(p.gpa, attr),
+        // zig fmt: on
+        .common => if (nocommon) {
+            try p.errTok(.ignore_common, toks[i]);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+            common = true;
+        },
+        .nocommon => if (common) {
+            try p.errTok(.ignore_nocommon, toks[i]);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+            nocommon = true;
+        },
+        .vector_size => try attr.applyVectorSize(p, toks[i], &base_ty),
+        .aligned => try attr.applyAligned(p, base_ty, tag),
+        .nonstring => if (!base_ty.isArray() or !(base_ty.is(.char) or base_ty.is(.uchar) or base_ty.is(.schar))) {
+            try p.errStr(.non_string_ignored, toks[i], try p.typeStr(ty));
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+        },
+        .uninitialized => if (p.func.ty == null) {
+            try p.errStr(.local_variable_attribute, toks[i], "uninitialized");
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+        },
+        .cleanup => if (p.func.ty == null) {
+            try p.errStr(.local_variable_attribute, toks[i], "cleanup");
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+        },
+        .alloc_size,
+        .copy,
+        .tls_model,
+        .visibility,
+        => std.debug.panic("apply variable attribute {s}", .{@tagName(attr.tag)}),
+        else => try ignoredAttrErr(p, toks[i], attr.tag, "variables"),
+    };
+    return ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
 pub const applyFieldAttributes = applyTypeAttributes;
