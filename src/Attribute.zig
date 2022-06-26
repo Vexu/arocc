@@ -13,12 +13,28 @@ const Value = @import("Value.zig");
 const Attribute = @This();
 
 tag: Tag,
+syntax: Syntax,
 args: Arguments,
+
+pub const Syntax = enum {
+    c2x,
+    declspec,
+    gnu,
+    keyword,
+};
 
 pub const Kind = enum {
     c2x,
     declspec,
     gnu,
+
+    pub fn toSyntax(kind: Kind) Syntax {
+        return switch (kind) {
+            .c2x => .c2x,
+            .declspec => .declspec,
+            .gnu => .gnu,
+        };
+    }
 };
 
 pub const ArgumentType = enum {
@@ -312,7 +328,6 @@ const EnumTypes = enum {
 pub const Alignment = struct {
     node: NodeIndex = .none,
     requested: u29,
-    alignas: bool = false,
 };
 pub const Identifier = struct {
     tok: TokenIndex = 0,

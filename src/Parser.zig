@@ -713,7 +713,7 @@ fn decl(p: *Parser) Error!bool {
         break :blk DeclSpec{ .ty = try spec.finish(p) };
     };
     if (decl_spec.@"noreturn") |tok| {
-        const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} } };
+        const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} }, .syntax = .keyword };
         try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = tok });
     }
     try decl_spec.warnIgnoredAttrs(p, attr_buf_top);
@@ -1205,7 +1205,7 @@ fn validateAlignas(p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !void {
     for (ty.getAttributes()) |attr| {
         if (attr.tag != .aligned) continue;
         if (attr.args.aligned.alignment) |alignment| {
-            if (!alignment.alignas) continue;
+            if (attr.syntax != .keyword) continue;
 
             const align_tok = attr.args.aligned.__name_tok;
             if (tag) |t| try p.errTok(t, align_tok);
@@ -1291,7 +1291,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
         try p.errExtra(.attribute_not_enough_args, name_tok, .{ .attr_arg_count = .{ .attribute = attr, .expected = required_count } });
         return error.ParsingFailed;
     }
-    return TentativeAttribute{ .attr = .{ .tag = attr, .args = arguments }, .tok = name_tok };
+    return TentativeAttribute{ .attr = .{ .tag = attr, .args = arguments, .syntax = kind.toSyntax() }, .tok = name_tok };
 }
 
 fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result) ?Diagnostics.Message {
@@ -1539,9 +1539,13 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 p.tok_i += 1;
                 const l_paren = try p.expectToken(.l_paren);
                 if (try p.typeName()) |inner_ty| {
-                    const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp), .alignas = true };
-                    const attr = Attribute{ .tag = .aligned, .args = .{ .aligned = .{ .alignment = alignment, .__name_tok = align_tok } } };
-                    try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = align_tok });
+                    const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp) };
+                    try p.attr_buf.append(p.gpa, .{
+                        .attr = .{ .tag = .aligned, .args = .{
+                            .aligned = .{ .alignment = alignment, .__name_tok = align_tok },
+                        }, .syntax = .keyword },
+                        .tok = align_tok,
+                    });
                 } else {
                     const arg_start = p.tok_i;
                     const res = try p.constExpr(.no_const_decl_folding);
@@ -1553,8 +1557,10 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                             return error.ParsingFailed;
                         }
                         args.aligned.alignment.?.node = res.node;
-                        args.aligned.alignment.?.alignas = true;
-                        try p.attr_buf.append(p.gpa, .{ .attr = .{ .tag = .aligned, .args = args }, .tok = align_tok });
+                        try p.attr_buf.append(p.gpa, .{
+                            .attr = .{ .tag = .aligned, .args = args, .syntax = .keyword },
+                            .tok = align_tok,
+                        });
                     }
                 }
                 try p.expectClosing(l_paren, .r_paren);
@@ -1901,17 +1907,6 @@ fn recordDeclarator(p: *Parser) Error!bool {
     }
     _ = try p.expectToken(.semicolon);
     return true;
-}
-
-fn checkAlignasUsage(p: *Parser, tag: Diagnostics.Tag, attr_buf_start: usize) !void {
-    var i = attr_buf_start;
-    while (i < p.attr_buf.len) : (i += 1) {
-        const tentative_attr = p.attr_buf.get(i);
-        if (tentative_attr.attr.tag != .aligned) continue;
-        if (tentative_attr.attr.args.aligned.alignment) |alignment| {
-            if (alignment.alignas) try p.errTok(tag, tentative_attr.tok);
-        }
-    }
 }
 
 /// specQual : (typeSpec | typeQual | alignSpec)+
@@ -3286,7 +3281,7 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
     switch (kind) {
         .decl_label => {
             const str = (try p.asmStr()).val.data.bytes;
-            const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } } };
+            const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } }, .syntax = .keyword };
             try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
         },
         .global => _ = try p.asmStr(),
