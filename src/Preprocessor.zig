@@ -637,6 +637,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .enum_buf = undefined,
         .record_buf = undefined,
         .attr_buf = undefined,
+        .field_attr_buf = undefined,
     };
     return parser.macroExpr();
 }

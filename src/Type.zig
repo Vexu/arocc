@@ -169,6 +169,11 @@ pub const Record = struct {
     size: u64,
     alignment: u29,
 
+    /// If this is null, none of the fields have attributes
+    /// Otherwise, it's a pointer to N items (where N == number of fields)
+    /// and the item at index i is the attributes for the field at index i
+    field_attributes: ?[*][]const Attribute,
+
     pub const Field = struct {
         name: []const u8,
         ty: Type,
@@ -189,6 +194,7 @@ pub const Record = struct {
         var r = try allocator.create(Record);
         r.name = name;
         r.fields.len = std.math.maxInt(usize);
+        r.field_attributes = null;
         return r;
     }
 };
