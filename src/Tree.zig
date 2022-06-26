@@ -621,6 +621,14 @@ pub fn dump(tree: Tree, writer: anytype) @TypeOf(writer).Error!void {
     }
 }
 
+fn dumpFieldAttributes(attributes: []const Attribute, level: u32, writer: anytype) !void {
+    for (attributes) |attr| {
+        try writer.writeByteNTimes(' ', level);
+        try writer.print("field attr: {s}", .{@tagName(attr.tag)});
+        try dumpAttribute(attr, writer);
+    }
+}
+
 fn dumpAttribute(attr: Attribute, writer: anytype) !void {
     inline for (std.meta.fields(Attribute.Tag)) |e| {
         if (e.value == @enumToInt(attr.tag)) {
@@ -794,9 +802,17 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .union_decl,
         .attr_params,
         => {
+            const maybe_field_attributes = if (ty.getRecord()) |record| record.field_attributes else null;
             for (tree.data[data.range.start..data.range.end]) |stmt, i| {
                 if (i != 0) try w.writeByte('\n');
                 try tree.dumpNode(stmt, level + delta, w);
+                if (maybe_field_attributes) |field_attributes| {
+                    if (field_attributes[i].len == 0) continue;
+
+                    if (tree.comp.diag.color) util.setColor(ATTRIBUTE, w);
+                    try dumpFieldAttributes(field_attributes[i], level + delta + half, w);
+                    if (tree.comp.diag.color) util.setColor(.reset, w);
+                }
             }
         },
         .compound_stmt_two,
@@ -807,8 +823,25 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .union_decl_two,
         .attr_params_two,
         => {
-            if (data.bin.lhs != .none) try tree.dumpNode(data.bin.lhs, level + delta, w);
-            if (data.bin.rhs != .none) try tree.dumpNode(data.bin.rhs, level + delta, w);
+            var attr_array = [2][]const Attribute{ &.{}, &.{} };
+            const empty: [][]const Attribute = &attr_array;
+            const field_attributes = if (ty.getRecord()) |record| (record.field_attributes orelse empty.ptr) else empty.ptr;
+            if (data.bin.lhs != .none) {
+                try tree.dumpNode(data.bin.lhs, level + delta, w);
+                if (field_attributes[0].len > 0) {
+                    if (tree.comp.diag.color) util.setColor(ATTRIBUTE, w);
+                    try dumpFieldAttributes(field_attributes[0], level + delta + half, w);
+                    if (tree.comp.diag.color) util.setColor(.reset, w);
+                }
+            }
+            if (data.bin.rhs != .none) {
+                try tree.dumpNode(data.bin.rhs, level + delta, w);
+                if (field_attributes[1].len > 0) {
+                    if (tree.comp.diag.color) util.setColor(ATTRIBUTE, w);
+                    try dumpFieldAttributes(field_attributes[1], level + delta + half, w);
+                    if (tree.comp.diag.color) util.setColor(.reset, w);
+                }
+            }
         },
         .union_init_expr => {
             try w.writeByteNTimes(' ', level + half);

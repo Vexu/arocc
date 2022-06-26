@@ -527,6 +527,16 @@ pub fn getAttributes(ty: Type) []const Attribute {
     };
 }
 
+pub fn getRecord(ty: Type) ?*const Type.Record {
+    return switch (ty.specifier) {
+        .attributed => ty.data.attributed.base.getRecord(),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.getRecord(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.getRecord(),
+        .@"struct", .@"union" => ty.data.record,
+        else => null,
+    };
+}
+
 pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     var specifier = ty.specifier;
     if (specifier == .@"enum") {
