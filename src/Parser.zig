@@ -739,7 +739,22 @@ fn decl(p: *Parser) Error!bool {
         if (decl_spec.ty.is(.@"enum") or
             (decl_spec.ty.isRecord() and !decl_spec.ty.isAnonymousRecord() and
             !decl_spec.ty.isTypeof())) // we follow GCC and clang's behavior here
+        {
+            const specifier = decl_spec.ty.canonicalize(.standard).specifier;
+            const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
+            const toks = p.attr_buf.items(.tok)[attr_buf_top..];
+            for (attrs) |attr, i| {
+                try p.errExtra(.ignored_record_attr, toks[i], .{
+                    .ignored_record_attr = .{ .tag = attr.tag, .specifier = switch (specifier) {
+                        .@"enum" => .@"enum",
+                        .@"struct" => .@"struct",
+                        .@"union" => .@"union",
+                        else => unreachable,
+                    } },
+                });
+            }
             return true;
+        }
 
         try p.errTok(.missing_declaration, first_tok);
         return true;
