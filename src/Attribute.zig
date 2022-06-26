@@ -469,7 +469,8 @@ const attributes = struct {
     const @"error" = struct {
         const gnu = "error";
         const Args = struct {
-            message: []const u8,
+            msg: []const u8,
+            __name_tok: TokenIndex = undefined,
         };
     };
     const externally_visible = struct {
@@ -655,13 +656,6 @@ const attributes = struct {
         const gnu = "noreturn";
         const c2x = "noreturn";
         const declspec = "noreturn";
-    };
-    const nothrow = struct {
-        const gnu = "nothrow";
-        const declspec = "nothrow";
-    };
-    const novtable = struct {
-        const declspec = "novtable";
     };
     // TODO: union args ?
     //    const optimize = struct {
@@ -851,7 +845,8 @@ const attributes = struct {
     const warning = struct {
         const gnu = "warning";
         const Args = struct {
-            message: []const u8,
+            msg: []const u8,
+            __name_tok: TokenIndex = undefined,
         };
     };
     const weak = struct {
@@ -1088,89 +1083,114 @@ pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Di
 
 pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    _ = attrs;
-    _ = p;
-    // return switch (tag) {
-    //     .access,
-    //     .alias,
-    //     .aligned,
-    //     .alloc_align,
-    //     .alloc_size,
-    //     .always_inline,
-    //     .artificial,
-    //     .assume_aligned,
-    //     .cold,
-    //     .@"const",
-    //     .constructor,
-    //     .copy,
-    //     .deprecated,
-    //     .destructor,
-    //     .@"error",
-    //     .externally_visible,
-    //     .flatten,
-    //     .format,
-    //     .format_arg,
-    //     .gnu_inline,
-    //     .hot,
-    //     .ifunc,
-    //     .interrupt,
-    //     .interrupt_handler,
-    //     .leaf,
-    //     .malloc,
-    //     .no_address_safety_analysis,
-    //     .no_icf,
-    //     .no_instrument_function,
-    //     .no_profile_instrument_function,
-    //     .no_reorder,
-    //     .no_sanitize,
-    //     .no_sanitize_address,
-    //     .no_sanitize_coverage,
-    //     .no_sanitize_thread,
-    //     .no_sanitize_undefined,
-    //     .no_split_stack,
-    //     .no_stack_limit,
-    //     .no_stack_protector,
-    //     .noclone,
-    //     .@"noinline",
-    //     .noipa,
-    //     .nonnull,
-    //     .noplt,
-    //     .noreturn,
-    //     .nothrow,
-    //     .optimize,
-    //     .patchable_function_entry,
-    //     .pure,
-    //     .retain,
-    //     .returns_nonnull,
-    //     .returns_twice,
-    //     .section,
-    //     .sentinel,
-    //     .simd,
-    //     .stack_protect,
-    //     .symver,
-    //     .target,
-    //     .target_clones,
-    //     .unavailable,
-    //     .unused,
-    //     .used,
-    //     .visibility,
-    //     .warn_unused_result,
-    //     .warning,
-    //     .weak,
-    //     .weakref,
-    //     .zero_call_used_regs,
-    //     => true,
-    //     else => false,
-    // };
-    return ty;
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    p.attr_application_buf.items.len = 0;
+    var base_ty = ty;
+    if (base_ty.specifier == .attributed) base_ty = base_ty.data.attributed.base;
+    var hot = false;
+    var cold = false;
+    var @"noinline" = false;
+    var always_inline = false;
+    for (attrs) |attr, i| switch (attr.tag) {
+        // zig fmt: off
+        .noreturn, .unused, .used, .warning, .deprecated, .unavailable, .weak, .pure, .leaf,
+        .@"const", .warn_unused_result, .section, .returns_nonnull, .returns_twice, .@"error",
+        .externally_visible, .retain, .flatten, .gnu_inline, .alias, .asm_label, .nodiscard,
+         => try p.attr_application_buf.append(p.gpa, attr),
+        // zig fmt: on
+        .hot => if (cold) {
+            try p.errTok(.ignore_hot, toks[i]);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+            hot = true;
+        },
+        .cold => if (hot) {
+            try p.errTok(.ignore_cold, toks[i]);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+            cold = true;
+        },
+        .always_inline => if (@"noinline") {
+            try p.errTok(.ignore_always_inline, toks[i]);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+            always_inline = true;
+        },
+        .@"noinline" => if (always_inline) {
+            try p.errTok(.ignore_noinline, toks[i]);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+            @"noinline" = true;
+        },
+        .aligned => try attr.applyAligned(p, base_ty, null),
+        .format => try attr.applyFormat(p, base_ty),
+        .access,
+        .alloc_align,
+        .alloc_size,
+        .artificial,
+        .assume_aligned,
+        .constructor,
+        .copy,
+        .destructor,
+        .format_arg,
+        .ifunc,
+        .interrupt,
+        .interrupt_handler,
+        .malloc,
+        .no_address_safety_analysis,
+        .no_icf,
+        .no_instrument_function,
+        .no_profile_instrument_function,
+        .no_reorder,
+        .no_sanitize,
+        .no_sanitize_address,
+        .no_sanitize_coverage,
+        .no_sanitize_thread,
+        .no_sanitize_undefined,
+        .no_split_stack,
+        .no_stack_limit,
+        .no_stack_protector,
+        .noclone,
+        .noipa,
+        // .nonnull,
+        .noplt,
+        // .optimize,
+        .patchable_function_entry,
+        .sentinel,
+        .simd,
+        .stack_protect,
+        .symver,
+        .target,
+        .target_clones,
+        .visibility,
+        .weakref,
+        .zero_call_used_regs,
+        => std.debug.panic("apply type attribute {s}", .{@tagName(attr.tag)}),
+        else => try ignoredAttrErr(p, toks[i], attr.tag, "functions"),
+    };
+    return ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
 pub fn applyLabelAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
+    var hot = false;
+    var cold = false;
     for (attrs) |attr, i| switch (attr.tag) {
-        .cold, .hot, .unused => try p.attr_application_buf.append(p.gpa, attr),
+        .unused => try p.attr_application_buf.append(p.gpa, attr),
+        .hot => if (cold) {
+            try p.errTok(.ignore_hot, toks[i]);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+            hot = true;
+        },
+        .cold => if (hot) {
+            try p.errTok(.ignore_cold, toks[i]);
+        } else {
+            try p.attr_application_buf.append(p.gpa, attr);
+            cold = true;
+        },
         else => try ignoredAttrErr(p, toks[i], attr.tag, "labels"),
     };
     return ty.withAttributes(p.arena, p.attr_application_buf.items);
@@ -1249,4 +1269,10 @@ fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, ty: *Type) !voi
     _ = tok;
     _ = ty;
     return p.todo("apply vector_size attribute");
+}
+
+fn applyFormat(attr: Attribute, p: *Parser, ty: Type) !void {
+    // TODO validate
+    _ = ty;
+    try p.attr_application_buf.append(p.gpa, attr);
 }

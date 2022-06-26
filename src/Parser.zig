@@ -385,6 +385,24 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: f64, int_ty: Ty
 }
 
 fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
+    if (ty.getAttribute(.@"error")) |@"error"| {
+        const strings_top = p.strings.items.len;
+        defer p.strings.items.len = strings_top;
+
+        const w = p.strings.writer();
+        try w.print("call to '{s}' declared with attribute error: {s}", .{ p.tokSlice(@"error".__name_tok), @"error".msg });
+        const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+        try p.errStr(.error_attribute, usage_tok, str);
+    }
+    if (ty.getAttribute(.warning)) |warning| {
+        const strings_top = p.strings.items.len;
+        defer p.strings.items.len = strings_top;
+
+        const w = p.strings.writer();
+        try w.print("call to '{s}' declared with attribute warning: {s}", .{ p.tokSlice(warning.__name_tok), warning.msg });
+        const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+        try p.errStr(.warning_attribute, usage_tok, str);
+    }
     if (ty.getAttribute(.unavailable)) |unavailable| {
         try p.errDeprecated(.unavailable, usage_tok, unavailable.msg);
         try p.errStr(.unavailable_note, unavailable.__name_tok, p.tokSlice(decl_tok));
@@ -3874,6 +3892,10 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
     _ = try p.expectToken(.semicolon);
     const ret_ty = p.func.ty.?.returnType();
 
+    if (p.func.ty.?.hasAttribute(.noreturn)) {
+        try p.errStr(.invalid_noreturn, e_tok, p.tokSlice(p.func.name));
+    }
+
     if (e.node == .none) {
         if (!ret_ty.is(.void)) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func.name));
         return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
@@ -3949,13 +3971,25 @@ const Result = struct {
             .bit_and_assign_expr,
             .bit_xor_assign_expr,
             .bit_or_assign_expr,
-            .call_expr,
-            .call_expr_one,
             .pre_inc_expr,
             .pre_dec_expr,
             .post_inc_expr,
             .post_dec_expr,
             => return,
+            .call_expr_one => {
+                const fn_ptr = p.nodes.items(.data)[@enumToInt(cur_node)].bin.lhs;
+                const fn_ty = p.nodes.items(.ty)[@enumToInt(fn_ptr)].elemType();
+                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, "TODO get name");
+                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, "TODO get name");
+                return;
+            },
+            .call_expr => {
+                const fn_ptr = p.data.items[p.nodes.items(.data)[@enumToInt(cur_node)].range.start];
+                const fn_ty = p.nodes.items(.ty)[@enumToInt(fn_ptr)].elemType();
+                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, "TODO get name");
+                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, "TODO get name");
+                return;
+            },
             .stmt_expr => {
                 const body = p.nodes.items(.data)[@enumToInt(cur_node)].un;
                 switch (p.nodes.items(.tag)[@enumToInt(body)]) {

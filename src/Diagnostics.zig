@@ -138,6 +138,8 @@ pub const Options = packed struct {
     @"enum-too-large": Kind = .default,
     @"fixed-enum-extension": Kind = .default,
     @"designated-init": Kind = .default,
+    @"attribute-warning": Kind = .default,
+    @"invalid-noreturn": Kind = .default,
 };
 
 const messages = struct {
@@ -1615,6 +1617,17 @@ const messages = struct {
         const extra = .str;
         const kind = .note;
     };
+    const warning_attribute = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "attribute-warning";
+    };
+    const error_attribute = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const kind = .@"error";
+    };
     const ignored_record_attr = struct {
         const msg = "attribute '{s}' is ignored, place it after \"{s}\" to apply attribute to type declaration";
         const extra = .ignored_record_attr;
@@ -1905,6 +1918,44 @@ const messages = struct {
         const extra = .str;
         const opt = "ignored-attributes";
         const kind = .warning;
+    };
+    const ignore_cold = struct {
+        const msg = "ignoring attribute 'cold' because it conflicts with attribute 'hot'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_hot = struct {
+        const msg = "ignoring attribute 'hot' because it conflicts with attribute 'cold'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_noinline = struct {
+        const msg = "ignoring attribute 'noinline' because it conflicts with attribute 'always_inline'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_always_inline = struct {
+        const msg = "ignoring attribute 'always_inline' because it conflicts with attribute 'noinline'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const invalid_noreturn = struct {
+        const msg = "function '{s}' declared 'noreturn' should not return";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "invalid-noreturn";
+    };
+    const nodiscard_unused = struct {
+        const msg = "ignoring return value of '{s}', declared with 'nodiscard' attribute";
+        const extra = .str;
+        const kind = .warning;
+        const op = "unused-result";
+    };
+    const warn_unused_result = struct {
+        const msg = "ignoring return value of '{s}', declared with 'warn_unused_result' attribute";
+        const extra = .str;
+        const kind = .warning;
+        const op = "unused-result";
     };
 };
 
