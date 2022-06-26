@@ -4437,10 +4437,12 @@ const Result = struct {
         init,
         ret,
         arg: TokenIndex,
+        transparent_union,
 
         fn note(ctx: CoerceContext, p: *Parser) !void {
             switch (ctx) {
                 .arg => |tok| try p.errTok(.parameter_here, tok),
+                .transparent_union => unreachable,
                 else => {},
             }
         }
@@ -4450,12 +4452,21 @@ const Result = struct {
                 .assign, .init => return p.typePairStrExtra(dest_ty, " from incompatible type ", src_ty),
                 .ret => return p.typePairStrExtra(src_ty, " from a function with incompatible result type ", dest_ty),
                 .arg => return p.typePairStrExtra(src_ty, " to parameter of incompatible type ", dest_ty),
+                .transparent_union => unreachable,
             }
         }
     };
 
     /// Perform assignment-like coercion to `dest_ty`.
-    fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) !void {
+    fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) Error!void {
+        return res.coerceExtra(p, dest_ty, tok, ctx) catch |err| switch (err) {
+            error.TransparentUnionFailed => unreachable,
+            else => |e| return e,
+        };
+    }
+
+    const Stage1Limitation = Error || error{TransparentUnionFailed};
+    fn coerceExtra(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) Stage1Limitation!void {
         // Subject of the coercion does not need to be qualified.
         var unqual_ty = dest_ty.canonicalize(.standard);
         unqual_ty.qual = .{};
@@ -4470,6 +4481,7 @@ const Result = struct {
                 try res.intCast(p, unqual_ty, tok);
                 return;
             } else if (res.ty.isPtr()) {
+                if (ctx == .transparent_union) return error.TransparentUnionFailed;
                 try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
                 try ctx.note(p);
                 try res.intCast(p, unqual_ty, tok);
@@ -4485,6 +4497,7 @@ const Result = struct {
                 try res.nullCast(p, dest_ty);
                 return;
             } else if (res.ty.isInt()) {
+                if (ctx == .transparent_union) return error.TransparentUnionFailed;
                 try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
                 try ctx.note(p);
                 try res.ptrCast(p, unqual_ty);
@@ -4498,6 +4511,7 @@ const Result = struct {
                         .init => .ptr_init_discards_quals,
                         .ret => .ptr_ret_discards_quals,
                         .arg => .ptr_arg_discards_quals,
+                        .transparent_union => return error.TransparentUnionFailed,
                     }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 }
                 try res.ptrCast(p, unqual_ty);
@@ -4508,6 +4522,7 @@ const Result = struct {
                     .init => .incompatible_ptr_init,
                     .ret => .incompatible_return,
                     .arg => .incompatible_arg,
+                    .transparent_union => return error.TransparentUnionFailed,
                 }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 try ctx.note(p);
                 try res.ptrCast(p, unqual_ty);
@@ -4519,13 +4534,26 @@ const Result = struct {
             }
 
             if (ctx == .arg) if (unqual_ty.get(.@"union")) |union_ty| {
-                // TODO handle transparent_union
-                _ = union_ty;
+                if (dest_ty.hasAttribute(.transparent_union)) transparent_union: {
+                    res.coerceExtra(p, union_ty.data.record.fields[0].ty, tok, .transparent_union) catch |err| switch (err) {
+                        error.TransparentUnionFailed => break :transparent_union,
+                        else => |e| return e,
+                    };
+                    res.node = try p.addNode(.{
+                        .tag = .union_init_expr,
+                        .ty = dest_ty,
+                        .data = .{ .union_init = .{ .field_index = 0, .node = res.node } },
+                    });
+                    res.ty = dest_ty;
+                    return;
+                }
             };
         } else {
             if (ctx == .assign and (unqual_ty.isArray() or unqual_ty.isFunc())) {
                 try p.errTok(.not_assignable, tok);
                 return;
+            } else if (ctx == .transparent_union) {
+                return error.TransparentUnionFailed;
             }
             // This case should not be possible and an error should have already been emitted but we
             // might still have attempted to parse further so return error.ParsingFailed here to stop.
@@ -4537,6 +4565,7 @@ const Result = struct {
             .init => .incompatible_init,
             .ret => .incompatible_return,
             .arg => .incompatible_arg,
+            .transparent_union => return error.TransparentUnionFailed,
         }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
         try ctx.note(p);
     }
