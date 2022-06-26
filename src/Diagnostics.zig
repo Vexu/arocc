@@ -1957,6 +1957,15 @@ const messages = struct {
         const kind = .warning;
         const op = "unused-result";
     };
+    const invalid_vec_elem_ty = struct {
+        const msg = "invalid vector element type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const vec_size_not_multiple = struct {
+        const msg = "vector size not an integral multiple of component size";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

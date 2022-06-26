@@ -115,9 +115,5 @@ __attribute__(()) // test attribute at eof
     "attributes.c:31:29: warning: ignoring attribute 'cold' because it conflicts with attribute 'hot' [-Wignored-attributes]" \
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
     "attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement" \
-    "attributes.c:68:95: error: TODO: apply vector_size attribute" \
-    "attributes.c:69:64: error: TODO: apply vector_size attribute" \
-    "attributes.c:70:64: error: TODO: apply vector_size attribute" \
-    "attributes.c:71:64: error: TODO: apply vector_size attribute" \
     "attributes.c:76:6: error: cannot call non function type 'int'" \
     "attributes.c:107:18: error: expected identifier or '('" \
