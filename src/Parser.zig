@@ -4495,7 +4495,7 @@ const Result = struct {
                 res.val.intCast(res.ty, to, p.comp);
             }
         } else {
-            try p.errStr(.invalid_cast_type, tok, try p.typeStr(res.ty));
+            try p.errStr(.invalid_cast_type, tok, try p.typeStr(to));
             return error.ParsingFailed;
         }
         if (to.anyQual()) try p.errStr(.qual_cast, tok, try p.typeStr(to));

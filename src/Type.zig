@@ -1741,6 +1741,14 @@ fn printEpilogue(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try w.writeAll("<expr>]");
             try ty.data.expr.ty.printEpilogue(w);
         },
+        .typeof_type, .typeof_expr => {
+            const actual = ty.canonicalize(.standard);
+            try actual.printEpilogue(w);
+        },
+        .attributed => {
+            const actual = ty.canonicalize(.standard);
+            try actual.printEpilogue(w);
+        },
         else => {},
     }
 }
