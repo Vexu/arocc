@@ -715,6 +715,16 @@ pub const IncludeDirIterator = struct {
         }
         return null;
     }
+
+    /// Advance the iterator until it finds an include directory that matches
+    /// the directory which contains `source`.
+    fn skipUntilDirMatch(self: *IncludeDirIterator, source: Source.Id) void {
+        const path = self.comp.getSource(source).path;
+        const includer_path = std.fs.path.dirname(path) orelse ".";
+        while (self.next()) |dir| {
+            if (mem.eql(u8, includer_path, dir)) break;
+        }
+    }
 };
 
 pub fn hasInclude(
@@ -742,11 +752,7 @@ pub fn hasInclude(
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
     if (which == .next) {
-        const path = comp.getSource(includer_token_source).path;
-        const includer_path = std.fs.path.dirname(path) orelse ".";
-        while (it.next()) |dir| {
-            if (mem.eql(u8, includer_path, dir)) break;
-        }
+        it.skipUntilDirMatch(includer_token_source);
     }
 
     while (it.nextWithFile(filename)) |path| {
@@ -794,11 +800,7 @@ pub fn findInclude(
     var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
 
     if (which == .next) {
-        const path = comp.getSource(includer_token_source).path;
-        const includer_path = std.fs.path.dirname(path) orelse ".";
-        while (it.next()) |dir| {
-            if (mem.eql(u8, includer_path, dir)) break;
-        }
+        it.skipUntilDirMatch(includer_token_source);
     }
 
     while (it.nextWithFile(filename)) |path| {
