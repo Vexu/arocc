@@ -124,6 +124,10 @@ const builtin_macros = struct {
         .id = .macro_param_has_include,
         .source = .generated,
     }};
+    const has_include_next = [1]RawToken{.{
+        .id = .macro_param_has_include_next,
+        .source = .generated,
+    }};
 
     const is_identifier = [1]RawToken{.{
         .id = .macro_param_is_identifier,
@@ -167,6 +171,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_extension", true, &builtin_macros.has_extension);
     try pp.addBuiltinMacro("__has_builtin", true, &builtin_macros.has_builtin);
     try pp.addBuiltinMacro("__has_include", true, &builtin_macros.has_include);
+    try pp.addBuiltinMacro("__has_include_next", true, &builtin_macros.has_include_next);
     try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
     try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
 
@@ -1045,15 +1050,24 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const id = identifier.?.id;
             return id == .identifier or id == .extended_identifier;
         },
-        .macro_param_has_include => {
+        .macro_param_has_include, .macro_param_has_include_next => {
             const include_str = (try pp.reconstructIncludeString(param_toks)) orelse return false;
-            const cwd_source_id = switch (include_str[0]) {
-                '<' => null,
-                '"' => param_toks[0].loc.id,
+            const include_type: Compilation.IncludeType = switch (include_str[0]) {
+                '"' => .quotes,
+                '<' => .angle_brackets,
                 else => unreachable,
             };
             const filename = include_str[1 .. include_str.len - 1];
-            return pp.comp.hasInclude(filename, cwd_source_id);
+            if (builtin == .macro_param_has_include or pp.include_depth == 0) {
+                if (builtin == .macro_param_has_include_next) {
+                    try pp.comp.diag.add(.{
+                        .tag = .include_next_outside_header,
+                        .loc = src_loc,
+                    }, &.{});
+                }
+                return pp.comp.hasInclude(filename, src_loc.id, include_type, .first);
+            }
+            return pp.comp.hasInclude(filename, src_loc.id, include_type, .next);
         },
         else => unreachable,
     }
@@ -1142,6 +1156,7 @@ fn expandFuncMacro(
             .macro_param_has_extension,
             .macro_param_has_builtin,
             .macro_param_has_include,
+            .macro_param_has_include_next,
             .macro_param_is_identifier,
             => {
                 const arg = expanded_args.items[0];
