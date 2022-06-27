@@ -24,6 +24,10 @@ void foo(void) {
     int __attribute__((deprecated("deprecated", 1))) bar_21;
 }
 
+struct S {
+    int __attribute__((cold)) x;
+};
+
 #define EXPECTED_ERRORS "attribute errors.c:4:24: error: 'access' attribute takes at least 2 argument(s)" \
     "attribute errors.c:5:31: error: Unknown `access` argument. Possible values are: 'read_only', 'read_write', 'write_only', 'none'" \
     "attribute errors.c:6:24: warning: attribute 'access' ignored on variables [-Wignored-attributes]" \
@@ -42,3 +46,5 @@ void foo(void) {
     "attribute errors.c:22:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
     "attribute errors.c:23:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
     "attribute errors.c:24:49: error: 'deprecated' attribute takes at most 1 argument(s)" \
+    "attribute errors.c:28:24: warning: attribute 'cold' ignored on fields [-Wignored-attributes]" \
+

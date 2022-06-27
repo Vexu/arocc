@@ -1855,17 +1855,14 @@ fn recordDeclarator(p: *Parser) Error!bool {
         }
 
         try p.attributeSpecifier(); // .record
+        const to_append = try Attribute.applyFieldAttributes(p, &ty, attr_buf_top);
 
-        const field_attrs = p.attr_buf.items(.attr)[attr_buf_top..];
-        const field_has_attrs = field_attrs.len > 0;
         const any_fields_have_attrs = p.field_attr_buf.items.len > p.record.field_attr_start;
-        const to_append: []const Attribute = if (field_has_attrs) try p.arena.dupe(Attribute, field_attrs) else &.{};
-        errdefer p.arena.free(to_append);
 
         if (any_fields_have_attrs) {
             try p.field_attr_buf.append(to_append);
         } else {
-            if (field_has_attrs) {
+            if (to_append.len > 0) {
                 const preceding = p.record_members.items.len - p.record.start;
                 if (preceding > 0) {
                     try p.field_attr_buf.appendNTimes(&.{}, preceding);
