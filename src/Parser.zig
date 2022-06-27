@@ -104,6 +104,7 @@ enum_buf: std.ArrayList(Type.Enum.Field),
 record_buf: std.ArrayList(Type.Record.Field),
 attr_buf: std.MultiArrayList(TentativeAttribute) = .{},
 attr_application_buf: std.ArrayListUnmanaged(Attribute) = .{},
+field_attr_buf: std.ArrayList([]const Attribute),
 
 // configuration and miscellaneous info
 no_eval: bool = false,
@@ -131,6 +132,7 @@ record: struct {
     kind: Token.Id = .invalid,
     flexible_field: ?TokenIndex = null,
     start: usize = 0,
+    field_attr_start: usize = 0,
 
     fn addField(r: @This(), p: *Parser, tok: TokenIndex) Error!void {
         const name = p.tokSlice(tok);
@@ -516,6 +518,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .param_buf = std.ArrayList(Type.Func.Param).init(pp.comp.gpa),
         .enum_buf = std.ArrayList(Type.Enum.Field).init(pp.comp.gpa),
         .record_buf = std.ArrayList(Type.Record.Field).init(pp.comp.gpa),
+        .field_attr_buf = std.ArrayList([]const Attribute).init(pp.comp.gpa),
     };
     errdefer {
         p.nodes.deinit(pp.comp.gpa);
@@ -534,6 +537,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.record_members.deinit(pp.comp.gpa);
         p.attr_buf.deinit(pp.comp.gpa);
         p.attr_application_buf.deinit(pp.comp.gpa);
+        assert(p.field_attr_buf.items.len == 0);
+        p.field_attr_buf.deinit();
     }
 
     // NodeIndex 0 must be invalid
@@ -1703,12 +1708,15 @@ fn recordSpec(p: *Parser) Error!Type {
 
     const old_record = p.record;
     const old_members = p.record_members.items.len;
+    const old_field_attr_start = p.field_attr_buf.items.len;
     p.record = .{
         .kind = p.tok_ids[kind_tok],
         .start = p.record_members.items.len,
+        .field_attr_start = p.field_attr_buf.items.len,
     };
     defer p.record = old_record;
     defer p.record_members.items.len = old_members;
+    defer p.field_attr_buf.items.len = old_field_attr_start;
 
     try p.recordDecls();
 
@@ -1725,6 +1733,11 @@ fn recordSpec(p: *Parser) Error!Type {
         // TODO actually calculate
         record_ty.size = 1;
         record_ty.alignment = 1;
+    }
+    if (old_field_attr_start < p.field_attr_buf.items.len) {
+        const field_attr_slice = p.field_attr_buf.items[old_field_attr_start..];
+        const duped = try p.arena.dupe([]const Attribute, field_attr_slice);
+        record_ty.field_attributes = duped.ptr;
     }
 
     if (p.record_buf.items.len == record_buf_top) {
@@ -1791,6 +1804,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
     defer p.attr_buf.len = attr_buf_top;
     const base_ty = (try p.specQual()) orelse return false;
 
+    try p.attributeSpecifier(); // .record
     while (true) {
         const this_decl_top = p.attr_buf.len;
         defer p.attr_buf.len = this_decl_top;
@@ -1840,8 +1854,22 @@ fn recordDeclarator(p: *Parser) Error!bool {
             bits_node = res.node;
         }
 
-        try p.attributeSpecifier();
-        ty = try Attribute.applyFieldAttributes(p, ty, attr_buf_top, null);
+        try p.attributeSpecifier(); // .record
+        const to_append = try Attribute.applyFieldAttributes(p, &ty, attr_buf_top);
+
+        const any_fields_have_attrs = p.field_attr_buf.items.len > p.record.field_attr_start;
+
+        if (any_fields_have_attrs) {
+            try p.field_attr_buf.append(to_append);
+        } else {
+            if (to_append.len > 0) {
+                const preceding = p.record_members.items.len - p.record.start;
+                if (preceding > 0) {
+                    try p.field_attr_buf.appendNTimes(&.{}, preceding);
+                }
+                try p.field_attr_buf.append(to_append);
+            }
+        }
 
         if (name_tok == 0 and bits_node == .none) unnamed: {
             if (ty.is(.@"enum") or ty.hasIncompleteSize()) break :unnamed;
@@ -1898,6 +1926,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         if (p.eatToken(.comma) == null) break;
     }
     _ = try p.expectToken(.semicolon);
+
     return true;
 }
 

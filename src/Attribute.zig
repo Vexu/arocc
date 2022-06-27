@@ -1051,7 +1051,23 @@ pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag:
     return ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub const applyFieldAttributes = applyTypeAttributes;
+pub fn applyFieldAttributes(p: *Parser, field_ty: *Type, attr_buf_start: usize) ![]const Attribute {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    p.attr_application_buf.items.len = 0;
+    for (attrs) |attr, i| switch (attr.tag) {
+        // zig fmt: off
+        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode,
+        => try p.attr_application_buf.append(p.gpa, attr),
+        // zig fmt: on
+        .vector_size => try attr.applyVectorSize(p, toks[i], field_ty),
+        .aligned => try attr.applyAligned(p, field_ty.*, null),
+        else => try ignoredAttrErr(p, toks[i], attr.tag, "fields"),
+    };
+    if (p.attr_application_buf.items.len == 0) return &[0]Attribute{};
+    return p.arena.dupe(Attribute, p.attr_application_buf.items);
+}
+
 pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Diagnostics.Tag) !Type {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
