@@ -12,7 +12,6 @@ const AllocatorError = std.mem.Allocator.Error;
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = general_purpose_allocator.allocator();
 
-
 // stuff for testing record layout, which is in progress.
 // ignored for now.
 const non_working_tests = [_][]const u8{
@@ -108,7 +107,7 @@ pub fn main() !void {
 
     // iterate over all cases
     for (cases.items) |path| {
-        
+
         // these flags are all for testing record layout. Which is in another
         // branch. For now, we are just testing the parser. No static asserts
         // are being done.
@@ -119,7 +118,7 @@ pub fn main() !void {
                 break;
             }
         }
-        
+
         var extra_checks = true;
         for (skip_extra_tests) |skip| {
             if (std.mem.count(u8, path, skip) > 0) {
@@ -129,8 +128,7 @@ pub fn main() !void {
         }
 
         const target: ?[]const u8 = if (skip_basics) null else "X8664_UNKNOWN_NETBSD";
-        _=target;
-
+        _ = target;
 
         // copy the comp for each run
         var run_comp = comp;
@@ -153,16 +151,7 @@ pub fn main() !void {
     }
 }
 
-fn singleRun(
-    path: []const u8,
-    target: ?[]const u8,
-    check_offsets: bool,
-    extra_checks: bool,
-    do_msvc: bool,
-    state: *Stats,
-    comp: *aro.Compilation
-) !void {
-
+fn singleRun(path: []const u8, target: ?[]const u8, check_offsets: bool, extra_checks: bool, do_msvc: bool, state: *Stats, comp: *aro.Compilation) !void {
     defer {
         // preserve some values
         comp.include_dirs = @TypeOf(comp.include_dirs).init(gpa);
@@ -176,9 +165,8 @@ fn singleRun(
     var case_name = std.ArrayList(u8).init(gpa);
     defer case_name.deinit();
 
-
-    const exten = if(do_msvc) " - MSVC" else " - GCC";
-    try case_name.writer().print("{s}{s}",.{
+    const exten = if (do_msvc) " - MSVC" else " - GCC";
+    try case_name.writer().print("{s}{s}", .{
         std.mem.sliceTo(std.fs.path.basename(path), '.'),
         exten,
     });
@@ -261,7 +249,6 @@ fn singleRun(
 
     var buf = std.ArrayList(u8).init(gpa);
     defer buf.deinit();
-
 
     if (try Runner.checkExpectedErrors(&pp, state.progress, &buf)) |some| {
         if (some) state.ok_count += 1 else state.fail_count += 1;
