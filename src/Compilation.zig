@@ -718,9 +718,13 @@ pub const IncludeDirIterator = struct {
 };
 
 pub fn hasInclude(comp: *const Compilation, filename: []const u8, cwd_source_id: ?Source.Id) bool {
+    const cwd = std.fs.cwd();
+    if (std.fs.path.isAbsolute(filename)) {
+        return !std.meta.isError(cwd.access(filename, .{}));
+    }
+
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
-    const cwd = std.fs.cwd();
     while (it.nextWithFile(filename)) |path| {
         if (!std.meta.isError(cwd.access(path, .{}))) return true;
     }
