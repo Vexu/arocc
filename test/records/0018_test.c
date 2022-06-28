@@ -677,486 +677,486 @@ struct J_size var85;
 _Static_assert(sizeof(A) == 3, "record A wrong sizeof");
 _Static_assert(_Alignof(A) == 1, "record A wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct A_alignment) == 4, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_alignment) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_packed) == 3, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_packed) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_required_alignment) == 4, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_required_alignment) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_size) == 5, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_size) == 1, "record A wrong alignment");
+_Static_assert(sizeof(struct A_alignment) == 4, "record A_alignment wrong sizeof");
+_Static_assert(_Alignof(struct A_alignment) == 1, "record A_alignment wrong alignment");
+_Static_assert(sizeof(struct A_packed) == 3, "record A_packed wrong sizeof");
+_Static_assert(_Alignof(struct A_packed) == 1, "record A_packed wrong alignment");
+_Static_assert(sizeof(struct A_required_alignment) == 4, "record A_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct A_required_alignment) == 1, "record A_required_alignment wrong alignment");
+_Static_assert(sizeof(struct A_size) == 5, "record A_size wrong sizeof");
+_Static_assert(_Alignof(struct A_size) == 1, "record A_size wrong alignment");
 #endif
 _Static_assert(sizeof(B) == 4, "record B wrong sizeof");
 _Static_assert(_Alignof(B) == 4, "record B wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct B_alignment) == 8, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_alignment) == 4, "record B wrong alignment");
-_Static_assert(sizeof(struct B_packed) == 4, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_packed) == 1, "record B wrong alignment");
-_Static_assert(sizeof(struct B_required_alignment) == 5, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_required_alignment) == 1, "record B wrong alignment");
-_Static_assert(sizeof(struct B_size) == 6, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_size) == 1, "record B wrong alignment");
+_Static_assert(sizeof(struct B_alignment) == 8, "record B_alignment wrong sizeof");
+_Static_assert(_Alignof(struct B_alignment) == 4, "record B_alignment wrong alignment");
+_Static_assert(sizeof(struct B_packed) == 4, "record B_packed wrong sizeof");
+_Static_assert(_Alignof(struct B_packed) == 1, "record B_packed wrong alignment");
+_Static_assert(sizeof(struct B_required_alignment) == 5, "record B_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct B_required_alignment) == 1, "record B_required_alignment wrong alignment");
+_Static_assert(sizeof(struct B_size) == 6, "record B_size wrong sizeof");
+_Static_assert(_Alignof(struct B_size) == 1, "record B_size wrong alignment");
 #endif
 _Static_assert(sizeof(C) == 12, "record C wrong sizeof");
 _Static_assert(_Alignof(C) == 4, "record C wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct C_alignment) == 16, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_alignment) == 4, "record C wrong alignment");
-_Static_assert(sizeof(struct C_packed) == 12, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_packed) == 1, "record C wrong alignment");
-_Static_assert(sizeof(struct C_required_alignment) == 13, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_required_alignment) == 1, "record C wrong alignment");
-_Static_assert(sizeof(struct C_size) == 14, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_size) == 1, "record C wrong alignment");
+_Static_assert(sizeof(struct C_alignment) == 16, "record C_alignment wrong sizeof");
+_Static_assert(_Alignof(struct C_alignment) == 4, "record C_alignment wrong alignment");
+_Static_assert(sizeof(struct C_packed) == 12, "record C_packed wrong sizeof");
+_Static_assert(_Alignof(struct C_packed) == 1, "record C_packed wrong alignment");
+_Static_assert(sizeof(struct C_required_alignment) == 13, "record C_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct C_required_alignment) == 1, "record C_required_alignment wrong alignment");
+_Static_assert(sizeof(struct C_size) == 14, "record C_size wrong sizeof");
+_Static_assert(_Alignof(struct C_size) == 1, "record C_size wrong alignment");
 #endif
 _Static_assert(sizeof(D) == 6, "record D wrong sizeof");
 _Static_assert(_Alignof(D) == 2, "record D wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct D_alignment) == 8, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_alignment) == 2, "record D wrong alignment");
-_Static_assert(sizeof(struct D_packed) == 6, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_packed) == 1, "record D wrong alignment");
-_Static_assert(sizeof(struct D_required_alignment) == 7, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_required_alignment) == 1, "record D wrong alignment");
-_Static_assert(sizeof(struct D_size) == 8, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_size) == 1, "record D wrong alignment");
+_Static_assert(sizeof(struct D_alignment) == 8, "record D_alignment wrong sizeof");
+_Static_assert(_Alignof(struct D_alignment) == 2, "record D_alignment wrong alignment");
+_Static_assert(sizeof(struct D_packed) == 6, "record D_packed wrong sizeof");
+_Static_assert(_Alignof(struct D_packed) == 1, "record D_packed wrong alignment");
+_Static_assert(sizeof(struct D_required_alignment) == 7, "record D_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct D_required_alignment) == 1, "record D_required_alignment wrong alignment");
+_Static_assert(sizeof(struct D_size) == 8, "record D_size wrong sizeof");
+_Static_assert(_Alignof(struct D_size) == 1, "record D_size wrong alignment");
 #endif
 _Static_assert(sizeof(E) == 8, "record E wrong sizeof");
 _Static_assert(_Alignof(E) == 4, "record E wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct E_alignment) == 12, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_alignment) == 4, "record E wrong alignment");
-_Static_assert(sizeof(struct E_packed) == 8, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_packed) == 1, "record E wrong alignment");
-_Static_assert(sizeof(struct E_required_alignment) == 9, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_required_alignment) == 1, "record E wrong alignment");
-_Static_assert(sizeof(struct E_size) == 10, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_size) == 1, "record E wrong alignment");
+_Static_assert(sizeof(struct E_alignment) == 12, "record E_alignment wrong sizeof");
+_Static_assert(_Alignof(struct E_alignment) == 4, "record E_alignment wrong alignment");
+_Static_assert(sizeof(struct E_packed) == 8, "record E_packed wrong sizeof");
+_Static_assert(_Alignof(struct E_packed) == 1, "record E_packed wrong alignment");
+_Static_assert(sizeof(struct E_required_alignment) == 9, "record E_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct E_required_alignment) == 1, "record E_required_alignment wrong alignment");
+_Static_assert(sizeof(struct E_size) == 10, "record E_size wrong sizeof");
+_Static_assert(_Alignof(struct E_size) == 1, "record E_size wrong alignment");
 #endif
 _Static_assert(sizeof(F) == 24, "record F wrong sizeof");
 _Static_assert(_Alignof(F) == 4, "record F wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct F_alignment) == 28, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_alignment) == 4, "record F wrong alignment");
-_Static_assert(sizeof(struct F_packed) == 24, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_packed) == 1, "record F wrong alignment");
-_Static_assert(sizeof(struct F_required_alignment) == 25, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_required_alignment) == 1, "record F wrong alignment");
-_Static_assert(sizeof(struct F_size) == 26, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_size) == 1, "record F wrong alignment");
+_Static_assert(sizeof(struct F_alignment) == 28, "record F_alignment wrong sizeof");
+_Static_assert(_Alignof(struct F_alignment) == 4, "record F_alignment wrong alignment");
+_Static_assert(sizeof(struct F_packed) == 24, "record F_packed wrong sizeof");
+_Static_assert(_Alignof(struct F_packed) == 1, "record F_packed wrong alignment");
+_Static_assert(sizeof(struct F_required_alignment) == 25, "record F_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct F_required_alignment) == 1, "record F_required_alignment wrong alignment");
+_Static_assert(sizeof(struct F_size) == 26, "record F_size wrong sizeof");
+_Static_assert(_Alignof(struct F_size) == 1, "record F_size wrong alignment");
 #endif
 _Static_assert(sizeof(G) == 24, "record G wrong sizeof");
 _Static_assert(_Alignof(G) == 8, "record G wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct G_alignment) == 32, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_alignment) == 8, "record G wrong alignment");
-_Static_assert(sizeof(struct G_packed) == 24, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_packed) == 1, "record G wrong alignment");
-_Static_assert(sizeof(struct G_required_alignment) == 25, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_required_alignment) == 1, "record G wrong alignment");
-_Static_assert(sizeof(struct G_size) == 26, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_size) == 1, "record G wrong alignment");
+_Static_assert(sizeof(struct G_alignment) == 32, "record G_alignment wrong sizeof");
+_Static_assert(_Alignof(struct G_alignment) == 8, "record G_alignment wrong alignment");
+_Static_assert(sizeof(struct G_packed) == 24, "record G_packed wrong sizeof");
+_Static_assert(_Alignof(struct G_packed) == 1, "record G_packed wrong alignment");
+_Static_assert(sizeof(struct G_required_alignment) == 25, "record G_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct G_required_alignment) == 1, "record G_required_alignment wrong alignment");
+_Static_assert(sizeof(struct G_size) == 26, "record G_size wrong sizeof");
+_Static_assert(_Alignof(struct G_size) == 1, "record G_size wrong alignment");
 #endif
 _Static_assert(sizeof(H) == 128, "record H wrong sizeof");
 _Static_assert(_Alignof(H) == 128, "record H wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct H_alignment) == 256, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_alignment) == 128, "record H wrong alignment");
-_Static_assert(sizeof(struct H_packed) == 128, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_packed) == 1, "record H wrong alignment");
-_Static_assert(sizeof(struct H_required_alignment) == 129, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_required_alignment) == 1, "record H wrong alignment");
-_Static_assert(sizeof(struct H_size) == 130, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_size) == 1, "record H wrong alignment");
+_Static_assert(sizeof(struct H_alignment) == 256, "record H_alignment wrong sizeof");
+_Static_assert(_Alignof(struct H_alignment) == 128, "record H_alignment wrong alignment");
+_Static_assert(sizeof(struct H_packed) == 128, "record H_packed wrong sizeof");
+_Static_assert(_Alignof(struct H_packed) == 1, "record H_packed wrong alignment");
+_Static_assert(sizeof(struct H_required_alignment) == 129, "record H_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct H_required_alignment) == 1, "record H_required_alignment wrong alignment");
+_Static_assert(sizeof(struct H_size) == 130, "record H_size wrong sizeof");
+_Static_assert(_Alignof(struct H_size) == 1, "record H_size wrong alignment");
 #endif
 _Static_assert(sizeof(I) == 384, "record I wrong sizeof");
 _Static_assert(_Alignof(I) == 128, "record I wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct I_alignment) == 512, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_alignment) == 128, "record I wrong alignment");
-_Static_assert(sizeof(struct I_packed) == 384, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_packed) == 1, "record I wrong alignment");
-_Static_assert(sizeof(struct I_required_alignment) == 385, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_required_alignment) == 1, "record I wrong alignment");
-_Static_assert(sizeof(struct I_size) == 386, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_size) == 1, "record I wrong alignment");
+_Static_assert(sizeof(struct I_alignment) == 512, "record I_alignment wrong sizeof");
+_Static_assert(_Alignof(struct I_alignment) == 128, "record I_alignment wrong alignment");
+_Static_assert(sizeof(struct I_packed) == 384, "record I_packed wrong sizeof");
+_Static_assert(_Alignof(struct I_packed) == 1, "record I_packed wrong alignment");
+_Static_assert(sizeof(struct I_required_alignment) == 385, "record I_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct I_required_alignment) == 1, "record I_required_alignment wrong alignment");
+_Static_assert(sizeof(struct I_size) == 386, "record I_size wrong sizeof");
+_Static_assert(_Alignof(struct I_size) == 1, "record I_size wrong alignment");
 #endif
 _Static_assert(sizeof(J) == 0, "record J wrong sizeof");
 _Static_assert(_Alignof(J) == 4, "record J wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct J_alignment) == 4, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_alignment) == 4, "record J wrong alignment");
-_Static_assert(sizeof(struct J_packed) == 0, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_packed) == 1, "record J wrong alignment");
-_Static_assert(sizeof(struct J_required_alignment) == 1, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_required_alignment) == 1, "record J wrong alignment");
-_Static_assert(sizeof(struct J_size) == 2, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_size) == 1, "record J wrong alignment");
+_Static_assert(sizeof(struct J_alignment) == 4, "record J_alignment wrong sizeof");
+_Static_assert(_Alignof(struct J_alignment) == 4, "record J_alignment wrong alignment");
+_Static_assert(sizeof(struct J_packed) == 0, "record J_packed wrong sizeof");
+_Static_assert(_Alignof(struct J_packed) == 1, "record J_packed wrong alignment");
+_Static_assert(sizeof(struct J_required_alignment) == 1, "record J_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct J_required_alignment) == 1, "record J_required_alignment wrong alignment");
+_Static_assert(sizeof(struct J_size) == 2, "record J_size wrong sizeof");
+_Static_assert(_Alignof(struct J_size) == 1, "record J_size wrong alignment");
 #endif
 #elif defined(AARCH64_PC_WINDOWS_MSVC) ||  defined(I586_PC_WINDOWS_MSVC) ||  defined(I686_PC_WINDOWS_MSVC) ||  defined(I686_UNKNOWN_WINDOWS) ||  \
  defined(THUMBV7A_PC_WINDOWS_MSVC) ||  defined(X8664_PC_WINDOWS_MSVC) ||  defined(X8664_UNKNOWN_WINDOWS) 
 _Static_assert(sizeof(A) == 3, "record A wrong sizeof");
 _Static_assert(_Alignof(A) == 1, "record A wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct A_alignment) == 4, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_alignment) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_packed) == 3, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_packed) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_required_alignment) == 4, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_required_alignment) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_size) == 5, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_size) == 1, "record A wrong alignment");
+_Static_assert(sizeof(struct A_alignment) == 4, "record A_alignment wrong sizeof");
+_Static_assert(_Alignof(struct A_alignment) == 1, "record A_alignment wrong alignment");
+_Static_assert(sizeof(struct A_packed) == 3, "record A_packed wrong sizeof");
+_Static_assert(_Alignof(struct A_packed) == 1, "record A_packed wrong alignment");
+_Static_assert(sizeof(struct A_required_alignment) == 4, "record A_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct A_required_alignment) == 1, "record A_required_alignment wrong alignment");
+_Static_assert(sizeof(struct A_size) == 5, "record A_size wrong sizeof");
+_Static_assert(_Alignof(struct A_size) == 1, "record A_size wrong alignment");
 #endif
 _Static_assert(sizeof(B) == 3, "record B wrong sizeof");
 _Static_assert(_Alignof(B) == 4, "record B wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct B_alignment) == 8, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_alignment) == 4, "record B wrong alignment");
-_Static_assert(sizeof(struct B_packed) == 3, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_packed) == 1, "record B wrong alignment");
-_Static_assert(sizeof(struct B_required_alignment) == 4, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_required_alignment) == 1, "record B wrong alignment");
-_Static_assert(sizeof(struct B_size) == 5, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_size) == 1, "record B wrong alignment");
+_Static_assert(sizeof(struct B_alignment) == 8, "record B_alignment wrong sizeof");
+_Static_assert(_Alignof(struct B_alignment) == 4, "record B_alignment wrong alignment");
+_Static_assert(sizeof(struct B_packed) == 3, "record B_packed wrong sizeof");
+_Static_assert(_Alignof(struct B_packed) == 1, "record B_packed wrong alignment");
+_Static_assert(sizeof(struct B_required_alignment) == 4, "record B_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct B_required_alignment) == 1, "record B_required_alignment wrong alignment");
+_Static_assert(sizeof(struct B_size) == 5, "record B_size wrong sizeof");
+_Static_assert(_Alignof(struct B_size) == 1, "record B_size wrong alignment");
 #endif
 _Static_assert(sizeof(C) == 9, "record C wrong sizeof");
 _Static_assert(_Alignof(C) == 4, "record C wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct C_alignment) == 13, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_alignment) == 4, "record C wrong alignment");
-_Static_assert(sizeof(struct C_packed) == 9, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_packed) == 1, "record C wrong alignment");
-_Static_assert(sizeof(struct C_required_alignment) == 10, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_required_alignment) == 1, "record C wrong alignment");
-_Static_assert(sizeof(struct C_size) == 11, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_size) == 1, "record C wrong alignment");
+_Static_assert(sizeof(struct C_alignment) == 13, "record C_alignment wrong sizeof");
+_Static_assert(_Alignof(struct C_alignment) == 4, "record C_alignment wrong alignment");
+_Static_assert(sizeof(struct C_packed) == 9, "record C_packed wrong sizeof");
+_Static_assert(_Alignof(struct C_packed) == 1, "record C_packed wrong alignment");
+_Static_assert(sizeof(struct C_required_alignment) == 10, "record C_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct C_required_alignment) == 1, "record C_required_alignment wrong alignment");
+_Static_assert(sizeof(struct C_size) == 11, "record C_size wrong sizeof");
+_Static_assert(_Alignof(struct C_size) == 1, "record C_size wrong alignment");
 #endif
 _Static_assert(sizeof(D) == 6, "record D wrong sizeof");
 _Static_assert(_Alignof(D) == 2, "record D wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct D_alignment) == 8, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_alignment) == 2, "record D wrong alignment");
-_Static_assert(sizeof(struct D_packed) == 6, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_packed) == 1, "record D wrong alignment");
-_Static_assert(sizeof(struct D_required_alignment) == 7, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_required_alignment) == 1, "record D wrong alignment");
-_Static_assert(sizeof(struct D_size) == 8, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_size) == 1, "record D wrong alignment");
+_Static_assert(sizeof(struct D_alignment) == 8, "record D_alignment wrong sizeof");
+_Static_assert(_Alignof(struct D_alignment) == 2, "record D_alignment wrong alignment");
+_Static_assert(sizeof(struct D_packed) == 6, "record D_packed wrong sizeof");
+_Static_assert(_Alignof(struct D_packed) == 1, "record D_packed wrong alignment");
+_Static_assert(sizeof(struct D_required_alignment) == 7, "record D_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct D_required_alignment) == 1, "record D_required_alignment wrong alignment");
+_Static_assert(sizeof(struct D_size) == 8, "record D_size wrong sizeof");
+_Static_assert(_Alignof(struct D_size) == 1, "record D_size wrong alignment");
 #endif
 _Static_assert(sizeof(E) == 6, "record E wrong sizeof");
 _Static_assert(_Alignof(E) == 4, "record E wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct E_alignment) == 10, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_alignment) == 4, "record E wrong alignment");
-_Static_assert(sizeof(struct E_packed) == 6, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_packed) == 1, "record E wrong alignment");
-_Static_assert(sizeof(struct E_required_alignment) == 7, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_required_alignment) == 1, "record E wrong alignment");
-_Static_assert(sizeof(struct E_size) == 8, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_size) == 1, "record E wrong alignment");
+_Static_assert(sizeof(struct E_alignment) == 10, "record E_alignment wrong sizeof");
+_Static_assert(_Alignof(struct E_alignment) == 4, "record E_alignment wrong alignment");
+_Static_assert(sizeof(struct E_packed) == 6, "record E_packed wrong sizeof");
+_Static_assert(_Alignof(struct E_packed) == 1, "record E_packed wrong alignment");
+_Static_assert(sizeof(struct E_required_alignment) == 7, "record E_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct E_required_alignment) == 1, "record E_required_alignment wrong alignment");
+_Static_assert(sizeof(struct E_size) == 8, "record E_size wrong sizeof");
+_Static_assert(_Alignof(struct E_size) == 1, "record E_size wrong alignment");
 #endif
 _Static_assert(sizeof(F) == 18, "record F wrong sizeof");
 _Static_assert(_Alignof(F) == 4, "record F wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct F_alignment) == 22, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_alignment) == 4, "record F wrong alignment");
-_Static_assert(sizeof(struct F_packed) == 18, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_packed) == 1, "record F wrong alignment");
-_Static_assert(sizeof(struct F_required_alignment) == 19, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_required_alignment) == 1, "record F wrong alignment");
-_Static_assert(sizeof(struct F_size) == 20, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_size) == 1, "record F wrong alignment");
+_Static_assert(sizeof(struct F_alignment) == 22, "record F_alignment wrong sizeof");
+_Static_assert(_Alignof(struct F_alignment) == 4, "record F_alignment wrong alignment");
+_Static_assert(sizeof(struct F_packed) == 18, "record F_packed wrong sizeof");
+_Static_assert(_Alignof(struct F_packed) == 1, "record F_packed wrong alignment");
+_Static_assert(sizeof(struct F_required_alignment) == 19, "record F_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct F_required_alignment) == 1, "record F_required_alignment wrong alignment");
+_Static_assert(sizeof(struct F_size) == 20, "record F_size wrong sizeof");
+_Static_assert(_Alignof(struct F_size) == 1, "record F_size wrong alignment");
 #endif
 _Static_assert(sizeof(G) == 24, "record G wrong sizeof");
 _Static_assert(_Alignof(G) == 8, "record G wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct G_alignment) == 32, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_alignment) == 8, "record G wrong alignment");
-_Static_assert(sizeof(struct G_packed) == 24, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_packed) == 1, "record G wrong alignment");
-_Static_assert(sizeof(struct G_required_alignment) == 25, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_required_alignment) == 1, "record G wrong alignment");
-_Static_assert(sizeof(struct G_size) == 26, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_size) == 1, "record G wrong alignment");
+_Static_assert(sizeof(struct G_alignment) == 32, "record G_alignment wrong sizeof");
+_Static_assert(_Alignof(struct G_alignment) == 8, "record G_alignment wrong alignment");
+_Static_assert(sizeof(struct G_packed) == 24, "record G_packed wrong sizeof");
+_Static_assert(_Alignof(struct G_packed) == 1, "record G_packed wrong alignment");
+_Static_assert(sizeof(struct G_required_alignment) == 25, "record G_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct G_required_alignment) == 1, "record G_required_alignment wrong alignment");
+_Static_assert(sizeof(struct G_size) == 26, "record G_size wrong sizeof");
+_Static_assert(_Alignof(struct G_size) == 1, "record G_size wrong alignment");
 #endif
 _Static_assert(sizeof(H) == 24, "record H wrong sizeof");
 _Static_assert(_Alignof(H) == 128, "record H wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct H_alignment) == 256, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_alignment) == 128, "record H wrong alignment");
-_Static_assert(sizeof(struct H_packed) == 24, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_packed) == 1, "record H wrong alignment");
-_Static_assert(sizeof(struct H_required_alignment) == 25, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_required_alignment) == 1, "record H wrong alignment");
-_Static_assert(sizeof(struct H_size) == 26, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_size) == 1, "record H wrong alignment");
+_Static_assert(sizeof(struct H_alignment) == 256, "record H_alignment wrong sizeof");
+_Static_assert(_Alignof(struct H_alignment) == 128, "record H_alignment wrong alignment");
+_Static_assert(sizeof(struct H_packed) == 24, "record H_packed wrong sizeof");
+_Static_assert(_Alignof(struct H_packed) == 1, "record H_packed wrong alignment");
+_Static_assert(sizeof(struct H_required_alignment) == 25, "record H_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct H_required_alignment) == 1, "record H_required_alignment wrong alignment");
+_Static_assert(sizeof(struct H_size) == 26, "record H_size wrong sizeof");
+_Static_assert(_Alignof(struct H_size) == 1, "record H_size wrong alignment");
 #endif
 _Static_assert(sizeof(I) == 72, "record I wrong sizeof");
 _Static_assert(_Alignof(I) == 128, "record I wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct I_alignment) == 256, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_alignment) == 128, "record I wrong alignment");
-_Static_assert(sizeof(struct I_packed) == 72, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_packed) == 1, "record I wrong alignment");
-_Static_assert(sizeof(struct I_required_alignment) == 73, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_required_alignment) == 1, "record I wrong alignment");
-_Static_assert(sizeof(struct I_size) == 74, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_size) == 1, "record I wrong alignment");
+_Static_assert(sizeof(struct I_alignment) == 256, "record I_alignment wrong sizeof");
+_Static_assert(_Alignof(struct I_alignment) == 128, "record I_alignment wrong alignment");
+_Static_assert(sizeof(struct I_packed) == 72, "record I_packed wrong sizeof");
+_Static_assert(_Alignof(struct I_packed) == 1, "record I_packed wrong alignment");
+_Static_assert(sizeof(struct I_required_alignment) == 73, "record I_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct I_required_alignment) == 1, "record I_required_alignment wrong alignment");
+_Static_assert(sizeof(struct I_size) == 74, "record I_size wrong sizeof");
+_Static_assert(_Alignof(struct I_size) == 1, "record I_size wrong alignment");
 #endif
 _Static_assert(sizeof(J) == 0, "record J wrong sizeof");
 _Static_assert(_Alignof(J) == 4, "record J wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct J_alignment) == 4, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_alignment) == 4, "record J wrong alignment");
-_Static_assert(sizeof(struct J_packed) == 0, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_packed) == 1, "record J wrong alignment");
-_Static_assert(sizeof(struct J_required_alignment) == 1, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_required_alignment) == 1, "record J wrong alignment");
-_Static_assert(sizeof(struct J_size) == 2, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_size) == 1, "record J wrong alignment");
+_Static_assert(sizeof(struct J_alignment) == 4, "record J_alignment wrong sizeof");
+_Static_assert(_Alignof(struct J_alignment) == 4, "record J_alignment wrong alignment");
+_Static_assert(sizeof(struct J_packed) == 0, "record J_packed wrong sizeof");
+_Static_assert(_Alignof(struct J_packed) == 1, "record J_packed wrong alignment");
+_Static_assert(sizeof(struct J_required_alignment) == 1, "record J_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct J_required_alignment) == 1, "record J_required_alignment wrong alignment");
+_Static_assert(sizeof(struct J_size) == 2, "record J_size wrong sizeof");
+_Static_assert(_Alignof(struct J_size) == 1, "record J_size wrong alignment");
 #endif
 #elif defined(ARMV7_APPLE_IOS) ||  defined(ARMV7S_APPLE_IOS) ||  defined(I386_APPLE_IOS) ||  defined(I686_APPLE_MACOSX) ||  defined(I686_LINUX_ANDROID) ||  \
  defined(I686_UNKNOWN_FREEBSD) ||  defined(I686_UNKNOWN_HAIKU) ||  defined(I686_UNKNOWN_NETBSDELF) ||  defined(I686_UNKNOWN_OPENBSD) 
 _Static_assert(sizeof(A) == 3, "record A wrong sizeof");
 _Static_assert(_Alignof(A) == 1, "record A wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct A_alignment) == 4, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_alignment) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_packed) == 3, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_packed) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_required_alignment) == 4, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_required_alignment) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_size) == 5, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_size) == 1, "record A wrong alignment");
+_Static_assert(sizeof(struct A_alignment) == 4, "record A_alignment wrong sizeof");
+_Static_assert(_Alignof(struct A_alignment) == 1, "record A_alignment wrong alignment");
+_Static_assert(sizeof(struct A_packed) == 3, "record A_packed wrong sizeof");
+_Static_assert(_Alignof(struct A_packed) == 1, "record A_packed wrong alignment");
+_Static_assert(sizeof(struct A_required_alignment) == 4, "record A_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct A_required_alignment) == 1, "record A_required_alignment wrong alignment");
+_Static_assert(sizeof(struct A_size) == 5, "record A_size wrong sizeof");
+_Static_assert(_Alignof(struct A_size) == 1, "record A_size wrong alignment");
 #endif
 _Static_assert(sizeof(B) == 4, "record B wrong sizeof");
 _Static_assert(_Alignof(B) == 4, "record B wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct B_alignment) == 8, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_alignment) == 4, "record B wrong alignment");
-_Static_assert(sizeof(struct B_packed) == 4, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_packed) == 1, "record B wrong alignment");
-_Static_assert(sizeof(struct B_required_alignment) == 5, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_required_alignment) == 1, "record B wrong alignment");
-_Static_assert(sizeof(struct B_size) == 6, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_size) == 1, "record B wrong alignment");
+_Static_assert(sizeof(struct B_alignment) == 8, "record B_alignment wrong sizeof");
+_Static_assert(_Alignof(struct B_alignment) == 4, "record B_alignment wrong alignment");
+_Static_assert(sizeof(struct B_packed) == 4, "record B_packed wrong sizeof");
+_Static_assert(_Alignof(struct B_packed) == 1, "record B_packed wrong alignment");
+_Static_assert(sizeof(struct B_required_alignment) == 5, "record B_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct B_required_alignment) == 1, "record B_required_alignment wrong alignment");
+_Static_assert(sizeof(struct B_size) == 6, "record B_size wrong sizeof");
+_Static_assert(_Alignof(struct B_size) == 1, "record B_size wrong alignment");
 #endif
 _Static_assert(sizeof(C) == 12, "record C wrong sizeof");
 _Static_assert(_Alignof(C) == 4, "record C wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct C_alignment) == 16, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_alignment) == 4, "record C wrong alignment");
-_Static_assert(sizeof(struct C_packed) == 12, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_packed) == 1, "record C wrong alignment");
-_Static_assert(sizeof(struct C_required_alignment) == 13, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_required_alignment) == 1, "record C wrong alignment");
-_Static_assert(sizeof(struct C_size) == 14, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_size) == 1, "record C wrong alignment");
+_Static_assert(sizeof(struct C_alignment) == 16, "record C_alignment wrong sizeof");
+_Static_assert(_Alignof(struct C_alignment) == 4, "record C_alignment wrong alignment");
+_Static_assert(sizeof(struct C_packed) == 12, "record C_packed wrong sizeof");
+_Static_assert(_Alignof(struct C_packed) == 1, "record C_packed wrong alignment");
+_Static_assert(sizeof(struct C_required_alignment) == 13, "record C_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct C_required_alignment) == 1, "record C_required_alignment wrong alignment");
+_Static_assert(sizeof(struct C_size) == 14, "record C_size wrong sizeof");
+_Static_assert(_Alignof(struct C_size) == 1, "record C_size wrong alignment");
 #endif
 _Static_assert(sizeof(D) == 6, "record D wrong sizeof");
 _Static_assert(_Alignof(D) == 2, "record D wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct D_alignment) == 8, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_alignment) == 2, "record D wrong alignment");
-_Static_assert(sizeof(struct D_packed) == 6, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_packed) == 1, "record D wrong alignment");
-_Static_assert(sizeof(struct D_required_alignment) == 7, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_required_alignment) == 1, "record D wrong alignment");
-_Static_assert(sizeof(struct D_size) == 8, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_size) == 1, "record D wrong alignment");
+_Static_assert(sizeof(struct D_alignment) == 8, "record D_alignment wrong sizeof");
+_Static_assert(_Alignof(struct D_alignment) == 2, "record D_alignment wrong alignment");
+_Static_assert(sizeof(struct D_packed) == 6, "record D_packed wrong sizeof");
+_Static_assert(_Alignof(struct D_packed) == 1, "record D_packed wrong alignment");
+_Static_assert(sizeof(struct D_required_alignment) == 7, "record D_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct D_required_alignment) == 1, "record D_required_alignment wrong alignment");
+_Static_assert(sizeof(struct D_size) == 8, "record D_size wrong sizeof");
+_Static_assert(_Alignof(struct D_size) == 1, "record D_size wrong alignment");
 #endif
 _Static_assert(sizeof(E) == 8, "record E wrong sizeof");
 _Static_assert(_Alignof(E) == 4, "record E wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct E_alignment) == 12, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_alignment) == 4, "record E wrong alignment");
-_Static_assert(sizeof(struct E_packed) == 8, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_packed) == 1, "record E wrong alignment");
-_Static_assert(sizeof(struct E_required_alignment) == 9, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_required_alignment) == 1, "record E wrong alignment");
-_Static_assert(sizeof(struct E_size) == 10, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_size) == 1, "record E wrong alignment");
+_Static_assert(sizeof(struct E_alignment) == 12, "record E_alignment wrong sizeof");
+_Static_assert(_Alignof(struct E_alignment) == 4, "record E_alignment wrong alignment");
+_Static_assert(sizeof(struct E_packed) == 8, "record E_packed wrong sizeof");
+_Static_assert(_Alignof(struct E_packed) == 1, "record E_packed wrong alignment");
+_Static_assert(sizeof(struct E_required_alignment) == 9, "record E_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct E_required_alignment) == 1, "record E_required_alignment wrong alignment");
+_Static_assert(sizeof(struct E_size) == 10, "record E_size wrong sizeof");
+_Static_assert(_Alignof(struct E_size) == 1, "record E_size wrong alignment");
 #endif
 _Static_assert(sizeof(F) == 24, "record F wrong sizeof");
 _Static_assert(_Alignof(F) == 4, "record F wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct F_alignment) == 28, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_alignment) == 4, "record F wrong alignment");
-_Static_assert(sizeof(struct F_packed) == 24, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_packed) == 1, "record F wrong alignment");
-_Static_assert(sizeof(struct F_required_alignment) == 25, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_required_alignment) == 1, "record F wrong alignment");
-_Static_assert(sizeof(struct F_size) == 26, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_size) == 1, "record F wrong alignment");
+_Static_assert(sizeof(struct F_alignment) == 28, "record F_alignment wrong sizeof");
+_Static_assert(_Alignof(struct F_alignment) == 4, "record F_alignment wrong alignment");
+_Static_assert(sizeof(struct F_packed) == 24, "record F_packed wrong sizeof");
+_Static_assert(_Alignof(struct F_packed) == 1, "record F_packed wrong alignment");
+_Static_assert(sizeof(struct F_required_alignment) == 25, "record F_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct F_required_alignment) == 1, "record F_required_alignment wrong alignment");
+_Static_assert(sizeof(struct F_size) == 26, "record F_size wrong sizeof");
+_Static_assert(_Alignof(struct F_size) == 1, "record F_size wrong alignment");
 #endif
 _Static_assert(sizeof(G) == 24, "record G wrong sizeof");
 _Static_assert(_Alignof(G) == 4, "record G wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct G_alignment) == 28, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_alignment) == 4, "record G wrong alignment");
-_Static_assert(sizeof(struct G_packed) == 24, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_packed) == 1, "record G wrong alignment");
-_Static_assert(sizeof(struct G_required_alignment) == 25, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_required_alignment) == 1, "record G wrong alignment");
-_Static_assert(sizeof(struct G_size) == 26, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_size) == 1, "record G wrong alignment");
+_Static_assert(sizeof(struct G_alignment) == 28, "record G_alignment wrong sizeof");
+_Static_assert(_Alignof(struct G_alignment) == 4, "record G_alignment wrong alignment");
+_Static_assert(sizeof(struct G_packed) == 24, "record G_packed wrong sizeof");
+_Static_assert(_Alignof(struct G_packed) == 1, "record G_packed wrong alignment");
+_Static_assert(sizeof(struct G_required_alignment) == 25, "record G_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct G_required_alignment) == 1, "record G_required_alignment wrong alignment");
+_Static_assert(sizeof(struct G_size) == 26, "record G_size wrong sizeof");
+_Static_assert(_Alignof(struct G_size) == 1, "record G_size wrong alignment");
 #endif
 _Static_assert(sizeof(H) == 128, "record H wrong sizeof");
 _Static_assert(_Alignof(H) == 128, "record H wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct H_alignment) == 256, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_alignment) == 128, "record H wrong alignment");
-_Static_assert(sizeof(struct H_packed) == 128, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_packed) == 1, "record H wrong alignment");
-_Static_assert(sizeof(struct H_required_alignment) == 129, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_required_alignment) == 1, "record H wrong alignment");
-_Static_assert(sizeof(struct H_size) == 130, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_size) == 1, "record H wrong alignment");
+_Static_assert(sizeof(struct H_alignment) == 256, "record H_alignment wrong sizeof");
+_Static_assert(_Alignof(struct H_alignment) == 128, "record H_alignment wrong alignment");
+_Static_assert(sizeof(struct H_packed) == 128, "record H_packed wrong sizeof");
+_Static_assert(_Alignof(struct H_packed) == 1, "record H_packed wrong alignment");
+_Static_assert(sizeof(struct H_required_alignment) == 129, "record H_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct H_required_alignment) == 1, "record H_required_alignment wrong alignment");
+_Static_assert(sizeof(struct H_size) == 130, "record H_size wrong sizeof");
+_Static_assert(_Alignof(struct H_size) == 1, "record H_size wrong alignment");
 #endif
 _Static_assert(sizeof(I) == 384, "record I wrong sizeof");
 _Static_assert(_Alignof(I) == 128, "record I wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct I_alignment) == 512, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_alignment) == 128, "record I wrong alignment");
-_Static_assert(sizeof(struct I_packed) == 384, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_packed) == 1, "record I wrong alignment");
-_Static_assert(sizeof(struct I_required_alignment) == 385, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_required_alignment) == 1, "record I wrong alignment");
-_Static_assert(sizeof(struct I_size) == 386, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_size) == 1, "record I wrong alignment");
+_Static_assert(sizeof(struct I_alignment) == 512, "record I_alignment wrong sizeof");
+_Static_assert(_Alignof(struct I_alignment) == 128, "record I_alignment wrong alignment");
+_Static_assert(sizeof(struct I_packed) == 384, "record I_packed wrong sizeof");
+_Static_assert(_Alignof(struct I_packed) == 1, "record I_packed wrong alignment");
+_Static_assert(sizeof(struct I_required_alignment) == 385, "record I_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct I_required_alignment) == 1, "record I_required_alignment wrong alignment");
+_Static_assert(sizeof(struct I_size) == 386, "record I_size wrong sizeof");
+_Static_assert(_Alignof(struct I_size) == 1, "record I_size wrong alignment");
 #endif
 _Static_assert(sizeof(J) == 0, "record J wrong sizeof");
 _Static_assert(_Alignof(J) == 4, "record J wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct J_alignment) == 4, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_alignment) == 4, "record J wrong alignment");
-_Static_assert(sizeof(struct J_packed) == 0, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_packed) == 1, "record J wrong alignment");
-_Static_assert(sizeof(struct J_required_alignment) == 1, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_required_alignment) == 1, "record J wrong alignment");
-_Static_assert(sizeof(struct J_size) == 2, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_size) == 1, "record J wrong alignment");
+_Static_assert(sizeof(struct J_alignment) == 4, "record J_alignment wrong sizeof");
+_Static_assert(_Alignof(struct J_alignment) == 4, "record J_alignment wrong alignment");
+_Static_assert(sizeof(struct J_packed) == 0, "record J_packed wrong sizeof");
+_Static_assert(_Alignof(struct J_packed) == 1, "record J_packed wrong alignment");
+_Static_assert(sizeof(struct J_required_alignment) == 1, "record J_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct J_required_alignment) == 1, "record J_required_alignment wrong alignment");
+_Static_assert(sizeof(struct J_size) == 2, "record J_size wrong sizeof");
+_Static_assert(_Alignof(struct J_size) == 1, "record J_size wrong alignment");
 #endif
 #elif defined(MSP430_NONE_ELF) 
 _Static_assert(sizeof(A) == 3, "record A wrong sizeof");
 _Static_assert(_Alignof(A) == 1, "record A wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct A_alignment) == 4, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_alignment) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_packed) == 3, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_packed) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_required_alignment) == 4, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_required_alignment) == 1, "record A wrong alignment");
-_Static_assert(sizeof(struct A_size) == 5, "record A wrong sizeof");
-_Static_assert(_Alignof(struct A_size) == 1, "record A wrong alignment");
+_Static_assert(sizeof(struct A_alignment) == 4, "record A_alignment wrong sizeof");
+_Static_assert(_Alignof(struct A_alignment) == 1, "record A_alignment wrong alignment");
+_Static_assert(sizeof(struct A_packed) == 3, "record A_packed wrong sizeof");
+_Static_assert(_Alignof(struct A_packed) == 1, "record A_packed wrong alignment");
+_Static_assert(sizeof(struct A_required_alignment) == 4, "record A_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct A_required_alignment) == 1, "record A_required_alignment wrong alignment");
+_Static_assert(sizeof(struct A_size) == 5, "record A_size wrong sizeof");
+_Static_assert(_Alignof(struct A_size) == 1, "record A_size wrong alignment");
 #endif
 _Static_assert(sizeof(B) == 4, "record B wrong sizeof");
 _Static_assert(_Alignof(B) == 4, "record B wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct B_alignment) == 8, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_alignment) == 4, "record B wrong alignment");
-_Static_assert(sizeof(struct B_packed) == 4, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_packed) == 1, "record B wrong alignment");
-_Static_assert(sizeof(struct B_required_alignment) == 5, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_required_alignment) == 1, "record B wrong alignment");
-_Static_assert(sizeof(struct B_size) == 6, "record B wrong sizeof");
-_Static_assert(_Alignof(struct B_size) == 1, "record B wrong alignment");
+_Static_assert(sizeof(struct B_alignment) == 8, "record B_alignment wrong sizeof");
+_Static_assert(_Alignof(struct B_alignment) == 4, "record B_alignment wrong alignment");
+_Static_assert(sizeof(struct B_packed) == 4, "record B_packed wrong sizeof");
+_Static_assert(_Alignof(struct B_packed) == 1, "record B_packed wrong alignment");
+_Static_assert(sizeof(struct B_required_alignment) == 5, "record B_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct B_required_alignment) == 1, "record B_required_alignment wrong alignment");
+_Static_assert(sizeof(struct B_size) == 6, "record B_size wrong sizeof");
+_Static_assert(_Alignof(struct B_size) == 1, "record B_size wrong alignment");
 #endif
 _Static_assert(sizeof(C) == 12, "record C wrong sizeof");
 _Static_assert(_Alignof(C) == 4, "record C wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct C_alignment) == 16, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_alignment) == 4, "record C wrong alignment");
-_Static_assert(sizeof(struct C_packed) == 12, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_packed) == 1, "record C wrong alignment");
-_Static_assert(sizeof(struct C_required_alignment) == 13, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_required_alignment) == 1, "record C wrong alignment");
-_Static_assert(sizeof(struct C_size) == 14, "record C wrong sizeof");
-_Static_assert(_Alignof(struct C_size) == 1, "record C wrong alignment");
+_Static_assert(sizeof(struct C_alignment) == 16, "record C_alignment wrong sizeof");
+_Static_assert(_Alignof(struct C_alignment) == 4, "record C_alignment wrong alignment");
+_Static_assert(sizeof(struct C_packed) == 12, "record C_packed wrong sizeof");
+_Static_assert(_Alignof(struct C_packed) == 1, "record C_packed wrong alignment");
+_Static_assert(sizeof(struct C_required_alignment) == 13, "record C_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct C_required_alignment) == 1, "record C_required_alignment wrong alignment");
+_Static_assert(sizeof(struct C_size) == 14, "record C_size wrong sizeof");
+_Static_assert(_Alignof(struct C_size) == 1, "record C_size wrong alignment");
 #endif
 _Static_assert(sizeof(D) == 6, "record D wrong sizeof");
 _Static_assert(_Alignof(D) == 2, "record D wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct D_alignment) == 8, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_alignment) == 2, "record D wrong alignment");
-_Static_assert(sizeof(struct D_packed) == 6, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_packed) == 1, "record D wrong alignment");
-_Static_assert(sizeof(struct D_required_alignment) == 7, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_required_alignment) == 1, "record D wrong alignment");
-_Static_assert(sizeof(struct D_size) == 8, "record D wrong sizeof");
-_Static_assert(_Alignof(struct D_size) == 1, "record D wrong alignment");
+_Static_assert(sizeof(struct D_alignment) == 8, "record D_alignment wrong sizeof");
+_Static_assert(_Alignof(struct D_alignment) == 2, "record D_alignment wrong alignment");
+_Static_assert(sizeof(struct D_packed) == 6, "record D_packed wrong sizeof");
+_Static_assert(_Alignof(struct D_packed) == 1, "record D_packed wrong alignment");
+_Static_assert(sizeof(struct D_required_alignment) == 7, "record D_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct D_required_alignment) == 1, "record D_required_alignment wrong alignment");
+_Static_assert(sizeof(struct D_size) == 8, "record D_size wrong sizeof");
+_Static_assert(_Alignof(struct D_size) == 1, "record D_size wrong alignment");
 #endif
 _Static_assert(sizeof(E) == 8, "record E wrong sizeof");
 _Static_assert(_Alignof(E) == 4, "record E wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct E_alignment) == 12, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_alignment) == 4, "record E wrong alignment");
-_Static_assert(sizeof(struct E_packed) == 8, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_packed) == 1, "record E wrong alignment");
-_Static_assert(sizeof(struct E_required_alignment) == 9, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_required_alignment) == 1, "record E wrong alignment");
-_Static_assert(sizeof(struct E_size) == 10, "record E wrong sizeof");
-_Static_assert(_Alignof(struct E_size) == 1, "record E wrong alignment");
+_Static_assert(sizeof(struct E_alignment) == 12, "record E_alignment wrong sizeof");
+_Static_assert(_Alignof(struct E_alignment) == 4, "record E_alignment wrong alignment");
+_Static_assert(sizeof(struct E_packed) == 8, "record E_packed wrong sizeof");
+_Static_assert(_Alignof(struct E_packed) == 1, "record E_packed wrong alignment");
+_Static_assert(sizeof(struct E_required_alignment) == 9, "record E_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct E_required_alignment) == 1, "record E_required_alignment wrong alignment");
+_Static_assert(sizeof(struct E_size) == 10, "record E_size wrong sizeof");
+_Static_assert(_Alignof(struct E_size) == 1, "record E_size wrong alignment");
 #endif
 _Static_assert(sizeof(F) == 24, "record F wrong sizeof");
 _Static_assert(_Alignof(F) == 4, "record F wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct F_alignment) == 28, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_alignment) == 4, "record F wrong alignment");
-_Static_assert(sizeof(struct F_packed) == 24, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_packed) == 1, "record F wrong alignment");
-_Static_assert(sizeof(struct F_required_alignment) == 25, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_required_alignment) == 1, "record F wrong alignment");
-_Static_assert(sizeof(struct F_size) == 26, "record F wrong sizeof");
-_Static_assert(_Alignof(struct F_size) == 1, "record F wrong alignment");
+_Static_assert(sizeof(struct F_alignment) == 28, "record F_alignment wrong sizeof");
+_Static_assert(_Alignof(struct F_alignment) == 4, "record F_alignment wrong alignment");
+_Static_assert(sizeof(struct F_packed) == 24, "record F_packed wrong sizeof");
+_Static_assert(_Alignof(struct F_packed) == 1, "record F_packed wrong alignment");
+_Static_assert(sizeof(struct F_required_alignment) == 25, "record F_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct F_required_alignment) == 1, "record F_required_alignment wrong alignment");
+_Static_assert(sizeof(struct F_size) == 26, "record F_size wrong sizeof");
+_Static_assert(_Alignof(struct F_size) == 1, "record F_size wrong alignment");
 #endif
 _Static_assert(sizeof(G) == 24, "record G wrong sizeof");
 _Static_assert(_Alignof(G) == 2, "record G wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct G_alignment) == 26, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_alignment) == 2, "record G wrong alignment");
-_Static_assert(sizeof(struct G_packed) == 24, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_packed) == 1, "record G wrong alignment");
-_Static_assert(sizeof(struct G_required_alignment) == 25, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_required_alignment) == 1, "record G wrong alignment");
-_Static_assert(sizeof(struct G_size) == 26, "record G wrong sizeof");
-_Static_assert(_Alignof(struct G_size) == 1, "record G wrong alignment");
+_Static_assert(sizeof(struct G_alignment) == 26, "record G_alignment wrong sizeof");
+_Static_assert(_Alignof(struct G_alignment) == 2, "record G_alignment wrong alignment");
+_Static_assert(sizeof(struct G_packed) == 24, "record G_packed wrong sizeof");
+_Static_assert(_Alignof(struct G_packed) == 1, "record G_packed wrong alignment");
+_Static_assert(sizeof(struct G_required_alignment) == 25, "record G_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct G_required_alignment) == 1, "record G_required_alignment wrong alignment");
+_Static_assert(sizeof(struct G_size) == 26, "record G_size wrong sizeof");
+_Static_assert(_Alignof(struct G_size) == 1, "record G_size wrong alignment");
 #endif
 _Static_assert(sizeof(H) == 128, "record H wrong sizeof");
 _Static_assert(_Alignof(H) == 128, "record H wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct H_alignment) == 256, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_alignment) == 128, "record H wrong alignment");
-_Static_assert(sizeof(struct H_packed) == 128, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_packed) == 1, "record H wrong alignment");
-_Static_assert(sizeof(struct H_required_alignment) == 129, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_required_alignment) == 1, "record H wrong alignment");
-_Static_assert(sizeof(struct H_size) == 130, "record H wrong sizeof");
-_Static_assert(_Alignof(struct H_size) == 1, "record H wrong alignment");
+_Static_assert(sizeof(struct H_alignment) == 256, "record H_alignment wrong sizeof");
+_Static_assert(_Alignof(struct H_alignment) == 128, "record H_alignment wrong alignment");
+_Static_assert(sizeof(struct H_packed) == 128, "record H_packed wrong sizeof");
+_Static_assert(_Alignof(struct H_packed) == 1, "record H_packed wrong alignment");
+_Static_assert(sizeof(struct H_required_alignment) == 129, "record H_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct H_required_alignment) == 1, "record H_required_alignment wrong alignment");
+_Static_assert(sizeof(struct H_size) == 130, "record H_size wrong sizeof");
+_Static_assert(_Alignof(struct H_size) == 1, "record H_size wrong alignment");
 #endif
 _Static_assert(sizeof(I) == 384, "record I wrong sizeof");
 _Static_assert(_Alignof(I) == 128, "record I wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct I_alignment) == 512, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_alignment) == 128, "record I wrong alignment");
-_Static_assert(sizeof(struct I_packed) == 384, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_packed) == 1, "record I wrong alignment");
-_Static_assert(sizeof(struct I_required_alignment) == 385, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_required_alignment) == 1, "record I wrong alignment");
-_Static_assert(sizeof(struct I_size) == 386, "record I wrong sizeof");
-_Static_assert(_Alignof(struct I_size) == 1, "record I wrong alignment");
+_Static_assert(sizeof(struct I_alignment) == 512, "record I_alignment wrong sizeof");
+_Static_assert(_Alignof(struct I_alignment) == 128, "record I_alignment wrong alignment");
+_Static_assert(sizeof(struct I_packed) == 384, "record I_packed wrong sizeof");
+_Static_assert(_Alignof(struct I_packed) == 1, "record I_packed wrong alignment");
+_Static_assert(sizeof(struct I_required_alignment) == 385, "record I_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct I_required_alignment) == 1, "record I_required_alignment wrong alignment");
+_Static_assert(sizeof(struct I_size) == 386, "record I_size wrong sizeof");
+_Static_assert(_Alignof(struct I_size) == 1, "record I_size wrong alignment");
 #endif
 _Static_assert(sizeof(J) == 0, "record J wrong sizeof");
 _Static_assert(_Alignof(J) == 2, "record J wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct J_alignment) == 2, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_alignment) == 2, "record J wrong alignment");
-_Static_assert(sizeof(struct J_packed) == 0, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_packed) == 1, "record J wrong alignment");
-_Static_assert(sizeof(struct J_required_alignment) == 1, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_required_alignment) == 1, "record J wrong alignment");
-_Static_assert(sizeof(struct J_size) == 2, "record J wrong sizeof");
-_Static_assert(_Alignof(struct J_size) == 1, "record J wrong alignment");
+_Static_assert(sizeof(struct J_alignment) == 2, "record J_alignment wrong sizeof");
+_Static_assert(_Alignof(struct J_alignment) == 2, "record J_alignment wrong alignment");
+_Static_assert(sizeof(struct J_packed) == 0, "record J_packed wrong sizeof");
+_Static_assert(_Alignof(struct J_packed) == 1, "record J_packed wrong alignment");
+_Static_assert(sizeof(struct J_required_alignment) == 1, "record J_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct J_required_alignment) == 1, "record J_required_alignment wrong alignment");
+_Static_assert(sizeof(struct J_size) == 2, "record J_size wrong sizeof");
+_Static_assert(_Alignof(struct J_size) == 1, "record J_size wrong alignment");
 #endif
 #endif

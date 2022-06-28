@@ -428,6 +428,7 @@ fn generateVaListType(comp: *Compilation) !Type {
                 .fields = try arena.alloc(Type.Record.Field, 5),
                 .size = 32,
                 .alignment = 8,
+                .field_attributes = null,
                 .type_layout = undefined,
             };
             const void_ty = try arena.create(Type);
@@ -448,6 +449,7 @@ fn generateVaListType(comp: *Compilation) !Type {
                 .fields = try arena.alloc(Type.Record.Field, 4),
                 .size = 24,
                 .alignment = 8,
+                .field_attributes = null,
                 .type_layout = undefined,
             };
             const void_ty = try arena.create(Type);
@@ -718,12 +720,46 @@ pub const IncludeDirIterator = struct {
         }
         return null;
     }
+
+    /// Advance the iterator until it finds an include directory that matches
+    /// the directory which contains `source`.
+    fn skipUntilDirMatch(self: *IncludeDirIterator, source: Source.Id) void {
+        const path = self.comp.getSource(source).path;
+        const includer_path = std.fs.path.dirname(path) orelse ".";
+        while (self.next()) |dir| {
+            if (mem.eql(u8, includer_path, dir)) break;
+        }
+    }
 };
 
-pub fn hasInclude(comp: *const Compilation, filename: []const u8, cwd_source_id: ?Source.Id) bool {
+pub fn hasInclude(
+    comp: *const Compilation,
+    filename: []const u8,
+    includer_token_source: Source.Id,
+    /// angle bracket vs quotes
+    include_type: IncludeType,
+    /// __has_include vs __has_include_next
+    which: WhichInclude,
+) bool {
+    const cwd = std.fs.cwd();
+    if (std.fs.path.isAbsolute(filename)) {
+        if (which == .next) return false;
+        return !std.meta.isError(cwd.access(filename, .{}));
+    }
+
+    const cwd_source_id = switch (include_type) {
+        .quotes => switch (which) {
+            .first => includer_token_source,
+            .next => null,
+        },
+        .angle_brackets => null,
+    };
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
-    const cwd = std.fs.cwd();
+    if (which == .next) {
+        it.skipUntilDirMatch(includer_token_source);
+    }
+
     while (it.nextWithFile(filename)) |path| {
         if (!std.meta.isError(cwd.access(path, .{}))) return true;
     }
@@ -744,7 +780,9 @@ pub fn findInclude(
     comp: *Compilation,
     filename: []const u8,
     includer_token_source: Source.Id,
+    /// angle bracket vs quotes
     include_type: IncludeType,
+    /// include vs include_next
     which: WhichInclude,
 ) !?Source {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
@@ -767,11 +805,7 @@ pub fn findInclude(
     var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
 
     if (which == .next) {
-        const path = comp.getSource(includer_token_source).path;
-        const includer_path = std.fs.path.dirname(path) orelse ".";
-        while (it.next()) |dir| {
-            if (mem.eql(u8, includer_path, dir)) break;
-        }
+        it.skipUntilDirMatch(includer_token_source);
     }
 
     while (it.nextWithFile(filename)) |path| {

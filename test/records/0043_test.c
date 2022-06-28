@@ -489,148 +489,148 @@ struct EmptyPackedAligned8LongLongMemb_size var54;
 _Static_assert(sizeof(EmptyIntMemb) == 0, "record EmptyIntMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyIntMemb) == 4, "record EmptyIntMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_packed) == 0, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_size) == 2, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_packed) == 0, "record EmptyIntMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_size) == 2, "record EmptyIntMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyLongLongMemb) == 0, "record EmptyLongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyLongLongMemb) == 8, "record EmptyLongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 8, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 8, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 0, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 2, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 8, "record EmptyLongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 8, "record EmptyLongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 0, "record EmptyLongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 2, "record EmptyLongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned2LongLongMemb) == 0, "record EmptyAligned2LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned2LongLongMemb) == 8, "record EmptyAligned2LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 8, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 8, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 0, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 2, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 8, "record EmptyAligned2LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 8, "record EmptyAligned2LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 0, "record EmptyAligned2LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 2, "record EmptyAligned2LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned8LongLongMemb) == 0, "record EmptyAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned8LongLongMemb) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 0, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 2, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 0, "record EmptyAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 2, "record EmptyAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned4LongLongMemb) == 0, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned4LongLongMemb) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 0, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 2, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 0, "record EmptyPackedAligned4LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 2, "record EmptyPackedAligned4LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned8LongLongMemb) == 0, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned8LongLongMemb) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 0, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 2, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 0, "record EmptyPackedAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 2, "record EmptyPackedAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb_size wrong alignment");
 #endif
 #elif defined(AARCH64_PC_WINDOWS_MSVC) ||  defined(I586_PC_WINDOWS_MSVC) ||  defined(I686_PC_WINDOWS_MSVC) ||  defined(I686_UNKNOWN_WINDOWS) ||  \
  defined(THUMBV7A_PC_WINDOWS_MSVC) ||  defined(X8664_PC_WINDOWS_MSVC) ||  defined(X8664_UNKNOWN_WINDOWS) 
 _Static_assert(sizeof(EmptyIntMemb) == 4, "record EmptyIntMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyIntMemb) == 4, "record EmptyIntMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 8, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_packed) == 4, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 5, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_size) == 6, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 8, "record EmptyIntMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_packed) == 4, "record EmptyIntMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 5, "record EmptyIntMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_size) == 6, "record EmptyIntMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyLongLongMemb) == 4, "record EmptyLongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyLongLongMemb) == 8, "record EmptyLongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 16, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 8, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 4, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 5, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 6, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 16, "record EmptyLongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 8, "record EmptyLongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 4, "record EmptyLongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 5, "record EmptyLongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 6, "record EmptyLongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned2LongLongMemb) == 4, "record EmptyAligned2LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned2LongLongMemb) == 8, "record EmptyAligned2LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 16, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 8, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 4, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 5, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 6, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 16, "record EmptyAligned2LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 8, "record EmptyAligned2LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 4, "record EmptyAligned2LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 5, "record EmptyAligned2LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 6, "record EmptyAligned2LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned8LongLongMemb) == 8, "record EmptyAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned8LongLongMemb) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 16, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 8, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 9, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 10, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 16, "record EmptyAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 8, "record EmptyAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 9, "record EmptyAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 10, "record EmptyAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned4LongLongMemb) == 4, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned4LongLongMemb) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 8, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 4, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 5, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 6, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 8, "record EmptyPackedAligned4LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 4, "record EmptyPackedAligned4LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 5, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 6, "record EmptyPackedAligned4LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned8LongLongMemb) == 8, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned8LongLongMemb) == 8, "record EmptyPackedAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 16, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 8, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 8, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 9, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 10, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 16, "record EmptyPackedAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 8, "record EmptyPackedAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 8, "record EmptyPackedAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 9, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 10, "record EmptyPackedAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb_size wrong alignment");
 #endif
 #elif defined(ARMV7_APPLE_IOS) ||  defined(ARMV7S_APPLE_IOS) ||  defined(I386_APPLE_IOS) ||  defined(I586_UNKNOWN_LINUX_GNU) ||  defined(I586_UNKNOWN_LINUX_MUSL) ||  \
  defined(I686_APPLE_MACOSX) ||  defined(I686_LINUX_ANDROID) ||  defined(I686_UNKNOWN_FREEBSD) ||  defined(I686_UNKNOWN_HAIKU) ||  defined(I686_UNKNOWN_LINUX_GNU) ||  \
@@ -638,219 +638,219 @@ _Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "reco
 _Static_assert(sizeof(EmptyIntMemb) == 0, "record EmptyIntMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyIntMemb) == 4, "record EmptyIntMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_packed) == 0, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_size) == 2, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 4, "record EmptyIntMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_packed) == 0, "record EmptyIntMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_size) == 2, "record EmptyIntMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyLongLongMemb) == 0, "record EmptyLongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyLongLongMemb) == 4, "record EmptyLongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 4, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 4, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 0, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 2, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 4, "record EmptyLongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 4, "record EmptyLongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 0, "record EmptyLongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 2, "record EmptyLongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned2LongLongMemb) == 0, "record EmptyAligned2LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned2LongLongMemb) == 4, "record EmptyAligned2LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 4, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 4, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 0, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 2, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 4, "record EmptyAligned2LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 4, "record EmptyAligned2LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 0, "record EmptyAligned2LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 2, "record EmptyAligned2LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned8LongLongMemb) == 0, "record EmptyAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned8LongLongMemb) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 0, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 2, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 0, "record EmptyAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 2, "record EmptyAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned4LongLongMemb) == 0, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned4LongLongMemb) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 0, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 2, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 0, "record EmptyPackedAligned4LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 2, "record EmptyPackedAligned4LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned8LongLongMemb) == 0, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned8LongLongMemb) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 0, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 2, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 0, "record EmptyPackedAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 2, "record EmptyPackedAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb_size wrong alignment");
 #endif
 #elif defined(AVR_UNKNOWN_UNKNOWN) 
 _Static_assert(sizeof(EmptyIntMemb) == 0, "record EmptyIntMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyIntMemb) == 1, "record EmptyIntMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 1, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_packed) == 0, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_size) == 2, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 1, "record EmptyIntMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 1, "record EmptyIntMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_packed) == 0, "record EmptyIntMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_size) == 2, "record EmptyIntMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyLongLongMemb) == 0, "record EmptyLongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyLongLongMemb) == 1, "record EmptyLongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 1, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 0, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 2, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 1, "record EmptyLongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 1, "record EmptyLongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 0, "record EmptyLongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 2, "record EmptyLongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned2LongLongMemb) == 0, "record EmptyAligned2LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned2LongLongMemb) == 2, "record EmptyAligned2LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 2, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 2, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 0, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 2, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 2, "record EmptyAligned2LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 2, "record EmptyAligned2LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 0, "record EmptyAligned2LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 2, "record EmptyAligned2LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned8LongLongMemb) == 0, "record EmptyAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned8LongLongMemb) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 0, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 2, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 0, "record EmptyAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 2, "record EmptyAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned4LongLongMemb) == 0, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned4LongLongMemb) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 0, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 2, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 0, "record EmptyPackedAligned4LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 2, "record EmptyPackedAligned4LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned8LongLongMemb) == 0, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned8LongLongMemb) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 0, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 2, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 0, "record EmptyPackedAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 2, "record EmptyPackedAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb_size wrong alignment");
 #endif
 #elif defined(MSP430_NONE_ELF) 
 _Static_assert(sizeof(EmptyIntMemb) == 0, "record EmptyIntMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyIntMemb) == 2, "record EmptyIntMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 2, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 2, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_packed) == 0, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyIntMemb_size) == 2, "record EmptyIntMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_alignment) == 2, "record EmptyIntMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_alignment) == 2, "record EmptyIntMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_packed) == 0, "record EmptyIntMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_packed) == 1, "record EmptyIntMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_required_alignment) == 1, "record EmptyIntMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyIntMemb_size) == 2, "record EmptyIntMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyIntMemb_size) == 1, "record EmptyIntMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyLongLongMemb) == 0, "record EmptyLongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyLongLongMemb) == 2, "record EmptyLongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 2, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 2, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 0, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 2, "record EmptyLongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_alignment) == 2, "record EmptyLongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_alignment) == 2, "record EmptyLongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_packed) == 0, "record EmptyLongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_packed) == 1, "record EmptyLongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_required_alignment) == 1, "record EmptyLongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyLongLongMemb_size) == 2, "record EmptyLongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyLongLongMemb_size) == 1, "record EmptyLongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned2LongLongMemb) == 0, "record EmptyAligned2LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned2LongLongMemb) == 2, "record EmptyAligned2LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 2, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 2, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 0, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 2, "record EmptyAligned2LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_alignment) == 2, "record EmptyAligned2LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_alignment) == 2, "record EmptyAligned2LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_packed) == 0, "record EmptyAligned2LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_packed) == 1, "record EmptyAligned2LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_required_alignment) == 1, "record EmptyAligned2LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned2LongLongMemb_size) == 2, "record EmptyAligned2LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned2LongLongMemb_size) == 1, "record EmptyAligned2LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyAligned8LongLongMemb) == 0, "record EmptyAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyAligned8LongLongMemb) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 0, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 2, "record EmptyAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_alignment) == 8, "record EmptyAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_packed) == 0, "record EmptyAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_packed) == 1, "record EmptyAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_required_alignment) == 1, "record EmptyAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyAligned8LongLongMemb_size) == 2, "record EmptyAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyAligned8LongLongMemb_size) == 1, "record EmptyAligned8LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned4LongLongMemb) == 0, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned4LongLongMemb) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 0, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 2, "record EmptyPackedAligned4LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_alignment) == 4, "record EmptyPackedAligned4LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_packed) == 0, "record EmptyPackedAligned4LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_packed) == 1, "record EmptyPackedAligned4LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned4LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned4LongLongMemb_size) == 2, "record EmptyPackedAligned4LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned4LongLongMemb_size) == 1, "record EmptyPackedAligned4LongLongMemb_size wrong alignment");
 #endif
 _Static_assert(sizeof(EmptyPackedAligned8LongLongMemb) == 0, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
 _Static_assert(_Alignof(EmptyPackedAligned8LongLongMemb) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
 #ifdef EXTRA_TESTS
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 0, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
-_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 2, "record EmptyPackedAligned8LongLongMemb wrong sizeof");
-_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_packed) == 0, "record EmptyPackedAligned8LongLongMemb_packed wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_packed) == 1, "record EmptyPackedAligned8LongLongMemb_packed wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_required_alignment) == 1, "record EmptyPackedAligned8LongLongMemb_required_alignment wrong alignment");
+_Static_assert(sizeof(struct EmptyPackedAligned8LongLongMemb_size) == 2, "record EmptyPackedAligned8LongLongMemb_size wrong sizeof");
+_Static_assert(_Alignof(struct EmptyPackedAligned8LongLongMemb_size) == 1, "record EmptyPackedAligned8LongLongMemb_size wrong alignment");
 #endif
 #endif

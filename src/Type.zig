@@ -117,14 +117,13 @@ pub const Attributed = struct {
     attributes: []Attribute,
     base: Type,
 
-    fn create(allocator: std.mem.Allocator, base: Type, attributes: []const Attribute) !*Attributed {
+    pub fn create(allocator: std.mem.Allocator, base: Type, existing_attributes: []const Attribute, attributes: []const Attribute) !*Attributed {
         var attributed_type = try allocator.create(Attributed);
         errdefer allocator.destroy(attributed_type);
 
-        const existing = base.getAttributes();
-        var all_attrs = try allocator.alloc(Attribute, existing.len + attributes.len);
-        std.mem.copy(Attribute, all_attrs, existing);
-        std.mem.copy(Attribute, all_attrs[existing.len..], attributes);
+        var all_attrs = try allocator.alloc(Attribute, existing_attributes.len + attributes.len);
+        std.mem.copy(Attribute, all_attrs, existing_attributes);
+        std.mem.copy(Attribute, all_attrs[existing_attributes.len..], attributes);
 
         attributed_type.* = .{
             .attributes = all_attrs,
@@ -205,6 +204,11 @@ pub const Record = struct {
     alignment: u29,
     type_layout: TypeLayout,
 
+    /// If this is null, none of the fields have attributes
+    /// Otherwise, it's a pointer to N items (where N == number of fields)
+    /// and the item at index i is the attributes for the field at index i
+    field_attributes: ?[*][]const Attribute,
+
     pub const Field = struct {
         name: []const u8,
         ty: Type,
@@ -226,6 +230,8 @@ pub const Record = struct {
         var r = try allocator.create(Record);
         r.name = name;
         r.fields.len = std.math.maxInt(usize);
+        r.field_attributes = null;
+        r.type_layout = undefined;
         return r;
     }
 };
@@ -280,6 +286,7 @@ pub const Specifier = enum {
     decayed_static_array,
     incomplete_array,
     decayed_incomplete_array,
+    vector,
     // data.expr
     variable_len_array,
     decayed_variable_len_array,
@@ -333,7 +340,7 @@ pub fn is(ty: Type, specifier: Specifier) bool {
 
 pub fn withAttributes(self: Type, allocator: std.mem.Allocator, attributes: []const Attribute) !Type {
     if (attributes.len == 0) return self;
-    const attributed_type = try Type.Attributed.create(allocator, self, attributes);
+    const attributed_type = try Type.Attributed.create(allocator, self, self.getAttributes(), attributes);
     return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
 }
 
@@ -483,20 +490,6 @@ pub fn isEnumOrRecord(ty: Type) bool {
     };
 }
 
-pub fn isRecord(ty: *const Type) bool {
-    return ty.getRecord() != null;
-}
-
-pub fn getRecord(ty: *const Type) ?*const Type {
-    return switch (ty.specifier) {
-        .@"struct", .@"union" => ty,
-        .typeof_type => ty.data.sub_type.getRecord(),
-        .typeof_expr => ty.data.expr.ty.getRecord(),
-        .attributed => ty.data.attributed.base.getRecord(),
-        else => null,
-    };
-}
-
 pub fn isAnonymousRecord(ty: Type) bool {
     return switch (ty.specifier) {
         // anonymous records can be recognized by their names which are in
@@ -512,7 +505,7 @@ pub fn isAnonymousRecord(ty: Type) bool {
 pub fn elemType(ty: Type) Type {
     return switch (ty.specifier) {
         .pointer, .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => ty.data.sub_type.*,
-        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty.data.array.elem,
+        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array, .vector => ty.data.array.elem,
         .variable_len_array, .decayed_variable_len_array => ty.data.expr.ty,
         .typeof_type, .decayed_typeof_type, .typeof_expr, .decayed_typeof_expr => {
             const unwrapped = ty.canonicalize(.preserve_quals);
@@ -569,6 +562,20 @@ pub fn getAttributes(ty: Type) []const Attribute {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.getAttributes(),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.getAttributes(),
         else => &.{},
+    };
+}
+
+pub fn isRecord(ty: *const Type) bool {
+    return ty.getRecord() != null;
+}
+
+pub fn getRecord(ty: Type) ?*const Type.Record {
+    return switch (ty.specifier) {
+        .attributed => ty.data.attributed.base.getRecord(),
+        .typeof_type, .decayed_typeof_type => ty.data.sub_type.getRecord(),
+        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.getRecord(),
+        .@"struct", .@"union" => ty.data.record,
+        else => null,
     };
 }
 
@@ -762,7 +769,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .decayed_typeof_expr,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .array => if (ty.data.array.elem.sizeof(comp)) |size| size * ty.data.array.len else null,
+        .array, .vector => if (ty.data.array.elem.sizeof(comp)) |size| size * ty.data.array.len else null,
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) null else ty.data.@"enum".tag_ty.sizeof(comp),
         .typeof_type => ty.data.sub_type.sizeof(comp),
@@ -787,8 +794,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
     if (ty.requestedAlignment(comp)) |requested| {
 
         // don't return the attribute for records that have already been laid out
-        if (ty.getRecord()) |rec_ty| {
-            const rec = rec_ty.data.record;
+        if (ty.getRecord()) |rec| {
             if (!rec.isIncomplete()) {
                 return rec.alignment;
             }
@@ -802,6 +808,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .incomplete_array,
         .unspecified_variable_len_array,
         .array,
+        .vector,
         => ty.elemType().alignof(comp),
         .func, .var_args_func, .old_style_func => 4, // TODO check target
         .char, .schar, .uchar, .void, .bool => 1,
@@ -841,16 +848,6 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
         .attributed => ty.data.attributed.base.alignof(comp),
         else => unreachable,
-    };
-}
-
-// get alignment ignoring any annotations/attributions
-pub fn naturalAlignment(ty: Type, comp: *const Compilation) u29 {
-    return switch (ty.specifier) {
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.naturalAlignment(comp),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.naturalAlignment(comp),
-        .attributed => ty.data.attributed.base.naturalAlignment(comp),
-        else => ty.alignof(comp),
     };
 }
 
@@ -922,21 +919,6 @@ pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
     };
 }
 
-pub fn isPacked(ty: Type) bool {
-    return switch (ty.specifier) {
-        .typeof_type, .decayed_typeof_type => ty.data.sub_type.isPacked(),
-        .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.isPacked(),
-        .attributed => {
-            for (ty.data.attributed.attributes) |attribute| {
-                if (attribute.tag != .@"packed") continue;
-                return true;
-            }
-            return false;
-        },
-        else => false,
-    };
-}
-
 pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifiers: bool) bool {
     const a = a_param.canonicalize(.standard);
     const b = b_param.canonicalize(.standard);
@@ -987,6 +969,7 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
         .array,
         .static_array,
         .incomplete_array,
+        .vector,
         => {
             if (!std.meta.eql(a.arrayLen(), b.arrayLen())) return false;
             if (!a.elemType().eql(b.elemType(), comp, check_qualifiers)) return false;
@@ -1157,6 +1140,7 @@ pub const Builder = struct {
         decayed_static_array: *Array,
         incomplete_array: *Array,
         decayed_incomplete_array: *Array,
+        vector: *Array,
         variable_len_array: *Expr,
         decayed_variable_len_array: *Expr,
         @"struct": *Record,
@@ -1223,7 +1207,7 @@ pub const Builder = struct {
         }
     };
 
-    pub fn finish(b: Builder, p: *Parser, attr_buf_start: usize) Parser.Error!Type {
+    pub fn finish(b: Builder, p: *Parser) Parser.Error!Type {
         var ty: Type = .{ .specifier = undefined };
         if (b.typedef) |typedef| {
             ty = typedef.ty;
@@ -1254,10 +1238,10 @@ pub const Builder = struct {
                     else => unreachable,
                 }
 
-                return p.withAttributes(ty, attr_buf_start);
+                return ty;
             }
             try b.qual.finish(p, &ty);
-            return p.withAttributes(ty, attr_buf_start);
+            return ty;
         }
         switch (b.specifier) {
             .none => {
@@ -1353,6 +1337,10 @@ pub const Builder = struct {
                 ty.specifier = .decayed_incomplete_array;
                 ty.data = .{ .array = data };
             },
+            .vector => |data| {
+                ty.specifier = .vector;
+                ty.data = .{ .array = data };
+            },
             .variable_len_array => |data| {
                 ty.specifier = .variable_len_array;
                 ty.data = .{ .expr = data };
@@ -1395,13 +1383,12 @@ pub const Builder = struct {
             },
         }
         try b.qual.finish(p, &ty);
-
-        return p.withAttributes(ty, attr_buf_start);
+        return ty;
     }
 
     fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) !void {
         if (b.error_on_invalid) return error.CannotCombine;
-        const ty_str = b.specifier.str() orelse try p.typeStr(try b.finish(p, p.attr_buf.len));
+        const ty_str = b.specifier.str() orelse try p.typeStr(try b.finish(p));
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
         if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
@@ -1619,6 +1606,7 @@ pub const Builder = struct {
             .decayed_static_array => .{ .decayed_static_array = ty.data.array },
             .incomplete_array => .{ .incomplete_array = ty.data.array },
             .decayed_incomplete_array => .{ .decayed_incomplete_array = ty.data.array },
+            .vector => .{ .vector = ty.data.array },
             .variable_len_array => .{ .variable_len_array = ty.data.expr },
             .decayed_variable_len_array => .{ .decayed_variable_len_array = ty.data.expr },
             .@"struct" => .{ .@"struct" = ty.data.record },
@@ -1731,6 +1719,17 @@ fn printPrologue(ty: Type, w: anytype) @TypeOf(w).Error!bool {
         },
         .@"struct" => try w.print("struct {s}", .{ty.data.record.name}),
         .@"union" => try w.print("union {s}", .{ty.data.record.name}),
+        .vector => {
+            const len = ty.data.array.len;
+            const elem_ty = ty.data.array.elem;
+            try w.print("__attribute__((__vector_size__({d} * sizeof(", .{len});
+            _ = try elem_ty.printPrologue(w);
+            try w.writeAll(")))) ");
+            _ = try elem_ty.printPrologue(w);
+            try w.print(" (vector of {d} '", .{len});
+            _ = try elem_ty.printPrologue(w);
+            try w.writeAll("' values)");
+        },
         else => try w.writeAll(Builder.fromType(ty).str().?),
     }
     return true;
@@ -1793,6 +1792,14 @@ fn printEpilogue(ty: Type, w: anytype) @TypeOf(w).Error!void {
             try w.writeAll("<expr>]");
             try ty.data.expr.ty.printEpilogue(w);
         },
+        .typeof_type, .typeof_expr => {
+            const actual = ty.canonicalize(.standard);
+            try actual.printEpilogue(w);
+        },
+        .attributed => {
+            const actual = ty.canonicalize(.standard);
+            try actual.printEpilogue(w);
+        },
         else => {},
     }
 }
@@ -1828,6 +1835,11 @@ pub fn dump(ty: Type, w: anytype) @TypeOf(w).Error!void {
             if (ty.specifier == .static_array or ty.specifier == .decayed_static_array) try w.writeAll("static ");
             try w.print("{d}]", .{ty.data.array.len});
             try ty.data.array.elem.dump(w);
+        },
+        .vector => {
+            try w.print("vector({d}, ", .{ty.data.array.len});
+            try ty.data.array.elem.dump(w);
+            try w.writeAll(")");
         },
         .incomplete_array, .decayed_incomplete_array => {
             if (ty.specifier == .decayed_incomplete_array) try w.writeByte('d');

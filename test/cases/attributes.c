@@ -81,7 +81,7 @@ void math(void) {
     (void) (x / 2);
 }
 
-extern int abs (int __x) __attribute__((__nothrow__ )) __attribute__((__const__));
+extern int abs (int __x) __attribute__((__noreturn__ )) __attribute__((__const__));
 
 typedef int X();
 X x __attribute__((cold));
@@ -106,13 +106,14 @@ typedef struct {
 
 __attribute__(()) // test attribute at eof
 
-#define TESTS_SKIPPED 4
+#define TESTS_SKIPPED 1
 
 #define EXPECTED_ERRORS \
-	/* "attributes.c:8:26: warning: Attribute 'noreturn' ignored in variable context [-Wignored-attributes]" */ \
+	"attributes.c:8:26: warning: attribute 'noreturn' ignored on variables [-Wignored-attributes]" \
     "attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored [-Wunknown-attributes]" \
-    /* "attributes.c:27:20: warning: Attribute 'deprecated' ignored in label context [-Wignored-attributes]" */ \
+    "attributes.c:27:20: warning: attribute 'deprecated' ignored on labels [-Wignored-attributes]" \
+    "attributes.c:31:29: warning: ignoring attribute 'cold' because it conflicts with attribute 'hot' [-Wignored-attributes]" \
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
-    /* "attributes.c:40:20: error: attribute cannot be applied to a statement" */ \
+    "attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement" \
     "attributes.c:76:6: error: cannot call non function type 'int'" \
     "attributes.c:107:18: error: expected identifier or '('" \

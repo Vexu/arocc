@@ -137,6 +137,9 @@ pub const Options = packed struct {
     @"include-next-absolute-path": Kind = .default,
     @"enum-too-large": Kind = .default,
     @"fixed-enum-extension": Kind = .default,
+    @"designated-init": Kind = .default,
+    @"attribute-warning": Kind = .default,
+    @"invalid-noreturn": Kind = .default,
 };
 
 const messages = struct {
@@ -901,7 +904,7 @@ const messages = struct {
         const all = true;
     };
     const incompatible_return = struct {
-        const msg = "returning '{s}' from a function with incompatible result type";
+        const msg = "returning {s}";
         const extra = .str;
         const kind = .@"error";
     };
@@ -925,8 +928,8 @@ const messages = struct {
         const kind = .@"error";
         const all = true;
     };
-    const incompatible_param = struct {
-        const msg = "passing '{s}' to parameter of incompatible type";
+    const incompatible_arg = struct {
+        const msg = "passing {s}";
         const extra = .str;
         const kind = .@"error";
     };
@@ -1178,6 +1181,18 @@ const messages = struct {
         const opt = "incompatible-pointer-types-discards-qualifiers";
         const kind = .warning;
     };
+    const ptr_ret_discards_quals = struct {
+        const msg = "returning {s} discards qualifiers";
+        const extra = .str;
+        const opt = "incompatible-pointer-types-discards-qualifiers";
+        const kind = .warning;
+    };
+    const ptr_arg_discards_quals = struct {
+        const msg = "passing {s} discards qualifiers";
+        const extra = .str;
+        const opt = "incompatible-pointer-types-discards-qualifiers";
+        const kind = .warning;
+    };
     const unknown_attribute = struct {
         const msg = "unknown attribute '{s}' ignored";
         const extra = .str;
@@ -1195,7 +1210,8 @@ const messages = struct {
         const kind = .@"error";
     };
     const cannot_apply_attribute_to_statement = struct {
-        const msg = "attribute cannot be applied to a statement";
+        const msg = "'{s}' attribute cannot be applied to a statement";
+        const extra = .str;
         const kind = .@"error";
     };
     const builtin_macro_redefined = struct {
@@ -1601,6 +1617,17 @@ const messages = struct {
         const extra = .str;
         const kind = .note;
     };
+    const warning_attribute = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "attribute-warning";
+    };
+    const error_attribute = struct {
+        const msg = "{s}";
+        const extra = .str;
+        const kind = .@"error";
+    };
     const ignored_record_attr = struct {
         const msg = "attribute '{s}' is ignored, place it after \"{s}\" to apply attribute to type declaration";
         const extra = .ignored_record_attr;
@@ -1839,6 +1866,104 @@ const messages = struct {
     const enum_not_representable_fixed = struct {
         const msg = "enumerator value is not representable in the underlying type '{s}'";
         const extra = .str;
+        const kind = .@"error";
+    };
+    const transparent_union_wrong_type = struct {
+        const msg = "'transparent_union' attribute only applies to unions";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const transparent_union_one_field = struct {
+        const msg = "transparent union definition must contain at least one field; transparent_union attribute ignored";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const transparent_union_size = struct {
+        const msg = "size of field {s} bits) does not match the size of the first field in transparent union; transparent_union attribute ignored";
+        const extra = .str;
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const transparent_union_size_note = struct {
+        const msg = "size of first field is {d}";
+        const extra = .unsigned;
+        const kind = .note;
+    };
+    const designated_init_invalid = struct {
+        const msg = "'designated_init' attribute is only valid on 'struct' type'";
+        const kind = .@"error";
+    };
+    const designated_init_needed = struct {
+        const msg = "positional initialization of field in 'struct' declared with 'designated_init' attribute";
+        const opt = "designated-init";
+        const kind = .warning;
+    };
+    const ignore_common = struct {
+        const msg = "ignoring attribute 'common' because it conflicts with attribute 'nocommon'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_nocommon = struct {
+        const msg = "ignoring attribute 'nocommon' because it conflicts with attribute 'common'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const non_string_ignored = struct {
+        const msg = "'nonstring' attribute ignored on objects of type '{s}'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const local_variable_attribute = struct {
+        const msg = "'{s}' attribute only applies to local variables";
+        const extra = .str;
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_cold = struct {
+        const msg = "ignoring attribute 'cold' because it conflicts with attribute 'hot'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_hot = struct {
+        const msg = "ignoring attribute 'hot' because it conflicts with attribute 'cold'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_noinline = struct {
+        const msg = "ignoring attribute 'noinline' because it conflicts with attribute 'always_inline'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const ignore_always_inline = struct {
+        const msg = "ignoring attribute 'always_inline' because it conflicts with attribute 'noinline'";
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
+    const invalid_noreturn = struct {
+        const msg = "function '{s}' declared 'noreturn' should not return";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "invalid-noreturn";
+    };
+    const nodiscard_unused = struct {
+        const msg = "ignoring return value of '{s}', declared with 'nodiscard' attribute";
+        const extra = .str;
+        const kind = .warning;
+        const op = "unused-result";
+    };
+    const warn_unused_result = struct {
+        const msg = "ignoring return value of '{s}', declared with 'warn_unused_result' attribute";
+        const extra = .str;
+        const kind = .warning;
+        const op = "unused-result";
+    };
+    const invalid_vec_elem_ty = struct {
+        const msg = "invalid vector element type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const vec_size_not_multiple = struct {
+        const msg = "vector size not an integral multiple of component size";
         const kind = .@"error";
     };
 };

@@ -29,59 +29,34 @@ const RecordContext = struct {
     size_bits: u29,
 };
 
-const int_type = Type{ .specifier = .int };
-
-pub const BITS_PER_BYTE: u29 = 8;
-
-pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
-    if (ty.isRecord()) {
-        const record_ty = ty.getRecord() orelse unreachable;
-        const rec = record_ty.data.record;
-        if (rec.type_layout.field_alignment_bits != 0) {
-            type_layout.* = rec.type_layout;
-        } else {
-            // I don't think this should ever happen...
-            unreachable;
-        }
-    } else if (ty.isArray()) {
-        layoutArray(ty, comp, type_layout);
-    } else if (ty.is(.@"enum")) {
-        layoutEnum(ty, comp, type_layout);
-    } else {
-        type_layout.size_bits = @intCast(u29, ty.bitSizeof(comp).?);
-        type_layout.pointer_alignment_bits = ty.naturalAlignment(comp) * BITS_PER_BYTE;
-        type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
-        type_layout.required_alignmnet_bits = BITS_PER_BYTE;
-    }
-}
+const BITS_PER_BYTE: u29 = 8;
 
 pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser) void {
-    const record_ty = ty.getRecord().?;
-    const rec = record_ty.data.record;
+    const rec = getMutableRecord(ty).?;
 
     var pack_value: ?u29 = null;
     if (parser) |p| {
         if (p.pragma_pack) |pak| {
-            const pv = @intCast(u29, pak) * BITS_PER_BYTE;
-            if (pv >= 8 and pv <= 128 and std.math.isPowerOfTwo(pv)) {
-                pack_value = pv;
-            }
+            pack_value = @intCast(u29, pak) * BITS_PER_BYTE;
         }
     }
 
-    var req_align: u29 = annotationAlignment(ty, comp) orelse BITS_PER_BYTE;
+    var req_align = BITS_PER_BYTE;
+    if (ty.requestedAlignment(comp)) |aln| {
+        req_align = aln * BITS_PER_BYTE;
+    }
 
     var record_context = RecordContext{
-        .attr_packed = ty.isPacked(),
+        .attr_packed = ty.hasAttribute(.@"packed"),
         .max_field_align_bits = pack_value,
         .aligned_bits = req_align,
-        .is_union = record_ty.specifier == .@"union",
+        .is_union = ty.get(.@"union") != null,
         .size_bits = 0,
     };
 
-    // std.debug.print("new-record {s} {any}\n", .{rec.name, record_context});
+    // std.debug.print("new-record {s} {any}\n", .{ rec.name, record_context });
 
-    for (rec.fields) |*fld| {
+    for (rec.fields) |*fld, fld_indx| {
         var type_layout: TypeLayout = .{
             .size_bits = 0,
             .field_alignment_bits = 0,
@@ -91,19 +66,30 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
         // recursion
         computeLayout(fld.ty, comp, &type_layout);
 
+        var field_attrs: ?[]const Attribute = null;
+        if (rec.field_attributes) |attrs| {
+            field_attrs = attrs[fld_indx];
+        }
+        // if (field_attrs) |fa| {
+        //     std.debug.print("fld attr : {any}\n", .{fa});
+        // }
+
         if (fld.bit_width != null) {
-            layoutBitField(comp, fld, &type_layout, &record_context);
+            layoutBitField(comp, fld, field_attrs, &type_layout, &record_context);
         } else {
-            layoutRegluarField(comp, fld, type_layout, &record_context);
+            layoutRegluarField(fld, field_attrs, type_layout, &record_context);
         }
         // std.debug.print("fld-post {s}\n\tfld_type_layout:{any}\n\tcontext:{any}\n\tlayout:{any}\n", .{fld.name,type_layout, record_context, fld.layout});
     }
 
     record_context.size_bits = alignTo(record_context.size_bits, record_context.aligned_bits);
-    rec.type_layout.size_bits = record_context.size_bits;
-    rec.type_layout.field_alignment_bits = record_context.aligned_bits;
-    rec.type_layout.pointer_alignment_bits = record_context.aligned_bits;
-    rec.type_layout.required_alignmnet_bits = BITS_PER_BYTE;
+
+    rec.type_layout = TypeLayout{
+        .size_bits = record_context.size_bits,
+        .field_alignment_bits = record_context.aligned_bits,
+        .pointer_alignment_bits = record_context.aligned_bits,
+        .required_alignmnet_bits = BITS_PER_BYTE,
+    };
     rec.size = record_context.size_bits / BITS_PER_BYTE;
     rec.alignment = record_context.aligned_bits / BITS_PER_BYTE;
 
@@ -111,18 +97,36 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
 
 }
 
+pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
+    if (ty.isRecord()) {
+        const rec = ty.getRecord() orelse unreachable;
+        if (!rec.isIncomplete()) {
+            type_layout.* = rec.type_layout;
+        } else unreachable;
+    } else if (ty.isArray()) {
+        layoutArray(ty, comp, type_layout);
+    } else if (ty.is(.@"enum")) {
+        layoutEnum(ty, comp, type_layout);
+    } else {
+        type_layout.size_bits = @intCast(u29, ty.bitSizeof(comp).?);
+        type_layout.pointer_alignment_bits = ty.alignof(comp) * BITS_PER_BYTE;
+        type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
+        type_layout.required_alignmnet_bits = BITS_PER_BYTE;
+    }
+}
+
 fn layoutRegluarField(
-    comp: *const Compilation,
     fld: *Field,
+    fld_attrs: ?[]const Attribute,
     fld_layout: TypeLayout,
     record_context: *RecordContext,
 ) void {
     var fld_align_bits = fld_layout.field_alignment_bits;
-    if (record_context.attr_packed or fld.ty.isPacked()) {
+    if (record_context.attr_packed or isPacked(fld_attrs)) {
         fld_align_bits = BITS_PER_BYTE;
     }
 
-    if (annotationAlignment(&fld.ty, comp)) |anno| {
+    if (annotationAlignment(fld_attrs)) |anno| {
         fld_align_bits = std.math.max(fld_align_bits, anno);
     }
 
@@ -143,6 +147,7 @@ fn layoutRegluarField(
 fn layoutBitField(
     comp: *const Compilation,
     fld: *Field,
+    fld_attrs: ?[]const Attribute,
     fld_layout: *TypeLayout,
     record_context: *RecordContext,
 ) void {
@@ -170,10 +175,10 @@ fn layoutBitField(
         }
     }
 
-    const attr_packed = record_context.attr_packed or fld.ty.isPacked();
+    const attr_packed = record_context.attr_packed or isPacked(fld_attrs);
     const has_packing_annotation = attr_packed or record_context.max_field_align_bits != null;
 
-    const annotation_alignment: u29 = annotationAlignment(&fld.ty, comp) orelse 1;
+    const annotation_alignment: u29 = annotationAlignment(fld_attrs) orelse 1;
 
     var first_unused_bit: u29 = if (record_context.is_union) 0 else record_context.size_bits;
 
@@ -297,14 +302,38 @@ fn alignTo(addr: u29, alignment: u29) u29 {
     return @truncate(u29, tmp);
 }
 
-fn annotationAlignment(ty: *const Type, comp: *const Compilation) ?u29 {
-    var req_align: ?u29 = null;
-    if (ty.getAttribute(.aligned)) |args| {
-        if (args.alignment) |al| {
-            req_align = al.requested * BITS_PER_BYTE;
-        } else {
-            req_align = comp.defaultAlignment() * BITS_PER_BYTE;
+pub fn getMutableRecord(ty: *Type) ?*Type.Record {
+    return switch (ty.specifier) {
+        .attributed => getMutableRecord(&ty.data.attributed.base),
+        .typeof_type, .decayed_typeof_type => getMutableRecord(ty.data.sub_type),
+        .typeof_expr, .decayed_typeof_expr => getMutableRecord(&ty.data.expr.ty),
+        .@"struct", .@"union" => ty.data.record,
+        else => null,
+    };
+}
+
+fn isPacked(attrs: ?[]const Attribute) bool {
+    const a = attrs orelse return false;
+
+    for (a) |attribute| {
+        if (attribute.tag != .@"packed") continue;
+        return true;
+    }
+    return false;
+}
+
+fn annotationAlignment(attrs: ?[]const Attribute) ?u29 {
+    const a = attrs orelse return null;
+
+    var max_requested: ?u29 = null;
+    for (a) |attribute| {
+        if (attribute.tag != .aligned) continue;
+        if (attribute.args.aligned.alignment) |alignment| {
+            const requested = alignment.requested;
+            if (max_requested == null or max_requested.? < requested) {
+                max_requested = requested * BITS_PER_BYTE;
+            }
         }
     }
-    return req_align;
+    return max_requested;
 }
