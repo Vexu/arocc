@@ -438,6 +438,10 @@ pub const Tag = enum(u8) {
     pre_inc_expr,
     /// --un
     pre_dec_expr,
+    /// __imag un
+    imag_expr,
+    /// __real un
+    real_expr,
     /// lhs[rhs]  lhs is pointer/array type, rhs is integer type
     array_access_expr,
     /// first(second) second may be 0
@@ -1113,6 +1117,8 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .bool_not_expr,
         .pre_inc_expr,
         .pre_dec_expr,
+        .imag_expr,
+        .real_expr,
         .post_inc_expr,
         .post_dec_expr,
         .paren_expr,

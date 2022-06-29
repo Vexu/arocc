@@ -1966,6 +1966,16 @@ const messages = struct {
         const msg = "vector size not an integral multiple of component size";
         const kind = .@"error";
     };
+    const invalid_imag = struct {
+        const msg = "invalid type '{s}' to __imag operator";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const invalid_real = struct {
+        const msg = "invalid type '{s}' to __real operator";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

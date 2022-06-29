@@ -242,6 +242,10 @@ pub const Token = struct {
         keyword_float80,
         keyword_float128,
         keyword_int128,
+        keyword_imag1,
+        keyword_imag2,
+        keyword_real1,
+        keyword_real2,
 
         // clang keywords
         keyword_fp16,
@@ -353,6 +357,10 @@ pub const Token = struct {
                 .keyword_float80,
                 .keyword_float128,
                 .keyword_int128,
+                .keyword_imag1,
+                .keyword_imag2,
+                .keyword_real1,
+                .keyword_real2,
                 .keyword_fp16,
                 .keyword_declspec,
                 .keyword_int64,
@@ -581,6 +589,10 @@ pub const Token = struct {
                 .keyword_float80 => "__float80",
                 .keyword_float128 => "__float18",
                 .keyword_int128 => "__int128",
+                .keyword_imag1 => "__imag",
+                .keyword_imag2 => "__imag__",
+                .keyword_real1 => "__real",
+                .keyword_real2 => "__real__",
                 .keyword_fp16 => "__fp16",
                 .keyword_declspec => "__declspec",
                 .keyword_int64 => "__int64",
@@ -832,6 +844,10 @@ pub const Token = struct {
         .{ "__float80", .keyword_float80 },
         .{ "__float128", .keyword_float128 },
         .{ "__int128", .keyword_int128 },
+        .{ "__imag", .keyword_imag1 },
+        .{ "__imag__", .keyword_imag2 },
+        .{ "__real", .keyword_real1 },
+        .{ "__real__", .keyword_real2 },
 
         // clang keywords
         .{ "__fp16", .keyword_fp16 },

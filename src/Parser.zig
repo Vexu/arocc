@@ -5355,7 +5355,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
 /// unExpr
 ///  : primaryExpr suffixExpr*
 ///  | '&&' IDENTIFIER
-///  | ('&' | '*' | '+' | '-' | '~' | '!' | '++' | '--' | keyword_extension) castExpr
+///  | ('&' | '*' | '+' | '-' | '~' | '!' | '++' | '--' | keyword_extension | keyword_imag | keyword_real) castExpr
 ///  | keyword_sizeof unExpr
 ///  | keyword_sizeof '(' typeName ')'
 ///  | keyword_alignof '(' typeName ')'
@@ -5608,6 +5608,45 @@ fn unExpr(p: *Parser) Error!Result {
             var child = try p.castExpr();
             try child.expect(p);
             return child;
+        },
+        .keyword_imag1, .keyword_imag2 => {
+            const imag_tok = p.tok_i;
+            p.tok_i += 1;
+
+            var operand = try p.castExpr();
+            try operand.expect(p);
+            try operand.lvalConversion(p);
+            if (!operand.ty.isInt() and !operand.ty.isFloat()) {
+                try p.errStr(.invalid_imag, imag_tok, try p.typeStr(operand.ty));
+            } else if (!operand.ty.isReal()) {
+                // convert _Complex F to F
+                // TODO handle _Complex integers when added
+                var new_ty = operand.ty.canonicalize(.standard);
+                new_ty.specifier = @intToEnum(Type.Specifier, @enumToInt(new_ty.specifier) - 3);
+                operand.ty = new_ty;
+            }
+            try operand.un(p, .imag_expr);
+            return operand;
+        },
+        .keyword_real1, .keyword_real2 => {
+            const real_tok = p.tok_i;
+            p.tok_i += 1;
+
+            var operand = try p.castExpr();
+            try operand.expect(p);
+            try operand.lvalConversion(p);
+            if (!operand.ty.isInt() and !operand.ty.isFloat()) {
+                try p.errStr(.invalid_real, real_tok, try p.typeStr(operand.ty));
+            } else if (!operand.ty.isReal()) {
+                // convert _Complex F to F
+                // TODO handle _Complex integers when added
+                var new_ty = operand.ty.canonicalize(.standard);
+                new_ty.specifier = @intToEnum(Type.Specifier, @enumToInt(new_ty.specifier) - 3);
+                operand.ty = new_ty;
+            }
+
+            try operand.un(p, .real_expr);
+            return operand;
         },
         else => {
             var lhs = try p.primaryExpr();
