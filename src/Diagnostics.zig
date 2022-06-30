@@ -1412,7 +1412,7 @@ const messages = struct {
     const unknown_gcc_pragma_directive = struct {
         const msg = "pragma GCC diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'";
         const opt = "unknown-pragmas";
-        const kind = .off;
+        const kind = .warning;
         const all = true;
     };
     const predefined_top_level = struct {
