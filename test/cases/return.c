@@ -74,6 +74,24 @@ int func3(int arg) {
     return 1; // this is reachable
 }
 
+int then_noreturn(int arg) {
+    if (arg) {
+        return 2;
+    } else {
+        // do nothing
+    }
+    return 1; // reachable; no warning
+}
+
+int else_noreturn(int arg) {
+    if (arg) {
+        // do nothing
+    } else {
+        return 2;
+    }
+    return 1; // reachable; no warning
+}
+
 #define EXPECTED_ERRORS "return.c:2:5: error: non-void function 'b' should return a value [-Wreturn-type]" \
     "return.c:3:5: warning: unreachable code [-Wunreachable-code]" \
     "return.c:6:12: error: returning 'void' from a function with incompatible result type '_Bool'" \

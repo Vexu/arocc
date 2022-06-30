@@ -3820,14 +3820,11 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) NoreturnKind {
         .break_stmt, .continue_stmt, .return_stmt => return .yes,
         .if_then_else_stmt => {
             const data = p.data.items[p.nodes.items(.data)[@enumToInt(node)].if3.body..];
-            switch (p.nodeIsNoreturn(data[0])) {
-                .yes, .complex => |kind| return kind,
-                .no => {},
-            }
-            switch (p.nodeIsNoreturn(data[1])) {
-                .yes, .complex => |kind| return kind,
-                .no => return .no,
-            }
+            const then_type = p.nodeIsNoreturn(data[0]);
+            const else_type = p.nodeIsNoreturn(data[1]);
+            if (then_type == .complex or else_type == .complex) return .complex;
+            if (then_type == .yes and else_type == .yes) return .yes;
+            return .no;
         },
         .compound_stmt_two => {
             const data = p.nodes.items(.data)[@enumToInt(node)];
