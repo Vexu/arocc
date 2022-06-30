@@ -526,6 +526,17 @@ pub fn defineSystemIncludes(comp: *Compilation) !void {
         break;
     } else return error.AroIncludeNotFound;
 
+    if (comp.target.os.tag == .linux) {
+        var fib = std.heap.FixedBufferAllocator.init(&buf);
+        const triple_str = try comp.target.linuxTriple(fib.allocator());
+        const multiarch_path = try std.fs.path.join(fib.allocator(), &.{ "/usr/include", triple_str });
+
+        if (!std.meta.isError(std.fs.accessAbsolute(multiarch_path, .{}))) {
+            const duped = try comp.gpa.dupe(u8, multiarch_path);
+            errdefer comp.gpa.free(duped);
+            try comp.system_include_dirs.append(duped);
+        }
+    }
     try comp.system_include_dirs.append("/usr/include");
 }
 
