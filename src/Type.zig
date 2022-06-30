@@ -976,6 +976,10 @@ pub fn makeReal(ty: Type) Type {
             base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) - 6);
             return base;
         },
+        .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128 => {
+            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) - 13);
+            return base;
+        },
         else => return ty,
     }
 }
@@ -984,8 +988,12 @@ pub fn makeComplex(ty: Type) Type {
     // TODO discards attributed/typeof
     var base = ty.canonicalize(.standard);
     switch (base.specifier) {
-        .complex_fp16, .complex_float, .complex_double, .complex_long_double, .complex_float80, .complex_float128 => {
+        .fp16, .float, .double, .long_double, .float80, .float128 => {
             base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 6);
+            return base;
+        },
+        .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128 => {
+            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 13);
             return base;
         },
         else => return ty,
@@ -1523,7 +1531,7 @@ pub const Builder = struct {
             try p.errStr(.invalid_typeof, source_tok, @tagName(new));
         }
 
-        if (new == .complex) b.complex_tok = source_tok; 
+        if (new == .complex) b.complex_tok = source_tok;
 
         switch (new) {
             else => switch (b.specifier) {
