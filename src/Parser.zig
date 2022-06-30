@@ -6302,6 +6302,20 @@ fn primaryExpr(p: *Parser) Error!Result {
         .integer_literal_ll,
         .integer_literal_llu,
         => return p.integerLiteral(),
+        .imaginary_integer_literal,
+        .imaginary_integer_literal_u,
+        .imaginary_integer_literal_l,
+        .imaginary_integer_literal_lu,
+        .imaginary_integer_literal_ll,
+        .imaginary_integer_literal_llu,
+        => {
+            try p.err(.gnu_imaginary_constant);
+            var res = try p.integerLiteral();
+            res.ty = res.ty.makeComplex();
+            res.val.tag = .unavailable;
+            try res.un(p, .imaginary_literal);
+            return res;
+        },
         .keyword_generic => return p.genericSelection(),
         else => return Result{},
     }
@@ -6582,12 +6596,17 @@ fn integerLiteral(p: *Parser) Error!Result {
     } else if (slice[0] == '0') {
         base = 8;
     }
-    switch (id) {
-        .integer_literal_u, .integer_literal_l => slice = slice[0 .. slice.len - 1],
-        .integer_literal_lu, .integer_literal_ll => slice = slice[0 .. slice.len - 2],
-        .integer_literal_llu => slice = slice[0 .. slice.len - 3],
-        else => {},
-    }
+    const end: u32 = switch (id) {
+        .integer_literal_u, .integer_literal_l => 1,
+        .integer_literal_lu, .integer_literal_ll => 2,
+        .integer_literal_llu => 3,
+        .imaginary_integer_literal => 1,
+        .imaginary_integer_literal_u, .imaginary_integer_literal_l => 2,
+        .imaginary_integer_literal_lu, .imaginary_integer_literal_ll => 3,
+        .imaginary_integer_literal_llu => 4,
+        else => 0,
+    };
+    slice = slice[0 .. slice.len - end];
 
     var val: u64 = 0;
     var overflow = false;
@@ -6620,22 +6639,22 @@ fn integerLiteral(p: *Parser) Error!Result {
 
     if (base == 10) {
         switch (id) {
-            .integer_literal => return p.castInt(val, &.{ .int, .long, .long_long }),
-            .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .integer_literal_l => return p.castInt(val, &.{ .long, .long_long }),
-            .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
-            .integer_literal_ll => return p.castInt(val, &.{.long_long}),
-            .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
+            .integer_literal, .imaginary_integer_literal => return p.castInt(val, &.{ .int, .long, .long_long }),
+            .integer_literal_u, .imaginary_integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+            .integer_literal_l, .imaginary_integer_literal_l => return p.castInt(val, &.{ .long, .long_long }),
+            .integer_literal_lu, .imaginary_integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
+            .integer_literal_ll, .imaginary_integer_literal_ll => return p.castInt(val, &.{.long_long}),
+            .integer_literal_llu, .imaginary_integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
             else => unreachable,
         }
     } else {
         switch (id) {
-            .integer_literal => return p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
-            .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .integer_literal_l => return p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
-            .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
-            .integer_literal_ll => return p.castInt(val, &.{ .long_long, .ulong_long }),
-            .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
+            .integer_literal, .imaginary_integer_literal => return p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
+            .integer_literal_u, .imaginary_integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+            .integer_literal_l, .imaginary_integer_literal_l => return p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
+            .integer_literal_lu, .imaginary_integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
+            .integer_literal_ll, .imaginary_integer_literal_ll => return p.castInt(val, &.{ .long_long, .ulong_long }),
+            .integer_literal_llu, .imaginary_integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
             else => unreachable,
         }
     }
