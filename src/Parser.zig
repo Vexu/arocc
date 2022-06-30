@@ -4408,24 +4408,31 @@ const Result = struct {
 
     fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser, tok: TokenIndex) Error!void {
         // if either is a float cast to that type
-        const float_types = [3][2]Type.Specifier{
-            .{ .complex_long_double, .long_double },
-            .{ .complex_double, .double },
-            .{ .complex_float, .float },
-        };
-        const a_spec = a.ty.canonicalize(.standard).specifier;
-        const b_spec = b.ty.canonicalize(.standard).specifier;
-        for (float_types) |pair| {
-            if (a_spec == pair[0] or a_spec == pair[1] or
-                b_spec == pair[0] or b_spec == pair[1])
-            {
-                const both_real = a.ty.isReal() and b.ty.isReal();
-                const res_spec = pair[@boolToInt(both_real)];
-                const ty = Type{ .specifier = res_spec };
-                try a.floatCast(p, ty);
-                try b.floatCast(p, ty);
-                return;
+        if (a.ty.isFloat() or b.ty.isFloat()) {
+            const float_types = [6][2]Type.Specifier{
+                .{ .complex_long_double, .long_double },
+                .{ .complex_float128, .float128 },
+                .{ .complex_float80, .float80 },
+                .{ .complex_double, .double },
+                .{ .complex_float, .float },
+                .{ .complex_fp16, .fp16 },
+            };
+            const a_spec = a.ty.canonicalize(.standard).specifier;
+            const b_spec = b.ty.canonicalize(.standard).specifier;
+            if (p.comp.target.longDoubleIs(f128)) {
+                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[1])) return;
+            if (p.comp.target.longDoubleIs(f80)) {
+                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
+            }
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[2])) return;
+            if (p.comp.target.longDoubleIs(f64)) {
+                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
+            }
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[4])) return;
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
         }
 
         // Do integer promotion on both operands
@@ -4462,6 +4469,20 @@ const Result = struct {
             try a.intCast(p, target, tok);
             try b.intCast(p, target, tok);
         }
+    }
+
+    fn floatConversion(a: *Result, b: *Result, a_spec: Type.Specifier, b_spec: Type.Specifier, p: *Parser, pair: [2]Type.Specifier) !bool {
+        if (a_spec == pair[0] or a_spec == pair[1] or
+            b_spec == pair[0] or b_spec == pair[1])
+        {
+            const both_real = a.ty.isReal() and b.ty.isReal();
+            const res_spec = pair[@boolToInt(both_real)];
+            const ty = Type{ .specifier = res_spec };
+            try a.floatCast(p, ty);
+            try b.floatCast(p, ty);
+            return true;
+        }
+        return false;
     }
 
     fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!bool {
