@@ -4296,6 +4296,10 @@ const Result = struct {
             const old_value = res.val;
             const value_change_kind = res.val.floatToInt(res.ty, bool_ty, p.comp);
             try res.floatToIntWarning(p, bool_ty, old_value, value_change_kind, tok);
+            if (!res.ty.isReal()) {
+                res.ty = res.ty.makeReal();
+                try res.implicitCast(p, .complex_float_to_real);
+            }
             res.ty = bool_ty;
             try res.implicitCast(p, .float_to_bool);
         }
@@ -4304,21 +4308,63 @@ const Result = struct {
     fn intCast(res: *Result, p: *Parser, int_ty: Type, tok: TokenIndex) Error!void {
         if (int_ty.hasIncompleteSize()) return error.ParsingFailed; // Diagnostic already issued
         if (res.ty.is(.bool)) {
-            res.ty = int_ty;
+            res.ty = int_ty.makeReal();
             try res.implicitCast(p, .bool_to_int);
+            if (!int_ty.isReal()) {
+                res.ty = int_ty;
+                try res.implicitCast(p, .real_to_complex_int);
+            }
         } else if (res.ty.isPtr()) {
-            res.ty = int_ty;
+            res.ty = int_ty.makeReal();
             try res.implicitCast(p, .pointer_to_int);
+            if (!int_ty.isReal()) {
+                res.ty = int_ty;
+                try res.implicitCast(p, .real_to_complex_int);
+            }
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
             const value_change_kind = res.val.floatToInt(res.ty, int_ty, p.comp);
             try res.floatToIntWarning(p, int_ty, old_value, value_change_kind, tok);
-            res.ty = int_ty;
-            try res.implicitCast(p, .float_to_int);
+            const old_real = res.ty.isReal();
+            const new_real = int_ty.isReal();
+            if (old_real and new_real) {
+                res.ty = int_ty;
+                try res.implicitCast(p, .float_to_int);
+            } else if (old_real) {
+                res.ty = int_ty.makeReal();
+                try res.implicitCast(p, .float_to_int);
+                res.ty = int_ty;
+                try res.implicitCast(p, .real_to_complex_int);
+            } else if (new_real) {
+                res.ty = res.ty.makeReal();
+                try res.implicitCast(p, .complex_float_to_real);
+                res.ty = int_ty;
+                try res.implicitCast(p, .float_to_int);
+            } else {
+                res.ty = int_ty;
+                try res.implicitCast(p, .complex_float_to_complex_int);
+            }
         } else if (!res.ty.eql(int_ty, p.comp, true)) {
             res.val.intCast(res.ty, int_ty, p.comp);
-            res.ty = int_ty;
-            try res.implicitCast(p, .int_cast);
+            const old_real = res.ty.isReal();
+            const new_real = int_ty.isReal();
+            if (old_real and new_real) {
+                res.ty = int_ty;
+                try res.implicitCast(p, .int_cast);
+            } else if (old_real) {
+                res.ty = int_ty.makeReal();
+                try res.implicitCast(p, .int_cast);
+                res.ty = int_ty;
+                try res.implicitCast(p, .real_to_complex_int);
+            } else if (new_real) {
+                res.ty = res.ty.makeReal();
+                try res.implicitCast(p, .complex_int_to_real);
+                res.ty = int_ty;
+                try res.implicitCast(p, .int_cast);
+            } else {
+                res.ty = int_ty;
+                try res.implicitCast(p, .complex_int_cast);
+            }
         }
     }
 
@@ -4335,16 +4381,54 @@ const Result = struct {
     fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
         if (res.ty.is(.bool)) {
             res.val.intToFloat(res.ty, float_ty, p.comp);
-            res.ty = float_ty;
+            res.ty = float_ty.makeReal();
             try res.implicitCast(p, .bool_to_float);
+            if (!float_ty.isReal()) {
+                res.ty = float_ty;
+                try res.implicitCast(p, .real_to_complex_float);
+            }
         } else if (res.ty.isInt()) {
             res.val.intToFloat(res.ty, float_ty, p.comp);
-            res.ty = float_ty;
-            try res.implicitCast(p, .int_to_float);
+            const old_real = res.ty.isReal();
+            const new_real = float_ty.isReal();
+            if (old_real and new_real) {
+                res.ty = float_ty;
+                try res.implicitCast(p, .int_to_float);
+            } else if (old_real) {
+                res.ty = float_ty.makeReal();
+                try res.implicitCast(p, .int_to_float);
+                res.ty = float_ty;
+                try res.implicitCast(p, .real_to_complex_float);
+            } else if (new_real) {
+                res.ty = res.ty.makeReal();
+                try res.implicitCast(p, .complex_int_to_real);
+                res.ty = float_ty;
+                try res.implicitCast(p, .int_to_float);
+            } else {
+                res.ty = float_ty;
+                try res.implicitCast(p, .complex_int_to_complex_float);
+            }
         } else if (!res.ty.eql(float_ty, p.comp, true)) {
             res.val.floatCast(res.ty, float_ty, p.comp);
-            res.ty = float_ty;
-            try res.implicitCast(p, .float_cast);
+            const old_real = res.ty.isReal();
+            const new_real = float_ty.isReal();
+            if (old_real and new_real) {
+                res.ty = float_ty;
+                try res.implicitCast(p, .float_cast);
+            } else if (old_real) {
+                res.ty = float_ty.makeReal();
+                try res.implicitCast(p, .float_cast);
+                res.ty = float_ty;
+                try res.implicitCast(p, .real_to_complex_float);
+            } else if (new_real) {
+                res.ty = res.ty.makeReal();
+                try res.implicitCast(p, .complex_float_to_real);
+                res.ty = float_ty;
+                try res.implicitCast(p, .float_cast);
+            } else {
+                res.ty = float_ty;
+                try res.implicitCast(p, .complex_float_cast);
+            }
         }
     }
 
@@ -4374,24 +4458,31 @@ const Result = struct {
 
     fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser, tok: TokenIndex) Error!void {
         // if either is a float cast to that type
-        const float_types = [3][2]Type.Specifier{
-            .{ .complex_long_double, .long_double },
-            .{ .complex_double, .double },
-            .{ .complex_float, .float },
-        };
-        const a_spec = a.ty.canonicalize(.standard).specifier;
-        const b_spec = b.ty.canonicalize(.standard).specifier;
-        for (float_types) |pair| {
-            if (a_spec == pair[0] or a_spec == pair[1] or
-                b_spec == pair[0] or b_spec == pair[1])
-            {
-                const both_real = a.ty.isReal() and b.ty.isReal();
-                const res_spec = pair[@boolToInt(both_real)];
-                const ty = Type{ .specifier = res_spec };
-                try a.floatCast(p, ty);
-                try b.floatCast(p, ty);
-                return;
+        if (a.ty.isFloat() or b.ty.isFloat()) {
+            const float_types = [6][2]Type.Specifier{
+                .{ .complex_long_double, .long_double },
+                .{ .complex_float128, .float128 },
+                .{ .complex_float80, .float80 },
+                .{ .complex_double, .double },
+                .{ .complex_float, .float },
+                .{ .complex_fp16, .fp16 },
+            };
+            const a_spec = a.ty.canonicalize(.standard).specifier;
+            const b_spec = b.ty.canonicalize(.standard).specifier;
+            if (p.comp.target.longDoubleIs(f128)) {
+                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[1])) return;
+            if (p.comp.target.longDoubleIs(f80)) {
+                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
+            }
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[2])) return;
+            if (p.comp.target.longDoubleIs(f64)) {
+                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
+            }
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[4])) return;
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
         }
 
         // Do integer promotion on both operands
@@ -4428,6 +4519,20 @@ const Result = struct {
             try a.intCast(p, target, tok);
             try b.intCast(p, target, tok);
         }
+    }
+
+    fn floatConversion(a: *Result, b: *Result, a_spec: Type.Specifier, b_spec: Type.Specifier, p: *Parser, pair: [2]Type.Specifier) !bool {
+        if (a_spec == pair[0] or a_spec == pair[1] or
+            b_spec == pair[0] or b_spec == pair[1])
+        {
+            const both_real = a.ty.isReal() and b.ty.isReal();
+            const res_spec = pair[@boolToInt(both_real)];
+            const ty = Type{ .specifier = res_spec };
+            try a.floatCast(p, ty);
+            try b.floatCast(p, ty);
+            return true;
+        }
+        return false;
     }
 
     fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!bool {
@@ -4474,7 +4579,124 @@ const Result = struct {
                 try p.errStr(.invalid_cast_to_pointer, tok, try p.typeStr(res.ty));
                 return error.ParsingFailed;
             }
-            cast_kind = Tree.CastKind.fromExplicitCast(to, res.ty, p.comp);
+            const old_real = res.ty.isReal();
+            const new_real = to.isReal();
+
+            if (to.eql(res.ty, p.comp, false)) {
+                cast_kind = .no_op;
+            } else if (to.is(.bool)) {
+                if (res.ty.isPtr()) {
+                    cast_kind = .pointer_to_bool;
+                } else if (res.ty.isInt()) {
+                    if (!old_real) {
+                        res.ty = res.ty.makeReal();
+                        try res.implicitCast(p, .complex_int_to_real);
+                    }
+                    cast_kind = .int_to_bool;
+                } else if (old_float) {
+                    if (!old_real) {
+                        res.ty = res.ty.makeReal();
+                        try res.implicitCast(p, .complex_float_to_real);
+                    }
+                    cast_kind = .float_to_bool;
+                }
+            } else if (to.isInt()) {
+                if (res.ty.is(.bool)) {
+                    if (!new_real) {
+                        res.ty = to.makeReal();
+                        try res.implicitCast(p, .bool_to_int);
+                        cast_kind = .real_to_complex_int;
+                    } else {
+                        cast_kind = .bool_to_int;
+                    }
+                } else if (res.ty.isInt()) {
+                    if (old_real and new_real) {
+                        cast_kind = .int_cast;
+                    } else if (old_real) {
+                        res.ty = to.makeReal();
+                        try res.implicitCast(p, .int_cast);
+                        cast_kind = .real_to_complex_int;
+                    } else if (new_real) {
+                        res.ty = res.ty.makeReal();
+                        try res.implicitCast(p, .complex_int_to_real);
+                        cast_kind = .int_cast;
+                    } else {
+                        cast_kind = .complex_int_cast;
+                    }
+                } else if (res.ty.isPtr()) {
+                    if (!new_real) {
+                        res.ty = to.makeReal();
+                        try res.implicitCast(p, .pointer_to_int);
+                        cast_kind = .real_to_complex_int;
+                    } else {
+                        cast_kind = .pointer_to_int;
+                    }
+                } else if (old_real and new_real) {
+                    cast_kind = .float_to_int;
+                } else if (old_real) {
+                    res.ty = to.makeReal();
+                    try res.implicitCast(p, .float_to_int);
+                    cast_kind = .real_to_complex_int;
+                } else if (new_real) {
+                    res.ty = res.ty.makeReal();
+                    try res.implicitCast(p, .complex_float_to_real);
+                    cast_kind = .float_to_int;
+                } else {
+                    cast_kind = .complex_float_to_complex_int;
+                }
+            } else if (to.isPtr()) {
+                if (res.ty.isArray())
+                    cast_kind = .array_to_pointer
+                else if (res.ty.isPtr())
+                    cast_kind = .bitcast
+                else if (res.ty.isFunc())
+                    cast_kind = .function_to_pointer
+                else if (res.ty.is(.bool))
+                    cast_kind = .bool_to_pointer
+                else if (res.ty.isInt()) {
+                    if (!old_real) {
+                        res.ty = res.ty.makeReal();
+                        try res.implicitCast(p, .complex_int_to_real);
+                    }
+                    cast_kind = .int_to_pointer;
+                }
+            } else if (new_float) {
+                if (res.ty.is(.bool)) {
+                    if (!new_real) {
+                        res.ty = to.makeReal();
+                        try res.implicitCast(p, .bool_to_float);
+                        cast_kind = .real_to_complex_float;
+                    } else {
+                        cast_kind = .bool_to_float;
+                    }
+                } else if (res.ty.isInt()) {
+                    if (old_real and new_real) {
+                        cast_kind = .int_to_float;
+                    } else if (old_real) {
+                        res.ty = to.makeReal();
+                        try res.implicitCast(p, .int_to_float);
+                        cast_kind = .real_to_complex_float;
+                    } else if (new_real) {
+                        res.ty = res.ty.makeReal();
+                        try res.implicitCast(p, .complex_int_to_real);
+                        cast_kind = .int_to_float;
+                    } else {
+                        cast_kind = .complex_int_to_complex_float;
+                    }
+                } else if (old_real and new_real) {
+                    cast_kind = .float_cast;
+                } else if (old_real) {
+                    res.ty = to.makeReal();
+                    try res.implicitCast(p, .float_cast);
+                    cast_kind = .real_to_complex_float;
+                } else if (new_real) {
+                    res.ty = res.ty.makeReal();
+                    try res.implicitCast(p, .complex_float_to_real);
+                    cast_kind = .float_cast;
+                } else {
+                    cast_kind = .complex_float_cast;
+                }
+            }
             if (res.val.tag == .unavailable) break :cast;
 
             const old_int = res.ty.isInt() or res.ty.isPtr();
@@ -5615,13 +5837,9 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.lvalConversion(p);
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_imag, imag_tok, try p.typeStr(operand.ty));
-            } else if (!operand.ty.isReal()) {
-                // convert _Complex F to F
-                // TODO handle _Complex integers when added
-                var new_ty = operand.ty.canonicalize(.standard);
-                new_ty.specifier = @intToEnum(Type.Specifier, @enumToInt(new_ty.specifier) - 3);
-                operand.ty = new_ty;
             }
+            // convert _Complex T to T
+            operand.ty = operand.ty.makeReal();
             try operand.un(p, .imag_expr);
             return operand;
         },
@@ -5634,14 +5852,9 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.lvalConversion(p);
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_real, real_tok, try p.typeStr(operand.ty));
-            } else if (!operand.ty.isReal()) {
-                // convert _Complex F to F
-                // TODO handle _Complex integers when added
-                var new_ty = operand.ty.canonicalize(.standard);
-                new_ty.specifier = @intToEnum(Type.Specifier, @enumToInt(new_ty.specifier) - 3);
-                operand.ty = new_ty;
             }
-
+            // convert _Complex T to T
+            operand.ty = operand.ty.makeReal();
             try operand.un(p, .real_expr);
             return operand;
         },
@@ -6185,6 +6398,20 @@ fn primaryExpr(p: *Parser) Error!Result {
         .integer_literal_ll,
         .integer_literal_llu,
         => return p.integerLiteral(),
+        .imaginary_integer_literal,
+        .imaginary_integer_literal_u,
+        .imaginary_integer_literal_l,
+        .imaginary_integer_literal_lu,
+        .imaginary_integer_literal_ll,
+        .imaginary_integer_literal_llu,
+        => {
+            try p.err(.gnu_imaginary_constant);
+            var res = try p.integerLiteral();
+            res.ty = res.ty.makeComplex();
+            res.val.tag = .unavailable;
+            try res.un(p, .imaginary_literal);
+            return res;
+        },
         .keyword_generic => return p.genericSelection(),
         else => return Result{},
     }
@@ -6465,12 +6692,17 @@ fn integerLiteral(p: *Parser) Error!Result {
     } else if (slice[0] == '0') {
         base = 8;
     }
-    switch (id) {
-        .integer_literal_u, .integer_literal_l => slice = slice[0 .. slice.len - 1],
-        .integer_literal_lu, .integer_literal_ll => slice = slice[0 .. slice.len - 2],
-        .integer_literal_llu => slice = slice[0 .. slice.len - 3],
-        else => {},
-    }
+    const end: u32 = switch (id) {
+        .integer_literal_u, .integer_literal_l => 1,
+        .integer_literal_lu, .integer_literal_ll => 2,
+        .integer_literal_llu => 3,
+        .imaginary_integer_literal => 1,
+        .imaginary_integer_literal_u, .imaginary_integer_literal_l => 2,
+        .imaginary_integer_literal_lu, .imaginary_integer_literal_ll => 3,
+        .imaginary_integer_literal_llu => 4,
+        else => 0,
+    };
+    slice = slice[0 .. slice.len - end];
 
     var val: u64 = 0;
     var overflow = false;
@@ -6503,22 +6735,22 @@ fn integerLiteral(p: *Parser) Error!Result {
 
     if (base == 10) {
         switch (id) {
-            .integer_literal => return p.castInt(val, &.{ .int, .long, .long_long }),
-            .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .integer_literal_l => return p.castInt(val, &.{ .long, .long_long }),
-            .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
-            .integer_literal_ll => return p.castInt(val, &.{.long_long}),
-            .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
+            .integer_literal, .imaginary_integer_literal => return p.castInt(val, &.{ .int, .long, .long_long }),
+            .integer_literal_u, .imaginary_integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+            .integer_literal_l, .imaginary_integer_literal_l => return p.castInt(val, &.{ .long, .long_long }),
+            .integer_literal_lu, .imaginary_integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
+            .integer_literal_ll, .imaginary_integer_literal_ll => return p.castInt(val, &.{.long_long}),
+            .integer_literal_llu, .imaginary_integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
             else => unreachable,
         }
     } else {
         switch (id) {
-            .integer_literal => return p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
-            .integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .integer_literal_l => return p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
-            .integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
-            .integer_literal_ll => return p.castInt(val, &.{ .long_long, .ulong_long }),
-            .integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
+            .integer_literal, .imaginary_integer_literal => return p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
+            .integer_literal_u, .imaginary_integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+            .integer_literal_l, .imaginary_integer_literal_l => return p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
+            .integer_literal_lu, .imaginary_integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
+            .integer_literal_ll, .imaginary_integer_literal_ll => return p.castInt(val, &.{ .long_long, .ulong_long }),
+            .integer_literal_llu, .imaginary_integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
             else => unreachable,
         }
     }
