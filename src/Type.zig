@@ -939,6 +939,30 @@ pub fn decayArray(ty: *Type) void {
     ty.specifier = @intToEnum(Type.Specifier, @enumToInt(ty.specifier) + 1);
 }
 
+pub fn makeReal(ty: Type) Type {
+    // TODO discards attributed/typeof
+    var base = ty.canonicalize(.standard);
+    switch (base.specifier) {
+        .complex_float, .complex_double, .complex_long_double => {
+            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) - 3);
+            return base;
+        },
+        else => return ty,
+    }
+}
+
+pub fn makeComplex(ty: Type) Type {
+    // TODO discards attributed/typeof
+    var base = ty.canonicalize(.standard);
+    switch (base.specifier) {
+        .float, .double, .long_double => {
+            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 3);
+            return base;
+        },
+        else => return ty,
+    }
+}
+
 /// Combines types recursively in the order they were parsed, uses `.void` specifier as a sentinel value.
 pub fn combine(inner: *Type, outer: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
     switch (inner.specifier) {

@@ -207,6 +207,12 @@ pub const CastKind = enum(u8) {
     int_cast,
     /// Convert one floating type to another
     float_cast,
+    /// Convert one complex floating type to another
+    complex_float_cast,
+    /// Convert real part of complex float to a complex float
+    complex_float_to_real,
+    /// Create a complex floating type using operand as the real part
+    real_to_complex_float,
     /// Convert type to void
     to_void,
     /// Convert a literal 0 to a null pointer
@@ -215,31 +221,6 @@ pub const CastKind = enum(u8) {
     union_cast,
     /// Create vector where each value is same as the input scalar.
     vector_splat,
-
-    pub fn fromExplicitCast(to: Type, from: Type, comp: *Compilation) CastKind {
-        if (to.eql(from, comp, false)) return .no_op;
-        if (to.is(.bool)) {
-            if (from.isPtr()) return .pointer_to_bool;
-            if (from.isInt()) return .int_to_bool;
-            if (from.isFloat()) return .float_to_bool;
-        } else if (to.isInt()) {
-            if (from.is(.bool)) return .bool_to_int;
-            if (from.isInt()) return .int_cast;
-            if (from.isPtr()) return .pointer_to_int;
-            if (from.isFloat()) return .float_to_int;
-        } else if (to.isPtr()) {
-            if (from.isArray()) return .array_to_pointer;
-            if (from.isPtr()) return .bitcast;
-            if (from.isFunc()) return .function_to_pointer;
-            if (from.is(.bool)) return .bool_to_pointer;
-            if (from.isInt()) return .int_to_pointer;
-        } else if (to.isFloat()) {
-            if (from.is(.bool)) return .bool_to_float;
-            if (from.isInt()) return .int_to_float;
-            if (from.isFloat()) return .float_cast;
-        }
-        unreachable;
-    }
 };
 
 pub const Tag = enum(u8) {
