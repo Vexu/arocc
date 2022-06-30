@@ -7,9 +7,9 @@ _Atomic void e;
 void f[4];
 struct Bar f;
 int x[2305843009213693951u];
-_Complex long cl; /* TODO: complex integers extension */
+
 _Complex z;
-_Complex long int zi; /* TODO: complex integers extension */
+
 
 void foo(int arr[]) {
     typeof(arr) a[2];
@@ -43,12 +43,7 @@ int qux[] = baz;
     "invalid types.c:7:7: error: array has incomplete element type 'void'" \
     "invalid types.c:8:12: error: variable has incomplete type 'struct Bar'" \
     "invalid types.c:9:6: error: array is too large" \
-    "invalid types.c:10:15: error: '_Complex long' is invalid" \
-    "invalid types.c:10:15: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]" \
     "invalid types.c:11:1: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'" \
-    "invalid types.c:12:15: error: cannot combine with previous '_Complex long' specifier" \
-    "invalid types.c:12:19: error: '_Complex long' is invalid" \
-    "invalid types.c:12:19: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]" \
     "invalid types.c:16:15: error: expected identifier or '('" \
     "invalid types.c:17:17: error: array has incomplete element type 'struct bar'" \
     "invalid types.c:18:15: error: expected identifier or '('" \
