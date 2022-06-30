@@ -290,12 +290,6 @@ fn fatal(comp: *Compilation, comptime fmt: []const u8, args: anytype) error{Fata
 }
 
 fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
-    comp.defineSystemIncludes() catch |err| switch (err) {
-        error.OutOfMemory => return error.OutOfMemory,
-        error.SelfExeNotFound => return fatal(comp, "could not find Aro executable path", .{}),
-        error.AroIncludeNotFound => return fatal(comp, "could not find Aro builtin headers", .{}),
-    };
-
     var source_files = std.ArrayList(Source).init(comp.gpa);
     defer source_files.deinit();
 
@@ -310,6 +304,12 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     } else if (source_files.items.len != 1 and comp.output_name != null) {
         return fatal(comp, "cannot specify -o when generating multiple output files", .{});
     }
+
+    comp.defineSystemIncludes() catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.SelfExeNotFound => return fatal(comp, "could not find Aro executable path", .{}),
+        error.AroIncludeNotFound => return fatal(comp, "could not find Aro builtin headers", .{}),
+    };
 
     const builtin = try comp.generateBuiltinMacros();
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);

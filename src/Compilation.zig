@@ -25,7 +25,6 @@ diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
 system_include_dirs: std.ArrayList([]const u8),
 output_name: ?[]const u8 = null,
-builtin_header_path: ?[]u8 = null,
 target: std.Target = @import("builtin").target,
 pragma_handlers: std.StringArrayHashMap(*Pragma),
 only_preprocess: bool = false,
@@ -67,9 +66,9 @@ pub fn deinit(comp: *Compilation) void {
     comp.sources.deinit();
     comp.diag.deinit();
     comp.include_dirs.deinit();
+    for (comp.system_include_dirs.items) |path| comp.gpa.free(path);
     comp.system_include_dirs.deinit();
     comp.pragma_handlers.deinit();
-    if (comp.builtin_header_path) |some| comp.gpa.free(some);
     comp.generated_buf.deinit();
     comp.builtins.deinit(comp.gpa);
     comp.invalid_utf8_locs.deinit(comp.gpa);
@@ -521,12 +520,25 @@ pub fn defineSystemIncludes(comp: *Compilation) !void {
 
         base_dir.access("include/stddef.h", .{}) catch continue;
         const path = try std.fs.path.join(comp.gpa, &.{ dirname, "include" });
-        comp.builtin_header_path = path;
+        errdefer comp.gpa.free(path);
         try comp.system_include_dirs.append(path);
         break;
     } else return error.AroIncludeNotFound;
 
-    try comp.system_include_dirs.append("/usr/include");
+    if (comp.target.os.tag == .linux) {
+        var fib = std.heap.FixedBufferAllocator.init(&buf);
+        const triple_str = try comp.target.linuxTriple(fib.allocator());
+        const multiarch_path = try std.fs.path.join(fib.allocator(), &.{ "/usr/include", triple_str });
+
+        if (!std.meta.isError(std.fs.accessAbsolute(multiarch_path, .{}))) {
+            const duped = try comp.gpa.dupe(u8, multiarch_path);
+            errdefer comp.gpa.free(duped);
+            try comp.system_include_dirs.append(duped);
+        }
+    }
+    const usr_include = try comp.gpa.dupe(u8, "/usr/include");
+    errdefer comp.gpa.free(usr_include);
+    try comp.system_include_dirs.append(usr_include);
 }
 
 pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
