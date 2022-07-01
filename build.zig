@@ -33,11 +33,12 @@ pub fn build(b: *Builder) !void {
     // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
 
-    const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
-
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
+
+    const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
+    const link_libc = b.option(bool, "link-libc", "Force self-hosted compiler to link libc") orelse (mode != .Debug);
 
     const zig_pkg = std.build.Pkg{
         .name = "zig",
@@ -48,6 +49,9 @@ pub fn build(b: *Builder) !void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.addPackage(zig_pkg);
+    if (link_libc) {
+        exe.linkLibC();
+    }
     exe.install();
 
     const run_cmd = exe.run();
