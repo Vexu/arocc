@@ -54,3 +54,24 @@ pub fn setColor(color: Color, w: anytype) void {
         .white => w.writeAll("\x1b[0m\x1b[1m") catch {},
     }
 }
+
+pub fn errorDescription(err: anyerror) []const u8 {
+    return switch (err) {
+        error.OutOfMemory => "ran out of memory",
+        error.FileNotFound => "file not found",
+        error.IsDir => "is a directory",
+        error.NotDir => "is not a directory",
+        error.NotOpenForReading => "file is not open for reading",
+        error.NotOpenForWriting => "file is not open for writing",
+        error.InvalidUtf8 => "input is not valid UTF-8",
+        error.FileBusy => "file is busy",
+        error.NameTooLong => "file name is too long",
+        error.AccessDenied => "access denied",
+        error.FileTooBig => "file is too big",
+        error.ProcessFdQuotaExceeded, error.SystemFdQuotaExceeded => "ran out of file descriptors",
+        error.SystemResources => "ran out of system resources",
+        error.FatalError => "a fatal error occurred",
+        error.Unexpected => "an unexpected error occurred",
+        else => @errorName(err),
+    };
+}

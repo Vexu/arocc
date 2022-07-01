@@ -8,6 +8,7 @@ const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
+const util = @import("util.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -109,12 +110,12 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
                 std_out.print(usage, .{args[0]}) catch |err| {
-                    return fatal(comp, "{s} when trying to print usage", .{@errorName(err)});
+                    return fatal(comp, "unable to print usage: {s}", .{util.errorDescription(err)});
                 };
                 return true;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
                 std_out.writeAll(@import("lib.zig").version_str ++ "\n") catch |err| {
-                    return fatal(comp, "{s} when trying to print version", .{@errorName(err)});
+                    return fatal(comp, "unable to print version: {s}", .{util.errorDescription(err)});
                 };
                 return true;
             } else if (mem.startsWith(u8, arg, "-D")) {
@@ -257,7 +258,7 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
             }
         } else {
             const file = addSource(comp, arg) catch |err| {
-                return fatal(comp, "{s} when trying to add source file", .{@errorName(err)});
+                return fatal(comp, "unable to add source file '{s}': {s}", .{ arg, util.errorDescription(err) });
             };
             try sources.append(file);
         }
@@ -307,8 +308,8 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
 
     comp.defineSystemIncludes() catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
-        error.SelfExeNotFound => return fatal(comp, "could not find Aro executable path", .{}),
-        error.AroIncludeNotFound => return fatal(comp, "could not find Aro builtin headers", .{}),
+        error.SelfExeNotFound => return fatal(comp, "unable to find Aro executable path", .{}),
+        error.AroIncludeNotFound => return fatal(comp, "unable to find Aro builtin headers", .{}),
     };
 
     const builtin = try comp.generateBuiltinMacros();
@@ -340,17 +341,17 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
 
         const file = if (comp.output_name) |some|
             std.fs.cwd().createFile(some, .{}) catch |err|
-                return fatal(comp, "{s} when trying to create output file", .{@errorName(err)})
+                return fatal(comp, "unable to create output file '{s}': {s}", .{ some, util.errorDescription(err) })
         else
             std.io.getStdOut();
         defer if (comp.output_name != null) file.close();
 
         var buf_w = std.io.bufferedWriter(file.writer());
-        pp.prettyPrintTokens(file.writer()) catch |err|
-            return fatal(comp, "{s} when trying to print tokens", .{@errorName(err)});
+        pp.prettyPrintTokens(buf_w.writer()) catch |err|
+            return fatal(comp, "unable to write result: {s}", .{util.errorDescription(err)});
 
         return buf_w.flush() catch |err|
-            fatal(comp, "{s} when trying to print tokens", .{@errorName(err)});
+            fatal(comp, "unable to write result: {s}", .{util.errorDescription(err)});
     }
 
     var tree = try Parser.parse(&pp);
@@ -386,11 +387,11 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     defer if (comp.output_name == null) comp.gpa.free(out_file_name);
 
     const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |err|
-        return fatal(comp, "could not create output file '{s}': {s}", .{ out_file_name, @errorName(err) });
+        return fatal(comp, "unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(err) });
     defer out_file.close();
 
     obj.finish(out_file) catch |err|
-        return fatal(comp, "could output to object file '{s}': {s}", .{ out_file_name, @errorName(err) });
+        return fatal(comp, "could output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(err) });
 
     if (comp.only_compile) return;
 
