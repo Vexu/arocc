@@ -510,13 +510,6 @@ pub const Tag = enum(u8) {
     /// Inserted in record and scalar initializers for unspecified elements.
     default_init_expr,
 
-    /// attribute argument identifier (see `mode` attribute)
-    attr_arg_ident,
-    /// rhs can be none
-    attr_params_two,
-    /// range
-    attr_params,
-
     pub fn isImplicit(tag: Tag) bool {
         return switch (tag) {
             .implicit_cast,
@@ -797,7 +790,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .enum_decl,
         .struct_decl,
         .union_decl,
-        .attr_params,
         => {
             const maybe_field_attributes = if (ty.getRecord()) |record| record.field_attributes else null;
             for (tree.data[data.range.start..data.range.end]) |stmt, i| {
@@ -818,7 +810,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
         .enum_decl_two,
         .struct_decl_two,
         .union_decl_two,
-        .attr_params_two,
         => {
             var attr_array = [2][]const Attribute{ &.{}, &.{} };
             const empty: [][]const Attribute = &attr_array;
@@ -1011,12 +1002,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, w: anytype) @TypeOf(w).Erro
                 try w.writeAll("expr:\n");
                 try tree.dumpNode(data.un, level + delta, w);
             }
-        },
-        .attr_arg_ident => {
-            try w.writeByteNTimes(' ', level + half);
-            if (tree.comp.diag.color) util.setColor(ATTRIBUTE, w);
-            try w.print("name: {s}\n", .{tree.tokSlice(data.decl_ref)});
-            if (tree.comp.diag.color) util.setColor(.reset, w);
         },
         .call_expr => {
             try w.writeByteNTimes(' ', level + half);
