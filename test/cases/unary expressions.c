@@ -22,6 +22,10 @@ void foo(void) {
     (void);
     register int d;
     &d;
+    _Complex double e;
+    (void) __imag__ e;
+    (void) __real a;
+    (void) __real__ b;
 }
 
 #define EXPECTED_ERRORS "unary expressions.c:3:5: error: invalid argument type 'int *' to unary expression" \
@@ -35,3 +39,4 @@ void foo(void) {
     "unary expressions.c:21:11: error: invalid argument type 'void' to unary expression" \
     "unary expressions.c:22:11: error: expected expression" \
     "unary expressions.c:24:5: error: address of register variable requested" \
+    "unary expressions.c:28:12: error: invalid type 'int *' to __real operator" \

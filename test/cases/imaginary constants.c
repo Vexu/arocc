@@ -8,6 +8,11 @@ void foo(void) {
 
     _Complex long double cld;
 //    cld = 1.0l + 2.0il; /* TODO: long double literals */
+
+#pragma GCC diagnostic warning "-Wgnu-complex-integer"
+    int _Complex ci = 1i;
+#pragma GCC diagnostic ignored "-Wgnu-complex-integer"
+    _Complex unsigned long cl = 1uli; 
 }
 
 #if 1.0i
@@ -15,4 +20,5 @@ void foo(void) {
 
 #define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "imaginary constants.c:5:32: warning: imaginary constants are a GNU extension [-Wgnu-imaginary-constant]" \
-    "imaginary constants.c:13:5: error: floating point literal in preprocessor expression" \
+    "imaginary constants.c:18:5: error: floating point literal in preprocessor expression" \
+    "imaginary constants.c:13:9: warning: complex integer types are a GNU extension [-Wgnu-complex-integer]" \

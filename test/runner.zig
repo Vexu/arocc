@@ -157,7 +157,6 @@ pub fn main() !void {
             comp.include_dirs = @TypeOf(comp.include_dirs).init(gpa);
             comp.system_include_dirs = @TypeOf(comp.system_include_dirs).init(gpa);
             comp.pragma_handlers = @TypeOf(comp.pragma_handlers).init(gpa);
-            comp.builtin_header_path = null;
             // reset everything else
             comp.deinit();
         }

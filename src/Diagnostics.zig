@@ -113,6 +113,7 @@ pub const Options = packed struct {
     uninitialized: Kind = .default,
     @"gnu-statement-expression": Kind = .default,
     @"gnu-imaginary-constant": Kind = .default,
+    @"gnu-complex-integer": Kind = .default,
     @"ignored-qualifiers": Kind = .default,
     @"integer-overflow": Kind = .default,
     @"extra-semi": Kind = .default,
@@ -393,11 +394,6 @@ const messages = struct {
         const msg = "'{s}' came from typedef";
         const extra = .str;
         const kind = .note;
-    };
-    const type_is_invalid = struct {
-        const msg = "'{s}' is invalid";
-        const extra = .str;
-        const kind = .@"error";
     };
     const param_before_var_args = struct {
         const msg = "ISO C requires a named parameter before '...'";
@@ -1416,7 +1412,7 @@ const messages = struct {
     const unknown_gcc_pragma_directive = struct {
         const msg = "pragma GCC diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'";
         const opt = "unknown-pragmas";
-        const kind = .off;
+        const kind = .warning;
         const all = true;
     };
     const predefined_top_level = struct {
@@ -1462,6 +1458,12 @@ const messages = struct {
     const plain_complex = struct {
         const msg = "plain '_Complex' requires a type specifier; assuming '_Complex double'";
         const kind = .warning;
+    };
+    const complex_int = struct {
+        const msg = "complex integer types are a GNU extension";
+        const opt = "gnu-complex-integer";
+        const suppress_gnu = true;
+        const kind = .off;
     };
     const qual_on_ret_type = struct {
         const msg = "'{s}' type qualifier on return type has no effect";
@@ -1964,6 +1966,16 @@ const messages = struct {
     };
     const vec_size_not_multiple = struct {
         const msg = "vector size not an integral multiple of component size";
+        const kind = .@"error";
+    };
+    const invalid_imag = struct {
+        const msg = "invalid type '{s}' to __imag operator";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const invalid_real = struct {
+        const msg = "invalid type '{s}' to __real operator";
+        const extra = .str;
         const kind = .@"error";
     };
 };
