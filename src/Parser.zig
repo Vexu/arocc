@@ -1455,6 +1455,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         };
         // if there was an initializer expression it must have contained an error
         if (init_d.initializer.node != .none) break :incomplete;
+        if (p.func.ty == null and specifier == .incomplete_array) {
+            // TODO properly check this after finishing parsing
+            try p.errStr(.tentative_array, name, try p.typeStr(init_d.d.ty));
+            return init_d;
+        }
         try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
         return init_d;
     }
@@ -2480,7 +2485,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         if (max_bits > 61) max_bits = 61;
         const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
         // `outer` is validated later so it may be invalid here
-        const outer_size = if (outer.hasIncompleteSize()) 1 else outer.sizeof(p.comp);
+        const outer_size = outer.sizeof(p.comp);
         const max_elems = max_bytes / std.math.max(1, outer_size orelse 1);
 
         if (!size.ty.isInt()) {
@@ -2517,6 +2522,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             const size_t = p.comp.types.size;
             if (size_val.compare(.lt, Value.int(0), size_t, p.comp)) {
                 try p.errTok(.negative_array_size, l_bracket);
+                return error.ParsingFailed;
             }
             const arr_ty = try p.arena.create(Type.Array);
             arr_ty.elem = .{ .specifier = .void };

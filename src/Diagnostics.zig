@@ -962,6 +962,10 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const tentative_array = struct {
+        const msg = "tentative array definition assumed to have one element";
+        const kind = .warning;
+    };
     const deref_incomplete_ty_ptr = struct {
         const msg = "dereferencing pointer to incomplete type '{s}'";
         const extra = .str;
