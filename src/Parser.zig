@@ -1454,6 +1454,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         };
         // if there was an initializer expression it must have contained an error
         if (init_d.initializer.node != .none) break :incomplete;
+        if (p.func.ty == null and specifier == .incomplete_array) {
+            // TODO properly check this after finishing parsing
+            try p.errStr(.tentative_array, name, try p.typeStr(init_d.d.ty));
+            return init_d;
+        }
         try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
         return init_d;
     }
