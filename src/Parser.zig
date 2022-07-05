@@ -2470,7 +2470,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         if (max_bits > 61) max_bits = 61;
         const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
         // `outer` is validated later so it may be invalid here
-        const outer_size = if (outer.hasIncompleteSize()) 1 else outer.sizeof(p.comp);
+        const outer_size = outer.sizeof(p.comp);
         const max_elems = max_bytes / std.math.max(1, outer_size orelse 1);
 
         if (!size.ty.isInt()) {
@@ -2507,6 +2507,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             const size_t = p.comp.types.size;
             if (size_val.compare(.lt, Value.int(0), size_t, p.comp)) {
                 try p.errTok(.negative_array_size, l_bracket);
+                return error.ParsingFailed;
             }
             const arr_ty = try p.arena.create(Type.Array);
             arr_ty.elem = .{ .specifier = .void };

@@ -755,7 +755,10 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .decayed_typeof_expr,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .array, .vector => if (ty.data.array.elem.sizeof(comp)) |size| size * ty.data.array.len else null,
+        .array, .vector => {
+            const size = ty.data.array.elem.sizeof(comp) orelse return null;
+            return std.mem.alignForward(size * ty.data.array.len, ty.alignof(comp));
+        },
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) null else ty.data.@"enum".tag_ty.sizeof(comp),
         .typeof_type => ty.data.sub_type.sizeof(comp),
