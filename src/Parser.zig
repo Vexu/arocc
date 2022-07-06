@@ -2510,7 +2510,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         } else {
             var size_val = size.val;
             const size_t = p.comp.types.size;
-            if (size_val.compare(.lt, Value.int(0), size_t, p.comp)) {
+            if (size_val.isZero()) {
+                try p.errTok(.zero_length_array, l_bracket);
+            } else if (size_val.compare(.lt, Value.int(0), size_t, p.comp)) {
                 try p.errTok(.negative_array_size, l_bracket);
                 return error.ParsingFailed;
             }

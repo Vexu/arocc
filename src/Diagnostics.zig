@@ -141,6 +141,7 @@ pub const Options = packed struct {
     @"designated-init": Kind = .default,
     @"attribute-warning": Kind = .default,
     @"invalid-noreturn": Kind = .default,
+    @"zero-length-array": Kind = .default,
 };
 
 const messages = struct {
@@ -1981,6 +1982,12 @@ const messages = struct {
         const msg = "invalid type '{s}' to __real operator";
         const extra = .str;
         const kind = .@"error";
+    };
+    const zero_length_array = struct {
+        const msg = "zero size arrays are an extension";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "zero-length-array";
     };
 };
 
