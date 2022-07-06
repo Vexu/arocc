@@ -6179,7 +6179,14 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
             }
             if (lhs.is(.@"struct")) {
                 const record = lhs.getRecord().?;
-                if (data.member.index + 1 == record.fields.len) return;
+                if (data.member.index + 1 == record.fields.len) {
+                    if (!index.val.isZero()) {
+                        try p.errExtra(.old_style_flexible_struct, tok, .{
+                            .unsigned = index.val.data.int,
+                        });
+                    }
+                    return;
+                }
             }
         }
     }
