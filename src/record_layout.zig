@@ -262,7 +262,6 @@ fn layoutBitField(
     fld.layout.offset_bits = offset_bits;
 }
 
-
 fn layoutEnum(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
     std.debug.assert(ty.is(.@"enum"));
 
