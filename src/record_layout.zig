@@ -63,8 +63,12 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
             .pointer_alignment_bits = 0,
             .required_alignmnet_bits = 0,
         };
-        // recursion
+        // std.debug.print("\tfld: {s}\n",.{fld.name});
+        // this isn't recursion because all records
+        // included in this record should already be
+        // laid out before getting here.
         computeLayout(fld.ty, comp, &type_layout);
+        // std.debug.print("\tfld: {s} {any}\n",.{fld.name, type_layout});
 
         var field_attrs: ?[]const Attribute = null;
         if (rec.field_attributes) |attrs| {
@@ -103,12 +107,16 @@ pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayou
         if (!rec.isIncomplete()) {
             type_layout.* = rec.type_layout;
         } else unreachable;
-    } else if (ty.isArray()) {
-        layoutArray(ty, comp, type_layout);
+        // } else if (ty.isArray()) {
+        //     type_layout.size_bits = @intCast(u29,(ty.sizeof(comp) orelse 0) * BITS_PER_BYTE);
+        //     type_layout.pointer_alignment_bits = ty.alignof(comp) * BITS_PER_BYTE;
+        //     type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
+        //     type_layout.required_alignmnet_bits = BITS_PER_BYTE;
+        //     // layoutArray(ty, comp, type_layout);
     } else if (ty.is(.@"enum")) {
         layoutEnum(ty, comp, type_layout);
     } else {
-        type_layout.size_bits = @intCast(u29, ty.bitSizeof(comp).?);
+        type_layout.size_bits = @intCast(u29, ty.bitSizeof(comp) orelse 0);
         type_layout.pointer_alignment_bits = ty.alignof(comp) * BITS_PER_BYTE;
         type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
         type_layout.required_alignmnet_bits = BITS_PER_BYTE;
@@ -254,26 +262,6 @@ fn layoutBitField(
     fld.layout.offset_bits = offset_bits;
 }
 
-fn layoutArray(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
-    var ar_ty = ty.getArray() orelse unreachable; // strip any alignment / typedef
-
-    if (ar_ty.data.array.len > std.math.maxInt(u29)) {
-        // TODO: real error msg.
-        std.debug.panic("array len to big to hold in u29", .{});
-    }
-    const a_len = @intCast(u29, ar_ty.data.array.len);
-
-    computeLayout(ar_ty.data.array.elem, comp, type_layout);
-
-    var full_size: u29 = 0;
-    if (@mulWithOverflow(u29, type_layout.size_bits, a_len, &full_size)) {
-        // TODO, meaningfull error and return.
-        std.debug.panic("array sizne for type overflows {any}", .{ty});
-    }
-    type_layout.size_bits = alignTo(full_size, type_layout.field_alignment_bits);
-
-    type_layout.pointer_alignment_bits = type_layout.field_alignment_bits;
-}
 
 fn layoutEnum(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
     std.debug.assert(ty.is(.@"enum"));

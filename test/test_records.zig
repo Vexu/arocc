@@ -16,11 +16,15 @@ const gpa = general_purpose_allocator.allocator();
 // ignored for now.
 const non_working_tests = [_][]const u8{
     // need to dig in to.
-    "0008", "0010", "0011", "0014", "0017", "0018", "0044", "0045", "0046",
+    "0011", "0014", "0044", "0046",
 };
 
 const skip_extra_tests = [_][]const u8{
-    // all working at the moment
+    "0008", "0010", "0045",
+};
+
+const skip_msvc_tests = [_][]const u8{
+    "0018", "0024", "0025", "0026", "0036", "0042", "0043", "0044", "0045", "0053",
 };
 
 const Stats = struct {
@@ -118,6 +122,14 @@ pub fn main() !void {
             }
         }
 
+        var do_msvc = true;
+        for (skip_msvc_tests) |skip| {
+            if (std.mem.count(u8, path, skip) > 0) {
+                do_msvc = false;
+                break;
+            }
+        }
+
         const target: ?[]const u8 = if (skip_basics) null else "X8664_UNKNOWN_NETBSD";
 
         // copy the comp for each run
@@ -125,10 +137,13 @@ pub fn main() !void {
         // gcc/clang fmt
         try singleRun(path, target, true, extra_checks, false, &stats, &run_comp);
 
-        // skip MSVC versions for now.
-        // run_comp = comp;
-        // // msvc
-        // try singleRun(path, null, false, false, true, &stats, &run_comp);
+        if (do_msvc) {
+            run_comp = comp;
+            // msvc
+            try singleRun(path, null, false, false, true, &stats, &run_comp);
+        } else {
+            stats.skip_count += 1;
+        }
     }
 
     root_node.end();
@@ -193,6 +208,8 @@ fn singleRun(path: []const u8, target: ?[]const u8, check_offsets: bool, extra_c
         if (do_msvc) {
             _ = try mac_writer.write("#define MSVC\n");
             comp.langopts.enableMSExtensions();
+            // for now, everything is clang
+            // comp.langopts.emulate = .msvc;
         }
         // TODO: only turn these of for the files we know emit these warnings
         comp.diag.options.@"ignored-pragmas" = .off;

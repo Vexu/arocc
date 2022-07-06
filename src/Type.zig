@@ -822,15 +822,12 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
 
 /// Get the alignment of a type
 pub fn alignof(ty: Type, comp: *const Compilation) u29 {
-    if (ty.requestedAlignment(comp)) |requested| {
 
-        // don't return the attribute for records that have already been laid out
-        if (ty.getRecord()) |rec| {
-            if (!rec.isIncomplete()) {
-                return rec.alignment;
-            }
+    // don't return the attribute for records
+    if (!ty.isRecord()) {
+        if (ty.requestedAlignment(comp)) |requested| {
+            return requested;
         }
-        return requested;
     }
 
     // TODO get target from compilation
