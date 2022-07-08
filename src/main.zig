@@ -103,8 +103,19 @@ const usage =
 ;
 
 /// Process command line arguments, returns true if something was written to std_out.
-pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(Source), macro_buf: anytype, args: [][]const u8) !bool {
+pub fn parseArgs(
+    comp: *Compilation,
+    std_out: anytype,
+    sources: *std.ArrayList(Source),
+    macro_buf: anytype,
+    args: [][]const u8,
+) !bool {
     var i: usize = 1;
+    var color_setting: enum {
+        on,
+        off,
+        unset,
+    } = .unset;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
@@ -150,9 +161,9 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
             } else if (mem.eql(u8, arg, "-E")) {
                 comp.only_preprocess = true;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
-                comp.diag.color = true;
+                color_setting = .on;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
-                comp.diag.color = false;
+                color_setting = .off;
             } else if (mem.eql(u8, arg, "-fdollars-in-identifiers")) {
                 comp.langopts.dollars_in_identifiers = true;
             } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
@@ -263,6 +274,11 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
             try sources.append(file);
         }
     }
+    comp.diag.color = switch (color_setting) {
+        .on => true,
+        .off => false,
+        .unset => util.fileSupportsColor(std.io.getStdOut()) and !std.process.hasEnvVarConstant("NO_COLOR"),
+    };
     return false;
 }
 
@@ -358,8 +374,10 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     defer tree.deinit();
 
     if (comp.verbose_ast) {
-        var buf_writer = std.io.bufferedWriter(std.io.getStdOut().writer());
-        tree.dump(buf_writer.writer()) catch {};
+        const stdout = std.io.getStdOut();
+        var buf_writer = std.io.bufferedWriter(stdout.writer());
+        const color = comp.diag.color and util.fileSupportsColor(stdout);
+        tree.dump(color, buf_writer.writer()) catch {};
         buf_writer.flush() catch {};
     }
 
