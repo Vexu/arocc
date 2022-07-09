@@ -2510,7 +2510,9 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         } else {
             var size_val = size.val;
             const size_t = p.comp.types.size;
-            if (size_val.compare(.lt, Value.int(0), size_t, p.comp)) {
+            if (size_val.isZero()) {
+                try p.errTok(.zero_length_array, l_bracket);
+            } else if (size_val.compare(.lt, Value.int(0), size_t, p.comp)) {
                 try p.errTok(.negative_array_size, l_bracket);
                 return error.ParsingFailed;
             }
@@ -5565,7 +5567,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
             try index.lvalConversion(p);
 
             if (!index.ty.isInt()) try p.errTok(.invalid_index, l_bracket_tok);
-            try p.checkArrayBounds(index, lhs.ty, l_bracket_tok);
+            try p.checkArrayBounds(index, lhs, l_bracket_tok);
 
             try index.saveValue(p);
             try ptr.bin(p, .array_access_expr, index);
@@ -5928,19 +5930,19 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             try index.expect(p);
             try p.expectClosing(l_bracket, .r_bracket);
 
-            const l_ty = lhs.ty;
-            const r_ty = index.ty;
+            const array_before_conversion = lhs;
+            const index_before_conversion = index;
             var ptr = lhs;
             try ptr.lvalConversion(p);
             try index.lvalConversion(p);
             if (ptr.ty.isPtr()) {
                 ptr.ty = ptr.ty.elemType();
                 if (!index.ty.isInt()) try p.errTok(.invalid_index, l_bracket);
-                try p.checkArrayBounds(index, l_ty, l_bracket);
+                try p.checkArrayBounds(index_before_conversion, array_before_conversion, l_bracket);
             } else if (index.ty.isPtr()) {
                 index.ty = index.ty.elemType();
                 if (!ptr.ty.isInt()) try p.errTok(.invalid_index, l_bracket);
-                try p.checkArrayBounds(ptr, r_ty, l_bracket);
+                try p.checkArrayBounds(array_before_conversion, index_before_conversion, l_bracket);
                 std.mem.swap(Result, &ptr, &index);
             } else {
                 try p.errTok(.invalid_subscript, l_bracket);
@@ -6162,9 +6164,33 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
 }
 
-fn checkArrayBounds(p: *Parser, index: Result, arr_ty: Type, tok: TokenIndex) !void {
+fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !void {
     if (index.val.tag == .unavailable) return;
-    const len = Value.int(arr_ty.arrayLen() orelse return);
+
+    const array_len = array.ty.arrayLen() orelse return;
+    if (array_len == 0) return;
+
+    if (array_len == 1) {
+        if (p.getNode(array.node, .member_access_expr) orelse p.getNode(array.node, .member_access_ptr_expr)) |node| {
+            const data = p.nodes.items(.data)[@enumToInt(node)];
+            var lhs = p.nodes.items(.ty)[@enumToInt(data.member.lhs)];
+            if (lhs.get(.pointer)) |ptr| {
+                lhs = ptr.data.sub_type.*;
+            }
+            if (lhs.is(.@"struct")) {
+                const record = lhs.getRecord().?;
+                if (data.member.index + 1 == record.fields.len) {
+                    if (!index.val.isZero()) {
+                        try p.errExtra(.old_style_flexible_struct, tok, .{
+                            .unsigned = index.val.data.int,
+                        });
+                    }
+                    return;
+                }
+            }
+        }
+    }
+    const len = Value.int(array_len);
 
     if (index.ty.isUnsignedInt(p.comp)) {
         if (index.val.compare(.gte, len, p.comp.types.size, p.comp))
