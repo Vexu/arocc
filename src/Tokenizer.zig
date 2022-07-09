@@ -4,6 +4,7 @@ const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const LangOpts = @import("LangOpts.zig");
 const CharInfo = @import("CharInfo.zig");
+const unicode = @import("unicode.zig");
 
 const Tokenizer = @This();
 
@@ -978,8 +979,16 @@ pub fn next(self: *Tokenizer) Token {
     var counter: u32 = 0;
     var codepoint_len: u3 = undefined;
     while (self.index < self.buf.len) : (self.index += codepoint_len) {
-        codepoint_len = std.unicode.utf8ByteSequenceLength(self.buf[self.index]) catch unreachable;
-        const c = std.unicode.utf8Decode(self.buf[self.index .. self.index + codepoint_len]) catch unreachable;
+        // Source files get checked for valid utf-8 before being tokenized so it is safe to use
+        // these versions.
+        codepoint_len = unicode.utf8ByteSequenceLength_unsafe(self.buf[self.index]);
+        const c: u21 = switch (codepoint_len) {
+            1 => @as(u21, self.buf[self.index]),
+            2 => unicode.utf8Decode2_unsafe(self.buf[self.index..]),
+            3 => unicode.utf8Decode3_unsafe(self.buf[self.index..]),
+            4 => unicode.utf8Decode4_unsafe(self.buf[self.index..]),
+            else => unreachable,
+        };
         switch (state) {
             .start => switch (c) {
                 '\n' => {
