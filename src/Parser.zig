@@ -4770,7 +4770,7 @@ const Result = struct {
 
     /// Perform assignment-like coercion to `dest_ty`.
     fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) Error!void {
-        return res.coerceExtra(p, dest_ty, tok, ctx) catch |err| switch (err) {
+        return res.coerceExtra(p, dest_ty, tok, ctx) catch |er| switch (er) {
             error.CoercionFailed => unreachable,
             else => |e| return e,
         };
