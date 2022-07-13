@@ -141,6 +141,8 @@ pub const Options = packed struct {
     @"designated-init": Kind = .default,
     @"attribute-warning": Kind = .default,
     @"invalid-noreturn": Kind = .default,
+    @"zero-length-array": Kind = .default,
+    @"old-style-flexible-struct": Kind = .default,
 };
 
 const messages = struct {
@@ -1982,6 +1984,19 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const zero_length_array = struct {
+        const msg = "zero size arrays are an extension";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "zero-length-array";
+    };
+    const old_style_flexible_struct = struct {
+        const msg = "array index {d} is past the end of the array";
+        const extra = .unsigned;
+        const kind = .off;
+        const pedantic = true;
+        const opt = "old-style-flexible-struct";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -2014,7 +2029,6 @@ pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
 
 pub fn init(gpa: Allocator) Diagnostics {
     return .{
-        .color = std.io.getStdErr().supportsAnsiEscapeCodes() or (is_windows and std.io.getStdErr().isTty()),
         .arena = std.heap.ArenaAllocator.init(gpa),
     };
 }

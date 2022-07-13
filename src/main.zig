@@ -33,7 +33,7 @@ pub fn main() u8 {
     var comp = Compilation.init(gpa);
     defer comp.deinit();
 
-    comp.addDefaultPragmaHandlers() catch |err| switch (err) {
+    comp.addDefaultPragmaHandlers() catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             return 1;
@@ -43,7 +43,7 @@ pub fn main() u8 {
         comp.langopts.setEmulatedCompiler(.msvc);
     }
 
-    mainExtra(&comp, args) catch |err| switch (err) {
+    mainExtra(&comp, args) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             return 1;
@@ -103,19 +103,30 @@ const usage =
 ;
 
 /// Process command line arguments, returns true if something was written to std_out.
-pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(Source), macro_buf: anytype, args: [][]const u8) !bool {
+pub fn parseArgs(
+    comp: *Compilation,
+    std_out: anytype,
+    sources: *std.ArrayList(Source),
+    macro_buf: anytype,
+    args: [][]const u8,
+) !bool {
     var i: usize = 1;
+    var color_setting: enum {
+        on,
+        off,
+        unset,
+    } = .unset;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
-                std_out.print(usage, .{args[0]}) catch |err| {
-                    return fatal(comp, "unable to print usage: {s}", .{util.errorDescription(err)});
+                std_out.print(usage, .{args[0]}) catch |er| {
+                    return fatal(comp, "unable to print usage: {s}", .{util.errorDescription(er)});
                 };
                 return true;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
-                std_out.writeAll(@import("lib.zig").version_str ++ "\n") catch |err| {
-                    return fatal(comp, "unable to print version: {s}", .{util.errorDescription(err)});
+                std_out.writeAll(@import("lib.zig").version_str ++ "\n") catch |er| {
+                    return fatal(comp, "unable to print version: {s}", .{util.errorDescription(er)});
                 };
                 return true;
             } else if (mem.startsWith(u8, arg, "-D")) {
@@ -150,9 +161,9 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
             } else if (mem.eql(u8, arg, "-E")) {
                 comp.only_preprocess = true;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
-                comp.diag.color = true;
+                color_setting = .on;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
-                comp.diag.color = false;
+                color_setting = .off;
             } else if (mem.eql(u8, arg, "-fdollars-in-identifiers")) {
                 comp.langopts.dollars_in_identifiers = true;
             } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
@@ -257,17 +268,22 @@ pub fn parseArgs(comp: *Compilation, std_out: anytype, sources: *std.ArrayList(S
                 try comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }
         } else {
-            const file = addSource(comp, arg) catch |err| {
-                return fatal(comp, "unable to add source file '{s}': {s}", .{ arg, util.errorDescription(err) });
+            const file = addSource(comp, arg) catch |er| {
+                return fatal(comp, "unable to add source file '{s}': {s}", .{ arg, util.errorDescription(er) });
             };
             try sources.append(file);
         }
     }
+    comp.diag.color = switch (color_setting) {
+        .on => true,
+        .off => false,
+        .unset => util.fileSupportsColor(std.io.getStdOut()) and !std.process.hasEnvVarConstant("NO_COLOR"),
+    };
     return false;
 }
 
 fn addSource(comp: *Compilation, path: []const u8) !Source {
-    return comp.addSourceFromPath(path) catch |err| switch (err) {
+    return comp.addSourceFromPath(path) catch |er| switch (er) {
         error.FileNotFound => {
             if (mem.eql(u8, "-", path)) {
                 const stdin = std.io.getStdIn().reader();
@@ -275,9 +291,9 @@ fn addSource(comp: *Compilation, path: []const u8) !Source {
                 defer comp.gpa.free(input);
                 return comp.addSourceFromBuffer("<stdin>", input);
             }
-            return err;
+            return er;
         },
-        else => return err,
+        else => return er,
     };
 }
 
@@ -306,7 +322,7 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
         return fatal(comp, "cannot specify -o when generating multiple output files", .{});
     }
 
-    comp.defineSystemIncludes() catch |err| switch (err) {
+    comp.defineSystemIncludes() catch |er| switch (er) {
         error.OutOfMemory => return error.OutOfMemory,
         error.SelfExeNotFound => return fatal(comp, "unable to find Aro executable path", .{}),
         error.AroIncludeNotFound => return fatal(comp, "unable to find Aro builtin headers", .{}),
@@ -340,26 +356,28 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
         comp.renderErrors();
 
         const file = if (comp.output_name) |some|
-            std.fs.cwd().createFile(some, .{}) catch |err|
-                return fatal(comp, "unable to create output file '{s}': {s}", .{ some, util.errorDescription(err) })
+            std.fs.cwd().createFile(some, .{}) catch |er|
+                return fatal(comp, "unable to create output file '{s}': {s}", .{ some, util.errorDescription(er) })
         else
             std.io.getStdOut();
         defer if (comp.output_name != null) file.close();
 
         var buf_w = std.io.bufferedWriter(file.writer());
-        pp.prettyPrintTokens(buf_w.writer()) catch |err|
-            return fatal(comp, "unable to write result: {s}", .{util.errorDescription(err)});
+        pp.prettyPrintTokens(buf_w.writer()) catch |er|
+            return fatal(comp, "unable to write result: {s}", .{util.errorDescription(er)});
 
-        return buf_w.flush() catch |err|
-            fatal(comp, "unable to write result: {s}", .{util.errorDescription(err)});
+        return buf_w.flush() catch |er|
+            fatal(comp, "unable to write result: {s}", .{util.errorDescription(er)});
     }
 
     var tree = try Parser.parse(&pp);
     defer tree.deinit();
 
     if (comp.verbose_ast) {
-        var buf_writer = std.io.bufferedWriter(std.io.getStdOut().writer());
-        tree.dump(buf_writer.writer()) catch {};
+        const stdout = std.io.getStdOut();
+        var buf_writer = std.io.bufferedWriter(stdout.writer());
+        const color = comp.diag.color and util.fileSupportsColor(stdout);
+        tree.dump(color, buf_writer.writer()) catch {};
         buf_writer.flush() catch {};
     }
 
@@ -386,12 +404,12 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     });
     defer if (comp.output_name == null) comp.gpa.free(out_file_name);
 
-    const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |err|
-        return fatal(comp, "unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(err) });
+    const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |er|
+        return fatal(comp, "unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
     defer out_file.close();
 
-    obj.finish(out_file) catch |err|
-        return fatal(comp, "could output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(err) });
+    obj.finish(out_file) catch |er|
+        return fatal(comp, "could output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
 
     if (comp.only_compile) return;
 

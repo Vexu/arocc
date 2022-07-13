@@ -267,16 +267,12 @@ pub fn main() !void {
             var actual_ast = std.ArrayList(u8).init(gpa);
             defer actual_ast.deinit();
 
-            const old_color_setting = comp.diag.color;
-            defer comp.diag.color = old_color_setting;
-            comp.diag.color = false;
-
-            try tree.dump(actual_ast.writer());
+            try tree.dump(false, actual_ast.writer());
             std.testing.expectEqualStrings(expected_ast, actual_ast.items) catch {
                 fail_count += 1;
                 break;
             };
-        } else tree.dump(std.io.null_writer) catch {};
+        } else tree.dump(false, std.io.null_writer) catch {};
 
         if (expected_types) |types| {
             const test_fn = for (tree.root_decls) |decl| {

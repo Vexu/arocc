@@ -193,7 +193,7 @@ pub fn deinit(pp: *Preprocessor) void {
 
 /// Preprocess a source file, returns eof token.
 pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
-    return pp.preprocessExtra(source) catch |err| switch (err) {
+    return pp.preprocessExtra(source) catch |er| switch (er) {
         // This cannot occur in the main file and is handled in `include`.
         error.StopPreprocessing => unreachable,
         else => |e| return e,
@@ -1006,7 +1006,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             };
         },
         .macro_param_has_warning => {
-            const actual_param = pp.pasteStringsUnsafe(param_toks) catch |err| switch (err) {
+            const actual_param = pp.pasteStringsUnsafe(param_toks) catch |er| switch (er) {
                 error.ExpectedStringLiteral => {
                     try pp.comp.diag.add(.{
                         .tag = .expected_str_literal_in,
@@ -1389,7 +1389,7 @@ fn expandMacroExhaustive(
                         &moving_end_idx,
                         extend_buf,
                         macro.is_builtin,
-                    ) catch |err| switch (err) {
+                    ) catch |er| switch (er) {
                         error.MissingLParen => {
                             idx += 1;
                             break :macro_handler;
@@ -1888,7 +1888,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         return error.StopPreprocessing;
     }
 
-    _ = pp.preprocessExtra(new_source) catch |err| switch (err) {
+    _ = pp.preprocessExtra(new_source) catch |er| switch (er) {
         error.StopPreprocessing => {},
         else => |e| return e,
     };
@@ -1934,7 +1934,7 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
         if (next_tok.id == .nl) break;
     }
     if (pp.comp.getPragma(name)) |prag| unknown: {
-        return prag.preprocessorCB(pp, pragma_start) catch |err| switch (err) {
+        return prag.preprocessorCB(pp, pragma_start) catch |er| switch (er) {
             error.UnknownPragma => break :unknown,
             else => |e| return e,
         };
