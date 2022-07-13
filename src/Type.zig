@@ -469,6 +469,7 @@ pub fn isVoidStar(ty: Type) bool {
 pub fn isTypeof(ty: Type) bool {
     return switch (ty.specifier) {
         .typeof_type, .typeof_expr, .decayed_typeof_type, .decayed_typeof_expr => true,
+        .attributed => ty.data.attributed.base.isTypeof(),
         else => false,
     };
 }
