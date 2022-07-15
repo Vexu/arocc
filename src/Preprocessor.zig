@@ -1355,6 +1355,12 @@ fn collectMacroFuncArguments(
     return args;
 }
 
+fn removeExpandedTokens(pp: *Preprocessor, buf: *ExpandBuf, start: usize, len: usize, moving_end_idx: *usize) !void {
+    for (buf.items[start .. start + len]) |tok| Token.free(tok.expansion_locs, pp.gpa);
+    try buf.replaceRange(start, len, &.{});
+    moving_end_idx.* -|= len;
+}
+
 fn expandMacroExhaustive(
     pp: *Preprocessor,
     tokenizer: *Tokenizer,
@@ -1396,10 +1402,7 @@ fn expandMacroExhaustive(
                         },
                         error.Unterminated => {
                             if (pp.comp.langopts.emulate == .gcc) idx += 1;
-                            const tokens_removed = macro_scan_idx - idx;
-                            for (buf.items[idx..][0..tokens_removed]) |tok| Token.free(tok.expansion_locs, pp.gpa);
-                            try buf.replaceRange(idx, tokens_removed, &.{});
-                            moving_end_idx -|= tokens_removed;
+                            try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx, &moving_end_idx);
                             break :macro_handler;
                         },
                         else => |e| return e,
@@ -1413,7 +1416,15 @@ fn expandMacroExhaustive(
 
                     var args_count = @intCast(u32, args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
-                    if (args_count == 1 and macro.params.len == 0) args_count = 0;
+                    // an empty token list g() and a whitespace-only token list g(    )
+                    // counts as zero arguments for the purposes of argument-count validation
+                    if (args_count == 1 and macro.params.len == 0) {
+                        for (args.items[0]) |tok| {
+                            if (tok.id != .macro_ws) break;
+                        } else {
+                            args_count = 0;
+                        }
+                    }
 
                     // Validate argument count.
                     const extra = Diagnostics.Message.Extra{
@@ -1425,6 +1436,7 @@ fn expandMacroExhaustive(
                             buf.items[idx].expansionSlice(),
                         );
                         idx += 1;
+                        try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx + 1, &moving_end_idx);
                         continue;
                     }
                     if (!macro.var_args and args_count != macro.params.len) {
@@ -1433,6 +1445,7 @@ fn expandMacroExhaustive(
                             buf.items[idx].expansionSlice(),
                         );
                         idx += 1;
+                        try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx + 1, &moving_end_idx);
                         continue;
                     }
                     var expanded_args = MacroArguments.init(pp.gpa);
