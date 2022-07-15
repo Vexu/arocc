@@ -6,5 +6,5 @@
 
 
 
-NO_ARGUMENTS(1)
+NO_ARGUMENTS
 
