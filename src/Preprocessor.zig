@@ -1413,7 +1413,15 @@ fn expandMacroExhaustive(
 
                     var args_count = @intCast(u32, args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
-                    if (args_count == 1 and macro.params.len == 0) args_count = 0;
+                    // an empty token list g() and a whitespace-only token list g(    )
+                    // counts as zero arguments for the purposes of argument-count validation
+                    if (args_count == 1 and macro.params.len == 0) {
+                        for (args.items[0]) |tok| {
+                            if (tok.id != .macro_ws) break;
+                        } else {
+                            args_count = 0;
+                        }
+                    }
 
                     // Validate argument count.
                     const extra = Diagnostics.Message.Extra{
