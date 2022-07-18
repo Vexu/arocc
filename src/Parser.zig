@@ -162,6 +162,7 @@ record_members: std.ArrayListUnmanaged(struct { tok: TokenIndex, name: StringId 
 @"switch": ?*Switch = null,
 in_loop: bool = false,
 pragma_pack: u8 = 8,
+declspec_id: StringId,
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
     if (codepoint <= 0x7F) return false;
@@ -521,6 +522,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .enum_buf = std.ArrayList(Type.Enum.Field).init(pp.comp.gpa),
         .record_buf = std.ArrayList(Type.Record.Field).init(pp.comp.gpa),
         .field_attr_buf = std.ArrayList([]const Attribute).init(pp.comp.gpa),
+        .declspec_id = try pp.comp.intern("__declspec"),
     };
     errdefer {
         p.nodes.deinit(pp.comp.gpa);
@@ -1588,16 +1590,22 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 continue;
             },
             .identifier, .extended_identifier => {
-                if (mem.eql(u8, p.tokSlice(p.tok_i), "__declspec")) {
+                var interned_name = try p.comp.intern(p.tokSlice(p.tok_i));
+                var declspec_found = false;
+
+                if (interned_name == p.declspec_id) {
                     try p.errTok(.declspec_not_enabled, p.tok_i);
                     p.tok_i += 1;
                     if (p.eatToken(.l_paren)) |_| {
                         p.skipTo(.r_paren);
                         continue;
                     }
+                    declspec_found = true;
                 }
                 if (ty.typedef != null) break;
-                const interned_name = try p.comp.intern(p.tokSlice(p.tok_i));
+                if (declspec_found) {
+                    interned_name = try p.comp.intern(p.tokSlice(p.tok_i));
+                }
                 const typedef = (try p.syms.findTypedef(p, interned_name, p.tok_i, ty.specifier != .none)) orelse break;
                 if (!ty.combineTypedef(p, typedef.ty, typedef.tok)) break;
             },
