@@ -21,7 +21,7 @@ pub const TypeMapper = struct {
         slow: *const StringToIdMap,
     },
 
-    pub fn lookup(self: *const TypeMapper, string_id: StringInterner.StringId) []const u8 {
+    pub fn lookup(self: TypeMapper, string_id: StringInterner.StringId) []const u8 {
         if (string_id == .empty) return "";
         switch (self.data) {
             .fast => |arr| return arr[@enumToInt(string_id)],
@@ -35,7 +35,7 @@ pub const TypeMapper = struct {
         }
     }
 
-    pub fn deinit(self: *const TypeMapper, allocator: mem.Allocator) void {
+    pub fn deinit(self: TypeMapper, allocator: mem.Allocator) void {
         switch (self.data) {
             .slow => {},
             .fast => |arr| allocator.free(arr),
