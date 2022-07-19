@@ -99,8 +99,8 @@ pub const Func = struct {
     params: []Param,
 
     pub const Param = struct {
-        name: StringId,
         ty: Type,
+        name: StringId,
         name_tok: TokenIndex,
     };
 };
@@ -137,14 +137,14 @@ pub const Attributed = struct {
 
 // TODO improve memory usage
 pub const Enum = struct {
-    name: StringId,
-    tag_ty: Type,
     fields: []Field,
+    tag_ty: Type,
+    name: StringId,
     fixed: bool,
 
     pub const Field = struct {
-        name: StringId,
         ty: Type,
+        name: StringId,
         name_tok: TokenIndex,
         node: NodeIndex,
     };
@@ -165,19 +165,18 @@ pub const Enum = struct {
 
 // TODO improve memory usage
 pub const Record = struct {
-    name: StringId,
     fields: []Field,
     size: u64,
-    alignment: u29,
-
     /// If this is null, none of the fields have attributes
     /// Otherwise, it's a pointer to N items (where N == number of fields)
     /// and the item at index i is the attributes for the field at index i
     field_attributes: ?[*][]const Attribute,
+    name: StringId,
+    alignment: u29,
 
     pub const Field = struct {
-        name: StringId,
         ty: Type,
+        name: StringId,
         /// zero for anonymous fields
         name_tok: TokenIndex = 0,
         bit_width: u32 = 0,
