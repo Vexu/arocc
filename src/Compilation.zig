@@ -686,9 +686,9 @@ pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8
     if (comp.sources.get(path)) |some| return some;
 
     const size = std.math.cast(u32, buf.len) orelse return error.StreamTooLong;
-    const reader = std.io.fixedBufferStream(buf).reader();
+    var buf_reader = std.io.fixedBufferStream(buf);
 
-    return comp.addSourceFromReader(reader, path, size);
+    return comp.addSourceFromReader(buf_reader.reader(), path, size);
 }
 
 /// Caller retains ownership of `path`
@@ -703,9 +703,9 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
     defer file.close();
 
     const size = std.math.cast(u32, try file.getEndPos()) orelse return error.StreamTooLong;
-    var reader = std.io.bufferedReader(file.reader()).reader();
+    var buf_reader = std.io.bufferedReader(file.reader());
 
-    return comp.addSourceFromReader(reader, path, size);
+    return comp.addSourceFromReader(buf_reader.reader(), path, size);
 }
 
 pub const IncludeDirIterator = struct {
@@ -1010,8 +1010,8 @@ test "addSourceFromReader" {
             var comp = Compilation.init(std.testing.allocator);
             defer comp.deinit();
 
-            var reader = std.io.fixedBufferStream(str).reader();
-            const source = try comp.addSourceFromReader(reader, "path", @intCast(u32, str.len));
+            var buf_reader = std.io.fixedBufferStream(str);
+            const source = try comp.addSourceFromReader(buf_reader.reader(), "path", @intCast(u32, str.len));
 
             try std.testing.expectEqualStrings(expected, source.buf);
             try std.testing.expectEqual(warning_count, @intCast(u32, comp.diag.list.items.len));
