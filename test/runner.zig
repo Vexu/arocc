@@ -58,7 +58,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
 
     var tree = try aro.Parser.parse(&pp);
     defer tree.deinit();
-    tree.dump(std.io.null_writer) catch {};
+    tree.dump(false, std.io.null_writer) catch {};
 }
 
 fn testAllAllocationFailures(cases: [][]const u8) !void {
@@ -72,7 +72,10 @@ fn testAllAllocationFailures(cases: [][]const u8) !void {
         defer case_node.end();
         progress.refresh();
 
-        try std.testing.checkAllAllocationFailures(std.testing.allocator, testOne, .{case});
+        std.testing.checkAllAllocationFailures(std.testing.allocator, testOne, .{case}) catch |er| switch (er) {
+            error.SwallowedOutOfMemoryError => {},
+            else => |e| return e,
+        };
     }
     root_node.end();
 }
@@ -99,7 +102,7 @@ pub fn main() !void {
 
     // collect all cases
     {
-        var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
+        var cases_dir = try std.fs.cwd().openIterableDir(args[1], .{});
         defer cases_dir.close();
 
         var it = cases_dir.iterate();
@@ -286,7 +289,9 @@ pub fn main() !void {
             var actual = StmtTypeDumper.init(gpa);
             defer actual.deinit(gpa);
 
-            try actual.dump(&tree, test_fn.decl.node, gpa);
+            const mapper = try tree.comp.string_interner.getFastTypeMapper(gpa);
+            defer mapper.deinit(gpa);
+            try actual.dump(&tree, mapper, test_fn.decl.node, gpa);
 
             var i: usize = 0;
             for (types.tokens) |str| {
@@ -525,18 +530,18 @@ const StmtTypeDumper = struct {
         };
     }
 
-    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: NodeIndex, m: *MsgWriter) AllocatorError!void {
+    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, mapper: aro.TypeMapper, node: NodeIndex, m: *MsgWriter) AllocatorError!void {
         if (node == .none) return;
         const tag = tree.nodes.items(.tag)[@enumToInt(node)];
         if (tag == .implicit_return) return;
         const ty = tree.nodes.items(.ty)[@enumToInt(node)];
-        ty.dump(m.buf.writer()) catch {};
+        ty.dump(mapper, m.buf.writer()) catch {};
         const owned = m.buf.toOwnedSlice();
         errdefer m.buf.allocator.free(owned);
         try self.types.append(owned);
     }
 
-    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, decl_idx: NodeIndex, allocator: std.mem.Allocator) AllocatorError!void {
+    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, mapper: aro.TypeMapper, decl_idx: NodeIndex, allocator: std.mem.Allocator) AllocatorError!void {
         var m = MsgWriter.init(allocator);
         defer m.deinit();
 
@@ -547,12 +552,12 @@ const StmtTypeDumper = struct {
 
         switch (tag) {
             .compound_stmt_two => {
-                try self.dumpNode(tree, data.bin.lhs, &m);
-                try self.dumpNode(tree, data.bin.rhs, &m);
+                try self.dumpNode(tree, mapper, data.bin.lhs, &m);
+                try self.dumpNode(tree, mapper, data.bin.rhs, &m);
             },
             .compound_stmt => {
                 for (tree.data[data.range.start..data.range.end]) |stmt| {
-                    try self.dumpNode(tree, stmt, &m);
+                    try self.dumpNode(tree, mapper, stmt, &m);
                 }
             },
             else => unreachable,

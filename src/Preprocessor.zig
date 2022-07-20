@@ -643,6 +643,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .record_buf = undefined,
         .attr_buf = undefined,
         .field_attr_buf = undefined,
+        .declspec_id = undefined,
     };
     return parser.macroExpr();
 }
