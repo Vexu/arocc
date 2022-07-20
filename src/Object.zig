@@ -8,7 +8,7 @@ format: std.Target.ObjectFormat,
 comp: *Compilation,
 
 pub fn create(comp: *Compilation) !*Object {
-    switch (comp.target.getObjectFormat()) {
+    switch (comp.target.ofmt) {
         .elf => return Elf.create(comp),
         else => unreachable,
     }

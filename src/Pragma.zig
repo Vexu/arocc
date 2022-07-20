@@ -9,16 +9,16 @@ const Pragma = @This();
 pub const Error = Compilation.Error || error{ UnknownPragma, StopPreprocessing };
 
 /// Called during Preprocessor.init
-beforePreprocess: ?fn (*Pragma, *Compilation) void = null,
+beforePreprocess: ?*const fn (*Pragma, *Compilation) void = null,
 
 /// Called at the beginning of Parser.parse
-beforeParse: ?fn (*Pragma, *Compilation) void = null,
+beforeParse: ?*const fn (*Pragma, *Compilation) void = null,
 
 /// Called at the end of Parser.parse if a Tree was successfully parsed
-afterParse: ?fn (*Pragma, *Compilation) void = null,
+afterParse: ?*const fn (*Pragma, *Compilation) void = null,
 
 /// Called during Compilation.deinit
-deinit: fn (*Pragma, *Compilation) void,
+deinit: *const fn (*Pragma, *Compilation) void,
 
 /// Called whenever the preprocessor encounters this pragma. `start_idx` is the index
 /// within `pp.tokens` of the pragma name token. The pragma end is indicated by a
@@ -28,15 +28,15 @@ deinit: fn (*Pragma, *Compilation) void,
 /// Then pp.tokens.get(start_idx) will return the `GCC` token.
 /// Return error.UnknownPragma to emit an `unknown_pragma` diagnostic
 /// Return error.StopPreprocessing to stop preprocessing the current file (see once.zig)
-preprocessorHandler: ?fn (*Pragma, *Preprocessor, start_idx: TokenIndex) Error!void = null,
+preprocessorHandler: ?*const fn (*Pragma, *Preprocessor, start_idx: TokenIndex) Error!void = null,
 
 /// Called during token pretty-printing (`-E` option). If this returns true, the pragma will
 /// be printed; otherwise it will be omitted. start_idx is the index of the pragma name token
-preserveTokens: ?fn (*Pragma, *Preprocessor, start_idx: TokenIndex) bool = null,
+preserveTokens: ?*const fn (*Pragma, *Preprocessor, start_idx: TokenIndex) bool = null,
 
 /// Same as preprocessorHandler except called during parsing
 /// The parser's `p.tok_i` field must not be changed
-parserHandler: ?fn (*Pragma, *Parser, start_idx: TokenIndex) Compilation.Error!void = null,
+parserHandler: ?*const fn (*Pragma, *Parser, start_idx: TokenIndex) Compilation.Error!void = null,
 
 pub fn pasteTokens(pp: *Preprocessor, start_idx: TokenIndex) ![]const u8 {
     if (pp.tokens.get(start_idx).id == .nl) return error.ExpectedStringLiteral;
