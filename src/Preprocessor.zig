@@ -79,6 +79,9 @@ include_depth: u8 = 0,
 counter: u32 = 0,
 expansion_source_loc: Source.Location = undefined,
 poisoned_identifiers: std.StringHashMap(void),
+/// Map from Source.Id to macro name in the `#ifndef` condition which guards the source, if any
+include_guards: std.AutoHashMapUnmanaged(Source.Id, []const u8) = .{},
+
 /// Memory is retained to avoid allocation on every single token.
 top_expansion_buf: ExpandBuf,
 
@@ -188,6 +191,7 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.token_buf.deinit();
     pp.char_buf.deinit();
     pp.poisoned_identifiers.deinit();
+    pp.include_guards.deinit(pp.gpa);
     pp.top_expansion_buf.deinit();
 }
 
@@ -200,6 +204,23 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
     };
 }
 
+/// Return the name of the #ifndef guard macro that starts a source, if any.
+fn findIncludeGuard(pp: *Preprocessor, source: Source) ?[]const u8 {
+    var tokenizer = Tokenizer{
+        .buf = source.buf,
+        .comp = pp.comp,
+        .source = source.id,
+    };
+    var hash = tokenizer.nextNoWS();
+    while (hash.id == .nl) hash = tokenizer.nextNoWS();
+    if (hash.id != .hash) return null;
+    const ifndef = tokenizer.nextNoWS();
+    if (ifndef.id != .keyword_ifndef) return null;
+    const guard = tokenizer.nextNoWS();
+    if (guard.id != .identifier) return null;
+    return pp.tokSlice(guard);
+}
+
 fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
     if (pp.comp.invalid_utf8_locs.get(source.id)) |offset| {
         try pp.comp.diag.add(.{
@@ -209,6 +230,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
         }, &.{});
         return error.FatalError;
     }
+    var guard_name = pp.findIncludeGuard(source);
 
     pp.preprocess_count += 1;
     var tokenizer = Tokenizer{
@@ -298,6 +320,8 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             try pp.err(directive, .elif_without_if);
                             if_level += 1;
                             if_kind.set(if_level, until_else);
+                        } else if (if_level == 1) {
+                            guard_name = null;
                         }
                         switch (if_kind.get(if_level)) {
                             until_else => if (try pp.expr(&tokenizer)) {
@@ -318,6 +342,8 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         if (if_level == 0) {
                             try pp.err(directive, .else_without_if);
                             continue;
+                        } else if (if_level == 1) {
+                            guard_name = null;
                         }
                         switch (if_kind.get(if_level)) {
                             until_else => if_kind.set(if_level, until_endif_seen_else),
@@ -332,8 +358,16 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                     .keyword_endif => {
                         try pp.expectNl(&tokenizer);
                         if (if_level == 0) {
+                            guard_name = null;
                             try pp.err(directive, .endif_without_if);
                             continue;
+                        } else if (if_level == 1) {
+                            const saved_tokenizer = tokenizer;
+                            defer tokenizer = saved_tokenizer;
+
+                            var next = tokenizer.nextNoWS();
+                            while (next.id == .nl) : (next = tokenizer.nextNoWS()) {}
+                            if (next.id != .eof) guard_name = null;
                         }
                         if_level -= 1;
                     },
@@ -409,6 +443,11 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                 // because a pragma may change the level during preprocessing
                 if (source.buf.len > 0 and source.buf[source.buf.len - 1] != '\n') {
                     try pp.err(tok, .newline_eof);
+                }
+                if (guard_name) |name| {
+                    if (try pp.include_guards.fetchPut(pp.gpa, source.id, name)) |prev| {
+                        assert(mem.eql(u8, name, prev.value));
+                    }
                 }
                 return tokFromRaw(tok);
             },
@@ -1902,6 +1941,10 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         return error.StopPreprocessing;
     }
 
+    if (pp.include_guards.get(new_source.id)) |guard| {
+        if (pp.defines.contains(guard)) return;
+    }
+
     _ = pp.preprocessExtra(new_source) catch |er| switch (er) {
         error.StopPreprocessing => {},
         else => |e| return e,
@@ -2172,4 +2215,91 @@ test "destringify" {
         \\ \t\n
         \\
     );
+}
+
+test "Include guards" {
+    const Test = struct {
+        /// This is here so that when #elifdef / #elifndef are added we don't forget
+        /// to test that they don't accidentally break include guard detection
+        fn pairsWithIfndef(tok_id: RawToken.Id) bool {
+            return switch (tok_id) {
+                .keyword_elif,
+                .keyword_else,
+                => true,
+
+                .keyword_include,
+                .keyword_include_next,
+                .keyword_define,
+                .keyword_defined,
+                .keyword_undef,
+                .keyword_ifdef,
+                .keyword_ifndef,
+                .keyword_error,
+                .keyword_warning,
+                .keyword_pragma,
+                .keyword_line,
+                .keyword_endif,
+                => false,
+                else => unreachable,
+            };
+        }
+
+        fn skippable(tok_id: RawToken.Id) bool {
+            return switch (tok_id) {
+                .keyword_defined, .keyword_va_args, .keyword_endif => true,
+                else => false,
+            };
+        }
+
+        fn testIncludeGuard(allocator: std.mem.Allocator, comptime template: []const u8, tok_id: RawToken.Id, expected_guards: u32) !void {
+            var comp = Compilation.init(allocator);
+            defer comp.deinit();
+            var pp = Preprocessor.init(&comp);
+            defer pp.deinit();
+
+            const path = try std.fs.path.join(allocator, &.{ ".", "bar.h" });
+            defer allocator.free(path);
+
+            _ = try comp.addSourceFromBuffer(path, "int bar = 5;\n");
+
+            var buf = std.ArrayList(u8).init(allocator);
+            defer buf.deinit();
+
+            var writer = buf.writer();
+            switch (tok_id) {
+                .keyword_include, .keyword_include_next => try writer.print(template, .{ tok_id.lexeme().?, " \"bar.h\"" }),
+                .keyword_define, .keyword_undef => try writer.print(template, .{ tok_id.lexeme().?, " BAR" }),
+                .keyword_ifndef, .keyword_ifdef => try writer.print(template, .{ tok_id.lexeme().?, " BAR\n#endif" }),
+                else => try writer.print(template, .{ tok_id.lexeme().?, "" }),
+            }
+            const source = try comp.addSourceFromBuffer("test.h", buf.items);
+            _ = try pp.preprocess(source);
+
+            try std.testing.expectEqual(expected_guards, pp.include_guards.count());
+        }
+    };
+    const tags = std.meta.tags(RawToken.Id);
+    for (tags) |tag| {
+        if (Test.skippable(tag)) continue;
+        var copy = tag;
+        copy.simplifyMacroKeyword();
+        if (copy != tag or tag == .keyword_else) {
+            const inside_ifndef_template =
+                \\//Leading comment (should be ignored)
+                \\
+                \\#ifndef FOO
+                \\#{s}{s}
+                \\#endif
+            ;
+            const expected_guards: u32 = if (Test.pairsWithIfndef(tag)) 0 else 1;
+            try Test.testIncludeGuard(std.testing.allocator, inside_ifndef_template, tag, expected_guards);
+
+            const outside_ifndef_template =
+                \\#ifndef FOO
+                \\#endif
+                \\#{s}{s}
+            ;
+            try Test.testIncludeGuard(std.testing.allocator, outside_ifndef_template, tag, 0);
+        }
+    }
 }
