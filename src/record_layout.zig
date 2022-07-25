@@ -33,8 +33,6 @@ const BITS_PER_BYTE: u29 = 8;
 
 pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser) void {
     const rec = getMutableRecord(ty).?;
-    // const mapper = comp.string_interner.getSlowTypeMapper();
-
     var pack_value: ?u29 = null;
     if (parser) |p| {
         if (p.pragma_pack) |pak| {
@@ -55,6 +53,7 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
         .size_bits = 0,
     };
 
+    // const mapper = comp.string_interner.getSlowTypeMapper();
     // std.debug.print("new-record {s} {any}\n", .{ mapper.lookup(rec.name), record_context });
 
     for (rec.fields) |*fld, fld_indx| {
@@ -104,18 +103,8 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
 
 pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
     if (ty.isRecord()) {
-        const rec = ty.getRecord() orelse unreachable;
-        if (!rec.isIncomplete()) {
-            type_layout.* = rec.type_layout;
-        } else unreachable;
-        // } else if (ty.isArray()) {
-        //     type_layout.size_bits = @intCast(u29,(ty.sizeof(comp) orelse 0) * BITS_PER_BYTE);
-        //     type_layout.pointer_alignment_bits = ty.alignof(comp) * BITS_PER_BYTE;
-        //     type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
-        //     type_layout.required_alignmnet_bits = BITS_PER_BYTE;
-        //     // layoutArray(ty, comp, type_layout);
-    } else if (ty.is(.@"enum")) {
-        layoutEnum(ty, comp, type_layout);
+        const rec = ty.getRecord().?;
+        type_layout.* = rec.type_layout;
     } else {
         type_layout.size_bits = @intCast(u29, ty.bitSizeof(comp) orelse 0);
         type_layout.pointer_alignment_bits = ty.alignof(comp) * BITS_PER_BYTE;
@@ -131,23 +120,29 @@ fn layoutRegluarField(
     record_context: *RecordContext,
 ) void {
     var fld_align_bits = fld_layout.field_alignment_bits;
+    // std.debug.print("s: {}\n", .{fld_align_bits});
     if (record_context.attr_packed or isPacked(fld_attrs)) {
         fld_align_bits = BITS_PER_BYTE;
+        // std.debug.print("pack: {}\n", .{fld_align_bits});
     }
 
     if (annotationAlignment(fld_attrs)) |anno| {
         fld_align_bits = std.math.max(fld_align_bits, anno);
+        // std.debug.print("ann: {} a:{}\n", .{ fld_align_bits, anno });
     }
 
     if (record_context.max_field_align_bits) |req_bits| {
         fld_align_bits = std.math.min(fld_align_bits, req_bits);
+        // std.debug.print("mx_aln: {} req:{}\n", .{ fld_align_bits, req_bits });
     }
 
     var offset_bits = if (record_context.is_union) 0 else alignTo(record_context.size_bits, fld_align_bits);
     var size_bits = fld_layout.size_bits;
 
+    // std.debug.print("end: r:{} f:{}\n", .{ record_context.aligned_bits, fld_align_bits });
     record_context.size_bits = std.math.max(record_context.size_bits, offset_bits + size_bits);
     record_context.aligned_bits = std.math.max(record_context.aligned_bits, fld_align_bits);
+    // std.debug.print("set: {}\n\n", .{record_context.aligned_bits});
 
     fld.layout.offset_bits = offset_bits;
     fld.layout.size_bits = size_bits;
@@ -262,25 +257,6 @@ fn layoutBitField(
     fld.layout.offset_bits = offset_bits;
 }
 
-fn layoutEnum(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
-    std.debug.assert(ty.is(.@"enum"));
-
-    var alignment = ty.alignof(comp);
-
-    type_layout.size_bits = @intCast(u29, ty.bitSizeof(comp).?);
-    type_layout.pointer_alignment_bits = alignment * BITS_PER_BYTE;
-    type_layout.field_alignment_bits = alignment * BITS_PER_BYTE;
-    type_layout.required_alignmnet_bits = BITS_PER_BYTE;
-
-    // only clang honers requested alignment
-    if (comp.langopts.emulate == .clang) {
-        if (ty.requestedAlignment(comp)) |req_align| {
-            type_layout.field_alignment_bits = std.math.max(type_layout.field_alignment_bits, req_align);
-            type_layout.pointer_alignment_bits = std.math.min(type_layout.pointer_alignment_bits, req_align);
-        }
-    }
-}
-
 fn alignTo(addr: u29, alignment: u29) u29 {
     const tmp = std.mem.alignForward(addr, alignment);
     if (tmp > std.math.maxInt(u29)) {
@@ -308,7 +284,8 @@ fn isPacked(attrs: ?[]const Attribute) bool {
     }
     return false;
 }
-
+/// get alignment annotation on the field
+/// not the one on the underlying type
 fn annotationAlignment(attrs: ?[]const Attribute) ?u29 {
     const a = attrs orelse return null;
 

@@ -29,15 +29,15 @@ const working_targets = [_]TestControl{
             "0011", "0014", "0044", "0046",
         },
         .skip_offset_checks = &.{},
-        .skip_extra_tests = &.{
-            "0008", "0010", "0045",
-        },
+        .skip_extra_tests = &.{},
     },
     .{
         .target = "x86_64-x86_64-linux-gnu:Gcc", // generic linux gcc
-        .non_working_tests = &.{ "0011", "0014", "0016", "0044", "0046", "0051", "0063" },
+        .non_working_tests = &.{
+            "0011", "0014", "0044", "0046",
+        },
         .skip_offset_checks = &.{},
-        .skip_extra_tests = &.{ "0008", "0010", "0045", "0063" },
+        .skip_extra_tests = &.{},
     },
 };
 const Stats = struct {
@@ -229,7 +229,7 @@ fn singleRun(path: []const u8, source: []const u8, settings: Settings, state: *S
         } else {
             // we're just testing the parser.
             // count this as a skip.
-            stats.skip_count += 1;
+            state.skip_count += 1;
         }
         if (settings.check_offsets) {
             _ = try mac_writer.write("#define CHECK_OFFSETS\n");

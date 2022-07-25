@@ -830,8 +830,16 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
 pub fn alignof(ty: Type, comp: *const Compilation) u29 {
 
     // don't return the attribute for records
+    // layout has already accounted for requested alignment
     if (!ty.isRecord()) {
         if (ty.requestedAlignment(comp)) |requested| {
+            // gcc does not respect alignment on enums
+            if (ty.get(.@"enum")) |ty_enum| {
+                const nat_al = ty_enum.alignof(comp);
+                if (comp.langopts.emulate == .gcc) {
+                    return nat_al;
+                }
+            }
             return requested;
         }
     }
