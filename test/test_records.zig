@@ -15,23 +15,14 @@ const gpa = general_purpose_allocator.allocator();
 
 // skip some tests (or parts of tests) for some targets
 // currently only targets in this list will be tested
-const SkipTests = struct {
+const TestControl = struct {
     target: []const u8,
     non_working_tests: []const []const u8, // parse only. no asserts
     skip_offset_checks: []const []const u8, // don't check bit offsets of records
     skip_extra_tests: []const []const u8, // don't do extra automated size/align tests
 };
 
-const test1 = SkipTests{
-    .target = "x86_64-x86_64-netbsd-gnu:Clang",
-    .non_working_tests = &.{ "0011", "0014", "0044", "0046" },
-    .skip_offset_checks = .{},
-    .skip_extra_tests = &.{
-        "0008", "0010", "0045",
-    },
-};
-
-const working_targets = [_]SkipTests{
+const working_targets = [_]TestControl{
     .{
         .target = "x86_64-x86_64-netbsd-gnu:Clang", // generic linux clang.
         .non_working_tests = &.{
@@ -42,12 +33,12 @@ const working_targets = [_]SkipTests{
             "0008", "0010", "0045",
         },
     },
-    // .{
-    //     .target = "x86_64-x86_64-linux-gnu:Gcc", // generic linux gcc
-    //     .non_working_tests = &.{},
-    //     .skip_offset_checks = &.{},
-    //     .skip_extra_tests = &.{},
-    // },
+    .{
+        .target = "x86_64-x86_64-linux-gnu:Gcc", // generic linux gcc
+        .non_working_tests = &.{ "0011", "0014", "0016", "0044", "0046", "0051", "0063" },
+        .skip_offset_checks = &.{},
+        .skip_extra_tests = &.{ "0008", "0010", "0045", "0063" },
+    },
 };
 const Stats = struct {
     ok_count: u32 = 0,
@@ -108,7 +99,7 @@ pub fn main() !void {
 
     var progress = std.Progress{};
     // * 2 for MSVC version
-    const root_node = progress.start("Test", cases.items.len * 2);
+    const root_node = progress.start("Test", cases.items.len * working_targets.len);
 
     // prepare compiler
     var comp = aro.Compilation.init(gpa);
@@ -235,6 +226,10 @@ fn singleRun(path: []const u8, source: []const u8, settings: Settings, state: *S
         const mac_writer = macro_buf.writer();
         if (settings.ifdef) |d| {
             _ = try mac_writer.print("#define {s}\n", .{d});
+        } else {
+            // we're just testing the parser.
+            // count this as a skip.
+            stats.skip_count += 1;
         }
         if (settings.check_offsets) {
             _ = try mac_writer.write("#define CHECK_OFFSETS\n");

@@ -196,7 +196,6 @@ fn layoutBitField(
     if (bit_width == 0) {
         field_align_bits = std.math.max(ty_fld_algn_bits, annotation_alignment);
     } else if (comp.langopts.emulate == .gcc) {
-        std.debug.panic("gcc not working yet", .{});
         field_align_bits = annotation_alignment;
         if (record_context.max_field_align_bits) |max_bits| {
             field_align_bits = std.math.min(annotation_alignment, max_bits);
