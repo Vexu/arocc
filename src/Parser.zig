@@ -5565,7 +5565,8 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
     const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
 
     var bit_offset = Value.int(0);
-    var lhs = try p.fieldAccessExtra(base_node, base_ty, base_field_name, false);
+    const base_record_ty = base_ty.canonicalize(.standard);
+    var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false);
 
     while (true) switch (p.tok_ids[p.tok_i]) {
         .period => {
@@ -5578,7 +5579,8 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
                 return error.ParsingFailed;
             }
             try p.validateFieldAccess(lhs.ty, lhs.ty, field_name_tok, field_name);
-            lhs = try p.fieldAccessExtra(lhs.node, lhs.ty, field_name, false);
+            const record_ty = lhs.ty.canonicalize(.standard);
+            lhs = try p.fieldAccessExtra(lhs.node, record_ty, field_name, false);
         },
         .l_bracket => {
             const l_bracket_tok = p.tok_i;
