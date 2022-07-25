@@ -979,6 +979,29 @@ pub fn defaultAlignment(comp: *const Compilation) u29 {
     }
     return 16;
 }
+pub fn systemCompiler(comp: *const Compilation) LangOpts.Compiler {
+    const target = comp.target;
+    // andorid is linux but not gcc, so these checks go first
+    // the rest for documentation as fn returns .clang
+    if (target.isDarwin() or
+        target.isAndroid() or
+        target.isBSD() or
+        target.os.tag == .fuchsia or
+        target.os.tag == .solaris)
+    {
+        return .clang;
+    }
+    // this is before windows to gram WindowsGnu
+    if (target.abi.isGnu() or
+        target.os.tag == .linux)
+    {
+        return .gcc;
+    }
+    if (target.os.tag == .windows) {
+        return .msvc;
+    }
+    return .clang;
+}
 
 test "addSourceFromReader" {
     const Test = struct {

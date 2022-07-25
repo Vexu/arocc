@@ -1,5 +1,6 @@
 const std = @import("std");
 const build_options = @import("build_options");
+
 const print = std.debug.print;
 const aro = @import("aro");
 const Runner = @import("runner.zig");
@@ -12,27 +13,55 @@ const AllocatorError = std.mem.Allocator.Error;
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = general_purpose_allocator.allocator();
 
-// stuff for testing record layout, which is in progress.
-// ignored for now.
-const non_working_tests = [_][]const u8{
-    // need to dig in to.
-    "0011", "0014", "0044", "0046",
+// skip some tests (or parts of tests) for some targets
+// currently only targets in this list will be tested
+const SkipTests = struct {
+    target: []const u8,
+    non_working_tests: []const []const u8, // parse only. no asserts
+    skip_offset_checks: []const []const u8, // don't check bit offsets of records
+    skip_extra_tests: []const []const u8, // don't do extra automated size/align tests
 };
 
-const skip_extra_tests = [_][]const u8{
-    "0008", "0010", "0045",
+const test1 = SkipTests{
+    .target = "x86_64-x86_64-netbsd-gnu:Clang",
+    .non_working_tests = &.{ "0011", "0014", "0044", "0046" },
+    .skip_offset_checks = .{},
+    .skip_extra_tests = &.{
+        "0008", "0010", "0045",
+    },
 };
 
-const skip_msvc_tests = [_][]const u8{
-    "0018", "0024", "0025", "0026", "0036", "0042", "0043", "0044", "0045", "0053",
+const working_targets = [_]SkipTests{
+    .{
+        .target = "x86_64-x86_64-netbsd-gnu:Clang", // generic linux clang.
+        .non_working_tests = &.{
+            "0011", "0014", "0044", "0046",
+        },
+        .skip_offset_checks = &.{},
+        .skip_extra_tests = &.{
+            "0008", "0010", "0045",
+        },
+    },
+    // .{
+    //     .target = "x86_64-x86_64-linux-gnu:Gcc", // generic linux gcc
+    //     .non_working_tests = &.{},
+    //     .skip_offset_checks = &.{},
+    //     .skip_extra_tests = &.{},
+    // },
 };
-
 const Stats = struct {
     ok_count: u32 = 0,
     fail_count: u32 = 0,
     skip_count: u32 = 0,
     progress: *std.Progress,
     root_node: *std.Progress.Node,
+};
+
+const Settings = struct {
+    check_offsets: bool = true,
+    extra_checks: bool = true,
+    ifdef: ?[]const u8 = null,
+    target: []const u8 = "",
 };
 
 pub fn main() !void {
@@ -102,47 +131,51 @@ pub fn main() !void {
 
     // iterate over all cases
     for (cases.items) |path| {
+        const source = try std.fs.cwd().readFileAlloc(gpa, path, 1024 * 1024 * 16); // the test files are at most 2M.
+        defer gpa.free(source);
 
-        // these flags are all for testing record layout. Which is in another
-        // branch. For now, we are just testing the parser. No static asserts
-        // are being done.
-        var skip_basics = false;
-        for (non_working_tests) |skip| {
-            if (std.mem.count(u8, path, skip) > 0) {
-                skip_basics = true;
-                break;
+        // for each ifdef, a list of targets
+        var code_targets = std.StringHashMap(std.StringHashMap(void)).init(gpa);
+        defer {
+            var iter = code_targets.iterator();
+            while (iter.next()) |ent| {
+                ent.value_ptr.deinit();
             }
+            code_targets.deinit();
         }
+        try parseTargetsFromCode(&code_targets, source);
+        for (working_targets) |working| {
+            var settings: Settings = .{};
 
-        var extra_checks = true;
-        for (skip_extra_tests) |skip| {
-            if (std.mem.count(u8, path, skip) > 0) {
-                extra_checks = false;
-                break;
+            settings.ifdef = findTarget(code_targets, working.target);
+            if (settings.ifdef == null) continue;
+            settings.target = working.target;
+
+            // these flags are all for testing record layout. Which is in another
+            // branch. For now, we are just testing the parser. No static asserts
+            for (working.non_working_tests) |skip| {
+                if (std.mem.count(u8, path, skip) > 0) {
+                    settings.ifdef = null;
+                    break;
+                }
             }
-        }
-
-        var do_msvc = true;
-        for (skip_msvc_tests) |skip| {
-            if (std.mem.count(u8, path, skip) > 0) {
-                do_msvc = false;
-                break;
+            for (working.skip_offset_checks) |skip| {
+                if (std.mem.count(u8, path, skip) > 0) {
+                    settings.check_offsets = false;
+                }
             }
-        }
 
-        const target: ?[]const u8 = if (skip_basics) null else "X8664_UNKNOWN_NETBSD";
+            for (working.skip_extra_tests) |skip| {
+                if (std.mem.count(u8, path, skip) > 0) {
+                    settings.extra_checks = false;
+                    break;
+                }
+            }
 
-        // copy the comp for each run
-        var run_comp = comp;
-        // gcc/clang fmt
-        try singleRun(path, target, true, extra_checks, false, &stats, &run_comp);
-
-        if (do_msvc) {
-            run_comp = comp;
-            // msvc
-            try singleRun(path, null, false, false, true, &stats, &run_comp);
-        } else {
-            stats.skip_count += 1;
+            // copy the comp for each run
+            var run_comp = comp;
+            // gcc/clang fmt
+            try singleRun(path, source, settings, &stats, &run_comp);
         }
     }
 
@@ -157,7 +190,7 @@ pub fn main() !void {
     }
 }
 
-fn singleRun(path: []const u8, target: ?[]const u8, check_offsets: bool, extra_checks: bool, do_msvc: bool, state: *Stats, comp: *aro.Compilation) !void {
+fn singleRun(path: []const u8, source: []const u8, settings: Settings, state: *Stats, comp: *aro.Compilation) !void {
     defer {
         // preserve some values
         comp.include_dirs = @TypeOf(comp.include_dirs).init(gpa);
@@ -166,14 +199,15 @@ fn singleRun(path: []const u8, target: ?[]const u8, check_offsets: bool, extra_c
         // reset everything else
         comp.deinit();
     }
+    _ = source;
 
     var case_name = std.ArrayList(u8).init(gpa);
     defer case_name.deinit();
 
-    const exten = if (do_msvc) " - MSVC" else " - GCC";
-    try case_name.writer().print("{s}{s}", .{
+    try case_name.writer().print("{s} | {s} | {s}", .{
         std.mem.sliceTo(std.fs.path.basename(path), '.'),
-        exten,
+        settings.target,
+        settings.ifdef,
     });
 
     var case_node = state.root_node.start(case_name.items, 0);
@@ -182,6 +216,7 @@ fn singleRun(path: []const u8, target: ?[]const u8, check_offsets: bool, extra_c
     state.progress.refresh();
 
     const file = comp.addSourceFromPath(path) catch |err| {
+        // const file = comp.addSourceFromBuffer(path, source) catch |err| {
         state.fail_count += 1;
         state.progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
         return;
@@ -190,26 +225,22 @@ fn singleRun(path: []const u8, target: ?[]const u8, check_offsets: bool, extra_c
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
     defer macro_buf.deinit();
 
+    try setTarget(comp, settings.target);
+
     {
         var cmd_args = std.ArrayList([]const u8).init(comp.gpa);
         defer cmd_args.deinit();
 
         // for now we're just going CLANG and Target::X86_64UnknownLinuxGnu
         const mac_writer = macro_buf.writer();
-        if (target) |d| {
+        if (settings.ifdef) |d| {
             _ = try mac_writer.print("#define {s}\n", .{d});
         }
-        if (check_offsets) {
+        if (settings.check_offsets) {
             _ = try mac_writer.write("#define CHECK_OFFSETS\n");
         }
-        if (extra_checks) {
+        if (settings.extra_checks) {
             _ = try mac_writer.write("#define EXTRA_TESTS\n");
-        }
-        if (do_msvc) {
-            _ = try mac_writer.write("#define MSVC\n");
-            comp.langopts.enableMSExtensions();
-            // for now, everything is clang
-            // comp.langopts.emulate = .msvc;
         }
         // TODO: only turn these of for the files we know emit these warnings
         comp.diag.options.@"ignored-pragmas" = .off;
@@ -265,4 +296,46 @@ fn singleRun(path: []const u8, target: ?[]const u8, check_offsets: bool, extra_c
     comp.renderErrors();
 
     if (comp.diag.errors != 0) state.fail_count += 1 else state.ok_count += 1;
+}
+
+fn findTarget(map: std.StringHashMap(std.StringHashMap(void)), find: []const u8) ?[]const u8 {
+    var iter = map.iterator();
+    while (iter.next()) |ent| {
+        if (ent.value_ptr.contains(find)) {
+            return ent.key_ptr.*;
+        }
+    }
+    return null;
+}
+fn parseTargetsFromCode(maps: *std.StringHashMap(std.StringHashMap(void)), source: []const u8) !void {
+    var lines = std.mem.tokenize(u8, source, "\n");
+    while (lines.next()) |line| {
+        if (std.mem.count(u8, line, "// MAPPING|") <= 0) continue;
+        std.debug.assert(std.mem.count(u8, line, "|") > 1);
+        var parts = std.mem.tokenize(u8, line, "|");
+        _ = parts.next(); // skip the MAPPING bit
+        const ifdef = parts.next().?; // the ifset to set for this chunk.
+        var t_set = std.StringHashMap(void).init(gpa);
+        while (parts.next()) |target| {
+            if (std.mem.startsWith(u8, target, "END")) break;
+            var ent = try t_set.getOrPut(target);
+            ent.value_ptr.* = .{};
+        }
+        try maps.put(ifdef, t_set);
+    }
+}
+fn setTarget(comp: *aro.Compilation, target: []const u8) !void {
+    const split_idex = std.mem.indexOf(u8, target, ":").?;
+
+    var iter = std.mem.tokenize(u8, target[0..split_idex], "-");
+    comp.target.cpu.arch = std.meta.stringToEnum(std.Target.Cpu.Arch, iter.next().?).?;
+    comp.target.cpu.model = try std.Target.Cpu.Arch.parseCpuModel(comp.target.cpu.arch, iter.next().?);
+    const tag = std.meta.stringToEnum(std.Target.Os.Tag, iter.next().?).?;
+    comp.target.os = std.Target.Os.Tag.defaultVersionRange(tag, comp.target.cpu.arch);
+    comp.target.abi = std.meta.stringToEnum(std.Target.Abi, iter.next().?).?;
+
+    comp.langopts.emulate = comp.systemCompiler();
+    const c_name = target[split_idex + 1 ..];
+    const m_name = @tagName(comp.langopts.emulate);
+    std.debug.assert(std.ascii.eqlIgnoreCase(m_name, c_name));
 }

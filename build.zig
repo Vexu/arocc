@@ -125,7 +125,7 @@ pub fn build(b: *Builder) !void {
     record_tests_runner.addArg(b.pathFromRoot("test/records"));
     record_tests_runner.addArg(b.zig_exe);
 
-    // tests_step.dependOn(&integration_test_runner.step);
+    tests_step.dependOn(&integration_test_runner.step);
     tests_step.dependOn(&record_tests_runner.step);
 
     try addFuzzStep(b, target);

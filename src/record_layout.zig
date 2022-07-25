@@ -33,7 +33,7 @@ const BITS_PER_BYTE: u29 = 8;
 
 pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser) void {
     const rec = getMutableRecord(ty).?;
-    const mapper = comp.string_interner.getSlowTypeMapper();
+    // const mapper = comp.string_interner.getSlowTypeMapper();
 
     var pack_value: ?u29 = null;
     if (parser) |p| {
@@ -55,7 +55,7 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
         .size_bits = 0,
     };
 
-    std.debug.print("new-record {s} {any}\n", .{ mapper.lookup(rec.name), record_context });
+    // std.debug.print("new-record {s} {any}\n", .{ mapper.lookup(rec.name), record_context });
 
     for (rec.fields) |*fld, fld_indx| {
         var type_layout: TypeLayout = .{
