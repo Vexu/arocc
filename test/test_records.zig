@@ -56,7 +56,7 @@ pub fn main() !void {
 
     // collect all cases
     {
-        var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
+        var cases_dir = try std.fs.cwd().openIterableDir(args[1], .{});
         defer cases_dir.close();
 
         var it = cases_dir.iterate();
@@ -252,7 +252,7 @@ fn singleRun(path: []const u8, target: ?[]const u8, check_offsets: bool, extra_c
     }
     var tree = try aro.Parser.parse(&pp);
     defer tree.deinit();
-    tree.dump(std.io.null_writer) catch {};
+    tree.dump(false, std.io.null_writer) catch {};
 
     var buf = std.ArrayList(u8).init(gpa);
     defer buf.deinit();

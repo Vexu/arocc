@@ -40,7 +40,7 @@ fn add(
 ) void {
     var params = a.alloc(Type.Func.Param, param_types.len) catch unreachable; // fib
     for (param_types) |param_ty, i| {
-        params[i] = .{ .name_tok = 0, .ty = param_ty, .name = "" };
+        params[i] = .{ .name_tok = 0, .ty = param_ty, .name = .empty };
     }
     b.putAssumeCapacity(name, .{
         .spec = spec,
