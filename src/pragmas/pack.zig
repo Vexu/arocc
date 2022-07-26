@@ -63,7 +63,6 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
                     try p.pp.comp.diag.add(.{
                         .tag = .pragma_pack_show,
                         .loc = arg.loc,
-                        // .extra = .{ .unsigned = p.pragma_pack },
                         .extra = .{ .unsigned = p.pragma_pack orelse 8 },
                     }, arg.expansionSlice());
                 },

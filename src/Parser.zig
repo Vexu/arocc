@@ -162,8 +162,8 @@ record: struct {
 record_members: std.ArrayListUnmanaged(struct { tok: TokenIndex, name: StringId }) = .{},
 @"switch": ?*Switch = null,
 in_loop: bool = false,
-declspec_id: StringId,
 pragma_pack: ?u8 = null,
+declspec_id: StringId,
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
     if (codepoint <= 0x7F) return false;

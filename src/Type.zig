@@ -202,14 +202,13 @@ pub const Record = struct {
     // TODO: should remove size/alin
     // and change code to use TypeLayout.
     size: u64,
-    alignment: u29,
     type_layout: TypeLayout,
-
     /// If this is null, none of the fields have attributes
     /// Otherwise, it's a pointer to N items (where N == number of fields)
     /// and the item at index i is the attributes for the field at index i
     field_attributes: ?[*][]const Attribute,
     name: StringId,
+    alignment: u29,
 
     pub const Field = struct {
         ty: Type,
@@ -499,22 +498,22 @@ pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
     };
 }
 
-pub fn getArray(ty: *const Type) ?*const Type {
-    return switch (ty.specifier) {
-        .array, .static_array, .incomplete_array, .decayed_array, .decayed_static_array, .decayed_incomplete_array => ty,
-        .typeof_type => ty.data.sub_type.getArray(),
-        .typeof_expr => ty.data.expr.ty.getArray(),
-        .attributed => ty.data.attributed.base.getArray(),
-        else => null,
-    };
-}
-
 pub fn isEnumOrRecord(ty: Type) bool {
     return switch (ty.specifier) {
         .@"enum", .@"struct", .@"union" => true,
         .typeof_type => ty.data.sub_type.isEnumOrRecord(),
         .typeof_expr => ty.data.expr.ty.isEnumOrRecord(),
         .attributed => ty.data.attributed.base.isEnumOrRecord(),
+        else => false,
+    };
+}
+
+pub fn isRecord(ty: Type) bool {
+    return switch (ty.specifier) {
+        .@"struct", .@"union" => true,
+        .typeof_type => ty.data.sub_type.isRecord(),
+        .typeof_expr => ty.data.expr.ty.isRecord(),
+        .attributed => ty.data.attributed.base.isRecord(),
         else => false,
     };
 }
@@ -595,10 +594,6 @@ pub fn getAttributes(ty: Type) []const Attribute {
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.getAttributes(),
         else => &.{},
     };
-}
-
-pub fn isRecord(ty: *const Type) bool {
-    return ty.getRecord() != null;
 }
 
 pub fn getRecord(ty: Type) ?*const Type.Record {

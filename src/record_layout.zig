@@ -53,9 +53,6 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
         .size_bits = 0,
     };
 
-    // const mapper = comp.string_interner.getSlowTypeMapper();
-    // std.debug.print("new-record {s} {any}\n", .{ mapper.lookup(rec.name), record_context });
-
     for (rec.fields) |*fld, fld_indx| {
         var type_layout: TypeLayout = .{
             .size_bits = 0,
@@ -63,27 +60,21 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
             .pointer_alignment_bits = 0,
             .required_alignmnet_bits = 0,
         };
-        // std.debug.print("\tfld: {s}\n",.{fld.name});
         // this isn't recursion because all records
         // included in this record should already be
         // laid out before getting here.
         computeLayout(fld.ty, comp, &type_layout);
-        // std.debug.print("\tfld: {s} {any}\n",.{fld.name, type_layout});
 
         var field_attrs: ?[]const Attribute = null;
         if (rec.field_attributes) |attrs| {
             field_attrs = attrs[fld_indx];
         }
-        // if (field_attrs) |fa| {
-        //     std.debug.print("fld attr : {any}\n", .{fa});
-        // }
 
         if (fld.bit_width != null) {
             layoutBitField(comp, fld, field_attrs, &type_layout, &record_context);
         } else {
             layoutRegluarField(fld, field_attrs, type_layout, &record_context);
         }
-        // std.debug.print("fld-post {s}\n\tfld_type_layout:{any}\n\tcontext:{any}\n\tlayout:{any}\n", .{fld.name,type_layout, record_context, fld.layout});
     }
 
     record_context.size_bits = alignTo(record_context.size_bits, record_context.aligned_bits);
@@ -120,29 +111,23 @@ fn layoutRegluarField(
     record_context: *RecordContext,
 ) void {
     var fld_align_bits = fld_layout.field_alignment_bits;
-    // std.debug.print("s: {}\n", .{fld_align_bits});
     if (record_context.attr_packed or isPacked(fld_attrs)) {
         fld_align_bits = BITS_PER_BYTE;
-        // std.debug.print("pack: {}\n", .{fld_align_bits});
     }
 
     if (annotationAlignment(fld_attrs)) |anno| {
         fld_align_bits = std.math.max(fld_align_bits, anno);
-        // std.debug.print("ann: {} a:{}\n", .{ fld_align_bits, anno });
     }
 
     if (record_context.max_field_align_bits) |req_bits| {
         fld_align_bits = std.math.min(fld_align_bits, req_bits);
-        // std.debug.print("mx_aln: {} req:{}\n", .{ fld_align_bits, req_bits });
     }
 
     var offset_bits = if (record_context.is_union) 0 else alignTo(record_context.size_bits, fld_align_bits);
     var size_bits = fld_layout.size_bits;
 
-    // std.debug.print("end: r:{} f:{}\n", .{ record_context.aligned_bits, fld_align_bits });
     record_context.size_bits = std.math.max(record_context.size_bits, offset_bits + size_bits);
     record_context.aligned_bits = std.math.max(record_context.aligned_bits, fld_align_bits);
-    // std.debug.print("set: {}\n\n", .{record_context.aligned_bits});
 
     fld.layout.offset_bits = offset_bits;
     fld.layout.size_bits = size_bits;
@@ -160,25 +145,23 @@ fn layoutBitField(
     const ty_size_bits = fld_layout.size_bits;
     var ty_fld_algn_bits = fld_layout.field_alignment_bits;
 
-    if (bit_width > fld_layout.size_bits) {
-        // TODO: errror msg.
-    }
-
+    // Some targets ignore the alignment of the underlying type when laying out
+    // non-zero-sized bit-fields. See test case 0072. On such targets, bit-fields never
+    // cross a storage boundary. See test case 0081.
     if (comp.ignoreNonZeroSizedBitfieldTypeAlignment()) {
         ty_fld_algn_bits = 1;
     }
 
-    if (bit_width > 0) {
-        if (bit_width > fld_layout.size_bits) {
-            // TODO: real error
-            std.debug.panic("size of bit field exteends size of type {any}", .{fld});
-        }
-    } else {
+    if (bit_width <= 0) {
+        // Some targets have a minimum alignment of zero-sized bit-fields. See test case
+        // 0074.
         if (comp.minZeroWidthBitfieldAlignment()) |target_align| {
             ty_fld_algn_bits = std.math.max(ty_fld_algn_bits, target_align);
         }
     }
 
+    // __attribute__((packed)) on the record is identical to __attribute__((packed)) on each
+    // field. See test case 0067.
     const attr_packed = record_context.attr_packed or isPacked(fld_attrs);
     const has_packing_annotation = attr_packed or record_context.max_field_align_bits != null;
 
@@ -191,11 +174,18 @@ fn layoutBitField(
     if (bit_width == 0) {
         field_align_bits = std.math.max(ty_fld_algn_bits, annotation_alignment);
     } else if (comp.langopts.emulate == .gcc) {
+        // On GCC, the field alignment is at least the alignment requested by annotations
+        // except as restricted by #pragma pack. See test case 0083.
         field_align_bits = annotation_alignment;
         if (record_context.max_field_align_bits) |max_bits| {
             field_align_bits = std.math.min(annotation_alignment, max_bits);
         }
 
+        // On GCC, if there are no packing annotations and
+        // - the field would otherwise start at an offset such that it would cross a
+        //   storage boundary or
+        // - the alignment of the type is larger than its size,
+        // then it is aligned to the type's field alignment. See test case 0083.
         if (!has_packing_annotation) {
             var start_bit = alignTo(first_unused_bit, field_align_bits);
 
