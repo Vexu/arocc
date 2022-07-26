@@ -986,7 +986,7 @@ pub fn systemCompiler(comp: *const Compilation) LangOpts.Compiler {
     {
         return .clang;
     }
-    // this is before windows to gram WindowsGnu
+    // this is before windows to grab WindowsGnu
     if (target.abi.isGnu() or
         target.os.tag == .linux)
     {
