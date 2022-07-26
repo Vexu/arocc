@@ -932,21 +932,22 @@ pub fn minZeroWidthBitfieldAlignment(comp: *const Compilation) ?u29 {
 
 pub fn unnamedFieldAffectsAlignment(comp: *const Compilation) bool {
     switch (comp.target.cpu.arch) {
-        .arch64 => {
-            if (comp.target.os.isDarwin() or comp.target.os.windows) return false;
+        .aarch64 => {
+            if (comp.target.isDarwin() or comp.target.os.tag == .windows) return false;
             return true;
         },
         .armeb => {
             if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
-                if (comp.target.abi.default(comp.target.cpu.arch, comp.target.os) == .eabi) return true;
+                if (std.Target.Abi.default(comp.target.cpu.arch, comp.target.os) == .eabi) return true;
             }
         },
         .arm => return true,
         .avr => return true,
         .thumb => {
-            if (comp.target.os.isWindows()) return false;
+            if (comp.target.os.tag == .windows) return false;
             return true;
         },
+        else => return false,
     }
     return false;
 }
