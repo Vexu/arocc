@@ -432,18 +432,17 @@ fn generateVaListType(comp: *Compilation) !Type {
             record_ty.* = .{
                 .name = try comp.intern("__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 5),
-                .size = 32,
-                .alignment = 8,
                 .field_attributes = null,
+                .type_layout = Type.TypeLayout.init(32, 8),
             };
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
             const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
-            record_ty.fields[0] = .{ .name = try comp.intern("__stack"), .ty = void_ptr };
-            record_ty.fields[1] = .{ .name = try comp.intern("__gr_top"), .ty = void_ptr };
-            record_ty.fields[2] = .{ .name = try comp.intern("__vr_top"), .ty = void_ptr };
-            record_ty.fields[3] = .{ .name = try comp.intern("__gr_offs"), .ty = .{ .specifier = .int } };
-            record_ty.fields[4] = .{ .name = try comp.intern("__vr_offs"), .ty = .{ .specifier = .int } };
+            record_ty.fields[0] = .{ .name = try comp.intern("__stack"), .ty = void_ptr, .layout = undefined };
+            record_ty.fields[1] = .{ .name = try comp.intern("__gr_top"), .ty = void_ptr, .layout = undefined };
+            record_ty.fields[2] = .{ .name = try comp.intern("__vr_top"), .ty = void_ptr, .layout = undefined };
+            record_ty.fields[3] = .{ .name = try comp.intern("__gr_offs"), .ty = .{ .specifier = .int }, .layout = undefined };
+            record_ty.fields[4] = .{ .name = try comp.intern("__vr_offs"), .ty = .{ .specifier = .int }, .layout = undefined };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
         },
         .x86_64_va_list => {
@@ -451,17 +450,16 @@ fn generateVaListType(comp: *Compilation) !Type {
             record_ty.* = .{
                 .name = try comp.intern("__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 4),
-                .size = 24,
-                .alignment = 8,
                 .field_attributes = null,
+                .type_layout = Type.TypeLayout.init(24, 8),
             };
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
             const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
-            record_ty.fields[0] = .{ .name = try comp.intern("gp_offset"), .ty = .{ .specifier = .uint } };
-            record_ty.fields[1] = .{ .name = try comp.intern("fp_offset"), .ty = .{ .specifier = .uint } };
-            record_ty.fields[2] = .{ .name = try comp.intern("overflow_arg_area"), .ty = void_ptr };
-            record_ty.fields[3] = .{ .name = try comp.intern("reg_save_area"), .ty = void_ptr };
+            record_ty.fields[0] = .{ .name = try comp.intern("gp_offset"), .ty = .{ .specifier = .uint }, .layout = undefined };
+            record_ty.fields[1] = .{ .name = try comp.intern("fp_offset"), .ty = .{ .specifier = .uint }, .layout = undefined };
+            record_ty.fields[2] = .{ .name = try comp.intern("overflow_arg_area"), .ty = void_ptr, .layout = undefined };
+            record_ty.fields[3] = .{ .name = try comp.intern("reg_save_area"), .ty = void_ptr, .layout = undefined };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
         },
     }

@@ -1756,8 +1756,7 @@ fn recordSpec(p: *Parser) Error!Type {
     } else {
         record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
         // TODO actually calculate
-        record_ty.size = 1;
-        record_ty.alignment = 1;
+        record_ty.type_layout = Type.TypeLayout.init(1, 1);
     }
     if (old_field_attr_start < p.field_attr_buf.items.len) {
         const field_attr_slice = p.field_attr_buf.items[old_field_attr_start..];
@@ -1840,7 +1839,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         var name_tok: TokenIndex = 0;
         var ty = base_ty;
         var bits_node: NodeIndex = .none;
-        var bits: u32 = 0;
+        var bits: ?u29 = null;
         const first_tok = p.tok_i;
         if (try p.declarator(ty, .record)) |d| {
             name_tok = d.name;
@@ -1875,7 +1874,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 break :bits;
             }
 
-            bits = res.val.getInt(u32);
+            bits = res.val.getInt(u29);
             bits_node = res.node;
         }
 
@@ -1903,7 +1902,11 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 try p.record_buf.append(.{
                     .name = try p.getAnonymousName(first_tok),
                     .ty = ty,
-                    .bit_width = 0,
+                    .bit_width = null,
+                    .layout = .{
+                        .offset_bits = 0,
+                        .size_bits = 0,
+                    },
                 });
                 const node = try p.addNode(.{
                     .tag = .indirect_record_field_decl,
@@ -1922,6 +1925,10 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 .ty = ty,
                 .name_tok = name_tok,
                 .bit_width = bits,
+                .layout = .{
+                    .offset_bits = 0,
+                    .size_bits = 0,
+                },
             });
             if (name_tok != 0) try p.record.addField(p, interned_name, name_tok);
             const node = try p.addNode(.{
