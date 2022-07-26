@@ -433,10 +433,8 @@ fn generateVaListType(comp: *Compilation) !Type {
             record_ty.* = .{
                 .name = try comp.intern("__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 5),
-                .size = 32,
-                .alignment = 8,
                 .field_attributes = null,
-                .type_layout = undefined,
+                .type_layout = Type.TypeLayout.init(32, 8),
             };
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
@@ -454,10 +452,8 @@ fn generateVaListType(comp: *Compilation) !Type {
             record_ty.* = .{
                 .name = try comp.intern("__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 4),
-                .size = 24,
-                .alignment = 8,
                 .field_attributes = null,
-                .type_layout = undefined,
+                .type_layout = Type.TypeLayout.init(24, 8),
             };
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };

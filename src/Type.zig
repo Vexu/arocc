@@ -162,7 +162,9 @@ pub const Enum = struct {
         return e;
     }
 };
-
+// might not need all 4 of these when finished,
+// but currently it helps havaing all 4 when diff-ing
+// the reust code.
 pub const TypeLayout = struct {
     /// The size of the type in bits.
     ///
@@ -185,6 +187,14 @@ pub const TypeLayout = struct {
     /// targets. On MSVC targets, this value restricts the effects of `#pragma pack` except
     /// in some cases involving bit-fields.
     required_alignmnet_bits: u29,
+    pub fn init(size_bytes: u64, alignment_bytes: u64) TypeLayout {
+        return TypeLayout{
+            .size_bits = @intCast(u29, size_bytes * 8),
+            .field_alignment_bits = @intCast(u29, alignment_bytes * 8),
+            .pointer_alignment_bits = @intCast(u29, alignment_bytes * 8),
+            .required_alignmnet_bits = 8,
+        };
+    }
 };
 
 const FieldLayout = struct {
@@ -199,16 +209,12 @@ const FieldLayout = struct {
 // TODO improve memory usage
 pub const Record = struct {
     fields: []Field,
-    // TODO: should remove size/alin
-    // and change code to use TypeLayout.
-    size: u64,
     type_layout: TypeLayout,
     /// If this is null, none of the fields have attributes
     /// Otherwise, it's a pointer to N items (where N == number of fields)
     /// and the item at index i is the attributes for the field at index i
     field_attributes: ?[*][]const Attribute,
     name: StringId,
-    alignment: u29,
 
     pub const Field = struct {
         ty: Type,
@@ -802,7 +808,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
             const size = ty.data.array.elem.sizeof(comp) orelse return null;
             return std.mem.alignForward(size * ty.data.array.len, ty.alignof(comp));
         },
-        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
+        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else @as(u64, ty.data.record.type_layout.size_bits / 8),
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) null else ty.data.@"enum".tag_ty.sizeof(comp),
         .typeof_type => ty.data.sub_type.sizeof(comp),
         .typeof_expr => ty.data.expr.ty.sizeof(comp),
@@ -880,7 +886,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .decayed_unspecified_variable_len_array,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else ty.data.record.alignment,
+        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else ty.data.record.type_layout.field_alignment_bits / 8,
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),

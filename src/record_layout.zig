@@ -85,11 +85,6 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
         .pointer_alignment_bits = record_context.aligned_bits,
         .required_alignmnet_bits = BITS_PER_BYTE,
     };
-    rec.size = record_context.size_bits / BITS_PER_BYTE;
-    rec.alignment = record_context.aligned_bits / BITS_PER_BYTE;
-
-    // std.debug.print("done record {s}\n\t{any}\n\ta:{} s:{}\n\n", .{rec.name, rec.type_layout, rec.alignment, rec.size});
-
 }
 
 pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
