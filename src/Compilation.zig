@@ -899,6 +899,65 @@ pub fn isTlsSupported(comp: *Compilation) bool {
     };
 }
 
+pub fn ignoreNonZeroSizedBitfieldTypeAlignment(comp: *const Compilation) bool {
+    switch (comp.target.cpu.arch) {
+        .avr => return true,
+        .arm => {
+            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
+                switch (comp.target.os.tag) {
+                    .ios => return true,
+                    else => return false,
+                }
+            }
+        },
+        else => return false,
+    }
+    return false;
+}
+
+pub fn minZeroWidthBitfieldAlignment(comp: *const Compilation) ?u29 {
+    switch (comp.target.cpu.arch) {
+        .avr => return 8,
+        .arm => {
+            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
+                switch (comp.target.os.tag) {
+                    .ios => return 32,
+                    else => return null,
+                }
+            } else return null;
+        },
+        else => return null,
+    }
+}
+
+pub fn unnamedFieldAffectsAlignment(comp: *const Compilation) bool {
+    switch (comp.target.cpu.arch) {
+        .arch64 => {
+            if (comp.target.os.isDarwin() or comp.target.os.windows) return false;
+            return true;
+        },
+        .armeb => {
+            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
+                if (comp.target.abi.default(comp.target.cpu.arch, comp.target.os) == .eabi) return true;
+            }
+        },
+        .arm => return true,
+        .avr => return true,
+        .thumb => {
+            if (comp.target.os.isWindows()) return false;
+            return true;
+        },
+    }
+    return false;
+}
+
+pub fn packAllEnums(comp: *const Compilation) bool {
+    return switch (comp.target.cpu.arch) {
+        .hexagon => true,
+        else => false,
+    };
+}
+
 /// Default alignment (in bytes) for __attribute__((aligned)) when no alignment is specified
 pub fn defaultAlignment(comp: *const Compilation) u29 {
     switch (comp.target.cpu.arch) {
@@ -914,6 +973,29 @@ pub fn defaultAlignment(comp: *const Compilation) u29 {
         else => {},
     }
     return 16;
+}
+pub fn systemCompiler(comp: *const Compilation) LangOpts.Compiler {
+    const target = comp.target;
+    // andorid is linux but not gcc, so these checks go first
+    // the rest for documentation as fn returns .clang
+    if (target.isDarwin() or
+        target.isAndroid() or
+        target.isBSD() or
+        target.os.tag == .fuchsia or
+        target.os.tag == .solaris)
+    {
+        return .clang;
+    }
+    // this is before windows to gram WindowsGnu
+    if (target.abi.isGnu() or
+        target.os.tag == .linux)
+    {
+        return .gcc;
+    }
+    if (target.os.tag == .windows) {
+        return .msvc;
+    }
+    return .clang;
 }
 
 test "addSourceFromReader" {
