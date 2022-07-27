@@ -1078,3 +1078,37 @@ test "addSourceFromReader - exhaustive check for carriage return elimination" {
     }
     try std.testing.expect(source_count == std.math.powi(usize, alen, alen) catch unreachable);
 }
+
+test "alignment functions - smoke test" {
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+
+    const x86 = std.Target.Cpu.Arch.x86_64;
+    comp.target.cpu = std.Target.Cpu.baseline(x86);
+    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);
+    comp.target.abi = std.Target.Abi.default(x86, comp.target.os);
+
+    try std.testing.expect(comp.isTlsSupported());
+    try std.testing.expect(!comp.ignoreNonZeroSizedBitfieldTypeAlignment());
+    try std.testing.expect(comp.minZeroWidthBitfieldAlignment() == null);
+    try std.testing.expect(!comp.unnamedFieldAffectsAlignment());
+    try std.testing.expect(comp.defaultAlignment() == 16);
+    try std.testing.expect(!comp.packAllEnums());
+
+    const arm = std.Target.Cpu.Arch.arm;
+    comp.target.cpu = std.Target.Cpu.baseline(arm);
+    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm);
+    comp.target.abi = std.Target.Abi.default(arm, comp.target.os);
+
+    try std.testing.expect(!comp.isTlsSupported());
+    try std.testing.expect(comp.ignoreNonZeroSizedBitfieldTypeAlignment());
+    // stage 0 can't compare a ?u29 with a ?u29
+    if (comp.minZeroWidthBitfieldAlignment()) |zero_algin| {
+        try std.testing.expect(zero_algin == 32);
+    } else {
+        try std.testing.expect(false);
+    }
+    try std.testing.expect(comp.unnamedFieldAffectsAlignment());
+    try std.testing.expect(comp.defaultAlignment() == 16);
+    try std.testing.expect(!comp.packAllEnums());
+}
