@@ -1094,6 +1094,7 @@ test "alignment functions - smoke test" {
     try std.testing.expect(!comp.unnamedFieldAffectsAlignment());
     try std.testing.expect(comp.defaultAlignment() == 16);
     try std.testing.expect(!comp.packAllEnums());
+    try std.testing.expect(comp.systemCompiler() == .gcc);
 
     const arm = std.Target.Cpu.Arch.arm;
     comp.target.cpu = std.Target.Cpu.baseline(arm);
@@ -1111,4 +1112,5 @@ test "alignment functions - smoke test" {
     try std.testing.expect(comp.unnamedFieldAffectsAlignment());
     try std.testing.expect(comp.defaultAlignment() == 16);
     try std.testing.expect(!comp.packAllEnums());
+    try std.testing.expect(comp.systemCompiler() == .clang);
 }
