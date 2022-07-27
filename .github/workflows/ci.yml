@@ -28,8 +28,13 @@ jobs:
       - name: Build
         run: zig build
 
+      - name: Build 32-bit
+        run: zig build -Dtarget=arm-linux
+        if: matrix.os == 'ubuntu-latest'
+
       - name: Fmt
         run: zig fmt . --check
+        if: matrix.os == 'ubuntu-latest'
 
       - name: Run Tests
         run: zig build test

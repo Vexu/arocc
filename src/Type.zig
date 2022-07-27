@@ -530,7 +530,7 @@ pub fn params(ty: Type) []Func.Param {
     };
 }
 
-pub fn arrayLen(ty: Type) ?usize {
+pub fn arrayLen(ty: Type) ?u64 {
     return switch (ty.specifier) {
         .array, .static_array, .decayed_array, .decayed_static_array => ty.data.array.len,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.arrayLen(),
@@ -761,7 +761,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .array, .vector => {
             const size = ty.data.array.elem.sizeof(comp) orelse return null;
-            return std.mem.alignForward(size * ty.data.array.len, ty.alignof(comp));
+            return std.mem.alignForwardGeneric(u64, size * ty.data.array.len, ty.alignof(comp));
         },
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else ty.data.record.size,
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) null else ty.data.@"enum".tag_ty.sizeof(comp),
