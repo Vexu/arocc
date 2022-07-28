@@ -221,7 +221,7 @@ pub const Record = struct {
         name: StringId,
         /// zero for anonymous fields
         name_tok: TokenIndex = 0,
-        bit_width: ?u29 = null,
+        bit_width: ?u64 = null,
         layout: FieldLayout = .{
             .offset_bits = 0,
             .size_bits = 0,

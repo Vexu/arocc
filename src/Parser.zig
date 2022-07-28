@@ -1839,7 +1839,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         var name_tok: TokenIndex = 0;
         var ty = base_ty;
         var bits_node: NodeIndex = .none;
-        var bits: ?u29 = null;
+        var bits: ?u64 = null;
         const first_tok = p.tok_i;
         if (try p.declarator(ty, .record)) |d| {
             name_tok = d.name;
