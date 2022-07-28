@@ -1103,12 +1103,7 @@ test "alignment functions - smoke test" {
 
     try std.testing.expect(!comp.isTlsSupported());
     try std.testing.expect(comp.ignoreNonZeroSizedBitfieldTypeAlignment());
-    // stage 0 can't compare a ?u29 with a ?u29
-    if (comp.minZeroWidthBitfieldAlignment()) |zero_algin| {
-        try std.testing.expect(zero_algin == 32);
-    } else {
-        try std.testing.expect(false);
-    }
+    try std.testing.expectEqual(@as(?u29, 32), comp.minZeroWidthBitfieldAlignment());
     try std.testing.expect(comp.unnamedFieldAffectsAlignment());
     try std.testing.expect(comp.defaultAlignment() == 16);
     try std.testing.expect(!comp.packAllEnums());
