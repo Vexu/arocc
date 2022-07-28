@@ -39,9 +39,7 @@ pub fn main() u8 {
             return 1;
         },
     };
-    if (comp.target.abi == .msvc or comp.target.os.tag == .windows) {
-        comp.langopts.setEmulatedCompiler(.msvc);
-    }
+    comp.langopts.setEmulatedCompiler(comp.systemCompiler());
 
     mainExtra(&comp, args) catch |er| switch (er) {
         error.OutOfMemory => {
@@ -259,9 +257,7 @@ pub fn parseArgs(
                     continue;
                 };
                 comp.target = cross.toTarget(); // TODO deprecated
-                if (comp.target.abi == .msvc or comp.target.os.tag == .windows) {
-                    comp.langopts.setEmulatedCompiler(.msvc);
-                }
+                comp.langopts.setEmulatedCompiler(comp.systemCompiler());
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 comp.verbose_ast = true;
             } else {
