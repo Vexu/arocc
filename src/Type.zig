@@ -163,7 +163,7 @@ pub const Enum = struct {
     }
 };
 // might not need all 4 of these when finished,
-// but currently it helps havaing all 4 when diff-ing
+// but currently it helps having all 4 when diff-ing
 // the reust code.
 pub const TypeLayout = struct {
     /// The size of the type in bits.
@@ -186,13 +186,13 @@ pub const TypeLayout = struct {
     /// This value is only used by MSVC targets. It is 8 on all other
     /// targets. On MSVC targets, this value restricts the effects of `#pragma pack` except
     /// in some cases involving bit-fields.
-    required_alignmnet_bits: u64,
+    required_alignment_bits: u64,
     pub fn init(size_bytes: u64, alignment_bytes: u64) TypeLayout {
         return TypeLayout{
             .size_bits = @intCast(u29, size_bytes * 8),
             .field_alignment_bits = @intCast(u29, alignment_bytes * 8),
             .pointer_alignment_bits = @intCast(u29, alignment_bytes * 8),
-            .required_alignmnet_bits = 8,
+            .required_alignment_bits = 8,
         };
     }
 };
