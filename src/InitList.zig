@@ -79,7 +79,7 @@ pub fn put(il: *InitList, gpa: Allocator, index: usize, node: NodeIndex, tok: To
 }
 
 /// Find item at index, create new if one does not exist.
-pub fn find(il: *InitList, gpa: Allocator, index: usize) !*InitList {
+pub fn find(il: *InitList, gpa: Allocator, index: u64) !*InitList {
     const items = il.list.items;
     var left: usize = 0;
     var right: usize = items.len;
