@@ -1902,11 +1902,6 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 try p.record_buf.append(.{
                     .name = try p.getAnonymousName(first_tok),
                     .ty = ty,
-                    .bit_width = null,
-                    .layout = .{
-                        .offset_bits = 0,
-                        .size_bits = 0,
-                    },
                 });
                 const node = try p.addNode(.{
                     .tag = .indirect_record_field_decl,
@@ -1925,10 +1920,6 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 .ty = ty,
                 .name_tok = name_tok,
                 .bit_width = bits,
-                .layout = .{
-                    .offset_bits = 0,
-                    .size_bits = 0,
-                },
             });
             if (name_tok != 0) try p.record.addField(p, interned_name, name_tok);
             const node = try p.addNode(.{

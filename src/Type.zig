@@ -197,7 +197,7 @@ pub const TypeLayout = struct {
     }
 };
 
-const FieldLayout = struct {
+pub const FieldLayout = struct {
     /// The offset of the struct, in bits, from the start of the struct.
     offset_bits: u29,
     /// The size, in bits, of the field.
@@ -222,7 +222,10 @@ pub const Record = struct {
         /// zero for anonymous fields
         name_tok: TokenIndex = 0,
         bit_width: ?u29 = null,
-        layout: FieldLayout,
+        layout: FieldLayout = .{
+            .offset_bits = 0,
+            .size_bits = 0,
+        },
 
         pub fn isAnonymousRecord(f: Field) bool {
             return f.name_tok == 0 and f.ty.isRecord();
