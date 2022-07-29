@@ -114,7 +114,19 @@ pub fn build(b: *Builder) !void {
     const integration_test_runner = integration_tests.run();
     integration_test_runner.addArg(b.pathFromRoot("test/cases"));
     integration_test_runner.addArg(b.zig_exe);
+
+    const record_tests = b.addExecutable("arocc", "test/test_records.zig");
+    record_tests.addPackage(.{
+        .name = "aro",
+        .source = .{ .path = "src/lib.zig" },
+        .dependencies = &.{zig_pkg},
+    });
+    const record_tests_runner = record_tests.run();
+    record_tests_runner.addArg(b.pathFromRoot("test/records"));
+    record_tests_runner.addArg(b.zig_exe);
+
     tests_step.dependOn(&integration_test_runner.step);
+    tests_step.dependOn(&record_tests_runner.step);
 
     try addFuzzStep(b, target);
 }
