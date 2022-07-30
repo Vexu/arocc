@@ -6069,7 +6069,7 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
             return p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
         }
         if (field_name == f.name) {
-            offset_bits.* = f.layout.offset_bits;
+            offset_bits.* = @intCast(usize, f.layout.offset_bits);
             return Result{
                 .ty = f.ty,
                 .node = try p.addNode(.{
