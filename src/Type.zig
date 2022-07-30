@@ -162,9 +162,10 @@ pub const Enum = struct {
         return e;
     }
 };
+
 // might not need all 4 of these when finished,
 // but currently it helps having all 4 when diff-ing
-// the reust code.
+// the rust code.
 pub const TypeLayout = struct {
     /// The size of the type in bits.
     ///
@@ -175,23 +176,24 @@ pub const TypeLayout = struct {
     ///
     /// This is usually the value returned by `_Alignof` in C, but there are some edge
     /// cases in GCC where `_Alignof` returns a smaller value.
-    field_alignment_bits: u64,
+    field_alignment_bits: u32,
     /// The alignment, in bits, of valid pointers to this type.
     ///
     /// This is the value returned by `std::mem::align_of` in Rust
     /// (but in bits instead of bytes). `size_bits` is a multiple of this value.
-    pointer_alignment_bits: u64,
+    pointer_alignment_bits: u32,
     /// The required alignment of the type in bits.
     ///
     /// This value is only used by MSVC targets. It is 8 on all other
     /// targets. On MSVC targets, this value restricts the effects of `#pragma pack` except
     /// in some cases involving bit-fields.
-    required_alignment_bits: u64,
+    required_alignment_bits: u32,
+
     pub fn init(size_bytes: u64, alignment_bytes: u64) TypeLayout {
         return TypeLayout{
-            .size_bits = @intCast(u29, size_bytes * 8),
-            .field_alignment_bits = @intCast(u29, alignment_bytes * 8),
-            .pointer_alignment_bits = @intCast(u29, alignment_bytes * 8),
+            .size_bits = size_bytes * 8,
+            .field_alignment_bits = @intCast(u32, alignment_bytes * 8),
+            .pointer_alignment_bits = @intCast(u32, alignment_bytes * 8),
             .required_alignment_bits = 8,
         };
     }
@@ -221,7 +223,7 @@ pub const Record = struct {
         name: StringId,
         /// zero for anonymous fields
         name_tok: TokenIndex = 0,
-        bit_width: ?u64 = null,
+        bit_width: ?u32 = null,
         layout: FieldLayout = .{
             .offset_bits = 0,
             .size_bits = 0,
@@ -874,7 +876,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .decayed_unspecified_variable_len_array,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @truncate(u29, ty.data.record.type_layout.field_alignment_bits / 8),
+        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @intCast(u29, ty.data.record.type_layout.field_alignment_bits / 8),
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),

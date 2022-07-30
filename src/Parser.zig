@@ -1839,7 +1839,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
         var name_tok: TokenIndex = 0;
         var ty = base_ty;
         var bits_node: NodeIndex = .none;
-        var bits: ?u64 = null;
+        var bits: ?u32 = null;
         const first_tok = p.tok_i;
         if (try p.declarator(ty, .record)) |d| {
             name_tok = d.name;
@@ -1874,7 +1874,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 break :bits;
             }
 
-            bits = res.val.getInt(u29);
+            bits = res.val.getInt(u32);
             bits_node = res.node;
         }
 
