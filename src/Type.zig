@@ -874,7 +874,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .decayed_unspecified_variable_len_array,
         .static_array,
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
-        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @intCast(u29, ty.data.record.type_layout.field_alignment_bits / 8),
+        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @truncate(u29, ty.data.record.type_layout.field_alignment_bits / 8),
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
