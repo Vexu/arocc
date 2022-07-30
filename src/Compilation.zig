@@ -278,6 +278,11 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
             \\
         ),
         .aarch64, .aarch64_be => try w.writeAll("#define __aarch64__ 1\n"),
+        .msp430 => try w.writeAll(
+            \\#define MSP430 1
+            \\#define __MSP430__ 1
+            \\
+        ),
         else => {},
     }
 
@@ -362,7 +367,7 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
     const os = comp.target.os.tag;
     const wchar: Type = switch (comp.target.cpu.arch) {
         .xcore => .{ .specifier = .uchar },
-        .ve => .{ .specifier = .uint },
+        .ve, .msp430 => .{ .specifier = .uint },
         .arm, .armeb, .thumb, .thumbeb => .{
             .specifier = if (os != .windows and os != .netbsd and os != .openbsd) .uint else .int,
         },
@@ -376,6 +381,7 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
     const ptrdiff = if (os == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
         Type{ .specifier = .long_long }
     else switch (comp.target.cpu.arch.ptrBitWidth()) {
+        16 => Type{ .specifier = .int },
         32 => Type{ .specifier = .int },
         64 => Type{ .specifier = .long },
         else => unreachable,
@@ -384,6 +390,7 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
     const size = if (os == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
         Type{ .specifier = .ulong_long }
     else switch (comp.target.cpu.arch.ptrBitWidth()) {
+        16 => Type{ .specifier = .uint },
         32 => Type{ .specifier = .uint },
         64 => Type{ .specifier = .ulong },
         else => unreachable,
@@ -412,7 +419,7 @@ fn generateVaListType(comp: *Compilation) !Type {
             .ios, .macos, .tvos, .watchos, .aix => @as(Kind, .char_ptr),
             else => return Type{ .specifier = .void }, // unknown
         },
-        .i386 => .char_ptr,
+        .i386, .msp430 => .char_ptr,
         .x86_64 => switch (comp.target.os.tag) {
             .windows => @as(Kind, .char_ptr),
             else => .x86_64_va_list,

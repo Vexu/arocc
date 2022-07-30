@@ -716,6 +716,7 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
         .s390x,
         .xcore,
         .arc,
+        .msp430,
         => return .unsigned,
         else => return .signed,
     }
@@ -769,7 +770,10 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .func, .var_args_func, .old_style_func, .void, .bool => 1,
         .char, .schar, .uchar => 1,
         .short, .ushort => 2,
-        .int, .uint => 4,
+        .int, .uint => switch (comp.target.cpu.arch) {
+            .msp430 => @as(u64, 2),
+            else => 4,
+        },
         .long, .ulong => switch (comp.target.os.tag) {
             .linux,
             .macos,
@@ -788,7 +792,10 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .fp16 => 2,
         .float => 4,
         .double => 8,
-        .long_double => 16,
+        .long_double => switch (comp.target.cpu.arch) {
+            .msp430 => @as(u64, 8),
+            else => 16,
+        },
         .float80 => 16,
         .float128 => 16,
         // zig fmt: off
@@ -859,7 +866,10 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .func, .var_args_func, .old_style_func => 4, // TODO check target
         .char, .schar, .uchar, .void, .bool, .complex_char, .complex_schar, .complex_uchar => 1,
         .short, .ushort, .complex_short, .complex_ushort => 2,
-        .int, .uint, .complex_int, .complex_uint => 4,
+        .int, .uint, .complex_int, .complex_uint => switch (comp.target.cpu.arch) {
+            .msp430 => @as(u29, 2),
+            else => 4,
+        },
         .long, .ulong, .complex_long, .complex_ulong => switch (comp.target.os.tag) {
             .linux,
             .macos,
@@ -871,15 +881,15 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
             .emscripten,
             => comp.target.cpu.arch.ptrBitWidth() >> 3,
             .windows, .uefi => 4,
-            else => 4,
+            else => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 4,
         },
 
-        .long_long, .ulong_long, .complex_long_long, .complex_ulong_long => 8,
+        .long_long, .ulong_long, .complex_long_long, .complex_ulong_long => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 8,
         .int128, .uint128, .complex_int128, .complex_uint128 => 16,
         .fp16, .complex_fp16 => 2,
-        .float, .complex_float => 4,
-        .double, .complex_double => 8,
-        .long_double, .complex_long_double => 16,
+        .float, .complex_float => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 4,
+        .double, .complex_double => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 8,
+        .long_double, .complex_long_double => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 16,
         .float80, .complex_float80, .float128, .complex_float128 => 16,
         .pointer,
         .decayed_array,
