@@ -840,9 +840,8 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         if (ty.requestedAlignment(comp)) |requested| {
             // gcc does not respect alignment on enums
             if (ty.get(.@"enum")) |ty_enum| {
-                const nat_al = ty_enum.alignof(comp);
                 if (comp.langopts.emulate == .gcc) {
-                    return nat_al;
+                    return ty_enum.alignof(comp);
                 }
             }
             return requested;
