@@ -274,6 +274,7 @@ pub const Token = struct {
         builtin_choose_expr,
         builtin_va_arg,
         builtin_offsetof,
+        builtin_bitoffsetof,
 
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
@@ -357,6 +358,7 @@ pub const Token = struct {
                 .builtin_choose_expr,
                 .builtin_va_arg,
                 .builtin_offsetof,
+                .builtin_bitoffsetof,
                 .keyword_attribute1,
                 .keyword_attribute2,
                 .keyword_extension,
@@ -595,6 +597,7 @@ pub const Token = struct {
                 .builtin_choose_expr => "__builtin_choose_expr",
                 .builtin_va_arg => "__builtin_va_arg",
                 .builtin_offsetof => "__builtin_offsetof",
+                .builtin_bitoffsetof => "__builtin_bitoffsetof",
                 .keyword_attribute1 => "__attribute",
                 .keyword_attribute2 => "__attribute__",
                 .keyword_extension => "__extension__",
@@ -632,6 +635,7 @@ pub const Token = struct {
                 .builtin_choose_expr,
                 .builtin_va_arg,
                 .builtin_offsetof,
+                .builtin_bitoffsetof,
                 => "an identifier",
                 .string_literal,
                 .string_literal_utf_16,
@@ -895,6 +899,7 @@ pub const Token = struct {
         .{ "__builtin_choose_expr", .builtin_choose_expr },
         .{ "__builtin_va_arg", .builtin_va_arg },
         .{ "__builtin_offsetof", .builtin_offsetof },
+        .{ "__builtin_bitoffsetof", .builtin_bitoffsetof },
     });
 };
 

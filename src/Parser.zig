@@ -5390,6 +5390,7 @@ fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
 ///  | __builtin_choose_expr '(' constExpr ',' assignExpr ',' assignExpr ')'
 ///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
 ///  | __builtin_offsetof '(' typeName ',' offsetofMemberDesignator ')'
+///  | __builtin_bitoffsetof '(' typeName ',' offsetofMemberDesignator ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| cast_expr: {
@@ -5442,7 +5443,8 @@ fn castExpr(p: *Parser) Error!Result {
     switch (p.tok_ids[p.tok_i]) {
         .builtin_choose_expr => return p.builtinChooseExpr(),
         .builtin_va_arg => return p.builtinVaArg(),
-        .builtin_offsetof => return p.builtinOffsetof(),
+        .builtin_offsetof => return p.builtinOffsetof(false),
+        .builtin_bitoffsetof => return p.builtinOffsetof(true),
         // TODO: other special-cased builtins
         else => {},
     }
@@ -5516,7 +5518,7 @@ fn builtinVaArg(p: *Parser) Error!Result {
     }) };
 }
 
-fn builtinOffsetof(p: *Parser) Error!Result {
+fn builtinOffsetof(p: *Parser, wantBits: bool) Error!Result {
     const builtin_tok = p.tok_i;
     p.tok_i += 1;
 
@@ -5547,7 +5549,7 @@ fn builtinOffsetof(p: *Parser) Error!Result {
 
     return Result{
         .ty = p.comp.types.size,
-        .val = if (offsetof_expr.val.tag == .int)
+        .val = if (offsetof_expr.val.tag == .int and !wantBits)
             Value.int(offsetof_expr.val.data.int / 8)
         else
             offsetof_expr.val,
@@ -5567,9 +5569,10 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
     try p.validateFieldAccess(base_ty, base_ty, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
 
-    var bit_offset = Value.int(0);
+    var offset_num: usize = 0;
     const base_record_ty = base_ty.canonicalize(.standard);
-    var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false);
+    var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, &offset_num);
+    var bit_offset = Value.int(offset_num);
 
     while (true) switch (p.tok_ids[p.tok_i]) {
         .period => {
@@ -5583,7 +5586,8 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
             }
             try p.validateFieldAccess(lhs.ty, lhs.ty, field_name_tok, field_name);
             const record_ty = lhs.ty.canonicalize(.standard);
-            lhs = try p.fieldAccessExtra(lhs.node, record_ty, field_name, false);
+            lhs = try p.fieldAccessExtra(lhs.node, record_ty, field_name, false, &offset_num);
+            bit_offset = Value.int(offset_num);
         },
         .l_bracket => {
             const l_bracket_tok = p.tok_i;
@@ -6034,7 +6038,8 @@ fn fieldAccess(
 
     const field_name = try p.comp.intern(p.tokSlice(field_name_tok));
     try p.validateFieldAccess(record_ty, expr_ty, field_name_tok, field_name);
-    return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow);
+    var bit_offset: usize = 0;
+    return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, &bit_offset);
 }
 
 fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_tok: TokenIndex, field_name: StringId) Error!void {
@@ -6052,7 +6057,7 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
     return error.ParsingFailed;
 }
 
-fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: StringId, is_arrow: bool) Error!Result {
+fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: StringId, is_arrow: bool, offset_bits: *usize) Error!Result {
     for (record_ty.data.record.fields) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
@@ -6061,16 +6066,19 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
                 .ty = f.ty,
                 .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
             });
-            return p.fieldAccessExtra(inner, f.ty, field_name, false);
+            return p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
         }
-        if (field_name == f.name) return Result{
-            .ty = f.ty,
-            .node = try p.addNode(.{
-                .tag = if (is_arrow) .member_access_ptr_expr else .member_access_expr,
+        if (field_name == f.name) {
+            offset_bits.* = f.layout.offset_bits;
+            return Result{
                 .ty = f.ty,
-                .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
-            }),
-        };
+                .node = try p.addNode(.{
+                    .tag = if (is_arrow) .member_access_ptr_expr else .member_access_expr,
+                    .ty = f.ty,
+                    .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
+                }),
+            };
+        }
     }
     // We already checked that this container has a field by the name.
     unreachable;

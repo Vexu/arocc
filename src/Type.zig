@@ -821,7 +821,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
     };
 }
 
-pub fn bitSizeof(ty: Type, comp: *Compilation) ?u64 {
+pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
     return switch (ty.specifier) {
         .bool => 1,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
