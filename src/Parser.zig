@@ -5828,7 +5828,9 @@ fn unExpr(p: *Parser) Error!Result {
                 res.val = .{ .tag = .int, .data = .{ .int = size } };
             } else {
                 res.val.tag = .unavailable;
-                try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
+                if (res.ty.hasIncompleteSize()) {
+                    try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
+                }
             }
             res.ty = p.comp.types.size;
             try res.un(p, .sizeof_expr);
