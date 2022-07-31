@@ -14,4 +14,3 @@ typedef struct {
 
 #define NULL ((void*)0)
 #define offsetof(T, member) __builtin_offsetof(T, member)
-#define bitoffsetof(T, member) __builtin_bitoffsetof(T, member)
