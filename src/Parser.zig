@@ -5518,7 +5518,7 @@ fn builtinVaArg(p: *Parser) Error!Result {
     }) };
 }
 
-fn builtinOffsetof(p: *Parser, wantBits: bool) Error!Result {
+fn builtinOffsetof(p: *Parser, want_bits: bool) Error!Result {
     const builtin_tok = p.tok_i;
     p.tok_i += 1;
 
@@ -5549,7 +5549,7 @@ fn builtinOffsetof(p: *Parser, wantBits: bool) Error!Result {
 
     return Result{
         .ty = p.comp.types.size,
-        .val = if (offsetof_expr.val.tag == .int and !wantBits)
+        .val = if (offsetof_expr.val.tag == .int and !want_bits)
             Value.int(offsetof_expr.val.data.int / 8)
         else
             offsetof_expr.val,
@@ -5587,7 +5587,9 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
             try p.validateFieldAccess(lhs.ty, lhs.ty, field_name_tok, field_name);
             const record_ty = lhs.ty.canonicalize(.standard);
             lhs = try p.fieldAccessExtra(lhs.node, record_ty, field_name, false, &offset_num);
-            bit_offset = Value.int(offset_num);
+            if (bit_offset.tag != .unavailable) {
+                bit_offset = Value.int(offset_num + bit_offset.getInt(usize));
+            }
         },
         .l_bracket => {
             const l_bracket_tok = p.tok_i;
@@ -6066,7 +6068,9 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
                 .ty = f.ty,
                 .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
             });
-            return p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
+            const ret = p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
+            offset_bits.* += @intCast(usize, f.layout.offset_bits);
+            return ret;
         }
         if (field_name == f.name) {
             offset_bits.* = @intCast(usize, f.layout.offset_bits);
