@@ -7,6 +7,7 @@ const Compilation = @import("Compilation.zig");
 const Attribute = @import("Attribute.zig");
 const StringInterner = @import("StringInterner.zig");
 const StringId = StringInterner.StringId;
+const CType = @import("zig").CType;
 
 const Type = @This();
 
@@ -769,33 +770,19 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .variable_len_array, .unspecified_variable_len_array, .incomplete_array => return null,
         .func, .var_args_func, .old_style_func, .void, .bool => 1,
         .char, .schar, .uchar => 1,
-        .short, .ushort => 2,
-        .int, .uint => switch (comp.target.cpu.arch) {
-            .msp430 => @as(u64, 2),
-            else => 4,
-        },
-        .long, .ulong => switch (comp.target.os.tag) {
-            .linux,
-            .macos,
-            .freebsd,
-            .netbsd,
-            .dragonfly,
-            .openbsd,
-            .wasi,
-            .emscripten,
-            => comp.target.cpu.arch.ptrBitWidth() >> 3,
-            .windows, .uefi => 4,
-            else => 4,
-        },
-        .long_long, .ulong_long => 8,
+        .short => @divExact(CType.sizeInBits(.short, comp.target), 8),
+        .ushort => @divExact(CType.sizeInBits(.ushort, comp.target), 8),
+        .int => @divExact(CType.sizeInBits(.int, comp.target), 8),
+        .uint => @divExact(CType.sizeInBits(.uint, comp.target), 8),
+        .long => @divExact(CType.sizeInBits(.long, comp.target), 8),
+        .ulong => @divExact(CType.sizeInBits(.ulong, comp.target), 8),
+        .long_long => @divExact(CType.sizeInBits(.longlong, comp.target), 8),
+        .ulong_long => @divExact(CType.sizeInBits(.ulonglong, comp.target), 8),
+        .long_double => @divExact(CType.sizeInBits(.longdouble, comp.target), 8),
         .int128, .uint128 => 16,
         .fp16 => 2,
         .float => 4,
         .double => 8,
-        .long_double => switch (comp.target.cpu.arch) {
-            .msp430 => @as(u64, 8),
-            else => 16,
-        },
         .float80 => 16,
         .float128 => 16,
         // zig fmt: off
