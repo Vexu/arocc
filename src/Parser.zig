@@ -5569,7 +5569,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
     try p.validateFieldAccess(base_ty, base_ty, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
 
-    var offset_num: usize = 0;
+    var offset_num: u64 = 0;
     const base_record_ty = base_ty.canonicalize(.standard);
     var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, &offset_num);
     var bit_offset = Value.int(offset_num);
@@ -5588,7 +5588,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
             const record_ty = lhs.ty.canonicalize(.standard);
             lhs = try p.fieldAccessExtra(lhs.node, record_ty, field_name, false, &offset_num);
             if (bit_offset.tag != .unavailable) {
-                bit_offset = Value.int(offset_num + bit_offset.getInt(usize));
+                bit_offset = Value.int(offset_num + bit_offset.getInt(u64));
             }
         },
         .l_bracket => {
@@ -6040,8 +6040,8 @@ fn fieldAccess(
 
     const field_name = try p.comp.intern(p.tokSlice(field_name_tok));
     try p.validateFieldAccess(record_ty, expr_ty, field_name_tok, field_name);
-    var bit_offset: usize = 0;
-    return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, &bit_offset);
+    var discard: u64 = 0;
+    return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, &discard);
 }
 
 fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_tok: TokenIndex, field_name: StringId) Error!void {
@@ -6059,7 +6059,7 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
     return error.ParsingFailed;
 }
 
-fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: StringId, is_arrow: bool, offset_bits: *usize) Error!Result {
+fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: StringId, is_arrow: bool, offset_bits: *u64) Error!Result {
     for (record_ty.data.record.fields) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
@@ -6069,11 +6069,11 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
                 .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
             });
             const ret = p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
-            offset_bits.* += @intCast(usize, f.layout.offset_bits);
+            offset_bits.* += f.layout.offset_bits;
             return ret;
         }
         if (field_name == f.name) {
-            offset_bits.* = @intCast(usize, f.layout.offset_bits);
+            offset_bits.* = f.layout.offset_bits;
             return Result{
                 .ty = f.ty,
                 .node = try p.addNode(.{
