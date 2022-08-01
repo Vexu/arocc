@@ -11,6 +11,7 @@ struct Foo {
   char a;
 } __attribute__((packed));
 _Static_assert(__builtin_offsetof(struct Foo, a) == 0, "field Foo.a wrong bit offset");
+_Static_assert(__builtin_bitoffsetof(struct Foo, a) == 0, "field Foo.a wrong bit offset");
 
 #define EXPECTED_ERRORS "offsetof.c:1:28: error: offsetof requires struct or union type, 'int' invalid" \
     "offsetof.c:3:28: error: offsetof of incomplete type 'struct A'" \
