@@ -143,6 +143,7 @@ pub const Options = packed struct {
     @"invalid-noreturn": Kind = .default,
     @"zero-length-array": Kind = .default,
     @"old-style-flexible-struct": Kind = .default,
+    @"gnu-zero-variadic-macro-arguments": Kind = .default,
 };
 
 const messages = struct {
@@ -1997,6 +1998,13 @@ const messages = struct {
         const pedantic = true;
         const opt = "old-style-flexible-struct";
     };
+    const comma_deletion_va_args = struct {
+        const msg = "token pasting of ',' and __VA_ARGS__ is a GNU extension";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "gnu-zero-variadic-macro-arguments";
+        const suppress_gcc = true;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -2277,6 +2285,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
             if (@hasDecl(info, "suppress_version")) if (comp.langopts.standard.atLeast(info.suppress_version)) return .off;
             if (@hasDecl(info, "suppress_gnu")) if (comp.langopts.standard.isExplicitGNU()) return .off;
             if (@hasDecl(info, "suppress_language_option")) if (!@field(comp.langopts, info.suppress_language_option)) return .off;
+            if (@hasDecl(info, "suppress_gcc")) if (comp.langopts.emulate == .gcc) return .off;
             if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
             return kind;
         }

@@ -1232,6 +1232,48 @@ fn expandFuncMacro(
                     some.expansionSlice(),
                 ) else try pp.pragmaOperator(string.?, loc);
             },
+            .comma => {
+                if (tok_i + 2 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
+                    const hash_hash = func_macro.tokens[tok_i + 1];
+                    var maybe_va_args = func_macro.tokens[tok_i + 2];
+                    var consumed: usize = 2;
+                    if (maybe_va_args.id == .macro_ws and tok_i + 3 < func_macro.tokens.len) {
+                        consumed = 3;
+                        maybe_va_args = func_macro.tokens[tok_i + 3];
+                    }
+                    if (maybe_va_args.id == .keyword_va_args) {
+                        // GNU extension: `, ##__VA_ARGS__` deletes the comma if __VA_ARGS__ is empty
+                        tok_i += consumed;
+                        if (func_macro.params.len == expanded_args.items.len) {
+                            // Empty __VA_ARGS__, drop the comma
+                            try pp.err(hash_hash, .comma_deletion_va_args);
+                        } else if (func_macro.params.len == 0 and expanded_args.items.len == 1 and expanded_args.items[0].len == 0) {
+                            // Ambiguous whether this is "empty __VA_ARGS__" or "__VA_ARGS__ omitted"
+                            if (pp.comp.langopts.standard.isGNU()) {
+                                // GNU standard, drop the comma
+                                try pp.err(hash_hash, .comma_deletion_va_args);
+                            } else {
+                                // C standard, retain the comma
+                                try buf.append(tokFromRaw(raw));
+                            }
+                        } else {
+                            try buf.append(tokFromRaw(raw));
+                            if (expanded_variable_arguments.items.len > 0 or variable_arguments.items.len == func_macro.params.len) {
+                                try pp.err(hash_hash, .comma_deletion_va_args);
+                            }
+                            const raw_loc = Source.Location{
+                                .id = maybe_va_args.source,
+                                .byte_offset = maybe_va_args.start,
+                                .line = maybe_va_args.line,
+                            };
+                            try bufCopyTokens(&buf, expanded_variable_arguments.items, &.{raw_loc});
+                        }
+                        continue;
+                    }
+                }
+                // Regular comma, no token pasting with __VA_ARGS__
+                try buf.append(tokFromRaw(raw));
+            },
             else => try buf.append(tokFromRaw(raw)),
         }
     }
