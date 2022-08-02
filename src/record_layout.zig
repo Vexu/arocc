@@ -93,7 +93,7 @@ const SysVContext = struct {
 
         // A struct field starts at the next offset in the struct that is properly
         // aligned with respect to the start of the struct.
-        var offset_bits = if (self.is_union) 0 else std.mem.alignForward(self.size_bits, fld_align_bits);
+        var offset_bits = if (self.is_union) 0 else std.mem.alignForwardGeneric(u64, self.size_bits, fld_align_bits);
         var size_bits = fld_layout.size_bits;
 
         // The alignment of a record is the maximum of its field alignments. See test cases
@@ -158,7 +158,7 @@ const SysVContext = struct {
             // - the alignment of the type is larger than its size,
             // then it is aligned to the type's field alignment. See test case 0083.
             if (!has_packing_annotation) {
-                var start_bit = std.mem.alignForward(first_unused_bit, field_align_bits);
+                var start_bit = std.mem.alignForwardGeneric(u64, first_unused_bit, field_align_bits);
 
                 var does_field_cross_boundary = start_bit % ty_fld_algn_bits + bit_width > ty_size_bits;
 
@@ -185,7 +185,7 @@ const SysVContext = struct {
             }
         }
 
-        var offset_bits = std.mem.alignForward(first_unused_bit, field_align_bits);
+        var offset_bits = std.mem.alignForwardGeneric(u64, first_unused_bit, field_align_bits);
         self.size_bits = std.math.max(self.size_bits, offset_bits + bit_width);
 
         // Unnamed fields do not contribute to the record alignment except on a few targets.
@@ -329,7 +329,7 @@ const MscvContext = struct {
         self.field_align_bits = std.math.max(self.field_align_bits, field_align);
         const offset_bits = switch (self.is_union) {
             true => 0,
-            false => std.mem.alignForward(self.size_bits, field_align),
+            false => std.mem.alignForwardGeneric(u64, self.size_bits, field_align),
         };
         self.size_bits = std.math.max(self.size_bits, offset_bits + size_bits);
         fld.layout = .{
@@ -350,7 +350,7 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
 
             context.layoutFields(rec, comp);
 
-            context.size_bits = std.mem.alignForward(context.size_bits, context.aligned_bits);
+            context.size_bits = std.mem.alignForwardGeneric(u64, context.size_bits, context.aligned_bits);
 
             rec.type_layout = TypeLayout{
                 .size_bits = context.size_bits,
