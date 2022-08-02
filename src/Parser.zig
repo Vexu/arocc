@@ -19,6 +19,7 @@ const CharInfo = @import("CharInfo.zig");
 const Value = @import("Value.zig");
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
+const RecordLayout = @import("record_layout.zig");
 const StringId = @import("StringInterner.zig").StringId;
 
 const Parser = @This();
@@ -1755,8 +1756,6 @@ fn recordSpec(p: *Parser) Error!Type {
         if (field.ty.hasIncompleteSize()) break;
     } else {
         record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
-        // TODO actually calculate
-        record_ty.type_layout = Type.TypeLayout.init(1, 1);
     }
     if (old_field_attr_start < p.field_attr_buf.items.len) {
         const field_attr_slice = p.field_attr_buf.items[old_field_attr_start..];
@@ -1778,6 +1777,10 @@ fn recordSpec(p: *Parser) Error!Type {
     }, attr_buf_top, null);
     if (ty.specifier == .attributed and symbol_index != null) {
         p.syms.syms.items(.ty)[symbol_index.?] = ty;
+    }
+
+    if (!ty.hasIncompleteSize()) {
+        RecordLayout.recordLayout(&ty, p.pp.comp, p);
     }
 
     // finish by creating a node
