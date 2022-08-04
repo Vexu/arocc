@@ -991,10 +991,13 @@ pub fn systemCompiler(comp: *const Compilation) LangOpts.Compiler {
         target.isAndroid() or
         target.isBSD() or
         target.os.tag == .fuchsia or
-        target.os.tag == .solaris)
+        target.os.tag == .solaris or
+        target.os.tag == .haiku or
+        target.cpu.arch == .hexagon)
     {
         return .clang;
     }
+    if (target.os.tag == .uefi) return .msvc;
     // this is before windows to grab WindowsGnu
     if (target.abi.isGnu() or
         target.os.tag == .linux)
