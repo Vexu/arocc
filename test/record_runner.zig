@@ -20,6 +20,8 @@ const global_test_skip = [_][]const u8{
 // these targets don't work at all. Don't even parse
 const global_target_skip = [_][]const u8{
     "avr-atmega328-other-gnu:Gcc",
+    "arm-baseline-ios-none:Clang", //these IOS targets fail on macos.
+    "arm-cortex_r4-ios-none:Clang",
 };
 // these files don't parse the MSVC extensions
 const msvc_hard_skip = [_][]const u8{
