@@ -15,7 +15,7 @@ const TypeLayout = Type.TypeLayout;
 // that code marked as "SPDX-License-Identifier: MIT OR Apache-2.0"
 // so is compatible with arocc's MIT licence
 
-const BITS_PER_BYTE: u29 = 8;
+const BITS_PER_BYTE = 8;
 
 const SysVContext = struct {
     // Does the record has an __attribute__((packed)) annotation.
@@ -28,14 +28,13 @@ const SysVContext = struct {
     // The size of the record. This might not be a multiple of 8 if the record contains bit-fields.
     // For structs, this is also the offset of the first bit after the last field.
     size_bits: u64,
-    fn init(ty: *Type, comp: *const Compilation, parser: ?*const Parser) SysVContext {
+
+    fn init(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) SysVContext {
         var pack_value: ?u64 = null;
-        if (parser) |p| {
-            if (p.pragma_pack) |pak| {
-                pack_value = pak * BITS_PER_BYTE;
-            }
+        if (pragma_pack) |pak| {
+            pack_value = pak * BITS_PER_BYTE;
         }
-        var req_align = BITS_PER_BYTE;
+        var req_align: u29 = BITS_PER_BYTE;
         if (ty.requestedAlignment(comp)) |aln| {
             req_align = aln * BITS_PER_BYTE;
         }
@@ -61,11 +60,11 @@ const SysVContext = struct {
             if (fld.bit_width != null) {
                 self.layoutBitField(comp, fld, field_attrs, type_layout);
             } else {
-                self.layoutRegluarField(fld, field_attrs, type_layout);
+                self.layoutRegularField(fld, field_attrs, type_layout);
             }
         }
     }
-    fn layoutRegluarField(
+    fn layoutRegularField(
         self: *SysVContext,
         fld: *Field,
         fld_attrs: ?[]const Attribute,
@@ -93,8 +92,8 @@ const SysVContext = struct {
 
         // A struct field starts at the next offset in the struct that is properly
         // aligned with respect to the start of the struct.
-        var offset_bits = if (self.is_union) 0 else std.mem.alignForwardGeneric(u64, self.size_bits, fld_align_bits);
-        var size_bits = fld_layout.size_bits;
+        const offset_bits = if (self.is_union) 0 else std.mem.alignForwardGeneric(u64, self.size_bits, fld_align_bits);
+        const size_bits = fld_layout.size_bits;
 
         // The alignment of a record is the maximum of its field alignments. See test cases
         // 0084, 0085, 0086.
@@ -124,7 +123,7 @@ const SysVContext = struct {
             ty_fld_algn_bits = 1;
         }
 
-        if (bit_width <= 0) {
+        if (bit_width == 0) {
             // Some targets have a minimum alignment of zero-sized bit-fields. See test case
             // 0074.
             if (comp.minZeroWidthBitfieldAlignment()) |target_align| {
@@ -139,7 +138,7 @@ const SysVContext = struct {
 
         const annotation_alignment: u32 = annotationAlignment(fld_attrs) orelse 1;
 
-        var first_unused_bit: u64 = if (self.is_union) 0 else self.size_bits;
+        const first_unused_bit: u64 = if (self.is_union) 0 else self.size_bits;
         var field_align_bits: u64 = 1;
 
         if (bit_width == 0) {
@@ -158,9 +157,9 @@ const SysVContext = struct {
             // - the alignment of the type is larger than its size,
             // then it is aligned to the type's field alignment. See test case 0083.
             if (!has_packing_annotation) {
-                var start_bit = std.mem.alignForwardGeneric(u64, first_unused_bit, field_align_bits);
+                const start_bit = std.mem.alignForwardGeneric(u64, first_unused_bit, field_align_bits);
 
-                var does_field_cross_boundary = start_bit % ty_fld_algn_bits + bit_width > ty_size_bits;
+                const does_field_cross_boundary = start_bit % ty_fld_algn_bits + bit_width > ty_size_bits;
 
                 if (ty_fld_algn_bits > ty_size_bits or does_field_cross_boundary) {
                     field_align_bits = std.math.max(field_align_bits, ty_fld_algn_bits);
@@ -178,14 +177,14 @@ const SysVContext = struct {
             // storage boundary if it were positioned at the first unused bit in the record,
             // it is aligned to the type's field alignment. See test case 0083.
             if (!has_packing_annotation) {
-                var does_field_cross_boundary = first_unused_bit % ty_fld_algn_bits + bit_width > ty_size_bits;
+                const does_field_cross_boundary = first_unused_bit % ty_fld_algn_bits + bit_width > ty_size_bits;
 
                 if (does_field_cross_boundary)
                     field_align_bits = std.math.max(field_align_bits, ty_fld_algn_bits);
             }
         }
 
-        var offset_bits = std.mem.alignForwardGeneric(u64, first_unused_bit, field_align_bits);
+        const offset_bits = std.mem.alignForwardGeneric(u64, first_unused_bit, field_align_bits);
         self.size_bits = std.math.max(self.size_bits, offset_bits + bit_width);
 
         // Unnamed fields do not contribute to the record alignment except on a few targets.
@@ -238,18 +237,16 @@ const MscvContext = struct {
     contains_non_bitfield: bool,
     is_union: bool,
 
-    fn init(ty: *const Type, comp: *const Compilation, parser: ?*const Parser) MscvContext {
+    fn init(ty: *const Type, comp: *const Compilation, pragma_pack: ?u8) MscvContext {
         var pack_value: ?u32 = null;
         if (ty.hasAttribute(.@"packed")) {
             // __attribute__((packed)) behaves like #pragma pack(1) in clang. See test case 0056.
             pack_value = BITS_PER_BYTE;
         }
         if (pack_value == null) {
-            if (parser) |p| {
-                if (p.pragma_pack) |pack| {
-                    pack_value = pack * BITS_PER_BYTE;
-                    // std.debug.print("pragma : {}\n", .{pack});
-                }
+            if (pragma_pack) |pack| {
+                pack_value = pack * BITS_PER_BYTE;
+                // std.debug.print("pragma : {}\n", .{pack});
             }
         }
         if (pack_value) |pack| {
@@ -257,7 +254,9 @@ const MscvContext = struct {
             // std.debug.print("pre:{} post:{?}\n", .{ pack, pack_value });
         }
 
-        var must_align = BITS_PER_BYTE;
+        // The required alignment can be increased by adding a __declspec(align)
+        // annotation. See test case 0023.
+        var must_align: u29 = BITS_PER_BYTE;
         if (ty.requestedAlignment(comp)) |req_align| {
             must_align = req_align * BITS_PER_BYTE;
         }
@@ -310,7 +309,7 @@ const MscvContext = struct {
         if (fld.bit_width) |bit_width| {
             self.layoutBitField(type_layout.size_bits, fld_align_bits, fld.name_tok != 0, bit_width);
         } else {
-            self.layoutRegluarField(type_layout.size_bits, fld_align_bits, fld);
+            self.layoutRegularField(type_layout.size_bits, fld_align_bits, fld);
         }
     }
     fn layoutBitField(self: *MscvContext, size_bits: u64, field_align: u64, is_named: bool, bit_width: u32) void {
@@ -322,7 +321,7 @@ const MscvContext = struct {
         // TODO
     }
 
-    fn layoutRegluarField(self: *MscvContext, size_bits: u64, field_align: u32, fld: *Field) void {
+    fn layoutRegularField(self: *MscvContext, size_bits: u64, field_align: u32, fld: *Field) void {
         self.contains_non_bitfield = true;
         self.ongoing_bitfield = null;
         self.pointer_align_bits = std.math.max(self.pointer_align_bits, field_align);
@@ -339,14 +338,14 @@ const MscvContext = struct {
     }
 };
 
-pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser) void {
+pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
     // const mapper = comp.string_interner.getSlowTypeMapper();
     // const name = mapper.lookup(ty.getRecord().?.name);
     // std.debug.print("struct {s}\n", .{name});
     switch (comp.langopts.emulate) {
         .gcc, .clang => {
-            var context = SysVContext.init(ty, comp, parser);
-            var rec = getMutableRecord(ty).?;
+            var context = SysVContext.init(ty, comp, pragma_pack);
+            var rec = getMutableRecord(ty);
 
             context.layoutFields(rec, comp);
 
@@ -360,8 +359,8 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
             };
         },
         .msvc => {
-            var context = MscvContext.init(ty, comp, parser);
-            var rec = getMutableRecord(ty).?;
+            var context = MscvContext.init(ty, comp, pragma_pack);
+            var rec = getMutableRecord(ty);
 
             for (rec.fields) |*fld, fld_indx| {
                 var field_attrs: ?[]const Attribute = null;
@@ -382,8 +381,7 @@ pub fn recordLayout(ty: *Type, comp: *const Compilation, parser: ?*const Parser)
 }
 
 pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
-    if (ty.isRecord()) {
-        const rec = ty.getRecord().?;
+    if (ty.getRecord()) |rec| {
         type_layout.* = rec.type_layout;
     } else {
         type_layout.size_bits = ty.bitSizeof(comp) orelse 0;
@@ -393,13 +391,13 @@ pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayou
     }
 }
 
-pub fn getMutableRecord(ty: *Type) ?*Type.Record {
+pub fn getMutableRecord(ty: *Type) *Type.Record {
     return switch (ty.specifier) {
         .attributed => getMutableRecord(&ty.data.attributed.base),
         .typeof_type, .decayed_typeof_type => getMutableRecord(ty.data.sub_type),
         .typeof_expr, .decayed_typeof_expr => getMutableRecord(&ty.data.expr.ty),
         .@"struct", .@"union" => ty.data.record,
-        else => null,
+        else => unreachable,
     };
 }
 
