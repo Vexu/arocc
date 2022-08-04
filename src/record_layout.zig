@@ -18,15 +18,15 @@ const TypeLayout = Type.TypeLayout;
 const BITS_PER_BYTE = 8;
 
 const SysVContext = struct {
-    // Does the record has an __attribute__((packed)) annotation.
+    /// Does the record has an __attribute__((packed)) annotation.
     attr_packed: bool,
-    // The value of #pragma pack(N) at the type level if any.
+    /// The value of #pragma pack(N) at the type level if any.
     max_field_align_bits: ?u64,
-    // The alignment of this record.
+    /// The alignment of this record.
     aligned_bits: u32,
     is_union: bool,
-    // The size of the record. This might not be a multiple of 8 if the record contains bit-fields.
-    // For structs, this is also the offset of the first bit after the last field.
+    /// The size of the record. This might not be a multiple of 8 if the record contains bit-fields.
+    /// For structs, this is also the offset of the first bit after the last field.
     size_bits: u64,
 
     fn init(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) SysVContext {
@@ -42,10 +42,11 @@ const SysVContext = struct {
             .attr_packed = ty.hasAttribute(.@"packed"),
             .max_field_align_bits = pack_value,
             .aligned_bits = req_align,
-            .is_union = ty.get(.@"union") != null,
+            .is_union = ty.is(.@"union"),
             .size_bits = 0,
         };
     }
+
     fn layoutFields(self: *SysVContext, rec: *const Record, comp: *const Compilation) void {
         for (rec.fields) |*fld, fld_indx| {
             var type_layout = TypeLayout.init(0, 0);
@@ -64,6 +65,7 @@ const SysVContext = struct {
             }
         }
     }
+
     fn layoutRegularField(
         self: *SysVContext,
         fld: *Field,
@@ -218,24 +220,25 @@ const SysVContext = struct {
     }
 };
 
-const OngoingBitfield = struct {
-    size_bits: u64,
-    unused_size_bits: u64,
-};
 const MscvContext = struct {
     req_align_bits: u32,
     max_field_align_bits: ?u32,
-    // The alignment of pointers that point to an object of this type. This is greater to or equal
-    // to the required alignment. Once all fields have been laid out, the size of the record will be
-    // rounded up to this value.
+    /// The alignment of pointers that point to an object of this type. This is greater to or equal
+    /// to the required alignment. Once all fields have been laid out, the size of the record will be
+    /// rounded up to this value.
     pointer_align_bits: u32,
-    // The alignment of this type when it is used as a record field. This is greater to or equal to
-    // the pointer alignment.
+    /// The alignment of this type when it is used as a record field. This is greater to or equal to
+    /// the pointer alignment.
     field_align_bits: u32,
     size_bits: u64,
     ongoing_bitfield: ?OngoingBitfield,
     contains_non_bitfield: bool,
     is_union: bool,
+
+    const OngoingBitfield = struct {
+        size_bits: u64,
+        unused_size_bits: u64,
+    };
 
     fn init(ty: *const Type, comp: *const Compilation, pragma_pack: ?u8) MscvContext {
         var pack_value: ?u32 = null;
@@ -268,9 +271,10 @@ const MscvContext = struct {
             .max_field_align_bits = pack_value,
             .ongoing_bitfield = null,
             .contains_non_bitfield = false,
-            .is_union = ty.get(.@"union") != null,
+            .is_union = ty.is(.@"union"),
         };
     }
+
     fn layoutField(self: *MscvContext, comp: *const Compilation, fld: *Field, fld_attrs: ?[]const Attribute) void {
         var type_layout: TypeLayout = TypeLayout.init(0, 0);
 
@@ -312,6 +316,7 @@ const MscvContext = struct {
             self.layoutRegularField(type_layout.size_bits, fld_align_bits, fld);
         }
     }
+
     fn layoutBitField(self: *MscvContext, size_bits: u64, field_align: u64, is_named: bool, bit_width: u32) void {
         _ = self;
         _ = size_bits;
