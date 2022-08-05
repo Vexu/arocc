@@ -1017,16 +1017,14 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
         => {
             var invalid: ?Token = null;
             var identifier: ?Token = null;
-            for (param_toks) |tok| switch (tok.id) {
-                .identifier, .extended_identifier, .builtin_choose_expr, .builtin_va_arg => {
-                    if (identifier) |_| invalid = tok else identifier = tok;
-                },
-                .macro_ws => continue,
-                else => {
+            for (param_toks) |tok| {
+                if (tok.id == .macro_ws) continue;
+                if (!tok.id.isMacroIdentifier()) {
                     invalid = tok;
                     break;
-                },
-            };
+                }
+                if (identifier) |_| invalid = tok else identifier = tok;
+            }
             if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
                 try pp.comp.diag.add(
