@@ -890,7 +890,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
-        .attributed => ty.data.attributed.base.alignof(comp),
+        .attributed => ty.requestedAlignment(comp) orelse ty.data.attributed.base.alignof(comp),
         else => unreachable,
     };
 }

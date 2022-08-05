@@ -104,6 +104,9 @@ typedef struct {
     short i:1 __attribute__((aligned(8)));
 } A;
 
+__attribute__((aligned(2))) typedef struct { int a; } AttributeBeforeTypedef;
+_Static_assert(_Alignof(AttributeBeforeTypedef) == 2, "wrong struct alignment");
+
 __attribute__(()) // test attribute at eof
 
 #define TESTS_SKIPPED 1
@@ -116,4 +119,4 @@ __attribute__(()) // test attribute at eof
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
     "attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement" \
     "attributes.c:76:6: error: cannot call non function type 'int'" \
-    "attributes.c:107:18: error: expected identifier or '('" \
+    "attributes.c:110:18: error: expected identifier or '('" \
