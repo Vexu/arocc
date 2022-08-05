@@ -163,7 +163,10 @@ record_members: std.ArrayListUnmanaged(struct { tok: TokenIndex, name: StringId 
 @"switch": ?*Switch = null,
 in_loop: bool = false,
 pragma_pack: ?u8 = null,
-declspec_id: StringId,
+string_ids: struct {
+    declspec_id: StringId,
+    main_id: StringId,
+},
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
     if (codepoint <= 0x7F) return false;
@@ -523,7 +526,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .enum_buf = std.ArrayList(Type.Enum.Field).init(pp.comp.gpa),
         .record_buf = std.ArrayList(Type.Record.Field).init(pp.comp.gpa),
         .field_attr_buf = std.ArrayList([]const Attribute).init(pp.comp.gpa),
-        .declspec_id = try pp.comp.intern("__declspec"),
+        .string_ids = .{
+            .declspec_id = try pp.comp.intern("__declspec"),
+            .main_id = try pp.comp.intern("main"),
+        },
     };
     errdefer {
         p.nodes.deinit(pp.comp.gpa);
@@ -791,6 +797,9 @@ fn decl(p: *Parser) Error!bool {
             .ty = init_d.d.ty,
             .name = init_d.d.name,
         };
+        if (interned_declarator_name == p.string_ids.main_id and !init_d.d.ty.returnType().is(.int)) {
+            try p.errTok(.main_return_type, init_d.d.name);
+        }
         defer p.func = func;
 
         try p.syms.pushScope(p);
@@ -1594,7 +1603,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 var interned_name = try p.comp.intern(p.tokSlice(p.tok_i));
                 var declspec_found = false;
 
-                if (interned_name == p.declspec_id) {
+                if (interned_name == p.string_ids.declspec_id) {
                     try p.errTok(.declspec_not_enabled, p.tok_i);
                     p.tok_i += 1;
                     if (p.eatToken(.l_paren)) |_| {
@@ -3830,10 +3839,17 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
 
         if (last_noreturn != .yes) {
             const ret_ty = p.func.ty.?.returnType();
+            var return_zero = false;
             if (last_noreturn == .no and !ret_ty.is(.void) and !ret_ty.isFunc() and !ret_ty.isArray()) {
-                try p.errStr(.func_does_not_return, p.tok_i - 1, p.tokSlice(p.func.name));
+                const func_name = p.tokSlice(p.func.name);
+                const interned_name = try p.comp.intern(func_name);
+                if (interned_name == p.string_ids.main_id and ret_ty.is(.int)) {
+                    return_zero = true;
+                } else {
+                    try p.errStr(.func_does_not_return, p.tok_i - 1, func_name);
+                }
             }
-            try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.func.ty.?.returnType(), .data = undefined }));
+            try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.func.ty.?.returnType(), .data = .{ .return_zero = return_zero } }));
         }
         if (p.func.ident) |some| try p.decl_buf.insert(decl_buf_top, some.node);
         if (p.func.pretty_ident) |some| try p.decl_buf.insert(decl_buf_top, some.node);
