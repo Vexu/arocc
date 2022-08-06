@@ -131,6 +131,10 @@ const builtin_macros = struct {
         .id = .macro_param_has_include_next,
         .source = .generated,
     }};
+    const defined = [1]RawToken{.{
+        .id = .macro_param_defined,
+        .source = .generated,
+    }};
 
     const is_identifier = [1]RawToken{.{
         .id = .macro_param_is_identifier,
@@ -177,6 +181,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_include_next", true, &builtin_macros.has_include_next);
     try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
     try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
+    try pp.addBuiltinMacro("defined", true, &builtin_macros.defined);
 
     try pp.addBuiltinMacro("__FILE__", false, &builtin_macros.file);
     try pp.addBuiltinMacro("__LINE__", false, &builtin_macros.line);
@@ -1113,7 +1118,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
 
 fn expandFuncMacro(
     pp: *Preprocessor,
-    loc: Source.Location,
+    macro_tok: Token,
     func_macro: *const Macro,
     args: *const MacroArguments,
     expanded_args: *const MacroArguments,
@@ -1200,11 +1205,46 @@ fn expandFuncMacro(
                 const arg = expanded_args.items[0];
                 const result = if (arg.len == 0) blk: {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
+                    try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = macro_tok.loc, .extra = extra }, &.{});
                     break :blk false;
-                } else try pp.handleBuiltinMacro(raw.id, arg, loc);
+                } else try pp.handleBuiltinMacro(raw.id, arg, macro_tok.loc);
                 const start = pp.comp.generated_buf.items.len;
                 try pp.comp.generated_buf.writer().print("{}\n", .{@boolToInt(result)});
+                try buf.append(try pp.makeGeneratedToken(start, .integer_literal, tokFromRaw(raw)));
+            },
+            .macro_param_defined => {
+                var identifier: ?Token = null;
+                var defined = false;
+
+                for (args.items[0]) |tok| {
+                    if (tok.id == .macro_ws) continue;
+                    if (!tok.id.isMacroIdentifier()) {
+                        try pp.comp.diag.add(
+                            .{ .tag = .macro_name_must_be_identifier, .loc = tok.loc },
+                            tok.expansionSlice(),
+                        );
+                        break;
+                    }
+                    if (identifier) |_| {
+                        try pp.comp.diag.add(
+                            .{ .tag = .missing_paren_after_defined, .loc = tok.loc },
+                            tok.expansionSlice(),
+                        );
+                        break;
+                    } else {
+                        identifier = tok;
+                    }
+                } else {
+                    if (identifier) |ident| {
+                        try pp.comp.diag.add(.{ .tag = .expansion_to_defined, .loc = macro_tok.loc }, macro_tok.expansionSlice());
+                        defined = pp.defines.contains(pp.expandedSlice(ident));
+                    } else {
+                        try pp.comp.diag.add(.{ .tag = .macro_name_must_be_identifier, .loc = macro_tok.loc }, macro_tok.expansionSlice());
+                    }
+                }
+
+                const start = pp.comp.generated_buf.items.len;
+                try pp.comp.generated_buf.writer().print("{}\n", .{@boolToInt(defined)});
                 try buf.append(try pp.makeGeneratedToken(start, .integer_literal, tokFromRaw(raw)));
             },
             .macro_param_pragma_operator => {
@@ -1224,11 +1264,11 @@ fn expandFuncMacro(
                         break;
                     },
                 };
-                if (string == null and invalid == null) invalid = .{ .loc = loc, .id = .eof };
+                if (string == null and invalid == null) invalid = .{ .loc = macro_tok.loc, .id = .eof };
                 if (invalid) |some| try pp.comp.diag.add(
                     .{ .tag = .pragma_operator_string_literal, .loc = some.loc },
                     some.expansionSlice(),
-                ) else try pp.pragmaOperator(string.?, loc);
+                ) else try pp.pragmaOperator(string.?, macro_tok.loc);
             },
             .comma => {
                 if (tok_i + 2 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
@@ -1541,7 +1581,7 @@ fn expandMacroExhaustive(
                         expanded_args.appendAssumeCapacity(expand_buf.toOwnedSlice());
                     }
 
-                    var res = try pp.expandFuncMacro(macro_tok.loc, macro, &args, &expanded_args);
+                    var res = try pp.expandFuncMacro(macro_tok, macro, &args, &expanded_args);
                     defer res.deinit();
                     const tokens_added = res.items.len;
 

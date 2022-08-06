@@ -145,6 +145,7 @@ pub const Options = packed struct {
     @"old-style-flexible-struct": Kind = .default,
     @"gnu-zero-variadic-macro-arguments": Kind = .default,
     @"main-return-type": Kind = .default,
+    @"expansion-to-defined": Kind = .default,
 };
 
 const messages = struct {
@@ -2010,6 +2011,15 @@ const messages = struct {
         const msg = "return type of 'main' is not 'int'";
         const kind = .warning;
         const opt = "main-return-type";
+    };
+    const expansion_to_defined = struct {
+        const msg = "macro expansion producing 'defined' has undefined behavior";
+        const kind = .warning;
+        const opt = "expansion-to-defined";
+    };
+    const missing_paren_after_defined = struct {
+        const msg = "missing ')' after 'defined'";
+        const kind = .@"error";
     };
 };
 

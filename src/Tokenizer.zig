@@ -145,6 +145,9 @@ pub const Token = struct {
         macro_param_has_include,
         /// Special token for implementing __has_include_next
         macro_param_has_include_next,
+        /// Special token for implementing `defined` as a macro function,
+        /// which is a GCC extension also supported by clang
+        macro_param_defined,
         /// Special token for implementing __is_identifier
         macro_param_is_identifier,
         /// Special token for implementing __FILE__
@@ -461,6 +464,7 @@ pub const Token = struct {
                 .macro_param_has_builtin,
                 .macro_param_has_include,
                 .macro_param_has_include_next,
+                .macro_param_defined,
                 .macro_param_is_identifier,
                 .macro_file,
                 .macro_line,
