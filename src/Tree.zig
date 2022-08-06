@@ -134,6 +134,7 @@ pub const Node = struct {
             kind: CastKind,
         },
         int: u64,
+        return_zero: bool,
 
         pub fn forDecl(data: Data, tree: Tree) struct {
             decls: []const NodeIndex,
@@ -503,6 +504,7 @@ pub const Tag = enum(u8) {
 
     /// Inserted at the end of a function body if no return stmt is found.
     /// ty is the functions return type
+    /// data is return_zero which is true if the function is called "main" and ty is compatible with int
     implicit_return,
 
     /// Inserted in array_init_expr to represent unspecified elements.
@@ -692,6 +694,12 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
         try val.dump(ty, tree.comp, w);
         try w.writeByte(')');
     }
+    if (tag == .implicit_return and data.return_zero) {
+        if (color) util.setColor(IMPLICIT, w);
+        try w.writeAll(" (value: 0)");
+        if (color) util.setColor(.reset, w);
+    }
+
     try w.writeAll("\n");
     if (color) util.setColor(.reset, w);
 

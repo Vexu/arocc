@@ -144,6 +144,7 @@ pub const Options = packed struct {
     @"zero-length-array": Kind = .default,
     @"old-style-flexible-struct": Kind = .default,
     @"gnu-zero-variadic-macro-arguments": Kind = .default,
+    @"main-return-type": Kind = .default,
 };
 
 const messages = struct {
@@ -2004,6 +2005,11 @@ const messages = struct {
         const pedantic = true;
         const opt = "gnu-zero-variadic-macro-arguments";
         const suppress_gcc = true;
+    };
+    const main_return_type = struct {
+        const msg = "return type of 'main' is not 'int'";
+        const kind = .warning;
+        const opt = "main-return-type";
     };
 };
 
