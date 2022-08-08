@@ -560,16 +560,18 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         pp.expansion_source_loc = pp.top_expansion_buf.items[0].loc;
         try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, false);
     }
-    if (pp.top_expansion_buf.items.len == 0) {
+    for (pp.top_expansion_buf.items) |tok| {
+        if (tok.id == .macro_ws) continue;
+        if (!tok.id.validPreprocessorExprStart()) {
+            try pp.comp.diag.add(.{
+                .tag = .invalid_preproc_expr_start,
+                .loc = tok.loc,
+            }, tok.expansionSlice());
+            return false;
+        }
+        break;
+    } else {
         try pp.err(eof, .expected_value_in_expr);
-        return false;
-    }
-    if (!pp.top_expansion_buf.items[0].id.validPreprocessorExprStart()) {
-        const tok = pp.top_expansion_buf.items[0];
-        try pp.comp.diag.add(.{
-            .tag = .invalid_preproc_expr_start,
-            .loc = tok.loc,
-        }, tok.expansionSlice());
         return false;
     }
 
