@@ -388,12 +388,13 @@ pub const Token = struct {
         }
 
         /// Turn macro keywords into identifiers.
-        pub fn simplifyMacroKeyword(id: *Id) void {
+        /// `keyword_defined` is special since it should only turn into an identifier if
+        /// we are *not* in an #if or #elif expression
+        pub fn simplifyMacroKeywordExtra(id: *Id, defined_to_identifier: bool) void {
             switch (id.*) {
                 .keyword_include,
                 .keyword_include_next,
                 .keyword_define,
-                .keyword_defined,
                 .keyword_undef,
                 .keyword_ifdef,
                 .keyword_ifndef,
@@ -405,8 +406,15 @@ pub const Token = struct {
                 .keyword_line,
                 .keyword_va_args,
                 => id.* = .identifier,
+                .keyword_defined => if (defined_to_identifier) {
+                    id.* = .identifier;
+                },
                 else => {},
             }
+        }
+
+        pub fn simplifyMacroKeyword(id: *Id) void {
+            simplifyMacroKeywordExtra(id, false);
         }
 
         pub fn lexeme(id: Id) ?[]const u8 {
@@ -717,6 +725,7 @@ pub const Token = struct {
                 .bang,
                 .identifier,
                 .extended_identifier,
+                .keyword_defined,
                 .one,
                 .zero,
                 => true,
