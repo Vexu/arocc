@@ -28,6 +28,7 @@ const SysVContext = struct {
     /// The size of the record. This might not be a multiple of 8 if the record contains bit-fields.
     /// For structs, this is also the offset of the first bit after the last field.
     size_bits: u64,
+    comp: *const Compilation,
 
     fn init(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) SysVContext {
         var pack_value: ?u64 = null;
@@ -44,6 +45,7 @@ const SysVContext = struct {
             .aligned_bits = req_align,
             .is_union = ty.is(.@"union"),
             .size_bits = 0,
+            .comp = comp,
         };
     }
 
@@ -82,8 +84,8 @@ const SysVContext = struct {
 
         // The field alignment can be increased by __attribute__((aligned)) annotations on the
         // field. See test case 0085.
-        if (annotationAlignment(fld_attrs)) |anno| {
-            fld_align_bits = std.math.max(fld_align_bits, anno);
+        if (Type.annotationAlignment(self.comp, fld_attrs)) |anno| {
+            fld_align_bits = std.math.max(fld_align_bits, anno * BITS_PER_BYTE);
         }
 
         // #pragma pack takes precedence over all other attributes. See test cases 0084 and
@@ -138,7 +140,7 @@ const SysVContext = struct {
         const attr_packed = self.attr_packed or isPacked(fld_attrs);
         const has_packing_annotation = attr_packed or self.max_field_align_bits != null;
 
-        const annotation_alignment: u32 = annotationAlignment(fld_attrs) orelse 1;
+        const annotation_alignment: u32 = if (Type.annotationAlignment(self.comp, fld_attrs)) |anno| anno * BITS_PER_BYTE else 1;
 
         const first_unused_bit: u64 = if (self.is_union) 0 else self.size_bits;
         var field_align_bits: u64 = 1;
@@ -234,6 +236,7 @@ const MscvContext = struct {
     ongoing_bitfield: ?OngoingBitfield,
     contains_non_bitfield: bool,
     is_union: bool,
+    comp: *const Compilation,
 
     const OngoingBitfield = struct {
         size_bits: u64,
@@ -272,6 +275,7 @@ const MscvContext = struct {
             .ongoing_bitfield = null,
             .contains_non_bitfield = false,
             .is_union = ty.is(.@"union"),
+            .comp = comp,
         };
     }
 
@@ -284,8 +288,8 @@ const MscvContext = struct {
         // underlying type and the __declspec(align) annotation on the field itself.
         // See test case 0028.
         var req_align = type_layout.required_alignment_bits;
-        if (annotationAlignment(fld_attrs)) |anno| {
-            req_align = std.math.max(anno, req_align);
+        if (Type.annotationAlignment(self.comp, fld_attrs)) |anno| {
+            req_align = std.math.max(anno * BITS_PER_BYTE, req_align);
         }
 
         // The required alignment of a record is the maximum of the required alignments of its
@@ -414,24 +418,6 @@ fn isPacked(attrs: ?[]const Attribute) bool {
         return true;
     }
     return false;
-}
-
-/// get alignment annotation on the field
-/// not the one on the underlying type
-fn annotationAlignment(attrs: ?[]const Attribute) ?u32 {
-    const a = attrs orelse return null;
-
-    var max_requested: ?u32 = null;
-    for (a) |attribute| {
-        if (attribute.tag != .aligned) continue;
-        if (attribute.args.aligned.alignment) |alignment| {
-            const requested = alignment.requested * BITS_PER_BYTE;
-            if (max_requested == null or max_requested.? < requested) {
-                max_requested = requested;
-            }
-        }
-    }
-    return max_requested;
 }
 
 // The effect of #pragma pack(N) depends on the target.

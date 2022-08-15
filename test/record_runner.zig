@@ -19,14 +19,16 @@ const global_test_skip = [_][]const u8{
 };
 // these targets don't work at all. Don't even parse
 const global_target_skip = [_][]const u8{
-    "avr-atmega328-other-gnu:Gcc",
+    "avr-avr2-other-eabi:Gcc",
+    "i386-i686-macos-none:Clang", // zig doesn't think this exists
     "arm-baseline-ios-none:Clang", //these IOS targets fail on macos.
     "arm-cortex_r4-ios-none:Clang",
 };
 // these files don't parse the MSVC extensions
 const msvc_hard_skip = [_][]const u8{
-    "0018", "0024", "0025", "0026", "0036",
-    "0042", "0043", "0044", "0045", "0053",
+    "0018", "0024", "0025", "0026",
+    "0042", "0043", "0044", "0045",
+    "0053",
 };
 
 const TestControl = struct {
@@ -42,8 +44,10 @@ const Single = struct {
 };
 const do_single: ?Single = if (false)
 .{
-    .target = "x86_64-x86_64-windows-msvc:Msvc",
-    .c_test = "00", // run all the tests
+    .target = "i386-i586-linux-gnu:Gcc",
+    .c_test = "0002",
+    // .target = "x86_64-x86_64-windows-msvc:Msvc",
+    // .c_test = "00", // run all the tests
     // .target = "arm-arm1136j_s-freebsd-gnu:Clang",
     // .c_test = "0052",
 } else null;
@@ -58,369 +62,175 @@ const test_control = [_]TestControl{
     .{
         .target = "x86_64-x86_64-windows-msvc:Msvc",
         .non_working_tests = &.{
-            // "0003", "0005", "0006", "0007",
-            "0005", "0006", "0007",
-            "0008", "0009", "0010", "0011",
-            "0012", "0014", "0015", "0016",
-            "0017", "0018", "0019", "0020",
-            "0021", "0022", "0023", "0024",
-            "0025", "0026", "0027", "0028",
-            "0029", "0030", "0031", "0032",
-            "0033", "0034", "0035", "0036",
-            "0037", "0038", "0039", "0040",
-            "0041", "0042", "0043", "0044",
-            "0045", "0046", "0047", "0048",
-            "0049", "0050", "0051", "0052",
-            "0053", "0054", "0055", "0056",
-            "0057", "0058", "0059", "0060",
-            "0061", "0062", "0063", "0064",
-            "0065", "0066", "0067", "0068",
-            "0069", "0070", "0071", "0072",
-            "0073", "0074", "0075", "0076",
-            "0077", "0078", "0079", "0080",
-            "0081", "0082", "0083", "0084",
-            "0085", "0086", "0087", "0088",
+            "0003", "0005", "0006", "0007", "0008", "0009", "0010", "0012",
+            "0015", "0017", "0020", "0021", "0022", "0023", "0027", "0028",
+            "0029", "0030", "0031", "0035", "0036", "0037", "0038", "0039",
+            "0040", "0041", "0047", "0057", "0058", "0059", "0063", "0064",
+            "0065", "0066", "0072", "0074", "0077", "0078", "0080", "0081",
+            "0088",
         },
         .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{
-            "0001", "0002", "0004", "0013",
-        },
+        .skip_extra_checks = &.{},
     },
     .{
         .target = "aarch64-generic-ios-macabi:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0054", "0055", "0060", "0061", "0062", "0068",
-            "0083",
-        },
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
-
     .{
         .target = "aarch64-generic-ios-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0054", "0055", "0060", "0061", "0062", "0068",
-            "0083",
-        },
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
-        .target = "aarch64-generic-other-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0015", "0032", "0033", "0034",
-            "0035", "0054", "0055", "0060", "0061", "0062",
-            "0068", "0083",
-        },
+        .target = "aarch64-generic-other-eabi:Clang",
+        .non_working_tests = &.{"0013", "0015", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "aarch64-generic-tvos-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0054", "0055", "0060", "0061", "0062", "0068",
-            "0083",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "arm-baseline-ios-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0002", "0013", "0018", "0024", "0032",
-            "0033", "0034", "0043", "0067", "0068", "0069",
-            "0073", "0082", "0083", "0087", "0088",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "arm-arm1136j_s-freebsd-gnu:Clang",
-        .non_working_tests = &.{
-            "0052",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "arm-cortex_r4-freebsd-gnu:Clang",
-        .non_working_tests = &.{
-            "0052",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "arm-cortex_r4-ios-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0002", "0013", "0018", "0024", "0032",
-            "0033", "0034", "0043", "0067", "0068", "0069",
-            "0073", "0082", "0083", "0087", "0088",
-        },
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "hexagon-generic-linux-musl:Clang",
-        .non_working_tests = &.{
-            "0016", "0019", "0051", "0054", "0060", "0061",
-            "0062", "0063",
-        },
+        .non_working_tests = &.{"0016", "0019", "0051", "0054", "0060", "0061", "0062", "0063", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i386-ios-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0002", "0013", "0018", "0024", "0032",
-            "0033", "0034", "0043", "0067", "0068", "0069",
-            "0082", "0083", "0087", "0088",
-        },
+        .non_working_tests = &.{"0001", "0002", "0013", "0018", "0024", "0032", "0033", "0034", "0043", "0067", "0068", "0069", "0082", "0083", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i586-linux-gnu:Gcc",
-        .non_working_tests = &.{
-            "0002", "0013", "0019", "0024", "0043", "0054",
-            "0055", "0060", "0061", "0062", "0068", "0069",
-            "0082", "0087", "0088",
-        },
+        .non_working_tests = &.{"0002", "0013", "0019", "0024", "0043", "0054", "0055", "0060", "0061", "0062", "0068", "0069", "0082", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i586-linux-musl:Gcc",
-        .non_working_tests = &.{
-            "0002", "0013", "0019", "0024", "0043", "0054",
-            "0055", "0060", "0061", "0062", "0068", "0069",
-            "0082", "0087", "0088",
-        },
+        .non_working_tests = &.{"0002", "0013", "0019", "0024", "0043", "0054", "0055", "0060", "0061", "0062", "0068", "0069", "0082", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i686-freebsd-gnu:Clang",
-        .non_working_tests = &.{
-            "0002", "0013", "0018", "0024", "0043", "0054",
-            "0055", "0060", "0061", "0062", "0068", "0069",
-            "0082", "0087", "0088",
-        },
+        .non_working_tests = &.{"0002", "0013", "0018", "0024", "0043", "0054", "0055", "0060", "0061", "0062", "0068", "0069", "0082", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i686-linux-android:Clang",
-        .non_working_tests = &.{
-            "0002", "0013", "0018", "0024", "0043", "0054",
-            "0055", "0060", "0061", "0062", "0068", "0069",
-            "0082", "0087", "0088",
-        },
+        .non_working_tests = &.{"0002", "0013", "0018", "0024", "0043", "0054", "0055", "0060", "0061", "0062", "0068", "0069", "0082", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i686-linux-gnu:Gcc",
-        .non_working_tests = &.{
-            "0002", "0013", "0019", "0024", "0043", "0054",
-            "0055", "0060", "0061", "0062", "0068", "0069",
-            "0082", "0087", "0088",
-        },
+        .non_working_tests = &.{"0002", "0013", "0019", "0024", "0043", "0054", "0055", "0060", "0061", "0062", "0068", "0069", "0082", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i686-linux-musl:Gcc",
-        .non_working_tests = &.{
-            "0002", "0013", "0019", "0024", "0043", "0054",
-            "0055", "0060", "0061", "0062", "0068", "0069",
-            "0082", "0087", "0088",
-        },
+        .non_working_tests = &.{"0002", "0013", "0019", "0024", "0043", "0054", "0055", "0060", "0061", "0062", "0068", "0069", "0082", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i686-netbsd-gnu:Clang",
-        .non_working_tests = &.{
-            "0002", "0013", "0018", "0024", "0043", "0054",
-            "0055", "0060", "0061", "0062", "0068", "0069",
-            "0082", "0087", "0088",
-        },
+        .non_working_tests = &.{"0002", "0013", "0018", "0024", "0043", "0054", "0055", "0060", "0061", "0062", "0068", "0069", "0082", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "i386-i686-openbsd-gnu:Clang",
-        .non_working_tests = &.{
-            "0002", "0013", "0018", "0024", "0043", "0054",
-            "0055", "0060", "0061", "0062", "0068", "0069",
-            "0082", "0087", "0088",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "mipsel-mips32-linux-gnu:Gcc",
-        .non_working_tests = &.{
-            "0052",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "mipsel-mips32-linux-musl:Gcc",
-        .non_working_tests = &.{
-            "0052",
-        },
+        .non_working_tests = &.{"0002", "0013", "0018", "0024", "0043", "0054", "0055", "0060", "0061", "0062", "0068", "0069", "0082", "0087", "0088", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "mips-mips32-linux-gnuabi64:Gcc",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0067", "0068", "0083",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "mips-mips32-linux-gnu:Gcc",
-        .non_working_tests = &.{
-            "0052",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "mips-mips32-linux-musl:Gcc",
-        .non_working_tests = &.{
-            "0052",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "mips-mips32r6-linux-gnu:Gcc",
-        .non_working_tests = &.{
-            "0052",
-        },
+        .non_working_tests = &.{"0001", "0013", "0032", "0033", "0034", "0035", "0052", "0067", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "mips-mips64r6-linux-gnuabi64:Gcc",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0067", "0068", "0083",
-        },
+        .non_working_tests = &.{"0001", "0013", "0032", "0033", "0034", "0035", "0052", "0067", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
-        .target = "msp430-msp430-other-none:Clang",
-        .non_working_tests = &.{
-            "0062",
-        },
+        .target = "mipsel-mips32-other-eabi:Clang",
+        .non_working_tests = &.{"0052", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
-        .target = "riscv64-generic_rv64-other-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0054", "0055", "0060", "0061", "0062", "0068",
-            "0083",
-        },
+        .target = "msp430-msp430-other-eabi:Clang",
+        .non_working_tests = &.{"0062", },
+        .skip_offset_checks = &.{},
+        .skip_extra_checks = &.{},
+    },
+    .{
+        .target = "riscv64-baseline_rv64-other-eabi:Clang",
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "s390x-generic-linux-gnu:Gcc",
-        .non_working_tests = &.{
-            "0050",
-            "0052",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "sparc-v8-linux-gnu:Gcc",
-        .non_working_tests = &.{
-            "0052",
-        },
+        .non_working_tests = &.{"0050", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "sparc-v9-solaris-eabi:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0067", "0068", "0083",
-        },
-        .skip_offset_checks = &.{},
-        .skip_extra_checks = &.{},
-    },
-    .{
-        .target = "x86_64-i686-macos-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0002", "0013", "0018", "0024", "0032",
-            "0033", "0034", "0035", "0043", "0054", "0055",
-            "0060", "0061", "0062", "0067", "0068", "0069",
-            "0082", "0083", "0087", "0088",
-        },
+        .non_working_tests = &.{"0001", "0013", "0032", "0033", "0034", "0035", "0052", "0067", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "x86_64-x86_64-ios-macabi:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0054", "0055", "0060", "0061", "0062", "0068",
-            "0083",
-        },
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "x86_64-x86_64-ios-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0054", "0055", "0060", "0061", "0062", "0068",
-            "0083",
-        },
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "x86_64-x86_64-linux-gnux32:Gcc",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0067", "0068", "0083",
-        },
+        .non_working_tests = &.{"0001", "0013", "0032", "0033", "0034", "0035", "0067", "0068", "0083", },
+        .skip_offset_checks = &.{},
+        .skip_extra_checks = &.{},
+    },
+    .{
+        .target = "x86_64-x86_64-other-eabi:Clang",
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "x86_64-x86_64-solaris-eabi:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0054", "0055", "0060", "0061", "0062", "0068",
-            "0083",
-        },
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
     .{
         .target = "x86_64-x86_64-tvos-none:Clang",
-        .non_working_tests = &.{
-            "0001", "0013", "0032", "0033", "0034", "0035",
-            "0054", "0055", "0060", "0061", "0062", "0068",
-            "0083",
-        },
+        .non_working_tests = &.{"0013", "0032", "0033", "0034", "0035", "0054", "0055", "0060", "0061", "0062", "0068", "0083", },
         .skip_offset_checks = &.{},
         .skip_extra_checks = &.{},
     },
@@ -542,7 +352,12 @@ pub fn main() !void {
                 const target = try getTarget(setting.target);
 
                 switch (target.os.tag) {
-                    .windows,
+                    .windows => {
+                        if (target.cpu.arch != .x86_64 or target.isGnu()) {
+                            stats.skip_count += 1;
+                            continue;
+                        }
+                    },
                     .uefi,
                     // arocc does not support
                     .haiku,
@@ -733,38 +548,41 @@ fn parseTargetsFromCode(set_list: *std.ArrayList(*Settings), source: []const u8,
             set.c_define = define;
             set.target = target;
             // ok. the great filter.
-            for (global_target_skip) |skip| {
-                if (std.mem.eql(u8, target, skip)) {
-                    set.skip_all = true;
+            // if single, skip all this.
+            if (do_single == null) {
+                for (global_target_skip) |skip| {
+                    if (std.mem.eql(u8, target, skip)) {
+                        set.skip_all = true;
+                    }
                 }
-            }
-            for (global_test_skip) |skip| {
-                if (std.mem.count(u8, path, skip) > 0) {
-                    // parse only.
-                    set.c_define = null;
+                for (global_test_skip) |skip| {
+                    if (std.mem.count(u8, path, skip) > 0) {
+                        // parse only.
+                        set.c_define = null;
+                    }
                 }
-            }
-            for (test_control) |control| {
-                if (std.mem.eql(u8, control.target, set.target)) {
-                    for (control.non_working_tests) |skip| {
-                        if (std.mem.count(u8, path, skip) > 0) {
-                            set.c_define = null;
-                            break;
+                for (test_control) |control| {
+                    if (std.mem.eql(u8, control.target, set.target)) {
+                        for (control.non_working_tests) |skip| {
+                            if (std.mem.count(u8, path, skip) > 0) {
+                                set.c_define = null;
+                                break;
+                            }
                         }
-                    }
-                    for (control.skip_offset_checks) |skip| {
-                        if (std.mem.count(u8, path, skip) > 0) {
-                            set.check_offsets = false;
-                            break;
+                        for (control.skip_offset_checks) |skip| {
+                            if (std.mem.count(u8, path, skip) > 0) {
+                                set.check_offsets = false;
+                                break;
+                            }
                         }
-                    }
-                    for (control.skip_extra_checks) |skip| {
-                        if (std.mem.count(u8, path, skip) > 0) {
-                            set.extra_checks = false;
-                            break;
+                        for (control.skip_extra_checks) |skip| {
+                            if (std.mem.count(u8, path, skip) > 0) {
+                                set.extra_checks = false;
+                                break;
+                            }
                         }
+                        break;
                     }
-                    break;
                 }
             }
             try set_list.append(set);
