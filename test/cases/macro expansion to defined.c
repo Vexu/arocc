@@ -47,7 +47,8 @@
 #define EXPECTED_ERRORS \
 	"macro expansion to defined.c:5:5: warning: macro expansion producing 'defined' has undefined behavior [-Wexpansion-to-defined]" \
 	"macro expansion to defined.c:3:24: note: expanded from here" \
-	"macro expansion to defined.c:44:24: error: macro name missing" \
+	"macro expansion to defined.c:43:6: error: macro name must be an identifier" \
+	"macro expansion to defined.c:37:35: note: expanded from here" \
 	"macro expansion to defined.c:43:6: error: expected expression" \
 	"macro expansion to defined.c:37:26: note: expanded from here"
 

@@ -693,17 +693,16 @@ fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *Token, tokens: []const To
         return it.i;
     };
     switch (first.id) {
-        .identifier, .extended_identifier => {
-            macro_tok.id = if (pp.defines.contains(pp.expandedSlice(first))) .one else .zero;
-            return it.i;
-        },
         .l_paren => {},
         else => {
-            try pp.comp.diag.add(.{
-                .tag = .macro_name_must_be_identifier,
-                .loc = first.loc,
-                .extra = .{ .str = pp.expandedSlice(first) },
-            }, first.expansionSlice());
+            if (!first.id.isMacroIdentifier()) {
+                try pp.comp.diag.add(.{
+                    .tag = .macro_name_must_be_identifier,
+                    .loc = first.loc,
+                    .extra = .{ .str = pp.expandedSlice(first) },
+                }, first.expansionSlice());
+            }
+            macro_tok.id = if (pp.defines.contains(pp.expandedSlice(first))) .one else .zero;
             return it.i;
         },
     }
@@ -711,15 +710,15 @@ fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *Token, tokens: []const To
         try pp.err(eof, .macro_name_missing);
         return it.i;
     };
-    switch (second.id) {
-        .identifier, .extended_identifier => {
-            macro_tok.id = if (pp.defines.contains(pp.expandedSlice(second))) .one else .zero;
-        },
-        else => {
-            try pp.err(eof, .macro_name_missing);
-            return it.i;
-        },
+    if (!second.id.isMacroIdentifier()) {
+        try pp.comp.diag.add(.{
+            .tag = .macro_name_must_be_identifier,
+            .loc = second.loc,
+        }, second.expansionSlice());
+        return it.i;
     }
+    macro_tok.id = if (pp.defines.contains(pp.expandedSlice(second))) .one else .zero;
+
     const last = it.nextNoWS();
     if (last == null or last.?.id != .r_paren) {
         const tok = last orelse tokFromRaw(eof);
