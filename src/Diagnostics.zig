@@ -144,6 +144,8 @@ pub const Options = packed struct {
     @"zero-length-array": Kind = .default,
     @"old-style-flexible-struct": Kind = .default,
     @"gnu-zero-variadic-macro-arguments": Kind = .default,
+    @"main-return-type": Kind = .default,
+    @"expansion-to-defined": Kind = .default,
 };
 
 const messages = struct {
@@ -2004,6 +2006,17 @@ const messages = struct {
         const pedantic = true;
         const opt = "gnu-zero-variadic-macro-arguments";
         const suppress_gcc = true;
+    };
+    const main_return_type = struct {
+        const msg = "return type of 'main' is not 'int'";
+        const kind = .warning;
+        const opt = "main-return-type";
+    };
+    const expansion_to_defined = struct {
+        const msg = "macro expansion producing 'defined' has undefined behavior";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "expansion-to-defined";
     };
 };
 

@@ -817,7 +817,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
 
 pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
     return switch (ty.specifier) {
-        .bool => 1,
+        .bool => if (comp.langopts.emulate == .msvc) @as(u64, 8) else 1,
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
         .attributed => ty.data.attributed.base.bitSizeof(comp),

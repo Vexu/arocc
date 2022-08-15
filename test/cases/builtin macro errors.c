@@ -10,6 +10,9 @@
 #define __has_attribute 42
 int x = __has_attribute;
 
+#if __has_feature(__const__)
+#endif
+
 #define EXPECTED_ERRORS \
 	"builtin macro errors.c:1:21: error: builtin feature check macro requires a parenthesized identifier" \
 	"builtin macro errors.c:4:5: error: Missing '(' after built-in macro '__has_attribute'" \

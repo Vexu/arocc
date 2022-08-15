@@ -538,19 +538,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         var tok = tokenizer.next();
         switch (tok.id) {
             .nl, .eof => break tok,
-            .keyword_defined => {
-                const first = tokenizer.nextNoWS();
-                const macro_tok = if (first.id == .l_paren) tokenizer.nextNoWS() else first;
-                if (!macro_tok.id.isMacroIdentifier()) try pp.err(macro_tok, .macro_name_missing);
-                if (first.id == .l_paren) {
-                    const r_paren = tokenizer.nextNoWS();
-                    if (r_paren.id != .r_paren) {
-                        try pp.err(r_paren, .closing_paren);
-                        try pp.err(first, .to_match_paren);
-                    }
-                }
-                tok.id = if (pp.defines.get(pp.tokSlice(macro_tok)) != null) .one else .zero;
-            },
             .whitespace => if (pp.top_expansion_buf.items.len == 0) continue,
             else => {},
         }
@@ -558,25 +545,29 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     } else unreachable;
     if (pp.top_expansion_buf.items.len != 0) {
         pp.expansion_source_loc = pp.top_expansion_buf.items[0].loc;
-        try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, false);
+        try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, false, .expr);
     }
-    if (pp.top_expansion_buf.items.len == 0) {
+    for (pp.top_expansion_buf.items) |tok| {
+        if (tok.id == .macro_ws) continue;
+        if (!tok.id.validPreprocessorExprStart()) {
+            try pp.comp.diag.add(.{
+                .tag = .invalid_preproc_expr_start,
+                .loc = tok.loc,
+            }, tok.expansionSlice());
+            return false;
+        }
+        break;
+    } else {
         try pp.err(eof, .expected_value_in_expr);
-        return false;
-    }
-    if (!pp.top_expansion_buf.items[0].id.validPreprocessorExprStart()) {
-        const tok = pp.top_expansion_buf.items[0];
-        try pp.comp.diag.add(.{
-            .tag = .invalid_preproc_expr_start,
-            .loc = tok.loc,
-        }, tok.expansionSlice());
         return false;
     }
 
     // validate the tokens in the expression
     try pp.tokens.ensureUnusedCapacity(pp.gpa, pp.top_expansion_buf.items.len);
-    for (pp.top_expansion_buf.items) |_, i| {
-        var tok = pp.top_expansion_buf.items[i];
+    var i: usize = 0;
+    const items = pp.top_expansion_buf.items;
+    while (i < items.len) : (i += 1) {
+        var tok = items[i];
         switch (tok.id) {
             .string_literal,
             .string_literal_utf_16,
@@ -635,24 +626,29 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             },
             .macro_ws, .whitespace => continue,
             else => if (tok.id.isMacroIdentifier()) {
-                try pp.comp.diag.add(.{
-                    .tag = .undefined_macro,
-                    .loc = tok.loc,
-                    .extra = .{ .str = pp.expandedSlice(tok) },
-                }, tok.expansionSlice());
-
-                if (i + 1 < pp.top_expansion_buf.items.len and
-                    pp.top_expansion_buf.items[i + 1].id == .l_paren)
-                {
+                if (tok.id == .keyword_defined) {
+                    const tokens_consumed = try pp.handleKeywordDefined(&tok, items[i + 1 ..], eof);
+                    i += tokens_consumed + 1; // + 1 for keyword_defined
+                } else {
                     try pp.comp.diag.add(.{
-                        .tag = .fn_macro_undefined,
+                        .tag = .undefined_macro,
                         .loc = tok.loc,
                         .extra = .{ .str = pp.expandedSlice(tok) },
                     }, tok.expansionSlice());
-                    return false;
-                }
 
-                tok.id = .zero; // undefined macro
+                    if (i + 1 < pp.top_expansion_buf.items.len and
+                        pp.top_expansion_buf.items[i + 1].id == .l_paren)
+                    {
+                        try pp.comp.diag.add(.{
+                            .tag = .fn_macro_undefined,
+                            .loc = tok.loc,
+                            .extra = .{ .str = pp.expandedSlice(tok) },
+                        }, tok.expansionSlice());
+                        return false;
+                    }
+
+                    tok.id = .zero; // undefined macro
+                }
             },
         }
         pp.tokens.appendAssumeCapacity(tok);
@@ -682,9 +678,61 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .record_buf = undefined,
         .attr_buf = undefined,
         .field_attr_buf = undefined,
-        .declspec_id = undefined,
+        .string_ids = undefined,
     };
     return parser.macroExpr();
+}
+
+/// Turns macro_tok from .keyword_defined into .zero or .one depending on whether the argument is defined
+/// Returns the number of tokens consumed
+fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *Token, tokens: []const Token, eof: RawToken) !usize {
+    std.debug.assert(macro_tok.id == .keyword_defined);
+    var it = TokenIterator.init(tokens);
+    const first = it.nextNoWS() orelse {
+        try pp.err(eof, .macro_name_missing);
+        return it.i;
+    };
+    switch (first.id) {
+        .l_paren => {},
+        else => {
+            if (!first.id.isMacroIdentifier()) {
+                try pp.comp.diag.add(.{
+                    .tag = .macro_name_must_be_identifier,
+                    .loc = first.loc,
+                    .extra = .{ .str = pp.expandedSlice(first) },
+                }, first.expansionSlice());
+            }
+            macro_tok.id = if (pp.defines.contains(pp.expandedSlice(first))) .one else .zero;
+            return it.i;
+        },
+    }
+    const second = it.nextNoWS() orelse {
+        try pp.err(eof, .macro_name_missing);
+        return it.i;
+    };
+    if (!second.id.isMacroIdentifier()) {
+        try pp.comp.diag.add(.{
+            .tag = .macro_name_must_be_identifier,
+            .loc = second.loc,
+        }, second.expansionSlice());
+        return it.i;
+    }
+    macro_tok.id = if (pp.defines.contains(pp.expandedSlice(second))) .one else .zero;
+
+    const last = it.nextNoWS();
+    if (last == null or last.?.id != .r_paren) {
+        const tok = last orelse tokFromRaw(eof);
+        try pp.comp.diag.add(.{
+            .tag = .closing_paren,
+            .loc = tok.loc,
+        }, tok.expansionSlice());
+        try pp.comp.diag.add(.{
+            .tag = .to_match_paren,
+            .loc = first.loc,
+        }, first.expansionSlice());
+    }
+
+    return it.i;
 }
 
 /// Skip until #else #elif #endif, return last directive token id.
@@ -1017,16 +1065,14 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
         => {
             var invalid: ?Token = null;
             var identifier: ?Token = null;
-            for (param_toks) |tok| switch (tok.id) {
-                .identifier, .extended_identifier, .builtin_choose_expr, .builtin_va_arg => {
-                    if (identifier) |_| invalid = tok else identifier = tok;
-                },
-                .macro_ws => continue,
-                else => {
+            for (param_toks) |tok| {
+                if (tok.id == .macro_ws) continue;
+                if (!tok.id.isMacroIdentifier()) {
                     invalid = tok;
                     break;
-                },
-            };
+                }
+                if (identifier) |_| invalid = tok else identifier = tok;
+            }
             if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
                 try pp.comp.diag.add(
@@ -1443,6 +1489,36 @@ fn removeExpandedTokens(pp: *Preprocessor, buf: *ExpandBuf, start: usize, len: u
     moving_end_idx.* -|= len;
 }
 
+/// The behavior of `defined` depends on whether we are in a preprocessor
+/// expression context (#if or #elif) or not.
+/// In a non-expression context it's just an identifier. Within a preprocessor
+/// expression it is a unary operator or one-argument function.
+const EvalContext = enum {
+    expr,
+    non_expr,
+};
+
+/// Helper for safely iterating over a slice of tokens while skipping whitespace
+const TokenIterator = struct {
+    toks: []const Token,
+    i: usize,
+
+    fn init(toks: []const Token) TokenIterator {
+        return .{ .toks = toks, .i = 0 };
+    }
+
+    fn nextNoWS(self: *TokenIterator) ?Token {
+        while (self.i < self.toks.len) : (self.i += 1) {
+            const tok = self.toks[self.i];
+            if (tok.id == .whitespace or tok.id == .macro_ws) continue;
+
+            self.i += 1;
+            return tok;
+        }
+        return null;
+    }
+};
+
 fn expandMacroExhaustive(
     pp: *Preprocessor,
     tokenizer: *Tokenizer,
@@ -1450,6 +1526,7 @@ fn expandMacroExhaustive(
     start_idx: usize,
     end_idx: usize,
     extend_buf: bool,
+    eval_ctx: EvalContext,
 ) MacroError!void {
     var moving_end_idx = end_idx;
     var advance_index: usize = 0;
@@ -1461,6 +1538,22 @@ fn expandMacroExhaustive(
         var idx: usize = start_idx + advance_index;
         while (idx < moving_end_idx) {
             const macro_tok = buf.items[idx];
+            if (macro_tok.id == .keyword_defined and eval_ctx == .expr) {
+                idx += 1;
+                var it = TokenIterator.init(buf.items[idx..moving_end_idx]);
+                if (it.nextNoWS()) |tok| {
+                    switch (tok.id) {
+                        .l_paren => {
+                            _ = it.nextNoWS(); // eat (what should be) identifier
+                            _ = it.nextNoWS(); // eat (what should be) r paren
+                        },
+                        .identifier, .extended_identifier => {},
+                        else => {},
+                    }
+                }
+                idx += it.i;
+                continue;
+            }
             const macro_entry = pp.defines.getPtr(pp.expandedSlice(macro_tok));
             if (macro_entry == null or !shouldExpand(buf.items[idx], macro_entry.?)) {
                 idx += 1;
@@ -1538,7 +1631,7 @@ fn expandMacroExhaustive(
                         errdefer expand_buf.deinit();
                         try expand_buf.appendSlice(arg);
 
-                        try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false);
+                        try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false, eval_ctx);
 
                         expanded_args.appendAssumeCapacity(expand_buf.toOwnedSlice());
                     }
@@ -1568,14 +1661,25 @@ fn expandMacroExhaustive(
                     defer res.deinit();
 
                     const macro_expansion_locs = macro_tok.expansionSlice();
-                    for (res.items) |*tok| {
+                    var increment_idx_by = res.items.len;
+                    for (res.items) |*tok, i| {
                         try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
+                        if (tok.id == .keyword_defined and eval_ctx == .expr) {
+                            try pp.comp.diag.add(.{
+                                .tag = .expansion_to_defined,
+                                .loc = tok.loc,
+                            }, tok.expansionSlice());
+                        }
+
+                        if (i < increment_idx_by and (tok.id == .keyword_defined or pp.defines.contains(pp.expandedSlice(tok.*)))) {
+                            increment_idx_by = i;
+                        }
                     }
 
                     Token.free(buf.items[idx].expansion_locs, pp.gpa);
                     try buf.replaceRange(idx, 1, res.items);
-                    idx += res.items.len;
+                    idx += increment_idx_by;
                     moving_end_idx = moving_end_idx + res.items.len - 1;
                     do_rescan = true;
                 }
@@ -1606,14 +1710,14 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     try pp.top_expansion_buf.append(source_tok);
     pp.expansion_source_loc = source_tok.loc;
 
-    try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true);
+    try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, .non_expr);
     try pp.tokens.ensureUnusedCapacity(pp.gpa, pp.top_expansion_buf.items.len);
     for (pp.top_expansion_buf.items) |*tok| {
         if (tok.id == .macro_ws and !pp.comp.only_preprocess) {
             Token.free(tok.expansion_locs, pp.gpa);
             continue;
         }
-        tok.id.simplifyMacroKeyword();
+        tok.id.simplifyMacroKeywordExtra(true);
         pp.tokens.appendAssumeCapacity(tok.*);
     }
     if (pp.comp.only_preprocess) {
