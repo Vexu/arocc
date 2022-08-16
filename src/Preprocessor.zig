@@ -1339,6 +1339,7 @@ fn shouldExpand(tok: Token, macro: *Macro) bool {
             loc.byte_offset <= macro.loc.line)
             return false;
     }
+    if (tok.flags.expansion_disabled) return false;
 
     return true;
 }
@@ -1425,6 +1426,7 @@ fn collectMacroFuncArguments(
     defer curArgument.deinit();
     while (true) {
         var tok = try nextBufToken(pp, tokenizer, buf, start_idx, end_idx, extend_buf);
+        tok.flags.is_macro_arg = true;
         switch (tok.id) {
             .comma => {
                 if (parens == 0) {
@@ -1572,6 +1574,7 @@ fn expandMacroExhaustive(
                         macro.is_builtin,
                     ) catch |er| switch (er) {
                         error.MissingLParen => {
+                            if (!buf.items[idx].flags.is_macro_arg) buf.items[idx].flags.expansion_disabled = true;
                             idx += 1;
                             break :macro_handler;
                         },
@@ -1663,6 +1666,7 @@ fn expandMacroExhaustive(
                     const macro_expansion_locs = macro_tok.expansionSlice();
                     var increment_idx_by = res.items.len;
                     for (res.items) |*tok, i| {
+                        tok.flags.is_macro_arg = macro_tok.flags.is_macro_arg;
                         try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
                         if (tok.id == .keyword_defined and eval_ctx == .expr) {
