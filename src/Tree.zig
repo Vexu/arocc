@@ -11,6 +11,10 @@ const Tree = @This();
 
 pub const Token = struct {
     id: Id,
+    flags: packed struct {
+        expansion_disabled: bool = false,
+        is_macro_arg: bool = false,
+    } = .{},
     /// This location contains the actual token slice which might be generated.
     /// If it is generated then there is guaranteed to be at least one
     /// expansion location.
