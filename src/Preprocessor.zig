@@ -628,7 +628,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             else => if (tok.id.isMacroIdentifier()) {
                 if (tok.id == .keyword_defined) {
                     const tokens_consumed = try pp.handleKeywordDefined(&tok, items[i + 1 ..], eof);
-                    i += tokens_consumed + 1; // + 1 for keyword_defined
+                    i += tokens_consumed;
                 } else {
                     try pp.comp.diag.add(.{
                         .tag = .undefined_macro,

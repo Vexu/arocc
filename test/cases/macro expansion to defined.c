@@ -44,6 +44,12 @@
 #error Foo should be defined
 #endif
 
+#if defined(NOT_DEFINED)
+#error NOT_DEFINED should not be defined
+#elif !DEFINED ( FOO )
+#error FOO should be defined
+#endif
+
 #define EXPECTED_ERRORS \
 	"macro expansion to defined.c:5:5: warning: macro expansion producing 'defined' has undefined behavior [-Wexpansion-to-defined]" \
 	"macro expansion to defined.c:3:24: note: expanded from here" \
