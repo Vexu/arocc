@@ -944,23 +944,23 @@ pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
     return switch (ty.specifier) {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.requestedAlignment(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.requestedAlignment(comp),
-        .attributed => {
-            var max_requested: ?u29 = null;
-            for (ty.data.attributed.attributes) |attribute| {
-                if (attribute.tag != .aligned) continue;
-                const requested = if (attribute.args.aligned.alignment) |alignment|
-                    alignment.requested
-                else
-                    comp.defaultAlignment();
-
-                if (max_requested == null or max_requested.? < requested) {
-                    max_requested = requested;
-                }
-            }
-            return max_requested;
-        },
+        .attributed => annotationAlignment(comp, ty.data.attributed.attributes),
         else => null,
     };
+}
+
+pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) ?u29 {
+    const a = attrs orelse return null;
+
+    var max_requested: ?u29 = null;
+    for (a) |attribute| {
+        if (attribute.tag != .aligned) continue;
+        const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else comp.defaultAlignment();
+        if (max_requested == null or max_requested.? < requested) {
+            max_requested = requested;
+        }
+    }
+    return max_requested;
 }
 
 pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifiers: bool) bool {
