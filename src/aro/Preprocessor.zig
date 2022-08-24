@@ -12,6 +12,7 @@ const Diagnostics = @import("Diagnostics.zig");
 const Token = @import("Tree.zig").Token;
 const Attribute = @import("Attribute.zig");
 const features = @import("features.zig");
+const Hideset = @import("Hideset.zig");
 
 const DefineMap = std.StringHashMapUnmanaged(Macro);
 const RawTokenList = std.ArrayList(RawToken);
@@ -93,6 +94,8 @@ preserve_whitespace: bool = false,
 /// linemarker tokens. Must be .none unless in -E mode (parser does not handle linemarkers)
 linemarkers: Linemarkers = .none,
 
+hideset: Hideset,
+
 pub const parse = Parser.parse;
 
 pub const Linemarkers = enum {
@@ -113,6 +116,7 @@ pub fn init(comp: *Compilation) Preprocessor {
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .poisoned_identifiers = std.StringHashMap(void).init(comp.gpa),
         .top_expansion_buf = ExpandBuf.init(comp.gpa),
+        .hideset = Hideset.init(comp),
     };
     comp.pragmaEvent(.before_preprocess);
     return pp;
@@ -236,6 +240,7 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.poisoned_identifiers.deinit();
     pp.include_guards.deinit(pp.gpa);
     pp.top_expansion_buf.deinit();
+    pp.hideset.deinit();
 }
 
 /// Preprocess a compilation unit of sources into a parsable list of tokens.
@@ -341,6 +346,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
     // Estimate how many new tokens this source will contain.
     const estimated_token_count = source.buf.len / 8;
     try pp.tokens.ensureTotalCapacity(pp.gpa, pp.tokens.len + estimated_token_count);
+    try pp.hideset.ensureTotalCapacity(1024);
 
     var if_level: u8 = 0;
     var if_kind = std.PackedIntArray(u2, 256).init([1]u2{0} ** 256);
@@ -818,6 +824,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     } else unreachable;
     if (pp.top_expansion_buf.items.len != 0) {
         pp.expansion_source_loc = pp.top_expansion_buf.items[0].loc;
+        pp.hideset.clearRetainingCapacity();
         try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, false, .expr);
     }
     for (pp.top_expansion_buf.items) |tok| {
@@ -1948,6 +1955,7 @@ fn collectMacroFuncArguments(
     end_idx: *usize,
     extend_buf: bool,
     is_builtin: bool,
+    r_paren: *Token,
 ) !MacroArguments {
     const name_tok = buf.items[start_idx.*];
     const saved_tokenizer = tokenizer.*;
@@ -2002,6 +2010,7 @@ fn collectMacroFuncArguments(
                     const owned = try curArgument.toOwnedSlice();
                     errdefer pp.gpa.free(owned);
                     try args.append(owned);
+                    r_paren.* = tok;
                     break;
                 } else {
                     const duped = try tok.dupe(pp.gpa);
@@ -2108,13 +2117,24 @@ fn expandMacroExhaustive(
                 idx += it.i;
                 continue;
             }
-            const macro_entry = pp.defines.getPtr(pp.expandedSlice(macro_tok));
-            if (macro_entry == null or !shouldExpand(buf.items[idx], macro_entry.?)) {
+            if (!macro_tok.id.isMacroIdentifier() or macro_tok.flags.expansion_disabled) {
                 idx += 1;
                 continue;
             }
-            if (macro_entry) |macro| macro_handler: {
+            const expanded = pp.expandedSlice(macro_tok);
+            const macro = pp.defines.getPtr(expanded) orelse {
+                idx += 1;
+                continue;
+            };
+            const macro_hidelist = pp.hideset.get(.{ .id = macro_tok.loc.id, .byte_offset = macro_tok.loc.byte_offset });
+            if (pp.hideset.contains(macro_hidelist, expanded)) {
+                idx += 1;
+                continue;
+            }
+
+            macro_handler: {
                 if (macro.is_func) {
+                    var r_paren: Token = undefined;
                     var macro_scan_idx = idx;
                     // to be saved in case this doesn't turn out to be a call
                     const args = pp.collectMacroFuncArguments(
@@ -2124,6 +2144,7 @@ fn expandMacroExhaustive(
                         &moving_end_idx,
                         extend_buf,
                         macro.is_builtin,
+                        &r_paren,
                     ) catch |er| switch (er) {
                         error.MissingLParen => {
                             if (!buf.items[idx].flags.is_macro_arg) buf.items[idx].flags.expansion_disabled = true;
@@ -2137,12 +2158,16 @@ fn expandMacroExhaustive(
                         },
                         else => |e| return e,
                     };
+                    assert(r_paren.id == .r_paren);
                     defer {
                         for (args.items) |item| {
                             pp.gpa.free(item);
                         }
                         args.deinit();
                     }
+                    const r_paren_hidelist = pp.hideset.get(.{ .id = r_paren.loc.id, .byte_offset = r_paren.loc.byte_offset });
+                    var hs = try pp.hideset.intersection(macro_hidelist, r_paren_hidelist);
+                    hs = try pp.hideset.prepend(.{ .id = macro_tok.loc.id, .byte_offset = macro_tok.loc.byte_offset }, hs);
 
                     var args_count: u32 = @intCast(args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
@@ -2199,6 +2224,9 @@ fn expandMacroExhaustive(
                     for (res.items) |*tok| {
                         try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
+                        const tok_hidelist = pp.hideset.get(.{ .id = tok.loc.id, .byte_offset = tok.loc.byte_offset });
+                        const new_hidelist = try pp.hideset.@"union"(tok_hidelist, hs);
+                        try pp.hideset.put(.{ .id = tok.loc.id, .byte_offset = tok.loc.byte_offset }, new_hidelist);
                     }
 
                     const tokens_removed = macro_scan_idx - idx + 1;
@@ -2215,12 +2243,19 @@ fn expandMacroExhaustive(
                     const res = try pp.expandObjMacro(macro);
                     defer res.deinit();
 
+                    const hs = try pp.hideset.prepend(.{ .id = macro_tok.loc.id, .byte_offset = macro_tok.loc.byte_offset }, macro_hidelist);
+
                     const macro_expansion_locs = macro_tok.expansionSlice();
                     var increment_idx_by = res.items.len;
                     for (res.items, 0..) |*tok, i| {
                         tok.flags.is_macro_arg = macro_tok.flags.is_macro_arg;
                         try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
+
+                        const tok_hidelist = pp.hideset.get(.{ .id = tok.loc.id, .byte_offset = tok.loc.byte_offset });
+                        const new_hidelist = try pp.hideset.@"union"(tok_hidelist, hs);
+                        try pp.hideset.put(.{ .id = tok.loc.id, .byte_offset = tok.loc.byte_offset }, new_hidelist);
+
                         if (tok.id == .keyword_defined and eval_ctx == .expr) {
                             try pp.comp.addDiagnostic(.{
                                 .tag = .expansion_to_defined,
@@ -2266,6 +2301,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     try pp.top_expansion_buf.append(source_tok);
     pp.expansion_source_loc = source_tok.loc;
 
+    pp.hideset.clearRetainingCapacity();
     try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, .non_expr);
     try pp.tokens.ensureUnusedCapacity(pp.gpa, pp.top_expansion_buf.items.len);
     for (pp.top_expansion_buf.items) |*tok| {
@@ -2312,7 +2348,7 @@ fn expandedSliceExtra(pp: *const Preprocessor, tok: Token, macro_ws_handling: en
 }
 
 /// Get expanded token source string.
-pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
+pub fn expandedSlice(pp: *const Preprocessor, tok: Token) []const u8 {
     return pp.expandedSliceExtra(tok, .single_macro_ws);
 }
 
