@@ -6888,7 +6888,7 @@ fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
 }
 
 /// Run a parser function but do not evaluate the result
-fn parseNoEval(p: *Parser, func: fn (*Parser) Error!Result) Error!Result {
+fn parseNoEval(p: *Parser, comptime func: fn (*Parser) Error!Result) Error!Result {
     const no_eval = p.no_eval;
     defer p.no_eval = no_eval;
     p.no_eval = true;
