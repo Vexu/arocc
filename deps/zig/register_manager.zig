@@ -79,7 +79,7 @@ pub fn RegisterManager(
             comptime assert(count > 0 and count <= callee_preserved_regs.len);
             assert(count + exceptions.len <= callee_preserved_regs.len);
 
-            const free_registers = @popCount(FreeRegInt, self.free_registers);
+            const free_registers = @popCount(self.free_registers);
             if (free_registers < count) return null;
 
             var regs: [count]Register = undefined;
