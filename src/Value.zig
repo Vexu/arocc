@@ -70,10 +70,10 @@ pub fn signExtend(v: Value, old_ty: Type, comp: *Compilation) i64 {
 pub fn minUnsignedBits(v: Value, ty: Type, comp: *const Compilation) usize {
     assert(v.compare(.gte, Value.int(0), ty, comp));
     return switch (ty.sizeof(comp).?) {
-        1 => 8 - @clz(u8, v.getInt(u8)),
-        2 => 16 - @clz(u16, v.getInt(u16)),
-        4 => 32 - @clz(u32, v.getInt(u32)),
-        8 => 64 - @clz(u64, v.getInt(u64)),
+        1 => 8 - @clz(v.getInt(u8)),
+        2 => 16 - @clz(v.getInt(u16)),
+        4 => 32 - @clz(v.getInt(u32)),
+        8 => 64 - @clz(v.getInt(u64)),
         else => unreachable,
     };
 }
@@ -110,10 +110,10 @@ test "minUnsignedBits" {
 pub fn minSignedBits(v: Value, ty: Type, comp: *const Compilation) usize {
     assert(v.compare(.lt, Value.int(0), ty, comp));
     return switch (ty.sizeof(comp).?) {
-        1 => 8 - @clz(u8, ~v.getInt(u8)) + 1,
-        2 => 16 - @clz(u16, ~v.getInt(u16)) + 1,
-        4 => 32 - @clz(u32, ~v.getInt(u32)) + 1,
-        8 => 64 - @clz(u64, ~v.getInt(u64)) + 1,
+        1 => 8 - @clz(~v.getInt(u8)) + 1,
+        2 => 16 - @clz(~v.getInt(u16)) + 1,
+        4 => 32 - @clz(~v.getInt(u32)) + 1,
+        8 => 64 - @clz(~v.getInt(u64)) + 1,
         else => unreachable,
     };
 }
