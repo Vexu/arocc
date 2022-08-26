@@ -74,14 +74,14 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
                         const next = p.pp.tokens.get(idx);
                         idx += 1;
                         switch (next.id) {
-                            .integer_literal => new_val = (try packInt(p, next)) orelse return,
+                            .pp_num => new_val = (try packInt(p, next)) orelse return,
                             .identifier => {
                                 label = p.pp.expandedSlice(next);
                                 if (p.pp.tokens.get(idx).id == .comma) {
                                     idx += 1;
                                     const int = p.pp.tokens.get(idx);
                                     idx += 1;
-                                    if (int.id != .integer_literal) return p.pp.comp.diag.add(.{
+                                    if (int.id != .pp_num) return p.pp.comp.diag.add(.{
                                         .tag = .pragma_pack_int_ident,
                                         .loc = int.loc,
                                     }, int.expansionSlice());
@@ -122,7 +122,7 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
         } else {
             p.pragma_pack = null;
         },
-        .integer_literal => {
+        .pp_num => {
             idx += 1;
             const new_val = (try packInt(p, arg)) orelse return;
             if (apple_or_xl) {
@@ -142,8 +142,15 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
     }
 }
 
-fn packInt(p: *Parser, arg: Tree.Token) Compilation.Error!?u8 {
-    const int = std.fmt.parseInt(u8, p.pp.expandedSlice(arg), 10) catch 99;
+fn packInt(p: *Parser, tok_i: TokenIndex) Compilation.Error!?u8 {
+    const res = p.parseNumberToken(tok_i) catch |err| switch (err) {
+        error.ParsingFailed => {
+            try p.errTok(.pragma_pack_int, tok_i);
+            return null;
+        },
+        else => |e| return e,
+    };
+    const int = if (res.val.tag == .int) res.val.getInt(u64) else 99;
     switch (int) {
         1, 2, 4, 8, 16 => return int,
         else => {

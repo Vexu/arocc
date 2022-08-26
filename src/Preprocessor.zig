@@ -398,15 +398,19 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                     .keyword_line => {
                         // #line number "file"
                         const digits = tokenizer.nextNoWS();
-                        if (digits.id != .integer_literal) try pp.err(digits, .line_simple_digit);
+                        if (digits.id != .pp_num) try pp.err(digits, .line_simple_digit);
+                        // TODO: validate that the pp_num token is solely digits
+
                         if (digits.id == .eof or digits.id == .nl) continue;
                         const name = tokenizer.nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
                         try pp.expectNl(&tokenizer);
                     },
-                    .integer_literal => {
+                    .pp_num => {
                         // # number "file" flags
+                        // TODO: validate that the pp_num token is solely digits
+                        // if not, emit `GNU line marker directive requires a simple digit sequence`
                         const name = tokenizer.nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
@@ -577,19 +581,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             => {
                 try pp.comp.diag.add(.{
                     .tag = .string_literal_in_pp_expr,
-                    .loc = tok.loc,
-                }, tok.expansionSlice());
-                return false;
-            },
-            .float_literal,
-            .float_literal_f,
-            .float_literal_l,
-            .imaginary_literal,
-            .imaginary_literal_f,
-            .imaginary_literal_l,
-            => {
-                try pp.comp.diag.add(.{
-                    .tag = .float_literal_in_pp_expr,
                     .loc = tok.loc,
                 }, tok.expansionSlice());
                 return false;
@@ -846,14 +837,14 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
                 try pp.comp.generated_buf.writer().print("{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
 
-                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .integer_literal, tok));
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
             .macro_counter => {
                 defer pp.counter += 1;
                 const start = pp.comp.generated_buf.items.len;
                 try pp.comp.generated_buf.writer().print("{d}\n", .{pp.counter});
 
-                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .integer_literal, tok));
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
             else => buf.appendAssumeCapacity(tok),
         }
@@ -1253,7 +1244,7 @@ fn expandFuncMacro(
                 } else try pp.handleBuiltinMacro(raw.id, arg, loc);
                 const start = pp.comp.generated_buf.items.len;
                 try pp.comp.generated_buf.writer().print("{}\n", .{@boolToInt(result)});
-                try buf.append(try pp.makeGeneratedToken(start, .integer_literal, tokFromRaw(raw)));
+                try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
             },
             .macro_param_pragma_operator => {
                 const param_toks = expanded_args.items[0];

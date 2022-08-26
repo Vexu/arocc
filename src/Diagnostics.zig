@@ -47,6 +47,7 @@ pub const Message = struct {
             specifier: enum { @"struct", @"union", @"enum" },
         },
         actual_codepoint: u21,
+        ascii: u7,
         unsigned: u64,
         pow_2_as_string: u8,
         signed: i64,
@@ -2018,6 +2019,34 @@ const messages = struct {
         const pedantic = true;
         const opt = "expansion-to-defined";
     };
+    const invalid_int_suffix = struct {
+        const msg = "invalid suffix '{s}' on integer constant";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const invalid_float_suffix = struct {
+        const msg = "invalid suffix '{s}' on floating constant";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const invalid_octal_digit = struct {
+        const msg = "invalid digit '{c}' in octal constant";
+        const extra = .ascii;
+        const kind = .@"error";
+    };
+    const invalid_binary_digit = struct {
+        const msg = "invalid digit '{c}' in binary constant";
+        const extra = .ascii;
+        const kind = .@"error";
+    };
+    const exponent_has_no_digits = struct {
+        const msg = "exponent has no digits";
+        const kind = .@"error";
+    };
+    const hex_floating_constant_requires_exponent = struct {
+        const msg = "hexadecimal floating constant requires an exponent";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -2223,6 +2252,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                             msg.extra.attr_arg_type.actual.toString(),
                         }),
                         .actual_codepoint => m.print(info.msg, .{msg.extra.actual_codepoint}),
+                        .ascii => m.print(info.msg, .{msg.extra.ascii}),
                         .unsigned => m.print(info.msg, .{msg.extra.unsigned}),
                         .pow_2_as_string => m.print(info.msg, Pow2String{ .@"0" = switch (msg.extra.pow_2_as_string) {
                             63 => "9223372036854775808",
