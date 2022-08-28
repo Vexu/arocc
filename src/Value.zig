@@ -344,7 +344,7 @@ const bin_overflow = struct {
     }
 
     const FT = fn (*Value, Value, Value, Type, *Compilation) bool;
-    fn getOp(intFunc: anytype, floatFunc: anytype) FT {
+    fn getOp(comptime intFunc: anytype, comptime floatFunc: anytype) FT {
         return struct {
             fn op(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
                 const size = ty.sizeof(comp).?;
@@ -452,7 +452,7 @@ const bin_ops = struct {
     }
 
     const FT = fn (Value, Value, Type, *Compilation) Value;
-    fn getOp(intFunc: anytype, floatFunc: anytype) FT {
+    fn getOp(comptime intFunc: anytype, comptime floatFunc: anytype) FT {
         return struct {
             fn op(a: Value, b: Value, ty: Type, comp: *Compilation) Value {
                 const size = ty.sizeof(comp).?;
