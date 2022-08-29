@@ -6715,35 +6715,31 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             try p.err(.gnu_imaginary_constant);
             return p.todo("long double imaginary literals");
         },
-        .None, .I => {
-            const ty = Type{ .specifier = .double };
+        .None, .I, .F, .IF => {
+            const ty = Type{ .specifier = switch (suffix) {
+                .None, .I => .double,
+                .F, .IF => .float,
+                else => unreachable,
+            } };
             const d_val = std.fmt.parseFloat(f64, buf) catch unreachable;
+            const tag: Tree.Tag = switch (suffix) {
+                .None, .I => .double_literal,
+                .F, .IF => .float_literal,
+                else => unreachable,
+            };
             var res = Result{
                 .ty = ty,
-                .node = try p.addNode(.{ .tag = .double_literal, .ty = ty, .data = undefined }),
+                .node = try p.addNode(.{ .tag = tag, .ty = ty, .data = undefined }),
                 .val = Value.float(d_val),
             };
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
-            if (suffix == .I) {
+            if (suffix.isImaginary()) {
                 try p.err(.gnu_imaginary_constant);
-                res.ty = .{ .specifier = .complex_double };
-                res.val.tag = .unavailable;
-                try res.un(p, .imaginary_literal);
-            }
-            return res;
-        },
-        .IF, .F => {
-            const ty = Type{ .specifier = .float };
-            const f_val = std.fmt.parseFloat(f64, buf) catch unreachable;
-            var res = Result{
-                .ty = ty,
-                .node = try p.addNode(.{ .tag = .float_literal, .ty = ty, .data = undefined }),
-                .val = Value.float(f_val),
-            };
-            if (!p.in_macro) try p.value_map.put(res.node, res.val);
-            if (suffix == .IF) {
-                try p.err(.gnu_imaginary_constant);
-                res.ty = .{ .specifier = .complex_float };
+                res.ty = .{ .specifier = switch (suffix) {
+                    .I => .complex_double,
+                    .IF => .complex_float,
+                    else => unreachable,
+                } };
                 res.val.tag = .unavailable;
                 try res.un(p, .imaginary_literal);
             }
