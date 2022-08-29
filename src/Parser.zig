@@ -6732,7 +6732,6 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
                 .node = try p.addNode(.{ .tag = tag, .ty = ty, .data = undefined }),
                 .val = Value.float(d_val),
             };
-            if (!p.in_macro) try p.value_map.put(res.node, res.val);
             if (suffix.isImaginary()) {
                 try p.err(.gnu_imaginary_constant);
                 res.ty = .{ .specifier = switch (suffix) {
