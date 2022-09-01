@@ -109,8 +109,8 @@ pub const Suffix = enum {
         };
         var scratch: [2]u8 = undefined;
         top: for (suffixes) |candidate| {
-            const tag = candidate.@"0";
-            const parts = candidate.@"1";
+            const tag = candidate[0];
+            const parts = candidate[1];
             var len: usize = 0;
             for (parts) |part| len += part.len;
             if (len != buf.len) continue;
