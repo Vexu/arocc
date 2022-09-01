@@ -54,24 +54,27 @@ pub const Prefix = enum(u8) {
 };
 
 pub const Suffix = enum {
-    None,
+    // zig fmt: off
 
-    U,
-    UL,
-    ULL,
-    L,
-    LL,
+    // int and imaginary int
+    None, I,
 
-    F,
+    // unsigned real integers
+    U, UL, ULL,
 
-    I,
-    IU,
-    IUL,
-    IULL,
-    IL,
-    ILL,
+    // unsigned imaginary integers
+    IU, IUL, IULL,
 
-    IF,
+    // long or long double, real and imaginary
+    L, IL,
+
+    // long long and imaginary long long
+    LL, ILL,
+
+    // float and imaginary float
+    F, IF,
+
+    // zig fmt: on
 
     const Tuple = std.meta.Tuple(&.{ Suffix, []const []const u8 });
 
