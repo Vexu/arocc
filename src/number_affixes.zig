@@ -75,37 +75,37 @@ pub const Suffix = enum {
 
     const Tuple = std.meta.Tuple(&.{ Suffix, []const []const u8 });
 
-    const IntSuffixes = [_]Tuple{
-        Tuple{ .U, &[_][]const u8{"U"} },
-        Tuple{ .L, &[_][]const u8{"L"} },
-        Tuple{ .UL, &[_][]const u8{ "U", "L" } },
-        Tuple{ .LL, &[_][]const u8{"LL"} },
-        Tuple{ .ULL, &[_][]const u8{ "U", "LL" } },
+    const IntSuffixes = &[_]Tuple{
+        .{ .U, &[_][]const u8{"U"} },
+        .{ .L, &[_][]const u8{"L"} },
+        .{ .UL, &[_][]const u8{ "U", "L" } },
+        .{ .LL, &[_][]const u8{"LL"} },
+        .{ .ULL, &[_][]const u8{ "U", "LL" } },
 
-        Tuple{ .I, &[_][]const u8{"I"} },
+        .{ .I, &[_][]const u8{"I"} },
 
-        Tuple{ .IU, &[_][]const u8{ "I", "U" } },
-        Tuple{ .IL, &[_][]const u8{ "I", "L" } },
-        Tuple{ .IUL, &[_][]const u8{ "I", "U", "L" } },
-        Tuple{ .ILL, &[_][]const u8{ "I", "LL" } },
-        Tuple{ .IULL, &[_][]const u8{ "I", "U", "LL" } },
+        .{ .IU, &[_][]const u8{ "I", "U" } },
+        .{ .IL, &[_][]const u8{ "I", "L" } },
+        .{ .IUL, &[_][]const u8{ "I", "U", "L" } },
+        .{ .ILL, &[_][]const u8{ "I", "LL" } },
+        .{ .IULL, &[_][]const u8{ "I", "U", "LL" } },
     };
 
-    const FloatSuffixes = [_]Tuple{
-        Tuple{ .F, &[_][]const u8{"F"} },
-        Tuple{ .L, &[_][]const u8{"L"} },
+    const FloatSuffixes = &[_]Tuple{
+        .{ .F, &[_][]const u8{"F"} },
+        .{ .L, &[_][]const u8{"L"} },
 
-        Tuple{ .I, &[_][]const u8{"I"} },
-        Tuple{ .IL, &[_][]const u8{ "I", "L" } },
-        Tuple{ .IF, &[_][]const u8{ "I", "F" } },
+        .{ .I, &[_][]const u8{"I"} },
+        .{ .IL, &[_][]const u8{ "I", "L" } },
+        .{ .IF, &[_][]const u8{ "I", "F" } },
     };
 
     pub fn fromString(buf: []const u8, suffix_kind: enum { int, float }) ?Suffix {
         if (buf.len == 0) return .None;
 
-        const suffixes: []const Tuple = switch (suffix_kind) {
-            .float => &FloatSuffixes,
-            .int => &IntSuffixes,
+        const suffixes = switch (suffix_kind) {
+            .float => FloatSuffixes,
+            .int => IntSuffixes,
         };
         var scratch: [2]u8 = undefined;
         top: for (suffixes) |candidate| {
