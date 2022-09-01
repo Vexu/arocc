@@ -1,11 +1,11 @@
 const std = @import("std");
 const mem = std.mem;
 
-pub const Prefix = enum {
-    binary,
-    octal,
-    decimal,
-    hex,
+pub const Prefix = enum(u8) {
+    binary = 2,
+    octal = 8,
+    decimal = 10,
+    hex = 16,
 
     pub fn digitAllowed(prefix: Prefix, c: u8) bool {
         return switch (c) {
@@ -40,15 +40,6 @@ pub const Prefix = enum {
                 }
             },
         }
-    }
-
-    pub fn radix(prefix: Prefix) u8 {
-        return switch (prefix) {
-            .binary => 2,
-            .octal => 8,
-            .decimal => 10,
-            .hex => 16,
-        };
     }
 
     /// Length of this prefix as a string

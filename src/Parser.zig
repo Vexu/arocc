@@ -6798,7 +6798,7 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
     if (prefix == .binary) {
         try p.errTok(.binary_integer_literal, tok_i);
     }
-    const base = prefix.radix();
+    const base = @enumToInt(prefix);
     var val: u64 = 0;
     var overflow = false;
     for (buf) |c| {
