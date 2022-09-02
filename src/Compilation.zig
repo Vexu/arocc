@@ -588,7 +588,16 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
 
     var i: u32 = 0;
     var backslash_loc: u32 = undefined;
-    var state: enum { start, back_slash, cr, back_slash_cr, trailing_ws } = .start;
+    var state: enum {
+        beginning_of_file,
+        bom1,
+        bom2,
+        start,
+        back_slash,
+        cr,
+        back_slash_cr,
+        trailing_ws,
+    } = .beginning_of_file;
     var line: u32 = 1;
 
     while (true) {
@@ -601,7 +610,8 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
         switch (byte) {
             '\r' => {
                 switch (state) {
-                    .start, .cr => {
+                    .start, .cr, .beginning_of_file => {
+                        state = .start;
                         line += 1;
                         state = .cr;
                         contents[i] = '\n';
@@ -618,11 +628,13 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
                         }
                         state = if (state == .back_slash_cr) .cr else .back_slash_cr;
                     },
+                    .bom1, .bom2 => break, // invalid utf-8
                 }
             },
             '\n' => {
                 switch (state) {
-                    .start => {
+                    .start, .beginning_of_file => {
+                        state = .start;
                         line += 1;
                         i += 1;
                     },
@@ -639,6 +651,7 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
                             }, &.{});
                         }
                     },
+                    .bom1, .bom2 => break,
                 }
                 state = .start;
             },
@@ -650,10 +663,33 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
             '\t', '\x0B', '\x0C', ' ' => {
                 switch (state) {
                     .start, .trailing_ws => {},
+                    .beginning_of_file => state = .start,
                     .cr, .back_slash_cr => state = .start,
                     .back_slash => state = .trailing_ws,
+                    .bom1, .bom2 => break,
                 }
                 i += 1;
+            },
+            '\xEF' => {
+                i += 1;
+                state = switch (state) {
+                    .beginning_of_file => .bom1,
+                    else => .start,
+                };
+            },
+            '\xBB' => {
+                i += 1;
+                state = switch (state) {
+                    .bom1 => .bom2,
+                    else => .start,
+                };
+            },
+            '\xBF' => {
+                switch (state) {
+                    .bom2 => i = 0, // rewind and overwrite the BOM
+                    else => i += 1,
+                }
+                state = .start;
             },
             else => {
                 i += 1;
@@ -1131,4 +1167,38 @@ test "target size/align tests" {
 
     try std.testing.expectEqual(@as(u64, 8), tt.sizeof(&comp).?);
     try std.testing.expectEqual(@as(u64, 8), tt.alignof(&comp)); // TODO should be 4
+}
+
+test "ignore BOM at beginning of file" {
+    const BOM = "\xEF\xBB\xBF";
+
+    const Test = struct {
+        fn run(buf: []const u8, input_type: enum { valid_utf8, invalid_utf8 }) !void {
+            var comp = Compilation.init(std.testing.allocator);
+            defer comp.deinit();
+
+            var buf_reader = std.io.fixedBufferStream(buf);
+            const source = try comp.addSourceFromReader(buf_reader.reader(), "file.c", @intCast(u32, buf.len));
+            switch (input_type) {
+                .valid_utf8 => {
+                    const expected_output = if (mem.startsWith(u8, buf, BOM)) buf[BOM.len..] else buf;
+                    try std.testing.expectEqualStrings(expected_output, source.buf);
+                    try std.testing.expect(!comp.invalid_utf8_locs.contains(source.id));
+                },
+                .invalid_utf8 => try std.testing.expect(comp.invalid_utf8_locs.contains(source.id)),
+            }
+        }
+    };
+
+    try Test.run(BOM, .valid_utf8);
+    try Test.run(BOM ++ "x", .valid_utf8);
+    try Test.run("x" ++ BOM, .valid_utf8);
+    try Test.run(BOM ++ " ", .valid_utf8);
+    try Test.run(BOM ++ "\n", .valid_utf8);
+    try Test.run(BOM ++ "\\", .valid_utf8);
+
+    try Test.run(BOM[0..1] ++ "x", .invalid_utf8);
+    try Test.run(BOM[0..2] ++ "x", .invalid_utf8);
+    try Test.run(BOM[1..] ++ "x", .invalid_utf8);
+    try Test.run(BOM[2..] ++ "x", .invalid_utf8);
 }
