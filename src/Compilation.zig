@@ -1167,6 +1167,20 @@ test "target size/align tests" {
 
     try std.testing.expectEqual(@as(u64, 8), tt.sizeof(&comp).?);
     try std.testing.expectEqual(@as(u64, 8), tt.alignof(&comp)); // TODO should be 4
+
+    const arm = std.Target.Cpu.Arch.arm;
+    comp.target.cpu = std.Target.Cpu.Model.toCpu(&std.Target.arm.cpu.cortex_r4, arm);
+    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm);
+    comp.target.abi = std.Target.Abi.none;
+
+    const ct: Type = .{
+        .specifier = .char,
+    };
+
+    try std.testing.expectEqual(true, std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7));
+    try std.testing.expectEqual(@as(u64, 1), ct.sizeof(&comp).?);
+    try std.testing.expectEqual(@as(u64, 1), ct.alignof(&comp));
+    try std.testing.expectEqual(true, comp.ignoreNonZeroSizedBitfieldTypeAlignment());
 }
 
 test "ignore BOM at beginning of file" {
