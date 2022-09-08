@@ -79,28 +79,28 @@ pub const Suffix = enum {
     const Tuple = std.meta.Tuple(&.{ Suffix, []const []const u8 });
 
     const IntSuffixes = &[_]Tuple{
-        .{ .U, &[_][]const u8{"U"} },
-        .{ .L, &[_][]const u8{"L"} },
-        .{ .UL, &[_][]const u8{ "U", "L" } },
-        .{ .LL, &[_][]const u8{"LL"} },
-        .{ .ULL, &[_][]const u8{ "U", "LL" } },
+        .{ .U, &.{"U"} },
+        .{ .L, &.{"L"} },
+        .{ .UL, &.{ "U", "L" } },
+        .{ .LL, &.{"LL"} },
+        .{ .ULL, &.{ "U", "LL" } },
 
-        .{ .I, &[_][]const u8{"I"} },
+        .{ .I, &.{"I"} },
 
-        .{ .IU, &[_][]const u8{ "I", "U" } },
-        .{ .IL, &[_][]const u8{ "I", "L" } },
-        .{ .IUL, &[_][]const u8{ "I", "U", "L" } },
-        .{ .ILL, &[_][]const u8{ "I", "LL" } },
-        .{ .IULL, &[_][]const u8{ "I", "U", "LL" } },
+        .{ .IU, &.{ "I", "U" } },
+        .{ .IL, &.{ "I", "L" } },
+        .{ .IUL, &.{ "I", "U", "L" } },
+        .{ .ILL, &.{ "I", "LL" } },
+        .{ .IULL, &.{ "I", "U", "LL" } },
     };
 
     const FloatSuffixes = &[_]Tuple{
-        .{ .F, &[_][]const u8{"F"} },
-        .{ .L, &[_][]const u8{"L"} },
+        .{ .F, &.{"F"} },
+        .{ .L, &.{"L"} },
 
-        .{ .I, &[_][]const u8{"I"} },
-        .{ .IL, &[_][]const u8{ "I", "L" } },
-        .{ .IF, &[_][]const u8{ "I", "F" } },
+        .{ .I, &.{"I"} },
+        .{ .IL, &.{ "I", "L" } },
+        .{ .IF, &.{ "I", "F" } },
     };
 
     pub fn fromString(buf: []const u8, suffix_kind: enum { int, float }) ?Suffix {
