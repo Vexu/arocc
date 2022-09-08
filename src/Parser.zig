@@ -21,6 +21,9 @@ const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
 const record_layout = @import("record_layout.zig");
 const StringId = @import("StringInterner.zig").StringId;
+const number_affixes = @import("number_affixes.zig");
+const NumberPrefix = number_affixes.Prefix;
+const NumberSuffix = number_affixes.Suffix;
 
 const Parser = @This();
 
@@ -6436,47 +6439,6 @@ fn primaryExpr(p: *Parser) Error!Result {
         .char_literal_utf_32,
         .char_literal_wide,
         => return p.charLiteral(),
-        .float_literal, .imaginary_literal => |tag| {
-            defer p.tok_i += 1;
-            const ty = Type{ .specifier = .double };
-            const d_val = try p.parseFloat(p.tok_i, f64);
-            var res = Result{
-                .ty = ty,
-                .node = try p.addNode(.{ .tag = .double_literal, .ty = ty, .data = undefined }),
-                .val = Value.float(d_val),
-            };
-            if (!p.in_macro) try p.value_map.put(res.node, res.val);
-            if (tag == .imaginary_literal) {
-                try p.err(.gnu_imaginary_constant);
-                res.ty = .{ .specifier = .complex_double };
-                res.val.tag = .unavailable;
-                try res.un(p, .imaginary_literal);
-            }
-            return res;
-        },
-        .float_literal_f, .imaginary_literal_f => |tag| {
-            defer p.tok_i += 1;
-            const ty = Type{ .specifier = .float };
-            const f_val = try p.parseFloat(p.tok_i, f64);
-            var res = Result{
-                .ty = ty,
-                .node = try p.addNode(.{ .tag = .float_literal, .ty = ty, .data = undefined }),
-                .val = Value.float(f_val),
-            };
-            if (!p.in_macro) try p.value_map.put(res.node, res.val);
-            if (tag == .imaginary_literal_f) {
-                try p.err(.gnu_imaginary_constant);
-                res.ty = .{ .specifier = .complex_float };
-                res.val.tag = .unavailable;
-                try res.un(p, .imaginary_literal);
-            }
-            return res;
-        },
-        .float_literal_l => return p.todo("long double literals"),
-        .imaginary_literal_l => {
-            try p.err(.gnu_imaginary_constant);
-            return p.todo("long double imaginary literals");
-        },
         .zero => {
             p.tok_i += 1;
             var res: Result = .{ .val = Value.int(0) };
@@ -6491,27 +6453,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
         },
-        .integer_literal,
-        .integer_literal_u,
-        .integer_literal_l,
-        .integer_literal_lu,
-        .integer_literal_ll,
-        .integer_literal_llu,
-        => return p.integerLiteral(),
-        .imaginary_integer_literal,
-        .imaginary_integer_literal_u,
-        .imaginary_integer_literal_l,
-        .imaginary_integer_literal_lu,
-        .imaginary_integer_literal_ll,
-        .imaginary_integer_literal_llu,
-        => {
-            try p.err(.gnu_imaginary_constant);
-            var res = try p.integerLiteral();
-            res.ty = res.ty.makeComplex();
-            res.val.tag = .unavailable;
-            try res.un(p, .imaginary_literal);
-            return res;
-        },
+        .pp_num => return p.ppNum(),
         .keyword_generic => return p.genericSelection(),
         else => return Result{},
     }
@@ -6766,47 +6708,100 @@ fn charLiteral(p: *Parser) Error!Result {
     return res;
 }
 
-fn parseFloat(p: *Parser, tok: TokenIndex, comptime T: type) Error!T {
-    var bytes = p.tokSlice(tok);
-    switch (p.tok_ids[tok]) {
-        .float_literal => {},
-        .imaginary_literal, .float_literal_f, .float_literal_l => bytes = bytes[0 .. bytes.len - 1],
-        .imaginary_literal_f, .imaginary_literal_l => bytes = bytes[0 .. bytes.len - 2],
+fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
+    switch (suffix) {
+        .L => return p.todo("long double literals"),
+        .IL => {
+            try p.err(.gnu_imaginary_constant);
+            return p.todo("long double imaginary literals");
+        },
+        .None, .I, .F, .IF => {
+            const ty = Type{ .specifier = switch (suffix) {
+                .None, .I => .double,
+                .F, .IF => .float,
+                else => unreachable,
+            } };
+            const d_val = std.fmt.parseFloat(f64, buf) catch unreachable;
+            const tag: Tree.Tag = switch (suffix) {
+                .None, .I => .double_literal,
+                .F, .IF => .float_literal,
+                else => unreachable,
+            };
+            var res = Result{
+                .ty = ty,
+                .node = try p.addNode(.{ .tag = tag, .ty = ty, .data = undefined }),
+                .val = Value.float(d_val),
+            };
+            if (suffix.isImaginary()) {
+                try p.err(.gnu_imaginary_constant);
+                res.ty = .{ .specifier = switch (suffix) {
+                    .I => .complex_double,
+                    .IF => .complex_float,
+                    else => unreachable,
+                } };
+                res.val.tag = .unavailable;
+                try res.un(p, .imaginary_literal);
+            }
+            return res;
+        },
         else => unreachable,
     }
-    return std.fmt.parseFloat(T, bytes) catch unreachable; // valid hex chars enforced by Tokenizer
 }
 
-fn integerLiteral(p: *Parser) Error!Result {
-    const id = p.tok_ids[p.tok_i];
-    var slice = p.tokSlice(p.tok_i);
-    defer p.tok_i += 1;
-    var base: u8 = 10;
-    if (std.ascii.startsWithIgnoreCase(slice, "0x")) {
-        slice = slice[2..];
-        base = 16;
-    } else if (std.ascii.startsWithIgnoreCase(slice, "0b")) {
-        try p.err(.binary_integer_literal);
-        slice = slice[2..];
-        base = 2;
-    } else if (slice[0] == '0') {
-        base = 8;
-    }
-    const end: u32 = switch (id) {
-        .integer_literal_u, .integer_literal_l => 1,
-        .integer_literal_lu, .integer_literal_ll => 2,
-        .integer_literal_llu => 3,
-        .imaginary_integer_literal => 1,
-        .imaginary_integer_literal_u, .imaginary_integer_literal_l => 2,
-        .imaginary_integer_literal_lu, .imaginary_integer_literal_ll => 3,
-        .imaginary_integer_literal_llu => 4,
-        else => 0,
-    };
-    slice = slice[0 .. slice.len - end];
+fn getIntegerPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIndex) ![]const u8 {
+    if (buf[0] == '.') return "";
 
+    if (!prefix.digitAllowed(buf[0])) {
+        switch (prefix) {
+            .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(u7, buf[0]) }),
+            .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(u7, buf[0]) }),
+            .hex => try p.errStr(.invalid_int_suffix, tok_i, buf),
+            .decimal => unreachable,
+        }
+        return error.ParsingFailed;
+    }
+
+    for (buf) |c, idx| {
+        if (idx == 0) continue;
+        switch (c) {
+            '.' => return buf[0..idx],
+            'p', 'P' => return if (prefix == .hex) buf[0..idx] else {
+                try p.errStr(.invalid_int_suffix, tok_i, buf[idx..]);
+                return error.ParsingFailed;
+            },
+            'e', 'E' => {
+                switch (prefix) {
+                    .hex => continue,
+                    .decimal => return buf[0..idx],
+                    .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(u7, c) }),
+                    .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(u7, c) }),
+                }
+                return error.ParsingFailed;
+            },
+            '0'...'9', 'a'...'d', 'A'...'D', 'f', 'F' => {
+                if (!prefix.digitAllowed(c)) {
+                    switch (prefix) {
+                        .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(u7, c) }),
+                        .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(u7, c) }),
+                        .decimal, .hex => try p.errStr(.invalid_int_suffix, tok_i, buf[idx..]),
+                    }
+                    return error.ParsingFailed;
+                }
+            },
+            else => return buf[0..idx],
+        }
+    }
+    return buf;
+}
+
+fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) !Result {
+    if (prefix == .binary) {
+        try p.errTok(.binary_integer_literal, tok_i);
+    }
+    const base = @enumToInt(prefix);
     var val: u64 = 0;
     var overflow = false;
-    for (slice) |c| {
+    for (buf) |c| {
         const digit: u64 = switch (c) {
             '0'...'9' => c - '0',
             'A'...'Z' => c - 'A' + 10,
@@ -6818,42 +6813,137 @@ fn integerLiteral(p: *Parser) Error!Result {
         if (@addWithOverflow(u64, val, digit, &val)) overflow = true;
     }
     if (overflow) {
-        try p.err(.int_literal_too_big);
+        try p.errTok(.int_literal_too_big, tok_i);
         var res: Result = .{ .ty = .{ .specifier = .ulong_long }, .val = Value.int(val) };
         res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
         if (!p.in_macro) try p.value_map.put(res.node, res.val);
         return res;
     }
-    switch (id) {
-        .integer_literal, .integer_literal_l, .integer_literal_ll => {
-            if (val > std.math.maxInt(i64)) {
-                try p.err(.implicitly_unsigned_literal);
-            }
-        },
-        else => {},
+    if (suffix.isSignedInteger()) {
+        if (val > std.math.maxInt(i64)) {
+            try p.errTok(.implicitly_unsigned_literal, tok_i);
+        }
     }
-
-    if (base == 10) {
-        switch (id) {
-            .integer_literal, .imaginary_integer_literal => return p.castInt(val, &.{ .int, .long, .long_long }),
-            .integer_literal_u, .imaginary_integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .integer_literal_l, .imaginary_integer_literal_l => return p.castInt(val, &.{ .long, .long_long }),
-            .integer_literal_lu, .imaginary_integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
-            .integer_literal_ll, .imaginary_integer_literal_ll => return p.castInt(val, &.{.long_long}),
-            .integer_literal_llu, .imaginary_integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
+    var res = try if (base == 10)
+        switch (suffix) {
+            .None, .I => p.castInt(val, &.{ .int, .long, .long_long }),
+            .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+            .L, .IL => p.castInt(val, &.{ .long, .long_long }),
+            .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
+            .LL, .ILL => p.castInt(val, &.{.long_long}),
+            .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
             else => unreachable,
+        }
+    else switch (suffix) {
+        .None, .I => p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
+        .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+        .L, .IL => p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
+        .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
+        .LL, .ILL => p.castInt(val, &.{ .long_long, .ulong_long }),
+        .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
+        else => unreachable,
+    };
+    if (suffix.isImaginary()) {
+        try p.errTok(.gnu_imaginary_constant, tok_i);
+        res.ty = res.ty.makeComplex();
+        res.val.tag = .unavailable;
+        try res.un(p, .imaginary_literal);
+    }
+    return res;
+}
+
+fn getFracPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIndex) ![]const u8 {
+    if (buf.len == 0 or buf[0] != '.') return "";
+    assert(prefix != .octal);
+    if (prefix == .binary) {
+        try p.errStr(.invalid_int_suffix, tok_i, buf);
+        return error.ParsingFailed;
+    }
+    for (buf) |c, idx| {
+        if (idx == 0) continue;
+        if (!prefix.digitAllowed(c)) return buf[0..idx];
+    }
+    return buf;
+}
+
+fn getExponent(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIndex) ![]const u8 {
+    if (buf.len == 0) return "";
+
+    switch (buf[0]) {
+        'e', 'E' => assert(prefix == .decimal),
+        'p', 'P' => if (prefix != .hex) {
+            try p.errStr(.invalid_float_suffix, tok_i, buf);
+            return error.ParsingFailed;
+        },
+        else => return "",
+    }
+    const end = for (buf) |c, idx| {
+        if (idx == 0) continue;
+        if (idx == 1 and (c == '+' or c == '-')) continue;
+        switch (c) {
+            '0'...'9' => {},
+            else => break idx,
+        }
+    } else buf.len;
+    const exponent = buf[0..end];
+    if (std.mem.indexOfAny(u8, exponent, "0123456789") == null) {
+        try p.errTok(.exponent_has_no_digits, tok_i);
+        return error.ParsingFailed;
+    }
+    return exponent;
+}
+
+/// Using an explicit `tok_i` parameter instead of `p.tok_i` makes it easier
+/// to parse numbers in pragma handlers.
+pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
+    const buf = p.tokSlice(tok_i);
+    const prefix = NumberPrefix.fromString(buf);
+    const after_prefix = buf[prefix.stringLen()..];
+
+    const int_part = try p.getIntegerPart(after_prefix, prefix, tok_i);
+
+    const after_int = after_prefix[int_part.len..];
+
+    const frac = try p.getFracPart(after_int, prefix, tok_i);
+    const after_frac = after_int[frac.len..];
+
+    const exponent = try p.getExponent(after_frac, prefix, tok_i);
+    const suffix_str = after_frac[exponent.len..];
+    const is_float = (exponent.len > 0 or frac.len > 0);
+    const suffix = NumberSuffix.fromString(suffix_str, if (is_float) .float else .int) orelse {
+        if (is_float) {
+            try p.errStr(.invalid_float_suffix, tok_i, suffix_str);
+        } else {
+            try p.errStr(.invalid_int_suffix, tok_i, suffix_str);
+        }
+        return error.ParsingFailed;
+    };
+
+    if (is_float) {
+        assert(prefix == .hex or prefix == .decimal);
+        if (prefix == .hex and exponent.len == 0) {
+            try p.errTok(.hex_floating_constant_requires_exponent, tok_i);
+            return error.ParsingFailed;
+        }
+        const number = buf[0 .. buf.len - suffix_str.len];
+        return p.parseFloat(number, suffix);
+    } else {
+        return p.parseInt(prefix, int_part, suffix, tok_i);
+    }
+}
+
+fn ppNum(p: *Parser) Error!Result {
+    defer p.tok_i += 1;
+    const res = try p.parseNumberToken(p.tok_i);
+    if (p.in_macro) {
+        if (res.ty.isFloat() or !res.ty.isReal()) {
+            try p.errTok(.float_literal_in_pp_expr, p.tok_i);
+            return error.ParsingFailed;
         }
     } else {
-        switch (id) {
-            .integer_literal, .imaginary_integer_literal => return p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
-            .integer_literal_u, .imaginary_integer_literal_u => return p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .integer_literal_l, .imaginary_integer_literal_l => return p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
-            .integer_literal_lu, .imaginary_integer_literal_lu => return p.castInt(val, &.{ .ulong, .ulong_long }),
-            .integer_literal_ll, .imaginary_integer_literal_ll => return p.castInt(val, &.{ .long_long, .ulong_long }),
-            .integer_literal_llu, .imaginary_integer_literal_llu => return p.castInt(val, &.{.ulong_long}),
-            else => unreachable,
-        }
+        try p.value_map.put(res.node, res.val);
     }
+    return res;
 }
 
 fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {

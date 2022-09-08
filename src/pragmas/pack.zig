@@ -43,8 +43,9 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
 
     // TODO -fapple-pragma-pack -fxl-pragma-pack
     const apple_or_xl = false;
-    const arg = p.pp.tokens.get(idx);
-    switch (arg.id) {
+    const tok_ids = p.pp.tokens.items(.id);
+    const arg = idx;
+    switch (tok_ids[arg]) {
         .identifier => {
             idx += 1;
             const Action = enum {
@@ -52,47 +53,33 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
                 push,
                 pop,
             };
-            const action = std.meta.stringToEnum(Action, p.pp.expandedSlice(arg)) orelse {
-                return p.pp.comp.diag.add(.{
-                    .tag = .pragma_pack_unknown_action,
-                    .loc = arg.loc,
-                }, arg.expansionSlice());
+            const action = std.meta.stringToEnum(Action, p.tokSlice(arg)) orelse {
+                return p.errTok(.pragma_pack_unknown_action, arg);
             };
             switch (action) {
                 .show => {
-                    try p.pp.comp.diag.add(.{
-                        .tag = .pragma_pack_show,
-                        .loc = arg.loc,
-                        .extra = .{ .unsigned = p.pragma_pack orelse 8 },
-                    }, arg.expansionSlice());
+                    try p.errExtra(.pragma_pack_show, arg, .{ .unsigned = p.pragma_pack orelse 8 });
                 },
                 .push, .pop => {
                     var new_val: ?u8 = null;
                     var label: ?[]const u8 = null;
-                    if (p.pp.tokens.get(idx).id == .comma) {
+                    if (tok_ids[idx] == .comma) {
                         idx += 1;
-                        const next = p.pp.tokens.get(idx);
+                        const next = idx;
                         idx += 1;
-                        switch (next.id) {
-                            .integer_literal => new_val = (try packInt(p, next)) orelse return,
+                        switch (tok_ids[next]) {
+                            .pp_num => new_val = (try packInt(p, next)) orelse return,
                             .identifier => {
-                                label = p.pp.expandedSlice(next);
-                                if (p.pp.tokens.get(idx).id == .comma) {
+                                label = p.tokSlice(next);
+                                if (tok_ids[idx] == .comma) {
                                     idx += 1;
-                                    const int = p.pp.tokens.get(idx);
+                                    const int = idx;
                                     idx += 1;
-                                    if (int.id != .integer_literal) return p.pp.comp.diag.add(.{
-                                        .tag = .pragma_pack_int_ident,
-                                        .loc = int.loc,
-                                    }, int.expansionSlice());
-
+                                    if (tok_ids[int] != .pp_num) return p.errTok(.pragma_pack_int_ident, int);
                                     new_val = (try packInt(p, int)) orelse return;
                                 }
                             },
-                            else => return p.pp.comp.diag.add(.{
-                                .tag = .pragma_pack_int_ident,
-                                .loc = next.loc,
-                            }, next.expansionSlice()),
+                            else => return p.errTok(.pragma_pack_int_ident, next),
                         }
                     }
                     if (action == .push) {
@@ -100,15 +87,9 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
                     } else {
                         pack.pop(p, label);
                         if (new_val != null) {
-                            try p.pp.comp.diag.add(.{
-                                .tag = .pragma_pack_undefined_pop,
-                                .loc = arg.loc,
-                            }, arg.expansionSlice());
+                            try p.errTok(.pragma_pack_undefined_pop, arg);
                         } else if (pack.stack.items.len == 0) {
-                            try p.pp.comp.diag.add(.{
-                                .tag = .pragma_pack_empty_stack,
-                                .loc = arg.loc,
-                            }, arg.expansionSlice());
+                            try p.errTok(.pragma_pack_empty_stack, arg);
                         }
                     }
                     if (new_val) |some| {
@@ -122,9 +103,9 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
         } else {
             p.pragma_pack = null;
         },
-        .integer_literal => {
-            idx += 1;
+        .pp_num => {
             const new_val = (try packInt(p, arg)) orelse return;
+            idx += 1;
             if (apple_or_xl) {
                 try pack.stack.append(p.pp.comp.gpa, .{ .label = "", .val = p.pragma_pack });
             }
@@ -133,24 +114,24 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
         else => {},
     }
 
-    const r_paren = p.pp.tokens.get(idx);
-    if (r_paren.id != .r_paren) {
-        return p.pp.comp.diag.add(.{
-            .tag = .pragma_pack_rparen,
-            .loc = r_paren.loc,
-        }, r_paren.expansionSlice());
+    if (tok_ids[idx] != .r_paren) {
+        return p.errTok(.pragma_pack_rparen, idx);
     }
 }
 
-fn packInt(p: *Parser, arg: Tree.Token) Compilation.Error!?u8 {
-    const int = std.fmt.parseInt(u8, p.pp.expandedSlice(arg), 10) catch 99;
+fn packInt(p: *Parser, tok_i: TokenIndex) Compilation.Error!?u8 {
+    const res = p.parseNumberToken(tok_i) catch |err| switch (err) {
+        error.ParsingFailed => {
+            try p.errTok(.pragma_pack_int, tok_i);
+            return null;
+        },
+        else => |e| return e,
+    };
+    const int = if (res.val.tag == .int) res.val.getInt(u64) else 99;
     switch (int) {
-        1, 2, 4, 8, 16 => return int,
+        1, 2, 4, 8, 16 => return @intCast(u8, int),
         else => {
-            try p.pp.comp.diag.add(.{
-                .tag = .pragma_pack_int,
-                .loc = arg.loc,
-            }, arg.expansionSlice());
+            try p.errTok(.pragma_pack_int, tok_i);
             return null;
         },
     }
