@@ -1099,12 +1099,19 @@ pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Di
         => std.debug.panic("apply type attribute {s}", .{@tagName(attr.tag)}),
         else => try ignoredAttrErr(p, toks[i], attr.tag, "types"),
     };
-    const existing = ty.getAttributes();
-    if (existing.len == 0 and p.attr_application_buf.items.len == 0) return base_ty;
-    if (existing.len == 0) return base_ty.withAttributes(p.arena, p.attr_application_buf.items);
 
-    const attributed_type = try Type.Attributed.create(p.arena, base_ty, existing, p.attr_application_buf.items);
-    return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
+    const existing = ty.getAttributes();
+    // TODO: the alignment annotation on a type should override
+    // the decl it refers to. This might not be true for others.  Maybe bug.
+
+    // if there are annotations on this type def use those.
+    if (p.attr_application_buf.items.len > 0) {
+        return try base_ty.withAttributes(p.arena, p.attr_application_buf.items);
+    } else if (existing.len > 0) {
+        // else use the ones on the typedef decl we were refering to.
+        return try base_ty.withAttributes(p.arena, existing);
+    }
+    return base_ty;
 }
 
 pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
