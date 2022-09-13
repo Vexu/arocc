@@ -795,6 +795,16 @@ fn skipToNl(tokenizer: *Tokenizer) void {
 }
 
 const ExpandBuf = std.ArrayList(Token);
+fn removePlacemarkers(buf: *ExpandBuf) void {
+    var i: usize = buf.items.len -% 1;
+    while (i < buf.items.len) : (i -%= 1) {
+        if (buf.items[i].id == .placemarker) {
+            const placemarker = buf.orderedRemove(i);
+            Token.free(placemarker.expansion_locs, buf.allocator);
+        }
+    }
+}
+
 const MacroArguments = std.ArrayList([]const Token);
 fn deinitMacroArguments(allocator: Allocator, args: *const MacroArguments) void {
     for (args.items) |item| {
@@ -1191,7 +1201,10 @@ fn expandFuncMacro(
                 const next = switch (raw_next.id) {
                     .macro_ws => continue,
                     .hash_hash => continue,
-                    .macro_param, .macro_param_no_expand => args.items[raw_next.end],
+                    .macro_param, .macro_param_no_expand => if (args.items[raw_next.end].len > 0)
+                        args.items[raw_next.end]
+                    else
+                        &[1]Token{tokFromRaw(.{ .id = .placemarker, .source = .generated })},
                     .keyword_va_args => variable_arguments.items,
                     else => &[1]Token{tokFromRaw(raw_next)},
                 };
@@ -1200,7 +1213,10 @@ fn expandFuncMacro(
                 if (next.len != 0) break;
             },
             .macro_param_no_expand => {
-                const slice = args.items[raw.end];
+                const slice = if (args.items[raw.end].len > 0)
+                    args.items[raw.end]
+                else
+                    &[1]Token{tokFromRaw(.{ .id = .placemarker, .source = .generated })};
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
                 try bufCopyTokens(&buf, slice, &.{raw_loc});
             },
@@ -1314,6 +1330,7 @@ fn expandFuncMacro(
             else => try buf.append(tokFromRaw(raw)),
         }
     }
+    removePlacemarkers(&buf);
 
     return buf;
 }
@@ -1796,7 +1813,11 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
         }, lhs.expansionSlice());
     }
 
-    try lhs_toks.append(try pp.makeGeneratedToken(start, pasted_token.id, lhs));
+    const pasted_id = if (lhs.id == .placemarker and rhs.id == .placemarker)
+        .placemarker
+    else
+        pasted_token.id;
+    try lhs_toks.append(try pp.makeGeneratedToken(start, pasted_id, lhs));
     try bufCopyTokens(lhs_toks, rhs_toks[rhs_rest..], &.{});
 }
 
