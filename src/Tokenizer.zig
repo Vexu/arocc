@@ -255,6 +255,12 @@ pub const Token = struct {
         /// digits, underscores, periods, and exponents (e+, e-, E+, E-, p+, p-, P+, P-)
         pp_num,
 
+        /// preprocessor placemarker token
+        /// generated if `##` is used with a zero-token argument
+        /// removed after substitution, so the parser should never see this
+        /// See C99 6.10.3.3.2
+        placemarker,
+
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
@@ -436,6 +442,7 @@ pub const Token = struct {
                 .macro_line,
                 .macro_counter,
                 .macro_param_pragma_operator,
+                .placemarker,
                 => "",
                 .macro_ws => " ",
 
