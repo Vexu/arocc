@@ -1,6 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
-const TypeInfo = std.builtin.TypeInfo;
+const ZigType = std.builtin.Type;
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
@@ -81,7 +81,7 @@ pub const ArgumentType = enum {
     }
 };
 
-fn getArguments(comptime descriptor: type) []const TypeInfo.StructField {
+fn getArguments(comptime descriptor: type) []const ZigType.StructField {
     return if (@hasDecl(descriptor, "Args")) std.meta.fields(descriptor.Args) else &.{};
 }
 
@@ -255,8 +255,8 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Va
 }
 
 fn diagnoseField(
-    comptime decl: TypeInfo.Declaration,
-    comptime field: TypeInfo.StructField,
+    comptime decl: ZigType.Declaration,
+    comptime field: ZigType.StructField,
     comptime wanted: type,
     arguments: *Arguments,
     val: Value,
@@ -889,7 +889,7 @@ pub const Tag = std.meta.DeclEnum(attributes);
 
 pub const Arguments = blk: {
     const decls = @typeInfo(attributes).Struct.decls;
-    var union_fields: [decls.len]std.builtin.TypeInfo.UnionField = undefined;
+    var union_fields: [decls.len]ZigType.UnionField = undefined;
     inline for (decls) |decl, i| {
         union_fields[i] = .{
             .name = decl.name,
