@@ -767,7 +767,8 @@ pub fn sizeCompare(a: Type, b: Type, comp: *Compilation) TypeSizeOrder {
 pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
     // TODO get target from compilation
     return switch (ty.specifier) {
-        .variable_len_array, .unspecified_variable_len_array, .incomplete_array => return null,
+        .variable_len_array, .unspecified_variable_len_array => return null,
+        .incomplete_array => return if (comp.langopts.emulate == .msvc) @as(?u64, 0) else null,
         .func, .var_args_func, .old_style_func, .void, .bool => 1,
         .char, .schar, .uchar => 1,
         .short => @divExact(CType.sizeInBits(.short, comp.target), 8),

@@ -5853,6 +5853,9 @@ fn unExpr(p: *Parser) Error!Result {
             }
 
             if (res.ty.sizeof(p.comp)) |size| {
+                if (size == 0) {
+                    try p.errTok(.sizeof_returns_zero, tok);
+                }
                 res.val = .{ .tag = .int, .data = .{ .int = size } };
             } else {
                 res.val.tag = .unavailable;
