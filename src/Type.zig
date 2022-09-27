@@ -805,7 +805,16 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         => comp.target.cpu.arch.ptrBitWidth() >> 3,
         .array, .vector => {
             const size = ty.data.array.elem.sizeof(comp) orelse return null;
-            return std.mem.alignForwardGeneric(u64, size * ty.data.array.len, ty.alignof(comp));
+            const arr_size = size * ty.data.array.len;
+            if (comp.langopts.emulate == .msvc) {
+                // msvc ignores array type alignment.
+                // Since the size might not be a multiple of the field
+                // alignment, the address of the second element might not be properly aligned
+                // for the field alignment. A flexible array has size 0. See test case 0018.
+                return arr_size;
+            } else {
+                return std.mem.alignForwardGeneric(u64, arr_size, ty.alignof(comp));
+            }
         },
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else @as(u64, ty.data.record.type_layout.size_bits / 8),
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) null else ty.data.@"enum".tag_ty.sizeof(comp),

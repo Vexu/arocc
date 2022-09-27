@@ -11,14 +11,14 @@ const global_test_exclude = std.ComptimeStringMap(void, .{
 /// Set true to debug specific targets w/ specific tests.
 const test_single_target = false;
 const single_target = .{
-    .target = "arm-cortex_r4-ios-none:Clang",
-    .c_test = "0064",
+    // .target = "arm-cortex_r4-ios-none:Clang",
+    // .c_test = "0064",
     // .target = "s390x-generic-linux-gnu:Gcc",
     // .c_test = "00", // run all the tests
     // .target = "i386-i586-linux-gnu:Gcc",
     // .c_test = "0002",
-    // .target = "x86_64-x86_64-windows-msvc:Msvc",
-    // .c_test = "00", // run all the tests
+    .target = "x86_64-x86_64-windows-msvc:Msvc",
+    .c_test = "0018", // run all the tests
     // .target = "arm-arm1136j_s-freebsd-gnu:Clang",
     // .c_test = "0052",
 };
@@ -272,6 +272,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     try buf_strm.writer().print("{s}|{s}", .{ test_case.target, test_name });
 
     if (compErr.get(buf[0..buf_strm.pos])) |err| {
+        if (comp.langopts.emulate == .msvc) actual.extra = err.extra;
         if (!std.meta.eql(actual, err)) {
             state.progress.log("\nactual failures don't match expected failures.\n\tactual  :{any}\n\texpected:{any}\n", .{ actual, err });
             comp.renderErrors();
@@ -281,6 +282,9 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
         }
         return;
     }
+    // ignore the "extra" tests for MSVC
+    // right now.
+    if (comp.langopts.emulate == .msvc) actual.extra = false;
     if (actual.any()) {
         state.progress.log("\nNo errors expected for {s} {s} Found:{any}\n", .{ test_case.target, test_name, actual });
         comp.renderErrors();
@@ -627,44 +631,20 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0001",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0002",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0006",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0008",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0010",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0011",
@@ -675,32 +655,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0013",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0015",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0017",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0018",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0020",
@@ -709,10 +665,6 @@ const compErr = blk: {
         .{
             "aarch64-generic-windows-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0023",
@@ -751,40 +703,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0034",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0035",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0038",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0040",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0041",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0042",
@@ -807,40 +731,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0053",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0054",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0055",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0056",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0057",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0058",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0059",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0061",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0063",
@@ -863,20 +759,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0073",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0074",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0077",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0078",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0080",
@@ -1359,44 +1243,20 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0001",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0002",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i586-windows-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0006",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0008",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0010",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "i386-i586-windows-msvc:Msvc|0011",
@@ -1407,32 +1267,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0013",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0015",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0017",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0018",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i586-windows-msvc:Msvc|0020",
@@ -1441,10 +1277,6 @@ const compErr = blk: {
         .{
             "i386-i586-windows-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i586-windows-msvc:Msvc|0023",
@@ -1483,40 +1315,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0034",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0035",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0038",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0040",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0041",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i586-windows-msvc:Msvc|0042",
@@ -1539,40 +1343,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0053",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0054",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0055",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0056",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0057",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "i386-i586-windows-msvc:Msvc|0058",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0059",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0061",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i586-windows-msvc:Msvc|0063",
@@ -1595,20 +1371,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0073",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0074",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0077",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-windows-msvc:Msvc|0078",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i586-windows-msvc:Msvc|0080",
@@ -2043,64 +1807,24 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0003",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-uefi-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0006",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-uefi-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0008",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "i386-i686-uefi-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0010",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "i386-i686-uefi-msvc:Msvc|0011",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0012",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-uefi-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0017",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0018",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-uefi-msvc:Msvc|0020",
@@ -2109,10 +1833,6 @@ const compErr = blk: {
         .{
             "i386-i686-uefi-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-uefi-msvc:Msvc|0023",
@@ -2147,14 +1867,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-uefi-msvc:Msvc|0036",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -2163,28 +1875,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0038",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-uefi-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0040",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-uefi-msvc:Msvc|0042",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0043",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0045",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "i386-i686-uefi-msvc:Msvc|0046",
@@ -2193,14 +1889,6 @@ const compErr = blk: {
         .{
             "i386-i686-uefi-msvc:Msvc|0047",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0053",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-uefi-msvc:Msvc|0057",
@@ -2229,10 +1917,6 @@ const compErr = blk: {
         .{
             "i386-i686-uefi-msvc:Msvc|0072",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-uefi-msvc:Msvc|0073",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-uefi-msvc:Msvc|0077",
@@ -2527,44 +2211,20 @@ const compErr = blk: {
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0001",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0002",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-windows-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0006",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-windows-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0008",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "i386-i686-windows-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0010",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "i386-i686-windows-msvc:Msvc|0011",
@@ -2575,32 +2235,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0013",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-windows-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0015",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0017",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0018",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-windows-msvc:Msvc|0020",
@@ -2609,10 +2245,6 @@ const compErr = blk: {
         .{
             "i386-i686-windows-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-windows-msvc:Msvc|0023",
@@ -2651,40 +2283,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0034",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0035",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-windows-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0038",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0040",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0041",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-windows-msvc:Msvc|0042",
@@ -2707,40 +2311,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0053",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0054",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0055",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0056",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-windows-msvc:Msvc|0057",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "i386-i686-windows-msvc:Msvc|0058",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0059",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0061",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-windows-msvc:Msvc|0063",
@@ -2763,20 +2339,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0073",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0074",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-windows-msvc:Msvc|0077",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-windows-msvc:Msvc|0078",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "i386-i686-windows-msvc:Msvc|0080",
@@ -2975,44 +2539,20 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0001",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0002",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0006",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0008",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0010",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0011",
@@ -3023,32 +2563,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0013",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0015",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0017",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0018",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0020",
@@ -3057,10 +2573,6 @@ const compErr = blk: {
         .{
             "thumb-baseline-windows-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0023",
@@ -3099,40 +2611,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0034",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0035",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0038",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0040",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0041",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0042",
@@ -3155,40 +2639,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0053",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0054",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0055",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0056",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0057",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0058",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0059",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0061",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0063",
@@ -3211,20 +2667,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0073",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0074",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0077",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0078",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0080",
@@ -3639,64 +3083,24 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0003",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0006",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0008",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0010",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0011",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0012",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0017",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0018",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0020",
@@ -3705,10 +3109,6 @@ const compErr = blk: {
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0023",
@@ -3743,14 +3143,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0036",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -3759,28 +3151,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0038",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0040",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0042",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0043",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0045",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0046",
@@ -3789,14 +3165,6 @@ const compErr = blk: {
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0047",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0053",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0057",
@@ -3825,10 +3193,6 @@ const compErr = blk: {
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0072",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0073",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0077",
@@ -4123,44 +3487,20 @@ const compErr = blk: {
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0001",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0002",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0006",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0008",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0010",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0011",
@@ -4171,32 +3511,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0013",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0015",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0017",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0018",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0020",
@@ -4205,10 +3521,6 @@ const compErr = blk: {
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0023",
@@ -4247,40 +3559,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0034",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0035",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0038",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0040",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0041",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0042",
@@ -4303,40 +3587,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0053",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0054",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0055",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0056",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0057",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0058",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0059",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0061",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0063",
@@ -4359,20 +3615,8 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0073",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0074",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0077",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-msvc:Msvc|0078",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0080",
