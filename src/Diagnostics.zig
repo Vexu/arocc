@@ -1537,6 +1537,7 @@ const messages = struct {
     const flexible_in_empty = struct {
         const msg = "flexible array member in otherwise empty struct";
         const kind = .@"error";
+        const suppress_msvc = true;
     };
     const duplicate_member = struct {
         const msg = "duplicate member '{s}'";
@@ -2047,6 +2048,12 @@ const messages = struct {
         const msg = "hexadecimal floating constant requires an exponent";
         const kind = .@"error";
     };
+    const sizeof_returns_zero = struct {
+        const msg = "sizeof returns 0";
+        const kind = .warning;
+        const suppress_gcc = true;
+        const suppress_clang = true;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -2329,6 +2336,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
             if (@hasDecl(info, "suppress_gnu")) if (comp.langopts.standard.isExplicitGNU()) return .off;
             if (@hasDecl(info, "suppress_language_option")) if (!@field(comp.langopts, info.suppress_language_option)) return .off;
             if (@hasDecl(info, "suppress_gcc")) if (comp.langopts.emulate == .gcc) return .off;
+            if (@hasDecl(info, "suppress_clang")) if (comp.langopts.emulate == .clang) return .off;
+            if (@hasDecl(info, "suppress_msvc")) if (comp.langopts.emulate == .msvc) return .off;
             if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
             return kind;
         }
