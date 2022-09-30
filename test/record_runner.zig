@@ -44,7 +44,7 @@ const ExpectedFailure = struct {
     extra: bool = false,
     offset: bool = false,
 
-    fn any(self: *const ExpectedFailure) bool {
+    fn any(self: ExpectedFailure) bool {
         return self.parse or self.layout or self.extra or self.offset;
     }
 };
@@ -245,53 +245,54 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
         return;
     }
 
-    var actual = ExpectedFailure{};
-    std.debug.assert(!actual.any());
-    for (comp.diag.list.items) |msg| {
-        switch (msg.kind) {
-            .@"fatal error", .@"error" => {},
-            else => continue,
-        }
-        const src = comp.getSource(msg.loc.id);
-        const line = src.lineCol(msg.loc).line;
-        if (std.ascii.indexOfIgnoreCase(line, "_Static_assert") != null) {
-            // zig fmt: off
-            if (std.ascii.indexOfIgnoreCase(line, "_extra_") != null) actual.extra = true 
-            else if (std.ascii.indexOfIgnoreCase(line, "_bitoffsetof") != null) actual.offset = true
-            else if (std.ascii.indexOfIgnoreCase(line, "sizeof") != null)  actual.layout = true
-            else if (std.ascii.indexOfIgnoreCase(line, "_alignof") != null)  actual.layout = true
-            else actual.parse = true; // should be unreachable.
-            // zig fmt: on
-        } else {
-            actual.parse = true;
-        }
-    }
-
     var buf: [128]u8 = undefined;
     var buf_strm = std.io.fixedBufferStream(&buf);
     try buf_strm.writer().print("{s}|{s}", .{ test_case.target, test_name });
 
-    if (compErr.get(buf[0..buf_strm.pos])) |err| {
-        if (comp.langopts.emulate == .msvc) actual.extra = err.extra;
-        if (!std.meta.eql(actual, err)) {
-            state.progress.log("\nactual failures don't match expected failures.\n\tactual  :{any}\n\texpected:{any}\n", .{ actual, err });
-            comp.renderErrors();
-            state.fail_count += 1;
-        } else {
-            state.skip_count += 1;
+    const expected = compErr.get(buf[0..buf_strm.pos]) orelse ExpectedFailure{};
+
+    if (comp.diag.list.items.len == 0 and expected.any()) {
+        state.progress.log("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
+    } else {
+        var m = aro.Diagnostics.defaultMsgWriter(&comp);
+        defer m.deinit();
+        var expected_errors = false;
+        var new_error = false;
+        for (comp.diag.list.items) |msg| {
+            switch (msg.kind) {
+                .@"fatal error", .@"error" => {},
+                else => continue,
+            }
+            const src = comp.getSource(msg.loc.id);
+            const line = src.lineCol(msg.loc).line;
+            var render = false;
+            if (std.ascii.indexOfIgnoreCase(line, "_Static_assert") != null) {
+                if (std.ascii.indexOfIgnoreCase(line, "_extra_") != null) {
+                    // MSVC _extra_ tests are all assumed to fail atm.
+                    if (comp.langopts.emulate == .msvc or expected.extra) expected_errors = true else render = true;
+                } else if (std.ascii.indexOfIgnoreCase(line, "_bitoffsetof") != null) {
+                    if (!expected.offset) render = true else expected_errors = true;
+                } else if (std.ascii.indexOfIgnoreCase(line, "sizeof") != null or
+                    std.ascii.indexOfIgnoreCase(line, "_alignof") != null)
+                {
+                    if (!expected.layout) render = true else expected_errors = true;
+                } else unreachable;
+            } else if (!expected.parse) render = true else expected_errors = true;
+
+            if (render) {
+                if (!new_error) m.print("\n", .{});
+                aro.Diagnostics.renderMessage(&comp, &m, msg);
+                new_error = true;
+            }
         }
-        return;
+        if (new_error) {
+            state.fail_count += 1;
+        } else if (expected_errors) {
+            state.skip_count += 1;
+        } else {
+            state.ok_count += 1;
+        }
     }
-    // ignore the "extra" tests for MSVC
-    // right now.
-    if (comp.langopts.emulate == .msvc) actual.extra = false;
-    if (actual.any()) {
-        state.progress.log("\nNo errors expected for {s} {s} Found:{any}\n", .{ test_case.target, test_name, actual });
-        comp.renderErrors();
-        state.fail_count += 1;
-        return;
-    }
-    state.ok_count += 1;
 }
 
 /// Get Zig std.Target from string in the arch-cpu-os-abi format.
