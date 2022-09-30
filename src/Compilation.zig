@@ -1167,7 +1167,7 @@ test "target size/align tests" {
     };
 
     try std.testing.expectEqual(@as(u64, 8), tt.sizeof(&comp).?);
-    try std.testing.expectEqual(@as(u64, 8), tt.alignof(&comp)); // TODO should be 4
+    try std.testing.expectEqual(@as(u64, 4), tt.alignof(&comp));
 
     const arm = std.Target.Cpu.Arch.arm;
     comp.target.cpu = std.Target.Cpu.Model.toCpu(&std.Target.arm.cpu.cortex_r4, arm);

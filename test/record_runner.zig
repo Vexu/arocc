@@ -349,6 +349,8 @@ fn parseTargetsFromCode(alloc: std.mem.Allocator, source: []const u8) !std.Array
 
         while (parts.next()) |target| {
             if (std.mem.startsWith(u8, target, "END")) break;
+            // skip MinGW targets for now.
+            if (std.ascii.indexOfIgnoreCase(target, "windows-gnu") != null) continue;
             // These point to source, which lives
             // for the life of the test. So should be ok
             try result.append(.{
@@ -1064,19 +1066,7 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i386-ios-none:Clang|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i386-ios-none:Clang|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i386-ios-none:Clang|0018",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i386-ios-none:Clang|0024",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -1092,10 +1082,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i386-ios-none:Clang|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i386-ios-none:Clang|0067",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -1104,143 +1090,15 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i386-ios-none:Clang|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i386-ios-none:Clang|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "i386-i386-ios-none:Clang|0083",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i386-ios-none:Clang|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i386-ios-none:Clang|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0019",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0061",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "i386-i586-linux-gnu:Gcc|0062",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-linux-gnu:Gcc|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-gnu:Gcc|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0019",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0061",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-linux-musl:Gcc|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0088",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -1388,99 +1246,7 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-freebsd-gnu:Clang|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0018",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0061",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-freebsd-gnu:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0018",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0061",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -1488,119 +1254,7 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-haiku-gnu:Clang|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0018",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0061",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-linux-android:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0019",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0061",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -1608,119 +1262,7 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-linux-gnu:Gcc|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0019",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0061",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-linux-musl:Gcc|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0018",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0061",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -1728,83 +1270,7 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-netbsd-gnu:Clang|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0002",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0018",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0024",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0061",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i686-openbsd-gnu:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0069",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0087",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0088",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
