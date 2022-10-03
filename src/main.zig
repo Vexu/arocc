@@ -96,6 +96,7 @@ const usage =
     \\
     \\Debug options:
     \\  --verbose-ast           Dump produced AST to stdout
+    \\  --verbose-pp            Dump preprocessor state
     \\
     \\
 ;
@@ -260,6 +261,8 @@ pub fn parseArgs(
                 comp.langopts.setEmulatedCompiler(comp.systemCompiler());
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 comp.verbose_ast = true;
+            } else if (mem.eql(u8, arg, "--verbose-pp")) {
+                comp.verbose_pp = true;
             } else {
                 try comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }

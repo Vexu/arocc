@@ -284,9 +284,15 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
 
                         if (try pp.expr(&tokenizer)) {
                             if_kind.set(if_level, until_endif);
+                            if (pp.comp.verbose_pp) {
+                                pp.verboseLog(directive, "entering then branch of #if", .{});
+                            }
                         } else {
                             if_kind.set(if_level, until_else);
                             try pp.skip(&tokenizer, .until_else);
+                            if (pp.comp.verbose_pp) {
+                                pp.verboseLog(directive, "entering else branch of #if", .{});
+                            }
                         }
                     },
                     .keyword_ifdef => {
@@ -297,9 +303,15 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         try pp.expectNl(&tokenizer);
                         if (pp.defines.get(macro_name) != null) {
                             if_kind.set(if_level, until_endif);
+                            if (pp.comp.verbose_pp) {
+                                pp.verboseLog(directive, "entering then branch of #ifdef", .{});
+                            }
                         } else {
                             if_kind.set(if_level, until_else);
                             try pp.skip(&tokenizer, .until_else);
+                            if (pp.comp.verbose_pp) {
+                                pp.verboseLog(directive, "entering else branch of #ifdef", .{});
+                            }
                         }
                     },
                     .keyword_ifndef => {
@@ -326,8 +338,14 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         switch (if_kind.get(if_level)) {
                             until_else => if (try pp.expr(&tokenizer)) {
                                 if_kind.set(if_level, until_endif);
+                                if (pp.comp.verbose_pp) {
+                                    pp.verboseLog(directive, "entering then branch of #elif", .{});
+                                }
                             } else {
                                 try pp.skip(&tokenizer, .until_else);
+                                if (pp.comp.verbose_pp) {
+                                    pp.verboseLog(directive, "entering else branch of #elif", .{});
+                                }
                             },
                             until_endif => try pp.skip(&tokenizer, .until_endif),
                             until_endif_seen_else => {
@@ -346,7 +364,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             guard_name = null;
                         }
                         switch (if_kind.get(if_level)) {
-                            until_else => if_kind.set(if_level, until_endif_seen_else),
+                            until_else => {
+                                if_kind.set(if_level, until_endif_seen_else);
+                                if (pp.comp.verbose_pp) {
+                                    pp.verboseLog(directive, "#else branch here", .{});
+                                }
+                            },
                             until_endif => try pp.skip(&tokenizer, .until_endif_seen_else),
                             until_endif_seen_else => {
                                 try pp.err(directive, .else_after_else);
@@ -502,6 +525,21 @@ fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anyty
     const source = pp.comp.getSource(raw.source);
     const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
     return pp.comp.diag.fatal(source.path, line_col.line, raw.line, line_col.col, fmt, args);
+}
+
+fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) void {
+    const source = pp.comp.getSource(raw.source);
+    const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
+
+    const stderr = std.io.getStdErr().writer();
+    var buf_writer = std.io.bufferedWriter(stderr);
+    const writer = buf_writer.writer();
+    defer buf_writer.flush() catch {};
+    writer.print("{s}:{d}:{d}: ", .{ source.path, line_col.line_no, line_col.col }) catch return;
+    writer.print(fmt, args) catch return;
+    writer.writeByte('\n') catch return;
+    writer.writeAll(line_col.line) catch return;
+    writer.writeByte('\n') catch return;
 }
 
 /// Consume next token, error if it is not an identifier.
@@ -1845,6 +1883,9 @@ fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
         }, &.{});
         // TODO add a previous definition note
     }
+    if (pp.comp.verbose_pp) {
+        pp.verboseLog(name_tok, "macro {s} defined", .{name_str});
+    }
     gop.value_ptr.* = macro;
 }
 
@@ -2105,6 +2146,10 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
 
     if (pp.include_guards.get(new_source.id)) |guard| {
         if (pp.defines.contains(guard)) return;
+    }
+
+    if (pp.comp.verbose_pp) {
+        pp.verboseLog(first, "include file {s}", .{new_source.path});
     }
 
     _ = pp.preprocessExtra(new_source) catch |er| switch (er) {
