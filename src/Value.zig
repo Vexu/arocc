@@ -163,9 +163,9 @@ fn floatToIntExtra(comptime FloatTy: type, int_ty_signedness: std.builtin.Signed
     const was_zero = float_val == 0;
     const had_fraction = std.math.modf(float_val).fpart != 0;
 
-    inline for ([_]std.builtin.Signedness{ .signed, .unsigned }) |signedness| {
-        inline for ([_]u16{ 1, 2, 4, 8 }) |bytecount| {
-            if (signedness == int_ty_signedness and bytecount == int_ty_size) {
+    switch (int_ty_signedness) {
+        inline else => |signedness| switch (int_ty_size) {
+            inline 1, 2, 4, 8 => |bytecount| {
                 const IntTy = std.meta.Int(signedness, bytecount * 8);
 
                 const intVal = std.math.lossyCast(IntTy, float_val);
@@ -174,10 +174,10 @@ fn floatToIntExtra(comptime FloatTy: type, int_ty_signedness: std.builtin.Signed
                 if (float_val <= std.math.minInt(IntTy) or float_val >= std.math.maxInt(IntTy)) return .out_of_range;
                 if (had_fraction) return .value_changed;
                 return .none;
-            }
-        }
+            },
+            else => unreachable,
+        },
     }
-    unreachable;
 }
 
 /// Converts the stored value from a float to an integer.

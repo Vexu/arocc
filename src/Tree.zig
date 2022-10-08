@@ -630,9 +630,9 @@ fn dumpFieldAttributes(attributes: []const Attribute, level: u32, writer: anytyp
 }
 
 fn dumpAttribute(attr: Attribute, writer: anytype) !void {
-    inline for (std.meta.fields(Attribute.Tag)) |e| {
-        if (e.value == @enumToInt(attr.tag)) {
-            const args = @field(attr.args, e.name);
+    switch (attr.tag) {
+        inline else => |tag| {
+            const args = @field(attr.args, @tagName(tag));
             if (@TypeOf(args) == void) {
                 try writer.writeByte('\n');
                 return;
@@ -656,7 +656,7 @@ fn dumpAttribute(attr: Attribute, writer: anytype) !void {
             }
             try writer.writeByte('\n');
             return;
-        }
+        },
     }
 }
 

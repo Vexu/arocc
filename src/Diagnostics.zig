@@ -2234,9 +2234,9 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
 
         m.start(msg.kind);
         @setEvalBranchQuota(1500);
-        inline for (std.meta.fields(Tag)) |field| {
-            if (field.value == @enumToInt(msg.tag)) {
-                const info = @field(messages, field.name);
+        switch (msg.tag) {
+            inline else => |tag| {
+                const info = @field(messages, @tagName(tag));
                 if (@hasDecl(info, "extra")) {
                     switch (info.extra) {
                         .str => m.print(info.msg, .{msg.extra.str}),
@@ -2290,7 +2290,7 @@ pub fn renderExtra(comp: *Compilation, m: anytype) void {
                         m.print(" [-W{s}]", .{info.opt});
                     }
                 }
-            }
+            },
         }
 
         m.end(line, width, end_with_splice);
@@ -2314,9 +2314,9 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
     const comp = @fieldParentPtr(Compilation, "diag", diag);
 
     var kind: Kind = undefined;
-    inline for (std.meta.fields(Tag)) |field| {
-        if (field.value == @enumToInt(tag)) {
-            const info = @field(messages, field.name);
+    switch (tag) {
+        inline else => |tag_val| {
+            const info = @field(messages, @tagName(tag_val));
             kind = info.kind;
 
             // stage1 doesn't like when I combine these ifs
@@ -2340,9 +2340,8 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
             if (@hasDecl(info, "suppress_msvc")) if (comp.langopts.emulate == .msvc) return .off;
             if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
             return kind;
-        }
+        },
     }
-    unreachable;
 }
 
 const MsgWriter = struct {
