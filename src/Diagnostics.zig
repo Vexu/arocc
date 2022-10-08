@@ -651,6 +651,10 @@ const messages = struct {
         const msg = "cannot take the address of an rvalue";
         const kind = .@"error";
     };
+    const addr_of_bitfield = struct {
+        const msg = "address of bit-field requested";
+        const kind = .@"error";
+    };
     const not_assignable = struct {
         const msg = "expression is not assignable";
         const kind = .@"error";

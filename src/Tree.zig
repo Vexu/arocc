@@ -531,6 +531,20 @@ pub const Tag = enum(u8) {
     }
 };
 
+pub fn isBitfield(nodes: Node.List.Slice, node: NodeIndex) bool {
+    switch (nodes.items(.tag)[@enumToInt(node)]) {
+        .member_access_expr, .member_access_ptr_expr => {
+            const member = nodes.items(.data)[@enumToInt(node)].member;
+            var ty = nodes.items(.ty)[@enumToInt(member.lhs)];
+            if (ty.isPtr()) ty = ty.elemType();
+            const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return false;
+            const field = record_ty.data.record.fields[member.index];
+            return field.bit_width != null;
+        },
+        else => return false,
+    }
+}
+
 pub fn isLval(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: ValueMap, node: NodeIndex) bool {
     var is_const: bool = undefined;
     return isLvalExtra(nodes, extra, value_map, node, &is_const);
@@ -691,6 +705,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
     if (isLval(tree.nodes, tree.data, tree.value_map, node)) {
         if (color) util.setColor(ATTRIBUTE, w);
         try w.writeAll(" lvalue");
+    }
+    if (isBitfield(tree.nodes, node)) {
+        if (color) util.setColor(ATTRIBUTE, w);
+        try w.writeAll(" bitfield");
     }
     if (tree.value_map.get(node)) |val| {
         if (color) util.setColor(LITERAL, w);

@@ -5684,6 +5684,9 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.expect(p);
 
             const slice = p.nodes.slice();
+            if (p.getNode(operand.node, .member_access_expr) orelse p.getNode(operand.node, .member_access_ptr_expr)) |member_node| {
+                if (Tree.isBitfield(slice, member_node)) try p.errTok(.addr_of_bitfield, tok);
+            }
             if (!Tree.isLval(slice, p.data.items, p.value_map, operand.node)) {
                 try p.errTok(.addr_of_rvalue, tok);
             }
