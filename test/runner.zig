@@ -422,7 +422,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std
     const expected_count = pp.comp.diag.list.items.len;
     var m = MsgWriter.init(pp.comp.gpa);
     defer m.deinit();
-    aro.Diagnostics.renderExtra(pp.comp, &m);
+    aro.Diagnostics.renderMessages(pp.comp, &m);
 
     if (macro.is_func) {
         progress.log("invalid EXPECTED_ERRORS {}\n", .{macro});
