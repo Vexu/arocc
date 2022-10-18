@@ -510,30 +510,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "arm-baseline-ios-none:Clang|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "arm-baseline-ios-none:Clang|0073",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "arm-baseline-ios-none:Clang|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "arm-cortex_r4-ios-none:Clang|0068",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "arm-cortex_r4-ios-none:Clang|0073",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "arm-cortex_r4-ios-none:Clang|0082",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "avr-avr2-other-eabi:Gcc|0001",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },

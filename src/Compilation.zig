@@ -960,6 +960,13 @@ pub fn ignoreNonZeroSizedBitfieldTypeAlignment(comp: *const Compilation) bool {
     return false;
 }
 
+pub fn ignoreZeroSizedBitfieldTypeAlignment(comp: *const Compilation) bool {
+    switch (comp.target.cpu.arch) {
+        .avr => return true,
+        else => return false,
+    }
+}
+
 pub fn minZeroWidthBitfieldAlignment(comp: *const Compilation) ?u29 {
     switch (comp.target.cpu.arch) {
         .avr => return 8,
