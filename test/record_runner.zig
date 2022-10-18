@@ -510,10 +510,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "arm-baseline-ios-none:Clang|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "arm-baseline-ios-none:Clang|0068",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
@@ -524,10 +520,6 @@ const compErr = blk: {
         .{
             "arm-baseline-ios-none:Clang|0082",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "arm-cortex_r4-ios-none:Clang|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "arm-cortex_r4-ios-none:Clang|0068",
