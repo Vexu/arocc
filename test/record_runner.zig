@@ -366,26 +366,6 @@ const compErr = blk: {
     @setEvalBranchQuota(100_000);
     break :blk std.ComptimeStringMap(ExpectedFailure, .{
         .{
-            "aarch64-generic-fuchsia-gnu:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-ios-macabi:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-ios-none:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-other-eabi:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-tvos-none:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -698,14 +678,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-linux-gnu:Gcc|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i586-linux-musl:Gcc|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -847,34 +819,6 @@ const compErr = blk: {
         },
         .{
             "i386-i586-windows-msvc:Msvc|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-freebsd-gnu:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-haiku-gnu:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-android:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-gnu:Gcc|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-linux-musl:Gcc|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-netbsd-gnu:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "i386-i686-openbsd-gnu:Clang|0062",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -1514,10 +1458,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "riscv64-baseline_rv64-other-eabi:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "s390x-generic-linux-gnu:Gcc|0050",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -1706,22 +1646,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-fuchsia-gnu:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-haiku-gnu:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-ios-macabi:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-ios-none:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-linux-gnux32:Gcc|0001",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
@@ -1756,18 +1680,6 @@ const compErr = blk: {
         .{
             "x86_64-x86_64-linux-gnux32:Gcc|0083",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-other-eabi:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-solaris-eabi:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-tvos-none:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0005",

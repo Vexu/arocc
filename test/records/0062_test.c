@@ -1606,7 +1606,7 @@ struct A075_extra_size {
 struct A075_extra_size var320;
 
 typedef enum {
-    F321 = 9223372036854775808,
+    F321 = 9223372036854775808ULL,
 } __attribute__((packed)) A076;
 A076 var322;
 struct A076_extra_alignment {
@@ -3206,7 +3206,7 @@ struct A155_extra_size {
 struct A155_extra_size var640;
 
 typedef enum {
-    F641 = -9223372036854775808,
+    F641 = -9223372036854775808ULL,
 } __attribute__((packed)) A156;
 A156 var642;
 struct A156_extra_alignment {
@@ -4831,7 +4831,7 @@ struct B075_extra_size {
 struct B075_extra_size var965;
 
 typedef enum {
-    F966 = 9223372036854775808,
+    F966 = 9223372036854775808ULL,
 } B076;
 B076 var967;
 struct B076_extra_alignment {
@@ -6431,7 +6431,7 @@ struct B155_extra_size {
 struct B155_extra_size var1285;
 
 typedef enum {
-    F1286 = -9223372036854775808,
+    F1286 = -9223372036854775808ULL,
 } B156;
 B156 var1287;
 struct B156_extra_alignment {
