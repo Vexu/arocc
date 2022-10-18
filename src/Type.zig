@@ -861,27 +861,36 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .vector,
         => ty.elemType().alignof(comp),
         .func, .var_args_func, .old_style_func => 4, // TODO check target
-        .char, .schar, .uchar, .void, .bool, .complex_char, .complex_schar, .complex_uchar => 1,
-        .short, .ushort, .complex_short, .complex_ushort => 2,
-        .int, .uint, .complex_int, .complex_uint => switch (comp.target.cpu.arch) {
-            .msp430 => @as(u29, 2),
-            else => 4,
-        },
-        .long, .ulong, .complex_long, .complex_ulong => switch (comp.target.os.tag) {
-            .linux,
-            .macos,
-            .freebsd,
-            .netbsd,
-            .dragonfly,
-            .openbsd,
-            .wasi,
-            .emscripten,
-            => comp.target.cpu.arch.ptrBitWidth() >> 3,
-            .windows, .uefi => 4,
-            else => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 4,
-        },
+        .char, .schar, .uchar, .void, .bool => 1,
 
-        .long_long, .ulong_long, .complex_long_long, .complex_ulong_long => switch (comp.target.cpu.arch) {
+        // zig fmt: off
+        .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
+        .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
+        .complex_int128, .complex_uint128, .complex_fp16, .complex_float, .complex_double,
+        .complex_long_double, .complex_float80, .complex_float128,
+        => return ty.makeReal().alignof(comp),
+        // zig fmt: on
+
+        .short, .ushort, .int, .uint, .long, .ulong => switch (comp.target.cpu.arch) {
+            .msp430 => @as(u29, 2),
+            else => @intCast(u29, ty.sizeof(comp).?),
+        },
+        .long_long, .ulong_long => switch (comp.target.cpu.arch) {
+            .msp430 => 2,
+            .i386 => switch (comp.target.os.tag) {
+                .windows, .uefi => 8,
+                else => 4,
+            },
+            .arm => switch (comp.target.os.tag) {
+                .ios => 4,
+                else => 8,
+            },
+            else => @intCast(u29, ty.sizeof(comp).?),
+        },
+        .int128, .uint128 => 16,
+        .fp16 => 2,
+        .float => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 4,
+        .double => switch (comp.target.cpu.arch) {
             .msp430 => 2,
             .i386 => switch (comp.target.os.tag) {
                 .windows, .uefi => 8,
@@ -889,18 +898,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
             },
             else => 8,
         },
-        .int128, .uint128, .complex_int128, .complex_uint128 => 16,
-        .fp16, .complex_fp16 => 2,
-        .float, .complex_float => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 4,
-        .double, .complex_double => switch (comp.target.cpu.arch) {
-            .msp430 => 2,
-            .i386 => switch (comp.target.os.tag) {
-                .windows, .uefi => 8,
-                else => 4,
-            },
-            else => 8,
-        },
-        .long_double, .complex_long_double => switch (comp.target.cpu.arch) {
+        .long_double => switch (comp.target.cpu.arch) {
             .msp430 => 2,
             .i386 => switch (comp.target.os.tag) {
                 .windows, .uefi => 8,
@@ -908,7 +906,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
             },
             else => 16,
         },
-        .float80, .complex_float80, .float128, .complex_float128 => 16,
+        .float80, .float128 => 16,
         .pointer,
         .decayed_array,
         .decayed_static_array,
