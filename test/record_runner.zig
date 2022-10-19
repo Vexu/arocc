@@ -510,19 +510,11 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "avr-avr2-other-eabi:Gcc|0001",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "avr-avr2-other-eabi:Gcc|0002",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "avr-avr2-other-eabi:Gcc|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0016",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -538,31 +530,7 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "avr-avr2-other-eabi:Gcc|0030",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0032",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0033",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0034",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "avr-avr2-other-eabi:Gcc|0043",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0051",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0053",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -586,24 +554,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "avr-avr2-other-eabi:Gcc|0063",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "avr-avr2-other-eabi:Gcc|0068",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "avr-avr2-other-eabi:Gcc|0069",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0080",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0084",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "avr-avr2-other-eabi:Gcc|0087",

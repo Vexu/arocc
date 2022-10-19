@@ -871,11 +871,17 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         => return ty.makeReal().alignof(comp),
         // zig fmt: on
 
-        .short, .ushort, .int, .uint, .long, .ulong => switch (comp.target.cpu.arch) {
+        .short, .ushort => switch (comp.target.cpu.arch) {
+            .avr, .msp430 => @as(u29, 2),
+            else => @intCast(u29, ty.sizeof(comp).?),
+        },
+        .int, .uint, .long, .ulong => switch (comp.target.cpu.arch) {
+            .avr => @as(u29, 1),
             .msp430 => @as(u29, 2),
             else => @intCast(u29, ty.sizeof(comp).?),
         },
         .long_long, .ulong_long => switch (comp.target.cpu.arch) {
+            .avr => 8,
             .msp430 => 2,
             .i386 => switch (comp.target.os.tag) {
                 .windows, .uefi => 8,
@@ -889,8 +895,13 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         },
         .int128, .uint128 => 16,
         .fp16 => 2,
-        .float => if (comp.target.cpu.arch == .msp430) @as(u29, 2) else 4,
+        .float => switch (comp.target.cpu.arch) {
+            .avr => @as(u29, 1),
+            .msp430 => @as(u29, 2),
+            else => 4,
+        },
         .double => switch (comp.target.cpu.arch) {
+            .avr => 4,
             .msp430 => 2,
             .i386 => switch (comp.target.os.tag) {
                 .windows, .uefi => 8,
@@ -903,6 +914,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
             else => 8,
         },
         .long_double => switch (comp.target.cpu.arch) {
+            .avr => 1,
             .msp430 => 2,
             .i386 => switch (comp.target.os.tag) {
                 .windows, .uefi => 8,
@@ -922,7 +934,10 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
         .static_array,
-        => comp.target.cpu.arch.ptrBitWidth() >> 3,
+        => switch (comp.target.cpu.arch) {
+            .avr => 1,
+            else => comp.target.cpu.arch.ptrBitWidth() >> 3,
+        },
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @intCast(u29, ty.data.record.type_layout.field_alignment_bits / 8),
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
