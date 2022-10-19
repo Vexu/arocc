@@ -872,12 +872,12 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         // zig fmt: on
 
         .short, .ushort => switch (comp.target.cpu.arch) {
-            .avr, .msp430 => @as(u29, 2),
+            .avr, .msp430 => 2,
             else => @intCast(u29, ty.sizeof(comp).?),
         },
         .int, .uint, .long, .ulong => switch (comp.target.cpu.arch) {
-            .avr => @as(u29, 1),
-            .msp430 => @as(u29, 2),
+            .avr => 1,
+            .msp430 => 2,
             else => @intCast(u29, ty.sizeof(comp).?),
         },
         .long_long, .ulong_long => switch (comp.target.cpu.arch) {
@@ -896,8 +896,8 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .int128, .uint128 => 16,
         .fp16 => 2,
         .float => switch (comp.target.cpu.arch) {
-            .avr => @as(u29, 1),
-            .msp430 => @as(u29, 2),
+            .avr => 1,
+            .msp430 => 2,
             else => 4,
         },
         .double => switch (comp.target.cpu.arch) {
