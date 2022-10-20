@@ -6727,7 +6727,10 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
                 .F, .IF => .float,
                 else => unreachable,
             } };
-            const d_val = std.fmt.parseFloat(f64, buf) catch unreachable;
+            const d_val = std.fmt.parseFloat(f64, buf) catch |er| switch (er) {
+                error.InvalidCharacter => return p.todo("c2x digit separators in floats"),
+                else => unreachable,
+            };
             const tag: Tree.Tag = switch (suffix) {
                 .None, .I => .double_literal,
                 .F, .IF => .float_literal,
@@ -6794,6 +6797,7 @@ fn getIntegerPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: Toke
                     return error.ParsingFailed;
                 }
             },
+            '\'' => {},
             else => return buf[0..idx],
         }
     }
@@ -6812,6 +6816,7 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
             '0'...'9' => c - '0',
             'A'...'Z' => c - 'A' + 10,
             'a'...'z' => c - 'a' + 10,
+            '\'' => continue,
             else => unreachable,
         };
 
@@ -6867,6 +6872,7 @@ fn getFracPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIn
     }
     for (buf) |c, idx| {
         if (idx == 0) continue;
+        if (c == '\'') continue;
         if (!prefix.digitAllowed(c)) return buf[0..idx];
     }
     return buf;
@@ -6888,6 +6894,7 @@ fn getExponent(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIn
         if (idx == 1 and (c == '+' or c == '-')) continue;
         switch (c) {
             '0'...'9' => {},
+            '\'' => continue,
             else => break idx,
         }
     } else buf.len;

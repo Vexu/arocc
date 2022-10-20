@@ -892,6 +892,7 @@ pub fn next(self: *Tokenizer) Token {
         multi_line_comment_done,
         pp_num,
         pp_num_exponent,
+        pp_num_digit_separator,
     } = .start;
 
     var start = self.index;
@@ -1520,7 +1521,29 @@ pub fn next(self: *Tokenizer) Token {
                 '.',
                 => {},
                 'e', 'E', 'p', 'P' => state = .pp_num_exponent,
+                '\'' => if (self.comp.langopts.standard.atLeast(.c2x)) {
+                    state = .pp_num_digit_separator;
+                } else {
+                    id = .pp_num;
+                    break;
+                },
                 else => {
+                    id = .pp_num;
+                    break;
+                },
+            },
+            .pp_num_digit_separator => switch (c) {
+                'a'...'d',
+                'A'...'D',
+                'f'...'o',
+                'F'...'O',
+                'q'...'z',
+                'Q'...'Z',
+                '0'...'9',
+                '_',
+                => state = .pp_num,
+                else => {
+                    self.index -= 1;
                     id = .pp_num;
                     break;
                 },
@@ -1582,7 +1605,7 @@ pub fn next(self: *Tokenizer) Token {
                 id = .hash;
                 self.index -= 1; // re-tokenize the percent
             },
-            .pp_num, .pp_num_exponent => id = .pp_num,
+            .pp_num, .pp_num_exponent, .pp_num_digit_separator => id = .pp_num,
         }
     }
 
