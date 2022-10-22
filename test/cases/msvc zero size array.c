@@ -18,6 +18,16 @@ struct J_size {
 _Static_assert(sizeof(struct J_size) == 2, "incorrect size");
 _Static_assert(_Alignof(struct J_size) == 1, "incorrect alignment");
 
+struct J_extra_alignment {
+    char a;
+    J b;
+};
+struct J_extra_alignment var83;
+
+_Static_assert(sizeof(J) == 0, "");
+_Static_assert(_Alignof(J) == 4, "");
+
 #define EXPECTED_ERRORS "msvc zero size array.c:10:16: warning: sizeof returns 0" \
     "msvc zero size array.c:14:12: warning: sizeof returns 0" \
+    "msvc zero size array.c:27:16: warning: sizeof returns 0" \
 
