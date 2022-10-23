@@ -24,6 +24,7 @@ const StringId = @import("StringInterner.zig").StringId;
 const number_affixes = @import("number_affixes.zig");
 const NumberPrefix = number_affixes.Prefix;
 const NumberSuffix = number_affixes.Suffix;
+const CType = @import("zig").CType;
 
 const Parser = @This();
 
@@ -4531,15 +4532,15 @@ const Result = struct {
             };
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
-            if (p.comp.target.longDoubleIs(f128)) {
+            if (CType.longdouble.sizeInBits(p.comp.target) == 128) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[1])) return;
-            if (p.comp.target.longDoubleIs(f80)) {
+            if (CType.longdouble.sizeInBits(p.comp.target) == 80) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[2])) return;
-            if (p.comp.target.longDoubleIs(f64)) {
+            if (CType.longdouble.sizeInBits(p.comp.target) == 64) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
