@@ -510,18 +510,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "avr-avr2-other-eabi:Gcc|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0027",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "avr-avr2-other-eabi:Gcc|0062",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },

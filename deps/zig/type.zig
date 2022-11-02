@@ -301,10 +301,7 @@ pub const CType = enum {
 
         // Overrides for unusual alignments
         switch (target.cpu.arch) {
-            .avr => switch (self) {
-                .short, .ushort => return 2,
-                else => return 1,
-            },
+            .avr => return 1,
             .i386 => switch (target.os.tag) {
                 .windows, .uefi => switch (self) {
                     .longlong, .ulonglong, .double => return 8,
