@@ -1506,14 +1506,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-linux-gnux32:Gcc|0001",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-linux-gnux32:Gcc|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
