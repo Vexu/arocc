@@ -963,6 +963,11 @@ pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
     };
 }
 
+pub fn enumIsPacked(ty: Type, comp: *const Compilation) bool {
+    std.debug.assert(ty.is(.@"enum"));
+    return comp.langopts.short_enums or comp.packAllEnums() or ty.hasAttribute(.@"packed");
+}
+
 pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) ?u29 {
     const a = attrs orelse return null;
 
