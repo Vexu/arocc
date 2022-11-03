@@ -538,8 +538,8 @@ pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp:
             8 => return S.doICompare(u64, a, op, b),
             else => unreachable,
         } else switch (size) {
-            1 => return S.doICompare(u8, a, op, b),
-            2 => return S.doICompare(u16, a, op, b),
+            1 => return S.doICompare(i8, a, op, b),
+            2 => return S.doICompare(i16, a, op, b),
             4 => return S.doICompare(i32, a, op, b),
             8 => return S.doICompare(i64, a, op, b),
             else => unreachable,

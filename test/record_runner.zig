@@ -510,22 +510,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "avr-avr2-other-eabi:Gcc|0013",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0027",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "avr-avr2-other-eabi:Gcc|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "hexagon-generic-linux-musl:Clang|0016",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -1331,10 +1315,6 @@ const compErr = blk: {
         },
         .{
             "mipsel-mips32-other-eabi:Clang|0052",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "msp430-msp430-other-eabi:Clang|0062",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
