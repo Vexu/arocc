@@ -510,38 +510,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "hexagon-generic-linux-musl:Clang|0016",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "hexagon-generic-linux-musl:Clang|0019",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "hexagon-generic-linux-musl:Clang|0051",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "hexagon-generic-linux-musl:Clang|0054",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "hexagon-generic-linux-musl:Clang|0060",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "hexagon-generic-linux-musl:Clang|0061",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "hexagon-generic-linux-musl:Clang|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "hexagon-generic-linux-musl:Clang|0063",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "i386-i586-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -1503,14 +1471,6 @@ const compErr = blk: {
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0088",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-linux-gnux32:Gcc|0001",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-linux-gnux32:Gcc|0013",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{

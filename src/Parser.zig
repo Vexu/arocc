@@ -2090,9 +2090,8 @@ fn enumSpec(p: *Parser) Error!Type {
         .specifier = .@"enum",
         .data = .{ .@"enum" = enum_ty },
     }, attr_buf_top, null);
-    const is_packed = ty.hasAttribute(.@"packed") or p.comp.langopts.short_enums;
     if (!enum_ty.fixed) {
-        const tag_specifier = try e.getTypeSpecifier(p, is_packed, maybe_ident orelse enum_tok);
+        const tag_specifier = try e.getTypeSpecifier(p, ty.enumIsPacked(p.comp), maybe_ident orelse enum_tok);
         enum_ty.tag_ty = .{ .specifier = tag_specifier };
     }
 
