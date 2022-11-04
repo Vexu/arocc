@@ -1017,7 +1017,11 @@ pub fn defaultAlignment(comp: *const Compilation) u29 {
         .avr => return 1,
         .arm => if (comp.target.isAndroid() or comp.target.os.tag == .ios) return 16 else return 8,
         .sparc => if (std.Target.sparc.featureSetHas(comp.target.cpu.features, .v9)) return 16 else return 8,
-        .mips, .mipsel, .s390x, .armeb, .thumbeb, .thumb => return 8,
+        .mips, .mipsel => switch (comp.target.abi) {
+            .none, .gnuabi64 => return 16,
+            else => return 8,
+        },
+        .s390x, .armeb, .thumbeb, .thumb => return 8,
         else => return 16,
     }
 }

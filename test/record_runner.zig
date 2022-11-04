@@ -1226,10 +1226,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "mips-mips32-linux-gnuabi64:Gcc|0052",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "mips-mips32-linux-gnuabi64:Gcc|0067",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -1266,10 +1262,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "mips-mips64r6-linux-gnuabi64:Gcc|0052",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "mips-mips64r6-linux-gnuabi64:Gcc|0067",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -1280,10 +1272,6 @@ const compErr = blk: {
         .{
             "mips-mips64r6-linux-gnuabi64:Gcc|0083",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "mipsel-mips32-other-eabi:Clang|0052",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "s390x-generic-linux-gnu:Gcc|0050",
