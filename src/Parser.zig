@@ -2509,7 +2509,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         if (static) |_| try size.expect(p);
 
         const outer = try p.directDeclarator(base_type, d, kind);
-        var max_bits = p.comp.target.cpu.arch.ptrBitWidth();
+        var max_bits = CType.ptrBitWidth(p.comp.target);
         if (max_bits > 61) max_bits = 61;
         const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
         // `outer` is validated later so it may be invalid here
