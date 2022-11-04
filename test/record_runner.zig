@@ -1314,10 +1314,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "sparc-v9-solaris-eabi:Clang|0052",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "sparc-v9-solaris-eabi:Clang|0067",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
