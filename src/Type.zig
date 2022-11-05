@@ -802,7 +802,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .decayed_typeof_type,
         .decayed_typeof_expr,
         .static_array,
-        => if (comp.target.abi == .gnux32) 4 else comp.target.cpu.arch.ptrBitWidth() >> 3,
+        => CType.ptrBitWidth(comp.target) >> 3,
         .array, .vector => {
             const size = ty.data.array.elem.sizeof(comp) orelse return null;
             const arr_size = size * ty.data.array.len;
@@ -898,7 +898,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .static_array,
         => switch (comp.target.cpu.arch) {
             .avr => 1,
-            else => if (comp.target.abi == .gnux32) 4 else comp.target.cpu.arch.ptrBitWidth() >> 3,
+            else => CType.ptrBitWidth(comp.target) >> 3,
         },
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @intCast(u29, ty.data.record.type_layout.field_alignment_bits / 8),
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),

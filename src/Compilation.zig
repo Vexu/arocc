@@ -13,6 +13,7 @@ const Type = @import("Type.zig");
 const Pragma = @import("Pragma.zig");
 const StringInterner = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
+const CType = @import("zig").CType;
 
 const Compilation = @This();
 
@@ -155,7 +156,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
             \\#define __linux__ 1
             \\
         ),
-        .windows => if (comp.target.cpu.arch.ptrBitWidth() == 32) try w.writeAll(
+        .windows => if (CType.ptrBitWidth(comp.target) == 32) try w.writeAll(
             \\#define WIN32 1
             \\#define _WIN32 1
             \\#define __WIN32 1
@@ -288,7 +289,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         else => {},
     }
 
-    if (comp.target.os.tag != .windows) switch (comp.target.cpu.arch.ptrBitWidth()) {
+    if (comp.target.os.tag != .windows) switch (CType.ptrBitWidth(comp.target)) {
         64 => try w.writeAll(
             \\#define _LP64 1
             \\#define __LP64__ 1
@@ -380,18 +381,18 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         else => .{ .specifier = .int },
     };
 
-    const ptrdiff = if (os == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
+    const ptrdiff = if (os == .windows and CType.ptrBitWidth(comp.target) == 64)
         Type{ .specifier = .long_long }
-    else switch (comp.target.cpu.arch.ptrBitWidth()) {
+    else switch (CType.ptrBitWidth(comp.target)) {
         16 => Type{ .specifier = .int },
         32 => Type{ .specifier = .int },
         64 => Type{ .specifier = .long },
         else => unreachable,
     };
 
-    const size = if (os == .windows and comp.target.cpu.arch.ptrBitWidth() == 64)
+    const size = if (os == .windows and CType.ptrBitWidth(comp.target) == 64)
         Type{ .specifier = .ulong_long }
-    else switch (comp.target.cpu.arch.ptrBitWidth()) {
+    else switch (CType.ptrBitWidth(comp.target)) {
         16 => Type{ .specifier = .uint },
         32 => Type{ .specifier = .uint },
         64 => Type{ .specifier = .ulong },
@@ -1016,7 +1017,12 @@ pub fn defaultAlignment(comp: *const Compilation) u29 {
     switch (comp.target.cpu.arch) {
         .avr => return 1,
         .arm => if (comp.target.isAndroid() or comp.target.os.tag == .ios) return 16 else return 8,
-        .mips, .mipsel, .s390x, .sparc, .armeb, .thumbeb, .thumb => return 8,
+        .sparc => if (std.Target.sparc.featureSetHas(comp.target.cpu.features, .v9)) return 16 else return 8,
+        .mips, .mipsel => switch (comp.target.abi) {
+            .none, .gnuabi64 => return 16,
+            else => return 8,
+        },
+        .s390x, .armeb, .thumbeb, .thumb => return 8,
         else => return 16,
     }
 }

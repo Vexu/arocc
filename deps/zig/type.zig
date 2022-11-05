@@ -18,6 +18,19 @@ pub const CType = enum {
     float,
     double,
 
+    pub fn ptrBitWidth(target: Target) u16 {
+        switch (target.abi) {
+            .gnux32, .muslx32, .gnuabin32, .gnuilp32 => return 32,
+            .gnuabi64 => return 64,
+            else => {},
+        }
+        switch (target.cpu.arch) {
+            .sparc => if (std.Target.sparc.featureSetHas(target.cpu.features, .v9)) return 64,
+            else => {},
+        }
+        return target.cpu.arch.ptrBitWidth();
+    }
+
     pub fn sizeInBits(self: CType, target: Target) u16 {
         switch (target.os.tag) {
             .freestanding, .other => switch (target.cpu.arch) {
@@ -56,7 +69,7 @@ pub const CType = enum {
                 else => switch (self) {
                     .short, .ushort => return 16,
                     .int, .uint, .float => return 32,
-                    .long, .ulong => return target.cpu.arch.ptrBitWidth(),
+                    .long, .ulong => return ptrBitWidth(target),
                     .longlong, .ulonglong, .double => return 64,
                     .longdouble => switch (target.cpu.arch) {
                         .i386 => switch (target.abi) {
@@ -144,7 +157,7 @@ pub const CType = enum {
                 else => switch (self) {
                     .short, .ushort => return 16,
                     .int, .uint, .float => return 32,
-                    .long, .ulong => return target.cpu.arch.ptrBitWidth(),
+                    .long, .ulong => return ptrBitWidth(target),
                     .longlong, .ulonglong, .double => return 64,
                     .longdouble => switch (target.cpu.arch) {
                         .i386 => switch (target.abi) {
