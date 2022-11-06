@@ -9021,8 +9021,8 @@ _Static_assert(__builtin_bitoffsetof(A13,i) == 8, "");
 _Static_assert(__builtin_bitoffsetof(A13,j) == 128, "");
 _Static_assert(__builtin_bitoffsetof(A13,d) == 136, "");
 #endif
-// MAPPING|NINE|i386-i386-ios-none:Clang|i386-i686-macos-none:Clang|i386-i686-linux-android:Clang|i386-i686-freebsd-gnu:Clang|i386-i686-haiku-gnu:Clang|i386-i686-netbsd-gnu:Clang|i386-i686-openbsd-gnu:Clang|END
-// repr targets I386AppleIos|Some("i386-i386-ios-none") I686AppleMacosx|Some("i386-i686-macos-none") I686LinuxAndroid|Some("i386-i686-linux-android") I686UnknownFreebsd|Some("i386-i686-freebsd-gnu") I686UnknownHaiku|Some("i386-i686-haiku-gnu") I686UnknownNetbsdelf|Some("i386-i686-netbsd-gnu") I686UnknownOpenbsd|Some("i386-i686-openbsd-gnu") 
+// MAPPING|NINE|x86-pentium4-ios-none:Clang|x86-i686-macos-none:Clang|x86-i686-linux-android:Clang|x86-i686-freebsd-gnu:Clang|x86-i686-haiku-gnu:Clang|x86-i686-netbsd-gnu:Clang|x86-i686-openbsd-gnu:Clang|END
+// repr targets I386AppleIos|Some("x86-pentium4-ios-none") I686AppleMacosx|Some("x86-i686-macos-none") I686LinuxAndroid|Some("x86-i686-linux-android") I686UnknownFreebsd|Some("x86-i686-freebsd-gnu") I686UnknownHaiku|Some("x86-i686-haiku-gnu") I686UnknownNetbsdelf|Some("x86-i686-netbsd-gnu") I686UnknownOpenbsd|Some("x86-i686-openbsd-gnu") 
 #elif defined(NINE)
 _Static_assert(sizeof(A) == 1, "");
 _Static_assert(_Alignof(A) == 1, "");
@@ -9921,8 +9921,8 @@ _Static_assert(__builtin_bitoffsetof(A13,i) == 8, "");
 _Static_assert(__builtin_bitoffsetof(A13,j) == 128, "");
 _Static_assert(__builtin_bitoffsetof(A13,d) == 136, "");
 #endif
-// MAPPING|TEN|i386-i586-linux-gnu:Gcc|i386-i586-linux-musl:Gcc|i386-i686-linux-gnu:Gcc|i386-i686-linux-musl:Gcc|END
-// repr targets I586UnknownLinuxGnu|Some("i386-i586-linux-gnu") I586UnknownLinuxMusl|Some("i386-i586-linux-musl") I686UnknownLinuxGnu|Some("i386-i686-linux-gnu") I686UnknownLinuxMusl|Some("i386-i686-linux-musl") 
+// MAPPING|TEN|x86-i586-linux-gnu:Gcc|x86-i586-linux-musl:Gcc|x86-i686-linux-gnu:Gcc|x86-i686-linux-musl:Gcc|END
+// repr targets I586UnknownLinuxGnu|Some("x86-i586-linux-gnu") I586UnknownLinuxMusl|Some("x86-i586-linux-musl") I686UnknownLinuxGnu|Some("x86-i686-linux-gnu") I686UnknownLinuxMusl|Some("x86-i686-linux-musl") 
 #elif defined(TEN)
 _Static_assert(sizeof(A) == 1, "");
 _Static_assert(_Alignof(A) == 1, "");
@@ -10821,8 +10821,8 @@ _Static_assert(__builtin_bitoffsetof(A13,i) == 8, "");
 _Static_assert(__builtin_bitoffsetof(A13,j) == 128, "");
 _Static_assert(__builtin_bitoffsetof(A13,d) == 136, "");
 #endif
-// MAPPING|ELEVEN|i386-i686-windows-gnu:Gcc|x86_64-x86_64-windows-gnu:Gcc|END
-// repr targets I686PcWindowsGnu|Some("i386-i686-windows-gnu") X86_64PcWindowsGnu|Some("x86_64-x86_64-windows-gnu") 
+// MAPPING|ELEVEN|x86-i686-windows-gnu:Gcc|x86_64-x86_64-windows-gnu:Gcc|END
+// repr targets I686PcWindowsGnu|Some("x86-i686-windows-gnu") X86_64PcWindowsGnu|Some("x86_64-x86_64-windows-gnu") 
 #elif defined(ELEVEN)
 _Static_assert(sizeof(A) == 1, "");
 _Static_assert(_Alignof(A) == 1, "");
