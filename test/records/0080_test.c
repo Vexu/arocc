@@ -750,8 +750,8 @@ _Static_assert(__builtin_bitoffsetof(G,b) == 8, "");
 _Static_assert(__builtin_bitoffsetof(G,c) == 24, "");
 _Static_assert(__builtin_bitoffsetof(G,d) == 39, "");
 #endif
-// MAPPING|SIX|i386-i386-ios-none:Clang|i386-i686-macos-none:Clang|i386-i686-linux-android:Clang|i386-i686-freebsd-gnu:Clang|i386-i686-haiku-gnu:Clang|i386-i686-netbsd-gnu:Clang|i386-i686-openbsd-gnu:Clang|END
-// repr targets I386AppleIos|Some("i386-i386-ios-none") I686AppleMacosx|Some("i386-i686-macos-none") I686LinuxAndroid|Some("i386-i686-linux-android") I686UnknownFreebsd|Some("i386-i686-freebsd-gnu") I686UnknownHaiku|Some("i386-i686-haiku-gnu") I686UnknownNetbsdelf|Some("i386-i686-netbsd-gnu") I686UnknownOpenbsd|Some("i386-i686-openbsd-gnu") 
+// MAPPING|SIX|x86-pentium4-ios-none:Clang|x86-i686-macos-none:Clang|x86-i686-linux-android:Clang|x86-i686-freebsd-gnu:Clang|x86-i686-haiku-gnu:Clang|x86-i686-netbsd-gnu:Clang|x86-i686-openbsd-gnu:Clang|END
+// repr targets I386AppleIos|Some("x86-pentium4-ios-none") I686AppleMacosx|Some("x86-i686-macos-none") I686LinuxAndroid|Some("x86-i686-linux-android") I686UnknownFreebsd|Some("x86-i686-freebsd-gnu") I686UnknownHaiku|Some("x86-i686-haiku-gnu") I686UnknownNetbsdelf|Some("x86-i686-netbsd-gnu") I686UnknownOpenbsd|Some("x86-i686-openbsd-gnu") 
 #elif defined(SIX)
 _Static_assert(sizeof(A) == 4, "");
 _Static_assert(_Alignof(A) == 16, "");
@@ -841,8 +841,8 @@ _Static_assert(__builtin_bitoffsetof(G,b) == 8, "");
 _Static_assert(__builtin_bitoffsetof(G,c) == 24, "");
 _Static_assert(__builtin_bitoffsetof(G,d) == 48, "");
 #endif
-// MAPPING|SEVEN|i386-i586-windows-msvc:Msvc|i386-i686-windows-msvc:Msvc|i386-i686-uefi-msvc:Msvc|x86_64-x86_64-windows-msvc:Msvc|x86_64-x86_64-uefi-msvc:Msvc|END
-// repr targets I586PcWindowsMsvc|Some("i386-i586-windows-msvc") I686PcWindowsMsvc|Some("i386-i686-windows-msvc") I686UnknownWindows|Some("i386-i686-uefi-msvc") X86_64PcWindowsMsvc|Some("x86_64-x86_64-windows-msvc") X86_64UnknownWindows|Some("x86_64-x86_64-uefi-msvc") 
+// MAPPING|SEVEN|x86-i586-windows-msvc:Msvc|x86-i686-windows-msvc:Msvc|x86-i686-uefi-msvc:Msvc|x86_64-x86_64-windows-msvc:Msvc|x86_64-x86_64-uefi-msvc:Msvc|END
+// repr targets I586PcWindowsMsvc|Some("x86-i586-windows-msvc") I686PcWindowsMsvc|Some("x86-i686-windows-msvc") I686UnknownWindows|Some("x86-i686-uefi-msvc") X86_64PcWindowsMsvc|Some("x86_64-x86_64-windows-msvc") X86_64UnknownWindows|Some("x86_64-x86_64-uefi-msvc") 
 #elif defined(SEVEN)
 _Static_assert(sizeof(A) == 4, "");
 _Static_assert(_Alignof(A) == 16, "");
@@ -932,8 +932,8 @@ _Static_assert(__builtin_bitoffsetof(G,b) == 64, "");
 _Static_assert(__builtin_bitoffsetof(G,c) == 80, "");
 _Static_assert(__builtin_bitoffsetof(G,d) == 128, "");
 #endif
-// MAPPING|EIGHT|i386-i586-linux-gnu:Gcc|i386-i586-linux-musl:Gcc|i386-i686-linux-gnu:Gcc|i386-i686-linux-musl:Gcc|END
-// repr targets I586UnknownLinuxGnu|Some("i386-i586-linux-gnu") I586UnknownLinuxMusl|Some("i386-i586-linux-musl") I686UnknownLinuxGnu|Some("i386-i686-linux-gnu") I686UnknownLinuxMusl|Some("i386-i686-linux-musl") 
+// MAPPING|EIGHT|x86-i586-linux-gnu:Gcc|x86-i586-linux-musl:Gcc|x86-i686-linux-gnu:Gcc|x86-i686-linux-musl:Gcc|END
+// repr targets I586UnknownLinuxGnu|Some("x86-i586-linux-gnu") I586UnknownLinuxMusl|Some("x86-i586-linux-musl") I686UnknownLinuxGnu|Some("x86-i686-linux-gnu") I686UnknownLinuxMusl|Some("x86-i686-linux-musl") 
 #elif defined(EIGHT)
 _Static_assert(sizeof(A) == 4, "");
 _Static_assert(_Alignof(A) == 16, "");
@@ -1023,8 +1023,8 @@ _Static_assert(__builtin_bitoffsetof(G,b) == 8, "");
 _Static_assert(__builtin_bitoffsetof(G,c) == 24, "");
 _Static_assert(__builtin_bitoffsetof(G,d) == 48, "");
 #endif
-// MAPPING|NINE|i386-i686-windows-gnu:Gcc|x86_64-x86_64-windows-gnu:Gcc|END
-// repr targets I686PcWindowsGnu|Some("i386-i686-windows-gnu") X86_64PcWindowsGnu|Some("x86_64-x86_64-windows-gnu") 
+// MAPPING|NINE|x86-i686-windows-gnu:Gcc|x86_64-x86_64-windows-gnu:Gcc|END
+// repr targets I686PcWindowsGnu|Some("x86-i686-windows-gnu") X86_64PcWindowsGnu|Some("x86_64-x86_64-windows-gnu") 
 #elif defined(NINE)
 _Static_assert(sizeof(A) == 4, "");
 _Static_assert(_Alignof(A) == 16, "");

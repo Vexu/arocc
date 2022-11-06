@@ -218,7 +218,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
             \\#define __x86_64__ 1
             \\
         ),
-        .i386 => try w.writeAll(
+        .x86 => try w.writeAll(
             \\#define i386 1
             \\#define __i386 1
             \\#define __i386__ 1
@@ -377,7 +377,7 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         .aarch64, .aarch64_be, .aarch64_32 => .{
             .specifier = if (!os.isDarwin() and os != .netbsd) .uint else .int,
         },
-        .x86_64, .i386 => .{ .specifier = if (os == .windows) .ushort else .int },
+        .x86_64, .x86 => .{ .specifier = if (os == .windows) .ushort else .int },
         else => .{ .specifier = .int },
     };
 
@@ -422,7 +422,7 @@ fn generateVaListType(comp: *Compilation) !Type {
             .ios, .macos, .tvos, .watchos, .aix => @as(Kind, .char_ptr),
             else => return Type{ .specifier = .void }, // unknown
         },
-        .i386, .msp430 => .char_ptr,
+        .x86, .msp430 => .char_ptr,
         .x86_64 => switch (comp.target.os.tag) {
             .windows => @as(Kind, .char_ptr),
             else => .x86_64_va_list,
@@ -940,7 +940,7 @@ pub fn isTlsSupported(comp: *Compilation) bool {
         return supported;
     }
     return switch (comp.target.cpu.arch) {
-        .tce, .tcele, .bpfel, .bpfeb, .msp430, .nvptx, .nvptx64, .i386, .arm, .armeb, .thumb, .thumbeb => false,
+        .tce, .tcele, .bpfel, .bpfeb, .msp430, .nvptx, .nvptx64, .x86, .arm, .armeb, .thumb, .thumbeb => false,
         else => true,
     };
 }
@@ -1169,7 +1169,7 @@ test "target size/align tests" {
     var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
 
-    const x86 = std.Target.Cpu.Arch.i386;
+    const x86 = std.Target.Cpu.Arch.x86;
     comp.target.cpu.arch = x86;
     comp.target.cpu.model = &std.Target.x86.cpu.@"i586";
     comp.target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);

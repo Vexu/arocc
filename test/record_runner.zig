@@ -15,7 +15,7 @@ const single_target = .{
     // .c_test = "0064",
     // .target = "s390x-generic-linux-gnu:Gcc",
     // .c_test = "00", // run all the tests
-    // .target = "i386-i586-linux-gnu:Gcc",
+    // .target = "x86-i586-linux-gnu:Gcc",
     // .c_test = "0002",
     .target = "x86_64-x86_64-windows-msvc:Msvc",
     .c_test = "0018", // run all the tests
@@ -510,695 +510,695 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0003",
+            "x86-i586-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0005",
+            "x86-i586-windows-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0007",
+            "x86-i586-windows-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0009",
+            "x86-i586-windows-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0011",
+            "x86-i586-windows-msvc:Msvc|0011",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0012",
+            "x86-i586-windows-msvc:Msvc|0012",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0014",
+            "x86-i586-windows-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0020",
+            "x86-i586-windows-msvc:Msvc|0020",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0021",
+            "x86-i586-windows-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0023",
+            "x86-i586-windows-msvc:Msvc|0023",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0024",
+            "x86-i586-windows-msvc:Msvc|0024",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0025",
+            "x86-i586-windows-msvc:Msvc|0025",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0026",
+            "x86-i586-windows-msvc:Msvc|0026",
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0027",
+            "x86-i586-windows-msvc:Msvc|0027",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0028",
+            "x86-i586-windows-msvc:Msvc|0028",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0029",
+            "x86-i586-windows-msvc:Msvc|0029",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0030",
+            "x86-i586-windows-msvc:Msvc|0030",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0031",
+            "x86-i586-windows-msvc:Msvc|0031",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0037",
+            "x86-i586-windows-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0039",
+            "x86-i586-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0042",
+            "x86-i586-windows-msvc:Msvc|0042",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0043",
+            "x86-i586-windows-msvc:Msvc|0043",
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0045",
+            "x86-i586-windows-msvc:Msvc|0045",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0046",
+            "x86-i586-windows-msvc:Msvc|0046",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0047",
+            "x86-i586-windows-msvc:Msvc|0047",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0057",
+            "x86-i586-windows-msvc:Msvc|0057",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0058",
+            "x86-i586-windows-msvc:Msvc|0058",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0063",
+            "x86-i586-windows-msvc:Msvc|0063",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0064",
+            "x86-i586-windows-msvc:Msvc|0064",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0065",
+            "x86-i586-windows-msvc:Msvc|0065",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0066",
+            "x86-i586-windows-msvc:Msvc|0066",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0072",
+            "x86-i586-windows-msvc:Msvc|0072",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0077",
+            "x86-i586-windows-msvc:Msvc|0077",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0080",
+            "x86-i586-windows-msvc:Msvc|0080",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0081",
+            "x86-i586-windows-msvc:Msvc|0081",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i586-windows-msvc:Msvc|0088",
+            "x86-i586-windows-msvc:Msvc|0088",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0005",
+            "x86-i686-uefi-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0007",
+            "x86-i686-uefi-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0009",
+            "x86-i686-uefi-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0011",
+            "x86-i686-uefi-msvc:Msvc|0011",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0014",
+            "x86-i686-uefi-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0020",
+            "x86-i686-uefi-msvc:Msvc|0020",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0021",
+            "x86-i686-uefi-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0023",
+            "x86-i686-uefi-msvc:Msvc|0023",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0025",
+            "x86-i686-uefi-msvc:Msvc|0025",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0026",
+            "x86-i686-uefi-msvc:Msvc|0026",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0027",
+            "x86-i686-uefi-msvc:Msvc|0027",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0028",
+            "x86-i686-uefi-msvc:Msvc|0028",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0029",
+            "x86-i686-uefi-msvc:Msvc|0029",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0030",
+            "x86-i686-uefi-msvc:Msvc|0030",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0031",
+            "x86-i686-uefi-msvc:Msvc|0031",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0036",
+            "x86-i686-uefi-msvc:Msvc|0036",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0037",
+            "x86-i686-uefi-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0039",
+            "x86-i686-uefi-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0042",
+            "x86-i686-uefi-msvc:Msvc|0042",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0046",
+            "x86-i686-uefi-msvc:Msvc|0046",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0047",
+            "x86-i686-uefi-msvc:Msvc|0047",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0057",
+            "x86-i686-uefi-msvc:Msvc|0057",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0058",
+            "x86-i686-uefi-msvc:Msvc|0058",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0063",
+            "x86-i686-uefi-msvc:Msvc|0063",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0064",
+            "x86-i686-uefi-msvc:Msvc|0064",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0065",
+            "x86-i686-uefi-msvc:Msvc|0065",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0066",
+            "x86-i686-uefi-msvc:Msvc|0066",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0072",
+            "x86-i686-uefi-msvc:Msvc|0072",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0077",
+            "x86-i686-uefi-msvc:Msvc|0077",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0080",
+            "x86-i686-uefi-msvc:Msvc|0080",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0081",
+            "x86-i686-uefi-msvc:Msvc|0081",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-uefi-msvc:Msvc|0088",
+            "x86-i686-uefi-msvc:Msvc|0088",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0001",
+            "x86-i686-windows-gnu:Gcc|0001",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0002",
+            "x86-i686-windows-gnu:Gcc|0002",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0003",
+            "x86-i686-windows-gnu:Gcc|0003",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0004",
+            "x86-i686-windows-gnu:Gcc|0004",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0005",
+            "x86-i686-windows-gnu:Gcc|0005",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0006",
+            "x86-i686-windows-gnu:Gcc|0006",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0007",
+            "x86-i686-windows-gnu:Gcc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0008",
+            "x86-i686-windows-gnu:Gcc|0008",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0009",
+            "x86-i686-windows-gnu:Gcc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0010",
+            "x86-i686-windows-gnu:Gcc|0010",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0011",
+            "x86-i686-windows-gnu:Gcc|0011",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0012",
+            "x86-i686-windows-gnu:Gcc|0012",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0014",
+            "x86-i686-windows-gnu:Gcc|0014",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0013",
+            "x86-i686-windows-gnu:Gcc|0013",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0016",
+            "x86-i686-windows-gnu:Gcc|0016",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0019",
+            "x86-i686-windows-gnu:Gcc|0019",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0020",
+            "x86-i686-windows-gnu:Gcc|0020",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0021",
+            "x86-i686-windows-gnu:Gcc|0021",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0023",
+            "x86-i686-windows-gnu:Gcc|0023",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0024",
+            "x86-i686-windows-gnu:Gcc|0024",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0027",
+            "x86-i686-windows-gnu:Gcc|0027",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0028",
+            "x86-i686-windows-gnu:Gcc|0028",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0029",
+            "x86-i686-windows-gnu:Gcc|0029",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0030",
+            "x86-i686-windows-gnu:Gcc|0030",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0031",
+            "x86-i686-windows-gnu:Gcc|0031",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0032",
+            "x86-i686-windows-gnu:Gcc|0032",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0033",
+            "x86-i686-windows-gnu:Gcc|0033",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0034",
+            "x86-i686-windows-gnu:Gcc|0034",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0035",
+            "x86-i686-windows-gnu:Gcc|0035",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0037",
+            "x86-i686-windows-gnu:Gcc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0039",
+            "x86-i686-windows-gnu:Gcc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0040",
+            "x86-i686-windows-gnu:Gcc|0040",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0041",
+            "x86-i686-windows-gnu:Gcc|0041",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0043",
+            "x86-i686-windows-gnu:Gcc|0043",
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0045",
+            "x86-i686-windows-gnu:Gcc|0045",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0046",
+            "x86-i686-windows-gnu:Gcc|0046",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0047",
+            "x86-i686-windows-gnu:Gcc|0047",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0048",
+            "x86-i686-windows-gnu:Gcc|0048",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0049",
+            "x86-i686-windows-gnu:Gcc|0049",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0051",
+            "x86-i686-windows-gnu:Gcc|0051",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0053",
+            "x86-i686-windows-gnu:Gcc|0053",
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0054",
+            "x86-i686-windows-gnu:Gcc|0054",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0055",
+            "x86-i686-windows-gnu:Gcc|0055",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0056",
+            "x86-i686-windows-gnu:Gcc|0056",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0057",
+            "x86-i686-windows-gnu:Gcc|0057",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0058",
+            "x86-i686-windows-gnu:Gcc|0058",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0059",
+            "x86-i686-windows-gnu:Gcc|0059",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0061",
+            "x86-i686-windows-gnu:Gcc|0061",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0063",
+            "x86-i686-windows-gnu:Gcc|0063",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0064",
+            "x86-i686-windows-gnu:Gcc|0064",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0065",
+            "x86-i686-windows-gnu:Gcc|0065",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0066",
+            "x86-i686-windows-gnu:Gcc|0066",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0067",
+            "x86-i686-windows-gnu:Gcc|0067",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0068",
+            "x86-i686-windows-gnu:Gcc|0068",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0069",
+            "x86-i686-windows-gnu:Gcc|0069",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0071",
+            "x86-i686-windows-gnu:Gcc|0071",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0072",
+            "x86-i686-windows-gnu:Gcc|0072",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0073",
+            "x86-i686-windows-gnu:Gcc|0073",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0074",
+            "x86-i686-windows-gnu:Gcc|0074",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0075",
+            "x86-i686-windows-gnu:Gcc|0075",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0076",
+            "x86-i686-windows-gnu:Gcc|0076",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0077",
+            "x86-i686-windows-gnu:Gcc|0077",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0078",
+            "x86-i686-windows-gnu:Gcc|0078",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0079",
+            "x86-i686-windows-gnu:Gcc|0079",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0080",
+            "x86-i686-windows-gnu:Gcc|0080",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0081",
+            "x86-i686-windows-gnu:Gcc|0081",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0082",
+            "x86-i686-windows-gnu:Gcc|0082",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0083",
+            "x86-i686-windows-gnu:Gcc|0083",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-gnu:Gcc|0088",
+            "x86-i686-windows-gnu:Gcc|0088",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0003",
+            "x86-i686-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0005",
+            "x86-i686-windows-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0007",
+            "x86-i686-windows-msvc:Msvc|0007",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0009",
+            "x86-i686-windows-msvc:Msvc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0011",
+            "x86-i686-windows-msvc:Msvc|0011",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0012",
+            "x86-i686-windows-msvc:Msvc|0012",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0014",
+            "x86-i686-windows-msvc:Msvc|0014",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0020",
+            "x86-i686-windows-msvc:Msvc|0020",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0021",
+            "x86-i686-windows-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0023",
+            "x86-i686-windows-msvc:Msvc|0023",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0024",
+            "x86-i686-windows-msvc:Msvc|0024",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0025",
+            "x86-i686-windows-msvc:Msvc|0025",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0026",
+            "x86-i686-windows-msvc:Msvc|0026",
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0027",
+            "x86-i686-windows-msvc:Msvc|0027",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0028",
+            "x86-i686-windows-msvc:Msvc|0028",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0029",
+            "x86-i686-windows-msvc:Msvc|0029",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0030",
+            "x86-i686-windows-msvc:Msvc|0030",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0031",
+            "x86-i686-windows-msvc:Msvc|0031",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0037",
+            "x86-i686-windows-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0039",
+            "x86-i686-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0042",
+            "x86-i686-windows-msvc:Msvc|0042",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0043",
+            "x86-i686-windows-msvc:Msvc|0043",
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0045",
+            "x86-i686-windows-msvc:Msvc|0045",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0046",
+            "x86-i686-windows-msvc:Msvc|0046",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0047",
+            "x86-i686-windows-msvc:Msvc|0047",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0057",
+            "x86-i686-windows-msvc:Msvc|0057",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0058",
+            "x86-i686-windows-msvc:Msvc|0058",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0063",
+            "x86-i686-windows-msvc:Msvc|0063",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0064",
+            "x86-i686-windows-msvc:Msvc|0064",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0065",
+            "x86-i686-windows-msvc:Msvc|0065",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0066",
+            "x86-i686-windows-msvc:Msvc|0066",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0072",
+            "x86-i686-windows-msvc:Msvc|0072",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0077",
+            "x86-i686-windows-msvc:Msvc|0077",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0080",
+            "x86-i686-windows-msvc:Msvc|0080",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0081",
+            "x86-i686-windows-msvc:Msvc|0081",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "i386-i686-windows-msvc:Msvc|0088",
+            "x86-i686-windows-msvc:Msvc|0088",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{

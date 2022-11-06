@@ -516,7 +516,7 @@ fn isPacked(attrs: ?[]const Attribute) bool {
 pub fn msvcPragmaPack(comp: *const Compilation, pack: u32) ?u32 {
     return switch (pack) {
         8, 16, 32 => pack,
-        64 => if (comp.target.cpu.arch == .i386) null else pack,
+        64 => if (comp.target.cpu.arch == .x86) null else pack,
         128 => if (comp.target.cpu.arch == .thumb) pack else null,
         else => {
             return switch (comp.target.cpu.arch) {
