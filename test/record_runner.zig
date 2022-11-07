@@ -198,7 +198,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
 
     const mac_writer = macro_buf.writer();
     try mac_writer.print("#define {s}\n", .{test_case.c_define});
-    if (comp.target.os.tag == .windows) {
+    if (comp.langopts.emulate == .msvc) {
         comp.langopts.enableMSExtensions();
         try mac_writer.writeAll("#define MSVC\n");
     }
@@ -349,8 +349,6 @@ fn parseTargetsFromCode(alloc: std.mem.Allocator, source: []const u8) !std.Array
 
         while (parts.next()) |target| {
             if (std.mem.startsWith(u8, target, "END")) break;
-            // skip MinGW targets for now.
-            if (std.ascii.indexOfIgnoreCase(target, "windows-gnu") != null) continue;
             // These point to source, which lives
             // for the life of the test. So should be ok
             try result.append(.{
@@ -714,10 +712,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86-i686-uefi-msvc:Msvc|0036",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-uefi-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -782,26 +776,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86-i686-windows-gnu:Gcc|0001",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0002",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0003",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0005",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-windows-gnu:Gcc|0006",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
@@ -810,87 +784,11 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86-i686-windows-gnu:Gcc|0008",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-windows-gnu:Gcc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86-i686-windows-gnu:Gcc|0010",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0011",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0012",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0014",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0013",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-windows-gnu:Gcc|0020",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0021",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0023",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0024",
-            .{ .parse = true, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0027",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0028",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0029",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0030",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0031",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0034",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
@@ -910,84 +808,20 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86-i686-windows-gnu:Gcc|0041",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0043",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0045",
-            .{ .parse = true, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0046",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-windows-gnu:Gcc|0047",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0048",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86-i686-windows-gnu:Gcc|0049",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86-i686-windows-gnu:Gcc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0053",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0054",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0055",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0056",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0057",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0058",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-windows-gnu:Gcc|0059",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86-i686-windows-gnu:Gcc|0061",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0063",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-windows-gnu:Gcc|0064",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0065",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0066",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "x86-i686-windows-gnu:Gcc|0067",
@@ -1014,20 +848,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86-i686-windows-gnu:Gcc|0074",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-windows-gnu:Gcc|0075",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "x86-i686-windows-gnu:Gcc|0076",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0077",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86-i686-windows-gnu:Gcc|0078",
@@ -1052,10 +878,6 @@ const compErr = blk: {
         .{
             "x86-i686-windows-gnu:Gcc|0083",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86-i686-windows-gnu:Gcc|0088",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86-i686-windows-msvc:Msvc|0003",
@@ -1410,10 +1232,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0036",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0037",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -1478,26 +1296,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-gnu:Gcc|0001",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0002",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0003",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0004",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0005",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-gnu:Gcc|0006",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
@@ -1506,87 +1304,11 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-gnu:Gcc|0008",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-gnu:Gcc|0009",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-gnu:Gcc|0010",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0011",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0012",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0013",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0014",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0016",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0019",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-gnu:Gcc|0020",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0021",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0023",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0024",
-            .{ .parse = true, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0027",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0028",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0029",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0030",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0031",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0032",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0033",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0034",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
@@ -1606,84 +1328,20 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-gnu:Gcc|0041",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0043",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0045",
-            .{ .parse = true, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0046",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-gnu:Gcc|0047",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0048",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-gnu:Gcc|0049",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86_64-x86_64-windows-gnu:Gcc|0051",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0053",
-            .{ .parse = true, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0054",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0055",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0056",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0057",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0058",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-gnu:Gcc|0059",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86_64-x86_64-windows-gnu:Gcc|0061",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0063",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-gnu:Gcc|0064",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0065",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0066",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-gnu:Gcc|0067",
@@ -1710,20 +1368,12 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
-            "x86_64-x86_64-windows-gnu:Gcc|0074",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-gnu:Gcc|0075",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "x86_64-x86_64-windows-gnu:Gcc|0076",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0077",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-gnu:Gcc|0078",
@@ -1748,10 +1398,6 @@ const compErr = blk: {
         .{
             "x86_64-x86_64-windows-gnu:Gcc|0083",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "x86_64-x86_64-windows-gnu:Gcc|0088",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0003",
