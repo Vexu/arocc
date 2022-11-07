@@ -652,6 +652,10 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
+            "x86-i686-uefi-msvc:Msvc|0003",
+            .{ .parse = false, .layout = true, .extra = true, .offset = false },
+        },
+        .{
             "x86-i686-uefi-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -665,6 +669,10 @@ const compErr = blk: {
         },
         .{
             "x86-i686-uefi-msvc:Msvc|0011",
+            .{ .parse = false, .layout = true, .extra = true, .offset = false },
+        },
+        .{
+            "x86-i686-uefi-msvc:Msvc|0012",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -721,6 +729,10 @@ const compErr = blk: {
         },
         .{
             "x86-i686-uefi-msvc:Msvc|0042",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
+        },
+        .{
+            "x86-i686-uefi-msvc:Msvc|0043",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
@@ -1172,6 +1184,10 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
+            "x86_64-x86_64-uefi-msvc:Msvc|0003",
+            .{ .parse = false, .layout = true, .extra = true, .offset = false },
+        },
+        .{
             "x86_64-x86_64-uefi-msvc:Msvc|0005",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -1185,6 +1201,10 @@ const compErr = blk: {
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0011",
+            .{ .parse = false, .layout = true, .extra = true, .offset = false },
+        },
+        .{
+            "x86_64-x86_64-uefi-msvc:Msvc|0012",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -1241,6 +1261,10 @@ const compErr = blk: {
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0042",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
+        },
+        .{
+            "x86_64-x86_64-uefi-msvc:Msvc|0043",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
