@@ -1955,13 +1955,15 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 try p.errTok(.flexible_in_union, first_tok);
             }
             if (p.record.flexible_field) |some| {
-                try p.errTok(.flexible_non_final, some);
+                if (p.record.kind == .keyword_struct) {
+                    try p.errTok(.flexible_non_final, some);
+                }
             }
             p.record.flexible_field = first_tok;
         } else if (ty.hasIncompleteSize()) {
             try p.errStr(.field_incomplete_ty, first_tok, try p.typeStr(ty));
         } else if (p.record.flexible_field) |some| {
-            if (some != first_tok) try p.errTok(.flexible_non_final, some);
+            if (some != first_tok and p.record.kind == .keyword_struct) try p.errTok(.flexible_non_final, some);
         }
         if (p.eatToken(.comma) == null) break;
     }

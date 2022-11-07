@@ -1533,6 +1533,7 @@ const messages = struct {
     const flexible_in_union = struct {
         const msg = "flexible array member in union is not allowed";
         const kind = .@"error";
+        const suppress_msvc = true;
     };
     const flexible_non_final = struct {
         const msg = "flexible array member is not at the end of struct";
