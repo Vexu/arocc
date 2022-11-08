@@ -932,10 +932,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
-            "s390x-generic-linux-gnu:Gcc|0050",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0003",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
