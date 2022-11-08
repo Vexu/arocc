@@ -124,16 +124,16 @@ const SysVContext = struct {
         // - the field is a non-zero-width bit-field and not packed.
         // See test case 0069.
         const update_record_alignment =
-            (field.bit_width == null) or
-            (field.bit_width.? == 0 and self.ongoing_bitfield != null) or
-            (field.bit_width.? != 0 and !is_attr_packed);
+            field.isRegularField() or
+            (field.specifiedBitWidth() == 0 and self.ongoing_bitfield != null) or
+            (field.specifiedBitWidth() != 0 and !is_attr_packed);
 
         // If a field affects the alignment of a record, the alignment is calculated in the
         // usual way except that __attribute__((packed)) is ignored on a zero-width bit-field.
         // See test case 0068.
         if (update_record_alignment) {
             var ty_alignment_bits = field_layout.field_alignment_bits;
-            if (is_attr_packed and (field.bit_width == null or field.bit_width.? != 0)) {
+            if (is_attr_packed and (field.isRegularField() or field.specifiedBitWidth() != 0)) {
                 ty_alignment_bits = BITS_PER_BYTE;
             }
             ty_alignment_bits = std.math.max(ty_alignment_bits, annotation_alignment_bits);
@@ -149,10 +149,10 @@ const SysVContext = struct {
         //     @attr_packed _ { size: 64, alignment: 64 }long long:0,
         //     { offset: 8, size: 8 }d { size: 8, alignment: 8 }char,
         // }
-        if (field.bit_width) |width| {
-            field.layout = self.layoutBitFieldMinGW(field_layout.size_bits, field_alignment_bits, field.name_tok != 0, width);
-        } else {
+        if (field.isRegularField()) {
             field.layout = self.layoutRegularFieldMinGW(field_layout.size_bits, field_alignment_bits);
+        } else {
+            field.layout = self.layoutBitFieldMinGW(field_layout.size_bits, field_alignment_bits, field);
         }
     }
 
@@ -160,9 +160,10 @@ const SysVContext = struct {
         self: *SysVContext,
         ty_size_bits: u64,
         field_alignment_bits: u64,
-        named: bool,
-        width: u64,
+        field: *const Field,
     ) FieldLayout {
+        const named = field.isNamed();
+        const width = @as(u64, field.specifiedBitWidth());
         std.debug.assert(width <= ty_size_bits); // validated in parser
 
         // In a union, the size of the underlying type does not affect the size of the union.
@@ -358,7 +359,7 @@ const SysVContext = struct {
 
         // Unnamed fields do not contribute to the record alignment except on a few targets.
         // See test case 0079.
-        if (fld.name_tok != 0 or self.comp.unnamedFieldAffectsAlignment()) {
+        if (fld.isNamed() or self.comp.unnamedFieldAffectsAlignment()) {
             var inherited_align_bits: u32 = undefined;
 
             if (bit_width == 0) {

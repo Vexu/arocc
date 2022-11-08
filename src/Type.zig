@@ -240,8 +240,22 @@ pub const Record = struct {
             .size_bits = 0,
         },
 
+        pub fn isNamed(f: *const Field) bool {
+            return f.name_tok != 0;
+        }
+
         pub fn isAnonymousRecord(f: Field) bool {
-            return f.name_tok == 0 and f.ty.isRecord();
+            return !f.isNamed() and f.ty.isRecord();
+        }
+
+        /// false for bitfields
+        pub fn isRegularField(f: *const Field) bool {
+            return f.bit_width == null;
+        }
+
+        /// bit width as specified in the C source. Asserts that `f` is a bitfield.
+        pub fn specifiedBitWidth(f: *const Field) u32 {
+            return f.bit_width.?;
         }
     };
 
