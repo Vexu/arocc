@@ -201,12 +201,22 @@ pub const TypeLayout = struct {
 };
 
 pub const FieldLayout = struct {
-    /// The offset of the struct, in bits, from the start of the struct.
-    offset_bits: u64,
+    /// `offset_bits` and `size_bits` should both be INVALID if and only if the field
+    /// is an unnamed bitfield. There is no way to reference an unnamed bitfield in C, so
+    /// there should be no way to observe these values. If it is used, this value will
+    /// maximize the chance that a safety-checked overflow will occur.
+    const INVALID = std.math.maxInt(u64);
+
+    /// The offset of the field, in bits, from the start of the struct.
+    offset_bits: u64 = INVALID,
     /// The size, in bits, of the field.
     ///
     /// For bit-fields, this is the width of the field.
-    size_bits: u64,
+    size_bits: u64 = INVALID,
+
+    pub fn isUnnamed(self: FieldLayout) bool {
+        return self.offset_bits == INVALID and self.size_bits == INVALID;
+    }
 };
 
 // TODO improve memory usage
