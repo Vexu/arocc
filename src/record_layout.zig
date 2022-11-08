@@ -6,6 +6,7 @@ const Parser = @import("Parser.zig");
 const Record = Type.Record;
 const Field = Record.Field;
 const TypeLayout = Type.TypeLayout;
+const FieldLayout = Type.FieldLayout;
 
 // almost all the code for record layout
 // was liberally copied from this repro
@@ -16,6 +17,11 @@ const TypeLayout = Type.TypeLayout;
 // so is compatible with arocc's MIT licence
 
 const BITS_PER_BYTE = 8;
+
+const OngoingBitfield = struct {
+    size_bits: u64,
+    unused_size_bits: u64,
+};
 
 const SysVContext = struct {
     /// Does the record has an __attribute__((packed)) annotation.
@@ -28,6 +34,9 @@ const SysVContext = struct {
     /// The size of the record. This might not be a multiple of 8 if the record contains bit-fields.
     /// For structs, this is also the offset of the first bit after the last field.
     size_bits: u64,
+    /// non-null if the previous field was a non-zero-sized bit-field. Only used by MinGW.
+    ongoing_bitfield: ?OngoingBitfield,
+
     comp: *const Compilation,
 
     fn init(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) SysVContext {
@@ -46,6 +55,7 @@ const SysVContext = struct {
             .is_union = ty.is(.@"union"),
             .size_bits = 0,
             .comp = comp,
+            .ongoing_bitfield = null,
         };
     }
 
@@ -59,13 +69,164 @@ const SysVContext = struct {
             if (rec.field_attributes) |attrs| {
                 field_attrs = attrs[fld_indx];
             }
-
-            if (fld.bit_width != null) {
-                self.layoutBitField(fld, field_attrs, type_layout);
+            if (self.comp.target.isMinGW()) {
+                self.layoutMinGWField(fld, field_attrs, type_layout);
             } else {
-                self.layoutRegularField(fld, field_attrs, type_layout);
+                if (fld.bit_width != null) {
+                    self.layoutBitField(fld, field_attrs, type_layout);
+                } else {
+                    self.layoutRegularField(fld, field_attrs, type_layout);
+                }
             }
         }
+    }
+
+    /// On MinGW the alignment of the field is calculated in the usual way except that the alignment of
+    /// the underlying type is ignored in three cases
+    /// - the field is packed
+    /// - the field is a bit-field and the previous field was a non-zero-sized bit-field with the same type size
+    /// - the field is a zero-sized bit-field and the previous field was not a non-zero-sized bit-field
+    /// See test case 0068.
+    fn ignoreTypeAlignment(is_attr_packed: bool, bit_width: ?u32, ongoing_bitfield: ?OngoingBitfield, fld_layout: TypeLayout) bool {
+        if (is_attr_packed) return true;
+        if (bit_width) |width| {
+            if (ongoing_bitfield) |ongoing| {
+                if (ongoing.size_bits == fld_layout.size_bits) return true;
+            } else {
+                if (width == 0) return true;
+            }
+        }
+        return false;
+    }
+
+    fn layoutMinGWField(
+        self: *SysVContext,
+        field: *Field,
+        field_attrs: ?[]const Attribute,
+        field_layout: TypeLayout,
+    ) void {
+        const annotation_alignment_bits = BITS_PER_BYTE * (Type.annotationAlignment(self.comp, field_attrs) orelse 1);
+        const is_attr_packed = self.attr_packed or isPacked(field_attrs);
+        const ignore_type_alignment = ignoreTypeAlignment(is_attr_packed, field.bit_width, self.ongoing_bitfield, field_layout);
+
+        var field_alignment_bits = field_layout.field_alignment_bits;
+        if (ignore_type_alignment) {
+            field_alignment_bits = BITS_PER_BYTE;
+        }
+        field_alignment_bits = std.math.max(field_alignment_bits, annotation_alignment_bits);
+        if (self.max_field_align_bits) |bits| {
+            field_alignment_bits = std.math.min(field_alignment_bits, bits);
+        }
+
+        // The field affects the record alignment in one of three cases
+        // - the field is a regular field
+        // - the field is a zero-width bit-field following a non-zero-width bit-field
+        // - the field is a non-zero-width bit-field and not packed.
+        // See test case 0069.
+        const update_record_alignment =
+            (field.bit_width == null) or
+            (field.bit_width.? == 0 and self.ongoing_bitfield != null) or
+            (field.bit_width.? != 0 and !is_attr_packed);
+
+        // If a field affects the alignment of a record, the alignment is calculated in the
+        // usual way except that __attribute__((packed)) is ignored on a zero-width bit-field.
+        // See test case 0068.
+        if (update_record_alignment) {
+            var ty_alignment_bits = field_layout.field_alignment_bits;
+            if (is_attr_packed and (field.bit_width == null or field.bit_width.? != 0)) {
+                ty_alignment_bits = BITS_PER_BYTE;
+            }
+            ty_alignment_bits = std.math.max(ty_alignment_bits, annotation_alignment_bits);
+            if (self.max_field_align_bits) |bits| {
+                ty_alignment_bits = std.math.min(ty_alignment_bits, bits);
+            }
+            self.aligned_bits = std.math.max(self.aligned_bits, ty_alignment_bits);
+        }
+
+        // NOTE: ty_alignment_bits and field_alignment_bits are different in the following case:
+        // Y = { size: 64, alignment: 64 }struct {
+        //     { offset: 0, size: 1 }c { size: 8, alignment: 8 }char:1,
+        //     @attr_packed _ { size: 64, alignment: 64 }long long:0,
+        //     { offset: 8, size: 8 }d { size: 8, alignment: 8 }char,
+        // }
+        if (field.bit_width) |width| {
+            field.layout = self.layoutBitFieldMinGW(field_layout.size_bits, field_alignment_bits, field.name_tok != 0, width);
+        } else {
+            field.layout = self.layoutRegularFieldMinGW(field_layout.size_bits, field_alignment_bits);
+        }
+    }
+
+    fn layoutBitFieldMinGW(
+        self: *SysVContext,
+        ty_size_bits: u64,
+        field_alignment_bits: u64,
+        named: bool,
+        width: u64,
+    ) FieldLayout {
+        std.debug.assert(width <= ty_size_bits); // validated in parser
+
+        // In a union, the size of the underlying type does not affect the size of the union.
+        // See test case 0070.
+        if (self.is_union) {
+            self.size_bits = std.math.max(self.size_bits, width);
+            if (!named) return .{ .offset_bits = 0, .size_bits = 0 };
+            return .{
+                .offset_bits = 0,
+                .size_bits = width,
+            };
+        }
+        if (width == 0) {
+            self.ongoing_bitfield = null;
+        } else {
+            // If there is an ongoing bit-field in a struct whose underlying type has the same size and
+            // if there is enough space left to place this bit-field, then this bit-field is placed in
+            // the ongoing bit-field and the size of the struct is not affected by this
+            // bit-field. See test case 0037.
+            if (self.ongoing_bitfield) |*ongoing| {
+                if (ongoing.size_bits == ty_size_bits and ongoing.unused_size_bits >= width) {
+                    const offset_bits = self.size_bits - ongoing.unused_size_bits;
+                    ongoing.unused_size_bits -= width;
+                    if (!named) return .{ .offset_bits = 0, .size_bits = 0 };
+                    return .{
+                        .offset_bits = offset_bits,
+                        .size_bits = width,
+                    };
+                }
+            }
+            // Otherwise this field is part of a new ongoing bit-field.
+            self.ongoing_bitfield = .{
+                .size_bits = ty_size_bits,
+                .unused_size_bits = ty_size_bits - width,
+            };
+        }
+        const offset_bits = std.mem.alignForwardGeneric(u64, self.size_bits, field_alignment_bits);
+        self.size_bits = if (width == 0) offset_bits else offset_bits + ty_size_bits;
+        if (!named) return .{ .offset_bits = 0, .size_bits = 0 };
+        return .{
+            .offset_bits = offset_bits,
+            .size_bits = width,
+        };
+    }
+
+    fn layoutRegularFieldMinGW(
+        self: *SysVContext,
+        ty_size_bits: u64,
+        field_alignment_bits: u64,
+    ) FieldLayout {
+        self.ongoing_bitfield = null;
+        // A struct field starts at the next offset in the struct that is properly
+        // aligned with respect to the start of the struct. See test case 0033.
+        // A union field always starts at offset 0.
+        const offset_bits = if (self.is_union) 0 else std.mem.alignForwardGeneric(u64, self.size_bits, field_alignment_bits);
+
+        // Set the size of the record to the maximum of the current size and the end of
+        // the field. See test case 0034.
+        self.size_bits = std.math.max(self.size_bits, offset_bits + ty_size_bits);
+
+        return .{
+            .offset_bits = offset_bits,
+            .size_bits = ty_size_bits,
+        };
     }
 
     fn layoutRegularField(
@@ -241,11 +402,6 @@ const MscvContext = struct {
     contains_non_bitfield: bool,
     is_union: bool,
     comp: *const Compilation,
-
-    const OngoingBitfield = struct {
-        size_bits: u64,
-        unused_size_bits: u64,
-    };
 
     fn init(ty: *const Type, comp: *const Compilation, pragma_pack: ?u8) MscvContext {
         var pack_value: ?u32 = null;
