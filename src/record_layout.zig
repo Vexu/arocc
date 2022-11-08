@@ -281,7 +281,7 @@ const SysVContext = struct {
         var ty_fld_algn_bits: u32 = fld_layout.field_alignment_bits;
 
         if (bit_width > 0) {
-            std.debug.assert(bit_width <= ty_size_bits); // TODO: currently checked in parser, move check here?
+            std.debug.assert(bit_width <= ty_size_bits); // Checked in parser
             //// Some targets ignore the alignment of the underlying type when laying out
             //// non-zero-sized bit-fields. See test case 0072. On such targets, bit-fields never
             //// cross a storage boundary. See test case 0081.
