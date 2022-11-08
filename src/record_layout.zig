@@ -49,11 +49,11 @@ const SysVContext = struct {
         };
     }
 
-    fn layoutFields(self: *SysVContext, rec: *const Record, comp: *const Compilation) void {
+    fn layoutFields(self: *SysVContext, rec: *const Record) void {
         for (rec.fields) |*fld, fld_indx| {
             var type_layout = TypeLayout.init(0, 0);
 
-            computeLayout(fld.ty, comp, &type_layout);
+            computeLayout(fld.ty, self.comp, &type_layout);
 
             var field_attrs: ?[]const Attribute = null;
             if (rec.field_attributes) |attrs| {
@@ -61,7 +61,7 @@ const SysVContext = struct {
             }
 
             if (fld.bit_width != null) {
-                self.layoutBitField(comp, fld, field_attrs, type_layout);
+                self.layoutBitField(fld, field_attrs, type_layout);
             } else {
                 self.layoutRegularField(fld, field_attrs, type_layout);
             }
@@ -110,7 +110,6 @@ const SysVContext = struct {
 
     fn layoutBitField(
         self: *SysVContext,
-        comp: *const Compilation,
         fld: *Field,
         fld_attrs: ?[]const Attribute,
         fld_layout: TypeLayout,
@@ -124,18 +123,18 @@ const SysVContext = struct {
             //// Some targets ignore the alignment of the underlying type when laying out
             //// non-zero-sized bit-fields. See test case 0072. On such targets, bit-fields never
             //// cross a storage boundary. See test case 0081.
-            if (comp.ignoreNonZeroSizedBitfieldTypeAlignment()) {
+            if (self.comp.ignoreNonZeroSizedBitfieldTypeAlignment()) {
                 ty_fld_algn_bits = 1;
             }
         } else {
             // Some targets ignore the alignment of the underlying type when laying out
             // zero-sized bit-fields. See test case 0073.
-            if (comp.ignoreZeroSizedBitfieldTypeAlignment()) {
+            if (self.comp.ignoreZeroSizedBitfieldTypeAlignment()) {
                 ty_fld_algn_bits = 1;
             }
             // Some targets have a minimum alignment of zero-sized bit-fields. See test case
             // 0074.
-            if (comp.minZeroWidthBitfieldAlignment()) |target_align| {
+            if (self.comp.minZeroWidthBitfieldAlignment()) |target_align| {
                 ty_fld_algn_bits = std.math.max(ty_fld_algn_bits, target_align);
             }
         }
@@ -152,7 +151,7 @@ const SysVContext = struct {
 
         if (bit_width == 0) {
             field_align_bits = std.math.max(ty_fld_algn_bits, annotation_alignment);
-        } else if (comp.langopts.emulate == .gcc) {
+        } else if (self.comp.langopts.emulate == .gcc) {
             // On GCC, the field alignment is at least the alignment requested by annotations
             // except as restricted by #pragma pack. See test case 0083.
             field_align_bits = annotation_alignment;
@@ -175,7 +174,7 @@ const SysVContext = struct {
                 }
             }
         } else {
-            std.debug.assert(comp.langopts.emulate == .clang);
+            std.debug.assert(self.comp.langopts.emulate == .clang);
 
             // On Clang, the alignment requested by annotations is not respected if it is
             // larger than the value of #pragma pack. See test case 0083.
@@ -198,7 +197,7 @@ const SysVContext = struct {
 
         // Unnamed fields do not contribute to the record alignment except on a few targets.
         // See test case 0079.
-        if (fld.name_tok != 0 or comp.unnamedFieldAffectsAlignment()) {
+        if (fld.name_tok != 0 or self.comp.unnamedFieldAffectsAlignment()) {
             var inherited_align_bits: u32 = undefined;
 
             if (bit_width == 0) {
@@ -284,10 +283,10 @@ const MscvContext = struct {
         };
     }
 
-    fn layoutField(self: *MscvContext, comp: *const Compilation, fld: *Field, fld_attrs: ?[]const Attribute) void {
+    fn layoutField(self: *MscvContext, fld: *Field, fld_attrs: ?[]const Attribute) void {
         var type_layout: TypeLayout = TypeLayout.init(0, 0);
 
-        computeLayout(fld.ty, comp, &type_layout);
+        computeLayout(fld.ty, self.comp, &type_layout);
 
         // The required alignment of the field is the maximum of the required alignment of the
         // underlying type and the __declspec(align) annotation on the field itself.
@@ -430,7 +429,7 @@ pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
             var context = SysVContext.init(ty, comp, pragma_pack);
             var rec = getMutableRecord(ty);
 
-            context.layoutFields(rec, comp);
+            context.layoutFields(rec);
 
             context.size_bits = std.mem.alignForwardGeneric(u64, context.size_bits, context.aligned_bits);
 
@@ -451,7 +450,7 @@ pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
                     field_attrs = attrs[fld_indx];
                 }
 
-                context.layoutField(comp, fld, field_attrs);
+                context.layoutField(fld, field_attrs);
             }
             if (context.size_bits == 0) {
                 // As an extension, MSVC allows records that only contain zero-sized bitfields and empty
