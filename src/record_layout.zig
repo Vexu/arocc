@@ -72,10 +72,10 @@ const SysVContext = struct {
             if (self.comp.target.isMinGW()) {
                 self.layoutMinGWField(fld, field_attrs, type_layout);
             } else {
-                if (fld.bit_width != null) {
-                    self.layoutBitField(fld, field_attrs, type_layout);
-                } else {
+                if (fld.isRegularField()) {
                     self.layoutRegularField(fld, field_attrs, type_layout);
+                } else {
+                    self.layoutBitField(fld, field_attrs, type_layout);
                 }
             }
         }
@@ -276,7 +276,7 @@ const SysVContext = struct {
         fld_attrs: ?[]const Attribute,
         fld_layout: TypeLayout,
     ) void {
-        const bit_width = fld.bit_width.?;
+        const bit_width = fld.specifiedBitWidth();
         const ty_size_bits = fld_layout.size_bits;
         var ty_fld_algn_bits: u32 = fld_layout.field_alignment_bits;
 
@@ -456,7 +456,7 @@ const MscvContext = struct {
         // The required alignment of a record is the maximum of the required alignments of its
         // fields except that the required alignment of bitfields is ignored.
         // See test case 0029.
-        if (fld.bit_width == null) {
+        if (fld.isRegularField()) {
             self.req_align_bits = std.math.max(self.req_align_bits, req_align);
         }
 
@@ -475,10 +475,10 @@ const MscvContext = struct {
         // __attribute__((packed)) on a field is a clang extension. It behaves as if #pragma
         // pack(1) had been applied only to this field. See test case 0057.
         fld_align_bits = std.math.max(fld_align_bits, req_align);
-        if (fld.bit_width) |bit_width| {
-            self.layoutBitField(type_layout.size_bits, fld_align_bits, bit_width, fld);
-        } else {
+        if (fld.isRegularField()) {
             self.layoutRegularField(type_layout.size_bits, fld_align_bits, fld);
+        } else {
+            self.layoutBitField(type_layout.size_bits, fld_align_bits, fld.specifiedBitWidth(), fld);
         }
     }
 
