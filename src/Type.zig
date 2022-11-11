@@ -201,12 +201,22 @@ pub const TypeLayout = struct {
 };
 
 pub const FieldLayout = struct {
-    /// The offset of the struct, in bits, from the start of the struct.
-    offset_bits: u64,
+    /// `offset_bits` and `size_bits` should both be INVALID if and only if the field
+    /// is an unnamed bitfield. There is no way to reference an unnamed bitfield in C, so
+    /// there should be no way to observe these values. If it is used, this value will
+    /// maximize the chance that a safety-checked overflow will occur.
+    const INVALID = std.math.maxInt(u64);
+
+    /// The offset of the field, in bits, from the start of the struct.
+    offset_bits: u64 = INVALID,
     /// The size, in bits, of the field.
     ///
     /// For bit-fields, this is the width of the field.
-    size_bits: u64,
+    size_bits: u64 = INVALID,
+
+    pub fn isUnnamed(self: FieldLayout) bool {
+        return self.offset_bits == INVALID and self.size_bits == INVALID;
+    }
 };
 
 // TODO improve memory usage
@@ -230,8 +240,22 @@ pub const Record = struct {
             .size_bits = 0,
         },
 
+        pub fn isNamed(f: *const Field) bool {
+            return f.name_tok != 0;
+        }
+
         pub fn isAnonymousRecord(f: Field) bool {
-            return f.name_tok == 0 and f.ty.isRecord();
+            return !f.isNamed() and f.ty.isRecord();
+        }
+
+        /// false for bitfields
+        pub fn isRegularField(f: *const Field) bool {
+            return f.bit_width == null;
+        }
+
+        /// bit width as specified in the C source. Asserts that `f` is a bitfield.
+        pub fn specifiedBitWidth(f: *const Field) u32 {
+            return f.bit_width.?;
         }
     };
 
@@ -885,7 +909,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .double => CType.double.alignment(comp.target),
         .long_double => CType.longdouble.alignment(comp.target),
 
-        .int128, .uint128 => 16,
+        .int128, .uint128 => if (comp.target.cpu.arch == .s390x and comp.target.os.tag == .linux and comp.target.isGnu()) 8 else 16,
         .fp16 => 2,
 
         .float80, .float128 => 16,
