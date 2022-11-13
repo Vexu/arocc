@@ -1653,6 +1653,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) !StringId {
 ///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecl* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
 fn recordSpec(p: *Parser) Error!Type {
+    const starting_pragma_pack = p.pragma_pack;
     const kind_tok = p.tok_i;
     const is_struct = p.tok_ids[kind_tok] == .keyword_struct;
     p.tok_i += 1;
@@ -1793,7 +1794,13 @@ fn recordSpec(p: *Parser) Error!Type {
     }
 
     if (!ty.hasIncompleteSize()) {
-        record_layout.compute(&ty, p.pp.comp, p.pragma_pack);
+        const pragma_pack_value = switch (p.comp.langopts.emulate) {
+            .clang => starting_pragma_pack,
+            .gcc => p.pragma_pack,
+            // TODO: msvc considers `#pragma pack` on a per-field basis
+            .msvc => p.pragma_pack,
+        };
+        record_layout.compute(&ty, p.pp.comp, pragma_pack_value);
     }
 
     // finish by creating a node
