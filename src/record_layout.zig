@@ -622,7 +622,13 @@ pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
 
 pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
     if (ty.getRecord()) |rec| {
-        type_layout.* = rec.type_layout;
+        const requested = BITS_PER_BYTE * (ty.requestedAlignment(comp) orelse 0);
+        type_layout.* = .{
+            .size_bits = rec.type_layout.size_bits,
+            .pointer_alignment_bits = std.math.max(requested, rec.type_layout.pointer_alignment_bits),
+            .field_alignment_bits = std.math.max(requested, rec.type_layout.field_alignment_bits),
+            .required_alignment_bits = rec.type_layout.required_alignment_bits,
+        };
     } else {
         type_layout.size_bits = ty.bitSizeof(comp) orelse 0;
         type_layout.pointer_alignment_bits = ty.alignof(comp) * BITS_PER_BYTE;

@@ -5,7 +5,9 @@ const aro = @import("aro");
 /// These tests don't work for any platform due to Aro bugs.
 /// Skip entirely.
 const global_test_exclude = std.ComptimeStringMap(void, .{
-    .{"0044"},
+    // ComptimeStringMap can't be empty so the entry below is a placeholder
+    // To skip a test entirely just put the test name e.g. .{"0044"}
+    .{"NONE"},
 });
 
 /// Set true to debug specific targets w/ specific tests.
@@ -452,6 +454,10 @@ const compErr = blk: {
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
+            "aarch64-generic-windows-msvc:Msvc|0044",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
+        },
+        .{
             "aarch64-generic-windows-msvc:Msvc|0045",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
@@ -596,6 +602,10 @@ const compErr = blk: {
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
+            "x86-i586-windows-msvc:Msvc|0044",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
+        },
+        .{
             "x86-i586-windows-msvc:Msvc|0045",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
@@ -733,6 +743,10 @@ const compErr = blk: {
         },
         .{
             "x86-i686-uefi-msvc:Msvc|0043",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
+        },
+        .{
+            "x86-i686-uefi-msvc:Msvc|0044",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
@@ -874,6 +888,10 @@ const compErr = blk: {
         .{
             "x86-i686-windows-msvc:Msvc|0043",
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
+        },
+        .{
+            "x86-i686-windows-msvc:Msvc|0044",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "x86-i686-windows-msvc:Msvc|0045",
@@ -1020,6 +1038,10 @@ const compErr = blk: {
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
         },
         .{
+            "thumb-baseline-windows-msvc:Msvc|0044",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
+        },
+        .{
             "thumb-baseline-windows-msvc:Msvc|0045",
             .{ .parse = true, .layout = true, .extra = true, .offset = true },
         },
@@ -1157,6 +1179,10 @@ const compErr = blk: {
         },
         .{
             "x86_64-x86_64-uefi-msvc:Msvc|0043",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
+        },
+        .{
+            "x86_64-x86_64-uefi-msvc:Msvc|0044",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
@@ -1298,6 +1324,10 @@ const compErr = blk: {
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0043",
             .{ .parse = true, .layout = true, .extra = true, .offset = false },
+        },
+        .{
+            "x86_64-x86_64-windows-msvc:Msvc|0044",
+            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0045",
