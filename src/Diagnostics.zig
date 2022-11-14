@@ -722,6 +722,11 @@ const messages = struct {
         const kind = .warning;
         const suppress_gnu = true;
     };
+    const invalid_alignof = struct {
+        const msg = "invalid application of 'alignof' to an incomplete type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
     const invalid_sizeof = struct {
         const msg = "invalid application of 'sizeof' to an incomplete type '{s}'";
         const extra = .str;

@@ -1563,7 +1563,11 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 const align_tok = p.tok_i;
                 p.tok_i += 1;
                 const l_paren = try p.expectToken(.l_paren);
+                const typename_start = p.tok_i;
                 if (try p.typeName()) |inner_ty| {
+                    if (!inner_ty.alignable()) {
+                        try p.errStr(.invalid_alignof, typename_start, try p.typeStr(inner_ty));
+                    }
                     const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp) };
                     try p.attr_buf.append(p.gpa, .{
                         .attr = .{ .tag = .aligned, .args = .{
@@ -5900,6 +5904,9 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.alignof_expr, expected_paren);
             }
 
+            if (!res.ty.alignable()) {
+                try p.errStr(.invalid_alignof, expected_paren, try p.typeStr(res.ty));
+            }
             res.val = Value.int(res.ty.alignof(p.comp));
             res.ty = p.comp.types.size;
             try res.un(p, .alignof_expr);
