@@ -1376,7 +1376,7 @@ fn msvcAttribute(p: *Parser) !bool {
     try p.msvcAttributeList();
     _ = try p.expectClosing(l_paren, .r_paren);
 
-    return false;
+    return true;
 }
 
 fn gnuAttribute(p: *Parser) !bool {
@@ -1394,12 +1394,25 @@ fn gnuAttribute(p: *Parser) !bool {
     return true;
 }
 
-/// attributeSpecifier : (keyword_attribute '( '(' attributeList ')' ')')*
 fn attributeSpecifier(p: *Parser) Error!void {
+    return attributeSpecifierExtra(p, null);
+}
+
+/// attributeSpecifier : (keyword_attribute '( '(' attributeList ')' ')')*
+fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void {
     while (true) {
         if (try p.gnuAttribute()) continue;
         if (try p.c2xAttribute()) continue;
-        if (try p.msvcAttribute()) continue;
+        const maybe_declspec_tok = p.tok_i;
+        const attr_buf_top = p.attr_buf.len;
+        if (try p.msvcAttribute()) {
+            if (declarator_name) |name_tok| {
+                try p.errTok(.declspec_not_allowed_after_declarator, maybe_declspec_tok);
+                try p.errTok(.declarator_name_tok, name_tok);
+                p.attr_buf.len = attr_buf_top;
+            }
+            continue;
+        }
         break;
     }
 }
@@ -1413,9 +1426,9 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
 
-    try p.attributeSpecifier();
+    try p.attributeSpecifierExtra(init_d.d.name);
     _ = try p.assembly(.decl_label);
-    try p.attributeSpecifier();
+    try p.attributeSpecifierExtra(init_d.d.name);
 
     if (decl_spec.storage_class == .typedef) {
         init_d.d.ty = try Attribute.applyTypeAttributes(p, init_d.d.ty, attr_buf_top, null);
