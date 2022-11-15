@@ -2064,6 +2064,14 @@ const messages = struct {
         const suppress_gcc = true;
         const suppress_clang = true;
     };
+    const declspec_not_allowed_after_declarator = struct {
+        const msg = "'declspec' attribute not allowed after declarator";
+        const kind = .@"error";
+    };
+    const declarator_name_tok = struct {
+        const msg = "this declarator";
+        const kind = .note;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
