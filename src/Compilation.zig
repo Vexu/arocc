@@ -1067,6 +1067,11 @@ pub fn systemCompiler(comp: *const Compilation) LangOpts.Compiler {
     return .clang;
 }
 
+pub fn hasInt128(comp: *const Compilation) bool {
+    if (comp.target.cpu.arch == .wasm32) return true;
+    return comp.target.cpu.arch.ptrBitWidth() >= 64;
+}
+
 test "addSourceFromReader" {
     const Test = struct {
         fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {

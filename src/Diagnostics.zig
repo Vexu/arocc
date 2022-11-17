@@ -2082,6 +2082,11 @@ const messages = struct {
         const msg = "this declarator";
         const kind = .note;
     };
+    const type_not_supported_on_target = struct {
+        const msg = "{s} is not supported on this target";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
