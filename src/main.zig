@@ -475,6 +475,9 @@ fn processSource(
         );
     }
 
+    try @import("IrBuilder.zig").generateTree(comp, tree);
+    if (true) return;
+
     const obj = try Codegen.generateTree(comp, tree);
     defer obj.deinit();
 
