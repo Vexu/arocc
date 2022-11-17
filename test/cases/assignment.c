@@ -73,6 +73,13 @@ void baz(void) {
     e = 0;
 }
 
+int qux(void) {
+    typedef const int A;
+    A a;
+    a = 1;
+    return a;
+}
+
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
     "assignment.c:4:7: error: expression is not assignable" \
     "assignment.c:6:7: warning: implicit conversion from 'float' to '_Bool' changes value from 5.5 to true [-Wfloat-conversion]" \
@@ -94,3 +101,4 @@ void baz(void) {
     "assignment.c:60:8: error: expression is not assignable" \
     "assignment.c:61:9: error: expression is not assignable" \
     "assignment.c:72:12: error: variable has incomplete type 'enum E'" \
+    "assignment.c:79:7: error: expression is not assignable" \

@@ -84,12 +84,10 @@ pub const Qualifiers = packed struct {
                 if (ty.hasIncompleteSize()) try p.errStr(.atomic_incomplete, some, try p.typeStr(ty.*));
             }
 
-            ty.qual = .{
-                .@"const" = b.@"const" != null,
-                .atomic = b.atomic != null,
-                .@"volatile" = b.@"volatile" != null,
-                .restrict = b.restrict != null,
-            };
+            if (b.@"const" != null) ty.qual.@"const" = true;
+            if (b.atomic != null) ty.qual.atomic = true;
+            if (b.@"volatile" != null) ty.qual.@"volatile" = true;
+            if (b.restrict != null) ty.qual.restrict = true;
         }
     };
 };
