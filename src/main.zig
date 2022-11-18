@@ -330,8 +330,18 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     const builtin = try comp.generateBuiltinMacros();
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
+    if (@import("builtin").mode != .Debug and source_files.items.len == 1) {
+        processSource(comp, source_files.items[0], builtin, user_macros, true) catch |e| switch (e) {
+            error.OutOfMemory => return error.OutOfMemory,
+            error.FatalError => {
+                comp.renderErrors();
+            },
+        };
+        return;
+    }
+
     for (source_files.items) |source| {
-        processSource(comp, source, builtin, user_macros) catch |e| switch (e) {
+        processSource(comp, source, builtin, user_macros, false) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 comp.renderErrors();
@@ -340,7 +350,7 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     }
 }
 
-fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macros: Source) !void {
+fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macros: Source, comptime fast_exit: bool) !void {
     comp.generated_buf.items.len = 0;
     var pp = Preprocessor.init(comp);
     defer pp.deinit();
@@ -365,8 +375,10 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
         pp.prettyPrintTokens(buf_w.writer()) catch |er|
             return fatal(comp, "unable to write result: {s}", .{util.errorDescription(er)});
 
-        return buf_w.flush() catch |er|
-            fatal(comp, "unable to write result: {s}", .{util.errorDescription(er)});
+        buf_w.flush() catch |er|
+            return fatal(comp, "unable to write result: {s}", .{util.errorDescription(er)});
+        if (fast_exit) std.process.exit(0);
+        return;
     }
 
     var tree = try Parser.parse(&pp);
@@ -383,7 +395,10 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     const prev_errors = comp.diag.errors;
     comp.renderErrors();
 
-    if (comp.diag.errors != prev_errors) return; // do not compile if there were errors
+    if (comp.diag.errors != prev_errors) {
+        if (fast_exit) std.process.exit(1);
+        return; // do not compile if there were errors
+    }
 
     if (comp.target.ofmt != .elf or comp.target.cpu.arch != .x86_64) {
         return fatal(
@@ -410,9 +425,13 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     obj.finish(out_file) catch |er|
         return fatal(comp, "could output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
 
-    if (comp.only_compile) return;
+    if (comp.only_compile) {
+        if (fast_exit) std.process.exit(0);
+        return;
+    }
 
     // TODO invoke linker
+    if (fast_exit) std.process.exit(0);
 }
 
 test {
