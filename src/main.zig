@@ -25,8 +25,11 @@ pub fn main() u8 {
     defer arena_instance.deinit();
     const arena = arena_instance.allocator();
 
+    const fast_exit = @import("builtin").mode != .Debug;
+
     const args = process.argsAlloc(arena) catch {
         std.debug.print("out of memory\n", .{});
+        if (fast_exit) std.process.exit(1);
         return 1;
     };
 
@@ -36,6 +39,7 @@ pub fn main() u8 {
     comp.addDefaultPragmaHandlers() catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
+            if (fast_exit) std.process.exit(1);
             return 1;
         },
     };
@@ -44,14 +48,21 @@ pub fn main() u8 {
     mainExtra(&comp, args) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
+            if (fast_exit) std.process.exit(1);
             return 1;
         },
         error.StreamTooLong => {
             std.debug.print("maximum file size exceeded\n", .{});
+            if (fast_exit) std.process.exit(1);
             return 1;
         },
-        error.FatalError => comp.renderErrors(),
+        error.FatalError => {
+            comp.renderErrors();
+            if (fast_exit) std.process.exit(1);
+            return 1;
+        },
     };
+    if (fast_exit) std.process.exit(@boolToInt(comp.diag.errors != 0));
     return @boolToInt(comp.diag.errors != 0);
 }
 
