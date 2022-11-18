@@ -119,7 +119,7 @@ pub const Inst = struct {
         target: Ref,
         cases_len: u32,
         // default: *Block,
-        @"else": Ref,
+        default: Ref,
         case_vals: [*]IrPool.Ref,
         // case_labels: [*]*Block,
         case_labels: [*]Ref,
@@ -202,16 +202,29 @@ pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
             //     const bin = data[i].bin;
             //     try w.print("    %{s} %{d} label.{d}\n", .{ @tagName(tag), @enumToInt(bin.lhs), @enumToInt(bin.rhs) });
             // },
-            // .@"switch" => {
-            //     const @"switch" = data[i].@"switch";
-            //     try w.print("    {s} %{d} {{\n", .{ @tagName(tag), @enumToInt(@"switch".target) });
-            //     for (@"switch".cases) |case| {
-            //         try w.writeAll("        ");
-            //         try dumpVal(.const_int, case.val, w);
-            //         try w.print(" label.{d}\n", .{@enumToInt(case.label)});
-            //     }
-            //     try w.print("        default label.{d}\n    }}\n", .{@enumToInt(@"switch".default)});
-            // },
+            .@"switch" => {
+                const @"switch" = data[i].@"switch";
+                if (color) util.setColor(INST, w);
+                try w.writeAll("    switch ");
+                try ir.writeRef(@"switch".target, color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(" {");
+                for (@"switch".case_vals[0..@"switch".cases_len]) |val_ref, case_i| {
+                    try w.writeAll("\n        ");
+                    try ir.writeValue(val_ref, color, w);
+                    if (color) util.setColor(.reset, w);
+                    try w.writeAll(" => ");
+                    try ir.writeLabel(@"switch".case_labels[case_i], color, w);
+                    if (color) util.setColor(.reset, w);
+                }
+                if (color) util.setColor(LITERAL, w);
+                try w.writeAll("\n        default ");
+                if (color) util.setColor(.reset, w);
+                try w.writeAll("=> ");
+                try ir.writeLabel(@"switch".default, color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll("\n    }\n");
+            },
             // .call => {
             //     const call = data[i].call;
             //     try w.print("    %{d} = call {d} (", .{ i, @enumToInt(call.func) });
@@ -342,22 +355,27 @@ fn writeType(ir: Ir, ty_ref: IrPool.Ref, color: bool, w: anytype) !void {
     }
 }
 
+fn writeValue(ir: Ir, val_ref: IrPool.Ref, color: bool, w: anytype) !void {
+    const v = ir.pool.get(val_ref).value;
+    if (color) util.setColor(LITERAL, w);
+    switch (v.tag) {
+        .unavailable => try w.writeAll(" unavailable"),
+        .int => try w.print("{d}", .{v.data.int}),
+        .bytes => try w.print("\"{s}\"", .{v.data.bytes}),
+        // std.fmt does @as instead of @floatCast
+        .float => try w.print("{d}", .{@floatCast(f64, v.data.float)}),
+        else => try w.print("({s})", .{@tagName(v.tag)}),
+    }
+}
+
 fn writeRef(ir: Ir, ref: Ref, color: bool, w: anytype) !void {
     const index = @enumToInt(ref);
     const ty_ref = ir.instructions.items(.ty)[index];
     if (ir.instructions.items(.tag)[index] == .constant) {
         try ir.writeType(ty_ref, color, w);
         const v_ref = ir.instructions.items(.data)[index].constant;
-        const v = ir.pool.get(v_ref).value;
-        if (color) util.setColor(LITERAL, w);
-        switch (v.tag) {
-            .unavailable => try w.writeAll(" unavailable"),
-            .int => try w.print(" {d}", .{v.data.int}),
-            .bytes => try w.print(" \"{s}\"", .{v.data.bytes}),
-            // std.fmt does @as instead of @floatCast
-            .float => try w.print(" {d}", .{@floatCast(f64, v.data.float)}),
-            else => try w.print(" ({s})", .{@tagName(v.tag)}),
-        }
+        try w.writeByte(' ');
+        try ir.writeValue(v_ref, color, w);
         return;
     }
     try ir.writeType(ty_ref, color, w);
