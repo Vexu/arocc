@@ -87,6 +87,7 @@ const usage =
     \\  -o <file>               Write output to <file>
     \\  -pedantic               Warn on language extensions
     \\  -std=<standard>         Specify language standard
+    \\  -S                      Only run preprocess and compilation steps
     \\  --target=<value>        Generate code for the given target
     \\  -U <macro>              Undefine <macro>
     \\  -Werror                 Treat all warnings as errors
@@ -251,6 +252,8 @@ pub fn parseArgs(
                 const standard = arg["-std=".len..];
                 comp.langopts.setStandard(standard) catch
                     try comp.diag.add(.{ .tag = .cli_invalid_standard, .extra = .{ .str = arg } }, &.{});
+            } else if (mem.eql(u8, arg, "-S")) {
+                comp.only_preprocess_and_compile = true;
             } else if (mem.startsWith(u8, arg, "--target=")) {
                 const triple = arg["--target=".len..];
                 const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch {
@@ -317,7 +320,9 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
 
     if (source_files.items.len == 0) {
         return fatal(comp, "no input files", .{});
-    } else if (source_files.items.len != 1 and comp.output_name != null) {
+    } else if (source_files.items.len != 1 and comp.output_name != null and
+        (comp.only_preprocess or comp.only_compile or comp.only_preprocess_and_compile))
+    {
         return fatal(comp, "cannot specify -o when generating multiple output files", .{});
     }
 
