@@ -96,7 +96,10 @@ pub const Inst = struct {
         },
         un: Ref,
         arg: u32,
-        alloc: u64,
+        alloc: struct {
+            size: u32,
+            @"align": u32,
+        },
         @"switch": *Switch,
         @"call": *Call,
         // block: *Block,
@@ -139,15 +142,26 @@ pub fn deinit(ir: *Ir, gpa: std.mem.Allocator) void {
     ir.* = undefined;
 }
 
-pub fn dump(ir: Ir, name: []const u8, w: anytype) !void {
+const util = @import("util.zig");
+const TYPE = util.Color.purple;
+const INST = util.Color.cyan;
+const REF = util.Color.blue;
+const LITERAL = util.Color.green;
+const ATTRIBUTE = util.Color.yellow;
+
+pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
     const tags = ir.instructions.items(.tag);
     const data = ir.instructions.items(.data);
 
-    try w.print("{s}(", .{name});
+    if (color) util.setColor(REF, w);
+    try w.writeAll(name);
+    if (color) util.setColor(.reset, w);
+    try w.writeAll(" (");
     for (tags) |tag, i| {
         if (tag != .arg) break;
         if (i != 0) try w.writeAll(", ");
-        try ir.writeRef(@intToEnum(Ref, i), w);
+        try ir.writeRef(@intToEnum(Ref, i), color, w);
+        if (color) util.setColor(.reset, w);
     }
     try w.writeAll(") {\n");
 
@@ -156,65 +170,106 @@ pub fn dump(ir: Ir, name: []const u8, w: anytype) !void {
         const tag = tags[i];
         switch (tag) {
             .arg => unreachable,
-            .label => try w.print("{s}.{d}:\n", .{ data[i].label, i }),
+            .label => {
+                if (color) util.setColor(REF, w);
+                try w.print("{s}.{d}:\n", .{ data[i].label, i });
+            },
             // .label_val => {
             //     const un = data[i].un;
             //     try w.print("    %{d} = label.{d}\n", .{ i, @enumToInt(un) });
             // },
             .jmp => {
                 const un = data[i].un;
+                if (color) util.setColor(INST, w);
                 try w.writeAll("    jmp ");
-                try ir.writeLabel(un, w);
+                try ir.writeLabel(un, color, w);
                 try w.writeByte('\n');
             },
-            // .jmp_false, .jmp_true, .jmp_val => {
+            .branch => {
+                const br = data[i].branch;
+                if (color) util.setColor(INST, w);
+                try w.writeAll("    branch ");
+                try ir.writeRef(br.cond, color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(", ");
+                try ir.writeLabel(br.then, color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(", ");
+                try ir.writeLabel(br.@"else", color, w);
+                try w.writeByte('\n');
+            },
+            // .jmp_val => {
             //     const bin = data[i].bin;
             //     try w.print("    %{s} %{d} label.{d}\n", .{ @tagName(tag), @enumToInt(bin.lhs), @enumToInt(bin.rhs) });
             // },
-            .@"switch" => {
-                const @"switch" = data[i].@"switch";
-                try w.print("    {s} %{d} {{\n", .{ @tagName(tag), @enumToInt(@"switch".target) });
-                // for (@"switch".cases) |case| {
-                //     try w.writeAll("        ");
-                //     try dumpVal(.const_int, case.val, w);
-                //     try w.print(" label.{d}\n", .{@enumToInt(case.label)});
-                // }
-                // try w.print("        default label.{d}\n    }}\n", .{@enumToInt(@"switch".default)});
-            },
-            .call => {
-                const call = data[i].call;
-                try w.print("    %{d} = call {d} (", .{ i, @enumToInt(call.func) });
-                for (call.args()) |arg, arg_i| {
-                    if (arg_i != 0) try w.writeAll(", ");
-                    try w.print("%{d}", .{@enumToInt(arg)});
-                }
-                try w.writeAll(")\n");
-            },
-            .symbol => {
-                try w.print("    %{d} = symbol\n", .{i});
-            },
+            // .@"switch" => {
+            //     const @"switch" = data[i].@"switch";
+            //     try w.print("    {s} %{d} {{\n", .{ @tagName(tag), @enumToInt(@"switch".target) });
+            //     for (@"switch".cases) |case| {
+            //         try w.writeAll("        ");
+            //         try dumpVal(.const_int, case.val, w);
+            //         try w.print(" label.{d}\n", .{@enumToInt(case.label)});
+            //     }
+            //     try w.print("        default label.{d}\n    }}\n", .{@enumToInt(@"switch".default)});
+            // },
+            // .call => {
+            //     const call = data[i].call;
+            //     try w.print("    %{d} = call {d} (", .{ i, @enumToInt(call.func) });
+            //     for (call.args()) |arg, arg_i| {
+            //         if (arg_i != 0) try w.writeAll(", ");
+            //         try ir.writeRef(arg, w);
+            //     }
+            //     try w.writeAll(")\n");
+            // },
+            // .symbol => {
+            //     try w.print("    %{d} = symbol\n", .{i});
+            // },
             .alloc => {
-                const size = data[i].alloc;
-                try w.print("    %{d} = alloc {d}\n", .{ i, size });
+                const alloc = data[i].alloc;
+                try w.writeAll("    ");
+                try ir.writeRef(@intToEnum(Ref, i), color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(" = ");
+                if (color) util.setColor(INST, w);
+                try w.writeAll("alloc ");
+                if (color) util.setColor(ATTRIBUTE, w);
+                try w.writeAll("size ");
+                if (color) util.setColor(LITERAL, w);
+                try w.print("{d}", .{alloc.size});
+                if (color) util.setColor(ATTRIBUTE, w);
+                try w.writeAll(" align ");
+                if (color) util.setColor(LITERAL, w);
+                try w.print("{d}", .{alloc.@"align"});
+                try w.writeByte('\n');
             },
             .store => {
                 const bin = data[i].bin;
+                if (color) util.setColor(INST, w);
                 try w.writeAll("    store ");
-                try ir.writeRef(bin.lhs, w);
+                try ir.writeRef(bin.lhs, color, w);
+                if (color) util.setColor(.reset, w);
                 try w.writeAll(", ");
-                try ir.writeRef(bin.rhs, w);
+                try ir.writeRef(bin.rhs, color, w);
                 try w.writeByte('\n');
             },
             .ret => {
-                try w.writeAll("    ret ");
-                try ir.writeRef(data[i].un, w);
+                if (color) util.setColor(INST, w);
+                try w.writeAll("    ret\n");
+            },
+            .ret_value => {
+                if (color) util.setColor(INST, w);
+                try w.writeAll("    ret_value ");
+                try ir.writeRef(data[i].un, color, w);
                 try w.writeByte('\n');
             },
-            // .ret_void => {
-            //     try w.writeAll("    ret\n");
-            // },
             .load => {
-                try w.print("    %{d} = load %{d}\n", .{ i, @enumToInt(data[i].un) });
+                try w.writeAll("    ");
+                try ir.writeRef(@intToEnum(Ref, i), color, w);
+                try w.writeAll(" = ");
+                if (color) util.setColor(INST, w);
+                try w.writeAll("load ");
+                try ir.writeRef(data[i].un, color, w);
+                try w.writeByte('\n');
             },
             .bit_or,
             .bit_xor,
@@ -234,46 +289,85 @@ pub fn dump(ir: Ir, name: []const u8, w: anytype) !void {
             .mod,
             => {
                 const bin = data[i].bin;
-                try w.print(
-                    "    %{d} = {s} %{d}, %{d}\n",
-                    .{ i, @tagName(tag), @enumToInt(bin.lhs), @enumToInt(bin.rhs) },
-                );
+                try w.writeAll("    ");
+                try ir.writeRef(@intToEnum(Ref, i), color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(" = ");
+                if (color) util.setColor(INST, w);
+                try w.print("{s} ", .{@tagName(tag)});
+                try ir.writeRef(bin.lhs, color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(", ");
+                try ir.writeRef(bin.rhs, color, w);
+                try w.writeByte('\n');
             },
             .bit_not,
             .negate,
             => {
                 const un = data[i].un;
-                try w.print("    %{d} = {s} %{d}\n", .{ i, @tagName(tag), @enumToInt(un) });
+                try w.writeAll("    ");
+                try ir.writeRef(@intToEnum(Ref, i), color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(" = ");
+                if (color) util.setColor(INST, w);
+                try w.print("{s} ", .{@tagName(tag)});
+                try ir.writeRef(un, color, w);
+                try w.writeByte('\n');
             },
             else => {},
         }
     }
-    try w.print("}} // {s}\n\n", .{name});
+    if (color) util.setColor(.reset, w);
+    try w.writeAll("}\n\n");
 }
 
-fn writeRef(ir: Ir, ref: Ref, w: anytype) !void {
+fn writeType(ir: Ir, ty_ref: IrPool.Ref, color: bool, w: anytype) !void {
+    const ty = ir.pool.get(ty_ref);
+    if (color) util.setColor(TYPE, w);
+    switch (ty) {
+        .value => unreachable,
+        .ptr, .noreturn, .void => try w.writeAll(@tagName(ty)),
+        .int => |bits| try w.print("i{d}", .{bits}),
+        .float => |bits| try w.print("f{d}", .{bits}),
+        .array => |info| {
+            try w.print("[{d} * ", .{info.len});
+            try ir.writeType(info.child, false, w);
+            try w.writeByte(']');
+        },
+        .vector => |info| {
+            try w.print("<{d} * ", .{info.len});
+            try ir.writeType(info.child, false, w);
+            try w.writeByte('>');
+        },
+    }
+}
+
+fn writeRef(ir: Ir, ref: Ref, color: bool, w: anytype) !void {
     const index = @enumToInt(ref);
     const ty_ref = ir.instructions.items(.ty)[index];
-    const ty = ir.pool.get(ty_ref);
     if (ir.instructions.items(.tag)[index] == .constant) {
-        try w.print("{s} ", .{@tagName(ty)});
+        try ir.writeType(ty_ref, color, w);
         const v_ref = ir.instructions.items(.data)[index].constant;
         const v = ir.pool.get(v_ref).value;
+        if (color) util.setColor(LITERAL, w);
         switch (v.tag) {
-            .unavailable => try w.writeAll("unavailable"),
-            .int => try w.print("{d}", .{v.data.int}),
-            .bytes => try w.print("\"{s}\"", .{v.data.bytes}),
+            .unavailable => try w.writeAll(" unavailable"),
+            .int => try w.print(" {d}", .{v.data.int}),
+            .bytes => try w.print(" \"{s}\"", .{v.data.bytes}),
             // std.fmt does @as instead of @floatCast
-            .float => try w.print("{d}", .{@floatCast(f64, v.data.float)}),
-            else => try w.print("({s})", .{@tagName(v.tag)}),
+            .float => try w.print(" {d}", .{@floatCast(f64, v.data.float)}),
+            else => try w.print(" ({s})", .{@tagName(v.tag)}),
         }
         return;
     }
-    try w.print("{s} %{d}", .{ @tagName(ty), index });
+    try ir.writeType(ty_ref, color, w);
+    if (color) util.setColor(REF, w);
+    try w.print(" %{d}", .{index});
 }
 
-fn writeLabel(ir: Ir, ref: Ref, w: anytype) !void {
+fn writeLabel(ir: Ir, ref: Ref, color: bool, w: anytype) !void {
     const index = @enumToInt(ref);
     const label = ir.instructions.items(.data)[index].label;
+    if (color) util.setColor(REF, w);
     try w.print("{s}.{d}", .{ label, index });
 }
