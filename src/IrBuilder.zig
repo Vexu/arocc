@@ -45,6 +45,7 @@ continues: std.ArrayListUnmanaged(u32) = .{},
 returns: std.ArrayListUnmanaged(u32) = .{},
 body: std.ArrayListUnmanaged(Ir.Ref) = .{},
 allocs: u32 = 0,
+cond_dummy_ref: Ir.Ref = undefined,
 pool: IrPool = .{},
 
 fn deinit(irb: *IrBuilder) void {
@@ -198,6 +199,7 @@ fn genType(irb: *IrBuilder, base_ty: Type) !IrPool.Ref {
         else => {},
     }
     if (ty.isPtr()) return .ptr;
+    if (ty.isFunc()) return .func;
     if (!ty.isReal()) @panic("TODO lower complex types");
     if (ty.isInt()) {
         const bits = ty.bitSizeof(irb.comp).?;
@@ -205,6 +207,12 @@ fn genType(irb: *IrBuilder, base_ty: Type) !IrPool.Ref {
     } else if (ty.isFloat()) {
         const bits = ty.bitSizeof(irb.comp).?;
         key = .{ .float = @intCast(u16, bits) };
+    } else if (ty.isArray()) {
+        const elem = try irb.genType(ty.elemType());
+        key = .{ .array = .{ .child = elem, .len = ty.arrayLen().? } };
+    } else if (ty.specifier == .vector) {
+        const elem = try irb.genType(ty.elemType());
+        key = .{ .vector = .{ .child = elem, .len = @intCast(u32, ty.data.array.len) } };
     }
     return irb.pool.put(irb.gpa, key);
 }
@@ -221,19 +229,16 @@ fn genFn(irb: *IrBuilder, decl: NodeIndex) Error!void {
     irb.instructions.len = params.len;
 
     for (params) |param, i| {
-        var arg = @intToEnum(Ir.Ref, i);
+        // TODO handle calling convention here
+        const arg = @intToEnum(Ir.Ref, i);
         irb.instructions.set(i, .{
             .tag = .arg,
             .data = .{ .arg = @intCast(u32, i) },
             .ty = try irb.genType(param.ty),
         });
-        // create allocation for mutable parameters
-        if (!param.ty.qual.@"const") {
-            const alloc = try irb.addAlloc(param.ty);
-            try irb.addInstVoid(.store, .{ .bin = .{ .lhs = alloc, .rhs = arg } });
-            arg = alloc;
-        }
-        try irb.symbols.append(irb.comp.gpa, .{ .name = param.name, .val = arg });
+        const alloc = try irb.addAlloc(param.ty);
+        try irb.addInstVoid(.store, .{ .bin = .{ .lhs = alloc, .rhs = arg } });
+        try irb.symbols.append(irb.comp.gpa, .{ .name = param.name, .val = alloc });
     }
     // Generate body
     _ = try irb.genNode(irb.node_data[@enumToInt(decl)].decl.node);
@@ -275,6 +280,13 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .invalid,
         .threadlocal_var,
         => unreachable,
+        .enumeration_ref,
+        .int_literal,
+        .char_literal,
+        .float_literal,
+        .double_literal,
+        .imaginary_literal,
+        => unreachable, // These should have an entry in value_map.
         .static_assert,
         .fn_proto,
         .static_fn_proto,
@@ -705,7 +717,8 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         },
         .paren_expr => return irb.genNode(data.un),
         .decl_ref_expr => {
-            const name = try irb.comp.intern(irb.tree.tokSlice(data.decl_ref));
+            const slice = irb.tree.tokSlice(data.decl_ref);
+            const name = try irb.comp.intern(slice);
             var i = irb.symbols.items.len;
             while (i > 0) {
                 i -= 1;
@@ -714,34 +727,97 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
                 }
             }
 
-            return irb.addInst(.symbol, .{ .arg = 0 }, ty);
+            const ref = @intToEnum(Ir.Ref, irb.instructions.len);
+            try irb.instructions.append(irb.comp.gpa, .{
+                .tag = .symbol,
+                .data = .{ .label = try irb.arena.allocator().dupeZ(u8, slice) },
+                .ty = try irb.genType(ty),
+            });
+            return ref;
+        },
+        .explicit_cast, .implicit_cast => switch (data.cast.kind) {
+            .no_op => return irb.genNode(data.cast.operand),
+            .bitcast,
+            .array_to_pointer,
+            => {},
+            .lval_to_rval => {
+                const operand = try irb.genNode(data.cast.operand);
+                return irb.addInst(.load, .{ .un = operand }, ty);
+            },
+            .function_to_pointer => return irb.genNode(data.cast.operand),
+            .pointer_to_bool,
+            .pointer_to_int,
+            .bool_to_int,
+            .bool_to_float,
+            .bool_to_pointer,
+            .int_to_bool,
+            .int_to_float,
+            .complex_int_to_complex_float,
+            .int_to_pointer,
+            .float_to_bool,
+            .float_to_int,
+            .complex_float_to_complex_int,
+            .int_cast,
+            .complex_int_cast,
+            .complex_int_to_real,
+            .real_to_complex_int,
+            .float_cast,
+            .complex_float_cast,
+            .complex_float_to_real,
+            .real_to_complex_float,
+            => {},
+            .to_void => {},
+            .null_to_pointer,
+            .union_cast,
+            .vector_splat,
+            => {},
+        },
+        .binary_cond_expr => {
+            const cond = try irb.genNode(data.if3.cond);
+            const then = then: {
+                const old_cond_dummy_ref = irb.cond_dummy_ref;
+                defer irb.cond_dummy_ref = old_cond_dummy_ref;
+                irb.cond_dummy_ref = cond;
+
+                break :then try irb.genNode(irb.tree.data[data.if3.body]);
+            };
+            const @"else" = try irb.genNode(irb.tree.data[data.if3.body + 1]);
+
+            const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
+            branch.* = .{ .cond = cond, .then = then, .@"else" = @"else" };
+            return irb.addInst(.select, .{ .branch = branch }, ty);
+        },
+        .cond_dummy_expr => return irb.cond_dummy_ref,
+        .cond_expr => {
+            const cond = try irb.genNode(data.if3.cond);
+            const then = try irb.genNode(irb.tree.data[data.if3.body]);
+            const @"else" = try irb.genNode(irb.tree.data[data.if3.body + 1]);
+
+            const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
+            branch.* = .{ .cond = cond, .then = then, .@"else" = @"else" };
+            return irb.addInst(.select, .{ .branch = branch }, ty);
+        },
+        .call_expr_one => if (data.bin.rhs == .none) {
+            return irb.genCall(data.bin.lhs, &.{}, ty);
+        } else {
+            return irb.genCall(data.bin.lhs, &.{data.bin.rhs}, ty);
+        },
+        .call_expr => {
+            return irb.genCall(irb.tree.data[data.range.start], irb.tree.data[data.range.start + 1 .. data.range.end], ty);
         },
         .case_range_stmt,
         .goto_stmt,
         .computed_goto_stmt,
-        .binary_cond_expr,
-        .cond_dummy_expr,
-        .cond_expr,
         .bool_or_expr,
         .bool_and_expr,
-        .explicit_cast,
-        .implicit_cast,
         .addr_of_label,
         .imag_expr,
         .real_expr,
         .array_access_expr,
-        .call_expr_one,
-        .call_expr,
         .builtin_call_expr_one,
         .builtin_call_expr,
         .member_access_expr,
         .member_access_ptr_expr,
-        .enumeration_ref,
-        .int_literal,
-        .char_literal,
-        .float_literal,
-        .double_literal,
-        .imaginary_literal,
         .string_literal_expr,
         .sizeof_expr,
         .alignof_expr,
@@ -762,6 +838,23 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         => {},
     }
     return @as(Ir.Ref, undefined); // statement, value is ignored
+}
+
+fn genCall(irb: *IrBuilder, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
+    const fn_ref = try irb.genNode(fn_node);
+    const args = try irb.arena.allocator().alloc(Ir.Ref, arg_nodes.len);
+    for (arg_nodes) |node, i| {
+        // TODO handle calling convention here
+        args[i] = try irb.genNode(node);
+    }
+    // TODO handle variadic call
+    const call = try irb.arena.allocator().create(Ir.Inst.Call);
+    call.* = .{
+        .func = fn_ref,
+        .args_len = @intCast(u32, args.len),
+        .args_ptr = args.ptr,
+    };
+    return irb.addInst(.call, .{ .call = call }, ty);
 }
 
 fn genCompoundAssign(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {

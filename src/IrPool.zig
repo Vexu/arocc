@@ -22,6 +22,7 @@ pub const Key = union(enum) {
     ptr,
     noreturn,
     void,
+    func,
     array: struct {
         len: u64,
         child: Ref,
@@ -94,6 +95,7 @@ pub const Ref = enum(u32) {
     f64 = max - 11,
     f80 = max - 12,
     f128 = max - 13,
+    func = max - 14,
     _,
 };
 
@@ -121,6 +123,7 @@ pub fn put(ip: *IrPool, gpa: Allocator, key: Key) !Ref {
             else => unreachable,
         },
         .ptr => return .ptr,
+        .func => return .func,
         .noreturn => return .noreturn,
         .void => return .void,
         else => {},
@@ -132,6 +135,7 @@ pub fn put(ip: *IrPool, gpa: Allocator, key: Key) !Ref {
 pub fn get(ip: IrPool, ref: Ref) Key {
     switch (ref) {
         .ptr => return .ptr,
+        .func => return .func,
         .noreturn => return .noreturn,
         .void => return .void,
         .i1 => return .{ .int = 1 },

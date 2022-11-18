@@ -48,6 +48,7 @@ pub const Inst = struct {
 
         // data.branch
         branch,
+        select,
 
         // data.un
         jmp_val,
@@ -169,7 +170,7 @@ pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
         const i = @enumToInt(ref);
         const tag = tags[i];
         switch (tag) {
-            .arg => unreachable,
+            .arg, .constant, .symbol => unreachable,
             .label => {
                 if (color) util.setColor(REF, w);
                 try w.print("{s}.{d}:\n", .{ data[i].label, i });
@@ -196,6 +197,23 @@ pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
                 if (color) util.setColor(.reset, w);
                 try w.writeAll(", ");
                 try ir.writeLabel(br.@"else", color, w);
+                try w.writeByte('\n');
+            },
+            .select => {
+                const br = data[i].branch;
+                try w.writeAll("    ");
+                try ir.writeRef(@intToEnum(Ref, i), color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(" = ");
+                if (color) util.setColor(INST, w);
+                try w.writeAll("select ");
+                try ir.writeRef(br.cond, color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(", ");
+                try ir.writeRef(br.then, color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(", ");
+                try ir.writeRef(br.@"else", color, w);
                 try w.writeByte('\n');
             },
             // .jmp_val => {
@@ -225,18 +243,24 @@ pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
                 if (color) util.setColor(.reset, w);
                 try w.writeAll("\n    }\n");
             },
-            // .call => {
-            //     const call = data[i].call;
-            //     try w.print("    %{d} = call {d} (", .{ i, @enumToInt(call.func) });
-            //     for (call.args()) |arg, arg_i| {
-            //         if (arg_i != 0) try w.writeAll(", ");
-            //         try ir.writeRef(arg, w);
-            //     }
-            //     try w.writeAll(")\n");
-            // },
-            // .symbol => {
-            //     try w.print("    %{d} = symbol\n", .{i});
-            // },
+            .call => {
+                const call = data[i].call;
+                try w.writeAll("    ");
+                try ir.writeRef(@intToEnum(Ref, i), color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(" = ");
+                if (color) util.setColor(INST, w);
+                try w.writeAll("call ");
+                try ir.writeRef(call.func, color, w);
+                if (color) util.setColor(.reset, w);
+                try w.writeAll(" (");
+                for (call.args()) |arg, arg_i| {
+                    if (arg_i != 0) try w.writeAll(", ");
+                    try ir.writeRef(arg, color, w);
+                    if (color) util.setColor(.reset, w);
+                }
+                try w.writeAll(")\n");
+            },
             .alloc => {
                 const alloc = data[i].alloc;
                 try w.writeAll("    ");
@@ -339,7 +363,7 @@ fn writeType(ir: Ir, ty_ref: IrPool.Ref, color: bool, w: anytype) !void {
     if (color) util.setColor(TYPE, w);
     switch (ty) {
         .value => unreachable,
-        .ptr, .noreturn, .void => try w.writeAll(@tagName(ty)),
+        .ptr, .noreturn, .void, .func => try w.writeAll(@tagName(ty)),
         .int => |bits| try w.print("i{d}", .{bits}),
         .float => |bits| try w.print("f{d}", .{bits}),
         .array => |info| {
@@ -376,6 +400,12 @@ fn writeRef(ir: Ir, ref: Ref, color: bool, w: anytype) !void {
         const v_ref = ir.instructions.items(.data)[index].constant;
         try w.writeByte(' ');
         try ir.writeValue(v_ref, color, w);
+        return;
+    } else if (ir.instructions.items(.tag)[index] == .symbol) {
+        const name = ir.instructions.items(.data)[index].label;
+        try ir.writeType(ty_ref, color, w);
+        if (color) util.setColor(REF, w);
+        try w.print(" @{s}", .{name});
         return;
     }
     try ir.writeType(ty_ref, color, w);
