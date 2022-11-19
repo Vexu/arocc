@@ -350,7 +350,7 @@ pub fn main() !void {
 
             defer buf.items.len = 0;
             // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-            std.debug.assert((try std.zig.string_literal.parseAppend(&buf, pp.tokSlice(macro.tokens[0]))) == .success);
+            std.debug.assert((try std.zig.string_literal.parseWrite(buf.writer(), pp.tokSlice(macro.tokens[0]))) == .success);
             const expected_output = buf.items;
 
             const obj_name = "test_object.o";
@@ -442,7 +442,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std
 
         defer buf.items.len = 0;
         // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-        std.debug.assert((try std.zig.string_literal.parseAppend(buf, pp.tokSlice(str))) == .success);
+        std.debug.assert((try std.zig.string_literal.parseWrite(buf.writer(), pp.tokSlice(str))) == .success);
         try buf.append('\n');
         const expected_error = buf.items;
 
