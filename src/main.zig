@@ -106,6 +106,11 @@ const usage =
     \\  -W<warning>             Enable the specified warning
     \\  -Wno-<warning>          Disable the specified warning
     \\
+    \\Link options:
+    \\  -fuse-ld=[bfd|gold|lld|mold]
+    \\                          Use specific linker
+    \\  --ld-path=<path>        Use linker specified by <path>
+    \\
     \\Debug options:
     \\  --verbose-ast           Dump produced AST to stdout
     \\  --verbose-pp            Dump preprocessor state
@@ -113,11 +118,19 @@ const usage =
     \\
 ;
 
+fn option(arg: []const u8, name: []const u8) ?[]const u8 {
+    if (std.mem.startsWith(u8, arg, name) and arg.len > name.len) {
+        return arg[name.len..];
+    }
+    return null;
+}
+
 /// Process command line arguments, returns true if something was written to std_out.
 pub fn parseArgs(
     comp: *Compilation,
     std_out: anytype,
     sources: *std.ArrayList(Source),
+    link_objects: *std.ArrayList([]const u8),
     macro_buf: anytype,
     args: [][]const u8,
 ) !bool {
@@ -183,8 +196,7 @@ pub fn parseArgs(
                 comp.langopts.digraphs = true;
             } else if (mem.eql(u8, arg, "-fno-digraphs")) {
                 comp.langopts.digraphs = false;
-            } else if (mem.startsWith(u8, arg, "-fmacro-backtrace-limit=")) {
-                const limit_str = arg["-fmacro-backtrace-limit=".len..];
+            } else if (option(arg, "-fmacro-backtrace-limit=")) |limit_str| {
                 var limit = std.fmt.parseInt(u32, limit_str, 10) catch {
                     try err(comp, "-fmacro-backtrace-limit takes a number argument");
                     continue;
@@ -226,8 +238,7 @@ pub fn parseArgs(
                     path = args[i];
                 }
                 try comp.system_include_dirs.append(path);
-            } else if (mem.startsWith(u8, arg, "--emulate=")) {
-                const compiler_str = arg["--emulate=".len..];
+            } else if (option(arg, "--emulate=")) |compiler_str| {
                 const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
                     try comp.diag.add(.{ .tag = .cli_invalid_emulate, .extra = .{ .str = arg } }, &.{});
                     continue;
@@ -246,27 +257,22 @@ pub fn parseArgs(
                 comp.output_name = file;
             } else if (mem.eql(u8, arg, "-pedantic")) {
                 comp.diag.options.pedantic = .warning;
-            } else if (mem.startsWith(u8, arg, "-Werror=")) {
-                const option = arg["-Werror=".len..];
-                try comp.diag.set(option, .@"error");
+            } else if (option(arg, "-Werror=")) |err_name| {
+                try comp.diag.set(err_name, .@"error");
             } else if (mem.eql(u8, arg, "-Wno-fatal-errors")) {
                 comp.diag.fatal_errors = false;
-            } else if (mem.startsWith(u8, arg, "-Wno-")) {
-                const option = arg["-Wno-".len..];
-                try comp.diag.set(option, .off);
+            } else if (option(arg, "-Wno-")) |err_name| {
+                try comp.diag.set(err_name, .off);
             } else if (mem.eql(u8, arg, "-Wfatal-errors")) {
                 comp.diag.fatal_errors = true;
-            } else if (mem.startsWith(u8, arg, "-W")) {
-                const option = arg["-W".len..];
-                try comp.diag.set(option, .warning);
-            } else if (mem.startsWith(u8, arg, "-std=")) {
-                const standard = arg["-std=".len..];
+            } else if (option(arg, "-W")) |err_name| {
+                try comp.diag.set(err_name, .warning);
+            } else if (option(arg, "-std=")) |standard| {
                 comp.langopts.setStandard(standard) catch
                     try comp.diag.add(.{ .tag = .cli_invalid_standard, .extra = .{ .str = arg } }, &.{});
             } else if (mem.eql(u8, arg, "-S")) {
                 comp.only_preprocess_and_compile = true;
-            } else if (mem.startsWith(u8, arg, "--target=")) {
-                const triple = arg["--target=".len..];
+            } else if (option(arg, "--target=")) |triple| {
                 const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch {
                     try comp.diag.add(.{ .tag = .cli_invalid_target, .extra = .{ .str = arg } }, &.{});
                     continue;
@@ -277,9 +283,18 @@ pub fn parseArgs(
                 comp.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
                 comp.verbose_pp = true;
+            } else if (option(arg, "-fuse-ld=")) |linker_name| {
+                comp.use_linker = std.meta.stringToEnum(Compilation.Linker, linker_name) orelse {
+                    try comp.diag.add(.{ .tag = .cli_unknown_linker, .extra = .{ .str = arg } }, &.{});
+                    continue;
+                };
+            } else if (option(arg, "--ld-path=")) |linker_path| {
+                comp.linker_path = linker_path;
             } else {
                 try comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }
+        } else if (std.mem.endsWith(u8, arg, ".o") or std.mem.endsWith(u8, arg, ".obj")) {
+            try link_objects.append(arg);
         } else {
             const file = addSource(comp, arg) catch |er| {
                 return fatal(comp, "unable to add source file '{s}': {s}", .{ arg, util.errorDescription(er) });
@@ -323,18 +338,33 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     var source_files = std.ArrayList(Source).init(comp.gpa);
     defer source_files.deinit();
 
+    var link_objects = std.ArrayList([]const u8).init(comp.gpa);
+    defer link_objects.deinit();
+
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
     defer macro_buf.deinit();
 
     const std_out = std.io.getStdOut().writer();
-    if (try parseArgs(comp, std_out, &source_files, macro_buf.writer(), args)) return;
+    if (try parseArgs(comp, std_out, &source_files, &link_objects, macro_buf.writer(), args)) return;
+
+    const linking = !(comp.only_preprocess or comp.only_compile or comp.only_preprocess_and_compile);
+    defer if (linking) for (link_objects.items[link_objects.items.len - source_files.items.len ..]) |obj| {
+        std.fs.deleteFileAbsolute(obj) catch {};
+        comp.gpa.free(obj);
+    };
 
     if (source_files.items.len == 0) {
         return fatal(comp, "no input files", .{});
-    } else if (source_files.items.len != 1 and comp.output_name != null and
-        (comp.only_preprocess or comp.only_compile or comp.only_preprocess_and_compile))
-    {
+    } else if (source_files.items.len != 1 and comp.output_name != null and !linking) {
         return fatal(comp, "cannot specify -o when generating multiple output files", .{});
+    }
+
+    if (!linking) for (link_objects.items) |obj| {
+        try comp.diag.add(.{ .tag = .cli_unused_link_object, .extra = .{ .str = obj } }, &.{});
+    };
+
+    if (linking and comp.linker_path == null) {
+        comp.linker_path = comp.getLinkerPath();
     }
 
     comp.defineSystemIncludes() catch |er| switch (er) {
@@ -346,27 +376,39 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     const builtin = try comp.generateBuiltinMacros();
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
-    if (@import("builtin").mode != .Debug and source_files.items.len == 1) {
-        processSource(comp, source_files.items[0], builtin, user_macros, true) catch |e| switch (e) {
+    const fast_exit = @import("builtin").mode != .Debug;
+
+    if (fast_exit and source_files.items.len == 1) {
+        processSource(comp, source_files.items[0], &link_objects, builtin, user_macros, true) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 comp.renderErrors();
+                std.process.exit(1);
             },
         };
-        return;
+        unreachable;
     }
 
     for (source_files.items) |source| {
-        processSource(comp, source, builtin, user_macros, false) catch |e| switch (e) {
+        processSource(comp, source, &link_objects, builtin, user_macros, false) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 comp.renderErrors();
             },
         };
     }
+    try invokeLinker(comp, link_objects.items);
+    if (fast_exit) std.process.exit(0);
 }
 
-fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macros: Source, comptime fast_exit: bool) !void {
+fn processSource(
+    comp: *Compilation,
+    source: Source,
+    link_objects: *std.ArrayList([]const u8),
+    builtin: Source,
+    user_macros: Source,
+    comptime fast_exit: bool,
+) !void {
     comp.generated_buf.items.len = 0;
     var pp = Preprocessor.init(comp);
     defer pp.deinit();
@@ -427,12 +469,27 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
     const obj = try Codegen.generateTree(comp, tree);
     defer obj.deinit();
 
-    const basename = std.fs.path.basename(source.path);
-    const out_file_name = comp.output_name orelse try std.fmt.allocPrint(comp.gpa, "{s}{s}", .{
-        basename[0 .. basename.len - std.fs.path.extension(source.path).len],
-        comp.target.ofmt.fileExt(comp.target.cpu.arch),
-    });
-    defer if (comp.output_name == null) comp.gpa.free(out_file_name);
+    const out_file_name = if (comp.only_compile) blk: {
+        const basename = std.fs.path.basename(source.path);
+        break :blk comp.output_name orelse try std.fmt.allocPrint(comp.gpa, "{s}{s}", .{
+            basename[0 .. basename.len - std.fs.path.extension(source.path).len],
+            comp.target.ofmt.fileExt(comp.target.cpu.arch),
+        });
+    } else blk: {
+        const random_bytes_count = 12;
+        const sub_path_len = comptime std.fs.base64_encoder.calcSize(random_bytes_count);
+
+        var random_bytes: [random_bytes_count]u8 = undefined;
+        std.crypto.random.bytes(&random_bytes);
+        var random_name: [sub_path_len]u8 = undefined;
+        _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
+
+        // TODO properly clean up these files when doing fast_exit
+        break :blk try std.fmt.allocPrint(comp.gpa, "/tmp/{s}{s}", .{
+            random_name, comp.target.ofmt.fileExt(comp.target.cpu.arch),
+        });
+    };
+    defer if (comp.only_compile) comp.gpa.free(out_file_name);
 
     const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |er|
         return fatal(comp, "unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
@@ -446,8 +503,47 @@ fn processSource(comp: *Compilation, source: Source, builtin: Source, user_macro
         return;
     }
 
-    // TODO invoke linker
-    if (fast_exit) std.process.exit(0);
+    try link_objects.append(out_file_name);
+    if (fast_exit) {
+        try invokeLinker(comp, link_objects.items);
+        std.process.exit(0);
+    }
+}
+
+fn invokeLinker(comp: *Compilation, link_objects: []const []const u8) !void {
+    const args_len = 1 // linker name
+    + 2 // -o output
+    + 2 // -dynamic-linker <path>
+    + 1 // -lc
+    + 1 // Scrt1.0
+    + link_objects.len;
+
+    var argv = try std.ArrayList([]const u8).initCapacity(comp.gpa, args_len);
+    defer argv.deinit();
+
+    argv.appendAssumeCapacity(comp.linker_path.?);
+    argv.appendAssumeCapacity("-o");
+    argv.appendAssumeCapacity(comp.output_name orelse "a.out");
+    argv.appendAssumeCapacity("-dynamic-linker");
+    argv.appendAssumeCapacity(comp.target.standardDynamicLinkerPath().get().?);
+    argv.appendAssumeCapacity("-lc");
+    argv.appendAssumeCapacity("/usr/lib/Scrt1.o"); // TODO very bad
+    argv.appendSliceAssumeCapacity(link_objects);
+
+    var child = std.ChildProcess.init(argv.items, comp.gpa);
+    // TODO handle better
+    child.stdin_behavior = .Inherit;
+    child.stdout_behavior = .Inherit;
+    child.stderr_behavior = .Inherit;
+
+    const term = child.spawnAndWait() catch |er| {
+        return fatal(comp, "unable to spawn linker: {s}", .{util.errorDescription(er)});
+    };
+    switch (term) {
+        .Exited => |code| if (code != 0) std.process.exit(code),
+        else => std.process.abort(),
+    }
+    if (@import("builtin").mode != .Debug) std.process.exit(1);
 }
 
 test {

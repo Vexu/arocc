@@ -206,7 +206,8 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     }
 
     var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
-    _ = try aro.parseArgs(&comp, std.io.null_writer, &source_files, mac_writer, &.{});
+    var link_objects = std.ArrayList([]const u8).init(std.testing.failing_allocator);
+    _ = try aro.parseArgs(&comp, std.io.null_writer, &source_files, &link_objects, mac_writer, &.{});
 
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
     const builtin_macros = try comp.generateBuiltinMacros();

@@ -19,7 +19,8 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         while (it.next()) |some| try test_args.append(some);
 
         var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
-        _ = try aro.parseArgs(comp, std.io.null_writer, &source_files, macro_buf, test_args.items);
+        var link_objects = std.ArrayList([]const u8).init(std.testing.failing_allocator);
+        _ = try aro.parseArgs(comp, std.io.null_writer, &source_files, &link_objects, macro_buf, test_args.items);
     }
 }
 

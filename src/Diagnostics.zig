@@ -1516,6 +1516,16 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const cli_unused_link_object = struct {
+        const msg = "{s}: linker input file unused because linking not done";
+        const extra = .str;
+        const kind = .@"warning";
+    };
+    const cli_unknown_linker = struct {
+        const msg = "unrecognized linker '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
     const extra_semi = struct {
         const msg = "extra ';' outside of a function";
         const opt = "extra-semi";

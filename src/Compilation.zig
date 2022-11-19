@@ -17,6 +17,14 @@ const CType = @import("zig").CType;
 
 const Compilation = @This();
 
+pub const Linker = enum {
+    ld,
+    bfd,
+    gold,
+    lld,
+    mold,
+};
+
 pub const Error = error{
     /// A fatal error has ocurred and compilation has stopped.
     FatalError,
@@ -47,6 +55,10 @@ types: struct {
 /// Mapping from Source.Id to byte offset of first non-utf8 byte
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
 string_interner: StringInterner = .{},
+
+// linker options
+use_linker: Linker = .ld,
+linker_path: ?[]const u8 = null,
 
 pub fn init(gpa: Allocator) Compilation {
     return .{
@@ -1230,4 +1242,15 @@ test "ignore BOM at beginning of file" {
     try Test.run(BOM[0..2] ++ "x", .invalid_utf8);
     try Test.run(BOM[1..] ++ "x", .invalid_utf8);
     try Test.run(BOM[2..] ++ "x", .invalid_utf8);
+}
+
+pub fn getLinkerPath(comp: *Compilation) []const u8 {
+    // TODO extremely incomplete
+    return switch (comp.use_linker) {
+        .ld => "/usr/bin/ld",
+        .bfd => "/usr/bin/ld.bfd",
+        .gold => "/usr/bin/ld.gold",
+        .lld => "/usr/bin/ld.lld",
+        .mold => "/usr/bin/ld.mold",
+    };
 }
