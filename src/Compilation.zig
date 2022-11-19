@@ -1184,7 +1184,7 @@ test "target size/align tests" {
 
     const x86 = std.Target.Cpu.Arch.x86;
     comp.target.cpu.arch = x86;
-    comp.target.cpu.model = &std.Target.x86.cpu.@"i586";
+    comp.target.cpu.model = &std.Target.x86.cpu.i586;
     comp.target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);
     comp.target.abi = std.Target.Abi.gnu;
 

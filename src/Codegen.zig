@@ -53,7 +53,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!*Object {
             .threadlocal_extern_var,
             => {
                 const name = c.tree.tokSlice(c.node_data[@enumToInt(decl)].decl.name);
-                _ = try c.obj.declareSymbol(.@"undefined", name, .Strong, .external, 0, 0);
+                _ = try c.obj.declareSymbol(.undefined, name, .Strong, .external, 0, 0);
             },
 
             // function definition

@@ -70,7 +70,7 @@ pub fn deinit(elf: *Elf) void {
 
 fn sectionString(sec: Object.Section) []const u8 {
     return switch (sec) {
-        .@"undefined" => unreachable,
+        .undefined => unreachable,
         .data => "data",
         .read_only_data => "rodata",
         .func => "text",
@@ -91,7 +91,7 @@ pub fn getSection(elf: *Elf, section_kind: Object.Section) !*std.ArrayList(u8) {
                 .strings => std.elf.SHF_ALLOC + std.elf.SHF_MERGE + std.elf.SHF_STRINGS,
                 .read_only_data => std.elf.SHF_ALLOC,
                 .data => std.elf.SHF_ALLOC + std.elf.SHF_WRITE,
-                .@"undefined" => unreachable,
+                .undefined => unreachable,
             },
         };
         try elf.sections.putNoClobber(elf.arena.child_allocator, section_name, section);
@@ -111,7 +111,7 @@ pub fn declareSymbol(
     size: u64,
 ) ![]const u8 {
     const section = blk: {
-        if (section_kind == .@"undefined") break :blk null;
+        if (section_kind == .undefined) break :blk null;
         const section_name = sectionString(section_kind);
         break :blk elf.sections.get(section_name);
     };

@@ -750,7 +750,7 @@ fn decl(p: *Parser) Error!bool {
         var spec: Type.Builder = .{};
         break :blk DeclSpec{ .ty = try spec.finish(p) };
     };
-    if (decl_spec.@"noreturn") |tok| {
+    if (decl_spec.noreturn) |tok| {
         const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} }, .syntax = .keyword };
         try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = tok });
     }
@@ -1040,7 +1040,7 @@ pub const DeclSpec = struct {
     } = .none,
     thread_local: ?TokenIndex = null,
     @"inline": ?TokenIndex = null,
-    @"noreturn": ?TokenIndex = null,
+    noreturn: ?TokenIndex = null,
     ty: Type,
 
     fn validateParam(d: DeclSpec, p: *Parser, ty: *Type) Error!void {
@@ -1051,7 +1051,7 @@ pub const DeclSpec = struct {
         }
         if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
         if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
-        if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
+        if (d.noreturn) |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
     }
 
     fn validateFnDef(d: DeclSpec, p: *Parser) Error!Tree.Tag {
@@ -1094,7 +1094,7 @@ pub const DeclSpec = struct {
         } else {
             if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
             // TODO move to attribute validation
-            if (d.@"noreturn") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
+            if (d.noreturn) |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
             switch (d.storage_class) {
                 .auto, .register => if (p.func.ty == null) try p.err(.illegal_storage_on_global),
                 .typedef => return .typedef,
@@ -1222,10 +1222,10 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                 d.@"inline" = p.tok_i;
             },
             .keyword_noreturn => {
-                if (d.@"noreturn" != null) {
+                if (d.noreturn != null) {
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "_Noreturn");
                 }
-                d.@"noreturn" = p.tok_i;
+                d.noreturn = p.tok_i;
             },
             else => break,
         }

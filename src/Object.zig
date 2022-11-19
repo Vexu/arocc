@@ -22,7 +22,7 @@ pub fn deinit(obj: *Object) void {
 }
 
 pub const Section = union(enum) {
-    @"undefined",
+    undefined,
     data,
     read_only_data,
     func,

@@ -164,7 +164,7 @@ const messages = struct {
         const msg = "{s}";
         const opt = "#warnings";
         const extra = .str;
-        const kind = .@"warning";
+        const kind = .warning;
     };
     const elif_without_if = struct {
         const msg = "#elif without #if";
@@ -1519,7 +1519,7 @@ const messages = struct {
     const cli_unused_link_object = struct {
         const msg = "{s}: linker input file unused because linking not done";
         const extra = .str;
-        const kind = .@"warning";
+        const kind = .warning;
     };
     const cli_unknown_linker = struct {
         const msg = "unrecognized linker '{s}'";
