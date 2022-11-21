@@ -397,7 +397,7 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
             },
         };
     }
-    try invokeLinker(comp, link_objects.items);
+    if (linking) try invokeLinker(comp, link_objects.items);
     if (fast_exit) std.process.exit(0);
 }
 
