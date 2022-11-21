@@ -691,6 +691,7 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_typeof1,
             .keyword_typeof2,
             .keyword_extension,
+            .keyword_bit_int,
             => if (parens == 0) return,
             .keyword_pragma => p.skipToPragmaSentinel(),
             .eof => return,
@@ -1518,6 +1519,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
 ///  | enumSpec
 ///  | typedef  // IDENTIFIER
 ///  | typeof
+///  | keyword_bit_int '(' constExpr ')'
 /// atomicTypeSpec : keyword_atomic '(' typeName ')'
 /// alignSpec
 ///   : keyword_alignas '(' typeName ')'
@@ -1639,6 +1641,29 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 }
                 const typedef = (try p.syms.findTypedef(p, interned_name, p.tok_i, ty.specifier != .none)) orelse break;
                 if (!ty.combineTypedef(p, typedef.ty, typedef.tok)) break;
+            },
+            .keyword_bit_int => {
+                try p.err(.bit_int);
+                const bit_int_tok = p.tok_i;
+                p.tok_i += 1;
+                const l_paren = try p.expectToken(.l_paren);
+                const res = try p.constExpr(.gnu_folding_extension);
+                try p.expectClosing(l_paren, .r_paren);
+
+                var bits: i16 = undefined;
+                if (res.val.tag == .unavailable) {
+                    try p.errTok(.expected_integer_constant_expr, bit_int_tok);
+                    return error.ParsingFailed;
+                } else if (res.val.compare(.lte, Value.int(0), res.ty, p.comp)) {
+                    bits = -1;
+                } else if (res.val.compare(.gt, Value.int(128), res.ty, p.comp)) {
+                    bits = 129;
+                } else {
+                    bits = res.val.getInt(i16);
+                }
+
+                try ty.combine(p, .{ .bit_int = bits }, bit_int_tok);
+                continue;
             },
             else => break,
         }

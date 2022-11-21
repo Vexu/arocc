@@ -188,6 +188,9 @@ pub const Token = struct {
         keyword_static_assert,
         keyword_thread_local,
 
+        // ISO C23
+        keyword_bit_int,
+
         // Preprocessor directives
         keyword_include,
         keyword_include_next,
@@ -545,6 +548,7 @@ pub const Token = struct {
                 .keyword_noreturn => "_Noreturn",
                 .keyword_static_assert => "_Static_assert",
                 .keyword_thread_local => "_Thread_local",
+                .keyword_bit_int => "_BitInt",
                 .keyword_include => "include",
                 .keyword_include_next => "include_next",
                 .keyword_define => "define",
@@ -775,6 +779,9 @@ pub const Token = struct {
         .{ "_Noreturn", .keyword_noreturn },
         .{ "_Static_assert", .keyword_static_assert },
         .{ "_Thread_local", .keyword_thread_local },
+
+        // ISO C23
+        .{ "_BitInt", .keyword_bit_int },
 
         // Preprocessor directives
         .{ "include", .keyword_include },

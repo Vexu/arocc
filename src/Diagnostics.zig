@@ -147,6 +147,7 @@ pub const Options = packed struct {
     @"gnu-zero-variadic-macro-arguments": Kind = .default,
     @"main-return-type": Kind = .default,
     @"expansion-to-defined": Kind = .default,
+    @"bit-int-extension": Kind = .default,
 };
 
 const messages = struct {
@@ -2084,6 +2085,28 @@ const messages = struct {
     };
     const type_not_supported_on_target = struct {
         const msg = "{s} is not supported on this target";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const bit_int = struct {
+        const msg = "'_BitInt' in C17 and earlier is a Clang extension'";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "bit-int-extension";
+        const suppress_version = .c2x;
+    };
+    const unsigned_bit_int_too_small = struct {
+        const msg = "{s} must have a bit size of at least 1";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const signed_bit_int_too_small = struct {
+        const msg = "{s} must have a bit size of at least 2";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    const bit_int_too_big = struct {
+        const msg = "{s} of bit sizes greater than 128 not supported";
         const extra = .str;
         const kind = .@"error";
     };

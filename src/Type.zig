@@ -303,6 +303,10 @@ pub const Specifier = enum {
     complex_int128,
     complex_uint128,
 
+    // data.int
+    bit_int,
+    complex_bit_int,
+
     // floating point numbers
     fp16,
     float,
@@ -376,6 +380,10 @@ data: union {
     record: *Record,
     attributed: *Attributed,
     none: void,
+    int: struct {
+        bits: u8,
+        signedness: std.builtin.Signedness,
+    },
 } = .{ .none = {} },
 specifier: Specifier,
 qual: Qualifiers = .{},
@@ -454,7 +462,8 @@ pub fn isInt(ty: Type) bool {
         .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong,
         .long_long, .ulong_long, .int128, .uint128, .complex_char, .complex_schar, .complex_uchar,
         .complex_short, .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong,
-        .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128 => true,
+        .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
+        .bit_int, .complex_bit_int => true,
         // zig fmt: on
         .typeof_type => ty.data.sub_type.isInt(),
         .typeof_expr => ty.data.expr.ty.isInt(),
@@ -482,7 +491,8 @@ pub fn isReal(ty: Type) bool {
         .complex_float, .complex_double, .complex_long_double, .complex_fp16, .complex_float80,
         .complex_float128, .complex_char, .complex_schar, .complex_uchar, .complex_short,
         .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong,
-        .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128 => false,
+        .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
+        .complex_bit_int => false,
         // zig fmt: on
         .typeof_type => ty.data.sub_type.isReal(),
         .typeof_expr => ty.data.expr.ty.isReal(),
@@ -524,6 +534,7 @@ pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
         .uchar, .ushort, .uint, .ulong, .ulong_long, .bool, .complex_uchar, .complex_ushort,
         .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => true,
         // zig fmt: on
+        .bit_int, .complex_bit_int => return ty.data.int.signedness == .unsigned,
         .typeof_type => ty.data.sub_type.isUnsignedInt(comp),
         .typeof_expr => ty.data.expr.ty.isUnsignedInt(comp),
         .attributed => ty.data.attributed.base.isUnsignedInt(comp),
@@ -653,7 +664,7 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
             .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128, .complex_char,
             .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
             .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
-            .complex_int128, .complex_uint128 => specifier,
+            .complex_int128, .complex_uint128, .bit_int, .complex_bit_int => specifier,
             // zig fmt: on
             .typeof_type => return ty.data.sub_type.integerPromotion(comp),
             .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
@@ -808,11 +819,14 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .double => @divExact(CType.sizeInBits(.double, comp.target), 8),
         .float80 => 16,
         .float128 => 16,
+        .bit_int => {
+            return std.mem.alignForwardGeneric(u64, (ty.data.int.bits + 7) / 8, ty.alignof(comp));
+        },
         // zig fmt: off
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
         .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
         .complex_int128, .complex_uint128, .complex_fp16, .complex_float, .complex_double,
-        .complex_long_double, .complex_float80, .complex_float128,
+        .complex_long_double, .complex_float80, .complex_float128, .complex_bit_int,
         => return 2 * ty.makeReal().sizeof(comp).?,
         // zig fmt: on
         .pointer,
@@ -853,6 +867,8 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.bitSizeof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
         .attributed => ty.data.attributed.base.bitSizeof(comp),
+        .bit_int => return ty.data.int.bits,
+
         else => 8 * (ty.sizeof(comp) orelse return null),
     };
 }
@@ -894,7 +910,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
         .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
         .complex_int128, .complex_uint128, .complex_fp16, .complex_float, .complex_double,
-        .complex_long_double, .complex_float80, .complex_float128,
+        .complex_long_double, .complex_float80, .complex_float128, .complex_bit_int,
         => return ty.makeReal().alignof(comp),
         // zig fmt: on
 
@@ -907,6 +923,11 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .ulong => CType.ulong.alignment(comp.target),
         .long_long => CType.longlong.alignment(comp.target),
         .ulong_long => CType.ulonglong.alignment(comp.target),
+
+        .bit_int => @min(
+            std.math.ceilPowerOfTwoPromote(u16, (ty.data.int.bits + 7) / 8),
+            comp.target.maxIntAlignment(),
+        ),
 
         .float => CType.float.alignment(comp.target),
         .double => CType.double.alignment(comp.target),
@@ -1092,6 +1113,10 @@ pub fn makeReal(ty: Type) Type {
             base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) - 13);
             return base;
         },
+        .complex_bit_int => {
+            base.specifier = .bit_int;
+            return base;
+        },
         else => return ty,
     }
 }
@@ -1106,6 +1131,10 @@ pub fn makeComplex(ty: Type) Type {
         },
         .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128 => {
             base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 13);
+            return base;
+        },
+        .bit_int => {
+            base.specifier = .complex_bit_int;
             return base;
         },
         else => return ty,
@@ -1193,6 +1222,7 @@ pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: TokenIndex) Parser
 /// An unfinished Type
 pub const Builder = struct {
     complex_tok: ?TokenIndex = null,
+    bit_int_tok: ?TokenIndex = null,
     typedef: ?struct {
         tok: TokenIndex,
         ty: Type,
@@ -1267,6 +1297,12 @@ pub const Builder = struct {
         complex_int128,
         complex_sint128,
         complex_uint128,
+        bit_int: i16,
+        sbit_int: i16,
+        ubit_int: i16,
+        complex_bit_int: i16,
+        complex_sbit_int: i16,
+        complex_ubit_int: i16,
 
         fp16,
         float,
@@ -1341,6 +1377,9 @@ pub const Builder = struct {
                 .int128 => "__int128",
                 .sint128 => "signed __int128",
                 .uint128 => "unsigned __int128",
+                .bit_int => "_BitInt",
+                .sbit_int => "signed _BitInt",
+                .ubit_int => "unsigned _BitInt",
                 .complex_char => "_Complex char",
                 .complex_schar => "_Complex signed char",
                 .complex_uchar => "_Complex unsigned char",
@@ -1370,6 +1409,9 @@ pub const Builder = struct {
                 .complex_int128 => "_Complex __int128",
                 .complex_sint128 => "_Complex signed __int128",
                 .complex_uint128 => "_Complex unsigned __int128",
+                .complex_bit_int => "_Complex _BitInt",
+                .complex_sbit_int => "_Complex signed _BitInt",
+                .complex_ubit_int => "_Complex unsigned _BitInt",
 
                 .fp16 => "__fp16",
                 .float => "float",
@@ -1470,6 +1512,29 @@ pub const Builder = struct {
             .complex_ulong_long, .complex_ulong_long_int => ty.specifier = .complex_ulong_long,
             .complex_int128, .complex_sint128 => ty.specifier = .complex_int128,
             .complex_uint128 => ty.specifier = .complex_uint128,
+            .bit_int, .sbit_int, .ubit_int, .complex_bit_int, .complex_ubit_int, .complex_sbit_int => |bits| {
+                const unsigned = b.specifier == .ubit_int or b.specifier == .complex_ubit_int;
+                if (unsigned) {
+                    if (bits < 1) {
+                        try p.errStr(.unsigned_bit_int_too_small, b.bit_int_tok.?, b.specifier.str().?);
+                        return error.ParsingFailed;
+                    }
+                } else {
+                    if (bits < 2) {
+                        try p.errStr(.signed_bit_int_too_small, b.bit_int_tok.?, b.specifier.str().?);
+                        return error.ParsingFailed;
+                    }
+                }
+                if (bits > 128) {
+                    try p.errStr(.bit_int_too_big, b.bit_int_tok.?, b.specifier.str().?);
+                    return error.ParsingFailed;
+                }
+                ty.specifier = if (b.complex_tok != null) .complex_bit_int else .bit_int;
+                ty.data = .{ .int = .{
+                    .signedness = if (unsigned) .unsigned else .signed,
+                    .bits = @intCast(u8, bits),
+                } };
+            },
 
             .fp16 => ty.specifier = .fp16,
             .float => ty.specifier = .float,
@@ -1644,6 +1709,7 @@ pub const Builder = struct {
         }
 
         if (new == .complex) b.complex_tok = source_tok;
+        if (new == .bit_int) b.bit_int_tok = source_tok;
 
         if (new == .int128 and !p.comp.hasInt128()) {
             try p.errStr(.type_not_supported_on_target, source_tok, "__int128");
@@ -1665,6 +1731,7 @@ pub const Builder = struct {
                 .long_long => .slong_long,
                 .long_long_int => .slong_long_int,
                 .int128 => .sint128,
+                .bit_int => |bits| .{ .sbit_int = bits },
                 .complex => .complex_signed,
                 .complex_char => .complex_schar,
                 .complex_short => .complex_sshort,
@@ -1675,6 +1742,7 @@ pub const Builder = struct {
                 .complex_long_long => .complex_slong_long,
                 .complex_long_long_int => .complex_slong_long_int,
                 .complex_int128 => .complex_sint128,
+                .complex_bit_int => |bits| .{ .complex_sbit_int = bits },
                 .signed,
                 .sshort,
                 .sshort_int,
@@ -1684,6 +1752,7 @@ pub const Builder = struct {
                 .slong_long,
                 .slong_long_int,
                 .sint128,
+                .sbit_int,
                 .complex_schar,
                 .complex_signed,
                 .complex_sshort,
@@ -1694,6 +1763,7 @@ pub const Builder = struct {
                 .complex_slong_long,
                 .complex_slong_long_int,
                 .complex_sint128,
+                .complex_sbit_int,
                 => return b.duplicateSpec(p, source_tok, "signed"),
                 else => return b.cannotCombine(p, source_tok),
             },
@@ -1708,6 +1778,7 @@ pub const Builder = struct {
                 .long_long => .ulong_long,
                 .long_long_int => .ulong_long_int,
                 .int128 => .uint128,
+                .bit_int => |bits| .{ .ubit_int = bits },
                 .complex => .complex_unsigned,
                 .complex_char => .complex_uchar,
                 .complex_short => .complex_ushort,
@@ -1718,6 +1789,7 @@ pub const Builder = struct {
                 .complex_long_long => .complex_ulong_long,
                 .complex_long_long_int => .complex_ulong_long_int,
                 .complex_int128 => .complex_uint128,
+                .complex_bit_int => |bits| .{ .complex_ubit_int = bits },
                 .unsigned,
                 .ushort,
                 .ushort_int,
@@ -1727,6 +1799,7 @@ pub const Builder = struct {
                 .ulong_long,
                 .ulong_long_int,
                 .uint128,
+                .ubit_int,
                 .complex_uchar,
                 .complex_unsigned,
                 .complex_ushort,
@@ -1737,6 +1810,7 @@ pub const Builder = struct {
                 .complex_ulong_long,
                 .complex_ulong_long_int,
                 .complex_uint128,
+                .complex_ubit_int,
                 => return b.duplicateSpec(p, source_tok, "unsigned"),
                 else => return b.cannotCombine(p, source_tok),
             },
@@ -1813,6 +1887,15 @@ pub const Builder = struct {
                 .complex_unsigned => .complex_uint128,
                 else => return b.cannotCombine(p, source_tok),
             },
+            .bit_int => b.specifier = switch (b.specifier) {
+                .none => .{ .bit_int = new.bit_int },
+                .unsigned => .{ .ubit_int = new.bit_int },
+                .signed => .{ .sbit_int = new.bit_int },
+                .complex => .{ .complex_bit_int = new.bit_int },
+                .complex_signed => .{ .complex_sbit_int = new.bit_int },
+                .complex_unsigned => .{ .complex_ubit_int = new.bit_int },
+                else => return b.cannotCombine(p, source_tok),
+            },
             .fp16 => b.specifier = switch (b.specifier) {
                 .none => .fp16,
                 .complex => .complex_fp16,
@@ -1877,6 +1960,9 @@ pub const Builder = struct {
                 .int128 => .complex_int128,
                 .sint128 => .complex_sint128,
                 .uint128 => .complex_uint128,
+                .bit_int => |bits| .{ .complex_bit_int = bits },
+                .sbit_int => |bits| .{ .complex_sbit_int = bits },
+                .ubit_int => |bits| .{ .complex_ubit_int = bits },
                 .complex,
                 .complex_fp16,
                 .complex_float,
@@ -1913,6 +1999,9 @@ pub const Builder = struct {
                 .complex_int128,
                 .complex_sint128,
                 .complex_uint128,
+                .complex_bit_int,
+                .complex_sbit_int,
+                .complex_ubit_int,
                 => return b.duplicateSpec(p, source_tok, "_Complex"),
                 else => return b.cannotCombine(p, source_tok),
             },
@@ -1936,6 +2025,11 @@ pub const Builder = struct {
             .ulong_long => .ulong_long,
             .int128 => .int128,
             .uint128 => .uint128,
+            .bit_int => if (ty.data.int.signedness == .unsigned) {
+                return .{ .ubit_int = ty.data.int.bits };
+            } else {
+                return .{ .bit_int = ty.data.int.bits };
+            },
             .complex_char => .complex_char,
             .complex_schar => .complex_schar,
             .complex_uchar => .complex_uchar,
@@ -1949,6 +2043,11 @@ pub const Builder = struct {
             .complex_ulong_long => .complex_ulong_long,
             .complex_int128 => .complex_int128,
             .complex_uint128 => .complex_uint128,
+            .complex_bit_int => if (ty.data.int.signedness == .unsigned) {
+                return .{ .complex_ubit_int = ty.data.int.bits };
+            } else {
+                return .{ .complex_bit_int = ty.data.int.bits };
+            },
             .fp16 => .fp16,
             .float => .float,
             .double => .double,
