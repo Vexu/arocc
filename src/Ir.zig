@@ -102,7 +102,7 @@ pub const Inst = struct {
             @"align": u32,
         },
         @"switch": *Switch,
-        @"call": *Call,
+        call: *Call,
         // block: *Block,
         label: [*:0]const u8,
         branch: *Branch,

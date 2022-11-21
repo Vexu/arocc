@@ -84,6 +84,11 @@ fn addAlloc(irb: *IrBuilder, ty: Type) !Ir.Ref {
 }
 
 fn addLabel(irb: *IrBuilder, name: [*:0]const u8) !Ir.Ref {
+    if (irb.body.items.len > 1 and
+        irb.instructions.items(.tag)[@enumToInt(irb.body.items[irb.body.items.len - 1])] == .label)
+    {
+        return irb.body.items[irb.body.items.len - 1];
+    }
     const ref = @intToEnum(Ir.Ref, irb.instructions.len);
     try irb.instructions.append(irb.comp.gpa, .{ .tag = .label, .data = .{ .label = name }, .ty = .void });
     try irb.body.append(irb.comp.gpa, ref);
@@ -739,6 +744,7 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             .no_op => return irb.genNode(data.cast.operand),
             .bitcast,
             .array_to_pointer,
+            .to_void,
             => {},
             .lval_to_rval => {
                 const operand = try irb.genNode(data.cast.operand);
@@ -765,12 +771,10 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             .complex_float_cast,
             .complex_float_to_real,
             .real_to_complex_float,
-            => {},
-            .to_void => {},
             .null_to_pointer,
             .union_cast,
             .vector_splat,
-            => {},
+            => return irb.comp.diag.fatalNoSrc("TODO IrBuilder gen CastKind {}\n", .{data.cast.kind}),
         },
         .binary_cond_expr => {
             const cond = try irb.genNode(data.if3.cond);
@@ -835,7 +839,7 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .compound_literal_expr,
         .array_filler_expr,
         .default_init_expr,
-        => {},
+        => return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genNode {}\n", .{irb.node_tag[@enumToInt(node)]}),
     }
     return @as(Ir.Ref, undefined); // statement, value is ignored
 }
@@ -876,6 +880,6 @@ fn genBinOp(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
 }
 
 fn genVar(irb: *IrBuilder, decl: NodeIndex) Error!void {
-    _ = irb;
     _ = decl;
+    return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genVar\n", .{});
 }

@@ -114,6 +114,7 @@ const usage =
     \\Debug options:
     \\  --verbose-ast           Dump produced AST to stdout
     \\  --verbose-pp            Dump preprocessor state
+    \\  --verbose-ir            Dump ir to stdout
     \\
     \\
 ;
@@ -283,6 +284,8 @@ pub fn parseArgs(
                 comp.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
                 comp.verbose_pp = true;
+            } else if (mem.eql(u8, arg, "--verbose-ir")) {
+                comp.verbose_ir = true;
             } else if (option(arg, "-fuse-ld=")) |linker_name| {
                 comp.use_linker = std.meta.stringToEnum(Compilation.Linker, linker_name) orelse {
                     try comp.diag.add(.{ .tag = .cli_unknown_linker, .extra = .{ .str = arg } }, &.{});
@@ -475,8 +478,9 @@ fn processSource(
         );
     }
 
-    try @import("IrBuilder.zig").generateTree(comp, tree);
-    if (true) return;
+    if (comp.verbose_ir) {
+        try @import("IrBuilder.zig").generateTree(comp, tree);
+    }
 
     const obj = try Codegen.generateTree(comp, tree);
     defer obj.deinit();
