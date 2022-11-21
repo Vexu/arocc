@@ -34,7 +34,7 @@ const SysVContext = struct {
 
     comp: *const Compilation,
 
-    fn init(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) SysVContext {
+    fn init(ty: Type, comp: *const Compilation, pragma_pack: ?u8) SysVContext {
         var pack_value: ?u64 = null;
         if (pragma_pack) |pak| {
             pack_value = pak * BITS_PER_BYTE;
@@ -400,7 +400,7 @@ const MsvcContext = struct {
     is_union: bool,
     comp: *const Compilation,
 
-    fn init(ty: *const Type, comp: *const Compilation, pragma_pack: ?u8) MsvcContext {
+    fn init(ty: Type, comp: *const Compilation, pragma_pack: ?u8) MsvcContext {
         var pack_value: ?u32 = null;
         if (ty.hasAttribute(.@"packed")) {
             // __attribute__((packed)) behaves like #pragma pack(1) in clang. See test case 0056.
@@ -561,11 +561,11 @@ const MsvcContext = struct {
     }
 };
 
-pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
+pub fn compute(ty: Type, comp: *const Compilation, pragma_pack: ?u8) void {
+    const rec = getMutableRecord(ty);
     switch (comp.langopts.emulate) {
         .gcc, .clang => {
             var context = SysVContext.init(ty, comp, pragma_pack);
-            var rec = getMutableRecord(ty);
 
             context.layoutFields(rec);
 
@@ -580,8 +580,6 @@ pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
         },
         .msvc => {
             var context = MsvcContext.init(ty, comp, pragma_pack);
-            var rec = getMutableRecord(ty);
-
             for (rec.fields) |*fld, fld_indx| {
                 var field_attrs: ?[]const Attribute = null;
                 if (rec.field_attributes) |attrs| {
@@ -626,11 +624,11 @@ fn computeLayout(ty: Type, comp: *const Compilation) TypeLayout {
     }
 }
 
-pub fn getMutableRecord(ty: *Type) *Type.Record {
+pub fn getMutableRecord(ty: Type) *Type.Record {
     return switch (ty.specifier) {
-        .attributed => getMutableRecord(&ty.data.attributed.base),
-        .typeof_type, .decayed_typeof_type => getMutableRecord(ty.data.sub_type),
-        .typeof_expr, .decayed_typeof_expr => getMutableRecord(&ty.data.expr.ty),
+        .attributed => getMutableRecord(ty.data.attributed.base),
+        .typeof_type, .decayed_typeof_type => getMutableRecord(ty.data.sub_type.*),
+        .typeof_expr, .decayed_typeof_expr => getMutableRecord(ty.data.expr.ty),
         .@"struct", .@"union" => ty.data.record,
         else => unreachable,
     };

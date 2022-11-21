@@ -1817,7 +1817,7 @@ fn recordSpec(p: *Parser) Error!Type {
             // TODO: msvc considers `#pragma pack` on a per-field basis
             .msvc => p.pragma_pack,
         };
-        record_layout.compute(&ty, p.pp.comp, pragma_pack_value);
+        record_layout.compute(ty, p.pp.comp, pragma_pack_value);
     }
 
     // finish by creating a node
