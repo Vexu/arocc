@@ -1645,6 +1645,10 @@ pub const Builder = struct {
 
         if (new == .complex) b.complex_tok = source_tok;
 
+        if (new == .int128 and !p.comp.hasInt128()) {
+            try p.errStr(.type_not_supported_on_target, source_tok, "__int128");
+        }
+
         switch (new) {
             else => switch (b.specifier) {
                 .none => b.specifier = new,
