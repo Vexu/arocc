@@ -56,9 +56,7 @@ const SysVContext = struct {
 
     fn layoutFields(self: *SysVContext, rec: *const Record) void {
         for (rec.fields) |*fld, fld_indx| {
-            var type_layout = TypeLayout.init(0, 0);
-
-            computeLayout(fld.ty, self.comp, &type_layout);
+            const type_layout = computeLayout(fld.ty, self.comp);
 
             var field_attrs: ?[]const Attribute = null;
             if (rec.field_attributes) |attrs| {
@@ -437,9 +435,7 @@ const MsvcContext = struct {
     }
 
     fn layoutField(self: *MsvcContext, fld: *Field, fld_attrs: ?[]const Attribute) void {
-        var type_layout: TypeLayout = TypeLayout.init(0, 0);
-
-        computeLayout(fld.ty, self.comp, &type_layout);
+        const type_layout = computeLayout(fld.ty, self.comp);
 
         // The required alignment of the field is the maximum of the required alignment of the
         // underlying type and the __declspec(align) annotation on the field itself.
@@ -610,20 +606,23 @@ pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
     }
 }
 
-pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
+fn computeLayout(ty: Type, comp: *const Compilation) TypeLayout {
     if (ty.getRecord()) |rec| {
         const requested = BITS_PER_BYTE * (ty.requestedAlignment(comp) orelse 0);
-        type_layout.* = .{
+        return .{
             .size_bits = rec.type_layout.size_bits,
             .pointer_alignment_bits = std.math.max(requested, rec.type_layout.pointer_alignment_bits),
             .field_alignment_bits = std.math.max(requested, rec.type_layout.field_alignment_bits),
             .required_alignment_bits = rec.type_layout.required_alignment_bits,
         };
     } else {
-        type_layout.size_bits = ty.bitSizeof(comp) orelse 0;
-        type_layout.pointer_alignment_bits = ty.alignof(comp) * BITS_PER_BYTE;
-        type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
-        type_layout.required_alignment_bits = BITS_PER_BYTE;
+        const type_align = ty.alignof(comp) * BITS_PER_BYTE;
+        return .{
+            .size_bits = ty.bitSizeof(comp) orelse 0,
+            .pointer_alignment_bits = type_align,
+            .field_alignment_bits = type_align,
+            .required_alignment_bits = BITS_PER_BYTE,
+        };
     }
 }
 
