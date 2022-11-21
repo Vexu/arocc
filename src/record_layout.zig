@@ -434,7 +434,7 @@ const MsvcContext = struct {
         };
     }
 
-    fn layoutField(self: *MsvcContext, fld: *Field, fld_attrs: ?[]const Attribute) void {
+    fn layoutField(self: *MsvcContext, fld: *const Field, fld_attrs: ?[]const Attribute) FieldLayout {
         const type_layout = computeLayout(fld.ty, self.comp);
 
         // The required alignment of the field is the maximum of the required alignment of the
@@ -468,9 +468,9 @@ const MsvcContext = struct {
         // pack(1) had been applied only to this field. See test case 0057.
         fld_align_bits = std.math.max(fld_align_bits, req_align);
         if (fld.isRegularField()) {
-            fld.layout = self.layoutRegularField(type_layout.size_bits, fld_align_bits);
+            return self.layoutRegularField(type_layout.size_bits, fld_align_bits);
         } else {
-            fld.layout = self.layoutBitField(type_layout.size_bits, fld_align_bits, fld.specifiedBitWidth());
+            return self.layoutBitField(type_layout.size_bits, fld_align_bits, fld.specifiedBitWidth());
         }
     }
 
@@ -586,7 +586,7 @@ pub fn compute(ty: Type, comp: *const Compilation, pragma_pack: ?u8) void {
                     field_attrs = attrs[fld_indx];
                 }
 
-                context.layoutField(fld, field_attrs);
+                fld.layout = context.layoutField(fld, field_attrs);
             }
             if (context.size_bits == 0) {
                 // As an extension, MSVC allows records that only contain zero-sized bitfields and empty
