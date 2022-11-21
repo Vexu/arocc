@@ -868,7 +868,8 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
         .attributed => ty.data.attributed.base.bitSizeof(comp),
         .bit_int => return ty.data.int.bits,
-
+        .long_double => CType.sizeInBits(.longdouble, comp.target),
+        .float80 => return 80,
         else => 8 * (ty.sizeof(comp) orelse return null),
     };
 }

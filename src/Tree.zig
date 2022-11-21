@@ -310,8 +310,6 @@ pub const Tag = enum(u8) {
     compound_stmt,
     /// if (first) data[second] else data[second+1];
     if_then_else_stmt,
-    /// if (first); else second;
-    if_else_stmt,
     /// if (first) second; second may be null
     if_then_stmt,
     /// switch (first) second
@@ -935,15 +933,6 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("else:\n");
             try tree.dumpNode(tree.data[data.if3.body + 1], level + delta, mapper, color, w);
-        },
-        .if_else_stmt => {
-            try w.writeByteNTimes(' ', level + half);
-            try w.writeAll("cond:\n");
-            try tree.dumpNode(data.bin.lhs, level + delta, mapper, color, w);
-
-            try w.writeByteNTimes(' ', level + half);
-            try w.writeAll("else:\n");
-            try tree.dumpNode(data.bin.rhs, level + delta, mapper, color, w);
         },
         .if_then_stmt => {
             try w.writeByteNTimes(' ', level + half);
