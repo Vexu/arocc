@@ -348,7 +348,8 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     if (try parseArgs(comp, std_out, &source_files, &link_objects, macro_buf.writer(), args)) return;
 
     const linking = !(comp.only_preprocess or comp.only_compile or comp.only_preprocess_and_compile);
-    defer if (linking) for (link_objects.items[link_objects.items.len - source_files.items.len ..]) |obj| {
+    var temp_file_count: u32 = 0;
+    defer if (linking) for (link_objects.items[link_objects.items.len - temp_file_count ..]) |obj| {
         std.fs.deleteFileAbsolute(obj) catch {};
         comp.gpa.free(obj);
     };
@@ -379,25 +380,32 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     const fast_exit = @import("builtin").mode != .Debug;
 
     if (fast_exit and source_files.items.len == 1) {
-        processSource(comp, source_files.items[0], &link_objects, builtin, user_macros, true) catch |e| switch (e) {
+        processSource(comp, source_files.items[0], &link_objects, &temp_file_count, builtin, user_macros, fast_exit) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 comp.renderErrors();
-                std.process.exit(1);
+                exitWithCleanup(link_objects.items, temp_file_count, 1);
             },
         };
         unreachable;
     }
 
     for (source_files.items) |source| {
-        processSource(comp, source, &link_objects, builtin, user_macros, false) catch |e| switch (e) {
+        processSource(comp, source, &link_objects, &temp_file_count, builtin, user_macros, fast_exit) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 comp.renderErrors();
             },
         };
     }
-    if (linking) try invokeLinker(comp, link_objects.items);
+    if (comp.diag.errors != 0) {
+        if (fast_exit) exitWithCleanup(link_objects.items, temp_file_count, 1);
+        return;
+    }
+    if (linking) {
+        try invokeLinker(comp, link_objects.items, temp_file_count);
+        if (fast_exit) exitWithCleanup(link_objects.items, temp_file_count, 0);
+    }
     if (fast_exit) std.process.exit(0);
 }
 
@@ -405,6 +413,7 @@ fn processSource(
     comp: *Compilation,
     source: Source,
     link_objects: *std.ArrayList([]const u8),
+    temp_file_count: *u32,
     builtin: Source,
     user_macros: Source,
     comptime fast_exit: bool,
@@ -435,7 +444,7 @@ fn processSource(
 
         buf_w.flush() catch |er|
             return fatal(comp, "unable to write result: {s}", .{util.errorDescription(er)});
-        if (fast_exit) std.process.exit(0);
+        if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
     }
 
@@ -454,7 +463,7 @@ fn processSource(
     comp.renderErrors();
 
     if (comp.diag.errors != prev_errors) {
-        if (fast_exit) std.process.exit(1);
+        if (fast_exit) exitWithCleanup(link_objects.items, temp_file_count.*, 1);
         return; // do not compile if there were errors
     }
 
@@ -484,7 +493,6 @@ fn processSource(
         var random_name: [sub_path_len]u8 = undefined;
         _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
 
-        // TODO properly clean up these files when doing fast_exit
         break :blk try std.fmt.allocPrint(comp.gpa, "/tmp/{s}{s}", .{
             random_name, comp.target.ofmt.fileExt(comp.target.cpu.arch),
         });
@@ -499,18 +507,19 @@ fn processSource(
         return fatal(comp, "could output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
 
     if (comp.only_compile) {
-        if (fast_exit) std.process.exit(0);
+        if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
     }
 
     try link_objects.append(out_file_name);
+    temp_file_count.* += 1;
     if (fast_exit) {
-        try invokeLinker(comp, link_objects.items);
-        std.process.exit(0);
+        try invokeLinker(comp, link_objects.items, temp_file_count.*);
+        exitWithCleanup(link_objects.items, temp_file_count.*, 0);
     }
 }
 
-fn invokeLinker(comp: *Compilation, link_objects: []const []const u8) !void {
+fn invokeLinker(comp: *Compilation, link_objects: []const []const u8, temp_file_count: u32) !void {
     const args_len = 1 // linker name
     + 2 // -o output
     + 2 // -dynamic-linker <path>
@@ -540,10 +549,17 @@ fn invokeLinker(comp: *Compilation, link_objects: []const []const u8) !void {
         return fatal(comp, "unable to spawn linker: {s}", .{util.errorDescription(er)});
     };
     switch (term) {
-        .Exited => |code| if (code != 0) std.process.exit(code),
+        .Exited => |code| if (code != 0) exitWithCleanup(link_objects, temp_file_count, code),
         else => std.process.abort(),
     }
-    if (@import("builtin").mode != .Debug) std.process.exit(1);
+    if (@import("builtin").mode != .Debug) exitWithCleanup(link_objects, temp_file_count, 1);
+}
+
+fn exitWithCleanup(link_objects: []const []const u8, temp_file_count: u32, code: u8) noreturn {
+    for (link_objects[link_objects.len - temp_file_count ..]) |obj| {
+        std.fs.deleteFileAbsolute(obj) catch {};
+    }
+    std.process.exit(code);
 }
 
 test {
