@@ -190,6 +190,11 @@ pub const Token = struct {
 
         // ISO C23
         keyword_bit_int,
+        keyword_c23_alignas,
+        keyword_c23_alignof,
+        keyword_c23_bool,
+        keyword_c23_static_assert,
+        keyword_c23_thread_local,
 
         // Preprocessor directives
         keyword_include,
@@ -370,6 +375,11 @@ pub const Token = struct {
                 .keyword_int16_2,
                 .keyword_int8,
                 .keyword_int8_2,
+                .keyword_c23_alignas,
+                .keyword_c23_alignof,
+                .keyword_c23_bool,
+                .keyword_c23_static_assert,
+                .keyword_c23_thread_local,
                 => return true,
                 else => return false,
             }
@@ -549,6 +559,11 @@ pub const Token = struct {
                 .keyword_static_assert => "_Static_assert",
                 .keyword_thread_local => "_Thread_local",
                 .keyword_bit_int => "_BitInt",
+                .keyword_c23_alignas => "alignas",
+                .keyword_c23_alignof => "alignof",
+                .keyword_c23_bool => "bool",
+                .keyword_c23_static_assert => "static_assert",
+                .keyword_c23_thread_local => "thread_local",
                 .keyword_include => "include",
                 .keyword_include_next => "include_next",
                 .keyword_define => "define",
@@ -694,6 +709,14 @@ pub const Token = struct {
             .keyword_typeof => if (standard.isGNU()) kw else .identifier,
             .keyword_asm => if (standard.isGNU()) kw else .identifier,
             .keyword_declspec => if (comp.langopts.declspec_attrs) kw else .identifier,
+
+            .keyword_c23_alignas,
+            .keyword_c23_alignof,
+            .keyword_c23_bool,
+            .keyword_c23_static_assert,
+            .keyword_c23_thread_local,
+            => if (standard.atLeast(.c2x)) kw else .identifier,
+
             .keyword_int64,
             .keyword_int64_2,
             .keyword_int32,
@@ -782,6 +805,11 @@ pub const Token = struct {
 
         // ISO C23
         .{ "_BitInt", .keyword_bit_int },
+        .{ "alignas", .keyword_c23_alignas },
+        .{ "alignof", .keyword_c23_alignof },
+        .{ "bool", .keyword_c23_bool },
+        .{ "static_assert", .keyword_c23_static_assert },
+        .{ "thread_local", .keyword_c23_thread_local },
 
         // Preprocessor directives
         .{ "include", .keyword_include },

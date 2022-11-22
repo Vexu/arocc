@@ -148,6 +148,7 @@ pub const Options = packed struct {
     @"main-return-type": Kind = .default,
     @"expansion-to-defined": Kind = .default,
     @"bit-int-extension": Kind = .default,
+    @"keyword-macro": Kind = .default,
 };
 
 const messages = struct {
@@ -2109,6 +2110,12 @@ const messages = struct {
         const msg = "{s} of bit sizes greater than 128 not supported";
         const extra = .str;
         const kind = .@"error";
+    };
+    const keyword_macro = struct {
+        const msg = "keyword is hidden by macro definition";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "keyword-macro";
     };
 };
 
