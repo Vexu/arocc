@@ -1901,6 +1901,14 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         try pp.err(macro_name, .macro_name_must_be_identifier);
         return skipToNl(tokenizer);
     }
+    var macro_name_token_id = macro_name.id;
+    macro_name_token_id.simplifyMacroKeyword();
+    switch (macro_name_token_id) {
+        .identifier, .extended_identifier => {},
+        else => if (macro_name_token_id.isMacroIdentifier()) {
+            try pp.err(macro_name, .keyword_macro);
+        },
+    }
 
     // Check for function macros and empty defines.
     var first = tokenizer.next();

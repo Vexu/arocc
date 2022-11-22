@@ -589,6 +589,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             switch (p.tok_ids[p.tok_i]) {
                 .semicolon => p.tok_i += 1,
                 .keyword_static_assert,
+                .keyword_c23_static_assert,
                 .keyword_pragma,
                 .keyword_extension,
                 .keyword_asm,
@@ -665,12 +666,14 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_auto,
             .keyword_register,
             .keyword_thread_local,
+            .keyword_c23_thread_local,
             .keyword_inline,
             .keyword_inline1,
             .keyword_inline2,
             .keyword_noreturn,
             .keyword_void,
             .keyword_bool,
+            .keyword_c23_bool,
             .keyword_char,
             .keyword_short,
             .keyword_int,
@@ -685,6 +688,7 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_struct,
             .keyword_union,
             .keyword_alignas,
+            .keyword_c23_alignas,
             .identifier,
             .extended_identifier,
             .keyword_typeof,
@@ -970,9 +974,11 @@ fn decl(p: *Parser) Error!bool {
     return true;
 }
 
-/// staticAssert : keyword_static_assert '(' constExpr ',' STRING_LITERAL ')' ';'
+/// staticAssert
+///    : keyword_static_assert '(' constExpr (',' STRING_LITERAL)? ')' ';'
+///    | keyword_c23_static_assert '(' constExpr (',' STRING_LITERAL)? ')' ';'
 fn staticAssert(p: *Parser) Error!bool {
-    const static_assert = p.eatToken(.keyword_static_assert) orelse return false;
+    const static_assert = p.eatToken(.keyword_static_assert) orelse p.eatToken(.keyword_c23_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
     const res = try p.constExpr(.no_const_decl_folding);
@@ -1206,9 +1212,11 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                     else => unreachable,
                 }
             },
-            .keyword_thread_local => {
+            .keyword_thread_local,
+            .keyword_c23_thread_local,
+            => {
                 if (d.thread_local != null) {
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "_Thread_local");
+                    try p.errStr(.duplicate_decl_spec, p.tok_i, id.lexeme().?);
                 }
                 switch (d.storage_class) {
                     .@"extern", .none, .static => {},
@@ -1513,6 +1521,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
 ///  | keyword_signed
 ///  | keyword_unsigned
 ///  | keyword_bool
+///  | keyword_c23_bool
 ///  | keyword_complex
 ///  | atomicTypeSpec
 ///  | recordSpec
@@ -1524,6 +1533,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
 /// alignSpec
 ///   : keyword_alignas '(' typeName ')'
 ///   | keyword_alignas '(' constExpr ')'
+///   | keyword_c23_alignas '(' typeName ')'
+///   | keyword_c23_alignas '(' constExpr ')'
 fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
@@ -1536,7 +1547,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
         if (try p.typeQual(&ty.qual)) continue;
         switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try ty.combine(p, .void, p.tok_i),
-            .keyword_bool => try ty.combine(p, .bool, p.tok_i),
+            .keyword_bool, .keyword_c23_bool => try ty.combine(p, .bool, p.tok_i),
             .keyword_int8, .keyword_int8_2, .keyword_char => try ty.combine(p, .char, p.tok_i),
             .keyword_int16, .keyword_int16_2, .keyword_short => try ty.combine(p, .short, p.tok_i),
             .keyword_int32, .keyword_int32_2, .keyword_int => try ty.combine(p, .int, p.tok_i),
@@ -1574,7 +1585,9 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     ty.qual.atomic = atomic_tok;
                 continue;
             },
-            .keyword_alignas => {
+            .keyword_alignas,
+            .keyword_c23_alignas,
+            => {
                 const align_tok = p.tok_i;
                 p.tok_i += 1;
                 const l_paren = try p.expectToken(.l_paren);
@@ -3999,12 +4012,14 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_auto,
             .keyword_register,
             .keyword_thread_local,
+            .keyword_c23_thread_local,
             .keyword_inline,
             .keyword_inline1,
             .keyword_inline2,
             .keyword_noreturn,
             .keyword_void,
             .keyword_bool,
+            .keyword_c23_bool,
             .keyword_char,
             .keyword_short,
             .keyword_int,
@@ -4019,6 +4034,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_struct,
             .keyword_union,
             .keyword_alignas,
+            .keyword_c23_alignas,
             .keyword_typeof,
             .keyword_typeof1,
             .keyword_typeof2,
@@ -5694,6 +5710,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
 ///  | keyword_sizeof unExpr
 ///  | keyword_sizeof '(' typeName ')'
 ///  | keyword_alignof '(' typeName ')'
+///  | keyword_c23_alignof '(' typeName ')'
 fn unExpr(p: *Parser) Error!Result {
     const tok = p.tok_i;
     switch (p.tok_ids[tok]) {
@@ -5916,7 +5933,11 @@ fn unExpr(p: *Parser) Error!Result {
             try res.un(p, .sizeof_expr);
             return res;
         },
-        .keyword_alignof, .keyword_alignof1, .keyword_alignof2 => {
+        .keyword_alignof,
+        .keyword_alignof1,
+        .keyword_alignof2,
+        .keyword_c23_alignof,
+        => {
             p.tok_i += 1;
             const expected_paren = p.tok_i;
             var res = Result{};
