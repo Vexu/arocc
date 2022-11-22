@@ -69,8 +69,8 @@ pub const Standard = enum {
             .c99, .gnu99 => "199901L",
             .c11, .gnu11 => "201112L",
             .default, .c17, .gnu17 => "201710L",
-            // todo: update once finalized; this currently matches clang
-            .c2x, .gnu2x => "201710L",
+            // todo: subject to change, verify once c23 finalized
+            .c2x, .gnu2x => "202311L",
         };
     }
 };

@@ -1,6 +1,8 @@
 /* <stdarg.h> for the Aro C compiler */
 
 #pragma once
+/* Todo: Set to 202311L once header is compliant with C23 */
+#define __STDC_VERSION_STDARG_H__ 0
 
 typedef __builtin_va_list va_list;
 #define va_start(ap, param) __builtin_va_start(ap, param)
