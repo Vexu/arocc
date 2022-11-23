@@ -9,6 +9,7 @@ const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
 const util = @import("util.zig");
+const target = @import("target.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -43,7 +44,7 @@ pub fn main() u8 {
             return 1;
         },
     };
-    comp.langopts.setEmulatedCompiler(comp.systemCompiler());
+    comp.langopts.setEmulatedCompiler(target.systemCompiler(comp.target));
 
     mainExtra(&comp, args) catch |er| switch (er) {
         error.OutOfMemory => {
@@ -279,7 +280,7 @@ pub fn parseArgs(
                     continue;
                 };
                 comp.target = cross.toTarget(); // TODO deprecated
-                comp.langopts.setEmulatedCompiler(comp.systemCompiler());
+                comp.langopts.setEmulatedCompiler(target.systemCompiler(comp.target));
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 comp.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
@@ -582,4 +583,5 @@ test {
     _ = @import("Tokenizer.zig");
     _ = @import("Tree.zig");
     _ = @import("Type.zig");
+    _ = @import("target.zig");
 }

@@ -8,6 +8,7 @@ const Attribute = @import("Attribute.zig");
 const StringInterner = @import("StringInterner.zig");
 const StringId = StringInterner.StringId;
 const CType = @import("zig").CType;
+const target = @import("target.zig");
 
 const Type = @This();
 
@@ -530,7 +531,7 @@ pub fn isConst(ty: Type) bool {
 pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
     return switch (ty.specifier) {
         // zig fmt: off
-        .char, .complex_char => return getCharSignedness(comp) == .unsigned,
+        .char, .complex_char => return target.getCharSignedness(comp.target) == .unsigned,
         .uchar, .ushort, .uint, .ulong, .ulong_long, .bool, .complex_uchar, .complex_ushort,
         .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => true,
         // zig fmt: on
@@ -735,27 +736,6 @@ pub fn hasField(ty: Type, name: StringId) bool {
     return false;
 }
 
-pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
-    switch (comp.target.cpu.arch) {
-        .aarch64,
-        .aarch64_32,
-        .aarch64_be,
-        .arm,
-        .armeb,
-        .thumb,
-        .thumbeb,
-        => return if (comp.target.os.tag.isDarwin() or comp.target.os.tag == .windows) .signed else .unsigned,
-        .powerpc, .powerpc64 => return if (comp.target.os.tag.isDarwin()) .signed else .unsigned,
-        .powerpc64le,
-        .s390x,
-        .xcore,
-        .arc,
-        .msp430,
-        => return .unsigned,
-        else => return .signed,
-    }
-}
-
 pub fn minInt(ty: Type, comp: *const Compilation) i64 {
     std.debug.assert(ty.isInt());
     if (ty.isUnsignedInt(comp)) return 0;
@@ -798,7 +778,6 @@ pub fn sizeCompare(a: Type, b: Type, comp: *Compilation) TypeSizeOrder {
 
 /// Size of type as reported by sizeof
 pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
-    // TODO get target from compilation
     return switch (ty.specifier) {
         .variable_len_array, .unspecified_variable_len_array => return null,
         .incomplete_array => return if (comp.langopts.emulate == .msvc) @as(?u64, 0) else null,
@@ -896,7 +875,6 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         return requested;
     }
 
-    // TODO get target from compilation
     return switch (ty.specifier) {
         .variable_len_array,
         .incomplete_array,
@@ -904,7 +882,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .array,
         .vector,
         => ty.elemType().alignof(comp),
-        .func, .var_args_func, .old_style_func => 4, // TODO check target
+        .func, .var_args_func, .old_style_func => target.defaultFunctionAlignment(comp.target),
         .char, .schar, .uchar, .void, .bool => 1,
 
         // zig fmt: off
@@ -1014,7 +992,7 @@ pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
 
 pub fn enumIsPacked(ty: Type, comp: *const Compilation) bool {
     std.debug.assert(ty.is(.@"enum"));
-    return comp.langopts.short_enums or comp.packAllEnums() or ty.hasAttribute(.@"packed");
+    return comp.langopts.short_enums or target.packAllEnums(comp.target) or ty.hasAttribute(.@"packed");
 }
 
 pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) ?u29 {
@@ -1023,7 +1001,7 @@ pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) 
     var max_requested: ?u29 = null;
     for (a) |attribute| {
         if (attribute.tag != .aligned) continue;
-        const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else comp.defaultAlignment();
+        const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else target.defaultAlignment(comp.target);
         if (max_requested == null or max_requested.? < requested) {
             max_requested = requested;
         }
@@ -1712,7 +1690,7 @@ pub const Builder = struct {
         if (new == .complex) b.complex_tok = source_tok;
         if (new == .bit_int) b.bit_int_tok = source_tok;
 
-        if (new == .int128 and !p.comp.hasInt128()) {
+        if (new == .int128 and !target.hasInt128(p.comp.target)) {
             try p.errStr(.type_not_supported_on_target, source_tok, "__int128");
         }
 

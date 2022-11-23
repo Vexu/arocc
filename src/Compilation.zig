@@ -14,6 +14,7 @@ const Pragma = @import("Pragma.zig");
 const StringInterner = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
 const CType = @import("zig").CType;
+const target = @import("target.zig");
 
 const Compilation = @This();
 
@@ -333,7 +334,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try generateDateAndTime(w);
 
     // types
-    if (Type.getCharSignedness(comp) == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
+    if (target.getCharSignedness(comp.target) == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
     try w.writeAll("#define __CHAR_BIT__ 8\n");
 
     // int maxs
@@ -947,135 +948,6 @@ pub fn pragmaEvent(comp: *Compilation, event: PragmaEvent) void {
 
 pub const renderErrors = Diagnostics.render;
 
-pub fn isTlsSupported(comp: *Compilation) bool {
-    if (comp.target.isDarwin()) {
-        var supported = false;
-        switch (comp.target.os.tag) {
-            .macos => supported = !(comp.target.os.isAtLeast(.macos, .{ .major = 10, .minor = 7 }) orelse false),
-            else => {},
-        }
-        return supported;
-    }
-    return switch (comp.target.cpu.arch) {
-        .tce, .tcele, .bpfel, .bpfeb, .msp430, .nvptx, .nvptx64, .x86, .arm, .armeb, .thumb, .thumbeb => false,
-        else => true,
-    };
-}
-
-pub fn ignoreNonZeroSizedBitfieldTypeAlignment(comp: *const Compilation) bool {
-    switch (comp.target.cpu.arch) {
-        .avr => return true,
-        .arm => {
-            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
-                switch (comp.target.os.tag) {
-                    .ios => return true,
-                    else => return false,
-                }
-            }
-        },
-        else => return false,
-    }
-    return false;
-}
-
-pub fn ignoreZeroSizedBitfieldTypeAlignment(comp: *const Compilation) bool {
-    switch (comp.target.cpu.arch) {
-        .avr => return true,
-        else => return false,
-    }
-}
-
-pub fn minZeroWidthBitfieldAlignment(comp: *const Compilation) ?u29 {
-    switch (comp.target.cpu.arch) {
-        .avr => return 8,
-        .arm => {
-            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
-                switch (comp.target.os.tag) {
-                    .ios => return 32,
-                    else => return null,
-                }
-            } else return null;
-        },
-        else => return null,
-    }
-}
-
-pub fn unnamedFieldAffectsAlignment(comp: *const Compilation) bool {
-    switch (comp.target.cpu.arch) {
-        .aarch64 => {
-            if (comp.target.isDarwin() or comp.target.os.tag == .windows) return false;
-            return true;
-        },
-        .armeb => {
-            if (std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7)) {
-                if (std.Target.Abi.default(comp.target.cpu.arch, comp.target.os) == .eabi) return true;
-            }
-        },
-        .arm => return true,
-        .avr => return true,
-        .thumb => {
-            if (comp.target.os.tag == .windows) return false;
-            return true;
-        },
-        else => return false,
-    }
-    return false;
-}
-
-pub fn packAllEnums(comp: *const Compilation) bool {
-    return switch (comp.target.cpu.arch) {
-        .hexagon => true,
-        else => false,
-    };
-}
-
-/// Default alignment (in bytes) for __attribute__((aligned)) when no alignment is specified
-pub fn defaultAlignment(comp: *const Compilation) u29 {
-    switch (comp.target.cpu.arch) {
-        .avr => return 1,
-        .arm => if (comp.target.isAndroid() or comp.target.os.tag == .ios) return 16 else return 8,
-        .sparc => if (std.Target.sparc.featureSetHas(comp.target.cpu.features, .v9)) return 16 else return 8,
-        .mips, .mipsel => switch (comp.target.abi) {
-            .none, .gnuabi64 => return 16,
-            else => return 8,
-        },
-        .s390x, .armeb, .thumbeb, .thumb => return 8,
-        else => return 16,
-    }
-}
-pub fn systemCompiler(comp: *const Compilation) LangOpts.Compiler {
-    const target = comp.target;
-    // andorid is linux but not gcc, so these checks go first
-    // the rest for documentation as fn returns .clang
-    if (target.isDarwin() or
-        target.isAndroid() or
-        target.isBSD() or
-        target.os.tag == .fuchsia or
-        target.os.tag == .solaris or
-        target.os.tag == .haiku or
-        target.cpu.arch == .hexagon)
-    {
-        return .clang;
-    }
-    if (target.os.tag == .uefi) return .msvc;
-    // this is before windows to grab WindowsGnu
-    if (target.abi.isGnu() or
-        target.os.tag == .linux)
-    {
-        return .gcc;
-    }
-    if (target.os.tag == .windows) {
-        return .msvc;
-    }
-    if (target.cpu.arch == .avr) return .gcc;
-    return .clang;
-}
-
-pub fn hasInt128(comp: *const Compilation) bool {
-    if (comp.target.cpu.arch == .wasm32) return true;
-    return comp.target.cpu.arch.ptrBitWidth() >= 64;
-}
-
 test "addSourceFromReader" {
     const Test = struct {
         fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
@@ -1154,69 +1026,6 @@ test "addSourceFromReader - exhaustive check for carriage return elimination" {
         }
     }
     try std.testing.expect(source_count == std.math.powi(usize, alen, alen) catch unreachable);
-}
-
-test "alignment functions - smoke test" {
-    var comp = Compilation.init(std.testing.allocator);
-    defer comp.deinit();
-
-    const x86 = std.Target.Cpu.Arch.x86_64;
-    comp.target.cpu = std.Target.Cpu.baseline(x86);
-    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);
-    comp.target.abi = std.Target.Abi.default(x86, comp.target.os);
-
-    try std.testing.expect(comp.isTlsSupported());
-    try std.testing.expect(!comp.ignoreNonZeroSizedBitfieldTypeAlignment());
-    try std.testing.expect(comp.minZeroWidthBitfieldAlignment() == null);
-    try std.testing.expect(!comp.unnamedFieldAffectsAlignment());
-    try std.testing.expect(comp.defaultAlignment() == 16);
-    try std.testing.expect(!comp.packAllEnums());
-    try std.testing.expect(comp.systemCompiler() == .gcc);
-
-    const arm = std.Target.Cpu.Arch.arm;
-    comp.target.cpu = std.Target.Cpu.baseline(arm);
-    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm);
-    comp.target.abi = std.Target.Abi.default(arm, comp.target.os);
-
-    try std.testing.expect(!comp.isTlsSupported());
-    try std.testing.expect(comp.ignoreNonZeroSizedBitfieldTypeAlignment());
-    try std.testing.expectEqual(@as(?u29, 32), comp.minZeroWidthBitfieldAlignment());
-    try std.testing.expect(comp.unnamedFieldAffectsAlignment());
-    try std.testing.expect(comp.defaultAlignment() == 16);
-    try std.testing.expect(!comp.packAllEnums());
-    try std.testing.expect(comp.systemCompiler() == .clang);
-}
-
-test "target size/align tests" {
-    var comp = Compilation.init(std.testing.allocator);
-    defer comp.deinit();
-
-    const x86 = std.Target.Cpu.Arch.x86;
-    comp.target.cpu.arch = x86;
-    comp.target.cpu.model = &std.Target.x86.cpu.i586;
-    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);
-    comp.target.abi = std.Target.Abi.gnu;
-
-    const tt: Type = .{
-        .specifier = .long_long,
-    };
-
-    try std.testing.expectEqual(@as(u64, 8), tt.sizeof(&comp).?);
-    try std.testing.expectEqual(@as(u64, 4), tt.alignof(&comp));
-
-    const arm = std.Target.Cpu.Arch.arm;
-    comp.target.cpu = std.Target.Cpu.Model.toCpu(&std.Target.arm.cpu.cortex_r4, arm);
-    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm);
-    comp.target.abi = std.Target.Abi.none;
-
-    const ct: Type = .{
-        .specifier = .char,
-    };
-
-    try std.testing.expectEqual(true, std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7));
-    try std.testing.expectEqual(@as(u64, 1), ct.sizeof(&comp).?);
-    try std.testing.expectEqual(@as(u64, 1), ct.alignof(&comp));
-    try std.testing.expectEqual(true, comp.ignoreNonZeroSizedBitfieldTypeAlignment());
 }
 
 test "ignore BOM at beginning of file" {
