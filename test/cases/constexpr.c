@@ -1,0 +1,23 @@
+//aro-args -std=c2x -Wpedantic
+
+constexpr int a = 1;
+static constexpr int b = 2;
+thread_local constexpr int c = 3;
+
+constexpr int foo(constexpr int param) {
+    auto constexpr int a = 1;
+    register constexpr int b = 2;
+    return b;
+}
+
+constexpr _BitInt(b) bit = 4;
+
+int non_const = 4;
+constexpr int invalid = non_const; // TODO
+
+#define TESTS_SKIPPED 1
+
+#define EXPECTED_ERRORS "constexpr.c:5:14: error: cannot combine with previous 'thread_local' specifier" \
+    "constexpr.c:7:19: error: invalid storage class on function parameter" \
+    "constexpr.c:7:1: error: illegal storage class on function" \
+

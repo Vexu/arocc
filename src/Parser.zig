@@ -799,7 +799,7 @@ fn decl(p: *Parser) Error!bool {
 
         const node = try p.addNode(undefined); // reserve space
         const interned_declarator_name = try p.comp.intern(p.tokSlice(init_d.d.name));
-        try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.ty, init_d.d.name, node, .{});
+        try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.ty, init_d.d.name, node, .{}, false);
 
         const func = p.func;
         p.func = .{
@@ -950,13 +950,15 @@ fn decl(p: *Parser) Error!bool {
         } else if (init_d.initializer.node != .none or
             (p.func.ty != null and decl_spec.storage_class != .@"extern"))
         {
+            // TODO validate global variable/constexpr initializer comptime known
             try p.syms.defineSymbol(
                 p,
                 interned_name,
                 init_d.d.ty,
                 init_d.d.name,
                 node,
-                if (init_d.d.ty.isConst()) init_d.initializer.val else .{},
+                if (init_d.d.ty.isConst() or decl_spec.constexpr != null) init_d.initializer.val else .{},
+                decl_spec.constexpr != null,
             );
         } else {
             try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, node);
@@ -1046,6 +1048,7 @@ pub const DeclSpec = struct {
         none,
     } = .none,
     thread_local: ?TokenIndex = null,
+    constexpr: ?TokenIndex = null,
     @"inline": ?TokenIndex = null,
     noreturn: ?TokenIndex = null,
     ty: Type,
@@ -1059,6 +1062,7 @@ pub const DeclSpec = struct {
         if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
         if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
         if (d.noreturn) |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
+        if (d.constexpr) |tok_i| try p.errTok(.invalid_storage_on_param, tok_i);
     }
 
     fn validateFnDef(d: DeclSpec, p: *Parser) Error!Tree.Tag {
@@ -1067,6 +1071,7 @@ pub const DeclSpec = struct {
             .auto, .register, .typedef => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
         }
         if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
+        if (d.constexpr) |tok_i| try p.errTok(.illegal_storage_on_func, tok_i);
 
         const is_static = d.storage_class == .static;
         const is_inline = d.@"inline" != null;
@@ -1089,6 +1094,7 @@ pub const DeclSpec = struct {
                 .auto, .register => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
             }
             if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
+            if (d.constexpr) |tok_i| try p.errTok(.illegal_storage_on_func, tok_i);
 
             const is_inline = d.@"inline" != null;
             if (is_static) {
@@ -1196,12 +1202,17 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                 }
                 if (d.thread_local != null) {
                     switch (id) {
-                        .keyword_typedef,
-                        .keyword_auto,
-                        .keyword_register,
-                        => try p.errStr(.cannot_combine_spec, p.tok_i, id.lexeme().?),
-                        else => {},
+                        .keyword_extern, .keyword_static => {},
+                        else => try p.errStr(.cannot_combine_spec, p.tok_i, id.lexeme().?),
                     }
+                    if (d.constexpr) |tok| try p.errStr(.cannot_combine_spec, p.tok_i, p.tok_ids[tok].lexeme().?);
+                }
+                if (d.constexpr != null) {
+                    switch (id) {
+                        .keyword_auto, .keyword_register, .keyword_static => {},
+                        else => try p.errStr(.cannot_combine_spec, p.tok_i, id.lexeme().?),
+                    }
+                    if (d.thread_local) |tok| try p.errStr(.cannot_combine_spec, p.tok_i, p.tok_ids[tok].lexeme().?);
                 }
                 switch (id) {
                     .keyword_typedef => d.storage_class = .{ .typedef = p.tok_i },
@@ -1218,11 +1229,23 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                 if (d.thread_local != null) {
                     try p.errStr(.duplicate_decl_spec, p.tok_i, id.lexeme().?);
                 }
+                if (d.constexpr) |tok| try p.errStr(.cannot_combine_spec, p.tok_i, p.tok_ids[tok].lexeme().?);
                 switch (d.storage_class) {
                     .@"extern", .none, .static => {},
                     else => try p.errStr(.cannot_combine_spec, p.tok_i, @tagName(d.storage_class)),
                 }
                 d.thread_local = p.tok_i;
+            },
+            .keyword_constexpr => {
+                if (d.constexpr != null) {
+                    try p.errStr(.duplicate_decl_spec, p.tok_i, id.lexeme().?);
+                }
+                if (d.thread_local) |tok| try p.errStr(.cannot_combine_spec, p.tok_i, p.tok_ids[tok].lexeme().?);
+                switch (d.storage_class) {
+                    .auto, .register, .none, .static => {},
+                    else => try p.errStr(.cannot_combine_spec, p.tok_i, @tagName(d.storage_class)),
+                }
+                d.constexpr = p.tok_i;
             },
             .keyword_inline, .keyword_inline1, .keyword_inline2 => {
                 if (d.@"inline" != null) {
@@ -6393,6 +6416,17 @@ fn primaryExpr(p: *Parser) Error!Result {
             }
             if (p.syms.findSymbol(interned_name)) |sym| {
                 try p.checkDeprecatedUnavailable(sym.ty, name_tok, sym.tok);
+                if (sym.kind == .constexpr) {
+                    return Result{
+                        .val = sym.val,
+                        .ty = sym.ty,
+                        .node = try p.addNode(.{
+                            .tag = .decl_ref_expr,
+                            .ty = sym.ty,
+                            .data = .{ .decl_ref = name_tok },
+                        }),
+                    };
+                }
                 if (sym.val.tag == .int) {
                     switch (p.const_decl_folding) {
                         .gnu_folding_extension => try p.errTok(.const_decl_folded, name_tok),

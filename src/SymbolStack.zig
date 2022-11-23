@@ -30,6 +30,7 @@ pub const Kind = enum {
     decl,
     def,
     enumeration,
+    constexpr,
 };
 
 syms: std.MultiArrayList(Symbol) = .{},
@@ -77,7 +78,7 @@ pub fn findTypedef(s: *SymbolStack, p: *Parser, name: StringId, name_tok: TokenI
                 try p.errStr(.must_use_enum, name_tok, p.tokSlice(name_tok));
                 return s.syms.get(i);
             },
-            .def, .decl => if (names[i] == name) return null,
+            .def, .decl, .constexpr => if (names[i] == name) return null,
             else => {},
         }
     }
@@ -91,7 +92,7 @@ pub fn findSymbol(s: *SymbolStack, name: StringId) ?Symbol {
     while (i > 0) {
         i -= 1;
         switch (kinds[i]) {
-            .def, .decl, .enumeration => if (names[i] == name) return s.syms.get(i),
+            .def, .decl, .enumeration, .constexpr => if (names[i] == name) return s.syms.get(i),
             else => {},
         }
     }
@@ -180,6 +181,7 @@ pub fn defineSymbol(
     tok: TokenIndex,
     node: NodeIndex,
     val: Value,
+    constexpr: bool,
 ) !void {
     const kinds = s.syms.items(.kind);
     const names = s.syms.items(.name);
@@ -201,7 +203,7 @@ pub fn defineSymbol(
                 }
                 break;
             },
-            .def => if (names[i] == name) {
+            .def, .constexpr => if (names[i] == name) {
                 try p.errStr(.redefinition, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, s.syms.items(.tok)[i]);
                 break;
@@ -210,7 +212,7 @@ pub fn defineSymbol(
         }
     }
     try s.syms.append(p.pp.comp.gpa, .{
-        .kind = .def,
+        .kind = if (constexpr) .constexpr else .def,
         .name = name,
         .tok = tok,
         .ty = ty,
@@ -247,7 +249,7 @@ pub fn declareSymbol(
                 }
                 break;
             },
-            .def => if (names[i] == name) {
+            .def, .constexpr => if (names[i] == name) {
                 const prev_ty = s.syms.items(.ty)[i];
                 if (!ty.eql(prev_ty, p.pp.comp, true)) { // TODO adjusted equality check
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
@@ -277,7 +279,7 @@ pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: T
     while (i > end) {
         i -= 1;
         switch (kinds[i]) {
-            .enumeration, .decl, .def => if (names[i] == name) {
+            .enumeration, .decl, .def, .constexpr => if (names[i] == name) {
                 try p.errStr(.redefinition_of_parameter, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, s.syms.items(.tok)[i]);
                 break;
@@ -352,7 +354,7 @@ pub fn defineEnumeration(
                 try p.errTok(.previous_definition, s.syms.items(.tok)[i]);
                 return;
             },
-            .decl, .def => if (names[i] == name) {
+            .decl, .def, .constexpr => if (names[i] == name) {
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, s.syms.items(.tok)[i]);
                 return;

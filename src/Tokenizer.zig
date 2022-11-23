@@ -195,6 +195,7 @@ pub const Token = struct {
         keyword_c23_bool,
         keyword_c23_static_assert,
         keyword_c23_thread_local,
+        keyword_constexpr,
 
         // Preprocessor directives
         keyword_include,
@@ -375,11 +376,13 @@ pub const Token = struct {
                 .keyword_int16_2,
                 .keyword_int8,
                 .keyword_int8_2,
+                .keyword_bit_int,
                 .keyword_c23_alignas,
                 .keyword_c23_alignof,
                 .keyword_c23_bool,
                 .keyword_c23_static_assert,
                 .keyword_c23_thread_local,
+                .keyword_constexpr,
                 => return true,
                 else => return false,
             }
@@ -564,6 +567,7 @@ pub const Token = struct {
                 .keyword_c23_bool => "bool",
                 .keyword_c23_static_assert => "static_assert",
                 .keyword_c23_thread_local => "thread_local",
+                .keyword_constexpr => "constexpr",
                 .keyword_include => "include",
                 .keyword_include_next => "include_next",
                 .keyword_define => "define",
@@ -715,6 +719,7 @@ pub const Token = struct {
             .keyword_c23_bool,
             .keyword_c23_static_assert,
             .keyword_c23_thread_local,
+            .keyword_constexpr,
             => if (standard.atLeast(.c2x)) kw else .identifier,
 
             .keyword_int64,
@@ -810,6 +815,7 @@ pub const Token = struct {
         .{ "bool", .keyword_c23_bool },
         .{ "static_assert", .keyword_c23_static_assert },
         .{ "thread_local", .keyword_c23_thread_local },
+        .{ "constexpr", .keyword_constexpr },
 
         // Preprocessor directives
         .{ "include", .keyword_include },
