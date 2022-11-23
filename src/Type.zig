@@ -796,6 +796,46 @@ pub fn sizeCompare(a: Type, b: Type, comp: *Compilation) TypeSizeOrder {
     };
 }
 
+pub fn shallowCopyRecordWithUpdatedAlignment(ty: Type, allocator: std.mem.Allocator, alignment: u29) !Type {
+    return switch (ty.specifier) {
+        .typeof_expr, .decayed_typeof_expr => {
+            var copied_expr = try allocator.create(Expr);
+
+            copied_expr.* = Expr{
+                .node = ty.data.expr.node,
+                .ty = try ty.data.expr.ty.shallowCopyRecordWithUpdatedAlignment(allocator, alignment),
+            };
+
+            return .{ .specifier = ty.specifier, .data = .{ .expr = copied_expr }, .qual = ty.qual };
+        },
+        .typeof_type, .decayed_typeof_type => {
+            var copied_sub_type = try allocator.create(Type);
+
+            copied_sub_type.* = try ty.data.sub_type.shallowCopyRecordWithUpdatedAlignment(allocator, alignment);
+            return .{ .specifier = ty.specifier, .data = .{ .sub_type = copied_sub_type }, .qual = ty.qual };
+        },
+        .attributed => {
+            const copied_base = try ty.data.attributed.base.shallowCopyRecordWithUpdatedAlignment(allocator, alignment);
+
+            var attributed = try allocator.create(Attributed);
+            attributed.* = .{
+                .attributes = ty.data.attributed.attributes,
+                .base = copied_base,
+            };
+            return .{ .specifier = .attributed, .data = .{ .attributed = attributed }, .qual = ty.qual };
+        },
+        .@"union", .@"struct" => {
+            var record = try Record.create(allocator, undefined);
+
+            record.* = ty.data.record.*;
+            record.type_layout.field_alignment_bits = alignment * 8;
+            record.type_layout.pointer_alignment_bits = alignment * 8;
+            return .{ .specifier = ty.specifier, .data = .{ .record = record }, .qual = ty.qual };
+        },
+        else => unreachable,
+    };
+}
+
 /// Size of type as reported by sizeof
 pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
     // TODO get target from compilation
@@ -880,20 +920,18 @@ pub fn alignable(ty: Type) bool {
 
 /// Get the alignment of a type
 pub fn alignof(ty: Type, comp: *const Compilation) u29 {
-    // don't return the attribute for records
-    // layout has already accounted for requested alignment
     if (ty.requestedAlignment(comp)) |requested| {
         // gcc does not respect alignment on enums
         if (ty.get(.@"enum")) |ty_enum| {
             if (comp.langopts.emulate == .gcc) {
                 return ty_enum.alignof(comp);
             }
-        } else if (ty.getRecord()) |rec| {
-            if (ty.hasIncompleteSize()) return 0;
-            const computed = @intCast(u29, @divExact(rec.type_layout.field_alignment_bits, 8));
-            return std.math.max(requested, computed);
         }
-        return requested;
+        // don't return the attribute for records
+        // layout has already accounted for requested alignment
+        if (!ty.isRecord()) {
+            return requested;
+        }
     }
 
     // TODO get target from compilation

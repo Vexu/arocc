@@ -1055,6 +1055,18 @@ pub fn applyFieldAttributes(p: *Parser, field_ty: *Type, attr_buf_start: usize) 
     return p.arena.dupe(Attribute, p.attr_application_buf.items);
 }
 
+/// Handles the special case of `typedef` being used to decrease the alignment of a record
+/// after its layout has been computed
+pub fn applyTypedefAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    const attributed = try applyTypeAttributes(p, ty, attr_buf_start, null);
+    const typedef_align = Type.annotationAlignment(p.comp, attrs) orelse return attributed;
+    if (ty.isRecord() and p.comp.langopts.emulate != .msvc) {
+        return attributed.shallowCopyRecordWithUpdatedAlignment(p.arena, typedef_align);
+    }
+    return attributed;
+}
+
 pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Diagnostics.Tag) !Type {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];

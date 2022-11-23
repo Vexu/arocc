@@ -1440,7 +1440,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     try p.attributeSpecifierExtra(init_d.d.name);
 
     if (decl_spec.storage_class == .typedef) {
-        init_d.d.ty = try Attribute.applyTypeAttributes(p, init_d.d.ty, attr_buf_top, null);
+        init_d.d.ty = try Attribute.applyTypedefAttributes(p, init_d.d.ty, attr_buf_top);
     } else if (init_d.d.ty.isFunc()) {
         init_d.d.ty = try Attribute.applyFunctionAttributes(p, init_d.d.ty, attr_buf_top);
     } else {
