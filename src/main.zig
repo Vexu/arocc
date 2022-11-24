@@ -469,10 +469,14 @@ fn processSource(
     const prev_errors = comp.diag.errors;
     comp.renderErrors();
 
-    if (comp.diag.errors != prev_errors or comp.only_syntax) {
-        const has_errors = comp.diag.errors != prev_errors;
-        if (fast_exit) exitWithCleanup(link_objects.items, temp_file_count.*, @boolToInt(has_errors));
-        return; // do not compile if there were errors or we are only checking syntax
+    if (comp.diag.errors != prev_errors) {
+        if (fast_exit) exitWithCleanup(link_objects.items, temp_file_count.*, 1);
+        return; // do not compile if there were errors
+    }
+
+    if (comp.only_syntax) {
+        if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
+        return;
     }
 
     if (comp.target.ofmt != .elf or comp.target.cpu.arch != .x86_64) {
