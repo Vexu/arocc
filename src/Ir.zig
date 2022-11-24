@@ -66,8 +66,8 @@ pub const Inst = struct {
         bit_and,
         bit_shl,
         bit_shr,
-        cmp_eql,
-        cmp_not_eql,
+        cmp_eq,
+        cmp_ne,
         cmp_lt,
         cmp_lte,
         cmp_gt,
@@ -83,6 +83,9 @@ pub const Inst = struct {
         load,
         bit_not,
         negate,
+        trunc,
+        zext,
+        sext,
 
         // data.none
         ret,
@@ -313,8 +316,8 @@ pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
             .bit_and,
             .bit_shl,
             .bit_shr,
-            .cmp_eql,
-            .cmp_not_eql,
+            .cmp_eq,
+            .cmp_ne,
             .cmp_lt,
             .cmp_lte,
             .cmp_gt,
@@ -340,6 +343,9 @@ pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
             },
             .bit_not,
             .negate,
+            .trunc,
+            .zext,
+            .sext,
             => {
                 const un = data[i].un;
                 try w.writeAll("    ");

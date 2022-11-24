@@ -29,6 +29,11 @@ const Symbol = struct {
     val: Ir.Ref,
 };
 
+const BoolCtx = struct {
+    false_label: Ir.Ref,
+    true_label: Ir.Ref,
+};
+
 pub const Error = Compilation.Error || error{IrGenFailed};
 
 gpa: Allocator,
@@ -41,20 +46,18 @@ node_data: []const Tree.Node.Data,
 node_ty: []const Type,
 wip_switch: *WipSwitch = undefined,
 symbols: std.ArrayListUnmanaged(Symbol) = .{},
-breaks: std.ArrayListUnmanaged(u32) = .{},
-continues: std.ArrayListUnmanaged(u32) = .{},
-returns: std.ArrayListUnmanaged(u32) = .{},
 body: std.ArrayListUnmanaged(Ir.Ref) = .{},
 allocs: u32 = 0,
 cond_dummy_ref: Ir.Ref = undefined,
 pool: IrPool = .{},
+bool_ctx: ?BoolCtx = null,
+continue_label: Ir.Ref = undefined,
+break_label: Ir.Ref = undefined,
+return_label: Ir.Ref = undefined,
 
 fn deinit(irb: *IrBuilder) void {
     irb.arena.deinit();
     irb.symbols.deinit(irb.gpa);
-    irb.breaks.deinit(irb.gpa);
-    irb.continues.deinit(irb.gpa);
-    irb.returns.deinit(irb.gpa);
     irb.instructions.deinit(irb.gpa);
     irb.body.deinit(irb.gpa);
     irb.pool.deinit(irb.gpa);
@@ -85,14 +88,8 @@ fn addAlloc(irb: *IrBuilder, ty: Type) !Ir.Ref {
 }
 
 fn addLabel(irb: *IrBuilder, name: [*:0]const u8) !Ir.Ref {
-    if (irb.body.items.len > 1 and
-        irb.instructions.items(.tag)[@enumToInt(irb.body.items[irb.body.items.len - 1])] == .label)
-    {
-        return irb.body.items[irb.body.items.len - 1];
-    }
     const ref = @intToEnum(Ir.Ref, irb.instructions.len);
     try irb.instructions.append(irb.comp.gpa, .{ .tag = .label, .data = .{ .label = name }, .ty = .void });
-    try irb.body.append(irb.comp.gpa, ref);
     return ref;
 }
 
@@ -114,6 +111,16 @@ fn addInst(irb: *IrBuilder, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Type) !Ir.
     try irb.instructions.append(irb.comp.gpa, .{ .tag = tag, .data = data, .ty = ty_ref });
     try irb.body.append(irb.comp.gpa, ref);
     return ref;
+}
+
+fn addBranch(irb: *IrBuilder, cond: Ir.Ref) !void {
+    const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
+    branch.* = .{
+        .cond = cond,
+        .then = irb.bool_ctx.?.true_label,
+        .@"else" = irb.bool_ctx.?.false_label,
+    };
+    try irb.addInstNoReturn(.branch, .{ .branch = branch });
 }
 
 fn addConstant(irb: *IrBuilder, val: Value, ty: Type) !Ir.Ref {
@@ -226,7 +233,6 @@ fn genType(irb: *IrBuilder, base_ty: Type) !IrPool.Ref {
 fn genFn(irb: *IrBuilder, decl: NodeIndex) Error!void {
     const name = irb.tree.tokSlice(irb.node_data[@enumToInt(decl)].decl.name);
     const func_ty = irb.node_ty[@enumToInt(decl)].canonicalize(.standard);
-    irb.returns.items.len = 0;
     irb.allocs = 0;
 
     // reserve space for arg instructions
@@ -247,25 +253,12 @@ fn genFn(irb: *IrBuilder, decl: NodeIndex) Error!void {
         try irb.symbols.append(irb.comp.gpa, .{ .name = param.name, .val = alloc });
     }
     // Generate body
+    irb.return_label = try irb.addLabel("return");
     try irb.genStmt(irb.node_data[@enumToInt(decl)].decl.node);
 
     // Relocate returns
-    if (irb.returns.items.len == 1 and irb.returns.items[0] == irb.instructions.len - 1) {
-        irb.instructions.items(.tag)[irb.returns.items[0]] = .ret;
-    } else if (irb.returns.items.len > 1) {
-        const data = irb.instructions.items(.data);
-        if (irb.returns.items[irb.returns.items.len - 1] == irb.instructions.len - 1) {
-            // avoid a jump to an immediately following label
-            irb.instructions.len -= 1;
-            irb.body.items.len -= 1;
-            irb.returns.items.len -= 1;
-        }
-        const return_label = try irb.addLabel("return");
-        for (irb.returns.items) |ret_index| {
-            data[ret_index] = .{ .un = return_label };
-        }
-        try irb.addInstNoReturn(.ret, undefined);
-    }
+    try irb.body.append(irb.gpa, irb.return_label);
+    try irb.addInstNoReturn(.ret, undefined);
 
     var res = irb.finish();
     res.dump(name, irb.comp.diag.color, std.io.getStdOut().writer()) catch {};
@@ -319,7 +312,8 @@ fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
             }
         },
         .labeled_stmt => {
-            _ = try irb.addLabel("label");
+            const label = try irb.addLabel("label");
+            try irb.body.append(irb.comp.gpa, label);
             try irb.genStmt(data.decl.node);
         },
         .compound_stmt_two => {
@@ -336,44 +330,43 @@ fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
             for (irb.tree.data[data.range.start..data.range.end]) |stmt| try irb.genStmt(stmt);
         },
         .if_then_else_stmt => {
-            const cond = try irb.genExpr(data.if3.cond);
+            const then_label = try irb.addLabel("if.then");
+            const else_label = try irb.addLabel("if.else");
+            const end_label = try irb.addLabel("if.end");
 
-            const branch_index = irb.instructions.len;
-            try irb.addInstNoReturn(.branch, undefined);
+            {
+                irb.bool_ctx = .{
+                    .true_label = then_label,
+                    .false_label = else_label,
+                };
+                defer irb.bool_ctx = null;
+                try irb.genBoolExpr(data.if3.cond);
+            }
 
-            const then_label = try irb.addLabel("then");
+            try irb.body.append(irb.gpa, then_label);
             try irb.genStmt(irb.tree.data[data.if3.body]); // then
-            const jmp_end_index = irb.instructions.len;
-            try irb.addInstVoid(.jmp, undefined);
+            try irb.addInstVoid(.jmp, .{ .un = end_label });
 
-            const else_label = try irb.addLabel("else");
+            try irb.body.append(irb.gpa, else_label);
             try irb.genStmt(irb.tree.data[data.if3.body + 1]); // else
 
-            const end_label = try irb.addLabel("end");
-
-            const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
-            branch.* = .{
-                .cond = cond,
-                .then = then_label,
-                .@"else" = else_label,
-            };
-            irb.instructions.items(.data)[branch_index] = .{ .branch = branch };
-            irb.instructions.items(.data)[jmp_end_index] = .{ .un = end_label };
+            try irb.body.append(irb.gpa, end_label);
         },
         .if_then_stmt => {
-            const cond = try irb.genExpr(data.bin.lhs);
-            const branch_index = irb.instructions.len;
-            try irb.addInstNoReturn(.branch, undefined);
-            const then_label = try irb.addLabel("then");
-            try irb.genStmt(data.bin.rhs);
-            const end_label = try irb.addLabel("end");
-            const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
-            branch.* = .{
-                .cond = cond,
-                .then = then_label,
-                .@"else" = end_label,
-            };
-            irb.instructions.items(.data)[branch_index] = .{ .branch = branch };
+            const then_label = try irb.addLabel("if.then");
+            const end_label = try irb.addLabel("if.end");
+
+            {
+                irb.bool_ctx = .{
+                    .true_label = then_label,
+                    .false_label = end_label,
+                };
+                defer irb.bool_ctx = null;
+                try irb.genBoolExpr(data.bin.lhs);
+            }
+            try irb.body.append(irb.gpa, then_label);
+            try irb.genStmt(data.bin.rhs); // then
+            try irb.body.append(irb.gpa, end_label);
         },
         .switch_stmt => {
             var wip_switch = WipSwitch{
@@ -385,8 +378,10 @@ fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
             defer irb.wip_switch = old_wip_switch;
             irb.wip_switch = &wip_switch;
 
-            const old_breaks = irb.breaks.items.len;
-            defer irb.breaks.items.len = old_breaks;
+            const old_break_label = irb.break_label;
+            defer irb.break_label = old_break_label;
+            const end_ref = try irb.addLabel("switch.end");
+            irb.break_label = end_ref;
 
             const cond = try irb.genExpr(data.bin.lhs);
             const switch_index = irb.instructions.len;
@@ -394,13 +389,9 @@ fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
 
             try irb.genStmt(data.bin.rhs); // body
 
-            const end_ref = try irb.addLabel("end");
+            try irb.body.append(irb.comp.gpa, end_ref);
             const default_ref = wip_switch.default orelse end_ref;
-
-            const inst_data = irb.instructions.items(.data);
-            for (irb.breaks.items[old_breaks..]) |break_index| {
-                inst_data[break_index] = .{ .un = end_ref };
-            }
+            try irb.body.append(irb.gpa, end_ref);
 
             const a = irb.arena.allocator();
             const switch_data = try a.create(Ir.Inst.Switch);
@@ -411,216 +402,185 @@ fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
                 .case_labels = (try a.dupe(Ir.Ref, wip_switch.cases.items(.label))).ptr,
                 .default = default_ref,
             };
-            inst_data[switch_index] = .{ .@"switch" = switch_data };
+            irb.instructions.items(.data)[switch_index] = .{ .@"switch" = switch_data };
         },
         .case_stmt => {
             const val = irb.tree.value_map.get(data.bin.lhs).?;
+            const label = try irb.addLabel("case");
+            try irb.body.append(irb.comp.gpa, label);
             try irb.wip_switch.cases.append(irb.gpa, .{
                 .val = try irb.pool.put(irb.gpa, .{ .value = val }),
-                .label = try irb.addLabel("case"),
+                .label = label,
             });
             try irb.genStmt(data.bin.rhs);
         },
         .default_stmt => {
-            irb.wip_switch.default = try irb.addLabel("default");
+            const default = try irb.addLabel("default");
+            try irb.body.append(irb.comp.gpa, default);
+            irb.wip_switch.default = default;
             try irb.genStmt(data.un);
         },
         .while_stmt => {
-            const old_breaks = irb.breaks.items.len;
-            defer irb.breaks.items.len = old_breaks;
-            const old_continues = irb.continues.items.len;
-            defer irb.continues.items.len = old_continues;
+            const old_break_label = irb.break_label;
+            defer irb.break_label = old_break_label;
 
-            const start_label = try irb.addLabel("start");
-            const cond = try irb.genExpr(data.bin.lhs);
-            const branch_index = irb.instructions.len;
-            try irb.addInstNoReturn(.branch, undefined);
-            const then_label = try irb.addLabel("then");
+            const old_continue_label = irb.continue_label;
+            defer irb.continue_label = old_continue_label;
+
+            const cond_label = try irb.addLabel("while.cond");
+            const then_label = try irb.addLabel("while.then");
+            const end_label = try irb.addLabel("while.end");
+
+            irb.continue_label = cond_label;
+            irb.break_label = end_label;
+
+            try irb.body.append(irb.gpa, cond_label);
+            {
+                irb.bool_ctx = .{
+                    .true_label = then_label,
+                    .false_label = end_label,
+                };
+                defer irb.bool_ctx = null;
+                try irb.genBoolExpr(data.bin.lhs);
+            }
+            try irb.body.append(irb.gpa, then_label);
             try irb.genStmt(data.bin.rhs);
-            try irb.addInstNoReturn(.jmp, .{ .un = start_label });
-            const end_label = try irb.addLabel("end");
-
-            const inst_data = irb.instructions.items(.data);
-            for (irb.breaks.items[old_breaks..]) |break_index| {
-                inst_data[break_index] = .{ .un = end_label };
-            }
-            const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
-            branch.* = .{
-                .cond = cond,
-                .then = then_label,
-                .@"else" = end_label,
-            };
-            irb.instructions.items(.data)[branch_index] = .{ .branch = branch };
-            for (irb.continues.items[old_continues..]) |continue_index| {
-                inst_data[continue_index] = .{ .un = start_label };
-            }
+            try irb.addInstVoid(.jmp, .{ .un = cond_label });
+            try irb.body.append(irb.gpa, end_label);
         },
         .do_while_stmt => {
-            const old_breaks = irb.breaks.items.len;
-            defer irb.breaks.items.len = old_breaks;
-            const old_continues = irb.continues.items.len;
-            defer irb.continues.items.len = old_continues;
+            const old_break_label = irb.break_label;
+            defer irb.break_label = old_break_label;
 
-            const start_label = try irb.addLabel("start");
+            const old_continue_label = irb.continue_label;
+            defer irb.continue_label = old_continue_label;
+
+            const then_label = try irb.addLabel("do.then");
+            const cond_label = try irb.addLabel("do.cond");
+            const end_label = try irb.addLabel("do.end");
+
+            irb.continue_label = cond_label;
+            irb.break_label = end_label;
+
+            try irb.body.append(irb.gpa, then_label);
             try irb.genStmt(data.bin.rhs);
-            const cond = try irb.genExpr(data.bin.lhs);
-            const branch_index = irb.instructions.len;
-            try irb.addInstNoReturn(.branch, undefined);
-            const end_label = try irb.addLabel("end");
-
-            const inst_data = irb.instructions.items(.data);
-            for (irb.breaks.items[old_breaks..]) |break_index| {
-                inst_data[break_index] = .{ .un = end_label };
+            try irb.body.append(irb.gpa, cond_label);
+            {
+                irb.bool_ctx = .{
+                    .true_label = then_label,
+                    .false_label = end_label,
+                };
+                defer irb.bool_ctx = null;
+                try irb.genBoolExpr(data.bin.lhs);
             }
-            const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
-            branch.* = .{
-                .cond = cond,
-                .then = start_label,
-                .@"else" = end_label,
-            };
-            irb.instructions.items(.data)[branch_index] = .{ .branch = branch };
-            for (irb.continues.items[old_continues..]) |continue_index| {
-                inst_data[continue_index] = .{ .un = start_label };
-            }
+            try irb.body.append(irb.gpa, end_label);
         },
         .for_decl_stmt => {
-            const old_breaks = irb.breaks.items.len;
-            defer irb.breaks.items.len = old_breaks;
-            const old_continues = irb.continues.items.len;
-            defer irb.continues.items.len = old_continues;
+            const old_break_label = irb.break_label;
+            defer irb.break_label = old_break_label;
+
+            const old_continue_label = irb.continue_label;
+            defer irb.continue_label = old_continue_label;
 
             const for_decl = data.forDecl(irb.tree);
             for (for_decl.decls) |decl| try irb.genStmt(decl);
 
-            const start_label = try irb.addLabel("start");
+            const then_label = try irb.addLabel("for.then");
+            var cond_label = then_label;
+            const cont_label = try irb.addLabel("for.cont");
+            const end_label = try irb.addLabel("for.end");
 
-            var branch_index: usize = undefined;
-            var cond: ?Ir.Ref = null;
-            var then_label: Ir.Ref = undefined;
+            irb.continue_label = cont_label;
+            irb.break_label = end_label;
+
             if (for_decl.cond != .none) {
-                cond = try irb.genExpr(for_decl.cond);
-                branch_index = irb.instructions.len;
-                try irb.addInstNoReturn(.branch, undefined);
-                then_label = try irb.addLabel("then");
+                cond_label = try irb.addLabel("for.cond");
+                try irb.body.append(irb.gpa, cond_label);
+
+                irb.bool_ctx = .{
+                    .true_label = then_label,
+                    .false_label = end_label,
+                };
+                defer irb.bool_ctx = null;
+                try irb.genBoolExpr(for_decl.cond);
             }
-
+            try irb.body.append(irb.gpa, then_label);
             try irb.genStmt(for_decl.body);
-
-            const continue_ref = try irb.addLabel("continue");
             if (for_decl.incr != .none) {
                 _ = try irb.genExpr(for_decl.incr);
             }
-            try irb.addInstNoReturn(.jmp, .{ .un = start_label });
-
-            const end_label = try irb.addLabel("end");
-
-            const inst_data = irb.instructions.items(.data);
-            for (irb.breaks.items[old_breaks..]) |break_index| {
-                inst_data[break_index] = .{ .un = end_label };
-            }
-            if (cond) |some| {
-                const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
-                branch.* = .{
-                    .cond = some,
-                    .then = then_label,
-                    .@"else" = end_label,
-                };
-                irb.instructions.items(.data)[branch_index] = .{ .branch = branch };
-            }
-            for (irb.continues.items[old_continues..]) |continue_index| {
-                inst_data[continue_index] = .{ .un = continue_ref };
-            }
+            try irb.addInstVoid(.jmp, .{ .un = cond_label });
+            try irb.body.append(irb.gpa, end_label);
         },
         .forever_stmt => {
-            const old_breaks = irb.breaks.items.len;
-            defer irb.breaks.items.len = old_breaks;
-            const old_continues = irb.continues.items.len;
-            defer irb.continues.items.len = old_continues;
+            const old_break_label = irb.break_label;
+            defer irb.break_label = old_break_label;
 
-            const start_label = try irb.addLabel("start");
+            const old_continue_label = irb.continue_label;
+            defer irb.continue_label = old_continue_label;
+
+            const then_label = try irb.addLabel("for.then");
+            const end_label = try irb.addLabel("for.end");
+
+            irb.continue_label = then_label;
+            irb.break_label = end_label;
+
+            try irb.body.append(irb.gpa, then_label);
             try irb.genStmt(data.un);
-            try irb.addInstNoReturn(.jmp, .{ .un = start_label });
-            const end_label = try irb.addLabel("end");
-
-            const inst_data = irb.instructions.items(.data);
-            for (irb.breaks.items[old_breaks..]) |break_index| {
-                inst_data[break_index] = .{ .un = end_label };
-            }
-            for (irb.continues.items[old_continues..]) |continue_index| {
-                inst_data[continue_index] = .{ .un = start_label };
-            }
+            try irb.body.append(irb.gpa, end_label);
         },
         .for_stmt => {
-            const old_breaks = irb.breaks.items.len;
-            defer irb.breaks.items.len = old_breaks;
-            const old_continues = irb.continues.items.len;
-            defer irb.continues.items.len = old_continues;
+            const old_break_label = irb.break_label;
+            defer irb.break_label = old_break_label;
+
+            const old_continue_label = irb.continue_label;
+            defer irb.continue_label = old_continue_label;
 
             const for_stmt = data.forStmt(irb.tree);
             if (for_stmt.init != .none) _ = try irb.genExpr(for_stmt.init);
 
-            const start_label = try irb.addLabel("start");
+            const then_label = try irb.addLabel("for.then");
+            var cond_label = then_label;
+            const cont_label = try irb.addLabel("for.cont");
+            const end_label = try irb.addLabel("for.end");
 
-            var branch_index: usize = undefined;
-            var cond: ?Ir.Ref = null;
-            var then_label: Ir.Ref = undefined;
+            irb.continue_label = cont_label;
+            irb.break_label = end_label;
+
             if (for_stmt.cond != .none) {
-                cond = try irb.genExpr(for_stmt.cond);
-                branch_index = irb.instructions.len;
-                try irb.addInstNoReturn(.branch, undefined);
-                then_label = try irb.addLabel("then");
+                cond_label = try irb.addLabel("for.cond");
+                try irb.body.append(irb.gpa, cond_label);
+
+                irb.bool_ctx = .{
+                    .true_label = then_label,
+                    .false_label = end_label,
+                };
+                defer irb.bool_ctx = null;
+                try irb.genBoolExpr(for_stmt.cond);
             }
-
+            try irb.body.append(irb.gpa, then_label);
             try irb.genStmt(for_stmt.body);
-
-            const continue_ref = try irb.addLabel("continue");
             if (for_stmt.incr != .none) {
                 _ = try irb.genExpr(for_stmt.incr);
             }
-            try irb.addInstNoReturn(.jmp, .{ .un = start_label });
-
-            const end_label = try irb.addLabel("end");
-
-            const inst_data = irb.instructions.items(.data);
-            for (irb.breaks.items[old_breaks..]) |break_index| {
-                inst_data[break_index] = .{ .un = end_label };
-            }
-            if (cond) |some| {
-                const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
-                branch.* = .{
-                    .cond = some,
-                    .then = then_label,
-                    .@"else" = end_label,
-                };
-                irb.instructions.items(.data)[branch_index] = .{ .branch = branch };
-            }
-            for (irb.continues.items[old_continues..]) |continue_index| {
-                inst_data[continue_index] = .{ .un = continue_ref };
-            }
+            try irb.addInstVoid(.jmp, .{ .un = cond_label });
+            try irb.body.append(irb.gpa, end_label);
         },
-        .continue_stmt => {
-            try irb.continues.append(irb.comp.gpa, @intCast(u32, irb.instructions.len));
-            try irb.addInstNoReturn(.jmp, undefined);
-        },
-        .break_stmt => {
-            try irb.breaks.append(irb.comp.gpa, @intCast(u32, irb.instructions.len));
-            try irb.addInstNoReturn(.jmp, undefined);
-        },
+        .continue_stmt => try irb.addInstNoReturn(.jmp, .{ .un = irb.continue_label }),
+        .break_stmt => try irb.addInstNoReturn(.jmp, .{ .un = irb.break_label }),
         .return_stmt => {
             if (data.un != .none) {
                 const operand = try irb.genExpr(data.un);
                 try irb.addInstVoid(.ret_value, .{ .un = operand });
             }
-            try irb.returns.append(irb.comp.gpa, @intCast(u32, irb.instructions.len));
-            try irb.addInstNoReturn(.jmp, undefined);
+            try irb.addInstNoReturn(.jmp, .{ .un = irb.return_label });
         },
         .implicit_return => {
             if (data.return_zero) {
                 const operand = try irb.addConstant(Value.int(0), ty);
                 try irb.addInstVoid(.ret_value, .{ .un = operand });
             }
-            try irb.returns.append(irb.comp.gpa, @intCast(u32, irb.instructions.len));
-            try irb.addInstNoReturn(.jmp, undefined);
+            // No need to emit a jump since implicit_return is always the last instruction.
         },
         .case_range_stmt,
         .goto_stmt,
@@ -669,12 +629,30 @@ fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .bit_or_expr => return irb.genBinOp(node, .bit_or),
         .bit_xor_expr => return irb.genBinOp(node, .bit_xor),
         .bit_and_expr => return irb.genBinOp(node, .bit_and),
-        .equal_expr => return irb.genBinOp(node, .cmp_eql),
-        .not_equal_expr => return irb.genBinOp(node, .cmp_not_eql),
-        .less_than_expr => return irb.genBinOp(node, .cmp_lt),
-        .less_than_equal_expr => return irb.genBinOp(node, .cmp_lte),
-        .greater_than_expr => return irb.genBinOp(node, .cmp_gt),
-        .greater_than_equal_expr => return irb.genBinOp(node, .cmp_gte),
+        .equal_expr => {
+            const cmp = try irb.genComparison(node, .cmp_eq);
+            return irb.addInst(.zext, .{ .un = cmp }, ty);
+        },
+        .not_equal_expr => {
+            const cmp = try irb.genComparison(node, .cmp_ne);
+            return irb.addInst(.zext, .{ .un = cmp }, ty);
+        },
+        .less_than_expr => {
+            const cmp = try irb.genComparison(node, .cmp_lt);
+            return irb.addInst(.zext, .{ .un = cmp }, ty);
+        },
+        .less_than_equal_expr => {
+            const cmp = try irb.genComparison(node, .cmp_lte);
+            return irb.addInst(.zext, .{ .un = cmp }, ty);
+        },
+        .greater_than_expr => {
+            const cmp = try irb.genComparison(node, .cmp_gt);
+            return irb.addInst(.zext, .{ .un = cmp }, ty);
+        },
+        .greater_than_equal_expr => {
+            const cmp = try irb.genComparison(node, .cmp_gte);
+            return irb.addInst(.zext, .{ .un = cmp }, ty);
+        },
         .shl_expr => return irb.genBinOp(node, .bit_shl),
         .shr_expr => return irb.genBinOp(node, .bit_shr),
         .add_expr => {
@@ -728,7 +706,7 @@ fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .bool_not_expr => {
             const zero = try irb.addConstant(Value.int(0), ty);
             const operand = try irb.genExpr(data.un);
-            return irb.addInst(.cmp_not_eql, .{ .bin = .{ .lhs = zero, .rhs = operand } }, ty);
+            return irb.addInst(.cmp_ne, .{ .bin = .{ .lhs = zero, .rhs = operand } }, ty);
         },
         .pre_inc_expr => {
             const operand = try irb.genExpr(data.un);
@@ -774,20 +752,46 @@ fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             .function_to_pointer, .array_to_pointer => {
                 return irb.genLval(data.cast.operand);
             },
+            .int_cast => {
+                const operand = try irb.genExpr(data.cast.operand);
+                const src_ty = irb.node_ty[@enumToInt(data.cast.operand)];
+                const src_bits = src_ty.bitSizeof(irb.comp).?;
+                const dest_bits = ty.bitSizeof(irb.comp).?;
+                if (src_bits == dest_bits) {
+                    return operand;
+                } else if (src_bits < dest_bits) {
+                    if (src_ty.isUnsignedInt(irb.comp))
+                        return irb.addInst(.zext, .{ .un = operand }, ty)
+                    else
+                        return irb.addInst(.sext, .{ .un = operand }, ty);
+                } else {
+                    return irb.addInst(.trunc, .{ .un = operand }, ty);
+                }
+            },
+            .bool_to_int => {
+                const operand = try irb.genExpr(data.cast.operand);
+                return irb.addInst(.zext, .{ .un = operand }, ty);
+            },
+            .pointer_to_bool, .int_to_bool, .float_to_bool => {
+                const lhs = try irb.genExpr(data.cast.operand);
+                const rhs = try irb.addConstant(Value.int(0), irb.node_ty[@enumToInt(node)]);
+                const cmp = @intToEnum(Ir.Ref, irb.instructions.len);
+                try irb.instructions.append(
+                    irb.comp.gpa,
+                    .{ .tag = .cmp_ne, .data = .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .ty = .i1 },
+                );
+                try irb.body.append(irb.comp.gpa, cmp);
+                return cmp;
+            },
             .bitcast,
-            .pointer_to_bool,
             .pointer_to_int,
-            .bool_to_int,
             .bool_to_float,
             .bool_to_pointer,
-            .int_to_bool,
             .int_to_float,
             .complex_int_to_complex_float,
             .int_to_pointer,
-            .float_to_bool,
             .float_to_int,
             .complex_float_to_complex_int,
-            .int_cast,
             .complex_int_cast,
             .complex_int_to_real,
             .real_to_complex_int,
@@ -813,6 +817,7 @@ fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
 
             const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
             branch.* = .{ .cond = cond, .then = then, .@"else" = @"else" };
+            // TODO can't use select here
             return irb.addInst(.select, .{ .branch = branch }, ty);
         },
         .cond_dummy_expr => return irb.cond_dummy_ref,
@@ -823,6 +828,7 @@ fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
 
             const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
             branch.* = .{ .cond = cond, .then = then, .@"else" = @"else" };
+            // TODO can't use select here
             return irb.addInst(.select, .{ .branch = branch }, ty);
         },
         .call_expr_one => if (data.bin.rhs == .none) {
@@ -907,6 +913,121 @@ fn genLval(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
     }
 }
 
+fn genBoolExpr(irb: *IrBuilder, base: NodeIndex) Error!void {
+    var node = base;
+    while (true) switch (irb.node_tag[@enumToInt(node)]) {
+        .paren_expr => {
+            node = irb.node_data[@enumToInt(node)].un;
+        },
+        else => break,
+    };
+
+    const data = irb.node_data[@enumToInt(node)];
+    switch (irb.node_tag[@enumToInt(node)]) {
+        .bool_or_expr => {
+            if (irb.tree.value_map.get(data.bin.lhs)) |lhs| {
+                const cond = lhs.getBool();
+                if (cond) {
+                    return irb.addInstNoReturn(.jmp, .{ .un = irb.bool_ctx.?.true_label });
+                }
+                return irb.genBoolExpr(data.bin.rhs);
+            }
+            const old_bool_ctx = irb.bool_ctx;
+            defer irb.bool_ctx = old_bool_ctx;
+
+            const false_label = try irb.addLabel("bool_or.false");
+            irb.bool_ctx = .{
+                .true_label = irb.bool_ctx.?.true_label,
+                .false_label = false_label,
+            };
+            try irb.genBoolExpr(data.bin.lhs);
+            try irb.body.append(irb.gpa, false_label);
+            irb.bool_ctx = .{
+                .true_label = irb.bool_ctx.?.true_label,
+                .false_label = old_bool_ctx.?.false_label,
+            };
+            return irb.genBoolExpr(data.bin.rhs);
+        },
+        .bool_and_expr => {
+            if (irb.tree.value_map.get(data.bin.lhs)) |lhs| {
+                const cond = lhs.getBool();
+                if (!cond) {
+                    return irb.addInstNoReturn(.jmp, .{ .un = irb.bool_ctx.?.false_label });
+                }
+                return irb.genBoolExpr(data.bin.rhs);
+            }
+            const old_bool_ctx = irb.bool_ctx;
+            defer irb.bool_ctx = old_bool_ctx;
+
+            const true_label = try irb.addLabel("bool_and.true");
+            irb.bool_ctx = .{
+                .true_label = true_label,
+                .false_label = irb.bool_ctx.?.false_label,
+            };
+            try irb.genBoolExpr(data.bin.lhs);
+            try irb.body.append(irb.gpa, true_label);
+            irb.bool_ctx = .{
+                .true_label = old_bool_ctx.?.true_label,
+                .false_label = irb.bool_ctx.?.false_label,
+            };
+            return irb.genBoolExpr(data.bin.rhs);
+        },
+        .bool_not_expr => {
+            const old_bool_ctx = irb.bool_ctx;
+            defer irb.bool_ctx = old_bool_ctx;
+
+            irb.bool_ctx = .{
+                .true_label = irb.bool_ctx.?.false_label,
+                .false_label = irb.bool_ctx.?.true_label,
+            };
+            return irb.genBoolExpr(data.un);
+        },
+        .equal_expr => {
+            const cmp = try irb.genComparison(node, .cmp_eq);
+            return irb.addBranch(cmp);
+        },
+        .not_equal_expr => {
+            const cmp = try irb.genComparison(node, .cmp_ne);
+            return irb.addBranch(cmp);
+        },
+        .less_than_expr => {
+            const cmp = try irb.genComparison(node, .cmp_lt);
+            return irb.addBranch(cmp);
+        },
+        .less_than_equal_expr => {
+            const cmp = try irb.genComparison(node, .cmp_lte);
+            return irb.addBranch(cmp);
+        },
+        .greater_than_expr => {
+            const cmp = try irb.genComparison(node, .cmp_gt);
+            return irb.addBranch(cmp);
+        },
+        .greater_than_equal_expr => {
+            const cmp = try irb.genComparison(node, .cmp_gte);
+            return irb.addBranch(cmp);
+        },
+        .explicit_cast, .implicit_cast => switch (data.cast.kind) {
+            .bool_to_int => {
+                const operand = try irb.genExpr(data.cast.operand);
+                return irb.addBranch(operand);
+            },
+            else => {},
+        },
+        else => {},
+    }
+
+    // Assume int operand.
+    const lhs = try irb.genExpr(node);
+    const rhs = try irb.addConstant(Value.int(0), irb.node_ty[@enumToInt(node)]);
+    const cmp = @intToEnum(Ir.Ref, irb.instructions.len);
+    try irb.instructions.append(
+        irb.comp.gpa,
+        .{ .tag = .cmp_ne, .data = .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .ty = .i1 },
+    );
+    try irb.body.append(irb.comp.gpa, cmp);
+    try irb.addBranch(cmp);
+}
+
 fn genCall(irb: *IrBuilder, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
     // Detect direct calls.
     const fn_ref = blk: {
@@ -981,6 +1102,20 @@ fn genBinOp(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const lhs = try irb.genExpr(bin.lhs);
     const rhs = try irb.genExpr(bin.rhs);
     return irb.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, ty);
+}
+
+fn genComparison(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
+    const bin = irb.node_data[@enumToInt(node)].bin;
+    const lhs = try irb.genExpr(bin.lhs);
+    const rhs = try irb.genExpr(bin.rhs);
+
+    const cmp = @intToEnum(Ir.Ref, irb.instructions.len);
+    try irb.instructions.append(
+        irb.comp.gpa,
+        .{ .tag = tag, .data = .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .ty = .i1 },
+    );
+    try irb.body.append(irb.comp.gpa, cmp);
+    return cmp;
 }
 
 fn genPtrArithmetic(irb: *IrBuilder, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, ty: Type) Error!Ir.Ref {
