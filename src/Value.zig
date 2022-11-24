@@ -565,9 +565,11 @@ pub fn hash(v: Value) u64 {
 pub fn dump(v: Value, ty: Type, comp: *Compilation, w: anytype) !void {
     switch (v.tag) {
         .unavailable => try w.writeAll("unavailable"),
-        .int => if (ty.isUnsignedInt(comp))
-            try w.print("{d}", .{v.data.int})
-        else {
+        .int => if (ty.is(.bool) and comp.langopts.standard.atLeast(.c2x)) {
+            try w.print("{s}", .{if (v.isZero()) "false" else "true"});
+        } else if (ty.isUnsignedInt(comp)) {
+            try w.print("{d}", .{v.data.int});
+        } else {
             try w.print("{d}", .{v.signExtend(ty, comp)});
         },
         .bytes => try w.print("\"{s}\"", .{v.data.bytes}),

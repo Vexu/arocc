@@ -196,6 +196,8 @@ pub const Token = struct {
         keyword_c23_static_assert,
         keyword_c23_thread_local,
         keyword_constexpr,
+        keyword_true,
+        keyword_false,
 
         // Preprocessor directives
         keyword_include,
@@ -383,6 +385,8 @@ pub const Token = struct {
                 .keyword_c23_static_assert,
                 .keyword_c23_thread_local,
                 .keyword_constexpr,
+                .keyword_true,
+                .keyword_false,
                 => return true,
                 else => return false,
             }
@@ -568,6 +572,8 @@ pub const Token = struct {
                 .keyword_c23_static_assert => "static_assert",
                 .keyword_c23_thread_local => "thread_local",
                 .keyword_constexpr => "constexpr",
+                .keyword_true => "true",
+                .keyword_false => "false",
                 .keyword_include => "include",
                 .keyword_include_next => "include_next",
                 .keyword_define => "define",
@@ -682,6 +688,8 @@ pub const Token = struct {
                 .one,
                 .zero,
                 .pp_num,
+                .keyword_true,
+                .keyword_false,
                 => true,
                 else => false,
             };
@@ -720,6 +728,8 @@ pub const Token = struct {
             .keyword_c23_static_assert,
             .keyword_c23_thread_local,
             .keyword_constexpr,
+            .keyword_true,
+            .keyword_false,
             => if (standard.atLeast(.c2x)) kw else .identifier,
 
             .keyword_int64,
@@ -816,6 +826,8 @@ pub const Token = struct {
         .{ "static_assert", .keyword_c23_static_assert },
         .{ "thread_local", .keyword_c23_thread_local },
         .{ "constexpr", .keyword_constexpr },
+        .{ "true", .keyword_true },
+        .{ "false", .keyword_false },
 
         // Preprocessor directives
         .{ "include", .keyword_include },
@@ -1986,9 +1998,24 @@ test "digraphs" {
     try expectTokens("%:%42 %:%", &.{ .hash, .percent, .pp_num, .hash, .percent });
 }
 
-fn expectTokens(contents: []const u8, expected_tokens: []const Token.Id) !void {
+test "C23 keywords" {
+    try expectTokensExtra("true false alignas alignof bool static_assert thread_local", &.{
+        .keyword_true,
+        .keyword_false,
+        .keyword_c23_alignas,
+        .keyword_c23_alignof,
+        .keyword_c23_bool,
+        .keyword_c23_static_assert,
+        .keyword_c23_thread_local,
+    }, .c2x);
+}
+
+fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {
     var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
+    if (standard) |provided| {
+        comp.langopts.standard = provided;
+    }
     const source = try comp.addSourceFromBuffer("path", contents);
     var tokenizer = Tokenizer{
         .buf = source.buf,
@@ -2008,4 +2035,8 @@ fn expectTokens(contents: []const u8, expected_tokens: []const Token.Id) !void {
     }
     const last_token = tokenizer.next();
     try std.testing.expect(last_token.id == .eof);
+}
+
+fn expectTokens(contents: []const u8, expected_tokens: []const Token.Id) !void {
+    return expectTokensExtra(contents, expected_tokens, null);
 }

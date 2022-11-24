@@ -6388,6 +6388,8 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 
 /// primaryExpr
 ///  : IDENTIFIER
+///  | keyword_true
+///  | keyword_false
 ///  | INTEGER_LITERAL
 ///  | FLOAT_LITERAL
 ///  | IMAGINARY_LITERAL
@@ -6486,6 +6488,22 @@ fn primaryExpr(p: *Parser) Error!Result {
             }
             try p.errStr(.undeclared_identifier, name_tok, p.tokSlice(name_tok));
             return error.ParsingFailed;
+        },
+        .keyword_true, .keyword_false => |id| {
+            p.tok_i += 1;
+            const numeric_value = @boolToInt(id == .keyword_true);
+            const res = Result{
+                .val = Value.int(numeric_value),
+                .ty = .{ .specifier = .bool },
+                .node = try p.addNode(.{
+                    .tag = .bool_literal,
+                    .ty = .{ .specifier = .bool },
+                    .data = .{ .int = numeric_value },
+                }),
+            };
+            std.debug.assert(!p.in_macro); // Should have been replaced with .one / .zero
+            try p.value_map.put(res.node, res.val);
+            return res;
         },
         .macro_func, .macro_function => {
             defer p.tok_i += 1;
