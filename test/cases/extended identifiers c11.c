@@ -44,4 +44,3 @@ int あああ =  "あああ" * 1;
     "extended identifiers c11.c:33:9: warning: declaration does not declare anything [-Wmissing-declaration]" \
     "extended identifiers c11.c:33:9: error: expected ';', found invalid bytes" \
     "extended identifiers c11.c:36:18: error: invalid operands to binary expression ('char *' and 'int')" \
-    "extended identifiers c11.c:36:12: warning: implicit pointer to integer conversion from 'char *' to 'int' [-Wint-conversion]" \
