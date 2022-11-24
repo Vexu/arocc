@@ -461,7 +461,7 @@ fn generateVaListType(comp: *Compilation) !Type {
                 .name = try comp.intern("__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 5),
                 .field_attributes = null,
-                .type_layout = Type.TypeLayout.init(32, 8),
+                .type_layout = undefined, // computed below
             };
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
@@ -472,7 +472,7 @@ fn generateVaListType(comp: *Compilation) !Type {
             record_ty.fields[3] = .{ .name = try comp.intern("__gr_offs"), .ty = .{ .specifier = .int } };
             record_ty.fields[4] = .{ .name = try comp.intern("__vr_offs"), .ty = .{ .specifier = .int } };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
-            record_layout.compute(&ty, comp, null);
+            record_layout.compute(ty, comp, null);
         },
         .x86_64_va_list => {
             const record_ty = try arena.create(Type.Record);
@@ -480,7 +480,7 @@ fn generateVaListType(comp: *Compilation) !Type {
                 .name = try comp.intern("__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 4),
                 .field_attributes = null,
-                .type_layout = Type.TypeLayout.init(24, 8),
+                .type_layout = undefined, // computed below
             };
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
@@ -490,7 +490,7 @@ fn generateVaListType(comp: *Compilation) !Type {
             record_ty.fields[2] = .{ .name = try comp.intern("overflow_arg_area"), .ty = void_ptr };
             record_ty.fields[3] = .{ .name = try comp.intern("reg_save_area"), .ty = void_ptr };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
-            record_layout.compute(&ty, comp, null);
+            record_layout.compute(ty, comp, null);
         },
     }
     if (kind == .char_ptr or kind == .void_ptr) {

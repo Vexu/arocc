@@ -35,7 +35,7 @@ const SysVContext = struct {
 
     comp: *const Compilation,
 
-    fn init(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) SysVContext {
+    fn init(ty: Type, comp: *const Compilation, pragma_pack: ?u8) SysVContext {
         var pack_value: ?u64 = null;
         if (pragma_pack) |pak| {
             pack_value = pak * BITS_PER_BYTE;
@@ -57,9 +57,7 @@ const SysVContext = struct {
 
     fn layoutFields(self: *SysVContext, rec: *const Record) void {
         for (rec.fields) |*fld, fld_indx| {
-            var type_layout = TypeLayout.init(0, 0);
-
-            computeLayout(fld.ty, self.comp, &type_layout);
+            const type_layout = computeLayout(fld.ty, self.comp);
 
             var field_attrs: ?[]const Attribute = null;
             if (rec.field_attributes) |attrs| {
@@ -403,7 +401,7 @@ const MsvcContext = struct {
     is_union: bool,
     comp: *const Compilation,
 
-    fn init(ty: *const Type, comp: *const Compilation, pragma_pack: ?u8) MsvcContext {
+    fn init(ty: Type, comp: *const Compilation, pragma_pack: ?u8) MsvcContext {
         var pack_value: ?u32 = null;
         if (ty.hasAttribute(.@"packed")) {
             // __attribute__((packed)) behaves like #pragma pack(1) in clang. See test case 0056.
@@ -437,10 +435,8 @@ const MsvcContext = struct {
         };
     }
 
-    fn layoutField(self: *MsvcContext, fld: *Field, fld_attrs: ?[]const Attribute) void {
-        var type_layout: TypeLayout = TypeLayout.init(0, 0);
-
-        computeLayout(fld.ty, self.comp, &type_layout);
+    fn layoutField(self: *MsvcContext, fld: *const Field, fld_attrs: ?[]const Attribute) FieldLayout {
+        const type_layout = computeLayout(fld.ty, self.comp);
 
         // The required alignment of the field is the maximum of the required alignment of the
         // underlying type and the __declspec(align) annotation on the field itself.
@@ -473,9 +469,9 @@ const MsvcContext = struct {
         // pack(1) had been applied only to this field. See test case 0057.
         fld_align_bits = std.math.max(fld_align_bits, req_align);
         if (fld.isRegularField()) {
-            fld.layout = self.layoutRegularField(type_layout.size_bits, fld_align_bits);
+            return self.layoutRegularField(type_layout.size_bits, fld_align_bits);
         } else {
-            fld.layout = self.layoutBitField(type_layout.size_bits, fld_align_bits, fld.specifiedBitWidth());
+            return self.layoutBitField(type_layout.size_bits, fld_align_bits, fld.specifiedBitWidth());
         }
     }
 
@@ -566,11 +562,11 @@ const MsvcContext = struct {
     }
 };
 
-pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
+pub fn compute(ty: Type, comp: *const Compilation, pragma_pack: ?u8) void {
+    const rec = getMutableRecord(ty);
     switch (comp.langopts.emulate) {
         .gcc, .clang => {
             var context = SysVContext.init(ty, comp, pragma_pack);
-            var rec = getMutableRecord(ty);
 
             context.layoutFields(rec);
 
@@ -585,15 +581,13 @@ pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
         },
         .msvc => {
             var context = MsvcContext.init(ty, comp, pragma_pack);
-            var rec = getMutableRecord(ty);
-
             for (rec.fields) |*fld, fld_indx| {
                 var field_attrs: ?[]const Attribute = null;
                 if (rec.field_attributes) |attrs| {
                     field_attrs = attrs[fld_indx];
                 }
 
-                context.layoutField(fld, field_attrs);
+                fld.layout = context.layoutField(fld, field_attrs);
             }
             if (context.size_bits == 0) {
                 // As an extension, MSVC allows records that only contain zero-sized bitfields and empty
@@ -611,28 +605,31 @@ pub fn compute(ty: *Type, comp: *const Compilation, pragma_pack: ?u8) void {
     }
 }
 
-pub fn computeLayout(ty: Type, comp: *const Compilation, type_layout: *TypeLayout) void {
+fn computeLayout(ty: Type, comp: *const Compilation) TypeLayout {
     if (ty.getRecord()) |rec| {
         const requested = BITS_PER_BYTE * (ty.requestedAlignment(comp) orelse 0);
-        type_layout.* = .{
+        return .{
             .size_bits = rec.type_layout.size_bits,
             .pointer_alignment_bits = std.math.max(requested, rec.type_layout.pointer_alignment_bits),
             .field_alignment_bits = std.math.max(requested, rec.type_layout.field_alignment_bits),
             .required_alignment_bits = rec.type_layout.required_alignment_bits,
         };
     } else {
-        type_layout.size_bits = ty.bitSizeof(comp) orelse 0;
-        type_layout.pointer_alignment_bits = ty.alignof(comp) * BITS_PER_BYTE;
-        type_layout.field_alignment_bits = type_layout.pointer_alignment_bits;
-        type_layout.required_alignment_bits = BITS_PER_BYTE;
+        const type_align = ty.alignof(comp) * BITS_PER_BYTE;
+        return .{
+            .size_bits = ty.bitSizeof(comp) orelse 0,
+            .pointer_alignment_bits = type_align,
+            .field_alignment_bits = type_align,
+            .required_alignment_bits = BITS_PER_BYTE,
+        };
     }
 }
 
-pub fn getMutableRecord(ty: *Type) *Type.Record {
+pub fn getMutableRecord(ty: Type) *Type.Record {
     return switch (ty.specifier) {
-        .attributed => getMutableRecord(&ty.data.attributed.base),
-        .typeof_type, .decayed_typeof_type => getMutableRecord(ty.data.sub_type),
-        .typeof_expr, .decayed_typeof_expr => getMutableRecord(&ty.data.expr.ty),
+        .attributed => getMutableRecord(ty.data.attributed.base),
+        .typeof_type, .decayed_typeof_type => getMutableRecord(ty.data.sub_type.*),
+        .typeof_expr, .decayed_typeof_expr => getMutableRecord(ty.data.expr.ty),
         .@"struct", .@"union" => ty.data.record,
         else => unreachable,
     };
