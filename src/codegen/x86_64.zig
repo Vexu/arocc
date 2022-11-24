@@ -1,5 +1,5 @@
 const std = @import("std");
-const Codegen = @import("../Codegen.zig");
+const Codegen = @import("../Codegen_legacy.zig");
 const Tree = @import("../Tree.zig");
 const NodeIndex = Tree.NodeIndex;
 const x86_64 = @import("zig").codegen.x86_64;

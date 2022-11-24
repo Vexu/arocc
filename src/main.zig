@@ -66,7 +66,7 @@ pub fn main() u8 {
 }
 
 test {
-    _ = @import("Codegen.zig");
+    _ = @import("Codegen_legacy.zig");
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
     _ = @import("InitList.zig");
