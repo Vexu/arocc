@@ -6,11 +6,11 @@ const Tree = @import("Tree.zig");
 const NodeIndex = Tree.NodeIndex;
 const Ir = @import("Ir.zig");
 const Type = @import("Type.zig");
-const IrPool = @import("IrPool.zig");
+const Interner = @import("Interner.zig");
 const Value = @import("Value.zig");
 const StringId = @import("StringInterner.zig").StringId;
 
-const IrBuilder = @This();
+const CodeGen = @This();
 
 const WipSwitch = struct {
     cases: Cases = .{},
@@ -18,7 +18,7 @@ const WipSwitch = struct {
     size: u64,
 
     const Cases = std.MultiArrayList(struct {
-        val: IrPool.Ref,
+        val: Interner.Ref,
         label: Ir.Ref,
         // block: *Ir.Block,
     });
@@ -49,13 +49,13 @@ symbols: std.ArrayListUnmanaged(Symbol) = .{},
 body: std.ArrayListUnmanaged(Ir.Ref) = .{},
 allocs: u32 = 0,
 cond_dummy_ref: Ir.Ref = undefined,
-pool: IrPool = .{},
+pool: Interner = .{},
 bool_ctx: ?BoolCtx = null,
 continue_label: Ir.Ref = undefined,
 break_label: Ir.Ref = undefined,
 return_label: Ir.Ref = undefined,
 
-fn deinit(irb: *IrBuilder) void {
+fn deinit(irb: *CodeGen) void {
     irb.arena.deinit();
     irb.symbols.deinit(irb.gpa);
     irb.instructions.deinit(irb.gpa);
@@ -64,7 +64,7 @@ fn deinit(irb: *IrBuilder) void {
     irb.* = undefined;
 }
 
-fn finish(irb: IrBuilder) Ir {
+fn finish(irb: CodeGen) Ir {
     return .{
         .pool = irb.pool,
         .instructions = irb.instructions,
@@ -73,7 +73,7 @@ fn finish(irb: IrBuilder) Ir {
     };
 }
 
-fn addAlloc(irb: *IrBuilder, ty: Type) !Ir.Ref {
+fn addAlloc(irb: *CodeGen, ty: Type) !Ir.Ref {
     const ref = @intToEnum(Ir.Ref, irb.instructions.len);
     const size = @intCast(u32, ty.sizeof(irb.comp).?); // TODO add error in parser
     const @"align" = ty.alignof(irb.comp);
@@ -87,25 +87,25 @@ fn addAlloc(irb: *IrBuilder, ty: Type) !Ir.Ref {
     return ref;
 }
 
-fn addLabel(irb: *IrBuilder, name: [*:0]const u8) !Ir.Ref {
+fn addLabel(irb: *CodeGen, name: [*:0]const u8) !Ir.Ref {
     const ref = @intToEnum(Ir.Ref, irb.instructions.len);
     try irb.instructions.append(irb.comp.gpa, .{ .tag = .label, .data = .{ .label = name }, .ty = .void });
     return ref;
 }
 
-fn addInstVoid(irb: *IrBuilder, tag: Ir.Inst.Tag, data: Ir.Inst.Data) !void {
+fn addInstVoid(irb: *CodeGen, tag: Ir.Inst.Tag, data: Ir.Inst.Data) !void {
     const ref = @intToEnum(Ir.Ref, irb.instructions.len);
     try irb.instructions.append(irb.comp.gpa, .{ .tag = tag, .data = data, .ty = .void });
     try irb.body.append(irb.comp.gpa, ref);
 }
 
-fn addInstNoReturn(irb: *IrBuilder, tag: Ir.Inst.Tag, data: Ir.Inst.Data) !void {
+fn addInstNoReturn(irb: *CodeGen, tag: Ir.Inst.Tag, data: Ir.Inst.Data) !void {
     const ref = @intToEnum(Ir.Ref, irb.instructions.len);
     try irb.instructions.append(irb.comp.gpa, .{ .tag = tag, .data = data, .ty = .noreturn });
     try irb.body.append(irb.comp.gpa, ref);
 }
 
-fn addInst(irb: *IrBuilder, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Type) !Ir.Ref {
+fn addInst(irb: *CodeGen, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Type) !Ir.Ref {
     const ref = @intToEnum(Ir.Ref, irb.instructions.len);
     const ty_ref = try irb.genType(ty);
     try irb.instructions.append(irb.comp.gpa, .{ .tag = tag, .data = data, .ty = ty_ref });
@@ -113,7 +113,7 @@ fn addInst(irb: *IrBuilder, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Type) !Ir.
     return ref;
 }
 
-fn addBranch(irb: *IrBuilder, cond: Ir.Ref) !void {
+fn addBranch(irb: *CodeGen, cond: Ir.Ref) !void {
     const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
     branch.* = .{
         .cond = cond,
@@ -123,10 +123,10 @@ fn addBranch(irb: *IrBuilder, cond: Ir.Ref) !void {
     try irb.addInstNoReturn(.branch, .{ .branch = branch });
 }
 
-fn addConstant(irb: *IrBuilder, val: Value, ty: Type) !Ir.Ref {
+fn addConstant(irb: *CodeGen, val: Value, ty: Type) !Ir.Ref {
     const ref = @intToEnum(Ir.Ref, irb.instructions.len);
     const ty_ref = try irb.genType(ty);
-    const key: IrPool.Key = .{
+    const key: Interner.Key = .{
         .value = val,
     };
     const val_ref = try irb.pool.put(irb.gpa, key);
@@ -139,7 +139,7 @@ fn addConstant(irb: *IrBuilder, val: Value, ty: Type) !Ir.Ref {
 /// Generate tree to an object file.
 /// Caller is responsible for flushing and freeing the returned object.
 pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
-    var irb = IrBuilder{
+    var irb = CodeGen{
         .gpa = comp.gpa,
         .arena = std.heap.ArenaAllocator.init(comp.gpa),
         .tree = tree,
@@ -203,8 +203,8 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
     }
 }
 
-fn genType(irb: *IrBuilder, base_ty: Type) !IrPool.Ref {
-    var key: IrPool.Key = undefined;
+fn genType(irb: *CodeGen, base_ty: Type) !Interner.Ref {
+    var key: Interner.Key = undefined;
     const ty = base_ty.canonicalize(.standard);
     switch (ty.specifier) {
         .void => return .void,
@@ -230,7 +230,7 @@ fn genType(irb: *IrBuilder, base_ty: Type) !IrPool.Ref {
     return irb.pool.put(irb.gpa, key);
 }
 
-fn genFn(irb: *IrBuilder, decl: NodeIndex) Error!void {
+fn genFn(irb: *CodeGen, decl: NodeIndex) Error!void {
     const name = irb.tree.tokSlice(irb.node_data[@enumToInt(decl)].decl.name);
     const func_ty = irb.node_ty[@enumToInt(decl)].canonicalize(.standard);
     irb.allocs = 0;
@@ -264,7 +264,7 @@ fn genFn(irb: *IrBuilder, decl: NodeIndex) Error!void {
     res.dump(name, irb.comp.diag.color, std.io.getStdOut().writer()) catch {};
 }
 
-fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
+fn genStmt(irb: *CodeGen, node: NodeIndex) Error!void {
     std.debug.assert(node != .none);
     const ty = irb.node_ty[@enumToInt(node)];
     const data = irb.node_data[@enumToInt(node)];
@@ -398,7 +398,7 @@ fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
             switch_data.* = .{
                 .target = cond,
                 .cases_len = @intCast(u32, wip_switch.cases.len),
-                .case_vals = (try a.dupe(IrPool.Ref, wip_switch.cases.items(.val))).ptr,
+                .case_vals = (try a.dupe(Interner.Ref, wip_switch.cases.items(.val))).ptr,
                 .case_labels = (try a.dupe(Ir.Ref, wip_switch.cases.items(.label))).ptr,
                 .default = default_ref,
             };
@@ -585,12 +585,12 @@ fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
         .case_range_stmt,
         .goto_stmt,
         .computed_goto_stmt,
-        => return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genStmt {}\n", .{irb.node_tag[@enumToInt(node)]}),
+        => return irb.comp.diag.fatalNoSrc("TODO CodeGen.genStmt {}\n", .{irb.node_tag[@enumToInt(node)]}),
         else => _ = try irb.genExpr(node),
     }
 }
 
-fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
+fn genExpr(irb: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     std.debug.assert(node != .none);
     const ty = irb.node_ty[@enumToInt(node)];
     if (irb.tree.value_map.get(node)) |val| {
@@ -802,7 +802,7 @@ fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             .null_to_pointer,
             .union_cast,
             .vector_splat,
-            => return irb.comp.diag.fatalNoSrc("TODO IrBuilder gen CastKind {}\n", .{data.cast.kind}),
+            => return irb.comp.diag.fatalNoSrc("TODO CodeGen gen CastKind {}\n", .{data.cast.kind}),
         },
         .binary_cond_expr => {
             const cond = try irb.genExpr(data.if3.cond);
@@ -865,12 +865,12 @@ fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .compound_literal_expr,
         .array_filler_expr,
         .default_init_expr,
-        => return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genExpr {}\n", .{irb.node_tag[@enumToInt(node)]}),
+        => return irb.comp.diag.fatalNoSrc("TODO CodeGen.genExpr {}\n", .{irb.node_tag[@enumToInt(node)]}),
         else => unreachable, // Not an expression.
     }
 }
 
-fn genLval(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
+fn genLval(irb: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     std.debug.assert(node != .none);
     assert(Tree.isLval(irb.tree.nodes, irb.tree.data, irb.tree.value_map, node));
     const data = irb.node_data[@enumToInt(node)];
@@ -909,11 +909,11 @@ fn genLval(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             return ref;
         },
         .deref_expr => return irb.genExpr(data.un),
-        else => return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genLval {}\n", .{irb.node_tag[@enumToInt(node)]}),
+        else => return irb.comp.diag.fatalNoSrc("TODO CodeGen.genLval {}\n", .{irb.node_tag[@enumToInt(node)]}),
     }
 }
 
-fn genBoolExpr(irb: *IrBuilder, base: NodeIndex) Error!void {
+fn genBoolExpr(irb: *CodeGen, base: NodeIndex) Error!void {
     var node = base;
     while (true) switch (irb.node_tag[@enumToInt(node)]) {
         .paren_expr => {
@@ -1028,7 +1028,7 @@ fn genBoolExpr(irb: *IrBuilder, base: NodeIndex) Error!void {
     try irb.addBranch(cmp);
 }
 
-fn genCall(irb: *IrBuilder, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
+fn genCall(irb: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
     // Detect direct calls.
     const fn_ref = blk: {
         const data = irb.node_data[@enumToInt(fn_node)];
@@ -1086,7 +1086,7 @@ fn genCall(irb: *IrBuilder, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty
     return irb.addInst(.call, .{ .call = call }, ty);
 }
 
-fn genCompoundAssign(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genCompoundAssign(irb: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const bin = irb.node_data[@enumToInt(node)].bin;
     const ty = irb.node_ty[@enumToInt(node)];
     const rhs = try irb.genExpr(bin.rhs);
@@ -1096,7 +1096,7 @@ fn genCompoundAssign(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!I
     return res;
 }
 
-fn genBinOp(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genBinOp(irb: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const bin = irb.node_data[@enumToInt(node)].bin;
     const ty = irb.node_ty[@enumToInt(node)];
     const lhs = try irb.genExpr(bin.lhs);
@@ -1104,7 +1104,7 @@ fn genBinOp(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     return irb.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, ty);
 }
 
-fn genComparison(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genComparison(irb: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const bin = irb.node_data[@enumToInt(node)].bin;
     const lhs = try irb.genExpr(bin.lhs);
     const rhs = try irb.genExpr(bin.rhs);
@@ -1118,7 +1118,7 @@ fn genComparison(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Re
     return cmp;
 }
 
-fn genPtrArithmetic(irb: *IrBuilder, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, ty: Type) Error!Ir.Ref {
+fn genPtrArithmetic(irb: *CodeGen, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, ty: Type) Error!Ir.Ref {
     // TODO consider adding a getelemptr instruction
     const size = ty.elemType().sizeof(irb.comp).?;
     if (size == 1) {
@@ -1130,7 +1130,7 @@ fn genPtrArithmetic(irb: *IrBuilder, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Typ
     return irb.addInst(.add, .{ .bin = .{ .lhs = ptr, .rhs = offset_inst } }, ty);
 }
 
-fn genVar(irb: *IrBuilder, decl: NodeIndex) Error!void {
+fn genVar(irb: *CodeGen, decl: NodeIndex) Error!void {
     _ = decl;
-    return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genVar\n", .{});
+    return irb.comp.diag.fatalNoSrc("TODO CodeGen.genVar\n", .{});
 }

@@ -490,7 +490,7 @@ fn processSource(
     }
 
     if (comp.verbose_ir) {
-        try @import("IrBuilder.zig").generateTree(comp, tree);
+        try @import("CodeGen.zig").generateTree(comp, tree);
     }
 
     const obj = try Codegen.generateTree(comp, tree);

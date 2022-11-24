@@ -1,9 +1,9 @@
 const std = @import("std");
-const IrPool = @import("IrPool.zig");
+const Interner = @import("Interner.zig");
 
 const Ir = @This();
 
-pool: IrPool,
+pool: Interner,
 // decls: std.StringArrayHashMapUnmanaged(Decl),
 
 // pub const Decl = struct {
@@ -24,7 +24,7 @@ pub const Ref = enum(u32) { _ };
 pub const Inst = struct {
     tag: Tag,
     data: Data,
-    ty: IrPool.Ref,
+    ty: Interner.Ref,
 
     pub const Tag = enum {
         // data.constant
@@ -92,7 +92,7 @@ pub const Inst = struct {
     };
 
     pub const Data = union {
-        constant: IrPool.Ref,
+        constant: Interner.Ref,
         none: void,
         bin: struct {
             lhs: Ref,
@@ -124,7 +124,7 @@ pub const Inst = struct {
         cases_len: u32,
         // default: *Block,
         default: Ref,
-        case_vals: [*]IrPool.Ref,
+        case_vals: [*]Interner.Ref,
         // case_labels: [*]*Block,
         case_labels: [*]Ref,
     };
@@ -364,7 +364,7 @@ pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
     try w.writeAll("}\n\n");
 }
 
-fn writeType(ir: Ir, ty_ref: IrPool.Ref, color: bool, w: anytype) !void {
+fn writeType(ir: Ir, ty_ref: Interner.Ref, color: bool, w: anytype) !void {
     const ty = ir.pool.get(ty_ref);
     if (color) util.setColor(TYPE, w);
     switch (ty) {
@@ -385,7 +385,7 @@ fn writeType(ir: Ir, ty_ref: IrPool.Ref, color: bool, w: anytype) !void {
     }
 }
 
-fn writeValue(ir: Ir, val_ref: IrPool.Ref, color: bool, w: anytype) !void {
+fn writeValue(ir: Ir, val_ref: Interner.Ref, color: bool, w: anytype) !void {
     const v = ir.pool.get(val_ref).value;
     if (color) util.setColor(LITERAL, w);
     switch (v.tag) {

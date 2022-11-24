@@ -1,4 +1,4 @@
-const IrPool = @This();
+const Interner = @This();
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
@@ -99,11 +99,11 @@ pub const Ref = enum(u32) {
     _,
 };
 
-pub fn deinit(ip: *IrPool, gpa: Allocator) void {
+pub fn deinit(ip: *Interner, gpa: Allocator) void {
     ip.map.deinit(gpa);
 }
 
-pub fn put(ip: *IrPool, gpa: Allocator, key: Key) !Ref {
+pub fn put(ip: *Interner, gpa: Allocator, key: Key) !Ref {
     switch (key) {
         .int => |bits| switch (bits) {
             1 => return .i1,
@@ -132,7 +132,7 @@ pub fn put(ip: *IrPool, gpa: Allocator, key: Key) !Ref {
     return @intToEnum(Ref, gop.index);
 }
 
-pub fn get(ip: IrPool, ref: Ref) Key {
+pub fn get(ip: Interner, ref: Ref) Key {
     switch (ref) {
         .ptr => return .ptr,
         .func => return .func,
