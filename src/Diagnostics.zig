@@ -2226,6 +2226,8 @@ pub fn fatal(
     m.start(.@"fatal error");
     m.print(fmt, args);
     m.end(line, col, false);
+
+    diag.errors += 1;
     return error.FatalError;
 }
 
@@ -2240,6 +2242,7 @@ pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) e
         std_err.print(fmt ++ "\n", args) catch {};
         util.setColor(.reset, std_err);
     }
+    diag.errors += 1;
     return error.FatalError;
 }
 
