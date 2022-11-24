@@ -1,4 +1,4 @@
-typedef: '*float'
+typedef: 'invalid'
  name: invalid1
 
 typedef: 'float'

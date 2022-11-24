@@ -2314,6 +2314,7 @@ const Enumerator = struct {
 
     /// Set enumerator value to specified value.
     fn set(e: *Enumerator, p: *Parser, res: Result, tok: TokenIndex) !void {
+        if (res.ty.specifier == .invalid) return;
         if (e.fixed and !res.ty.eql(e.res.ty, p.comp, false)) {
             if (!res.intFitsInType(p, e.res.ty)) {
                 try p.errStr(.enum_not_representable_fixed, tok, try p.typeStr(e.res.ty));
@@ -4686,6 +4687,7 @@ const Result = struct {
         try p.errStr(.invalid_bin_types, tok, try p.typePairStr(a.ty, b.ty));
         a.val.tag = .unavailable;
         b.val.tag = .unavailable;
+        a.ty = Type.invalid;
         return false;
     }
 
@@ -4911,6 +4913,10 @@ const Result = struct {
 
     /// Perform assignment-like coercion to `dest_ty`.
     fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) Error!void {
+        if (res.ty.specifier == .invalid or dest_ty.specifier == .invalid) {
+            res.ty = Type.invalid;
+            return;
+        }
         return res.coerceExtra(p, dest_ty, tok, ctx) catch |er| switch (er) {
             error.CoercionFailed => unreachable,
             else => |e| return e,
@@ -5417,7 +5423,6 @@ fn addExpr(p: *Parser) Error!Result {
         var rhs = try p.mulExpr();
         try rhs.expect(p);
 
-        const errors = p.comp.diag.errors;
         const lhs_ty = lhs.ty;
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
@@ -5426,8 +5431,9 @@ fn addExpr(p: *Parser) Error!Result {
                 if (lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(minus.?, lhs);
             }
         }
-        if (errors == p.comp.diag.errors and lhs_ty.isPtr() and !lhs_ty.isVoidStar() and lhs_ty.elemType().hasIncompleteSize()) {
+        if (lhs.ty.specifier != .invalid and lhs_ty.isPtr() and !lhs_ty.isVoidStar() and lhs_ty.elemType().hasIncompleteSize()) {
             try p.errStr(.ptr_arithmetic_incomplete, minus.?, try p.typeStr(lhs_ty.elemType()));
+            lhs.ty = Type.invalid;
         }
         try lhs.bin(p, tag, rhs);
     }

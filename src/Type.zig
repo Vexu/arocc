@@ -264,6 +264,9 @@ pub const Record = struct {
 };
 
 pub const Specifier = enum {
+    /// A NaN-like poison value
+    invalid,
+
     void,
     bool,
 
@@ -381,6 +384,7 @@ specifier: Specifier,
 qual: Qualifiers = .{},
 
 pub const int = Type{ .specifier = .int };
+pub const invalid = Type{ .specifier = .invalid };
 
 /// Determine if type matches the given specifier, recursing into typeof
 /// types if necessary.
@@ -581,6 +585,7 @@ pub fn elemType(ty: Type) Type {
             return elem;
         },
         .attributed => ty.data.attributed.base,
+        .invalid => Type.invalid,
         else => unreachable,
     };
 }
@@ -591,6 +596,7 @@ pub fn returnType(ty: Type) Type {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.returnType(),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.returnType(),
         .attributed => ty.data.attributed.base.returnType(),
+        .invalid => Type.invalid,
         else => unreachable,
     };
 }
@@ -601,6 +607,7 @@ pub fn params(ty: Type) []Func.Param {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.params(),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.params(),
         .attributed => ty.data.attributed.base.params(),
+        .invalid => &.{},
         else => unreachable,
     };
 }
@@ -661,6 +668,7 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
             .typeof_type => return ty.data.sub_type.integerPromotion(comp),
             .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
             .attributed => return ty.data.attributed.base.integerPromotion(comp),
+            .invalid => .invalid,
             else => unreachable, // not an integer type
         },
     };
@@ -722,6 +730,7 @@ pub fn hasField(ty: Type, name: StringId) bool {
         .typeof_type => return ty.data.sub_type.hasField(name),
         .typeof_expr => return ty.data.expr.ty.hasField(name),
         .attributed => return ty.data.attributed.base.hasField(name),
+        .invalid => return false,
         else => unreachable,
     }
     return false;
@@ -827,6 +836,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .typeof_type => ty.data.sub_type.sizeof(comp),
         .typeof_expr => ty.data.expr.ty.sizeof(comp),
         .attributed => ty.data.attributed.base.sizeof(comp),
+        .invalid => return null,
         else => unreachable,
     };
 }
@@ -2250,6 +2260,7 @@ const dump_detailed_containers = false;
 pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, w: anytype) @TypeOf(w).Error!void {
     try ty.qual.dump(w);
     switch (ty.specifier) {
+        .invalid => try w.writeAll("invalid"),
         .pointer => {
             try w.writeAll("*");
             try ty.data.sub_type.dump(mapper, w);
