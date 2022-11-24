@@ -699,7 +699,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
     }
     if (color) util.setColor(TYPE, w);
     try w.writeByte('\'');
-    try ty.dump(mapper, w);
+    try ty.dump(mapper, tree.comp.langopts, w);
     try w.writeByte('\'');
 
     if (isLval(tree.nodes, tree.data, tree.value_map, node)) {
