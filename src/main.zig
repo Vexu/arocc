@@ -232,6 +232,8 @@ pub fn parseArgs(
                 try comp.include_dirs.append(path);
             } else if (mem.startsWith(u8, arg, "-fsyntax-only")) {
                 comp.only_syntax = true;
+            } else if (mem.startsWith(u8, arg, "-fno-syntax-only")) {
+                comp.only_syntax = false;
             } else if (mem.startsWith(u8, arg, "-isystem")) {
                 var path = arg["-isystem".len..];
                 if (path.len == 0) {
