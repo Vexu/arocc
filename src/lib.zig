@@ -1,13 +1,16 @@
+/// Deprecated
 pub const Codegen = @import("Codegen.zig");
+pub const CodeGen = @import("CodeGen.zig");
 pub const Compilation = @import("Compilation.zig");
 pub const Diagnostics = @import("Diagnostics.zig");
-pub const Parser = @import("Parser.zig");
+pub const Driver = @import("Driver.zig");
+pub const Interner = @import("Interner.zig");
 pub const Object = @import("Object.zig");
+pub const Parser = @import("Parser.zig");
 pub const Preprocessor = @import("Preprocessor.zig");
 pub const Source = @import("Source.zig");
 pub const Tokenizer = @import("Tokenizer.zig");
 pub const Tree = @import("Tree.zig");
-pub const parseArgs = @import("main.zig").parseArgs;
 pub const TypeMapper = @import("StringInterner.zig").TypeMapper;
 pub const target_util = @import("target.zig");
 

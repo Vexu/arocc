@@ -18,14 +18,6 @@ const target = @import("target.zig");
 
 const Compilation = @This();
 
-pub const Linker = enum {
-    ld,
-    bfd,
-    gold,
-    lld,
-    mold,
-};
-
 pub const Error = error{
     /// A fatal error has ocurred and compilation has stopped.
     FatalError,
@@ -36,16 +28,8 @@ sources: std.StringArrayHashMap(Source),
 diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
 system_include_dirs: std.ArrayList([]const u8),
-output_name: ?[]const u8 = null,
 target: std.Target = @import("builtin").target,
 pragma_handlers: std.StringArrayHashMap(*Pragma),
-only_preprocess: bool = false,
-only_syntax: bool = false,
-only_compile: bool = false,
-only_preprocess_and_compile: bool = false,
-verbose_ast: bool = false,
-verbose_pp: bool = false,
-verbose_ir: bool = false,
 langopts: LangOpts = .{},
 generated_buf: std.ArrayList(u8),
 builtins: Builtins = .{},
@@ -58,10 +42,6 @@ types: struct {
 /// Mapping from Source.Id to byte offset of first non-utf8 byte
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
 string_interner: StringInterner = .{},
-
-// linker options
-use_linker: Linker = .ld,
-linker_path: ?[]const u8 = null,
 
 pub fn init(gpa: Allocator) Compilation {
     return .{
@@ -1061,15 +1041,4 @@ test "ignore BOM at beginning of file" {
     try Test.run(BOM[0..2] ++ "x", .invalid_utf8);
     try Test.run(BOM[1..] ++ "x", .invalid_utf8);
     try Test.run(BOM[2..] ++ "x", .invalid_utf8);
-}
-
-pub fn getLinkerPath(comp: *Compilation) []const u8 {
-    // TODO extremely incomplete
-    return switch (comp.use_linker) {
-        .ld => "/usr/bin/ld",
-        .bfd => "/usr/bin/ld.bfd",
-        .gold => "/usr/bin/ld.gold",
-        .lld => "/usr/bin/ld.lld",
-        .mold => "/usr/bin/ld.mold",
-    };
 }

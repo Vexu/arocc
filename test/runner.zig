@@ -10,7 +10,8 @@ const AllocatorError = std.mem.Allocator.Error;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !void {
+/// Returns true if saw -E
+fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !bool {
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
         var test_args = std.ArrayList([]const u8).init(comp.gpa);
         defer test_args.deinit();
@@ -18,10 +19,12 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         var it = std.mem.tokenize(u8, file.buf[0..nl], " ");
         while (it.next()) |some| try test_args.append(some);
 
-        var source_files = std.ArrayList(aro.Source).init(std.testing.failing_allocator);
-        var link_objects = std.ArrayList([]const u8).init(std.testing.failing_allocator);
-        _ = try aro.parseArgs(comp, std.io.null_writer, &source_files, &link_objects, macro_buf, test_args.items);
+        var driver: aro.Driver = .{ .comp = comp };
+        defer driver.deinit();
+        _ = try driver.parseArgs(std.io.null_writer, macro_buf, test_args.items);
+        return driver.only_preprocess;
     }
+    return false;
 }
 
 fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
@@ -35,7 +38,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
     defer macro_buf.deinit();
 
-    try addCommandLineArgs(&comp, file, macro_buf.writer());
+    _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
     const builtin_macros = try comp.generateBuiltinMacros();
@@ -180,7 +183,7 @@ pub fn main() !void {
         var macro_buf = std.ArrayList(u8).init(comp.gpa);
         defer macro_buf.deinit();
 
-        try addCommandLineArgs(&comp, file, macro_buf.writer());
+        const only_preprocess = try addCommandLineArgs(&comp, file, macro_buf.writer());
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
         const builtin_macros = try comp.generateBuiltinMacros();
@@ -188,6 +191,7 @@ pub fn main() !void {
         comp.diag.errors = 0;
         var pp = aro.Preprocessor.init(&comp);
         defer pp.deinit();
+        if (only_preprocess) pp.preserve_whitespace = true;
         try pp.addBuiltinMacros();
 
         _ = try pp.preprocess(builtin_macros);
@@ -220,7 +224,7 @@ pub fn main() !void {
             skip_count += tests_skipped;
         }
 
-        if (comp.only_preprocess) {
+        if (only_preprocess) {
             if (try checkExpectedErrors(&pp, &progress, &buf)) |some| {
                 if (!some) {
                     fail_count += 1;

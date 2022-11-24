@@ -85,6 +85,10 @@ include_guards: std.AutoHashMapUnmanaged(Source.Id, []const u8) = .{},
 /// Memory is retained to avoid allocation on every single token.
 top_expansion_buf: ExpandBuf,
 
+/// Dump current state to stderr.
+verbose: bool = false,
+preserve_whitespace: bool = false,
+
 pub fn init(comp: *Compilation) Preprocessor {
     const pp = Preprocessor{
         .comp = comp,
@@ -284,13 +288,13 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
 
                         if (try pp.expr(&tokenizer)) {
                             if_kind.set(if_level, until_endif);
-                            if (pp.comp.verbose_pp) {
+                            if (pp.verbose) {
                                 pp.verboseLog(directive, "entering then branch of #if", .{});
                             }
                         } else {
                             if_kind.set(if_level, until_else);
                             try pp.skip(&tokenizer, .until_else);
-                            if (pp.comp.verbose_pp) {
+                            if (pp.verbose) {
                                 pp.verboseLog(directive, "entering else branch of #if", .{});
                             }
                         }
@@ -303,13 +307,13 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         try pp.expectNl(&tokenizer);
                         if (pp.defines.get(macro_name) != null) {
                             if_kind.set(if_level, until_endif);
-                            if (pp.comp.verbose_pp) {
+                            if (pp.verbose) {
                                 pp.verboseLog(directive, "entering then branch of #ifdef", .{});
                             }
                         } else {
                             if_kind.set(if_level, until_else);
                             try pp.skip(&tokenizer, .until_else);
-                            if (pp.comp.verbose_pp) {
+                            if (pp.verbose) {
                                 pp.verboseLog(directive, "entering else branch of #ifdef", .{});
                             }
                         }
@@ -338,12 +342,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         switch (if_kind.get(if_level)) {
                             until_else => if (try pp.expr(&tokenizer)) {
                                 if_kind.set(if_level, until_endif);
-                                if (pp.comp.verbose_pp) {
+                                if (pp.verbose) {
                                     pp.verboseLog(directive, "entering then branch of #elif", .{});
                                 }
                             } else {
                                 try pp.skip(&tokenizer, .until_else);
-                                if (pp.comp.verbose_pp) {
+                                if (pp.verbose) {
                                     pp.verboseLog(directive, "entering else branch of #elif", .{});
                                 }
                             },
@@ -366,7 +370,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         switch (if_kind.get(if_level)) {
                             until_else => {
                                 if_kind.set(if_level, until_endif_seen_else);
-                                if (pp.comp.verbose_pp) {
+                                if (pp.verbose) {
                                     pp.verboseLog(directive, "#else branch here", .{});
                                 }
                             },
@@ -459,10 +463,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                     },
                 }
             },
-            .whitespace => if (pp.comp.only_preprocess) try pp.tokens.append(pp.gpa, tokFromRaw(tok)),
+            .whitespace => if (pp.preserve_whitespace) try pp.tokens.append(pp.gpa, tokFromRaw(tok)),
             .nl => {
                 start_of_line = true;
-                if (pp.comp.only_preprocess) try pp.tokens.append(pp.gpa, tokFromRaw(tok));
+                if (pp.preserve_whitespace) try pp.tokens.append(pp.gpa, tokFromRaw(tok));
             },
             .eof => {
                 if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
@@ -872,7 +876,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 }
                 try pp.pasteTokens(&buf, &.{rhs});
             },
-            .whitespace => if (pp.comp.only_preprocess) buf.appendAssumeCapacity(tok),
+            .whitespace => if (pp.preserve_whitespace) buf.appendAssumeCapacity(tok),
             .macro_file => {
                 const start = pp.comp.generated_buf.items.len;
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
@@ -1763,14 +1767,14 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, .non_expr);
     try pp.tokens.ensureUnusedCapacity(pp.gpa, pp.top_expansion_buf.items.len);
     for (pp.top_expansion_buf.items) |*tok| {
-        if (tok.id == .macro_ws and !pp.comp.only_preprocess) {
+        if (tok.id == .macro_ws and !pp.preserve_whitespace) {
             Token.free(tok.expansion_locs, pp.gpa);
             continue;
         }
         tok.id.simplifyMacroKeywordExtra(true);
         pp.tokens.appendAssumeCapacity(tok.*);
     }
-    if (pp.comp.only_preprocess) {
+    if (pp.preserve_whitespace) {
         try pp.tokens.ensureUnusedCapacity(pp.gpa, pp.add_expansion_nl);
         while (pp.add_expansion_nl > 0) : (pp.add_expansion_nl -= 1) {
             pp.tokens.appendAssumeCapacity(.{ .id = .nl, .loc = .{ .id = .generated } });
@@ -1883,7 +1887,7 @@ fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
         }, &.{});
         // TODO add a previous definition note
     }
-    if (pp.comp.verbose_pp) {
+    if (pp.verbose) {
         pp.verboseLog(name_tok, "macro {s} defined", .{name_str});
     }
     gop.value_ptr.* = macro;
@@ -2156,7 +2160,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         if (pp.defines.contains(guard)) return;
     }
 
-    if (pp.comp.verbose_pp) {
+    if (pp.verbose) {
         pp.verboseLog(first, "include file {s}", .{new_source.path});
     }
 
@@ -2357,12 +2361,13 @@ test "Preserve pragma tokens sometimes" {
 
             var comp = Compilation.init(allocator);
             defer comp.deinit();
-            comp.only_preprocess = true;
 
             try comp.addDefaultPragmaHandlers();
 
             var pp = Preprocessor.init(&comp);
             defer pp.deinit();
+
+            pp.preserve_whitespace = true;
 
             const test_runner_macros = try comp.addSourceFromBuffer("<test_runner>", source_text);
             const eof = try pp.preprocess(test_runner_macros);
