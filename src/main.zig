@@ -92,6 +92,7 @@ const usage =
     \\                          Set limit on how many macro expansion traces are shown in errors (default 6)
     \\  -fshort-enums           Use the narrowest possible integer type for enums
     \\  -fno-short-enums        Use "int" as the tag type for enums
+    \\  -fsyntax-only           Only run the preprocessor, parser, and semantic analysis stages
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  --emulate=[clang|gcc|msvc]
@@ -229,6 +230,10 @@ pub fn parseArgs(
                     path = args[i];
                 }
                 try comp.include_dirs.append(path);
+            } else if (mem.startsWith(u8, arg, "-fsyntax-only")) {
+                comp.only_syntax = true;
+            } else if (mem.startsWith(u8, arg, "-fno-syntax-only")) {
+                comp.only_syntax = false;
             } else if (mem.startsWith(u8, arg, "-isystem")) {
                 var path = arg["-isystem".len..];
                 if (path.len == 0) {
@@ -351,7 +356,7 @@ fn mainExtra(comp: *Compilation, args: [][]const u8) !void {
     const std_out = std.io.getStdOut().writer();
     if (try parseArgs(comp, std_out, &source_files, &link_objects, macro_buf.writer(), args)) return;
 
-    const linking = !(comp.only_preprocess or comp.only_compile or comp.only_preprocess_and_compile);
+    const linking = !(comp.only_preprocess or comp.only_syntax or comp.only_compile or comp.only_preprocess_and_compile);
     var temp_file_count: u32 = 0;
     defer if (linking) for (link_objects.items[link_objects.items.len - temp_file_count ..]) |obj| {
         std.fs.deleteFileAbsolute(obj) catch {};
@@ -469,6 +474,11 @@ fn processSource(
     if (comp.diag.errors != prev_errors) {
         if (fast_exit) exitWithCleanup(link_objects.items, temp_file_count.*, 1);
         return; // do not compile if there were errors
+    }
+
+    if (comp.only_syntax) {
+        if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
+        return;
     }
 
     if (comp.target.ofmt != .elf or comp.target.cpu.arch != .x86_64) {
