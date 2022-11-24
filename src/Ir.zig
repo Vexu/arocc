@@ -1,5 +1,10 @@
 const std = @import("std");
+const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
+const Compilation = @import("Compilation.zig");
 const Interner = @import("Interner.zig");
+const StringId = @import("StringInterner.zig").StringId;
+const Value = @import("Value.zig");
 
 const Ir = @This();
 
@@ -8,16 +13,99 @@ pool: Interner,
 
 // pub const Decl = struct {
 instructions: std.MultiArrayList(Inst),
-body: std.ArrayListUnmanaged(Ir.Ref),
+body: std.ArrayListUnmanaged(Ref),
 arena: std.heap.ArenaAllocator.State,
 // };
 
-// pub const Block = struct {
-//     name: [*:0]const u8,
-//     insts: [*]Inst,
-//     len: u32,
-//     capacity: u32,
-// };
+pub const Builder = struct {
+    pub const Branch = struct {
+        false_label: Ref,
+        true_label: Ref,
+    };
+
+    gpa: Allocator,
+    arena: std.heap.ArenaAllocator,
+    instructions: std.MultiArrayList(Ir.Inst) = .{},
+    body: std.ArrayListUnmanaged(Ref) = .{},
+    alloc_count: u32 = 0,
+    pool: Interner = .{},
+    branch: ?Branch = null,
+
+    pub fn deinit(b: *Builder) void {
+        b.arena.deinit();
+        b.instructions.deinit(b.gpa);
+        b.body.deinit(b.gpa);
+        b.pool.deinit(b.gpa);
+        b.* = undefined;
+    }
+
+    pub fn addAlloc(b: *Builder, size: u32, @"align": u32) Allocator.Error!Ref {
+        const ref = @intToEnum(Ref, b.instructions.len);
+        try b.instructions.append(b.gpa, .{
+            .tag = .alloc,
+            .data = .{ .alloc = .{ .size = size, .@"align" = @"align" } },
+            .ty = .ptr,
+        });
+        try b.body.insert(b.gpa, b.alloc_count, ref);
+        b.alloc_count += 1;
+        return ref;
+    }
+
+    pub fn addInst(b: *Builder, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Interner.Ref) Allocator.Error!Ref {
+        const ref = @intToEnum(Ref, b.instructions.len);
+        try b.instructions.append(b.gpa, .{ .tag = tag, .data = data, .ty = ty });
+        try b.body.append(b.gpa, ref);
+        return ref;
+    }
+
+    pub fn addLabel(b: *Builder, name: [*:0]const u8) Allocator.Error!Ref {
+        return b.addInst(.label, .{ .label = name }, .void);
+    }
+
+    pub fn addJump(b: *Builder, label: Ref) Allocator.Error!void {
+        _ = try b.addInst(.jmp, .{ .un = label }, .noreturn);
+    }
+
+    pub fn addBranch(b: *Builder, cond: Ref) Allocator.Error!void {
+        const branch = try b.arena.allocator().create(Ir.Inst.Branch);
+        branch.* = .{
+            .cond = cond,
+            .then = b.branch.?.true_label,
+            .@"else" = b.branch.?.false_label,
+        };
+        _ = try b.addInst(.branch, .{ .branch = branch }, .noreturn);
+    }
+
+    pub fn addSwitch(b: *Builder, target: Ref, values: []Interner.Ref, labels: []Ref, default: Ref) Allocator.Error!void {
+        assert(values.len == labels.len);
+        const a = b.arena.allocator();
+        const @"switch" = try a.create(Ir.Inst.Switch);
+        @"switch".* = .{
+            .target = target,
+            .cases_len = @intCast(u32, values.len),
+            .case_vals = (try a.dupe(Interner.Ref, values)).ptr,
+            .case_labels = (try a.dupe(Ref, labels)).ptr,
+            .default = default,
+        };
+        _ = try b.addInst(.@"switch", .{ .@"switch" = @"switch" }, .noreturn);
+    }
+
+    pub fn addStore(b: *Builder, ptr: Ref, val: Ref) Allocator.Error!void {
+        _ = try b.addInst(.store, .{ .bin = .{ .lhs = ptr, .rhs = val } }, .void);
+    }
+
+    pub fn addConstant(b: *Builder, val: Value, ty: Interner.Ref) Allocator.Error!Ref {
+        const ref = @intToEnum(Ref, b.instructions.len);
+        const key: Interner.Key = .{
+            .value = val,
+        };
+        const val_ref = try b.pool.put(b.gpa, key);
+        try b.instructions.append(b.gpa, .{ .tag = .constant, .data = .{
+            .constant = val_ref,
+        }, .ty = ty });
+        return ref;
+    }
+};
 
 pub const Ref = enum(u32) { _ };
 
@@ -106,15 +194,12 @@ pub const Inst = struct {
         },
         @"switch": *Switch,
         call: *Call,
-        // block: *Block,
         label: [*:0]const u8,
         branch: *Branch,
     };
 
     pub const Branch = struct {
         cond: Ref,
-        // then: *Block,
-        // @"else": *Block,
         then: Ref,
         @"else": Ref,
     };
@@ -122,10 +207,8 @@ pub const Inst = struct {
     pub const Switch = struct {
         target: Ref,
         cases_len: u32,
-        // default: *Block,
         default: Ref,
         case_vals: [*]Interner.Ref,
-        // case_labels: [*]*Block,
         case_labels: [*]Ref,
     };
 
