@@ -67,6 +67,11 @@ void binary_conditional(void) {
     (void)1.2 ?: (void)2;
 }
 
+struct Foo;
+int invalid_ptr_arithmetic(struct Foo *num) {
+    return num - num;
+}
+
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
     "binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')" \
@@ -91,3 +96,4 @@ void binary_conditional(void) {
     "binary expressions.c:57:9: error: invalid operands to binary expression ('double' and 'int *')" \
     "binary expressions.c:62:7: error: invalid operands to binary expression ('int' and 'float')" \
     "binary expressions.c:67:5: error: used type 'void' where arithmetic or pointer type is required" \
+    "binary expressions.c:72:16: error: arithmetic on a pointer to an incomplete type 'struct Foo'" \

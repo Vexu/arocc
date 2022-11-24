@@ -2117,6 +2117,11 @@ const messages = struct {
         const pedantic = true;
         const opt = "keyword-macro";
     };
+    const ptr_arithmetic_incomplete = struct {
+        const msg = "arithmetic on a pointer to an incomplete type '{s}'";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

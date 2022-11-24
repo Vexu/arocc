@@ -5417,12 +5417,17 @@ fn addExpr(p: *Parser) Error!Result {
         var rhs = try p.mulExpr();
         try rhs.expect(p);
 
+        const errors = p.comp.diag.errors;
+        const lhs_ty = lhs.ty;
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
                 if (lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(plus.?, lhs);
             } else {
                 if (lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(minus.?, lhs);
             }
+        }
+        if (errors == p.comp.diag.errors and lhs_ty.isPtr() and !lhs_ty.isVoidStar() and lhs_ty.elemType().hasIncompleteSize()) {
+            try p.errStr(.ptr_arithmetic_incomplete, minus.?, try p.typeStr(lhs_ty.elemType()));
         }
         try lhs.bin(p, tag, rhs);
     }

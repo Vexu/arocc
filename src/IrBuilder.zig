@@ -677,8 +677,32 @@ fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .greater_than_equal_expr => return irb.genBinOp(node, .cmp_gte),
         .shl_expr => return irb.genBinOp(node, .bit_shl),
         .shr_expr => return irb.genBinOp(node, .bit_shr),
-        .add_expr => return irb.genBinOp(node, .add),
-        .sub_expr => return irb.genBinOp(node, .sub),
+        .add_expr => {
+            if (ty.isPtr()) {
+                const lhs_ty = irb.node_ty[@enumToInt(data.bin.lhs)];
+                if (lhs_ty.isPtr()) {
+                    const ptr = try irb.genExpr(data.bin.lhs);
+                    const offset = try irb.genExpr(data.bin.rhs);
+                    const offset_ty = irb.node_ty[@enumToInt(data.bin.rhs)];
+                    return irb.genPtrArithmetic(ptr, offset, offset_ty, ty);
+                } else {
+                    const offset = try irb.genExpr(data.bin.lhs);
+                    const ptr = try irb.genExpr(data.bin.rhs);
+                    const offset_ty = lhs_ty;
+                    return irb.genPtrArithmetic(ptr, offset, offset_ty, ty);
+                }
+            }
+            return irb.genBinOp(node, .add);
+        },
+        .sub_expr => {
+            if (ty.isPtr()) {
+                const ptr = try irb.genExpr(data.bin.lhs);
+                const offset = try irb.genExpr(data.bin.rhs);
+                const offset_ty = irb.node_ty[@enumToInt(data.bin.rhs)];
+                return irb.genPtrArithmetic(ptr, offset, offset_ty, ty);
+            }
+            return irb.genBinOp(node, .sub);
+        },
         .mul_expr => return irb.genBinOp(node, .mul),
         .div_expr => return irb.genBinOp(node, .div),
         .mod_expr => return irb.genBinOp(node, .mod),
@@ -957,6 +981,18 @@ fn genBinOp(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const lhs = try irb.genExpr(bin.lhs);
     const rhs = try irb.genExpr(bin.rhs);
     return irb.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, ty);
+}
+
+fn genPtrArithmetic(irb: *IrBuilder, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, ty: Type) Error!Ir.Ref {
+    // TODO consider adding a getelemptr instruction
+    const size = ty.elemType().sizeof(irb.comp).?;
+    if (size == 1) {
+        return irb.addInst(.add, .{ .bin = .{ .lhs = ptr, .rhs = offset } }, ty);
+    }
+
+    const size_inst = try irb.addConstant(Value.int(size), offset_ty);
+    const offset_inst = try irb.addInst(.mul, .{ .bin = .{ .lhs = offset, .rhs = size_inst } }, offset_ty);
+    return irb.addInst(.add, .{ .bin = .{ .lhs = ptr, .rhs = offset_inst } }, ty);
 }
 
 fn genVar(irb: *IrBuilder, decl: NodeIndex) Error!void {
