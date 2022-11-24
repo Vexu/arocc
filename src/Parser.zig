@@ -5795,8 +5795,15 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.expect(p);
 
             if (operand.ty.isArray() or operand.ty.isPtr()) {
+                const elem_ty = operand.ty.elemType();
+                if (elem_ty.isFunc()) {
+                    try operand.lvalConversion(p);
+                }
+                operand.ty = elem_ty;
+            } else if (operand.ty.isFunc()) {
+                try operand.lvalConversion(p);
                 operand.ty = operand.ty.elemType();
-            } else if (!operand.ty.isFunc()) {
+            } else {
                 try p.errTok(.indirection_ptr, tok);
             }
             if (operand.ty.hasIncompleteSize() and !operand.ty.is(.void)) {

@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const Compilation = @import("Compilation.zig");
 const Tree = @import("Tree.zig");
 const NodeIndex = Tree.NodeIndex;
@@ -246,7 +247,7 @@ fn genFn(irb: *IrBuilder, decl: NodeIndex) Error!void {
         try irb.symbols.append(irb.comp.gpa, .{ .name = param.name, .val = alloc });
     }
     // Generate body
-    _ = try irb.genNode(irb.node_data[@enumToInt(decl)].decl.node);
+    try irb.genStmt(irb.node_data[@enumToInt(decl)].decl.node);
 
     // Relocate returns
     if (irb.returns.items.len == 1 and irb.returns.items[0] == irb.instructions.len - 1) {
@@ -270,12 +271,9 @@ fn genFn(irb: *IrBuilder, decl: NodeIndex) Error!void {
     res.dump(name, irb.comp.diag.color, std.io.getStdOut().writer()) catch {};
 }
 
-fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
+fn genStmt(irb: *IrBuilder, node: NodeIndex) Error!void {
     std.debug.assert(node != .none);
     const ty = irb.node_ty[@enumToInt(node)];
-    if (irb.tree.value_map.get(node)) |val| {
-        return irb.addConstant(val, ty);
-    }
     const data = irb.node_data[@enumToInt(node)];
     switch (irb.node_tag[@enumToInt(node)]) {
         .fn_def,
@@ -285,13 +283,6 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .invalid,
         .threadlocal_var,
         => unreachable,
-        .enumeration_ref,
-        .int_literal,
-        .char_literal,
-        .float_literal,
-        .double_literal,
-        .imaginary_literal,
-        => unreachable, // These should have an entry in value_map.
         .static_assert,
         .fn_proto,
         .static_fn_proto,
@@ -323,41 +314,40 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             const name = try irb.comp.intern(irb.tree.tokSlice(data.decl.name));
             try irb.symbols.append(irb.comp.gpa, .{ .name = name, .val = alloc });
             if (data.decl.node != .none) {
-                const res = try irb.genNode(data.decl.node);
+                const res = try irb.genExpr(data.decl.node);
                 try irb.addInstVoid(.store, .{ .bin = .{ .lhs = alloc, .rhs = res } });
             }
-            return alloc;
         },
         .labeled_stmt => {
             _ = try irb.addLabel("label");
-            _ = try irb.genNode(data.decl.node);
+            try irb.genStmt(data.decl.node);
         },
         .compound_stmt_two => {
             const old_sym_len = irb.symbols.items.len;
             irb.symbols.items.len = old_sym_len;
 
-            if (data.bin.lhs != .none) _ = try irb.genNode(data.bin.lhs);
-            if (data.bin.rhs != .none) _ = try irb.genNode(data.bin.rhs);
+            if (data.bin.lhs != .none) try irb.genStmt(data.bin.lhs);
+            if (data.bin.rhs != .none) try irb.genStmt(data.bin.rhs);
         },
         .compound_stmt => {
             const old_sym_len = irb.symbols.items.len;
             irb.symbols.items.len = old_sym_len;
 
-            for (irb.tree.data[data.range.start..data.range.end]) |stmt| _ = try irb.genNode(stmt);
+            for (irb.tree.data[data.range.start..data.range.end]) |stmt| try irb.genStmt(stmt);
         },
         .if_then_else_stmt => {
-            const cond = try irb.genNode(data.if3.cond);
+            const cond = try irb.genExpr(data.if3.cond);
 
             const branch_index = irb.instructions.len;
             try irb.addInstNoReturn(.branch, undefined);
 
             const then_label = try irb.addLabel("then");
-            _ = try irb.genNode(irb.tree.data[data.if3.body]); // then
+            try irb.genStmt(irb.tree.data[data.if3.body]); // then
             const jmp_end_index = irb.instructions.len;
             try irb.addInstVoid(.jmp, undefined);
 
             const else_label = try irb.addLabel("else");
-            _ = try irb.genNode(irb.tree.data[data.if3.body + 1]); // else
+            try irb.genStmt(irb.tree.data[data.if3.body + 1]); // else
 
             const end_label = try irb.addLabel("end");
 
@@ -371,11 +361,11 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             irb.instructions.items(.data)[jmp_end_index] = .{ .un = end_label };
         },
         .if_then_stmt => {
-            const cond = try irb.genNode(data.bin.lhs);
+            const cond = try irb.genExpr(data.bin.lhs);
             const branch_index = irb.instructions.len;
             try irb.addInstNoReturn(.branch, undefined);
             const then_label = try irb.addLabel("then");
-            _ = try irb.genNode(data.bin.rhs);
+            try irb.genStmt(data.bin.rhs);
             const end_label = try irb.addLabel("end");
             const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
             branch.* = .{
@@ -398,11 +388,11 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             const old_breaks = irb.breaks.items.len;
             defer irb.breaks.items.len = old_breaks;
 
-            const cond = try irb.genNode(data.bin.lhs);
+            const cond = try irb.genExpr(data.bin.lhs);
             const switch_index = irb.instructions.len;
             try irb.addInstNoReturn(.@"switch", undefined);
 
-            _ = try irb.genNode(data.bin.rhs); // body
+            try irb.genStmt(data.bin.rhs); // body
 
             const end_ref = try irb.addLabel("end");
             const default_ref = wip_switch.default orelse end_ref;
@@ -429,11 +419,11 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
                 .val = try irb.pool.put(irb.gpa, .{ .value = val }),
                 .label = try irb.addLabel("case"),
             });
-            _ = try irb.genNode(data.bin.rhs);
+            try irb.genStmt(data.bin.rhs);
         },
         .default_stmt => {
             irb.wip_switch.default = try irb.addLabel("default");
-            _ = try irb.genNode(data.un);
+            try irb.genStmt(data.un);
         },
         .while_stmt => {
             const old_breaks = irb.breaks.items.len;
@@ -442,11 +432,11 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             defer irb.continues.items.len = old_continues;
 
             const start_label = try irb.addLabel("start");
-            const cond = try irb.genNode(data.bin.lhs);
+            const cond = try irb.genExpr(data.bin.lhs);
             const branch_index = irb.instructions.len;
             try irb.addInstNoReturn(.branch, undefined);
             const then_label = try irb.addLabel("then");
-            _ = try irb.genNode(data.bin.rhs);
+            try irb.genStmt(data.bin.rhs);
             try irb.addInstNoReturn(.jmp, .{ .un = start_label });
             const end_label = try irb.addLabel("end");
 
@@ -472,8 +462,8 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             defer irb.continues.items.len = old_continues;
 
             const start_label = try irb.addLabel("start");
-            _ = try irb.genNode(data.bin.rhs);
-            const cond = try irb.genNode(data.bin.lhs);
+            try irb.genStmt(data.bin.rhs);
+            const cond = try irb.genExpr(data.bin.lhs);
             const branch_index = irb.instructions.len;
             try irb.addInstNoReturn(.branch, undefined);
             const end_label = try irb.addLabel("end");
@@ -500,7 +490,7 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             defer irb.continues.items.len = old_continues;
 
             const for_decl = data.forDecl(irb.tree);
-            for (for_decl.decls) |decl| _ = try irb.genNode(decl);
+            for (for_decl.decls) |decl| try irb.genStmt(decl);
 
             const start_label = try irb.addLabel("start");
 
@@ -508,17 +498,17 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             var cond: ?Ir.Ref = null;
             var then_label: Ir.Ref = undefined;
             if (for_decl.cond != .none) {
-                cond = try irb.genNode(for_decl.cond);
+                cond = try irb.genExpr(for_decl.cond);
                 branch_index = irb.instructions.len;
                 try irb.addInstNoReturn(.branch, undefined);
                 then_label = try irb.addLabel("then");
             }
 
-            _ = try irb.genNode(for_decl.body);
+            try irb.genStmt(for_decl.body);
 
             const continue_ref = try irb.addLabel("continue");
             if (for_decl.incr != .none) {
-                _ = try irb.genNode(for_decl.incr);
+                _ = try irb.genExpr(for_decl.incr);
             }
             try irb.addInstNoReturn(.jmp, .{ .un = start_label });
 
@@ -548,7 +538,7 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             defer irb.continues.items.len = old_continues;
 
             const start_label = try irb.addLabel("start");
-            _ = try irb.genNode(data.un);
+            try irb.genStmt(data.un);
             try irb.addInstNoReturn(.jmp, .{ .un = start_label });
             const end_label = try irb.addLabel("end");
 
@@ -567,7 +557,7 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             defer irb.continues.items.len = old_continues;
 
             const for_stmt = data.forStmt(irb.tree);
-            if (for_stmt.init != .none) _ = try irb.genNode(for_stmt.init);
+            if (for_stmt.init != .none) _ = try irb.genExpr(for_stmt.init);
 
             const start_label = try irb.addLabel("start");
 
@@ -575,17 +565,17 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             var cond: ?Ir.Ref = null;
             var then_label: Ir.Ref = undefined;
             if (for_stmt.cond != .none) {
-                cond = try irb.genNode(for_stmt.cond);
+                cond = try irb.genExpr(for_stmt.cond);
                 branch_index = irb.instructions.len;
                 try irb.addInstNoReturn(.branch, undefined);
                 then_label = try irb.addLabel("then");
             }
 
-            _ = try irb.genNode(for_stmt.body);
+            try irb.genStmt(for_stmt.body);
 
             const continue_ref = try irb.addLabel("continue");
             if (for_stmt.incr != .none) {
-                _ = try irb.genNode(for_stmt.incr);
+                _ = try irb.genExpr(for_stmt.incr);
             }
             try irb.addInstNoReturn(.jmp, .{ .un = start_label });
 
@@ -618,7 +608,7 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         },
         .return_stmt => {
             if (data.un != .none) {
-                const operand = try irb.genNode(data.un);
+                const operand = try irb.genExpr(data.un);
                 try irb.addInstVoid(.ret_value, .{ .un = operand });
             }
             try irb.returns.append(irb.comp.gpa, @intCast(u32, irb.instructions.len));
@@ -632,13 +622,37 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             try irb.returns.append(irb.comp.gpa, @intCast(u32, irb.instructions.len));
             try irb.addInstNoReturn(.jmp, undefined);
         },
+        .case_range_stmt,
+        .goto_stmt,
+        .computed_goto_stmt,
+        => return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genStmt {}\n", .{irb.node_tag[@enumToInt(node)]}),
+        else => _ = try irb.genExpr(node),
+    }
+}
+
+fn genExpr(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
+    std.debug.assert(node != .none);
+    const ty = irb.node_ty[@enumToInt(node)];
+    if (irb.tree.value_map.get(node)) |val| {
+        return irb.addConstant(val, ty);
+    }
+    const data = irb.node_data[@enumToInt(node)];
+    switch (irb.node_tag[@enumToInt(node)]) {
+        .enumeration_ref,
+        .int_literal,
+        .char_literal,
+        .float_literal,
+        .double_literal,
+        .imaginary_literal,
+        .string_literal_expr,
+        => unreachable, // These should have an entry in value_map.
         .comma_expr => {
-            _ = try irb.genNode(data.bin.lhs);
-            return irb.genNode(data.bin.rhs);
+            _ = try irb.genExpr(data.bin.lhs);
+            return irb.genExpr(data.bin.rhs);
         },
         .assign_expr => {
-            const rhs = try irb.genNode(data.bin.rhs);
-            const lhs = try irb.genNode(data.bin.lhs);
+            const rhs = try irb.genExpr(data.bin.rhs);
+            const lhs = try irb.genLval(data.bin.lhs);
             try irb.addInstVoid(.store, .{ .bin = .{ .lhs = lhs, .rhs = rhs } });
             return rhs;
         },
@@ -668,28 +682,32 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .mul_expr => return irb.genBinOp(node, .mul),
         .div_expr => return irb.genBinOp(node, .div),
         .mod_expr => return irb.genBinOp(node, .mod),
-        .addr_of_expr => return try irb.genNode(data.un),
+        .addr_of_expr => return try irb.genLval(data.un),
         .deref_expr => {
-            const operand = try irb.genNode(data.un);
+            const un_data = irb.node_data[@enumToInt(data.un)];
+            if (irb.node_tag[@enumToInt(data.un)] == .implicit_cast and un_data.cast.kind == .function_to_pointer) {
+                return irb.genExpr(data.un);
+            }
+            const operand = try irb.genLval(data.un);
             return irb.addInst(.load, .{ .un = operand }, ty);
         },
-        .plus_expr => return irb.genNode(data.un),
+        .plus_expr => return irb.genExpr(data.un),
         .negate_expr => {
             const zero = try irb.addConstant(Value.int(0), ty);
-            const operand = try irb.genNode(data.un);
+            const operand = try irb.genExpr(data.un);
             return irb.addInst(.sub, .{ .bin = .{ .lhs = zero, .rhs = operand } }, ty);
         },
         .bit_not_expr => {
-            const operand = try irb.genNode(data.un);
+            const operand = try irb.genExpr(data.un);
             return irb.addInst(.bit_not, .{ .un = operand }, ty);
         },
         .bool_not_expr => {
             const zero = try irb.addConstant(Value.int(0), ty);
-            const operand = try irb.genNode(data.un);
+            const operand = try irb.genExpr(data.un);
             return irb.addInst(.cmp_not_eql, .{ .bin = .{ .lhs = zero, .rhs = operand } }, ty);
         },
         .pre_inc_expr => {
-            const operand = try irb.genNode(data.un);
+            const operand = try irb.genExpr(data.un);
             const val = try irb.addInst(.load, .{ .un = operand }, ty);
             const one = try irb.addConstant(Value.int(1), ty);
             const plus_one = try irb.addInst(.add, .{ .bin = .{ .lhs = val, .rhs = one } }, ty);
@@ -697,7 +715,7 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             return plus_one;
         },
         .pre_dec_expr => {
-            const operand = try irb.genNode(data.un);
+            const operand = try irb.genExpr(data.un);
             const val = try irb.addInst(.load, .{ .un = operand }, ty);
             const one = try irb.addConstant(Value.int(1), ty);
             const plus_one = try irb.addInst(.sub, .{ .bin = .{ .lhs = val, .rhs = one } }, ty);
@@ -705,7 +723,7 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             return plus_one;
         },
         .post_inc_expr => {
-            const operand = try irb.genNode(data.un);
+            const operand = try irb.genExpr(data.un);
             const val = try irb.addInst(.load, .{ .un = operand }, ty);
             const one = try irb.addConstant(Value.int(1), ty);
             const plus_one = try irb.addInst(.add, .{ .bin = .{ .lhs = val, .rhs = one } }, ty);
@@ -713,44 +731,26 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             return val;
         },
         .post_dec_expr => {
-            const operand = try irb.genNode(data.un);
+            const operand = try irb.genExpr(data.un);
             const val = try irb.addInst(.load, .{ .un = operand }, ty);
             const one = try irb.addConstant(Value.int(1), ty);
             const plus_one = try irb.addInst(.sub, .{ .bin = .{ .lhs = val, .rhs = one } }, ty);
             try irb.addInstVoid(.store, .{ .bin = .{ .lhs = operand, .rhs = plus_one } });
             return val;
         },
-        .paren_expr => return irb.genNode(data.un),
-        .decl_ref_expr => {
-            const slice = irb.tree.tokSlice(data.decl_ref);
-            const name = try irb.comp.intern(slice);
-            var i = irb.symbols.items.len;
-            while (i > 0) {
-                i -= 1;
-                if (irb.symbols.items[i].name == name) {
-                    return irb.symbols.items[i].val;
-                }
-            }
-
-            const ref = @intToEnum(Ir.Ref, irb.instructions.len);
-            try irb.instructions.append(irb.comp.gpa, .{
-                .tag = .symbol,
-                .data = .{ .label = try irb.arena.allocator().dupeZ(u8, slice) },
-                .ty = try irb.genType(ty),
-            });
-            return ref;
-        },
+        .paren_expr => return irb.genExpr(data.un),
+        .decl_ref_expr => unreachable, // Lval expression.
         .explicit_cast, .implicit_cast => switch (data.cast.kind) {
-            .no_op => return irb.genNode(data.cast.operand),
-            .bitcast,
-            .array_to_pointer,
-            .to_void,
-            => {},
+            .no_op => return irb.genExpr(data.cast.operand),
+            .to_void => unreachable, // Not an expression.
             .lval_to_rval => {
-                const operand = try irb.genNode(data.cast.operand);
+                const operand = try irb.genLval(data.cast.operand);
                 return irb.addInst(.load, .{ .un = operand }, ty);
             },
-            .function_to_pointer => return irb.genNode(data.cast.operand),
+            .function_to_pointer, .array_to_pointer => {
+                return irb.genLval(data.cast.operand);
+            },
+            .bitcast,
             .pointer_to_bool,
             .pointer_to_int,
             .bool_to_int,
@@ -777,15 +777,15 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
             => return irb.comp.diag.fatalNoSrc("TODO IrBuilder gen CastKind {}\n", .{data.cast.kind}),
         },
         .binary_cond_expr => {
-            const cond = try irb.genNode(data.if3.cond);
+            const cond = try irb.genExpr(data.if3.cond);
             const then = then: {
                 const old_cond_dummy_ref = irb.cond_dummy_ref;
                 defer irb.cond_dummy_ref = old_cond_dummy_ref;
                 irb.cond_dummy_ref = cond;
 
-                break :then try irb.genNode(irb.tree.data[data.if3.body]);
+                break :then try irb.genExpr(irb.tree.data[data.if3.body]);
             };
-            const @"else" = try irb.genNode(irb.tree.data[data.if3.body + 1]);
+            const @"else" = try irb.genExpr(irb.tree.data[data.if3.body + 1]);
 
             const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
             branch.* = .{ .cond = cond, .then = then, .@"else" = @"else" };
@@ -793,9 +793,9 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         },
         .cond_dummy_expr => return irb.cond_dummy_ref,
         .cond_expr => {
-            const cond = try irb.genNode(data.if3.cond);
-            const then = try irb.genNode(irb.tree.data[data.if3.body]);
-            const @"else" = try irb.genNode(irb.tree.data[data.if3.body + 1]);
+            const cond = try irb.genExpr(data.if3.cond);
+            const then = try irb.genExpr(irb.tree.data[data.if3.body]);
+            const @"else" = try irb.genExpr(irb.tree.data[data.if3.body + 1]);
 
             const branch = try irb.arena.allocator().create(Ir.Inst.Branch);
             branch.* = .{ .cond = cond, .then = then, .@"else" = @"else" };
@@ -809,9 +809,6 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .call_expr => {
             return irb.genCall(irb.tree.data[data.range.start], irb.tree.data[data.range.start + 1 .. data.range.end], ty);
         },
-        .case_range_stmt,
-        .goto_stmt,
-        .computed_goto_stmt,
         .bool_or_expr,
         .bool_and_expr,
         .addr_of_label,
@@ -822,7 +819,6 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .builtin_call_expr,
         .member_access_expr,
         .member_access_ptr_expr,
-        .string_literal_expr,
         .sizeof_expr,
         .alignof_expr,
         .generic_expr_one,
@@ -839,17 +835,101 @@ fn genNode(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
         .compound_literal_expr,
         .array_filler_expr,
         .default_init_expr,
-        => return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genNode {}\n", .{irb.node_tag[@enumToInt(node)]}),
+        => return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genExpr {}\n", .{irb.node_tag[@enumToInt(node)]}),
+        else => unreachable, // Not an expression.
     }
-    return @as(Ir.Ref, undefined); // statement, value is ignored
+}
+
+fn genLval(irb: *IrBuilder, node: NodeIndex) Error!Ir.Ref {
+    std.debug.assert(node != .none);
+    assert(Tree.isLval(irb.tree.nodes, irb.tree.data, irb.tree.value_map, node));
+    const data = irb.node_data[@enumToInt(node)];
+    switch (irb.node_tag[@enumToInt(node)]) {
+        .string_literal_expr => {
+            const val = irb.tree.value_map.get(node).?.data.bytes;
+
+            // TODO generate anonymous global
+            const name = try std.fmt.allocPrintZ(irb.arena.allocator(), "\"{}\"", .{std.fmt.fmtSliceEscapeLower(val)});
+            const ref = @intToEnum(Ir.Ref, irb.instructions.len);
+            try irb.instructions.append(irb.comp.gpa, .{
+                .tag = .symbol,
+                .data = .{ .label = name },
+                .ty = .ptr,
+            });
+            return ref;
+        },
+        .paren_expr => return irb.genLval(data.un),
+        .decl_ref_expr => {
+            const slice = irb.tree.tokSlice(data.decl_ref);
+            const name = try irb.comp.intern(slice);
+            var i = irb.symbols.items.len;
+            while (i > 0) {
+                i -= 1;
+                if (irb.symbols.items[i].name == name) {
+                    return irb.symbols.items[i].val;
+                }
+            }
+
+            const ref = @intToEnum(Ir.Ref, irb.instructions.len);
+            try irb.instructions.append(irb.comp.gpa, .{
+                .tag = .symbol,
+                .data = .{ .label = try irb.arena.allocator().dupeZ(u8, slice) },
+                .ty = .ptr,
+            });
+            return ref;
+        },
+        .deref_expr => return irb.genExpr(data.un),
+        else => return irb.comp.diag.fatalNoSrc("TODO IrBuilder.genLval {}\n", .{irb.node_tag[@enumToInt(node)]}),
+    }
 }
 
 fn genCall(irb: *IrBuilder, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
-    const fn_ref = try irb.genNode(fn_node);
+    // Detect direct calls.
+    const fn_ref = blk: {
+        const data = irb.node_data[@enumToInt(fn_node)];
+        if (irb.node_tag[@enumToInt(fn_node)] != .implicit_cast or data.cast.kind != .function_to_pointer) {
+            break :blk try irb.genExpr(fn_node);
+        }
+
+        var cur = @enumToInt(data.cast.operand);
+        while (true) switch (irb.node_tag[cur]) {
+            .paren_expr, .addr_of_expr, .deref_expr => {
+                cur = @enumToInt(irb.node_data[cur].un);
+            },
+            .implicit_cast => {
+                const cast = irb.node_data[cur].cast;
+                if (cast.kind != .function_to_pointer) {
+                    break :blk try irb.genExpr(fn_node);
+                }
+                cur = @enumToInt(cast.operand);
+            },
+            .decl_ref_expr => {
+                const slice = irb.tree.tokSlice(irb.node_data[cur].decl_ref);
+                const name = try irb.comp.intern(slice);
+                var i = irb.symbols.items.len;
+                while (i > 0) {
+                    i -= 1;
+                    if (irb.symbols.items[i].name == name) {
+                        break :blk try irb.genExpr(fn_node);
+                    }
+                }
+
+                const ref = @intToEnum(Ir.Ref, irb.instructions.len);
+                try irb.instructions.append(irb.comp.gpa, .{
+                    .tag = .symbol,
+                    .data = .{ .label = try irb.arena.allocator().dupeZ(u8, slice) },
+                    .ty = .func,
+                });
+                break :blk ref;
+            },
+            else => break :blk try irb.genExpr(fn_node),
+        };
+    };
+
     const args = try irb.arena.allocator().alloc(Ir.Ref, arg_nodes.len);
     for (arg_nodes) |node, i| {
         // TODO handle calling convention here
-        args[i] = try irb.genNode(node);
+        args[i] = try irb.genExpr(node);
     }
     // TODO handle variadic call
     const call = try irb.arena.allocator().create(Ir.Inst.Call);
@@ -864,8 +944,8 @@ fn genCall(irb: *IrBuilder, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty
 fn genCompoundAssign(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const bin = irb.node_data[@enumToInt(node)].bin;
     const ty = irb.node_ty[@enumToInt(node)];
-    const rhs = try irb.genNode(bin.rhs);
-    const lhs = try irb.genNode(bin.lhs);
+    const rhs = try irb.genExpr(bin.rhs);
+    const lhs = try irb.genLval(bin.lhs);
     const res = try irb.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, ty);
     try irb.addInstVoid(.store, .{ .bin = .{ .lhs = lhs, .rhs = res } });
     return res;
@@ -874,8 +954,8 @@ fn genCompoundAssign(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!I
 fn genBinOp(irb: *IrBuilder, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const bin = irb.node_data[@enumToInt(node)].bin;
     const ty = irb.node_ty[@enumToInt(node)];
-    const lhs = try irb.genNode(bin.lhs);
-    const rhs = try irb.genNode(bin.rhs);
+    const lhs = try irb.genExpr(bin.lhs);
+    const rhs = try irb.genExpr(bin.rhs);
     return irb.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, ty);
 }
 
