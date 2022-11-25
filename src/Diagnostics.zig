@@ -1059,7 +1059,7 @@ const messages = struct {
         const kind = .warning;
         const suppress_version = .c2x;
     };
-    const static_assert_missing_message_c2x_compat = struct {
+    const pre_c2x_compat = struct {
         const msg = "{s} is incompatible with C standards before C2x";
         const extra = .str;
         const kind = .off;
@@ -2183,6 +2183,11 @@ const messages = struct {
     const constant_expression_conversion_not_allowed = struct {
         const msg = "this conversion is not allowed in a constant expression";
         const kind = .note;
+    };
+    const invalid_object_cast = struct {
+        const msg = "cannot cast an object of type {s}";
+        const extra = .str;
+        const kind = .@"error";
     };
 };
 

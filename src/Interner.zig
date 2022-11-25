@@ -46,6 +46,7 @@ pub const Key = union(enum) {
                 std.hash.autoHash(&hasher, val.tag);
                 switch (val.tag) {
                     .unavailable => unreachable,
+                    .nullptr_t => std.hash.autoHash(&hasher, @as(u64, 0)),
                     .int => std.hash.autoHash(&hasher, val.data.int),
                     .float => std.hash.autoHash(&hasher, @bitCast(u64, val.data.float)),
                     .array => @panic("TODO"),
@@ -73,6 +74,7 @@ pub const Key = union(enum) {
                 if (a_info.tag != b_info.tag) return false;
                 switch (a_info.tag) {
                     .unavailable => unreachable,
+                    .nullptr_t => return true,
                     .int => return a_info.data.int == b_info.data.int,
                     .float => return a_info.data.float == b_info.data.float,
                     .array => @panic("TODO"),

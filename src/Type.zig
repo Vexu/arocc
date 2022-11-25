@@ -364,6 +364,9 @@ pub const Specifier = enum {
 
     /// special type used to implement __builtin_va_start
     special_va_start,
+
+    /// C23 nullptr_t
+    nullptr_t,
 };
 
 /// All fields of Type except data may be mutated
@@ -432,7 +435,12 @@ pub fn isArray(ty: Type) bool {
 }
 
 pub fn isScalar(ty: Type) bool {
-    return ty.isInt() or ty.isFloat() or ty.isPtr();
+    return ty.isInt() or ty.isScalarNonInt();
+}
+
+/// To avoid calling isInt() twice for allowable loop/if controlling expressions
+pub fn isScalarNonInt(ty: Type) bool {
+    return ty.isFloat() or ty.isPtr() or ty.is(.nullptr_t);
 }
 
 pub fn isDecayed(ty: Type) bool {
@@ -834,6 +842,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .decayed_typeof_type,
         .decayed_typeof_expr,
         .static_array,
+        .nullptr_t,
         => CType.ptrBitWidth(comp.target) >> 3,
         .array, .vector => {
             const size = ty.data.array.elem.sizeof(comp) orelse return null;
@@ -946,6 +955,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .decayed_variable_len_array,
         .decayed_unspecified_variable_len_array,
         .static_array,
+        .nullptr_t,
         => switch (comp.target.cpu.arch) {
             .avr => 1,
             else => CType.ptrBitWidth(comp.target) >> 3,
@@ -1245,6 +1255,7 @@ pub const Builder = struct {
     pub const Specifier = union(enum) {
         none,
         void,
+        nullptr_t,
         bool,
         char,
         schar,
@@ -1355,6 +1366,7 @@ pub const Builder = struct {
             return switch (spec) {
                 .none => unreachable,
                 .void => "void",
+                .nullptr_t => "nullptr_t",
                 .bool => if (langopts.standard.atLeast(.c2x)) "bool" else "_Bool",
                 .char => "char",
                 .schar => "signed char",
@@ -1488,6 +1500,7 @@ pub const Builder = struct {
                 }
             },
             .void => ty.specifier = .void,
+            .nullptr_t => unreachable, // nullptr_t can only be accessed via typeof(nullptr)
             .bool => ty.specifier = .bool,
             .char => ty.specifier = .char,
             .schar => ty.specifier = .schar,
@@ -1678,6 +1691,7 @@ pub const Builder = struct {
         const inner = switch (new.specifier) {
             .typeof_type => new.data.sub_type.*,
             .typeof_expr => new.data.expr.ty,
+            .nullptr_t => new, // typeof(nullptr) is special-cased to be an unwrapped typeof-expr
             else => unreachable,
         };
 
@@ -2019,6 +2033,7 @@ pub const Builder = struct {
     pub fn fromType(ty: Type) Builder.Specifier {
         return switch (ty.specifier) {
             .void => .void,
+            .nullptr_t => .nullptr_t,
             .bool => .bool,
             .char => .char,
             .schar => .schar,

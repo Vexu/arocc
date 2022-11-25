@@ -463,6 +463,8 @@ pub const Tag = enum(u8) {
     enumeration_ref,
     /// C23 bool literal `true` / `false`
     bool_literal,
+    /// C23 nullptr literal
+    nullptr_literal,
     /// integer literal, always unsigned
     int_literal,
     /// Same as int_literal, but originates from a char literal
@@ -1145,6 +1147,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             if (color) util.setColor(.reset, w);
         },
         .bool_literal,
+        .nullptr_literal,
         .int_literal,
         .char_literal,
         .float_literal,
