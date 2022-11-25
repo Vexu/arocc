@@ -12,6 +12,8 @@ int alignas(16) y;
 #define bool no
 #define alignas no
 
+typedef typeof(int) MyInt;
+
 // TODO: true / false keywords
 #define TESTS_SKIPPED 2
 

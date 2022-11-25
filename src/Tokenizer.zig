@@ -710,7 +710,7 @@ pub const Token = struct {
         return switch (kw) {
             .keyword_inline => if (standard.isGNU() or standard.atLeast(.c99)) kw else .identifier,
             .keyword_restrict => if (standard.atLeast(.c99)) kw else .identifier,
-            .keyword_typeof => if (standard.isGNU()) kw else .identifier,
+            .keyword_typeof => if (standard.isGNU() or standard.atLeast(.c2x)) kw else .identifier,
             .keyword_asm => if (standard.isGNU()) kw else .identifier,
             .keyword_declspec => if (comp.langopts.declspec_attrs) kw else .identifier,
 
