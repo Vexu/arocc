@@ -116,6 +116,16 @@ pub const Builder = struct {
 
         return b.addInst(.phi, .{ .phi = .{ .ptr = input_refs.ptr } }, ty);
     }
+
+    pub fn addSelect(b: *Builder, cond: Ref, then: Ref, @"else": Ref, ty: Interner.Ref) Allocator.Error!Ref {
+        const branch = try b.arena.allocator().create(Ir.Inst.Branch);
+        branch.* = .{
+            .cond = cond,
+            .then = then,
+            .@"else" = @"else",
+        };
+        return b.addInst(.select, .{ .branch = branch }, ty);
+    }
 };
 
 pub const Ref = enum(u32) { none = std.math.maxInt(u32), _ };
@@ -398,19 +408,19 @@ pub fn dump(ir: Ir, name: []const u8, color: bool, w: anytype) !void {
                 if (color) util.setColor(.reset, w);
                 try w.writeAll(" = ");
                 if (color) util.setColor(INST, w);
-                try w.writeAll("phi ");
+                try w.writeAll("phi");
                 if (color) util.setColor(.reset, w);
-                for (data[i].phi.inputs()) |input, input_i| {
-                    if (input_i != 0) try w.writeAll(", ");
-                    try w.writeAll("[ ");
-                    try ir.writeRef(input.value, color, w);
-                    if (color) util.setColor(.reset, w);
-                    try w.writeAll(", ");
+                try w.writeAll(" {");
+                for (data[i].phi.inputs()) |input| {
+                    try w.writeAll("\n        ");
                     try ir.writeLabel(input.label, color, w);
                     if (color) util.setColor(.reset, w);
-                    try w.writeAll(" ]");
+                    try w.writeAll(" => ");
+                    try ir.writeRef(input.value, color, w);
+                    if (color) util.setColor(.reset, w);
                 }
-                try w.writeByte('\n');
+                if (color) util.setColor(.reset, w);
+                try w.writeAll("\n    }\n");
             },
             .store => {
                 const bin = data[i].bin;

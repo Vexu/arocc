@@ -737,31 +737,86 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             => return c.comp.diag.fatalNoSrc("TODO CodeGen gen CastKind {}\n", .{data.cast.kind}),
         },
         .binary_cond_expr => {
-            const cond = try c.genExpr(data.if3.cond);
-            const then = then: {
-                const old_cond_dummy_ref = c.cond_dummy_ref;
-                defer c.cond_dummy_ref = old_cond_dummy_ref;
-                c.cond_dummy_ref = cond;
+            if (c.tree.value_map.get(data.if3.cond)) |cond| {
+                if (cond.getBool()) {
+                    c.cond_dummy_ref = try c.genExpr(data.if3.cond);
+                    return c.genExpr(c.tree.data[data.if3.body]); // then
+                } else {
+                    return c.genExpr(c.tree.data[data.if3.body + 1]); // else
+                }
+            }
 
-                break :then try c.genExpr(c.tree.data[data.if3.body]);
+            const then_label = try c.builder.makeLabel("ternary.then");
+            const else_label = try c.builder.makeLabel("ternary.else");
+            const end_label = try c.builder.makeLabel("ternary.end");
+            const cond_ty = c.node_ty[@enumToInt(data.if3.cond)];
+            {
+                c.builder.branch = .{
+                    .true_label = then_label,
+                    .false_label = else_label,
+                };
+                defer c.builder.branch = null;
+                try c.genBoolExprExtra(data.if3.cond, try c.genType(cond_ty));
+            }
+
+            try c.startBlock(then_label);
+            if (c.builder.instructions.items(.ty)[@enumToInt(c.cond_dummy_ref)] == .i1) {
+                c.cond_dummy_ref = try c.addUn(.zext, c.cond_dummy_ref, cond_ty);
+            }
+            const then_val = try c.genExpr(c.tree.data[data.if3.body]); // then
+            try c.builder.addJump(end_label);
+            const then_exit = c.current_label;
+
+            try c.startBlock(else_label);
+            const else_val = try c.genExpr(c.tree.data[data.if3.body + 1]); // else
+            const else_exit = c.current_label;
+
+            try c.startBlock(end_label);
+
+            var phi_buf: [2]Ir.Inst.Phi.Input = .{
+                .{ .value = then_val, .label = then_exit },
+                .{ .value = else_val, .label = else_exit },
             };
-            const @"else" = try c.genExpr(c.tree.data[data.if3.body + 1]);
-
-            const branch = try c.builder.arena.allocator().create(Ir.Inst.Branch);
-            branch.* = .{ .cond = cond, .then = then, .@"else" = @"else" };
-            // TODO can't use select here
-            return c.builder.addInst(.select, .{ .branch = branch }, try c.genType(ty));
+            return c.builder.addPhi(&phi_buf, try c.genType(ty));
         },
         .cond_dummy_expr => return c.cond_dummy_ref,
         .cond_expr => {
-            const cond = try c.genExpr(data.if3.cond);
-            const then = try c.genExpr(c.tree.data[data.if3.body]);
-            const @"else" = try c.genExpr(c.tree.data[data.if3.body + 1]);
+            if (c.tree.value_map.get(data.if3.cond)) |cond| {
+                if (cond.getBool()) {
+                    return c.genExpr(c.tree.data[data.if3.body]); // then
+                } else {
+                    return c.genExpr(c.tree.data[data.if3.body + 1]); // else
+                }
+            }
 
-            const branch = try c.builder.arena.allocator().create(Ir.Inst.Branch);
-            branch.* = .{ .cond = cond, .then = then, .@"else" = @"else" };
-            // TODO can't use select here
-            return c.builder.addInst(.select, .{ .branch = branch }, try c.genType(ty));
+            const then_label = try c.builder.makeLabel("ternary.then");
+            const else_label = try c.builder.makeLabel("ternary.else");
+            const end_label = try c.builder.makeLabel("ternary.end");
+            {
+                c.builder.branch = .{
+                    .true_label = then_label,
+                    .false_label = else_label,
+                };
+                defer c.builder.branch = null;
+                try c.genBoolExpr(data.if3.cond);
+            }
+
+            try c.startBlock(then_label);
+            const then_val = try c.genExpr(c.tree.data[data.if3.body]); // then
+            try c.builder.addJump(end_label);
+            const then_exit = c.current_label;
+
+            try c.startBlock(else_label);
+            const else_val = try c.genExpr(c.tree.data[data.if3.body + 1]); // else
+            const else_exit = c.current_label;
+
+            try c.startBlock(end_label);
+
+            var phi_buf: [2]Ir.Inst.Phi.Input = .{
+                .{ .value = then_val, .label = then_exit },
+                .{ .value = else_val, .label = else_exit },
+            };
+            return c.builder.addPhi(&phi_buf, try c.genType(ty));
         },
         .call_expr_one => if (data.bin.rhs == .none) {
             return c.genCall(data.bin.lhs, &.{}, ty);
@@ -771,8 +826,56 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .call_expr => {
             return c.genCall(c.tree.data[data.range.start], c.tree.data[data.range.start + 1 .. data.range.end], ty);
         },
-        .bool_or_expr,
-        .bool_and_expr,
+        .bool_or_expr => {
+            if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
+                const cond = lhs.getBool();
+                if (!cond) {
+                    return c.builder.addConstant(Value.int(1), try c.genType(ty));
+                }
+                return c.genExpr(data.bin.rhs);
+            }
+            const false_label = try c.builder.makeLabel("bool_false");
+            const true_label = try c.builder.makeLabel("bool_true");
+            {
+                const old_branch = c.builder.branch;
+                defer c.builder.branch = old_branch;
+                c.builder.branch = .{
+                    .false_label = false_label,
+                    .true_label = true_label,
+                };
+                try c.genBoolExpr(data.bin.lhs);
+            }
+            try c.startBlock(false_label);
+            const lhs_value = try c.genExpr(data.bin.rhs);
+            const rhs_value = try c.builder.addConstant(Value.int(1), try c.genType(ty));
+            try c.startBlock(true_label);
+            return c.builder.addInst(.phi, .{ .bin = .{ .lhs = rhs_value, .rhs = lhs_value } }, try c.genType(ty));
+        },
+        .bool_and_expr => {
+            if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
+                const cond = lhs.getBool();
+                if (!cond) {
+                    return c.builder.addConstant(Value.int(0), try c.genType(ty));
+                }
+                return c.genExpr(data.bin.rhs);
+            }
+            const true_label = try c.builder.makeLabel("bool_true");
+            const false_label = try c.builder.makeLabel("bool_false");
+            {
+                const old_branch = c.builder.branch;
+                defer c.builder.branch = old_branch;
+                c.builder.branch = .{
+                    .true_label = true_label,
+                    .false_label = false_label,
+                };
+                try c.genBoolExpr(data.bin.lhs);
+            }
+            try c.startBlock(false_label);
+            const lhs_value = try c.genExpr(data.bin.rhs);
+            const rhs_value = try c.builder.addConstant(Value.int(0), try c.genType(ty));
+            try c.startBlock(true_label);
+            return c.builder.addInst(.phi, .{ .bin = .{ .lhs = rhs_value, .rhs = lhs_value } }, try c.genType(ty));
+        },
         .addr_of_label,
         .imag_expr,
         .real_expr,
@@ -835,6 +938,9 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
 }
 
 fn genBoolExpr(c: *CodeGen, base: NodeIndex) Error!void {
+    return c.genBoolExprExtra(base, null);
+}
+fn genBoolExprExtra(c: *CodeGen, base: NodeIndex, set_cond_dummy: ?Interner.Ref) Error!void {
     var node = base;
     while (true) switch (c.node_tag[@enumToInt(node)]) {
         .paren_expr => {
@@ -867,6 +973,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex) Error!void {
                 .true_label = c.builder.branch.?.true_label,
                 .false_label = old_branch.?.false_label,
             };
+            if (set_cond_dummy) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(1), ty);
             return c.genBoolExpr(data.bin.rhs);
         },
         .bool_and_expr => {
@@ -891,6 +998,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex) Error!void {
                 .true_label = old_branch.?.true_label,
                 .false_label = c.builder.branch.?.false_label,
             };
+            if (set_cond_dummy) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(1), ty);
             return c.genBoolExpr(data.bin.rhs);
         },
         .bool_not_expr => {
@@ -901,46 +1009,115 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex) Error!void {
                 .true_label = c.builder.branch.?.false_label,
                 .false_label = c.builder.branch.?.true_label,
             };
+            if (set_cond_dummy) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(0), ty);
             return c.genBoolExpr(data.un);
         },
         .equal_expr => {
             const cmp = try c.genComparison(node, .cmp_eq);
+            if (set_cond_dummy != null) c.cond_dummy_ref = cmp;
             return c.builder.addBranch(cmp);
         },
         .not_equal_expr => {
             const cmp = try c.genComparison(node, .cmp_ne);
+            if (set_cond_dummy != null) c.cond_dummy_ref = cmp;
             return c.builder.addBranch(cmp);
         },
         .less_than_expr => {
             const cmp = try c.genComparison(node, .cmp_lt);
+            if (set_cond_dummy != null) c.cond_dummy_ref = cmp;
             return c.builder.addBranch(cmp);
         },
         .less_than_equal_expr => {
             const cmp = try c.genComparison(node, .cmp_lte);
+            if (set_cond_dummy != null) c.cond_dummy_ref = cmp;
             return c.builder.addBranch(cmp);
         },
         .greater_than_expr => {
             const cmp = try c.genComparison(node, .cmp_gt);
+            if (set_cond_dummy != null) c.cond_dummy_ref = cmp;
             return c.builder.addBranch(cmp);
         },
         .greater_than_equal_expr => {
             const cmp = try c.genComparison(node, .cmp_gte);
+            if (set_cond_dummy != null) c.cond_dummy_ref = cmp;
             return c.builder.addBranch(cmp);
         },
         .explicit_cast, .implicit_cast => switch (data.cast.kind) {
             .bool_to_int => {
                 const operand = try c.genExpr(data.cast.operand);
+                if (set_cond_dummy != null) c.cond_dummy_ref = operand;
                 return c.builder.addBranch(operand);
             },
             else => {},
         },
+        .binary_cond_expr => {
+            if (c.tree.value_map.get(data.if3.cond)) |cond| {
+                if (cond.getBool()) {
+                    return c.genBoolExprExtra(c.tree.data[data.if3.body], set_cond_dummy); // then
+                } else {
+                    return c.genBoolExprExtra(c.tree.data[data.if3.body + 1], set_cond_dummy); // else
+                }
+            }
+
+            const false_label = try c.builder.makeLabel("ternary.else");
+            {
+                const old_branch = c.builder.branch;
+                defer c.builder.branch = old_branch;
+                c.builder.branch = .{
+                    .true_label = old_branch.?.true_label,
+                    .false_label = false_label,
+                };
+
+                try c.genBoolExpr(data.if3.cond);
+            }
+            try c.startBlock(false_label);
+            if (set_cond_dummy) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(1), ty);
+            return c.genBoolExpr(c.tree.data[data.if3.body + 1]); // else
+        },
+        .cond_expr => {
+            if (c.tree.value_map.get(data.if3.cond)) |cond| {
+                if (cond.getBool()) {
+                    return c.genBoolExprExtra(c.tree.data[data.if3.body], set_cond_dummy); // then
+                } else {
+                    return c.genBoolExprExtra(c.tree.data[data.if3.body + 1], set_cond_dummy); // else
+                }
+            }
+
+            const true_label = try c.builder.makeLabel("ternary.then");
+            const false_label = try c.builder.makeLabel("ternary.else");
+            {
+                const old_branch = c.builder.branch;
+                defer c.builder.branch = old_branch;
+                c.builder.branch = .{
+                    .true_label = true_label,
+                    .false_label = false_label,
+                };
+
+                try c.genBoolExpr(data.if3.cond);
+            }
+
+            try c.startBlock(true_label);
+            try c.genBoolExpr(c.tree.data[data.if3.body]); // then
+            try c.startBlock(false_label);
+            if (set_cond_dummy) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(1), ty);
+            return c.genBoolExpr(c.tree.data[data.if3.body + 1]); // else
+        },
         else => {},
+    }
+
+    if (c.tree.value_map.get(node)) |value| {
+        if (value.getBool()) {
+            return c.builder.addJump(c.builder.branch.?.true_label);
+        } else {
+            return c.builder.addJump(c.builder.branch.?.false_label);
+        }
     }
 
     // Assume int operand.
     const lhs = try c.genExpr(node);
     const rhs = try c.builder.addConstant(Value.int(0), try c.genType(c.node_ty[@enumToInt(node)]));
     const cmp = try c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
+    if (set_cond_dummy != null) c.cond_dummy_ref = cmp;
     try c.builder.addBranch(cmp);
 }
 
