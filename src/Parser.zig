@@ -5799,13 +5799,7 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
 
-            if (operand.ty.isArray() or operand.ty.isPtr()) {
-                const elem_ty = operand.ty.elemType();
-                if (elem_ty.isFunc()) {
-                    try operand.lvalConversion(p);
-                }
-                operand.ty = elem_ty;
-            } else if (operand.ty.isFunc()) {
+            if (operand.ty.isArray() or operand.ty.isPtr() or operand.ty.isFunc()) {
                 try operand.lvalConversion(p);
                 operand.ty = operand.ty.elemType();
             } else {
@@ -6079,7 +6073,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             }
             if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), p.tok_i);
 
-            try operand.un(p, .post_dec_expr);
+            try operand.un(p, .post_inc_expr);
             return operand;
         },
         .minus_minus => {

@@ -5,6 +5,7 @@ pub const Compilation = @import("Compilation.zig");
 pub const Diagnostics = @import("Diagnostics.zig");
 pub const Driver = @import("Driver.zig");
 pub const Interner = @import("Interner.zig");
+pub const Ir = @import("Ir.zig");
 pub const Object = @import("Object.zig");
 pub const Parser = @import("Parser.zig");
 pub const Preprocessor = @import("Preprocessor.zig");
