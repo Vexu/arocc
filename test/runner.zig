@@ -540,7 +540,7 @@ const StmtTypeDumper = struct {
         const tag = tree.nodes.items(.tag)[@enumToInt(node)];
         if (tag == .implicit_return) return;
         const ty = tree.nodes.items(.ty)[@enumToInt(node)];
-        ty.dump(mapper, m.buf.writer()) catch {};
+        ty.dump(mapper, tree.comp.langopts, m.buf.writer()) catch {};
         const owned = m.buf.toOwnedSlice();
         errdefer m.buf.allocator.free(owned);
         try self.types.append(owned);

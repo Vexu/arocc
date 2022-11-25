@@ -519,6 +519,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     const data = c.node_data[@enumToInt(node)];
     switch (c.node_tag[@enumToInt(node)]) {
         .enumeration_ref,
+        .bool_literal,
         .int_literal,
         .char_literal,
         .float_literal,

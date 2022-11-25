@@ -1,5 +1,5 @@
-//aro-args -std=c2x -pedantic
-
+//aro-args -std=c2x -pedantic -Wundef
+#include <stdbool.h>
 static_assert(1 == 1);
 static_assert(alignof(char) == 1);
 thread_local int x;
@@ -14,8 +14,28 @@ int alignas(16) y;
 
 typedef typeof(int) MyInt;
 
-// TODO: true / false keywords
-#define TESTS_SKIPPED 2
+#if false
+#error false should expand to 0
+#endif
+
+#if true
+#else
+#error true should expand to 1
+#endif
+
+#define FOO true
+#if FOO
+#else
+#error true should expand to 1
+#endif
+
+#if true + 1 != 2
+#error true should expand to 1 in preprocessor arithmetic
+#endif
+
+#if defined(true) || defined(false)
+#error true and false should not be defined
+#endif
 
 #define EXPECTED_ERRORS \
     "c23 keywords.c:9:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]" \

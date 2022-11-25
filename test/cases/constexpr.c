@@ -15,6 +15,12 @@ constexpr _BitInt(b) bit = 4;
 int non_const = 4;
 constexpr int invalid = non_const; // TODO
 
+constexpr bool const_bool_true = true;
+static_assert(const_bool_true);
+constexpr bool const_bool_false = false;
+static_assert(!const_bool_false);
+
+
 #define TESTS_SKIPPED 1
 
 #define EXPECTED_ERRORS "constexpr.c:5:14: error: cannot combine with previous 'thread_local' specifier" \

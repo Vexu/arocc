@@ -349,12 +349,12 @@ pub fn todo(p: *Parser, msg: []const u8) Error {
 }
 
 pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
-    if (Type.Builder.fromType(ty).str()) |str| return str;
+    if (Type.Builder.fromType(ty).str(p.comp.langopts)) |str| return str;
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
     const mapper = p.comp.string_interner.getSlowTypeMapper();
-    try ty.print(mapper, p.strings.writer());
+    try ty.print(mapper, p.comp.langopts, p.strings.writer());
     return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
@@ -368,11 +368,11 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
 
     try p.strings.append('\'');
     const mapper = p.comp.string_interner.getSlowTypeMapper();
-    try a.print(mapper, p.strings.writer());
+    try a.print(mapper, p.comp.langopts, p.strings.writer());
     try p.strings.append('\'');
     try p.strings.appendSlice(msg);
     try p.strings.append('\'');
-    try b.print(mapper, p.strings.writer());
+    try b.print(mapper, p.comp.langopts, p.strings.writer());
     try p.strings.append('\'');
     return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -6186,7 +6186,7 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
 
     try p.strings.writer().print("'{s}' in '", .{p.tokSlice(field_name_tok)});
     const mapper = p.comp.string_interner.getSlowTypeMapper();
-    try expr_ty.print(mapper, p.strings.writer());
+    try expr_ty.print(mapper, p.comp.langopts, p.strings.writer());
     try p.strings.append('\'');
 
     const duped = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items);
@@ -6388,6 +6388,8 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 
 /// primaryExpr
 ///  : IDENTIFIER
+///  | keyword_true
+///  | keyword_false
 ///  | INTEGER_LITERAL
 ///  | FLOAT_LITERAL
 ///  | IMAGINARY_LITERAL
@@ -6487,6 +6489,22 @@ fn primaryExpr(p: *Parser) Error!Result {
             try p.errStr(.undeclared_identifier, name_tok, p.tokSlice(name_tok));
             return error.ParsingFailed;
         },
+        .keyword_true, .keyword_false => |id| {
+            p.tok_i += 1;
+            const numeric_value = @boolToInt(id == .keyword_true);
+            const res = Result{
+                .val = Value.int(numeric_value),
+                .ty = .{ .specifier = .bool },
+                .node = try p.addNode(.{
+                    .tag = .bool_literal,
+                    .ty = .{ .specifier = .bool },
+                    .data = .{ .int = numeric_value },
+                }),
+            };
+            std.debug.assert(!p.in_macro); // Should have been replaced with .one / .zero
+            try p.value_map.put(res.node, res.val);
+            return res;
+        },
         .macro_func, .macro_function => {
             defer p.tok_i += 1;
             var ty: Type = undefined;
@@ -6527,7 +6545,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             } else if (p.func.ty) |func_ty| {
                 const mapper = p.comp.string_interner.getSlowTypeMapper();
                 p.strings.items.len = 0;
-                try Type.printNamed(func_ty, p.tokSlice(p.func.name), mapper, p.strings.writer());
+                try Type.printNamed(func_ty, p.tokSlice(p.func.name), mapper, p.comp.langopts, p.strings.writer());
                 try p.strings.append(0);
                 const predef = try p.makePredefinedIdentifier();
                 ty = predef.ty;

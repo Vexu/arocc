@@ -658,6 +658,8 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                 return false;
             },
             .macro_ws, .whitespace => continue,
+            .keyword_false => tok.id = .zero,
+            .keyword_true => tok.id = .one,
             else => if (tok.id.isMacroIdentifier()) {
                 if (tok.id == .keyword_defined) {
                     const tokens_consumed = try pp.handleKeywordDefined(&tok, items[i + 1 ..], eof);
