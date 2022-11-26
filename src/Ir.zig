@@ -535,6 +535,7 @@ fn writeValue(ir: Ir, val_ref: Interner.Ref, color: bool, w: anytype) !void {
 }
 
 fn writeRef(ir: Ir, ref: Ref, color: bool, w: anytype) !void {
+    assert(ref != .none);
     const index = @enumToInt(ref);
     const ty_ref = ir.instructions.items(.ty)[index];
     if (ir.instructions.items(.tag)[index] == .constant) {
@@ -556,6 +557,7 @@ fn writeRef(ir: Ir, ref: Ref, color: bool, w: anytype) !void {
 }
 
 fn writeLabel(ir: Ir, ref: Ref, color: bool, w: anytype) !void {
+    assert(ref != .none);
     const index = @enumToInt(ref);
     const label = ir.instructions.items(.data)[index].label;
     if (color) util.setColor(REF, w);

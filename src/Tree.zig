@@ -1187,8 +1187,10 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeAll("controlling:\n");
             try tree.dumpNode(data.bin.lhs, level + delta, mapper, color, w);
             try w.writeByteNTimes(' ', level + 1);
-            try w.writeAll("chosen:\n");
-            try tree.dumpNode(data.bin.rhs, level + delta, mapper, color, w);
+            if (data.bin.rhs != .none) {
+                try w.writeAll("chosen:\n");
+                try tree.dumpNode(data.bin.rhs, level + delta, mapper, color, w);
+            }
         },
         .generic_expr => {
             const nodes = tree.data[data.range.start..data.range.end];

@@ -133,6 +133,8 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
     } else if (ty.specifier == .vector) {
         const elem = try c.genType(ty.elemType());
         key = .{ .vector = .{ .child = elem, .len = @intCast(u32, ty.data.array.len) } };
+    } else if (ty.isRecord()) {
+        @panic("TODO lower record types");
     }
     return c.builder.pool.put(c.builder.gpa, key);
 }
@@ -201,10 +203,27 @@ fn startBlock(c: *CodeGen, label: Ir.Ref) !void {
 }
 
 fn genStmt(c: *CodeGen, node: NodeIndex) Error!void {
+    _ = try c.genExpr(node);
+}
+
+fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     std.debug.assert(node != .none);
     const ty = c.node_ty[@enumToInt(node)];
+    if (c.tree.value_map.get(node)) |val| {
+        return c.builder.addConstant(val, try c.genType(ty));
+    }
     const data = c.node_data[@enumToInt(node)];
     switch (c.node_tag[@enumToInt(node)]) {
+        .enumeration_ref,
+        .bool_literal,
+        .int_literal,
+        .char_literal,
+        .float_literal,
+        .double_literal,
+        .imaginary_literal,
+        .string_literal_expr,
+        .alignof_expr,
+        => unreachable, // These should have an entry in value_map.
         .fn_def,
         .static_fn_def,
         .inline_fn_def,
@@ -522,27 +541,6 @@ fn genStmt(c: *CodeGen, node: NodeIndex) Error!void {
         .goto_stmt,
         .computed_goto_stmt,
         => return c.comp.diag.fatalNoSrc("TODO CodeGen.genStmt {}\n", .{c.node_tag[@enumToInt(node)]}),
-        else => _ = try c.genExpr(node),
-    }
-}
-
-fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
-    std.debug.assert(node != .none);
-    const ty = c.node_ty[@enumToInt(node)];
-    if (c.tree.value_map.get(node)) |val| {
-        return c.builder.addConstant(val, try c.genType(ty));
-    }
-    const data = c.node_data[@enumToInt(node)];
-    switch (c.node_tag[@enumToInt(node)]) {
-        .enumeration_ref,
-        .bool_literal,
-        .int_literal,
-        .char_literal,
-        .float_literal,
-        .double_literal,
-        .imaginary_literal,
-        .string_literal_expr,
-        => unreachable, // These should have an entry in value_map.
         .comma_expr => {
             _ = try c.genExpr(data.bin.lhs);
             return c.genExpr(data.bin.rhs);
@@ -681,7 +679,10 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .decl_ref_expr => unreachable, // Lval expression.
         .explicit_cast, .implicit_cast => switch (data.cast.kind) {
             .no_op => return c.genExpr(data.cast.operand),
-            .to_void => unreachable, // Not an expression.
+            .to_void => {
+                _ = try c.genExpr(data.cast.operand);
+                return .none;
+            },
             .lval_to_rval => {
                 const operand = try c.genLval(data.cast.operand);
                 return c.addUn(.load, operand, ty);
@@ -875,25 +876,63 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             try c.startBlock(true_label);
             return c.builder.addInst(.phi, .{ .bin = .{ .lhs = rhs_value, .rhs = lhs_value } }, try c.genType(ty));
         },
+        .builtin_choose_expr => {
+            const cond = c.tree.value_map.get(data.if3.cond).?;
+            if (cond.getBool()) {
+                return c.genExpr(c.tree.data[data.if3.body]);
+            } else {
+                return c.genExpr(c.tree.data[data.if3.body + 1]);
+            }
+        },
+        .generic_expr_one => {
+            const index = @enumToInt(data.bin.rhs);
+            switch (c.node_tag[index]) {
+                .generic_association_expr, .generic_default_expr => {
+                    return c.genExpr(c.node_data[index].un);
+                },
+                else => unreachable,
+            }
+        },
+        .generic_expr => {
+            const index = @enumToInt(c.tree.data[data.range.start + 1]);
+            switch (c.node_tag[index]) {
+                .generic_association_expr, .generic_default_expr => {
+                    return c.genExpr(c.node_data[index].un);
+                },
+                else => unreachable,
+            }
+        },
+        .generic_association_expr, .generic_default_expr => unreachable,
+        .stmt_expr => switch (c.node_tag[@enumToInt(data.un)]) {
+            .compound_stmt_two => {
+                const old_sym_len = c.symbols.items.len;
+                c.symbols.items.len = old_sym_len;
+
+                const stmt_data = c.node_data[@enumToInt(data.un)];
+                if (stmt_data.bin.rhs == .none) return c.genExpr(stmt_data.bin.lhs);
+                try c.genStmt(stmt_data.bin.lhs);
+                return c.genExpr(stmt_data.bin.rhs);
+            },
+            .compound_stmt => {
+                const old_sym_len = c.symbols.items.len;
+                c.symbols.items.len = old_sym_len;
+
+                const stmt_data = c.node_data[@enumToInt(data.un)];
+                for (c.tree.data[stmt_data.range.start .. stmt_data.range.end - 1]) |stmt| try c.genStmt(stmt);
+                return c.genExpr(c.tree.data[stmt_data.range.end]);
+            },
+            else => unreachable,
+        },
         .addr_of_label,
         .imag_expr,
         .real_expr,
-        .array_access_expr,
         .builtin_call_expr_one,
         .builtin_call_expr,
-        .member_access_expr,
-        .member_access_ptr_expr,
         .sizeof_expr,
-        .alignof_expr,
-        .generic_expr_one,
-        .generic_expr,
-        .generic_association_expr,
-        .generic_default_expr,
-        .builtin_choose_expr,
-        .stmt_expr,
         => return c.comp.diag.fatalNoSrc("TODO CodeGen.genExpr {}\n", .{c.node_tag[@enumToInt(node)]}),
         else => unreachable, // Not an expression.
     }
+    return .none;
 }
 
 fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
@@ -936,7 +975,19 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             try c.genInitializer(alloc, data.un);
             return alloc;
         },
-        else => return c.comp.diag.fatalNoSrc("TODO CodeGen.genLval {}\n", .{c.node_tag[@enumToInt(node)]}),
+        .builtin_choose_expr => {
+            const cond = c.tree.value_map.get(data.if3.cond).?;
+            if (cond.getBool()) {
+                return c.genLval(c.tree.data[data.if3.body]);
+            } else {
+                return c.genLval(c.tree.data[data.if3.body + 1]);
+            }
+        },
+        .member_access_expr,
+        .member_access_ptr_expr,
+        .array_access_expr,
+        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genLval {}\n", .{c.node_tag[@enumToInt(node)]}),
+        else => unreachable, // Not an lval expression.
     }
 }
 

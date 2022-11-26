@@ -7141,6 +7141,7 @@ fn parseNoEval(p: *Parser, comptime func: fn (*Parser) Error!Result) Error!Resul
 fn genericSelection(p: *Parser) Error!Result {
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
+    const controlling_tok = p.tok_i;
     const controlling = try p.parseNoEval(assignExpr);
     _ = try p.expectToken(.comma);
 
@@ -7148,24 +7149,51 @@ fn genericSelection(p: *Parser) Error!Result {
     defer p.list_buf.items.len = list_buf_top;
     try p.list_buf.append(controlling.node);
 
+    // Use decl_buf to store the token indexes of previous cases
+    const decl_buf_top = p.decl_buf.items.len;
+    defer p.decl_buf.items.len = decl_buf_top;
+
     var default_tok: ?TokenIndex = null;
-    // TODO actually choose
+    var default: Result = undefined;
+    var chosen_tok: TokenIndex = undefined;
     var chosen: Result = .{};
     while (true) {
         const start = p.tok_i;
-        if (try p.typeName()) |ty| {
-            if (ty.anyQual()) {
+        if (try p.typeName()) |ty| blk: {
+            if (ty.isArray()) {
+                try p.errTok(.generic_array_type, start);
+            } else if (ty.isFunc()) {
+                try p.errTok(.generic_func_type, start);
+            } else if (ty.anyQual()) {
                 try p.errTok(.generic_qual_type, start);
             }
             _ = try p.expectToken(.colon);
-            chosen = try p.assignExpr();
-            try chosen.expect(p);
-            try chosen.saveValue(p);
+            const node = try p.assignExpr();
+            try node.expect(p);
+
+            if (ty.eql(controlling.ty, p.comp, false)) {
+                if (chosen.node == .none) {
+                    chosen = node;
+                    chosen_tok = start;
+                    break :blk;
+                }
+                try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
+                try p.errStr(.generic_duplicate_here, chosen_tok, try p.typeStr(ty));
+            }
+            for (p.list_buf.items[list_buf_top + 1 ..]) |item, i| {
+                const prev_ty = p.nodes.items(.ty)[@enumToInt(item)];
+                if (prev_ty.eql(ty, p.comp, true)) {
+                    try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
+                    const prev_tok = @enumToInt(p.decl_buf.items[decl_buf_top + i]);
+                    try p.errStr(.generic_duplicate_here, prev_tok, try p.typeStr(ty));
+                }
+            }
             try p.list_buf.append(try p.addNode(.{
                 .tag = .generic_association_expr,
                 .ty = ty,
-                .data = .{ .un = chosen.node },
+                .data = .{ .un = node.node },
             }));
+            try p.decl_buf.append(@intToEnum(NodeIndex, start));
         } else if (p.eatToken(.keyword_default)) |tok| {
             if (default_tok) |prev| {
                 try p.errTok(.generic_duplicate_default, tok);
@@ -7173,13 +7201,8 @@ fn genericSelection(p: *Parser) Error!Result {
             }
             default_tok = tok;
             _ = try p.expectToken(.colon);
-            chosen = try p.assignExpr();
-            try chosen.expect(p);
-            try chosen.saveValue(p);
-            try p.list_buf.append(try p.addNode(.{
-                .tag = .generic_default_expr,
-                .data = .{ .un = chosen.node },
-            }));
+            default = try p.assignExpr();
+            try default.expect(p);
         } else {
             if (p.list_buf.items.len == list_buf_top + 1) {
                 try p.err(.expected_type);
@@ -7190,6 +7213,30 @@ fn genericSelection(p: *Parser) Error!Result {
         if (p.eatToken(.comma) == null) break;
     }
     try p.expectClosing(l_paren, .r_paren);
+
+    if (chosen.node == .none) {
+        if (default_tok != null) {
+            try p.list_buf.insert(list_buf_top + 1, try p.addNode(.{
+                .tag = .generic_default_expr,
+                .data = .{ .un = default.node },
+            }));
+            chosen = default;
+        } else {
+            try p.errStr(.generic_no_match, controlling_tok, try p.typeStr(controlling.ty));
+            return error.ParsingFailed;
+        }
+    } else {
+        try p.list_buf.insert(list_buf_top + 1, try p.addNode(.{
+            .tag = .generic_association_expr,
+            .data = .{ .un = chosen.node },
+        }));
+        if (default_tok != null) {
+            try p.list_buf.append(try p.addNode(.{
+                .tag = .generic_default_expr,
+                .data = .{ .un = chosen.node },
+            }));
+        }
+    }
 
     var generic_node: Tree.Node = .{
         .tag = .generic_expr_one,
