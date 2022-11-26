@@ -12,28 +12,22 @@ typedef int A[0];
 #endif
 A var1;
 struct A_extra_alignment {
-#ifdef MSVC
-    char a[_Alignof(A)];
-    char b;
-#else
     char a;
     A b;
-#endif
 };
 struct A_extra_alignment var2;
 #pragma pack(1)
 struct A_extra_packed {
+#ifdef MSVC
+    char a[sizeof(A)];
+#else
     A a;
+#endif
 };
 #pragma pack()
 struct A_extra_required_alignment {
-#ifdef MSVC
-    char a[_Alignof(struct A_extra_packed)];
-    char b;
-#else
     char a;
     struct A_extra_packed b;
-#endif
 };
 struct A_extra_required_alignment var3;
 struct A_extra_size {

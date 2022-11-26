@@ -8,28 +8,22 @@
 typedef int unnamed_type_1[3];
 unnamed_type_1 var2;
 struct unnamed_type_1_extra_alignment {
-#ifdef MSVC
-    char a[_Alignof(unnamed_type_1)];
-    char b;
-#else
     char a;
     unnamed_type_1 b;
-#endif
 };
 struct unnamed_type_1_extra_alignment var3;
 #pragma pack(1)
 struct unnamed_type_1_extra_packed {
+#ifdef MSVC
+    char a[sizeof(unnamed_type_1)];
+#else
     unnamed_type_1 a;
+#endif
 };
 #pragma pack()
 struct unnamed_type_1_extra_required_alignment {
-#ifdef MSVC
-    char a[_Alignof(struct unnamed_type_1_extra_packed)];
-    char b;
-#else
     char a;
     struct unnamed_type_1_extra_packed b;
-#endif
 };
 struct unnamed_type_1_extra_required_alignment var4;
 struct unnamed_type_1_extra_size {
@@ -45,28 +39,22 @@ typedef unnamed_type_1 Int __attribute__((aligned(8)));
 #endif
 Int var6;
 struct Int_extra_alignment {
-#ifdef MSVC
-    char a[_Alignof(Int)];
-    char b;
-#else
     char a;
     Int b;
-#endif
 };
 struct Int_extra_alignment var7;
 #pragma pack(1)
 struct Int_extra_packed {
+#ifdef MSVC
+    char a[sizeof(Int)];
+#else
     Int a;
+#endif
 };
 #pragma pack()
 struct Int_extra_required_alignment {
-#ifdef MSVC
-    char a[_Alignof(struct Int_extra_packed)];
-    char b;
-#else
     char a;
     struct Int_extra_packed b;
-#endif
 };
 struct Int_extra_required_alignment var8;
 struct Int_extra_size {
@@ -78,28 +66,22 @@ struct Int_extra_size var9;
 typedef Int unnamed_type_10[3];
 unnamed_type_10 var11;
 struct unnamed_type_10_extra_alignment {
-#ifdef MSVC
-    char a[_Alignof(unnamed_type_10)];
-    char b;
-#else
     char a;
     unnamed_type_10 b;
-#endif
 };
 struct unnamed_type_10_extra_alignment var12;
 #pragma pack(1)
 struct unnamed_type_10_extra_packed {
+#ifdef MSVC
+    char a[sizeof(unnamed_type_10)];
+#else
     unnamed_type_10 a;
+#endif
 };
 #pragma pack()
 struct unnamed_type_10_extra_required_alignment {
-#ifdef MSVC
-    char a[_Alignof(struct unnamed_type_10_extra_packed)];
-    char b;
-#else
     char a;
     struct unnamed_type_10_extra_packed b;
-#endif
 };
 struct unnamed_type_10_extra_required_alignment var13;
 struct unnamed_type_10_extra_size {
@@ -111,28 +93,22 @@ struct unnamed_type_10_extra_size var14;
 typedef unnamed_type_10 Y;
 Y var15;
 struct Y_extra_alignment {
-#ifdef MSVC
-    char a[_Alignof(Y)];
-    char b;
-#else
     char a;
     Y b;
-#endif
 };
 struct Y_extra_alignment var16;
 #pragma pack(1)
 struct Y_extra_packed {
+#ifdef MSVC
+    char a[sizeof(Y)];
+#else
     Y a;
+#endif
 };
 #pragma pack()
 struct Y_extra_required_alignment {
-#ifdef MSVC
-    char a[_Alignof(struct Y_extra_packed)];
-    char b;
-#else
     char a;
     struct Y_extra_packed b;
-#endif
 };
 struct Y_extra_required_alignment var17;
 struct Y_extra_size {
@@ -147,28 +123,22 @@ typedef struct {
 } Z;
 Z var19;
 struct Z_extra_alignment {
-#ifdef MSVC
-    char a[_Alignof(Z)];
-    char b;
-#else
     char a;
     Z b;
-#endif
 };
 struct Z_extra_alignment var20;
 #pragma pack(1)
 struct Z_extra_packed {
+#ifdef MSVC
+    char a[sizeof(Z)];
+#else
     Z a;
+#endif
 };
 #pragma pack()
 struct Z_extra_required_alignment {
-#ifdef MSVC
-    char a[_Alignof(struct Z_extra_packed)];
-    char b;
-#else
     char a;
     struct Z_extra_packed b;
-#endif
 };
 struct Z_extra_required_alignment var21;
 struct Z_extra_size {

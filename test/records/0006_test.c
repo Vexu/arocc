@@ -12,28 +12,22 @@ typedef int Int __attribute__((aligned(8)));
 #endif
 Int var1;
 struct Int_extra_alignment {
-#ifdef MSVC
-    char a[_Alignof(Int)];
-    char b;
-#else
     char a;
     Int b;
-#endif
 };
 struct Int_extra_alignment var2;
 #pragma pack(1)
 struct Int_extra_packed {
+#ifdef MSVC
+    char a[sizeof(Int)];
+#else
     Int a;
+#endif
 };
 #pragma pack()
 struct Int_extra_required_alignment {
-#ifdef MSVC
-    char a[_Alignof(struct Int_extra_packed)];
-    char b;
-#else
     char a;
     struct Int_extra_packed b;
-#endif
 };
 struct Int_extra_required_alignment var3;
 struct Int_extra_size {
@@ -48,28 +42,22 @@ typedef struct {
 } X;
 X var5;
 struct X_extra_alignment {
-#ifdef MSVC
-    char a[_Alignof(X)];
-    char b;
-#else
     char a;
     X b;
-#endif
 };
 struct X_extra_alignment var6;
 #pragma pack(1)
 struct X_extra_packed {
+#ifdef MSVC
+    char a[sizeof(X)];
+#else
     X a;
+#endif
 };
 #pragma pack()
 struct X_extra_required_alignment {
-#ifdef MSVC
-    char a[_Alignof(struct X_extra_packed)];
-    char b;
-#else
     char a;
     struct X_extra_packed b;
-#endif
 };
 struct X_extra_required_alignment var7;
 struct X_extra_size {
