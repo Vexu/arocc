@@ -1,6 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 const ZigType = std.builtin.Type;
+const CallingConvention = @import("lib.zig").CallingConvention;
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
@@ -63,6 +64,7 @@ pub const ArgumentType = enum {
             Identifier => .identifier,
             u32 => .int,
             Alignment => .alignment,
+            CallingConvention => .identifier,
             else => switch (@typeInfo(T)) {
                 .Enum => if (T.opts.enum_kind == .string) .string else .identifier,
                 else => unreachable,
@@ -126,6 +128,7 @@ pub const Formatting = struct {
     /// use double quotes
     fn quoteChar(attr: Tag) []const u8 {
         switch (attr) {
+            .calling_convention => unreachable,
             inline else => |tag| {
                 const fields = getArguments(@field(attributes, @tagName(tag)));
 
@@ -142,6 +145,7 @@ pub const Formatting = struct {
     /// choices for the string or identifier enum of the first field of the Args of `attr`.
     pub fn choices(attr: Tag) []const u8 {
         switch (attr) {
+            .calling_convention => unreachable,
             inline else => |tag| {
                 const fields = getArguments(@field(attributes, @tagName(tag)));
 
@@ -166,6 +170,7 @@ pub const Formatting = struct {
 /// Checks if the first argument (if it exists) is an identifier enum
 pub fn wantsIdentEnum(attr: Tag) bool {
     switch (attr) {
+        .calling_convention => return false,
         inline else => |tag| {
             const fields = getArguments(@field(attributes, @tagName(tag)));
 
@@ -259,7 +264,7 @@ fn diagnoseField(
             if (wanted == []const u8) {
                 @field(@field(arguments, decl.name), field.name) = bytes;
                 return null;
-            } else if (@typeInfo(wanted) == .Enum and wanted.opts.enum_kind == .string) {
+            } else if (@typeInfo(wanted) == .Enum and @hasDecl(wanted, "opts") and wanted.opts.enum_kind == .string) {
                 if (std.meta.stringToEnum(wanted, bytes)) |enum_val| {
                     @field(@field(arguments, decl.name), field.name) = enum_val;
                     return null;
@@ -867,6 +872,11 @@ const attributes = struct {
             name: []const u8,
         };
     };
+    const calling_convention = struct {
+        const Args = struct {
+            cc: CallingConvention,
+        };
+    };
 };
 
 pub const Tag = std.meta.DeclEnum(attributes);
@@ -1139,6 +1149,17 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
         },
         .aligned => try attr.applyAligned(p, base_ty, null),
         .format => try attr.applyFormat(p, base_ty),
+        .calling_convention => switch (attr.args.calling_convention.cc) {
+            .C => continue,
+            .stdcall, .thiscall => switch (p.comp.target.cpu.arch) {
+                .x86 => try p.attr_application_buf.append(p.gpa, attr),
+                else => try p.errStr(.callconv_not_supported, toks[i], p.tok_ids[toks[i]].lexeme().?),
+            },
+            .vectorcall => switch (p.comp.target.cpu.arch) {
+                .x86, .aarch64, .aarch64_be, .aarch64_32 => try p.attr_application_buf.append(p.gpa, attr),
+                else => try p.errStr(.callconv_not_supported, toks[i], p.tok_ids[toks[i]].lexeme().?),
+            },
+        },
         .access,
         .alloc_align,
         .alloc_size,

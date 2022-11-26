@@ -1646,6 +1646,29 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 try p.expectClosing(l_paren, .r_paren);
                 continue;
             },
+            .keyword_stdcall,
+            .keyword_stdcall2,
+            .keyword_thiscall,
+            .keyword_thiscall2,
+            .keyword_vectorcall,
+            .keyword_vectorcall2,
+            => try p.attr_buf.append(p.gpa, .{
+                .attr = .{ .tag = .calling_convention, .args = .{
+                    .calling_convention = .{ .cc = switch (p.tok_ids[p.tok_i]) {
+                        .keyword_stdcall,
+                        .keyword_stdcall2,
+                        => .stdcall,
+                        .keyword_thiscall,
+                        .keyword_thiscall2,
+                        => .thiscall,
+                        .keyword_vectorcall,
+                        .keyword_vectorcall2,
+                        => .vectorcall,
+                        else => unreachable,
+                    } },
+                }, .syntax = .keyword },
+                .tok = p.tok_i,
+            }),
             .keyword_struct, .keyword_union => {
                 const tag_tok = p.tok_i;
                 const record_ty = try p.recordSpec();

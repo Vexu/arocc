@@ -1,4 +1,4 @@
-/* TODO: update this file once we validate attribute contexts */
+//aro-args --target=x86_64-linux
 void cleanup_fn(void) {}
 void foo(void) {
     int __attribute__((access)) bar_1;
@@ -28,6 +28,8 @@ struct S {
     int __attribute__((cold)) x;
 };
 
+int __thiscall bar(int);
+
 #define EXPECTED_ERRORS "attribute errors.c:4:24: error: 'access' attribute takes at least 2 argument(s)" \
     "attribute errors.c:5:31: error: Unknown `access` argument. Possible values are: 'read_only', 'read_write', 'write_only', 'none'" \
     "attribute errors.c:6:24: warning: attribute 'access' ignored on variables [-Wignored-attributes]" \
@@ -47,4 +49,4 @@ struct S {
     "attribute errors.c:23:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
     "attribute errors.c:24:49: error: 'deprecated' attribute takes at most 1 argument(s)" \
     "attribute errors.c:28:24: warning: attribute 'cold' ignored on fields [-Wignored-attributes]" \
-
+    "attribute errors.c:31:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]" \

@@ -2137,6 +2137,12 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const callconv_not_supported = struct {
+        const msg = "'{s}' calling convention is not supported for this target";
+        const extra = .str;
+        const opt = "ignored-attributes";
+        const kind = .warning;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

@@ -17,3 +17,10 @@ pub const target_util = @import("target.zig");
 
 pub const version_str = "0.0.0-dev";
 pub const version = @import("std").SemanticVersion.parse(version_str) catch unreachable;
+
+pub const CallingConvention = enum {
+    C,
+    stdcall,
+    thiscall,
+    vectorcall,
+};

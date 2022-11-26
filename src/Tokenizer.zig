@@ -254,6 +254,12 @@ pub const Token = struct {
         keyword_int16_2,
         keyword_int8,
         keyword_int8_2,
+        keyword_stdcall,
+        keyword_stdcall2,
+        keyword_thiscall,
+        keyword_thiscall2,
+        keyword_vectorcall,
+        keyword_vectorcall2,
 
         // builtins that require special parsing
         builtin_choose_expr,
@@ -378,6 +384,12 @@ pub const Token = struct {
                 .keyword_int16_2,
                 .keyword_int8,
                 .keyword_int8_2,
+                .keyword_stdcall,
+                .keyword_stdcall2,
+                .keyword_thiscall,
+                .keyword_thiscall2,
+                .keyword_vectorcall,
+                .keyword_vectorcall2,
                 .keyword_bit_int,
                 .keyword_c23_alignas,
                 .keyword_c23_alignof,
@@ -627,6 +639,12 @@ pub const Token = struct {
                 .keyword_int16_2 => "_int16",
                 .keyword_int8 => "__int8",
                 .keyword_int8_2 => "_int8",
+                .keyword_stdcall => "__stdcall",
+                .keyword_stdcall2 => "_stdcall",
+                .keyword_thiscall => "__thiscall",
+                .keyword_thiscall2 => "_thiscall",
+                .keyword_vectorcall => "__vectorcall",
+                .keyword_vectorcall2 => "_vectorcall",
             };
         }
 
@@ -740,6 +758,9 @@ pub const Token = struct {
             .keyword_int16_2,
             .keyword_int8,
             .keyword_int8_2,
+            .keyword_stdcall2,
+            .keyword_thiscall2,
+            .keyword_vectorcall2,
             => if (comp.langopts.ms_extensions) kw else .identifier,
             else => kw,
         };
@@ -887,6 +908,12 @@ pub const Token = struct {
         .{ "_int16", .keyword_int16_2 },
         .{ "__int8", .keyword_int8 },
         .{ "_int8", .keyword_int8_2 },
+        .{ "__stdcall", .keyword_stdcall },
+        .{ "_stdcall", .keyword_stdcall2 },
+        .{ "__thiscall", .keyword_thiscall },
+        .{ "_thiscall", .keyword_thiscall2 },
+        .{ "__vectorcall", .keyword_vectorcall },
+        .{ "_vectorcall", .keyword_vectorcall2 },
 
         // builtins that require special parsing
         .{ "__builtin_choose_expr", .builtin_choose_expr },
