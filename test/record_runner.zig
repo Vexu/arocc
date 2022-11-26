@@ -49,6 +49,9 @@ const ExpectedFailure = struct {
     fn any(self: ExpectedFailure) bool {
         return self.parse or self.layout or self.extra or self.offset;
     }
+    fn eql(self: ExpectedFailure, other: ExpectedFailure) bool {
+        return std.meta.eql(self, other);
+    }
 };
 
 pub fn main() !void {
@@ -255,8 +258,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     } else {
         var m = aro.Diagnostics.defaultMsgWriter(&comp);
         defer m.deinit();
-        var expected_errors = false;
-        var new_error = false;
+        var actual = ExpectedFailure{};
         for (comp.diag.list.items) |msg| {
             switch (msg.kind) {
                 .@"fatal error", .@"error" => {},
@@ -264,29 +266,27 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
             }
             const src = comp.getSource(msg.loc.id);
             const line = src.lineCol(msg.loc).line;
-            var render = false;
             if (std.ascii.indexOfIgnoreCase(line, "_Static_assert") != null) {
                 if (std.ascii.indexOfIgnoreCase(line, "_extra_") != null) {
-                    // MSVC _extra_ tests are all assumed to fail atm.
-                    if (comp.langopts.emulate == .msvc or expected.extra) expected_errors = true else render = true;
+                    actual.extra = true;
                 } else if (std.ascii.indexOfIgnoreCase(line, "_bitoffsetof") != null) {
-                    if (!expected.offset) render = true else expected_errors = true;
+                    actual.offset = true;
                 } else if (std.ascii.indexOfIgnoreCase(line, "sizeof") != null or
                     std.ascii.indexOfIgnoreCase(line, "_alignof") != null)
                 {
-                    if (!expected.layout) render = true else expected_errors = true;
+                    actual.layout = true;
                 } else unreachable;
-            } else if (!expected.parse) render = true else expected_errors = true;
-
-            if (render) {
-                if (!new_error) m.print("\n", .{});
-                aro.Diagnostics.renderMessage(&comp, &m, msg);
-                new_error = true;
+            } else {
+                actual.parse = true;
             }
         }
-        if (new_error) {
+        if (!expected.eql(actual)) {
+            m.print("\nexp:{any}\nact:{any}\n", .{ expected, actual });
+            for (comp.diag.list.items) |msg| {
+                aro.Diagnostics.renderMessage(&comp, &m, msg);
+            }
             state.fail_count += 1;
-        } else if (expected_errors) {
+        } else if (actual.any()) {
             state.skip_count += 1;
         } else {
             state.ok_count += 1;
