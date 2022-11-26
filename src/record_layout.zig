@@ -459,6 +459,10 @@ const MsvcContext = struct {
         if (self.max_field_align_bits) |max_align| {
             fld_align_bits = std.math.min(fld_align_bits, max_align);
         }
+        // check the requested alignment of the field type.
+        if (fld.ty.requestedAlignment(self.comp)) |type_req_align| {
+            fld_align_bits = std.math.max(fld_align_bits, type_req_align * 8);
+        }
 
         if (isPacked(fld_attrs)) {
             // __attribute__((packed)) on a field is a clang extension. It behaves as if #pragma
@@ -532,6 +536,8 @@ const MsvcContext = struct {
     fn layoutRegularField(self: *MsvcContext, size_bits: u64, field_align: u32) FieldLayout {
         self.contains_non_bitfield = true;
         self.ongoing_bitfield = null;
+        // The alignment of the field affects both the pointer alignment and the field
+        // alignment of the record. See test case 0032.
         self.pointer_align_bits = std.math.max(self.pointer_align_bits, field_align);
         self.field_align_bits = std.math.max(self.field_align_bits, field_align);
         const offset_bits = switch (self.is_union) {
@@ -595,6 +601,7 @@ pub fn compute(ty: Type, comp: *const Compilation, pragma_pack: ?u8) void {
                 // ensure that there are no zero-sized records.
                 context.handleZeroSizedRecord();
             }
+            context.size_bits = std.mem.alignForwardGeneric(u64, context.size_bits, context.pointer_align_bits);
             rec.type_layout = TypeLayout{
                 .size_bits = context.size_bits,
                 .field_alignment_bits = context.field_align_bits,
