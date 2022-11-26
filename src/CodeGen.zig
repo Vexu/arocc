@@ -41,6 +41,7 @@ wip_switch: *WipSwitch = undefined,
 cond_dummy_ref: Ir.Ref = undefined,
 symbols: std.ArrayListUnmanaged(Symbol) = .{},
 ret_nodes: std.ArrayListUnmanaged(Ir.Inst.Phi.Input) = .{},
+record_elem_buf: std.ArrayListUnmanaged(Interner.Ref) = .{},
 continue_label: Ir.Ref = undefined,
 break_label: Ir.Ref = undefined,
 return_label: Ir.Ref = undefined,
@@ -60,6 +61,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
     };
     defer c.symbols.deinit(c.comp.gpa);
     defer c.ret_nodes.deinit(c.comp.gpa);
+    defer c.record_elem_buf.deinit(c.comp.gpa);
     defer c.builder.deinit();
 
     const node_tags = tree.nodes.items(.tag);
@@ -116,11 +118,37 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
     switch (ty.specifier) {
         .void => return .void,
         .bool => return .i1,
+        .@"struct" => {
+            key = .{
+                .record = .{
+                    .user_ptr = ty.data.record,
+                    .elements = undefined, // Not needed for hash lookup.
+                },
+            };
+            if (c.builder.pool.has(key)) |some| return some;
+            const elem_buf_top = c.record_elem_buf.items.len;
+            defer c.record_elem_buf.items.len = elem_buf_top;
+
+            for (ty.data.record.fields) |field| {
+                if (!field.isRegularField()) {
+                    return c.comp.diag.fatalNoSrc("TODO lower struct bitfields", .{});
+                }
+                // TODO handle padding bits
+                const field_ref = try c.genType(field.ty);
+                try c.record_elem_buf.append(c.builder.gpa, field_ref);
+            }
+
+            key.record.elements = try c.builder.arena.allocator().dupe(Interner.Ref, c.record_elem_buf.items[elem_buf_top..]);
+            return c.builder.pool.put(c.builder.gpa, key);
+        },
+        .@"union" => {
+            return c.comp.diag.fatalNoSrc("TODO lower union types", .{});
+        },
         else => {},
     }
     if (ty.isPtr()) return .ptr;
     if (ty.isFunc()) return .func;
-    if (!ty.isReal()) @panic("TODO lower complex types");
+    if (!ty.isReal()) return c.comp.diag.fatalNoSrc("TODO lower complex types", .{});
     if (ty.isInt()) {
         const bits = ty.bitSizeof(c.comp).?;
         key = .{ .int = @intCast(u16, bits) };
@@ -133,8 +161,6 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
     } else if (ty.specifier == .vector) {
         const elem = try c.genType(ty.elemType());
         key = .{ .vector = .{ .child = elem, .len = @intCast(u32, ty.data.array.len) } };
-    } else if (ty.isRecord()) {
-        @panic("TODO lower record types");
     }
     return c.builder.pool.put(c.builder.gpa, key);
 }
@@ -264,7 +290,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const name = try c.comp.intern(c.tree.tokSlice(data.decl.name));
             try c.symbols.append(c.comp.gpa, .{ .name = name, .val = alloc });
             if (data.decl.node != .none) {
-                try c.genInitializer(alloc, data.decl.node);
+                try c.genInitializer(alloc, ty, data.decl.node);
             }
         },
         .labeled_stmt => {
@@ -941,13 +967,8 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     const data = c.node_data[@enumToInt(node)];
     switch (c.node_tag[@enumToInt(node)]) {
         .string_literal_expr => {
-            const val = c.tree.value_map.get(node).?.data.bytes;
-
-            // TODO generate anonymous global
-            const name = try std.fmt.allocPrintZ(c.builder.arena.allocator(), "\"{}\"", .{std.fmt.fmtSliceEscapeLower(val)});
-            const ref = @intToEnum(Ir.Ref, c.builder.instructions.len);
-            try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = name }, .ty = .ptr });
-            return ref;
+            const val = c.tree.value_map.get(node).?;
+            return c.builder.addConstant(val, .ptr);
         },
         .paren_expr => return c.genLval(data.un),
         .decl_ref_expr => {
@@ -972,7 +993,7 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const size = @intCast(u32, ty.sizeof(c.comp).?); // TODO add error in parser
             const @"align" = ty.alignof(c.comp);
             const alloc = try c.builder.addAlloc(size, @"align");
-            try c.genInitializer(alloc, data.un);
+            try c.genInitializer(alloc, ty, data.un);
             return alloc;
         },
         .builtin_choose_expr => {
@@ -1268,7 +1289,7 @@ fn genPtrArithmetic(c: *CodeGen, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, t
     return c.addBin(.add, ptr, offset_inst, offset_ty);
 }
 
-fn genInitializer(c: *CodeGen, ptr: Ir.Ref, initializer: NodeIndex) Error!void {
+fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: Type, initializer: NodeIndex) Error!void {
     std.debug.assert(initializer != .none);
     switch (c.node_tag[@enumToInt(initializer)]) {
         .array_init_expr_two,
@@ -1279,6 +1300,15 @@ fn genInitializer(c: *CodeGen, ptr: Ir.Ref, initializer: NodeIndex) Error!void {
         .array_filler_expr,
         .default_init_expr,
         => return c.comp.diag.fatalNoSrc("TODO CodeGen.genInitializer {}\n", .{c.node_tag[@enumToInt(initializer)]}),
+        .string_literal_expr => {
+            const val = c.tree.value_map.get(initializer).?;
+            const str_ptr = try c.builder.addConstant(val, .ptr);
+            if (dest_ty.isArray()) {
+                return c.comp.diag.fatalNoSrc("TODO memcpy\n", .{});
+            } else {
+                try c.builder.addStore(ptr, str_ptr);
+            }
+        },
         else => {
             const res = try c.genExpr(initializer);
             try c.builder.addStore(ptr, res);

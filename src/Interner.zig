@@ -32,6 +32,12 @@ pub const Key = union(enum) {
         child: Ref,
     },
     value: Value,
+    record: struct {
+        /// Pointer to user data, value used for hash and equality check.
+        user_ptr: *anyopaque,
+        /// TODO make smaller if Value is made smaller
+        elements: []const Ref,
+    },
 
     pub fn hash(key: Key) u32 {
         var hasher = std.hash.Wyhash.init(0);
@@ -46,8 +52,11 @@ pub const Key = union(enum) {
                     .bytes => std.hash.autoHashStrat(&hasher, val.data.bytes, .Shallow),
                 }
             },
-            inline else => |a_info| {
-                std.hash.autoHash(&hasher, a_info);
+            .record => |info| {
+                std.hash.autoHash(&hasher, @ptrToInt(info.user_ptr));
+            },
+            inline else => |info| {
+                std.hash.autoHash(&hasher, info);
             },
         }
         return @truncate(u32, hasher.final());
@@ -70,11 +79,42 @@ pub const Key = union(enum) {
                     .bytes => return std.mem.eql(u8, a_info.data.bytes, b_info.data.bytes),
                 }
             },
+            .record => |a_info| {
+                return a_info.user_ptr == b.record.user_ptr;
+            },
             inline else => |a_info, tag| {
                 const b_info = @field(b, @tagName(tag));
                 return std.meta.eql(a_info, b_info);
             },
         }
+    }
+
+    fn toRef(key: Key) ?Ref {
+        switch (key) {
+            .int => |bits| switch (bits) {
+                1 => return .i1,
+                8 => return .i8,
+                16 => return .i16,
+                32 => return .i32,
+                64 => return .i64,
+                128 => return .i128,
+                else => {},
+            },
+            .float => |bits| switch (bits) {
+                16 => return .f16,
+                32 => return .f32,
+                64 => return .f64,
+                80 => return .f80,
+                128 => return .f128,
+                else => unreachable,
+            },
+            .ptr => return .ptr,
+            .func => return .func,
+            .noreturn => return .noreturn,
+            .void => return .void,
+            else => {},
+        }
+        return null;
     }
 };
 
@@ -104,32 +144,17 @@ pub fn deinit(ip: *Interner, gpa: Allocator) void {
 }
 
 pub fn put(ip: *Interner, gpa: Allocator, key: Key) !Ref {
-    switch (key) {
-        .int => |bits| switch (bits) {
-            1 => return .i1,
-            8 => return .i8,
-            16 => return .i16,
-            32 => return .i32,
-            64 => return .i64,
-            128 => return .i128,
-            else => {},
-        },
-        .float => |bits| switch (bits) {
-            16 => return .f16,
-            32 => return .f32,
-            64 => return .f64,
-            80 => return .f80,
-            128 => return .f128,
-            else => unreachable,
-        },
-        .ptr => return .ptr,
-        .func => return .func,
-        .noreturn => return .noreturn,
-        .void => return .void,
-        else => {},
-    }
+    if (key.toRef()) |some| return some;
     const gop = try ip.map.getOrPut(gpa, key);
     return @intToEnum(Ref, gop.index);
+}
+
+pub fn has(ip: *Interner, key: Key) ?Ref {
+    if (key.toRef()) |some| return some;
+    if (ip.map.getIndex(key)) |index| {
+        return @intToEnum(Ref, index);
+    }
+    return null;
 }
 
 pub fn get(ip: Interner, ref: Ref) Key {

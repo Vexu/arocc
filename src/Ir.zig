@@ -518,6 +518,15 @@ fn writeType(ir: Ir, ty_ref: Interner.Ref, color: bool, w: anytype) !void {
             try ir.writeType(info.child, false, w);
             try w.writeByte('>');
         },
+        .record => |info| {
+            // TODO collect into buffer and only print once
+            try w.writeAll("{ ");
+            for (info.elements) |elem, i| {
+                if (i != 0) try w.writeAll(", ");
+                try ir.writeType(elem, color, w);
+            }
+            try w.writeAll(" }");
+        },
     }
 }
 
