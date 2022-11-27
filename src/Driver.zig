@@ -287,7 +287,7 @@ pub fn parseArgs(
     d.comp.diag.color = switch (color_setting) {
         .on => true,
         .off => false,
-        .unset => util.fileSupportsColor(std.io.getStdOut()) and !std.process.hasEnvVarConstant("NO_COLOR"),
+        .unset => util.fileSupportsColor(std.io.getStdErr()) and !std.process.hasEnvVarConstant("NO_COLOR"),
     };
     return false;
 }
