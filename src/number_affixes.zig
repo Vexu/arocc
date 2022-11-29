@@ -76,7 +76,7 @@ pub const Suffix = enum {
 
     // zig fmt: on
 
-    const Tuple = std.meta.Tuple(&.{ Suffix, []const []const u8 });
+    const Tuple = struct { Suffix, []const []const u8 };
 
     const IntSuffixes = &[_]Tuple{
         .{ .U, &.{"U"} },
