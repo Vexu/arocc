@@ -18,18 +18,12 @@ arena: std.heap.ArenaAllocator.State,
 // };
 
 pub const Builder = struct {
-    pub const Branch = struct {
-        false_label: Ref,
-        true_label: Ref,
-    };
-
     gpa: Allocator,
     arena: std.heap.ArenaAllocator,
     instructions: std.MultiArrayList(Ir.Inst) = .{},
     body: std.ArrayListUnmanaged(Ref) = .{},
     alloc_count: u32 = 0,
     pool: Interner = .{},
-    branch: ?Branch = null,
 
     pub fn deinit(b: *Builder) void {
         b.arena.deinit();
@@ -68,12 +62,12 @@ pub const Builder = struct {
         _ = try b.addInst(.jmp, .{ .un = label }, .noreturn);
     }
 
-    pub fn addBranch(b: *Builder, cond: Ref) Allocator.Error!void {
+    pub fn addBranch(b: *Builder, cond: Ref, true_label: Ref, false_label: Ref) Allocator.Error!void {
         const branch = try b.arena.allocator().create(Ir.Inst.Branch);
         branch.* = .{
             .cond = cond,
-            .then = b.branch.?.true_label,
-            .@"else" = b.branch.?.false_label,
+            .then = true_label,
+            .@"else" = false_label,
         };
         _ = try b.addInst(.branch, .{ .branch = branch }, .noreturn);
     }
