@@ -1004,10 +1004,7 @@ fn staticAssert(p: *Parser) Error!bool {
     if (str.node == .none) try p.errTok(.static_assert_missing_message, static_assert);
 
     if (res.val.tag == .unavailable) {
-        // an unavailable sizeof expression is already a compile error, so we don't emit
-        // another error for an invalid _Static_assert condition. This matches the behavior
-        // of gcc/clang
-        if (!p.nodeIs(res.node, .sizeof_expr)) try p.errTok(.static_assert_not_constant, res_token);
+        try p.errTok(.static_assert_not_constant, res_token);
     } else if (!res.val.getBool()) {
         if (str.node != .none) {
             var buf = std.ArrayList(u8).init(p.gpa);
@@ -5976,6 +5973,13 @@ fn unExpr(p: *Parser) Error!Result {
                 res = try p.parseNoEval(unExpr);
             }
 
+            if (res.ty.is(.void)) {
+                try p.errStr(.pointer_arith_void, tok, "sizeof");
+            } else if (res.ty.isDecayed()) {
+                const array_ty = res.ty.originalTypeOfDecayedArray();
+                const err_str = try p.typePairStrExtra(res.ty, " instead of ", array_ty);
+                try p.errStr(.sizeof_array_arg, tok, err_str);
+            }
             if (res.ty.sizeof(p.comp)) |size| {
                 if (size == 0) {
                     try p.errTok(.sizeof_returns_zero, tok);
@@ -5985,6 +5989,7 @@ fn unExpr(p: *Parser) Error!Result {
                 res.val.tag = .unavailable;
                 if (res.ty.hasIncompleteSize()) {
                     try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
+                    return error.ParsingFailed;
                 }
             }
             res.ty = p.comp.types.size;
@@ -6016,8 +6021,12 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.alignof_expr, expected_paren);
             }
 
+            if (res.ty.is(.void)) {
+                try p.errStr(.pointer_arith_void, tok, "alignof");
+            }
             if (!res.ty.alignable()) {
                 try p.errStr(.invalid_alignof, expected_paren, try p.typeStr(res.ty));
+                return error.ParsingFailed;
             }
             res.val = Value.int(res.ty.alignof(p.comp));
             res.ty = p.comp.types.size;
