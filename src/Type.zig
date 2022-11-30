@@ -881,6 +881,8 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
     }
 
     return switch (ty.specifier) {
+        .invalid, .special_va_start => unreachable,
+
         .variable_len_array,
         .incomplete_array,
         .unspecified_variable_len_array,
@@ -937,7 +939,6 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
         .attributed => ty.data.attributed.base.alignof(comp),
-        else => unreachable,
     };
 }
 

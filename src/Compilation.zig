@@ -699,7 +699,7 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
         }
     }
 
-    const splice_locs = splice_list.toOwnedSlice();
+    const splice_locs = try splice_list.toOwnedSlice();
     errdefer comp.gpa.free(splice_locs);
 
     if (i != contents.len) contents = try comp.gpa.realloc(contents, i);

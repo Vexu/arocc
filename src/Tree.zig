@@ -33,8 +33,9 @@ pub const Token = struct {
         var list = std.ArrayList(Source.Location).init(gpa);
         defer {
             std.mem.set(Source.Location, list.items.ptr[list.items.len..list.capacity], .{});
-            // add a sentinel since the allocator is not guaranteed
-            // to return the exact desired size
+            // Add a sentinel to indicate the end of the list since
+            // the ArrayList's capacity isn't guaranteed to be exactly
+            // what we ask for.
             if (list.capacity > 0) {
                 list.items.ptr[list.capacity - 1].byte_offset = 1;
             }
