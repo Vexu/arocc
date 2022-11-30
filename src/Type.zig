@@ -435,6 +435,22 @@ pub fn isScalar(ty: Type) bool {
     return ty.isInt() or ty.isFloat() or ty.isPtr();
 }
 
+pub fn isDecayed(ty: Type) bool {
+    const decayed = switch (ty.specifier) {
+        .decayed_array,
+        .decayed_static_array,
+        .decayed_incomplete_array,
+        .decayed_variable_len_array,
+        .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type,
+        .decayed_typeof_expr,
+        => true,
+        else => false,
+    };
+    std.debug.assert(decayed or !std.mem.startsWith(u8, @tagName(ty.specifier), "decayed"));
+    return decayed;
+}
+
 pub fn isPtr(ty: Type) bool {
     return switch (ty.specifier) {
         .pointer,
@@ -677,7 +693,7 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
 
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
-        .void, .incomplete_array => true,
+        .void, .incomplete_array, .invalid => true,
         .@"enum" => ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed,
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
@@ -856,7 +872,7 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
 }
 
 pub fn alignable(ty: Type) bool {
-    return ty.isArray() or !ty.hasIncompleteSize();
+    return ty.isArray() or !ty.hasIncompleteSize() or ty.is(.void);
 }
 
 /// Get the alignment of a type
@@ -1083,6 +1099,13 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
 pub fn decayArray(ty: *Type) void {
     // the decayed array type is the current specifier +1
     ty.specifier = @intToEnum(Type.Specifier, @enumToInt(ty.specifier) + 1);
+}
+
+pub fn originalTypeOfDecayedArray(ty: Type) Type {
+    std.debug.assert(ty.isDecayed());
+    var copy = ty;
+    copy.specifier = @intToEnum(Type.Specifier, @enumToInt(ty.specifier) - 1);
+    return copy;
 }
 
 pub fn makeReal(ty: Type) Type {

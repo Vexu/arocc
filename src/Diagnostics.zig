@@ -149,6 +149,8 @@ pub const Options = packed struct {
     @"expansion-to-defined": Kind = .default,
     @"bit-int-extension": Kind = .default,
     @"keyword-macro": Kind = .default,
+    @"pointer-arith": Kind = .default,
+    @"sizeof-array-argument": Kind = .default,
 };
 
 const messages = struct {
@@ -2142,6 +2144,19 @@ const messages = struct {
         const extra = .str;
         const opt = "ignored-attributes";
         const kind = .warning;
+    };
+    const pointer_arith_void = struct {
+        const msg = "invalid application of '{s}' to a void type";
+        const extra = .str;
+        const kind = .off;
+        const pedantic = true;
+        const opt = "pointer-arith";
+    };
+    const sizeof_array_arg = struct {
+        const msg = "sizeof on array function parameter will return size of {s}";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "sizeof-array-argument";
     };
 };
 
