@@ -1004,7 +1004,9 @@ fn staticAssert(p: *Parser) Error!bool {
     if (str.node == .none) try p.errTok(.static_assert_missing_message, static_assert);
 
     if (res.val.tag == .unavailable) {
-        try p.errTok(.static_assert_not_constant, res_token);
+        if (res.ty.specifier != .invalid) {
+            try p.errTok(.static_assert_not_constant, res_token);
+        }
     } else if (!res.val.getBool()) {
         if (str.node != .none) {
             var buf = std.ArrayList(u8).init(p.gpa);
@@ -4220,6 +4222,13 @@ const Result = struct {
         try p.errTok(.unused_value, expr_start);
     }
 
+    fn boolRes(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
+        if (lhs.ty.specifier != .invalid) {
+            lhs.ty = Type.int;
+        }
+        return lhs.bin(p, tag, rhs);
+    }
+
     fn bin(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
         lhs.node = try p.addNode(.{
             .tag = tag,
@@ -4295,6 +4304,13 @@ const Result = struct {
         add,
         sub,
     }) !bool {
+        if (b.ty.specifier == .invalid) {
+            try a.saveValue(p);
+            a.ty = Type.invalid;
+        }
+        if (a.ty.specifier == .invalid) {
+            return false;
+        }
         try a.lvalConversion(p);
         try b.lvalConversion(p);
 
@@ -5192,7 +5208,7 @@ fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
 
     const res = try p.condExpr();
     try res.expect(p);
-    if (!res.ty.isInt()) {
+    if (!res.ty.isInt() and res.ty.specifier != .invalid) {
         try p.errTok(.expected_integer_constant_expr, start);
         return error.ParsingFailed;
     }
@@ -5281,8 +5297,7 @@ fn lorExpr(p: *Parser) Error!Result {
             const res = @boolToInt(lhs.val.getBool() or rhs.val.getBool());
             lhs.val = Value.int(res);
         }
-        lhs.ty = .{ .specifier = .int };
-        try lhs.bin(p, .bool_or_expr, rhs);
+        try lhs.boolRes(p, .bool_or_expr, rhs);
     }
     return lhs;
 }
@@ -5303,8 +5318,7 @@ fn landExpr(p: *Parser) Error!Result {
             const res = @boolToInt(lhs.val.getBool() and rhs.val.getBool());
             lhs.val = Value.int(res);
         }
-        lhs.ty = .{ .specifier = .int };
-        try lhs.bin(p, .bool_and_expr, rhs);
+        try lhs.boolRes(p, .bool_and_expr, rhs);
     }
     return lhs;
 }
@@ -5373,8 +5387,7 @@ fn eqExpr(p: *Parser) Error!Result {
             const res = lhs.val.compare(op, rhs.val, lhs.ty, p.comp);
             lhs.val = Value.int(@boolToInt(res));
         }
-        lhs.ty = .{ .specifier = .int };
-        try lhs.bin(p, tag, rhs);
+        try lhs.boolRes(p, tag, rhs);
     }
     return lhs;
 }
@@ -5403,8 +5416,7 @@ fn compExpr(p: *Parser) Error!Result {
             const res = lhs.val.compare(op, rhs.val, lhs.ty, p.comp);
             lhs.val = Value.int(@boolToInt(res));
         }
-        lhs.ty = .{ .specifier = .int };
-        try lhs.bin(p, tag, rhs);
+        try lhs.boolRes(p, tag, rhs);
     }
     return lhs;
 }
@@ -5984,15 +5996,17 @@ fn unExpr(p: *Parser) Error!Result {
                 if (size == 0) {
                     try p.errTok(.sizeof_returns_zero, tok);
                 }
-                res.val = .{ .tag = .int, .data = .{ .int = size } };
+                res.val = Value.int(size);
+                res.ty = p.comp.types.size;
             } else {
                 res.val.tag = .unavailable;
                 if (res.ty.hasIncompleteSize()) {
                     try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
-                    return error.ParsingFailed;
+                    res.ty = Type.invalid;
+                } else {
+                    res.ty = p.comp.types.size;
                 }
             }
-            res.ty = p.comp.types.size;
             try res.un(p, .sizeof_expr);
             return res;
         },
@@ -6024,12 +6038,13 @@ fn unExpr(p: *Parser) Error!Result {
             if (res.ty.is(.void)) {
                 try p.errStr(.pointer_arith_void, tok, "alignof");
             }
-            if (!res.ty.alignable()) {
+            if (res.ty.alignable()) {
+                res.val = Value.int(res.ty.alignof(p.comp));
+                res.ty = p.comp.types.size;
+            } else {
                 try p.errStr(.invalid_alignof, expected_paren, try p.typeStr(res.ty));
-                return error.ParsingFailed;
+                res.ty = Type.invalid;
             }
-            res.val = Value.int(res.ty.alignof(p.comp));
-            res.ty = p.comp.types.size;
             try res.un(p, .alignof_expr);
             return res;
         },
