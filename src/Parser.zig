@@ -989,7 +989,7 @@ fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.eatToken(.keyword_static_assert) orelse p.eatToken(.keyword_c23_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
-    const res = try p.integerConstExpr(.no_const_decl_folding);
+    var res = try p.constExpr(.gnu_folding_extension);
     const str = if (p.eatToken(.comma) != null)
         switch (p.tok_ids[p.tok_i]) {
             .string_literal,
@@ -1007,31 +1007,47 @@ fn staticAssert(p: *Parser) Error!bool {
         Result{};
     try p.expectClosing(l_paren, .r_paren);
     _ = try p.expectToken(.semicolon);
-    if (str.node == .none) try p.errTok(.static_assert_missing_message, static_assert);
+    if (str.node == .none) {
+        try p.errTok(.static_assert_missing_message, static_assert);
+        try p.errStr(.static_assert_missing_message_c2x_compat, static_assert, "'_Static_assert' with no message");
+    }
 
+    // Array will never be zero; a value of zero for a pointer is a null pointer constant
+    if ((res.ty.isArray() or res.ty.isPtr()) and !res.val.isZero()) {
+        const err_start = p.comp.diag.list.items.len;
+        try p.errTok(.const_decl_folded, res_token);
+        if (res.ty.isPtr() and err_start != p.comp.diag.list.items.len) {
+            // Don't show the note if the .const_decl_folded diagnostic was not added
+            try p.errTok(.constant_expression_conversion_not_allowed, res_token);
+        }
+    }
+    try res.boolCast(p, .{ .specifier = .bool }, res_token);
     if (res.val.tag == .unavailable) {
         if (res.ty.specifier != .invalid) {
             try p.errTok(.static_assert_not_constant, res_token);
         }
-    } else if (!res.val.getBool()) {
-        if (str.node != .none) {
-            var buf = std.ArrayList(u8).init(p.gpa);
-            defer buf.deinit();
+    } else {
+        if (!res.val.getBool()) {
+            if (str.node != .none) {
+                var buf = std.ArrayList(u8).init(p.gpa);
+                defer buf.deinit();
 
-            const data = str.val.data.bytes;
-            try buf.ensureUnusedCapacity(data.len);
-            try Tree.dumpStr(
-                data,
-                p.nodes.items(.tag)[@enumToInt(str.node)],
-                buf.writer(),
-            );
-            try p.errStr(
-                .static_assert_failure_message,
-                static_assert,
-                try p.comp.diag.arena.allocator().dupe(u8, buf.items),
-            );
-        } else try p.errTok(.static_assert_failure, static_assert);
+                const data = str.val.data.bytes;
+                try buf.ensureUnusedCapacity(data.len);
+                try Tree.dumpStr(
+                    data,
+                    p.nodes.items(.tag)[@enumToInt(str.node)],
+                    buf.writer(),
+                );
+                try p.errStr(
+                    .static_assert_failure_message,
+                    static_assert,
+                    try p.comp.diag.arena.allocator().dupe(u8, buf.items),
+                );
+            } else try p.errTok(.static_assert_failure, static_assert);
+        }
     }
+
     const node = try p.addNode(.{
         .tag = .static_assert,
         .data = .{ .bin = .{
@@ -4474,7 +4490,17 @@ const Result = struct {
     }
 
     fn boolCast(res: *Result, p: *Parser, bool_ty: Type, tok: TokenIndex) Error!void {
-        if (res.ty.isPtr()) {
+        if (res.ty.isArray()) {
+            if (res.val.tag == .bytes) {
+                try p.errStr(.string_literal_to_bool, tok, try p.typePairStrExtra(res.ty, " to ", bool_ty));
+            } else {
+                try p.errStr(.array_address_to_bool, tok, p.tokSlice(tok));
+            }
+            try res.lvalConversion(p);
+            res.val = Value.int(1);
+            res.ty = bool_ty;
+            try res.implicitCast(p, .pointer_to_bool);
+        } else if (res.ty.isPtr()) {
             res.val.toBool();
             res.ty = bool_ty;
             try res.implicitCast(p, .pointer_to_bool);
@@ -5205,19 +5231,30 @@ fn assignExpr(p: *Parser) Error!Result {
     return lhs;
 }
 
-/// integerConstExpr : condExpr
+/// Returns a parse error if the expression is not an integer constant
+/// integerConstExpr : constExpr
 fn integerConstExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
     const start = p.tok_i;
+    const res = try p.constExpr(decl_folding);
+    if (!res.ty.isInt() and res.ty.specifier != .invalid) {
+        try p.errTok(.expected_integer_constant_expr, start);
+        return error.ParsingFailed;
+    }
+    return res;
+}
+
+/// Caller is responsible for issuing a diagnostic if result is invalid/unavailable
+/// constExpr : condExpr
+fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
     const const_decl_folding = p.const_decl_folding;
     defer p.const_decl_folding = const_decl_folding;
     p.const_decl_folding = decl_folding;
 
     const res = try p.condExpr();
     try res.expect(p);
-    if (!res.ty.isInt() and res.ty.specifier != .invalid) {
-        try p.errTok(.expected_integer_constant_expr, start);
-        return error.ParsingFailed;
-    }
+
+    if (res.ty.specifier == .invalid or res.val.tag == .unavailable) return res;
+
     // saveValue sets val to unavailable
     var copy = res;
     try copy.saveValue(p);
@@ -5966,7 +6003,11 @@ fn unExpr(p: *Parser) Error!Result {
                 const res = Value.int(@boolToInt(!operand.val.getBool()));
                 operand.val = res;
             } else {
-                operand.val.tag = .unavailable;
+                if (operand.ty.isDecayed()) {
+                    operand.val = Value.int(0);
+                } else {
+                    operand.val.tag = .unavailable;
+                }
             }
             operand.ty = .{ .specifier = .int };
             try operand.un(p, .bool_not_expr);
