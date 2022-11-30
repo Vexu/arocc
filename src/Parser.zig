@@ -983,13 +983,13 @@ fn decl(p: *Parser) Error!bool {
 }
 
 /// staticAssert
-///    : keyword_static_assert '(' constExpr (',' STRING_LITERAL)? ')' ';'
-///    | keyword_c23_static_assert '(' constExpr (',' STRING_LITERAL)? ')' ';'
+///    : keyword_static_assert '(' integerConstExpr (',' STRING_LITERAL)? ')' ';'
+///    | keyword_c23_static_assert '(' integerConstExpr (',' STRING_LITERAL)? ')' ';'
 fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.eatToken(.keyword_static_assert) orelse p.eatToken(.keyword_c23_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
-    const res = try p.constExpr(.no_const_decl_folding);
+    const res = try p.integerConstExpr(.no_const_decl_folding);
     const str = if (p.eatToken(.comma) != null)
         switch (p.tok_ids[p.tok_i]) {
             .string_literal,
@@ -1556,13 +1556,13 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
 ///  | enumSpec
 ///  | typedef  // IDENTIFIER
 ///  | typeof
-///  | keyword_bit_int '(' constExpr ')'
+///  | keyword_bit_int '(' integerConstExpr ')'
 /// atomicTypeSpec : keyword_atomic '(' typeName ')'
 /// alignSpec
 ///   : keyword_alignas '(' typeName ')'
-///   | keyword_alignas '(' constExpr ')'
+///   | keyword_alignas '(' integerConstExpr ')'
 ///   | keyword_c23_alignas '(' typeName ')'
-///   | keyword_c23_alignas '(' constExpr ')'
+///   | keyword_c23_alignas '(' integerConstExpr ')'
 fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
@@ -1633,7 +1633,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     });
                 } else {
                     const arg_start = p.tok_i;
-                    const res = try p.constExpr(.no_const_decl_folding);
+                    const res = try p.integerConstExpr(.no_const_decl_folding);
                     if (!res.val.isZero()) {
                         var args = Attribute.initArguments(.aligned, align_tok);
                         if (p.diagnose(.aligned, &args, 0, res)) |msg| {
@@ -1711,7 +1711,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 const bit_int_tok = p.tok_i;
                 p.tok_i += 1;
                 const l_paren = try p.expectToken(.l_paren);
-                const res = try p.constExpr(.gnu_folding_extension);
+                const res = try p.integerConstExpr(.gnu_folding_extension);
                 try p.expectClosing(l_paren, .r_paren);
 
                 var bits: i16 = undefined;
@@ -1951,7 +1951,7 @@ fn recordDecls(p: *Parser) Error!void {
     }
 }
 
-/// recordDeclarator : keyword_extension? declarator (':' constExpr)?
+/// recordDeclarator : keyword_extension? declarator (':' integerConstExpr)?
 fn recordDeclarator(p: *Parser) Error!bool {
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
@@ -1977,7 +1977,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
 
         if (p.eatToken(.colon)) |_| bits: {
             const bits_tok = p.tok_i;
-            const res = try p.constExpr(.gnu_folding_extension);
+            const res = try p.integerConstExpr(.gnu_folding_extension);
             if (!ty.isInt()) {
                 try p.errStr(.non_int_bitfield, first_tok, try p.typeStr(ty));
                 break :bits;
@@ -2397,7 +2397,7 @@ const Enumerator = struct {
 
 const EnumFieldAndNode = struct { field: Type.Enum.Field, node: NodeIndex };
 
-/// enumerator : IDENTIFIER ('=' constExpr)
+/// enumerator : IDENTIFIER ('=' integerConstExpr)
 fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     _ = try p.pragma();
     const name_tok = (try p.eatIdentifier()) orelse {
@@ -2412,7 +2412,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 
     const err_start = p.comp.diag.list.items.len;
     if (p.eatToken(.equal)) |_| {
-        const specified = try p.constExpr(.gnu_folding_extension);
+        const specified = try p.integerConstExpr(.gnu_folding_extension);
         if (specified.val.tag == .unavailable) {
             try p.errTok(.enum_val_unavailable, name_tok + 2);
             try e.incr(p, name_tok);
@@ -2877,7 +2877,7 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?
 /// designation : designator+ '='
 /// designator
-///  : '[' constExpr ']'
+///  : '[' integerConstExpr ']'
 ///  | '.' identifier
 fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
     const l_brace = p.eatToken(.l_brace) orelse {
@@ -2927,7 +2927,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     return error.ParsingFailed;
                 }
                 const expr_tok = p.tok_i;
-                const index_res = try p.constExpr(.gnu_folding_extension);
+                const index_res = try p.integerConstExpr(.gnu_folding_extension);
                 try p.expectClosing(l_bracket, .r_bracket);
 
                 if (index_res.val.tag == .unavailable) {
@@ -3775,7 +3775,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 
 /// labeledStmt
 /// : IDENTIFIER ':' stmt
-/// | keyword_case constExpr ':' stmt
+/// | keyword_case integerConstExpr ':' stmt
 /// | keyword_default ':' stmt
 fn labeledStmt(p: *Parser) Error!?NodeIndex {
     if ((p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) and p.tok_ids[p.tok_i + 1] == .colon) {
@@ -3809,11 +3809,11 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         labeled_stmt.ty = try Attribute.applyLabelAttributes(p, labeled_stmt.ty, attr_buf_top);
         return try p.addNode(labeled_stmt);
     } else if (p.eatToken(.keyword_case)) |case| {
-        const first_item = try p.constExpr(.gnu_folding_extension);
+        const first_item = try p.integerConstExpr(.gnu_folding_extension);
         const ellipsis = p.tok_i;
         const second_item = if (p.eatToken(.ellipsis) != null) blk: {
             try p.errTok(.gnu_switch_range, ellipsis);
-            break :blk try p.constExpr(.gnu_folding_extension);
+            break :blk try p.integerConstExpr(.gnu_folding_extension);
         } else null;
         _ = try p.expectToken(.colon);
 
@@ -5205,8 +5205,8 @@ fn assignExpr(p: *Parser) Error!Result {
     return lhs;
 }
 
-/// constExpr : condExpr
-fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
+/// integerConstExpr : condExpr
+fn integerConstExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
     const start = p.tok_i;
     const const_decl_folding = p.const_decl_folding;
     defer p.const_decl_folding = const_decl_folding;
@@ -5543,7 +5543,7 @@ fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
 ///  :  '(' compoundStmt ')'
 ///  |  '(' typeName ')' castExpr
 ///  | '(' typeName ')' '{' initializerItems '}'
-///  | __builtin_choose_expr '(' constExpr ',' assignExpr ',' assignExpr ')'
+///  | __builtin_choose_expr '(' integerConstExpr ',' assignExpr ',' assignExpr ')'
 ///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
 ///  | __builtin_offsetof '(' typeName ',' offsetofMemberDesignator ')'
 ///  | __builtin_bitoffsetof '(' typeName ',' offsetofMemberDesignator ')'
@@ -5611,7 +5611,7 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     const cond_tok = p.tok_i;
-    var cond = try p.constExpr(.no_const_decl_folding);
+    var cond = try p.integerConstExpr(.no_const_decl_folding);
     if (cond.val.tag == .unavailable) {
         try p.errTok(.builtin_choose_cond, cond_tok);
         return error.ParsingFailed;
