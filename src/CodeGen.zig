@@ -207,7 +207,7 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
         .arena = c.builder.arena.state,
         .body = c.builder.body,
     };
-    res.dump(name, c.comp.diag.color, std.io.getStdOut().writer()) catch {};
+    res.dump(c.builder.gpa, name, c.comp.diag.color, std.io.getStdOut().writer()) catch {};
 }
 
 fn addUn(c: *CodeGen, tag: Ir.Inst.Tag, operand: Ir.Ref, ty: Type) !Ir.Ref {
