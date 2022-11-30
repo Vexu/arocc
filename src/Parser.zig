@@ -614,20 +614,26 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.err(.expected_external_decl);
         p.tok_i += 1;
     }
-    const root_decls = p.decl_buf.toOwnedSlice();
+    const root_decls = try p.decl_buf.toOwnedSlice();
+    errdefer pp.comp.gpa.free(root_decls);
     if (root_decls.len == 0) {
         try p.errTok(.empty_translation_unit, p.tok_i - 1);
     }
     pp.comp.pragmaEvent(.after_parse);
+
+    const data = try p.data.toOwnedSlice();
+    errdefer pp.comp.gpa.free(data);
+    const strings = try p.strings.toOwnedSlice();
+    errdefer pp.comp.gpa.free(strings);
     return Tree{
         .comp = pp.comp,
         .tokens = pp.tokens.slice(),
         .arena = arena,
         .generated = pp.comp.generated_buf.items,
         .nodes = p.nodes.toOwnedSlice(),
-        .data = p.data.toOwnedSlice(),
+        .data = data,
         .root_decls = root_decls,
-        .strings = p.strings.toOwnedSlice(),
+        .strings = strings,
         .value_map = p.value_map,
     };
 }

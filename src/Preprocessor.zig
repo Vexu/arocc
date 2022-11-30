@@ -1482,7 +1482,7 @@ fn collectMacroFuncArguments(
         switch (tok.id) {
             .comma => {
                 if (parens == 0) {
-                    const owned = curArgument.toOwnedSlice();
+                    const owned = try curArgument.toOwnedSlice();
                     errdefer pp.gpa.free(owned);
                     try args.append(owned);
                 } else {
@@ -1499,7 +1499,7 @@ fn collectMacroFuncArguments(
             },
             .r_paren => {
                 if (parens == 0) {
-                    const owned = curArgument.toOwnedSlice();
+                    const owned = try curArgument.toOwnedSlice();
                     errdefer pp.gpa.free(owned);
                     try args.append(owned);
                     break;
@@ -1512,7 +1512,7 @@ fn collectMacroFuncArguments(
             },
             .eof => {
                 {
-                    const owned = curArgument.toOwnedSlice();
+                    const owned = try curArgument.toOwnedSlice();
                     errdefer pp.gpa.free(owned);
                     try args.append(owned);
                 }
@@ -1688,7 +1688,7 @@ fn expandMacroExhaustive(
 
                         try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false, eval_ctx);
 
-                        expanded_args.appendAssumeCapacity(expand_buf.toOwnedSlice());
+                        expanded_args.appendAssumeCapacity(try expand_buf.toOwnedSlice());
                     }
 
                     var res = try pp.expandFuncMacro(macro_tok.loc, macro, &args, &expanded_args);
