@@ -151,6 +151,9 @@ pub const Options = packed struct {
     @"keyword-macro": Kind = .default,
     @"pointer-arith": Kind = .default,
     @"sizeof-array-argument": Kind = .default,
+    @"pre-c2x-compat": Kind = .default,
+    @"pointer-bool-conversion": Kind = .default,
+    @"string-conversion": Kind = .default,
 };
 
 const messages = struct {
@@ -1055,6 +1058,13 @@ const messages = struct {
         const opt = "c2x-extensions";
         const kind = .warning;
         const suppress_version = .c2x;
+    };
+    const static_assert_missing_message_c2x_compat = struct {
+        const msg = "{s} is incompatible with C standards before C2x";
+        const extra = .str;
+        const kind = .off;
+        const suppress_unless_version = .c2x;
+        const opt = "pre-c2x-compat";
     };
     const unbound_vla = struct {
         const msg = "variable length array must be bound in function definition";
@@ -2158,6 +2168,22 @@ const messages = struct {
         const kind = .warning;
         const opt = "sizeof-array-argument";
     };
+    const array_address_to_bool = struct {
+        const msg = "address of array '{s}' will always evaluate to 'true'";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "pointer-bool-conversion";
+    };
+    const string_literal_to_bool = struct {
+        const msg = "implicit conversion turns string literal into bool: {s}";
+        const extra = .str;
+        const kind = .off;
+        const opt = "string-conversion";
+    };
+    const constant_expression_conversion_not_allowed = struct {
+        const msg = "this conversion is not allowed in a constant expression";
+        const kind = .note;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -2445,6 +2471,7 @@ fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
                 if (@field(diag.options, info.opt) != .default) kind = @field(diag.options, info.opt);
             }
             if (@hasDecl(info, "suppress_version")) if (comp.langopts.standard.atLeast(info.suppress_version)) return .off;
+            if (@hasDecl(info, "suppress_unless_version")) if (!comp.langopts.standard.atLeast(info.suppress_unless_version)) return .off;
             if (@hasDecl(info, "suppress_gnu")) if (comp.langopts.standard.isExplicitGNU()) return .off;
             if (@hasDecl(info, "suppress_language_option")) if (!@field(comp.langopts, info.suppress_language_option)) return .off;
             if (@hasDecl(info, "suppress_gcc")) if (comp.langopts.emulate == .gcc) return .off;
