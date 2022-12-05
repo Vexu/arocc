@@ -4414,11 +4414,11 @@ const Result = struct {
                     const other_res = if (a_nullptr) b else a;
                     if (other_res.ty.isPtr()) {
                         try nullptr_res.nullCast(p, other_res.ty);
-                        return a.shouldEval(b, p);
+                        return other_res.shouldEval(nullptr_res, p);
                     } else if (other_res.val.isZero()) {
                         other_res.val = .{ .tag = .nullptr_t };
                         try other_res.nullCast(p, nullptr_res.ty);
-                        return a.shouldEval(b, p);
+                        return other_res.shouldEval(nullptr_res, p);
                     }
                     return a.invalidBinTy(tok, b, p);
                 }
