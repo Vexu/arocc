@@ -568,8 +568,7 @@ const MsvcContext = struct {
     }
 };
 
-pub fn compute(ty: Type, comp: *const Compilation, pragma_pack: ?u8) void {
-    const rec = getMutableRecord(ty);
+pub fn compute(rec: *Type.Record, ty: Type, comp: *const Compilation, pragma_pack: ?u8) void {
     switch (comp.langopts.emulate) {
         .gcc, .clang => {
             var context = SysVContext.init(ty, comp, pragma_pack);
@@ -578,7 +577,7 @@ pub fn compute(ty: Type, comp: *const Compilation, pragma_pack: ?u8) void {
 
             context.size_bits = std.mem.alignForwardGeneric(u64, context.size_bits, context.aligned_bits);
 
-            rec.type_layout = TypeLayout{
+            rec.type_layout = .{
                 .size_bits = context.size_bits,
                 .field_alignment_bits = context.aligned_bits,
                 .pointer_alignment_bits = context.aligned_bits,
@@ -602,7 +601,7 @@ pub fn compute(ty: Type, comp: *const Compilation, pragma_pack: ?u8) void {
                 context.handleZeroSizedRecord();
             }
             context.size_bits = std.mem.alignForwardGeneric(u64, context.size_bits, context.pointer_align_bits);
-            rec.type_layout = TypeLayout{
+            rec.type_layout = .{
                 .size_bits = context.size_bits,
                 .field_alignment_bits = context.field_align_bits,
                 .pointer_alignment_bits = context.pointer_align_bits,
@@ -630,16 +629,6 @@ fn computeLayout(ty: Type, comp: *const Compilation) TypeLayout {
             .required_alignment_bits = BITS_PER_BYTE,
         };
     }
-}
-
-pub fn getMutableRecord(ty: Type) *Type.Record {
-    return switch (ty.specifier) {
-        .attributed => getMutableRecord(ty.data.attributed.base),
-        .typeof_type, .decayed_typeof_type => getMutableRecord(ty.data.sub_type.*),
-        .typeof_expr, .decayed_typeof_expr => getMutableRecord(ty.data.expr.ty),
-        .@"struct", .@"union" => ty.data.record,
-        else => unreachable,
-    };
 }
 
 fn isPacked(attrs: ?[]const Attribute) bool {

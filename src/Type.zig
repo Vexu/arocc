@@ -259,7 +259,12 @@ pub const Record = struct {
         r.name = name;
         r.fields.len = std.math.maxInt(usize);
         r.field_attributes = null;
-        r.type_layout = undefined;
+        r.type_layout = .{
+            .size_bits = 8,
+            .field_alignment_bits = 8,
+            .pointer_alignment_bits = 8,
+            .required_alignment_bits = 8,
+        };
         return r;
     }
 };
