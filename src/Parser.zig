@@ -4823,9 +4823,10 @@ const Result = struct {
             }
         } else if (res.ty.is(.nullptr_t)) {
             if (to.is(.bool)) {
-                res.ty = to;
-                try res.implicitCast(p, .bitcast);
-                res.val = Value.int(0);
+                try res.nullCast(p, res.ty);
+                res.val.toBool();
+                res.ty = .{ .specifier = .bool };
+                try res.implicitCast(p, .pointer_to_bool);
                 try res.saveValue(p);
             } else if (to.isPtr()) {
                 try res.nullCast(p, to);
