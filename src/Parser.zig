@@ -1009,7 +1009,7 @@ fn staticAssert(p: *Parser) Error!bool {
     _ = try p.expectToken(.semicolon);
     if (str.node == .none) {
         try p.errTok(.static_assert_missing_message, static_assert);
-        try p.errStr(.static_assert_missing_message_c2x_compat, static_assert, "'_Static_assert' with no message");
+        try p.errStr(.pre_c2x_compat, static_assert, "'_Static_assert' with no message");
     }
 
     // Array will never be zero; a value of zero for a pointer is a null pointer constant
@@ -1176,6 +1176,10 @@ fn typeof(p: *Parser) Error!?Type {
     const typeof_expr = try p.parseNoEval(expr);
     try typeof_expr.expect(p);
     try p.expectClosing(l_paren, .r_paren);
+    // Special case nullptr_t since it's defined as typeof(nullptr)
+    if (typeof_expr.ty.is(.nullptr_t)) {
+        return Type{ .specifier = .nullptr_t, .qual = typeof_expr.ty.qual.inheritFromTypeof() };
+    }
 
     const inner = try p.arena.create(Type.Expr);
     inner.* = .{
@@ -3546,7 +3550,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
             try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-        else if (!cond.ty.isFloat() and !cond.ty.isPtr())
+        else if (!cond.ty.isScalarNonInt())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -3604,7 +3608,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
             try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-        else if (!cond.ty.isFloat() and !cond.ty.isPtr())
+        else if (!cond.ty.isScalarNonInt())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -3637,7 +3641,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         try cond.lvalConversion(p);
         if (cond.ty.isInt())
             try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-        else if (!cond.ty.isFloat() and !cond.ty.isPtr())
+        else if (!cond.ty.isScalarNonInt())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -3672,7 +3676,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
             try cond.lvalConversion(p);
             if (cond.ty.isInt())
                 try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-            else if (!cond.ty.isFloat() and !cond.ty.isPtr())
+            else if (!cond.ty.isScalarNonInt())
                 try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         }
         try cond.saveValue(p);
@@ -4245,6 +4249,9 @@ const Result = struct {
     }
 
     fn boolRes(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
+        if (lhs.val.tag == .nullptr_t) {
+            lhs.val = Value.int(0);
+        }
         if (lhs.ty.specifier != .invalid) {
             lhs.ty = Type.int;
         }
@@ -4385,13 +4392,15 @@ const Result = struct {
         }
         if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
 
+        const a_nullptr = a.ty.is(.nullptr_t);
+        const b_nullptr = b.ty.is(.nullptr_t);
         const a_ptr = a.ty.isPtr();
         const b_ptr = b.ty.isPtr();
         const a_scalar = a_arithmetic or a_ptr;
         const b_scalar = b_arithmetic or b_ptr;
         switch (kind) {
             .boolean_logic => {
-                if (!a_scalar or !b_scalar) return a.invalidBinTy(tok, b, p);
+                if (!(a_scalar or a_nullptr) or !(b_scalar or b_nullptr)) return a.invalidBinTy(tok, b, p);
 
                 // Do integer promotions but nothing else
                 if (a_int) try a.intCast(p, a.ty.integerPromotion(p.comp), tok);
@@ -4399,6 +4408,20 @@ const Result = struct {
                 return a.shouldEval(b, p);
             },
             .relational, .equality => {
+                if (kind == .equality and (a_nullptr or b_nullptr)) {
+                    if (a_nullptr and b_nullptr) return a.shouldEval(b, p);
+                    const nullptr_res = if (a_nullptr) a else b;
+                    const other_res = if (a_nullptr) b else a;
+                    if (other_res.ty.isPtr()) {
+                        try nullptr_res.nullCast(p, other_res.ty);
+                        return other_res.shouldEval(nullptr_res, p);
+                    } else if (other_res.val.isZero()) {
+                        other_res.val = .{ .tag = .nullptr_t };
+                        try other_res.nullCast(p, nullptr_res.ty);
+                        return other_res.shouldEval(nullptr_res, p);
+                    }
+                    return a.invalidBinTy(tok, b, p);
+                }
                 // comparisons between floats and pointes not allowed
                 if (!a_scalar or !b_scalar or (a_float and b_ptr) or (b_float and a_ptr))
                     return a.invalidBinTy(tok, b, p);
@@ -4424,6 +4447,7 @@ const Result = struct {
                     try b.toVoid(p);
                     return true;
                 }
+                if (a_nullptr and b_nullptr) return true;
                 if ((a_ptr and b_int) or (a_int and b_ptr)) {
                     if (a.val.isZero() or b.val.isZero()) {
                         try a.nullCast(p, b.ty);
@@ -4438,6 +4462,12 @@ const Result = struct {
                     return true;
                 }
                 if (a_ptr and b_ptr) return a.adjustCondExprPtrs(tok, b, p);
+                if ((a_ptr and b_nullptr) or (a_nullptr and b_ptr)) {
+                    const nullptr_res = if (a_nullptr) a else b;
+                    const ptr_res = if (a_nullptr) b else a;
+                    try nullptr_res.nullCast(p, ptr_res.ty);
+                    return true;
+                }
                 if (a.ty.isRecord() and b.ty.isRecord() and a.ty.eql(b.ty, p.comp, false)) {
                     return true;
                 }
@@ -4667,7 +4697,7 @@ const Result = struct {
     }
 
     fn nullCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
-        if (!res.val.isZero()) return;
+        if (!res.ty.is(.nullptr_t) and !res.val.isZero()) return;
         res.ty = ptr_ty;
         try res.implicitCast(p, .null_to_pointer);
     }
@@ -4772,17 +4802,39 @@ const Result = struct {
     /// Saves value and replaces it with `.unavailable`.
     fn saveValue(res: *Result, p: *Parser) !void {
         assert(!p.in_macro);
-        if (res.val.tag == .unavailable) return;
+        if (res.val.tag == .unavailable or res.val.tag == .nullptr_t) return;
         if (!p.in_macro) try p.value_map.put(res.node, res.val);
         res.val.tag = .unavailable;
     }
 
     fn castType(res: *Result, p: *Parser, to: Type, tok: TokenIndex) !void {
         var cast_kind: Tree.CastKind = undefined;
+
         if (to.is(.void)) {
             // everything can cast to void
             cast_kind = .to_void;
             res.val.tag = .unavailable;
+        } else if (to.is(.nullptr_t)) {
+            if (res.ty.is(.nullptr_t)) {
+                cast_kind = .no_op;
+            } else {
+                try p.errStr(.invalid_object_cast, tok, try p.typePairStrExtra(res.ty, " to ", to));
+                return error.ParsingFailed;
+            }
+        } else if (res.ty.is(.nullptr_t)) {
+            if (to.is(.bool)) {
+                try res.nullCast(p, res.ty);
+                res.val.toBool();
+                res.ty = .{ .specifier = .bool };
+                try res.implicitCast(p, .pointer_to_bool);
+                try res.saveValue(p);
+            } else if (to.isPtr()) {
+                try res.nullCast(p, to);
+            } else {
+                try p.errStr(.invalid_object_cast, tok, try p.typePairStrExtra(res.ty, " to ", to));
+                return error.ParsingFailed;
+            }
+            cast_kind = .no_op;
         } else if (res.val.isZero() and to.isPtr()) {
             cast_kind = .null_to_pointer;
         } else if (to.isScalar()) cast: {
@@ -4996,8 +5048,10 @@ const Result = struct {
         // Subject of the coercion does not need to be qualified.
         var unqual_ty = dest_ty.canonicalize(.standard);
         unqual_ty.qual = .{};
-        if (unqual_ty.is(.bool)) {
-            if (res.ty.isScalar()) {
+        if (unqual_ty.is(.nullptr_t)) {
+            if (res.ty.is(.nullptr_t)) return;
+        } else if (unqual_ty.is(.bool)) {
+            if (res.ty.isScalar() and !res.ty.is(.nullptr_t)) {
                 // this is ridiculous but it's what clang does
                 try res.boolCast(p, unqual_ty, tok);
                 return;
@@ -5019,7 +5073,7 @@ const Result = struct {
                 return;
             }
         } else if (unqual_ty.isPtr()) {
-            if (res.val.isZero()) {
+            if (res.ty.is(.nullptr_t) or res.val.isZero()) {
                 try res.nullCast(p, dest_ty);
                 return;
             } else if (res.ty.isInt()) {
@@ -6002,6 +6056,8 @@ fn unExpr(p: *Parser) Error!Result {
             if (operand.val.tag == .int) {
                 const res = Value.int(@boolToInt(!operand.val.getBool()));
                 operand.val = res;
+            } else if (operand.val.tag == .nullptr_t) {
+                operand.val = Value.int(1);
             } else {
                 if (operand.ty.isDecayed()) {
                     operand.val = Value.int(0);
@@ -6484,6 +6540,7 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 ///  : IDENTIFIER
 ///  | keyword_true
 ///  | keyword_false
+///  | keyword_nullptr
 ///  | INTEGER_LITERAL
 ///  | FLOAT_LITERAL
 ///  | IMAGINARY_LITERAL
@@ -6598,6 +6655,19 @@ fn primaryExpr(p: *Parser) Error!Result {
             std.debug.assert(!p.in_macro); // Should have been replaced with .one / .zero
             try p.value_map.put(res.node, res.val);
             return res;
+        },
+        .keyword_nullptr => {
+            defer p.tok_i += 1;
+            try p.errStr(.pre_c2x_compat, p.tok_i, "'nullptr'");
+            return Result{
+                .val = .{ .tag = .nullptr_t },
+                .ty = .{ .specifier = .nullptr_t },
+                .node = try p.addNode(.{
+                    .tag = .nullptr_literal,
+                    .ty = .{ .specifier = .nullptr_t },
+                    .data = undefined,
+                }),
+            };
         },
         .macro_func, .macro_function => {
             defer p.tok_i += 1;

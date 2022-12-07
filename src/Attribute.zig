@@ -46,12 +46,14 @@ pub const ArgumentType = enum {
     float,
     array,
     expression,
+    nullptr_t,
 
     pub fn toString(self: ArgumentType) []const u8 {
         return switch (self) {
             .string => "a string",
             .identifier => "an identifier",
             .int, .alignment => "an integer constant",
+            .nullptr_t => "nullptr",
             .float => "a floating point number",
             .array => "an array",
             .expression => "an expression",
@@ -79,6 +81,7 @@ pub const ArgumentType = enum {
             .unavailable => .expression,
             .float => .float,
             .array => .array,
+            .nullptr_t => .nullptr_t,
         };
     }
 };

@@ -17,3 +17,10 @@ typedef struct {
 
 #define NULL ((void*)0)
 #define offsetof(T, member) __builtin_offsetof(T, member)
+
+#if __STDC_VERSION__ >= 202311L
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpre-c2x-compat"
+typedef typeof(nullptr) nullptr_t;
+#pragma GCC diagnostic pop
+#endif

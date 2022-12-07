@@ -16,6 +16,7 @@ data: union {
 
 const Tag = enum {
     unavailable,
+    nullptr_t,
     /// int is used to store integer, boolean and pointer values
     int,
     float,
@@ -270,6 +271,7 @@ pub fn toBool(v: *Value) void {
 pub fn isZero(v: Value) bool {
     return switch (v.tag) {
         .unavailable => false,
+        .nullptr_t => false,
         .int => v.data.int == 0,
         .float => v.data.float == 0,
         .array => false,
@@ -280,6 +282,7 @@ pub fn isZero(v: Value) bool {
 pub fn getBool(v: Value) bool {
     return switch (v.tag) {
         .unavailable => unreachable,
+        .nullptr_t => false,
         .int => v.data.int != 0,
         .float => v.data.float != 0,
         .array => true,
@@ -516,6 +519,13 @@ pub fn bitNot(v: Value, ty: Type, comp: *Compilation) Value {
 
 pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp: *const Compilation) bool {
     assert(a.tag == b.tag);
+    if (a.tag == .nullptr_t) {
+        return switch (op) {
+            .eq => true,
+            .neq => false,
+            else => unreachable,
+        };
+    }
     const S = struct {
         inline fn doICompare(comptime T: type, aa: Value, opp: std.math.CompareOperator, bb: Value) bool {
             const a_val = aa.getInt(T);
