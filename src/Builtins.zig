@@ -53,7 +53,7 @@ fn add(
 }
 
 pub fn create(comp: *Compilation) !Builtins {
-    const builtin_count = 3;
+    const builtin_count = 4;
     const param_count = 5;
 
     var b = BuiltinMap{};
@@ -71,6 +71,7 @@ pub fn create(comp: *Compilation) !Builtins {
     add(a, &b, "__builtin_va_start", void_ty, &.{ va_list, .{ .specifier = .special_va_start } }, .func, .{});
     add(a, &b, "__builtin_va_end", void_ty, &.{va_list}, .func, .{});
     add(a, &b, "__builtin_va_copy", void_ty, &.{ va_list, va_list }, .func, .{});
+    add(a, &b, "__builtin_unreachable", void_ty, &.{}, .func, .{ .noreturn = true });
 
     return Builtins{ ._builtins = b, ._params = _params };
 }

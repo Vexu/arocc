@@ -2,8 +2,7 @@
 
 #pragma once
 
-/* Todo: Set to 202311L once header is compliant with C23 */
-#define __STDC_VERSION_STDDEF_H__ 0
+#define __STDC_VERSION_STDDEF_H__ 202311L
 
 typedef __PTRDIFF_TYPE__ ptrdiff_t;
 typedef __SIZE_TYPE__ size_t;
@@ -19,8 +18,14 @@ typedef struct {
 #define offsetof(T, member) __builtin_offsetof(T, member)
 
 #if __STDC_VERSION__ >= 202311L
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpre-c2x-compat"
-typedef typeof(nullptr) nullptr_t;
-#pragma GCC diagnostic pop
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wpre-c2x-compat"
+   typedef typeof(nullptr) nullptr_t;
+#  pragma GCC diagnostic pop
+
+#  if defined unreachable
+#    error unreachable() is a standard macro in C23
+#  else
+#    define unreachable() __builtin_unreachable()
+#  endif
 #endif
