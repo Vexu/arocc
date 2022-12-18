@@ -1138,7 +1138,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                 .macro_param_has_attribute => Attribute.fromString(.gnu, null, ident_str) != null,
                 .macro_param_has_feature => features.hasFeature(pp.comp, ident_str),
                 .macro_param_has_extension => features.hasExtension(pp.comp, ident_str),
-                .macro_param_has_builtin => pp.comp.builtins.hasBuiltin(ident_str),
+                .macro_param_has_builtin => pp.comp.hasBuiltin(ident_str),
                 else => unreachable,
             };
         },

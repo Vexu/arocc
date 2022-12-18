@@ -4,6 +4,8 @@ const Allocator = mem.Allocator;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
 const Attribute = @import("Attribute.zig");
+const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
+const Header = @import("builtins/Properties.zig").Header;
 const Tree = @import("Tree.zig");
 const util = @import("util.zig");
 const is_windows = @import("builtin").os.tag == .windows;
@@ -45,6 +47,10 @@ pub const Message = struct {
         ignored_record_attr: struct {
             tag: Attribute.Tag,
             specifier: enum { @"struct", @"union", @"enum" },
+        },
+        builtin_with_header: struct {
+            builtin: BuiltinFunction.Tag,
+            header: Header,
         },
         actual_codepoint: u21,
         ascii: u7,
@@ -487,6 +493,20 @@ const messages = struct {
         const extra = .str;
         const opt = "implicit-function-declaration";
         const kind = .@"error";
+        const all = true;
+    };
+    const implicit_builtin = struct {
+        const msg = "implicitly declaring library function '{s}'";
+        const extra = .str;
+        const opt = "implicit-function-declaration";
+        const kind = .@"error";
+        const all = true;
+    };
+    const implicit_builtin_header_note = struct {
+        const msg = "include the header <{s}.h> or explicitly provide a declaration for '{s}'";
+        const extra = .builtin_with_header;
+        const opt = "implicit-function-declaration";
+        const kind = .note;
         const all = true;
     };
     const expected_param_decl = struct {
@@ -2425,6 +2445,10 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
                     .ignored_record_attr => m.print(info.msg, .{
                         @tagName(msg.extra.ignored_record_attr.tag),
                         @tagName(msg.extra.ignored_record_attr.specifier),
+                    }),
+                    .builtin_with_header => m.print(info.msg, .{
+                        @tagName(msg.extra.builtin_with_header.header),
+                        @tagName(msg.extra.builtin_with_header.builtin),
                     }),
                     else => @compileError("invalid extra kind " ++ @tagName(info.extra)),
                 }

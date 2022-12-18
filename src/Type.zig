@@ -10,6 +10,7 @@ const StringId = StringInterner.StringId;
 const CType = @import("zig").CType;
 const target = @import("target.zig");
 const LangOpts = @import("LangOpts.zig");
+const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Type = @This();
 
@@ -388,6 +389,7 @@ data: union {
         bits: u8,
         signedness: std.builtin.Signedness,
     },
+    builtin: BuiltinFunction.Tag,
 } = .{ .none = {} },
 specifier: Specifier,
 qual: Qualifiers = .{},

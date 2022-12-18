@@ -6,6 +6,7 @@ const Source = @import("Source.zig");
 const Attribute = @import("Attribute.zig");
 const Value = @import("Value.zig");
 const StringInterner = @import("StringInterner.zig");
+const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Tree = @This();
 
@@ -137,6 +138,10 @@ pub const Node = struct {
         cast: struct {
             operand: NodeIndex,
             kind: CastKind,
+        },
+        builtin: struct {
+            tag: BuiltinFunction.Tag,
+            node: NodeIndex = .none,
         },
         int: u64,
         return_zero: bool,
@@ -1055,7 +1060,8 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
             if (color) util.setColor(NAME, w);
-            try w.print("{s}\n", .{tree.tokSlice(@enumToInt(tree.data[data.range.start]))});
+            const builtin_tag = @intToEnum(BuiltinFunction.Tag, @enumToInt(tree.data[data.range.start]));
+            try w.print("{s}\n", .{@tagName(builtin_tag)});
             if (color) util.setColor(.reset, w);
 
             try w.writeByteNTimes(' ', level + half);
@@ -1066,12 +1072,12 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
             if (color) util.setColor(NAME, w);
-            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+            try w.print("{s}\n", .{@tagName(data.builtin.tag)});
             if (color) util.setColor(.reset, w);
-            if (data.decl.node != .none) {
+            if (data.builtin.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("arg:\n");
-                try tree.dumpNode(data.decl.node, level + delta, mapper, color, w);
+                try tree.dumpNode(data.builtin.node, level + delta, mapper, color, w);
             }
         },
         .comma_expr,

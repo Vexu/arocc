@@ -6485,10 +6485,10 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         const args = p.list_buf.items[list_buf_top..];
         switch (arg_count) {
             0 => {},
-            1 => call_node.data.decl.node = args[1], // args[0] == func.node
+            1 => call_node.data.builtin.node = args[1], // args[0] == func.node
             else => {
                 call_node.tag = .builtin_call_expr;
-                args[0] = @intToEnum(NodeIndex, call_node.data.decl.name);
+                args[0] = @intToEnum(NodeIndex, @enumToInt(call_node.data.builtin.tag));
                 call_node.data = .{ .range = try p.addList(args) };
             },
         }
@@ -6579,24 +6579,6 @@ fn primaryExpr(p: *Parser) Error!Result {
             const name_tok = p.expectIdentifier() catch unreachable;
             const name = p.tokSlice(name_tok);
             const interned_name = try p.comp.intern(name);
-            if (p.comp.builtins.get(name)) |some| {
-                for (p.tok_ids[p.tok_i..]) |id| switch (id) {
-                    .r_paren => {}, // closing grouped expr
-                    .l_paren => break, // beginning of a call
-                    else => {
-                        try p.errTok(.builtin_must_be_called, name_tok);
-                        return error.ParsingFailed;
-                    },
-                };
-                return Result{
-                    .ty = some,
-                    .node = try p.addNode(.{
-                        .tag = .builtin_call_expr_one,
-                        .ty = some,
-                        .data = .{ .decl = .{ .name = name_tok, .node = .none } },
-                    }),
-                };
-            }
             if (p.syms.findSymbol(interned_name)) |sym| {
                 try p.checkDeprecatedUnavailable(sym.ty, name_tok, sym.tok);
                 if (sym.kind == .constexpr) {
@@ -6624,6 +6606,32 @@ fn primaryExpr(p: *Parser) Error!Result {
                         .tag = if (sym.kind == .enumeration) .enumeration_ref else .decl_ref_expr,
                         .ty = sym.ty,
                         .data = .{ .decl_ref = name_tok },
+                    }),
+                };
+            }
+            if (p.comp.builtins.get(interned_name)) |some| {
+                for (p.tok_ids[p.tok_i..]) |id| switch (id) {
+                    .r_paren => {}, // closing grouped expr
+                    .l_paren => break, // beginning of a call
+                    else => {
+                        try p.errTok(.builtin_must_be_called, name_tok);
+                        return error.ParsingFailed;
+                    },
+                };
+                if (some.builtin.properties.header != .none) {
+                    try p.errStr(.implicit_builtin, name_tok, name);
+                    try p.errExtra(.implicit_builtin_header_note, name_tok, .{ .builtin_with_header = .{
+                        .builtin = some.builtin.tag,
+                        .header = some.builtin.properties.header,
+                    } });
+                }
+
+                return Result{
+                    .ty = some.ty,
+                    .node = try p.addNode(.{
+                        .tag = .builtin_call_expr_one,
+                        .ty = some.ty,
+                        .data = .{ .builtin = .{ .tag = some.builtin.tag } },
                     }),
                 };
             }
