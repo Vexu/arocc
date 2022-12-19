@@ -224,6 +224,10 @@ pub const FPSemantics = enum {
     }
 };
 
+pub fn isLP64(target: std.Target) bool {
+    return CType.sizeInBits(.int, target) == 32 and CType.ptrBitWidth(target) == 64;
+}
+
 test "alignment functions - smoke test" {
     var target: std.Target = undefined;
     const x86 = std.Target.Cpu.Arch.x86_64;
