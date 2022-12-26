@@ -237,7 +237,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     defer tree.deinit();
     tree.dump(false, std.io.null_writer) catch {};
 
-    if (test_single_target) |_| {
+    if (test_single_target) {
         comp.renderErrors();
         return;
     }
