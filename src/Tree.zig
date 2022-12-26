@@ -662,10 +662,10 @@ fn dumpAttribute(attr: Attribute, writer: anytype) !void {
                 }
                 try writer.writeAll(f.name);
                 try writer.writeAll(": ");
-                switch (f.field_type) {
+                switch (f.type) {
                     []const u8 => try writer.print("\"{s}\"", .{@field(args, f.name)}),
                     ?[]const u8 => try writer.print("\"{?s}\"", .{@field(args, f.name)}),
-                    else => switch (@typeInfo(f.field_type)) {
+                    else => switch (@typeInfo(f.type)) {
                         .Enum => try writer.writeAll(@tagName(@field(args, f.name))),
                         else => try writer.print("{any}", .{@field(args, f.name)}),
                     },

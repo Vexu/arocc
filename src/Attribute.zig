@@ -97,7 +97,7 @@ pub fn requiredArgCount(attr: Tag) u32 {
             var needed = 0;
             const fields = getArguments(@field(attributes, @tagName(tag)));
             for (fields) |arg_field| {
-                if (!mem.eql(u8, arg_field.name, "__name_tok") and @typeInfo(arg_field.field_type) != .Optional) needed += 1;
+                if (!mem.eql(u8, arg_field.name, "__name_tok") and @typeInfo(arg_field.type) != .Optional) needed += 1;
             }
             return needed;
         },
@@ -136,7 +136,7 @@ pub const Formatting = struct {
                 const fields = getArguments(@field(attributes, @tagName(tag)));
 
                 if (fields.len == 0) unreachable;
-                const Unwrapped = UnwrapOptional(fields[0].field_type);
+                const Unwrapped = UnwrapOptional(fields[0].type);
                 if (@typeInfo(Unwrapped) != .Enum) unreachable;
 
                 return if (Unwrapped.opts.enum_kind == .identifier) "'" else "\"";
@@ -153,7 +153,7 @@ pub const Formatting = struct {
                 const fields = getArguments(@field(attributes, @tagName(tag)));
 
                 if (fields.len == 0) unreachable;
-                const Unwrapped = UnwrapOptional(fields[0].field_type);
+                const Unwrapped = UnwrapOptional(fields[0].type);
                 if (@typeInfo(Unwrapped) != .Enum) unreachable;
 
                 const enum_fields = @typeInfo(Unwrapped).Enum.fields;
@@ -178,7 +178,7 @@ pub fn wantsIdentEnum(attr: Tag) bool {
             const fields = getArguments(@field(attributes, @tagName(tag)));
 
             if (fields.len == 0) return false;
-            const Unwrapped = UnwrapOptional(fields[0].field_type);
+            const Unwrapped = UnwrapOptional(fields[0].type);
             if (@typeInfo(Unwrapped) != .Enum) return false;
 
             return Unwrapped.opts.enum_kind == .identifier;
@@ -191,7 +191,7 @@ pub fn diagnoseIdent(attr: Tag, arguments: *Arguments, ident: []const u8) ?Diagn
         inline else => |tag| {
             const fields = getArguments(@field(attributes, @tagName(tag)));
             if (fields.len == 0) unreachable;
-            const Unwrapped = UnwrapOptional(fields[0].field_type);
+            const Unwrapped = UnwrapOptional(fields[0].type);
             if (@typeInfo(Unwrapped) != .Enum) unreachable;
             if (std.meta.stringToEnum(Unwrapped, normalize(ident))) |enum_val| {
                 @field(@field(arguments, @tagName(tag)), fields[0].name) = enum_val;
@@ -212,7 +212,7 @@ pub fn wantsAlignment(attr: Tag, idx: usize) bool {
             if (fields.len == 0) return false;
 
             return switch (idx) {
-                inline 0...fields.len - 1 => |i| UnwrapOptional(fields[i].field_type) == Alignment,
+                inline 0...fields.len - 1 => |i| UnwrapOptional(fields[i].type) == Alignment,
                 else => false,
             };
         },
@@ -227,7 +227,7 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Va
 
             switch (arg_idx) {
                 inline 0...arg_fields.len - 1 => |arg_i| {
-                    if (UnwrapOptional(arg_fields[arg_i].field_type) != Alignment) unreachable;
+                    if (UnwrapOptional(arg_fields[arg_i].type) != Alignment) unreachable;
 
                     if (val.tag != .int) return Diagnostics.Message{ .tag = .alignas_unavailable };
                     if (val.compare(.lt, Value.int(0), ty, comp)) {
@@ -305,7 +305,7 @@ pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node
             const arg_fields = getArguments(@field(attributes, decl.name));
             switch (arg_idx) {
                 inline 0...arg_fields.len - 1 => |arg_i| {
-                    return diagnoseField(decl, arg_fields[arg_i], UnwrapOptional(arg_fields[arg_i].field_type), arguments, val, node);
+                    return diagnoseField(decl, arg_fields[arg_i], UnwrapOptional(arg_fields[arg_i].type), arguments, val, node);
                 },
                 else => unreachable,
             }
@@ -890,7 +890,7 @@ pub const Arguments = blk: {
     inline for (decls) |decl, i| {
         union_fields[i] = .{
             .name = decl.name,
-            .field_type = if (@hasDecl(@field(attributes, decl.name), "Args")) @field(attributes, decl.name).Args else void,
+            .type = if (@hasDecl(@field(attributes, decl.name), "Args")) @field(attributes, decl.name).Args else void,
             .alignment = 0,
         };
     }
