@@ -2328,13 +2328,6 @@ pub fn defaultMsgWriter(comp: *const Compilation) MsgWriter {
     return MsgWriter.init(comp.diag.color);
 }
 
-/// This is a workaround for a stage1 bug when constructing an anonymous struct with a
-/// runtime conditional value
-/// See https://github.com/ziglang/zig/issues/5230
-const Pow2String = struct {
-    @"0": []const u8,
-};
-
 pub fn renderMessages(comp: *Compilation, m: anytype) void {
     var errors: u32 = 0;
     var warnings: u32 = 0;
@@ -2417,13 +2410,13 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
                     .actual_codepoint => m.print(info.msg, .{msg.extra.actual_codepoint}),
                     .ascii => m.print(info.msg, .{msg.extra.ascii}),
                     .unsigned => m.print(info.msg, .{msg.extra.unsigned}),
-                    .pow_2_as_string => m.print(info.msg, Pow2String{ .@"0" = switch (msg.extra.pow_2_as_string) {
+                    .pow_2_as_string => m.print(info.msg, .{switch (msg.extra.pow_2_as_string) {
                         63 => "9223372036854775808",
                         64 => "18446744073709551616",
                         127 => "170141183460469231731687303715884105728",
                         128 => "340282366920938463463374607431768211456",
                         else => unreachable,
-                    } }),
+                    }}),
                     .signed => m.print(info.msg, .{msg.extra.signed}),
                     .attr_enum => m.print(info.msg, .{
                         @tagName(msg.extra.attr_enum.tag),
