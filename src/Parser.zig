@@ -2562,7 +2562,7 @@ fn declarator(
         try p.expectClosing(l_paren, .r_paren);
         const suffix_start = p.tok_i;
         const outer = try p.directDeclarator(d.ty, &d, kind);
-        try res.ty.combine(outer, p, res.func_declarator orelse suffix_start);
+        try res.ty.combine(outer);
         try res.ty.validateCombinedType(p, suffix_start);
         res.old_style_func = d.old_style_func;
         return res;
@@ -2702,7 +2702,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             res_ty.specifier = .array;
         }
 
-        try res_ty.combine(outer, p, l_bracket);
+        try res_ty.combine(outer);
         return res_ty;
     } else if (p.eatToken(.l_paren)) |l_paren| {
         d.func_declarator = l_paren;
@@ -2718,7 +2718,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             var res_ty = Type{ .specifier = .func, .data = .{ .func = func_ty } };
 
             const outer = try p.directDeclarator(base_type, d, kind);
-            try res_ty.combine(outer, p, l_paren);
+            try res_ty.combine(outer);
             return res_ty;
         }
 
@@ -2760,7 +2760,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         };
 
         const outer = try p.directDeclarator(base_type, d, kind);
-        try res_ty.combine(outer, p, l_paren);
+        try res_ty.combine(outer);
         return res_ty;
     } else return base_type;
 }
