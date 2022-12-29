@@ -496,6 +496,8 @@ pub const Tag = enum(u8) {
     generic_default_expr,
     /// __builtin_choose_expr(lhs, data[0], data[1])
     builtin_choose_expr,
+    /// decl
+    special_builtin_call_one,
     /// ({ un })
     stmt_expr,
 
@@ -1078,6 +1080,18 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("arg:\n");
                 try tree.dumpNode(data.builtin.node, level + delta, mapper, color, w);
+            }
+        },
+        .special_builtin_call_one => {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("name: ");
+            if (color) util.setColor(NAME, w);
+            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
+            if (color) util.setColor(.reset, w);
+            if (data.decl.node != .none) {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("arg:\n");
+                try tree.dumpNode(data.decl.node, level + delta, mapper, color, w);
             }
         },
         .comma_expr,

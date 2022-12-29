@@ -5750,7 +5750,7 @@ fn builtinVaArg(p: *Parser) Error!Result {
     }
 
     return Result{ .ty = ty, .node = try p.addNode(.{
-        .tag = .builtin_call_expr_one,
+        .tag = .special_builtin_call_one,
         .ty = ty,
         .data = .{ .decl = .{ .name = builtin_tok, .node = va_list.node } },
     }) };
@@ -5792,7 +5792,7 @@ fn builtinOffsetof(p: *Parser, want_bits: bool) Error!Result {
         else
             offsetof_expr.val,
         .node = try p.addNode(.{
-            .tag = .builtin_call_expr_one,
+            .tag = .special_builtin_call_one,
             .ty = p.comp.types.size,
             .data = .{ .decl = .{ .name = builtin_tok, .node = offsetof_expr.node } },
         }),
