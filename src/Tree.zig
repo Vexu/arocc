@@ -139,10 +139,6 @@ pub const Node = struct {
             operand: NodeIndex,
             kind: CastKind,
         },
-        builtin: struct {
-            tag: BuiltinFunction.Tag,
-            node: NodeIndex = .none,
-        },
         int: u64,
         return_zero: bool,
 
@@ -496,7 +492,7 @@ pub const Tag = enum(u8) {
     generic_default_expr,
     /// __builtin_choose_expr(lhs, data[0], data[1])
     builtin_choose_expr,
-    /// decl
+    /// decl - special builtins require custom parsing
     special_builtin_call_one,
     /// ({ un })
     stmt_expr,
@@ -1062,8 +1058,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
             if (color) util.setColor(NAME, w);
-            const builtin_tag = @intToEnum(BuiltinFunction.Tag, @enumToInt(tree.data[data.range.start]));
-            try w.print("{s}\n", .{@tagName(builtin_tag)});
+            try w.print("{s}\n", .{tree.tokSlice(@enumToInt(tree.data[data.range.start]))});
             if (color) util.setColor(.reset, w);
 
             try w.writeByteNTimes(' ', level + half);
@@ -1074,12 +1069,12 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
             if (color) util.setColor(NAME, w);
-            try w.print("{s}\n", .{@tagName(data.builtin.tag)});
+            try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
             if (color) util.setColor(.reset, w);
-            if (data.builtin.node != .none) {
+            if (data.decl.node != .none) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("arg:\n");
-                try tree.dumpNode(data.builtin.node, level + delta, mapper, color, w);
+                try tree.dumpNode(data.decl.node, level + delta, mapper, color, w);
             }
         },
         .special_builtin_call_one => {

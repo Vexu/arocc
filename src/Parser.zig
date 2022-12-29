@@ -25,6 +25,7 @@ const number_affixes = @import("number_affixes.zig");
 const NumberPrefix = number_affixes.Prefix;
 const NumberSuffix = number_affixes.Suffix;
 const CType = @import("zig").CType;
+const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Parser = @This();
 
@@ -5031,6 +5032,18 @@ const Result = struct {
         }
     };
 
+    /// Perform custom coercion for a builtin function which may not obey the rules of a standard C function
+    /// This should probably eventually go somewhere else because there are 177 custom-typechecked builtins
+    fn coerceCustom(res: *Result, p: *Parser, builtin_tok: TokenIndex, dest_ty: Type, raw_arg_node: NodeIndex, tok: TokenIndex, ctx: CoerceContext, tag: BuiltinFunction.Tag, arg_count: u32) Error!void {
+        _ = builtin_tok;
+        _ = raw_arg_node;
+        _ = arg_count;
+        switch (tag) {
+            else => {},
+        }
+        return res.coerce(p, dest_ty, tok, ctx);
+    }
+
     /// Perform assignment-like coercion to `dest_ty`.
     fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) Error!void {
         if (res.ty.specifier == .invalid or dest_ty.specifier == .invalid) {
@@ -6391,6 +6404,59 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
     unreachable;
 }
 
+fn shouldPerformLvalConversion(maybe_builtin: ?BuiltinFunction.Tag, arg_idx: u32) bool {
+    if (maybe_builtin) |builtin| {
+        switch (builtin) {
+            .__builtin_va_start, .__va_start, .va_start => return arg_idx != 1,
+            else => return true,
+        }
+    }
+    return true;
+}
+
+fn shouldPromoteVarArg(maybe_builtin: ?BuiltinFunction.Tag, arg_idx: u32) bool {
+    if (maybe_builtin) |builtin| {
+        switch (builtin) {
+            .__builtin_va_start, .__va_start, .va_start => return arg_idx != 1,
+            else => return true,
+        }
+    }
+    return true;
+}
+
+fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
+    assert(idx != 0);
+    if (idx > 1) {
+        const extra = Diagnostics.Message.Extra{ .arguments = .{
+            .expected = 2,
+            .actual = 3,
+        } };
+        try p.errExtra(.expected_arguments, first_after, extra);
+        return error.ParsingFailed;
+    }
+
+    var func_ty = p.func.ty orelse {
+        try p.errTok(.va_start_not_in_func, builtin_tok);
+        return;
+    };
+    const func_params = func_ty.params();
+    if (func_ty.specifier != .var_args_func or func_params.len == 0) {
+        return p.errTok(.va_start_fixed_args, builtin_tok);
+    }
+    const last_param_name = func_params[func_params.len - 1].name;
+    const decl_ref = p.getNode(arg.node, .decl_ref_expr);
+    if (decl_ref == null or last_param_name != try p.comp.intern(p.tokSlice(p.nodes.items(.data)[@enumToInt(decl_ref.?)].decl_ref))) {
+        try p.errTok(.va_start_not_last_param, param_tok);
+    }
+}
+
+fn checkVariableBuiltinArgument(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32, tag: BuiltinFunction.Tag) !void {
+    switch (tag) {
+        .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+        else => {},
+    }
+}
+
 fn callExpr(p: *Parser, lhs: Result) Error!Result {
     const l_paren = p.tok_i;
     p.tok_i += 1;
@@ -6406,22 +6472,40 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     defer p.list_buf.items.len = list_buf_top;
     try p.list_buf.append(func.node);
     var arg_count: u32 = 0;
-
-    const builtin_node = p.getNode(lhs.node, .builtin_call_expr_one);
-
     var first_after = l_paren;
+
+    var custom_typechecked_builtin: ?BuiltinFunction.Tag = null;
+    const builtin_node = p.getNode(lhs.node, .builtin_call_expr_one);
+    if (builtin_node) |node| {
+        const data = p.nodes.items(.data)[@enumToInt(node)];
+        const name = p.tokSlice(data.decl.name);
+        const interned_name = try p.comp.intern(name);
+        const builtin_ty = p.comp.builtins.get(interned_name).?;
+
+        if (builtin_ty.builtin.properties.attributes.custom_typecheck) {
+            custom_typechecked_builtin = builtin_ty.builtin.tag;
+        }
+    }
+
     while (p.eatToken(.r_paren) == null) {
         const param_tok = p.tok_i;
         if (arg_count == params.len) first_after = p.tok_i;
         var arg = try p.assignExpr();
         try arg.expect(p);
         const raw_arg_node = arg.node;
-        try arg.lvalConversion(p);
+        if (shouldPerformLvalConversion(custom_typechecked_builtin, arg_count)) {
+            try arg.lvalConversion(p);
+        }
         if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
 
         if (arg_count >= params.len) {
-            if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.comp), param_tok);
-            if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
+            if (shouldPromoteVarArg(custom_typechecked_builtin, arg_count)) {
+                if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.comp), param_tok);
+                if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
+            } else {
+                const builtin_tok = p.nodes.items(.data)[@enumToInt(builtin_node.?)].decl.name;
+                try p.checkVariableBuiltinArgument(builtin_tok, first_after, param_tok, &arg, arg_count, custom_typechecked_builtin.?);
+            }
             try arg.saveValue(p);
             try p.list_buf.append(arg.node);
             arg_count += 1;
@@ -6432,28 +6516,13 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             };
             continue;
         }
-
         const p_ty = params[arg_count].ty;
-        if (p_ty.is(.special_va_start)) va_start: {
+        if (custom_typechecked_builtin) |tag| {
             const builtin_tok = p.nodes.items(.data)[@enumToInt(builtin_node.?)].decl.name;
-            var func_ty = p.func.ty orelse {
-                try p.errTok(.va_start_not_in_func, builtin_tok);
-                break :va_start;
-            };
-            const func_params = func_ty.params();
-            if (func_ty.specifier != .var_args_func or func_params.len == 0) {
-                try p.errTok(.va_start_fixed_args, builtin_tok);
-                break :va_start;
-            }
-            const last_param_name = func_params[func_params.len - 1].name;
-            const decl_ref = p.getNode(raw_arg_node, .decl_ref_expr);
-            if (decl_ref == null or last_param_name != try p.comp.intern(p.tokSlice(p.nodes.items(.data)[@enumToInt(decl_ref.?)].decl_ref))) {
-                try p.errTok(.va_start_not_last_param, param_tok);
-            }
+            try arg.coerceCustom(p, builtin_tok, p_ty, raw_arg_node, param_tok, .{ .arg = params[arg_count].name_tok }, tag, arg_count);
         } else {
             try arg.coerce(p, p_ty, param_tok, .{ .arg = params[arg_count].name_tok });
         }
-
         try arg.saveValue(p);
         try p.list_buf.append(arg.node);
         arg_count += 1;
@@ -6485,10 +6554,10 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         const args = p.list_buf.items[list_buf_top..];
         switch (arg_count) {
             0 => {},
-            1 => call_node.data.builtin.node = args[1], // args[0] == func.node
+            1 => call_node.data.decl.node = args[1], // args[0] == func.node
             else => {
                 call_node.tag = .builtin_call_expr;
-                args[0] = @intToEnum(NodeIndex, @enumToInt(call_node.data.builtin.tag));
+                args[0] = @intToEnum(NodeIndex, call_node.data.decl.name);
                 call_node.data = .{ .range = try p.addList(args) };
             },
         }
@@ -6631,7 +6700,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     .node = try p.addNode(.{
                         .tag = .builtin_call_expr_one,
                         .ty = some.ty,
-                        .data = .{ .builtin = .{ .tag = some.builtin.tag } },
+                        .data = .{ .decl = .{ .name = name_tok, .node = .none } },
                     }),
                 };
             }
