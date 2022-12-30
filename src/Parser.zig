@@ -4164,6 +4164,99 @@ pub fn macroExpr(p: *Parser) Compilation.Error!bool {
     return res.val.getBool();
 }
 
+const CallExpr = union(enum) {
+    standard: NodeIndex,
+    builtin: struct {
+        node: NodeIndex,
+        tag: BuiltinFunction.Tag,
+    },
+
+    fn init(p: *Parser, call_node: NodeIndex, func_node: NodeIndex) CallExpr {
+        if (p.getNode(call_node, .builtin_call_expr_one)) |node| {
+            const data = p.nodes.items(.data)[@enumToInt(node)];
+            const name = p.tokSlice(data.decl.name);
+            const interned_name = p.comp.intern(name) catch unreachable;
+            const builtin_ty = p.comp.builtins.get(interned_name).?;
+            return .{ .builtin = .{ .node = node, .tag = builtin_ty.builtin.tag } };
+        }
+        return .{ .standard = func_node };
+    }
+
+    fn shouldPerformLvalConversion(self: CallExpr, arg_idx: u32) bool {
+        return switch (self) {
+            .standard => true,
+            .builtin => |builtin| switch (builtin.tag) {
+                .__builtin_va_start, .__va_start, .va_start => arg_idx != 1,
+                else => true,
+            },
+        };
+    }
+
+    fn shouldPromoteVarArg(self: CallExpr, arg_idx: u32) bool {
+        return switch (self) {
+            .standard => true,
+            .builtin => |builtin| switch (builtin.tag) {
+                .__builtin_va_start, .__va_start, .va_start => arg_idx != 1,
+                else => true,
+            },
+        };
+    }
+
+    fn shouldCoerceArg(self: CallExpr, arg_idx: u32) bool {
+        _ = self;
+        _ = arg_idx;
+        return true;
+    }
+
+    fn checkVarArg(self: CallExpr, p: *Parser, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32) !void {
+        if (self == .standard) return;
+
+        const builtin_tok = p.nodes.items(.data)[@enumToInt(self.builtin.node)].decl.name;
+        switch (self.builtin.tag) {
+            .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            else => {},
+        }
+    }
+
+    fn finish(self: CallExpr, p: *Parser, ty: Type, list_buf_top: usize, arg_count: u32) Error!Result {
+        switch (self) {
+            .standard => |func_node| {
+                var call_node: Tree.Node = .{
+                    .tag = .call_expr_one,
+                    .ty = ty.returnType(),
+                    .data = .{ .bin = .{ .lhs = func_node, .rhs = .none } },
+                };
+                const args = p.list_buf.items[list_buf_top..];
+                switch (arg_count) {
+                    0 => {},
+                    1 => call_node.data.bin.rhs = args[1], // args[0] == func.node
+                    else => {
+                        call_node.tag = .call_expr;
+                        call_node.data = .{ .range = try p.addList(args) };
+                    },
+                }
+                return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
+            },
+            .builtin => |builtin| {
+                const index = @enumToInt(builtin.node);
+                var call_node = p.nodes.get(index);
+                defer p.nodes.set(index, call_node);
+                const args = p.list_buf.items[list_buf_top..];
+                switch (arg_count) {
+                    0 => {},
+                    1 => call_node.data.decl.node = args[1], // args[0] == func.node
+                    else => {
+                        call_node.tag = .builtin_call_expr;
+                        args[0] = @intToEnum(NodeIndex, call_node.data.decl.name);
+                        call_node.data = .{ .range = try p.addList(args) };
+                    },
+                }
+                return Result{ .node = builtin.node, .ty = call_node.ty.returnType() };
+            },
+        }
+    }
+};
+
 const Result = struct {
     node: NodeIndex = .none,
     ty: Type = .{ .specifier = .int },
@@ -5031,18 +5124,6 @@ const Result = struct {
             }
         }
     };
-
-    /// Perform custom coercion for a builtin function which may not obey the rules of a standard C function
-    /// This should probably eventually go somewhere else because there are 177 custom-typechecked builtins
-    fn coerceCustom(res: *Result, p: *Parser, builtin_tok: TokenIndex, dest_ty: Type, raw_arg_node: NodeIndex, tok: TokenIndex, ctx: CoerceContext, tag: BuiltinFunction.Tag, arg_count: u32) Error!void {
-        _ = builtin_tok;
-        _ = raw_arg_node;
-        _ = arg_count;
-        switch (tag) {
-            else => {},
-        }
-        return res.coerce(p, dest_ty, tok, ctx);
-    }
 
     /// Perform assignment-like coercion to `dest_ty`.
     fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, ctx: CoerceContext) Error!void {
@@ -6404,34 +6485,10 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
     unreachable;
 }
 
-fn shouldPerformLvalConversion(maybe_builtin: ?BuiltinFunction.Tag, arg_idx: u32) bool {
-    if (maybe_builtin) |builtin| {
-        switch (builtin) {
-            .__builtin_va_start, .__va_start, .va_start => return arg_idx != 1,
-            else => return true,
-        }
-    }
-    return true;
-}
-
-fn shouldPromoteVarArg(maybe_builtin: ?BuiltinFunction.Tag, arg_idx: u32) bool {
-    if (maybe_builtin) |builtin| {
-        switch (builtin) {
-            .__builtin_va_start, .__va_start, .va_start => return arg_idx != 1,
-            else => return true,
-        }
-    }
-    return true;
-}
-
 fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
     assert(idx != 0);
     if (idx > 1) {
-        const extra = Diagnostics.Message.Extra{ .arguments = .{
-            .expected = 2,
-            .actual = 3,
-        } };
-        try p.errExtra(.expected_arguments, first_after, extra);
+        try p.errTok(.closing_paren, first_after);
         return error.ParsingFailed;
     }
 
@@ -6474,38 +6531,25 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     var arg_count: u32 = 0;
     var first_after = l_paren;
 
-    var custom_typechecked_builtin: ?BuiltinFunction.Tag = null;
-    const builtin_node = p.getNode(lhs.node, .builtin_call_expr_one);
-    if (builtin_node) |node| {
-        const data = p.nodes.items(.data)[@enumToInt(node)];
-        const name = p.tokSlice(data.decl.name);
-        const interned_name = try p.comp.intern(name);
-        const builtin_ty = p.comp.builtins.get(interned_name).?;
-
-        if (builtin_ty.builtin.properties.attributes.custom_typecheck) {
-            custom_typechecked_builtin = builtin_ty.builtin.tag;
-        }
-    }
+    const call_expr = CallExpr.init(p, lhs.node, func.node);
 
     while (p.eatToken(.r_paren) == null) {
         const param_tok = p.tok_i;
         if (arg_count == params.len) first_after = p.tok_i;
         var arg = try p.assignExpr();
         try arg.expect(p);
-        const raw_arg_node = arg.node;
-        if (shouldPerformLvalConversion(custom_typechecked_builtin, arg_count)) {
+
+        if (call_expr.shouldPerformLvalConversion(arg_count)) {
             try arg.lvalConversion(p);
         }
         if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
 
         if (arg_count >= params.len) {
-            if (shouldPromoteVarArg(custom_typechecked_builtin, arg_count)) {
+            if (call_expr.shouldPromoteVarArg(arg_count)) {
                 if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.comp), param_tok);
                 if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
-            } else {
-                const builtin_tok = p.nodes.items(.data)[@enumToInt(builtin_node.?)].decl.name;
-                try p.checkVariableBuiltinArgument(builtin_tok, first_after, param_tok, &arg, arg_count, custom_typechecked_builtin.?);
             }
+            try call_expr.checkVarArg(p, first_after, param_tok, &arg, arg_count);
             try arg.saveValue(p);
             try p.list_buf.append(arg.node);
             arg_count += 1;
@@ -6517,10 +6561,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             continue;
         }
         const p_ty = params[arg_count].ty;
-        if (custom_typechecked_builtin) |tag| {
-            const builtin_tok = p.nodes.items(.data)[@enumToInt(builtin_node.?)].decl.name;
-            try arg.coerceCustom(p, builtin_tok, p_ty, raw_arg_node, param_tok, .{ .arg = params[arg_count].name_tok }, tag, arg_count);
-        } else {
+        if (call_expr.shouldCoerceArg(arg_count)) {
             try arg.coerce(p, p_ty, param_tok, .{ .arg = params[arg_count].name_tok });
         }
         try arg.saveValue(p);
@@ -6547,38 +6588,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         try p.errExtra(.expected_at_least_arguments, first_after, extra);
     }
 
-    if (builtin_node) |some| {
-        const index = @enumToInt(some);
-        var call_node = p.nodes.get(index);
-        defer p.nodes.set(index, call_node);
-        const args = p.list_buf.items[list_buf_top..];
-        switch (arg_count) {
-            0 => {},
-            1 => call_node.data.decl.node = args[1], // args[0] == func.node
-            else => {
-                call_node.tag = .builtin_call_expr;
-                args[0] = @intToEnum(NodeIndex, call_node.data.decl.name);
-                call_node.data = .{ .range = try p.addList(args) };
-            },
-        }
-        return Result{ .node = some, .ty = call_node.ty.returnType() };
-    }
-
-    var call_node: Tree.Node = .{
-        .tag = .call_expr_one,
-        .ty = ty.returnType(),
-        .data = .{ .bin = .{ .lhs = func.node, .rhs = .none } },
-    };
-    const args = p.list_buf.items[list_buf_top..];
-    switch (arg_count) {
-        0 => {},
-        1 => call_node.data.bin.rhs = args[1], // args[0] == func.node
-        else => {
-            call_node.tag = .call_expr;
-            call_node.data = .{ .range = try p.addList(args) };
-        },
-    }
-    return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
+    return call_expr.finish(p, ty, list_buf_top, arg_count);
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !void {
