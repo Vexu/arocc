@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
+const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 const Compilation = @import("Compilation.zig");
 const Interner = @import("Interner.zig");
 const Ir = @import("Ir.zig");
@@ -926,12 +927,28 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             },
             else => unreachable,
         },
+        .builtin_call_expr_one => {
+            const slice = c.tree.tokSlice(data.decl.name);
+            const name = try c.comp.intern(slice);
+            const builtin = c.comp.builtins.get(name).?.builtin;
+            if (data.decl.node == .none) {
+                return c.genBuiltinCall(builtin, &.{}, ty);
+            } else {
+                return c.genBuiltinCall(builtin, &.{data.decl.node}, ty);
+            }
+        },
+        .builtin_call_expr => {
+            const name_node_idx = c.tree.data[data.range.start];
+            const slice = c.tree.tokSlice(@enumToInt(name_node_idx));
+            const name = try c.comp.intern(slice);
+            const builtin = c.comp.builtins.get(name).?.builtin;
+            return c.genBuiltinCall(builtin, c.tree.data[data.range.start + 1 .. data.range.end], ty);
+        },
         .addr_of_label,
         .imag_expr,
         .real_expr,
-        .builtin_call_expr_one,
-        .builtin_call_expr,
         .sizeof_expr,
+        .special_builtin_call_one,
         => return c.comp.diag.fatalNoSrc("TODO CodeGen.genExpr {}\n", .{c.node_tag[@enumToInt(node)]}),
         else => unreachable, // Not an expression.
     }
@@ -1141,6 +1158,12 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
     const cmp = try c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
     if (c.cond_dummy_ty != null) c.cond_dummy_ref = cmp;
     try c.addBranch(cmp, true_label, false_label);
+}
+
+fn genBuiltinCall(c: *CodeGen, builtin: BuiltinFunction, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
+    _ = arg_nodes;
+    _ = ty;
+    return c.comp.diag.fatalNoSrc("TODO CodeGen.genBuiltinCall {s}\n", .{@tagName(builtin.tag)});
 }
 
 fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
