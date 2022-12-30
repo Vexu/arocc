@@ -244,13 +244,11 @@ const BuiltinIterator = struct {
             .idx = 0,
         };
     }
-
     fn next(self: *BuiltinIterator) ?BuiltinFunction {
-        @setEvalBranchQuota(10_000);
-        const values = std.enums.values(BuiltinFunction.Tag);
-        while (self.idx < values.len) {
+        const max = @typeInfo(BuiltinFunction.Tag).Enum.fields.len;
+        while (self.idx < max) {
             defer self.idx += 1;
-            const builtin = BuiltinFunction.fromTag(values[self.idx]);
+            const builtin = BuiltinFunction.fromTag(@intToEnum(BuiltinFunction.Tag, self.idx));
             if (target.builtinEnabled(self.target, builtin.properties.target_set)) {
                 switch (builtin.properties.language) {
                     .all_languages => {},
