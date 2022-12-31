@@ -307,10 +307,9 @@ const bin_overflow = struct {
     inline fn addInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
         const a_val = a.getInt(T);
         const b_val = b.getInt(T);
-        var c: T = undefined;
-        const overflow = @addWithOverflow(T, a_val, b_val, &c);
-        out.* = int(c);
-        return overflow;
+        const overflow = @addWithOverflow(a_val, b_val);
+        out.* = int(overflow[0]);
+        return overflow[1] != 0;
     }
     inline fn addFloat(comptime T: type, aa: Value, bb: Value) Value {
         const a_val = aa.getFloat(T);
@@ -321,10 +320,9 @@ const bin_overflow = struct {
     inline fn subInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
         const a_val = a.getInt(T);
         const b_val = b.getInt(T);
-        var c: T = undefined;
-        const overflow = @subWithOverflow(T, a_val, b_val, &c);
-        out.* = int(c);
-        return overflow;
+        const overflow = @subWithOverflow(a_val, b_val);
+        out.* = int(overflow[0]);
+        return overflow[1] != 0;
     }
     inline fn subFloat(comptime T: type, aa: Value, bb: Value) Value {
         const a_val = aa.getFloat(T);
@@ -335,10 +333,9 @@ const bin_overflow = struct {
     inline fn mulInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
         const a_val = a.getInt(T);
         const b_val = b.getInt(T);
-        var c: T = undefined;
-        const overflow = @mulWithOverflow(T, a_val, b_val, &c);
-        out.* = int(c);
-        return overflow;
+        const overflow = @mulWithOverflow(a_val, b_val);
+        out.* = int(overflow[0]);
+        return overflow[1] != 0;
     }
     inline fn mulFloat(comptime T: type, aa: Value, bb: Value) Value {
         const a_val = aa.getFloat(T);

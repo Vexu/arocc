@@ -6873,11 +6873,12 @@ fn parseNumberEscape(p: *Parser, tok: TokenIndex, base: u8, slice: []const u8, i
     var reported = false;
     while (i.* < slice.len) : (i.* += 1) {
         const val = std.fmt.charToDigit(slice[i.*], base) catch break; // validated by Tokenizer
-        if (@mulWithOverflow(u8, char, base, &char) and !reported) {
+        const ov = @mulWithOverflow(char, base);
+        if (ov[1] != 0 and !reported) {
             try p.errExtra(.escape_sequence_overflow, tok, .{ .unsigned = i.* });
             reported = true;
         }
-        char += val;
+        char = ov[0] + val;
     }
     i.* -= 1;
     return char;
@@ -6996,11 +6997,12 @@ fn charLiteral(p: *Parser) Error!Result {
             6 => val = 0,
             else => {},
         }
-        if (@mulWithOverflow(u32, val, max, &val) and !overflow_reported) {
+        const ov = @mulWithOverflow(val, max);
+        if (ov[1] != 0 and !overflow_reported) {
             try p.errExtra(.char_lit_too_wide, p.tok_i, .{ .unsigned = i });
             overflow_reported = true;
         }
-        val += c;
+        val = ov[0] + c;
     }
 
     var res = Result{
@@ -7118,8 +7120,16 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
             else => unreachable,
         };
 
-        if (val != 0 and @mulWithOverflow(u64, val, base, &val)) overflow = true;
-        if (@addWithOverflow(u64, val, digit, &val)) overflow = true;
+        if (val != 0) {
+            const mul_ov = @mulWithOverflow(val, base);
+            if (mul_ov[1] != 0) {
+                overflow = true;
+            }
+            val = mul_ov[0];
+        }
+        const add_ov = @addWithOverflow(val, digit);
+        if (add_ov[1] != 0) overflow = true;
+        val = add_ov[0];
     }
     if (overflow) {
         try p.errTok(.int_literal_too_big, tok_i);
