@@ -81,7 +81,18 @@ pub const ComponentIterator = struct {
                     else => unreachable,
                 };
             },
-            'X' => return .{ .spec = .X },
+            'X' => {
+                defer self.idx += 1;
+                switch (self.str[self.idx]) {
+                    'f' => return .{ .spec = .{ .X = .float } },
+                    'd' => return .{ .spec = .{ .X = .double } },
+                    'L' => {
+                        self.idx += 1;
+                        return .{ .spec = .{ .X = .longdouble } };
+                    },
+                    else => unreachable,
+                }
+            },
             'Y' => return .{ .spec = .Y },
             'P' => return .{ .spec = .P },
             'J' => return .{ .spec = .J },
@@ -222,7 +233,11 @@ const Spec = union(enum) {
     /// ext_vector, followed by the number of elements and the base type.
     E: u32,
     /// _Complex, followed by the base type.
-    X,
+    X: enum {
+        float,
+        double,
+        longdouble,
+    },
     /// ptrdiff_t
     Y,
     /// FILE

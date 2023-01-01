@@ -159,9 +159,16 @@ fn createType(desc: TypeDescription, comp: *const Compilation, allocator: std.me
             // Todo: ext_vector (OpenCL vector)
             return .{ .specifier = .invalid };
         },
-        .X => {
-            // Todo: _Complex
-            return .{ .specifier = .invalid };
+        .X => |child| {
+            builder.combine(undefined, .complex, 0) catch unreachable;
+            switch (child) {
+                .float => builder.combine(undefined, .float, 0) catch unreachable,
+                .double => builder.combine(undefined, .double, 0) catch unreachable,
+                .longdouble => {
+                    builder.combine(undefined, .long, 0) catch unreachable;
+                    builder.combine(undefined, .double, 0) catch unreachable;
+                },
+            }
         },
         .Y => {
             std.debug.assert(builder.specifier == .none);
