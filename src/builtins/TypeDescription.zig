@@ -5,7 +5,6 @@ const TypeDescription = @This();
 prefix: []const Prefix,
 spec: Spec,
 suffix: []const Suffix,
-description: []const u8,
 
 pub const Component = union(enum) {
     prefix: Prefix,
@@ -156,7 +155,6 @@ pub const TypeIterator = struct {
                 .prefix = self.prefix[0..prefix_count],
                 .spec = spec,
                 .suffix = self.suffix[0..suffix_count],
-                .description = self.param_str[self.idx..][0..it.idx],
             };
         }
         return null;
