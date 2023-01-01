@@ -39,6 +39,7 @@ types: struct {
     ptrdiff: Type,
     size: Type,
     va_list: Type,
+    pid_t: Type,
 } = undefined,
 /// Mapping from Source.Id to byte offset of first non-utf8 byte
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
@@ -496,11 +497,19 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
 
     const va_list = try comp.generateVaListType();
 
+    const pid_t: Type = switch (os) {
+        .haiku => .{ .specifier = .long },
+        // Todo: pid_t is required to "a signed integer type"; are there any systems
+        // on which it is `short int`?
+        else => .{ .specifier = .int },
+    };
+
     comp.types = .{
         .wchar = wchar,
         .ptrdiff = ptrdiff,
         .size = size,
         .va_list = va_list,
+        .pid_t = pid_t,
     };
 }
 

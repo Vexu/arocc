@@ -192,8 +192,9 @@ fn createType(desc: TypeDescription, comp: *const Compilation, allocator: std.me
             return .{ .specifier = .invalid };
         },
         .p => {
-            // Todo: pid_t
-            return .{ .specifier = .invalid };
+            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(desc.suffix.len == 0);
+            return comp.types.pid_t;
         },
         .@"!" => return .{ .specifier = .invalid },
     }
