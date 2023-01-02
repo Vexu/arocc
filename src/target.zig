@@ -238,6 +238,10 @@ pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
             .x86_64 => if (target.cpu.arch == .x86_64) return true,
             .aarch64 => if (target.cpu.arch == .aarch64) return true,
             .arm => if (target.cpu.arch == .arm) return true,
+            .ppc => switch (target.cpu.arch) {
+                .powerpc, .powerpc64, .powerpc64le => return true,
+                else => {},
+            },
             else => {
                 // Todo: handle other target predicates
             },
