@@ -171,6 +171,10 @@ pragma_pack: ?u8 = null,
 string_ids: struct {
     declspec_id: StringId,
     main_id: StringId,
+    file: StringId,
+    jmp_buf: StringId,
+    sigjmp_buf: StringId,
+    ucontext_t: StringId,
 },
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
@@ -534,6 +538,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .string_ids = .{
             .declspec_id = try pp.comp.intern("__declspec"),
             .main_id = try pp.comp.intern("main"),
+            .file = try pp.comp.intern("FILE"),
+            .jmp_buf = try pp.comp.intern("jmp_buf"),
+            .sigjmp_buf = try pp.comp.intern("sigjmp_buf"),
+            .ucontext_t = try pp.comp.intern("ucontext_t"),
         },
     };
     errdefer {
@@ -731,6 +739,18 @@ fn skipTo(p: *Parser, id: Token.Id) void {
             .eof => return,
             else => {},
         }
+    }
+}
+
+fn typedefDefined(p: *Parser, name: StringId, ty: Type) !void {
+    if (name == p.string_ids.file) {
+        p.comp.types.file = ty;
+    } else if (name == p.string_ids.jmp_buf) {
+        p.comp.types.jmp_buf = ty;
+    } else if (name == p.string_ids.sigjmp_buf) {
+        p.comp.types.sigjmp_buf = ty;
+    } else if (name == p.string_ids.ucontext_t) {
+        p.comp.types.ucontext_t = ty;
     }
 }
 
@@ -954,6 +974,7 @@ fn decl(p: *Parser) Error!bool {
         const interned_name = try p.comp.intern(p.tokSlice(init_d.d.name));
         if (decl_spec.storage_class == .typedef) {
             try p.syms.defineTypedef(p, interned_name, init_d.d.ty, init_d.d.name, node);
+            try p.typedefDefined(interned_name, init_d.d.ty);
         } else if (init_d.initializer.node != .none or
             (p.func.ty != null and decl_spec.storage_class != .@"extern"))
         {
