@@ -48,7 +48,7 @@ fn specForSize(comp: *const Compilation, size_bits: u32) Type.Builder.Specifier 
     unreachable;
 }
 
-fn createType(desc: TypeDescription, comp: *const Compilation, allocator: std.mem.Allocator) !Type {
+fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *const Compilation, allocator: std.mem.Allocator) !Type {
     var builder: Type.Builder = .{ .error_on_invalid = true };
     var require_native_int32 = false;
     var require_native_int64 = false;
@@ -147,9 +147,16 @@ fn createType(desc: TypeDescription, comp: *const Compilation, allocator: std.me
             if (va_list.isArray()) va_list.decayArray();
             return va_list;
         },
-        .V => {
-            // Todo: vector
-            return .{ .specifier = .invalid };
+        .V => |element_count| {
+            std.debug.assert(desc.suffix.len == 0);
+            const child_desc = it.next().?;
+            const child_ty = try createType(child_desc, undefined, comp, allocator);
+            const arr_ty = try allocator.create(Type.Array);
+            arr_ty.* = .{
+                .len = element_count,
+                .elem = child_ty,
+            };
+            return .{ .specifier = .vector, .data = .{ .array = arr_ty } };
         },
         .q => {
             // Todo: scalable vector
@@ -225,10 +232,10 @@ fn createBuiltin(name: StringId, comp: *const Compilation, allocator: std.mem.Al
     if (ret_ty_desc.spec == .@"!") {
         // Todo: handle target-dependent definition
     }
-    const ret_ty = try createType(ret_ty_desc, comp, allocator);
+    const ret_ty = try createType(ret_ty_desc, &it, comp, allocator);
     var param_count: usize = 0;
     while (it.next()) |desc| : (param_count += 1) {
-        params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, comp, allocator), .name = .empty };
+        params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, &it, comp, allocator), .name = .empty };
     }
     b.putAssumeCapacity(name, .{
         .tag = builtin.tag,
