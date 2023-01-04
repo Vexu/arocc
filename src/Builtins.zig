@@ -20,16 +20,45 @@ const Expanded = struct {
     builtin: BuiltinFunction,
 };
 
-const BuiltinNameMap = std.AutoHashMapUnmanaged(StringId, BuiltinTy);
+const Cache = struct {
+    const Index = u16;
+    const AllocSize = @divTrunc(4096, @sizeOf(BuiltinTy));
+
+    len: u16 = 0,
+    list: std.ArrayListUnmanaged([]BuiltinTy) = .{},
+
+    fn get(self: *const Cache, index: Index) *BuiltinTy {
+        return &self.list.items[@divTrunc(index, AllocSize)][index % AllocSize];
+    }
+
+    fn add(self: *Cache, allocator: std.mem.Allocator, item: BuiltinTy) !u16 {
+        defer self.len += 1;
+        if (self.len % AllocSize == 0) {
+            const page = try allocator.alloc(BuiltinTy, AllocSize);
+            errdefer allocator.free(page);
+            try self.list.append(allocator, page);
+        }
+        self.list.items[@divTrunc(self.len, AllocSize)][self.len % AllocSize] = item;
+        return self.len;
+    }
+
+    fn deinit(self: *Cache, allocator: std.mem.Allocator) void {
+        for (self.list.items) |item| {
+            allocator.free(item);
+        }
+        self.list.deinit(allocator);
+    }
+};
+
+const BuiltinNameMap = std.AutoHashMapUnmanaged(BuiltinFunction.Tag, Cache.Index);
 
 _name_map: BuiltinNameMap = .{},
-_params: []Type.Func.Param = &.{},
-_arena: std.heap.ArenaAllocator.State = .{},
+_cache: Cache = .{},
+_start_id: StringId = .empty,
 
 pub fn deinit(b: *Builtins, gpa: std.mem.Allocator) void {
     b._name_map.deinit(gpa);
-    gpa.free(b._params);
-    b._arena.promote(gpa).deinit();
+    b._cache.deinit(gpa);
 }
 
 fn specForSize(comp: *const Compilation, size_bits: u32) Type.Builder.Specifier {
@@ -225,102 +254,83 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
     return builder.finish(undefined) catch unreachable;
 }
 
-fn createBuiltin(name: StringId, comp: *const Compilation, allocator: std.mem.Allocator, builtin: BuiltinFunction, b: *BuiltinNameMap, params: []Type.Func.Param) !usize {
+fn createBuiltin(comp: *const Compilation, builtin: BuiltinFunction, type_arena: std.mem.Allocator) !Type.Func {
     var it = TypeDescription.TypeIterator.init(builtin.param_str);
 
     const ret_ty_desc = it.next().?;
     if (ret_ty_desc.spec == .@"!") {
         // Todo: handle target-dependent definition
     }
-    const ret_ty = try createType(ret_ty_desc, &it, comp, allocator);
+    const ret_ty = try createType(ret_ty_desc, &it, comp, type_arena);
     var param_count: usize = 0;
+    var params: [8]Type.Func.Param = undefined;
     while (it.next()) |desc| : (param_count += 1) {
-        params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, &it, comp, allocator), .name = .empty };
+        params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, &it, comp, type_arena), .name = .empty };
     }
-    b.putAssumeCapacity(name, .{
-        .tag = builtin.tag,
-        .func = .{
-            .return_type = ret_ty,
-            .params = params[0..param_count],
-        },
-    });
-    return param_count;
+    return .{
+        .return_type = ret_ty,
+        .params = try type_arena.dupe(Type.Func.Param, params[0..param_count]),
+    };
 }
-
-const BuiltinIterator = struct {
-    langopts: LangOpts,
-    target: std.Target,
-    idx: usize,
-
-    fn init(comp: *const Compilation) BuiltinIterator {
-        return .{
-            .langopts = comp.langopts,
-            .target = comp.target,
-            .idx = 0,
-        };
-    }
-    fn next(self: *BuiltinIterator) ?BuiltinFunction {
-        const max = @typeInfo(BuiltinFunction.Tag).Enum.fields.len;
-        while (self.idx < max) {
-            defer self.idx += 1;
-            const builtin = BuiltinFunction.fromTag(@intToEnum(BuiltinFunction.Tag, self.idx));
-            if (target.builtinEnabled(self.target, builtin.properties.target_set)) {
-                switch (builtin.properties.language) {
-                    .all_languages => {},
-                    .all_ms_languages => if (self.langopts.emulate != .msvc) continue,
-                    .gnu_lang, .all_gnu_languages => if (!self.langopts.standard.isGNU()) continue,
-                }
-                return builtin;
-            }
-        }
-        return null;
-    }
-
-    fn reset(self: *BuiltinIterator) void {
-        self.idx = 0;
-    }
-};
 
 pub fn create(comp: *Compilation) !Builtins {
-    var arena = std.heap.ArenaAllocator.init(comp.gpa);
-    errdefer arena.deinit();
-
-    var name_map = BuiltinNameMap{};
-    errdefer name_map.deinit(comp.gpa);
-
-    var param_count: usize = 0;
-    var builtin_count: usize = 0;
-
-    var it = BuiltinIterator.init(comp);
-    while (it.next()) |builtin| {
-        builtin_count += 1;
-        var description_iter = TypeDescription.TypeIterator.init(builtin.param_str);
-        _ = description_iter.next(); // Consume return type
-        while (description_iter.next()) |_| {
-            param_count += 1;
-        }
+    var idx: usize = 0;
+    const start_id = comp.string_interner.next_id;
+    const num_tags = @typeInfo(BuiltinFunction.Tag).Enum.fields.len;
+    while (idx < num_tags) : (idx += 1) {
+        const tag = @intToEnum(BuiltinFunction.Tag, idx);
+        _ = try comp.intern(@tagName(tag));
     }
-    const params = try comp.gpa.alloc(Type.Func.Param, param_count);
-    errdefer comp.gpa.free(params);
-
-    try name_map.ensureTotalCapacity(comp.gpa, @intCast(u32, builtin_count));
-
-    it.reset();
-    const allocator = arena.allocator();
-    param_count = 0;
-    while (it.next()) |builtin| {
-        const name = try comp.intern(@tagName(builtin.tag));
-        param_count += try createBuiltin(name, comp, allocator, builtin, &name_map, params[param_count..]);
-    }
-    return Builtins{ ._name_map = name_map, ._params = params, ._arena = arena.state };
+    std.debug.assert(@enumToInt(comp.string_interner.next_id) - @enumToInt(start_id) == num_tags);
+    return Builtins{ ._start_id = start_id };
 }
 
-pub fn get(b: *const Builtins, name: StringId) ?Expanded {
-    const item = b._name_map.getPtr(name) orelse return null;
+fn getTag(b: *const Builtins, name_id: StringId) ?BuiltinFunction.Tag {
+    const start = @enumToInt(b._start_id);
+    const end = start + @typeInfo(BuiltinFunction.Tag).Enum.fields.len;
+    const name = @enumToInt(name_id);
+    if (name >= start and name < end) {
+        return @intToEnum(BuiltinFunction.Tag, name - start);
+    }
+    return null;
+}
+
+fn atIndex(b: *const Builtins, index: u16) Expanded {
+    const item = b._cache.get(index);
     const builtin = BuiltinFunction.fromTag(item.tag);
     const specifier: Type.Specifier = if (builtin.isVarArgs()) .var_args_func else .func;
     return .{
         .ty = .{ .specifier = specifier, .data = .{ .func = &item.func } },
         .builtin = builtin,
     };
+}
+
+pub fn lookup(b: *const Builtins, name_id: StringId) Expanded {
+    const tag = b.getTag(name_id).?;
+    const index = b._name_map.get(tag).?;
+    return b.atIndex(index);
+}
+
+pub fn get(b: *Builtins, comp: *const Compilation, name_id: StringId, type_arena: std.mem.Allocator) !?Expanded {
+    const tag = b.getTag(name_id) orelse return null;
+    const index = b._name_map.get(tag) orelse blk: {
+        const builtin = BuiltinFunction.fromTag(tag);
+        if (!target.builtinEnabled(comp.target, builtin.properties.target_set)) return null;
+
+        switch (builtin.properties.language) {
+            .all_languages => {},
+            .all_ms_languages => if (comp.langopts.emulate != .msvc) return null,
+            .gnu_lang, .all_gnu_languages => if (!comp.langopts.standard.isGNU()) return null,
+        }
+
+        const func_ty = try createBuiltin(comp, builtin, type_arena);
+
+        const idx = try b._cache.add(comp.gpa, .{
+            .func = func_ty,
+            .tag = tag,
+        });
+        try b._name_map.put(comp.gpa, tag, idx);
+        break :blk idx;
+    };
+    return b.atIndex(index);
 }

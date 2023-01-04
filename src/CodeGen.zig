@@ -930,7 +930,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .builtin_call_expr_one => {
             const slice = c.tree.tokSlice(data.decl.name);
             const name = try c.comp.intern(slice);
-            const builtin = c.comp.builtins.get(name).?.builtin;
+            const builtin = c.comp.builtins.lookup(name).builtin;
             if (data.decl.node == .none) {
                 return c.genBuiltinCall(builtin, &.{}, ty);
             } else {
@@ -941,7 +941,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const name_node_idx = c.tree.data[data.range.start];
             const slice = c.tree.tokSlice(@enumToInt(name_node_idx));
             const name = try c.comp.intern(slice);
-            const builtin = c.comp.builtins.get(name).?.builtin;
+            const builtin = c.comp.builtins.lookup(name).builtin;
             return c.genBuiltinCall(builtin, c.tree.data[data.range.start + 1 .. data.range.end], ty);
         },
         .addr_of_label,

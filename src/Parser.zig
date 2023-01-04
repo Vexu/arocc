@@ -4197,7 +4197,7 @@ const CallExpr = union(enum) {
             const data = p.nodes.items(.data)[@enumToInt(node)];
             const name = p.tokSlice(data.decl.name);
             const interned_name = p.comp.intern(name) catch unreachable;
-            const builtin_ty = p.comp.builtins.get(interned_name).?;
+            const builtin_ty = p.comp.builtins.lookup(interned_name);
             return .{ .builtin = .{ .node = node, .tag = builtin_ty.builtin.tag } };
         }
         return .{ .standard = func_node };
@@ -6709,7 +6709,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     }),
                 };
             }
-            if (p.comp.builtins.get(interned_name)) |some| {
+            if (try p.comp.builtins.get(p.comp, interned_name, p.arena)) |some| {
                 for (p.tok_ids[p.tok_i..]) |id| switch (id) {
                     .r_paren => {}, // closing grouped expr
                     .l_paren => break, // beginning of a call
