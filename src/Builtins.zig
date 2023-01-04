@@ -212,20 +212,22 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
             return comp.types.ptrdiff;
         },
         .P => {
-            // Todo: FILE
-            return .{ .specifier = .invalid };
+            std.debug.assert(builder.specifier == .none);
+            return comp.types.file;
         },
         .J => {
-            // Todo: jmp_buf
-            return .{ .specifier = .invalid };
+            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(desc.suffix.len == 0);
+            return comp.types.jmp_buf;
         },
         .SJ => {
-            // Todo: sigjmp_buf
-            return .{ .specifier = .invalid };
+            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(desc.suffix.len == 0);
+            return comp.types.sigjmp_buf;
         },
         .K => {
-            // Todo: ucontext_t
-            return .{ .specifier = .invalid };
+            std.debug.assert(builder.specifier == .none);
+            return comp.types.ucontext_t;
         },
         .p => {
             std.debug.assert(builder.specifier == .none);
