@@ -127,7 +127,6 @@ fn generateDateAndTime(w: anytype) !void {
 /// Generate builtin macros that will be available to each source file.
 pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try comp.generateBuiltinTypes();
-    comp.builtins = try Builtins.create(comp);
 
     var buf = std.ArrayList(u8).init(comp.gpa);
     defer buf.deinit();

@@ -6709,7 +6709,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     }),
                 };
             }
-            if (try p.comp.builtins.get(p.comp, interned_name, p.arena)) |some| {
+            if (try p.comp.builtins.getOrCreate(p.comp, name, interned_name, p.arena)) |some| {
                 for (p.tok_ids[p.tok_i..]) |id| switch (id) {
                     .r_paren => {}, // closing grouped expr
                     .l_paren => break, // beginning of a call

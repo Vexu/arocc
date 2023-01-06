@@ -50,14 +50,16 @@ const Cache = struct {
     }
 };
 
-const BuiltinNameMap = std.AutoHashMapUnmanaged(BuiltinFunction.Tag, Cache.Index);
+const TagToIndexMap = std.AutoHashMapUnmanaged(BuiltinFunction.Tag, Cache.Index);
+const StringIdToTagMap = std.AutoHashMapUnmanaged(StringId, BuiltinFunction.Tag);
 
-_name_map: BuiltinNameMap = .{},
+_string_id_to_tag_map: StringIdToTagMap = .{},
+_tag_to_index_map: TagToIndexMap = .{},
 _cache: Cache = .{},
-_start_id: StringId = .empty,
 
 pub fn deinit(b: *Builtins, gpa: std.mem.Allocator) void {
-    b._name_map.deinit(gpa);
+    b._string_id_to_tag_map.deinit(gpa);
+    b._tag_to_index_map.deinit(gpa);
     b._cache.deinit(gpa);
 }
 
@@ -275,26 +277,12 @@ fn createBuiltin(comp: *const Compilation, builtin: BuiltinFunction, type_arena:
     };
 }
 
-pub fn create(comp: *Compilation) !Builtins {
-    var idx: usize = 0;
-    const start_id = comp.string_interner.next_id;
-    const num_tags = @typeInfo(BuiltinFunction.Tag).Enum.fields.len;
-    while (idx < num_tags) : (idx += 1) {
-        const tag = @intToEnum(BuiltinFunction.Tag, idx);
-        _ = try comp.intern(@tagName(tag));
-    }
-    std.debug.assert(@enumToInt(comp.string_interner.next_id) - @enumToInt(start_id) == num_tags);
-    return Builtins{ ._start_id = start_id };
-}
-
-fn getTag(b: *const Builtins, name_id: StringId) ?BuiltinFunction.Tag {
-    const start = @enumToInt(b._start_id);
-    const end = start + @typeInfo(BuiltinFunction.Tag).Enum.fields.len;
-    const name = @enumToInt(name_id);
-    if (name >= start and name < end) {
-        return @intToEnum(BuiltinFunction.Tag, name - start);
-    }
-    return null;
+fn getTag(b: *Builtins, allocator: std.mem.Allocator, name: []const u8, name_id: StringId) !?BuiltinFunction.Tag {
+    return b._string_id_to_tag_map.get(name_id) orelse {
+        const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return null;
+        try b._string_id_to_tag_map.put(allocator, name_id, tag);
+        return tag;
+    };
 }
 
 fn atIndex(b: *const Builtins, index: u16) Expanded {
@@ -307,15 +295,16 @@ fn atIndex(b: *const Builtins, index: u16) Expanded {
     };
 }
 
+/// Asserts that the builtin has already been created
 pub fn lookup(b: *const Builtins, name_id: StringId) Expanded {
-    const tag = b.getTag(name_id).?;
-    const index = b._name_map.get(tag).?;
+    const tag = b._string_id_to_tag_map.get(name_id).?;
+    const index = b._tag_to_index_map.get(tag).?;
     return b.atIndex(index);
 }
 
-pub fn get(b: *Builtins, comp: *const Compilation, name_id: StringId, type_arena: std.mem.Allocator) !?Expanded {
-    const tag = b.getTag(name_id) orelse return null;
-    const index = b._name_map.get(tag) orelse blk: {
+pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, name_id: StringId, type_arena: std.mem.Allocator) !?Expanded {
+    const tag = (try b.getTag(comp.gpa, name, name_id)) orelse return null;
+    const index = b._tag_to_index_map.get(tag) orelse blk: {
         const builtin = BuiltinFunction.fromTag(tag);
         if (!target.builtinEnabled(comp.target, builtin.properties.target_set)) return null;
 
@@ -331,7 +320,7 @@ pub fn get(b: *Builtins, comp: *const Compilation, name_id: StringId, type_arena
             .func = func_ty,
             .tag = tag,
         });
-        try b._name_map.put(comp.gpa, tag, idx);
+        try b._tag_to_index_map.put(comp.gpa, tag, idx);
         break :blk idx;
     };
     return b.atIndex(index);
