@@ -327,8 +327,10 @@ test "All builtins" {
         const tag = @intToEnum(BuiltinFunction.Tag, i);
         const name = @tagName(tag);
         if (try comp.builtins.getOrCreate(&comp, name, type_arena)) |func_ty| {
-            const found = comp.builtins.lookup(name);
-            try std.testing.expectEqual(found.builtin.tag, func_ty.builtin.tag);
+            const get_again = (try comp.builtins.getOrCreate(&comp, name, std.testing.failing_allocator)).?;
+            const found_by_lookup = comp.builtins.lookup(name);
+            try std.testing.expectEqual(func_ty.builtin.tag, get_again.builtin.tag);
+            try std.testing.expectEqual(func_ty.builtin.tag, found_by_lookup.builtin.tag);
         }
     }
 }
