@@ -1036,24 +1036,25 @@ pub fn pragmaEvent(comp: *Compilation, event: PragmaEvent) void {
 }
 
 pub fn hasBuiltin(comp: *const Compilation, name: []const u8) bool {
-    if (comp.getBuiltin(name) != null) return true;
     if (std.mem.eql(u8, name, "__builtin_va_arg") or
         std.mem.eql(u8, name, "__builtin_choose_expr") or
         std.mem.eql(u8, name, "__builtin_bitoffsetof") or
         std.mem.eql(u8, name, "__builtin_offsetof")) return true;
-    return false;
+
+    @setEvalBranchQuota(10_000);
+    const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return false;
+    const builtin = BuiltinFunction.fromTag(tag);
+    return comp.hasBuiltinFunction(builtin);
 }
 
-pub fn getBuiltin(comp: *const Compilation, name: []const u8) ?BuiltinFunction {
-    @setEvalBranchQuota(10000);
-    const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return null;
-    const builtin = BuiltinFunction.fromTag(tag);
-    // todo: check target
-    return switch (builtin.properties.language) {
-        .all_languages => builtin,
-        .all_ms_languages => if (comp.langopts.emulate == .msvc) builtin else null,
-        .gnu_lang, .all_gnu_languages => if (comp.langopts.standard.isGNU()) builtin else null,
-    };
+pub fn hasBuiltinFunction(comp: *const Compilation, builtin: BuiltinFunction) bool {
+    if (!target.builtinEnabled(comp.target, builtin.properties.target_set)) return false;
+
+    switch (builtin.properties.language) {
+        .all_languages => return true,
+        .all_ms_languages => return comp.langopts.emulate == .msvc,
+        .gnu_lang, .all_gnu_languages => return comp.langopts.standard.isGNU(),
+    }
 }
 
 pub const renderErrors = Diagnostics.render;

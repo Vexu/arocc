@@ -306,13 +306,7 @@ pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, name_id: 
     const tag = (try b.getTag(comp.gpa, name, name_id)) orelse return null;
     const index = b._tag_to_index_map.get(tag) orelse blk: {
         const builtin = BuiltinFunction.fromTag(tag);
-        if (!target.builtinEnabled(comp.target, builtin.properties.target_set)) return null;
-
-        switch (builtin.properties.language) {
-            .all_languages => {},
-            .all_ms_languages => if (comp.langopts.emulate != .msvc) return null,
-            .gnu_lang, .all_gnu_languages => if (!comp.langopts.standard.isGNU()) return null,
-        }
+        if (!comp.hasBuiltinFunction(builtin)) return null;
 
         const func_ty = try createBuiltin(comp, builtin, type_arena);
 
