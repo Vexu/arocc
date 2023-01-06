@@ -3538,6 +3538,26 @@ const functions = struct {
         };
     };
 
+    const __builtin_amdgcn_is_private = struct {
+        const param_str = "bvC*0";
+        const target_set = TargetSet.init(.{
+            .amdgpu = true,
+        });
+        const attributes = Attributes{
+            .@"const" = true,
+        };
+    };
+
+    const __builtin_amdgcn_is_shared = struct {
+        const param_str = "bvC*0";
+        const target_set = TargetSet.init(.{
+            .amdgpu = true,
+        });
+        const attributes = Attributes{
+            .@"const" = true,
+        };
+    };
+
     const __builtin_amdgcn_kernarg_segment_ptr = struct {
         const param_str = "v*4";
         const target_set = TargetSet.init(.{
@@ -4505,6 +4525,16 @@ const functions = struct {
         };
     };
 
+    const __builtin_arm_rsr128 = struct {
+        const param_str = "LLLUicC*";
+        const target_set = TargetSet.init(.{
+            .aarch64 = true,
+        });
+        const attributes = Attributes{
+            .@"const" = true,
+        };
+    };
+
     const __builtin_arm_rsr64 = struct {
         const param_str = "!";
         const target_set = TargetSet.init(.{
@@ -5337,6 +5367,16 @@ const functions = struct {
         const target_set = TargetSet.init(.{
             .aarch64 = true,
             .arm = true,
+        });
+        const attributes = Attributes{
+            .@"const" = true,
+        };
+    };
+
+    const __builtin_arm_wsr128 = struct {
+        const param_str = "vcC*LLLUi";
+        const target_set = TargetSet.init(.{
+            .aarch64 = true,
         });
         const attributes = Attributes{
             .@"const" = true,
@@ -6705,7 +6745,23 @@ const functions = struct {
         };
     };
 
+    const __builtin_elementwise_canonicalize = struct {
+        const param_str = "v.";
+        const attributes = Attributes{
+            .@"const" = true,
+            .custom_typecheck = true,
+        };
+    };
+
     const __builtin_elementwise_ceil = struct {
+        const param_str = "v.";
+        const attributes = Attributes{
+            .@"const" = true,
+            .custom_typecheck = true,
+        };
+    };
+
+    const __builtin_elementwise_copysign = struct {
         const param_str = "v.";
         const attributes = Attributes{
             .@"const" = true,
@@ -17214,294 +17270,6 @@ const functions = struct {
         const target_set = TargetSet.init(.{
             .ppc = true,
         });
-    };
-
-    const __builtin_sve_svdup_neonq_bf16 = struct {
-        const param_str = "q8yV8y";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_f16 = struct {
-        const param_str = "q8hV8h";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_f32 = struct {
-        const param_str = "q4fV4f";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_f64 = struct {
-        const param_str = "q2dV2d";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_s16 = struct {
-        const param_str = "q8sV8s";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_s32 = struct {
-        const param_str = "q4iV4i";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_s64 = struct {
-        const param_str = "q4iV4i";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_s8 = struct {
-        const param_str = "q16ScV16Sc";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_u16 = struct {
-        const param_str = "q8UsV8Us";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_u32 = struct {
-        const param_str = "q4UiV4Ui";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_u64 = struct {
-        const param_str = "q2UWiV2UWi";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svdup_neonq_u8 = struct {
-        const param_str = "q16UcV16Uc";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_bf16 = struct {
-        const param_str = "V8yq8y";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_f16 = struct {
-        const param_str = "V8hq8h";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_f32 = struct {
-        const param_str = "V4fq4f";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_f64 = struct {
-        const param_str = "V2dq2d";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_s16 = struct {
-        const param_str = "V8sq8s";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_s32 = struct {
-        const param_str = "V4iq4i";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_s64 = struct {
-        const param_str = "V2Wiq2Wi";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_s8 = struct {
-        const param_str = "V16Scq16Sc";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_u16 = struct {
-        const param_str = "V16Usq16Us";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_u32 = struct {
-        const param_str = "V4Uiq4Ui";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_u64 = struct {
-        const param_str = "V2UWiq2UWi";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svget_neonq_u8 = struct {
-        const param_str = "V16Ucq16Uc";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_bf16 = struct {
-        const param_str = "q8yq8yV8y";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_f16 = struct {
-        const param_str = "q8hq8hV8h";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_f32 = struct {
-        const param_str = "q4fq4fV4f";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_f64 = struct {
-        const param_str = "q2dq2dV2d";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_s16 = struct {
-        const param_str = "q8sq8sV8s";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_s32 = struct {
-        const param_str = "q4iq4iV4i";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_s64 = struct {
-        const param_str = "q2Wiq2WiV2Wi";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_s8 = struct {
-        const param_str = "q16Scq16ScV16Sc";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_u16 = struct {
-        const param_str = "q8Usq8UsV8s";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_u32 = struct {
-        const param_str = "q4Uiq4UiV4Ui";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_u64 = struct {
-        const param_str = "q2UWiq2UWiV2UWi";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
-    };
-
-    const __builtin_sve_svset_neonq_u8 = struct {
-        const param_str = "q16Ucq16UcV16Uc";
-        const target_set = TargetSet.init(.{
-            .aarch64_neon_sve_bridge = true,
-        });
-        const attributes = Attributes{};
     };
 
     const __builtin_tabort = struct {
