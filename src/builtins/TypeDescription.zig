@@ -108,7 +108,15 @@ pub const ComponentIterator = struct {
                 return .{ .spec = .@"!" };
             },
 
-            '*' => return .{ .suffix = .@"*" },
+            '*' => {
+                if (self.idx < self.str.len and std.ascii.isDigit(self.str[self.idx])) {
+                    defer self.idx += 1;
+                    const addr_space = self.str[self.idx] - '0';
+                    return .{ .suffix = .{ .@"*" = addr_space } };
+                } else {
+                    return .{ .suffix = .{ .@"*" = null } };
+                }
+            },
             'C' => return .{ .suffix = .C },
             'D' => return .{ .suffix = .D },
             'R' => return .{ .suffix = .R },
@@ -254,9 +262,9 @@ const Spec = union(enum) {
     @"!",
 };
 
-const Suffix = enum {
+const Suffix = union(enum) {
     /// pointer (optionally followed by an address space number,if no address space is specified than any address space will be accepted)
-    @"*",
+    @"*": ?u8,
     /// const
     C,
     /// volatile

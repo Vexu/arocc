@@ -245,7 +245,8 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
     }
     for (desc.suffix) |suffix| {
         switch (suffix) {
-            .@"*" => {
+            .@"*" => |address_space| {
+                _ = address_space; // TODO: handle address space
                 const elem_ty = try allocator.create(Type);
                 elem_ty.* = builder.finish(undefined) catch unreachable;
                 const ty = Type{
