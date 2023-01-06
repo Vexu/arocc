@@ -20,6 +20,7 @@ const Expanded = struct {
     builtin: BuiltinFunction,
 };
 
+/// A growable list with stable addresses for items
 const Cache = struct {
     const Index = u16;
     const AllocSize = @divTrunc(4096, @sizeOf(BuiltinTy));
@@ -27,10 +28,14 @@ const Cache = struct {
     len: u16 = 0,
     list: std.ArrayListUnmanaged([]BuiltinTy) = .{},
 
-    fn get(self: *const Cache, index: Index) *BuiltinTy {
+    /// Get a pointer to the nth element. Asserts that the cache has at least n elements
+    fn getPtr(self: *const Cache, index: Index) *BuiltinTy {
+        std.debug.assert(index < self.len);
         return &self.list.items[@divTrunc(index, AllocSize)][index % AllocSize];
     }
 
+    /// Add an item to the cache. Returns the number of items that were in the cache
+    /// before the new item was added.
     fn add(self: *Cache, allocator: std.mem.Allocator, item: BuiltinTy) !u16 {
         defer self.len += 1;
         if (self.len % AllocSize == 0) {
@@ -286,7 +291,7 @@ fn getTag(b: *Builtins, allocator: std.mem.Allocator, name: []const u8, name_id:
 }
 
 fn atIndex(b: *const Builtins, index: u16) Expanded {
-    const item = b._cache.get(index);
+    const item = b._cache.getPtr(index);
     const builtin = BuiltinFunction.fromTag(item.tag);
     const specifier: Type.Specifier = if (builtin.isVarArgs()) .var_args_func else .func;
     return .{
