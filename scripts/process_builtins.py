@@ -225,6 +225,7 @@ class Builtin:
     """
     name: str
     param_str: str
+    param_count: int
     attrs: str
     lang: Language
     header: typing.Optional[Header]
@@ -267,6 +268,7 @@ def _parse_builtin(line: str, regex: typing.Pattern, target: typing.Optional[Tar
     return Builtin(
         name=group['name'],
         param_str=params,
+        param_count=len(parsed_params) - 1, # first parsed param is return type
         attrs=group['attrs'],
         header=Header.parse(group.get('header')),
         lang=Language[group.get('lang', 'ALL_LANGUAGES')],
@@ -470,6 +472,7 @@ def main() -> int:
 
     render_prelude(os.path.basename(sys.argv[0]))
 
+    max_param_count = 0
     print('const functions = struct {')
     for _name, grouper in itertools.groupby(all_builtins, key=operator.attrgetter('name')):
         group = list(grouper)
@@ -484,9 +487,11 @@ def main() -> int:
                 first.param_str = "!"
                 break
 
+        max_param_count = max(max_param_count, first.param_count)
         render_builtin(first, typing.cast(typing.List[Target], targets))
 
     print('};')
+    print(f'pub const MaxParamCount = {max_param_count};')
 
     return 0
 

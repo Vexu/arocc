@@ -273,7 +273,7 @@ fn createBuiltin(comp: *const Compilation, builtin: BuiltinFunction, type_arena:
     }
     const ret_ty = try createType(ret_ty_desc, &it, comp, type_arena);
     var param_count: usize = 0;
-    var params: [8]Type.Func.Param = undefined;
+    var params: [BuiltinFunction.MaxParamCount]Type.Func.Param = undefined;
     while (it.next()) |desc| : (param_count += 1) {
         params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, &it, comp, type_arena), .name = .empty };
     }

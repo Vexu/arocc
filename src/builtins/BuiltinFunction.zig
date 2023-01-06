@@ -35780,3 +35780,4 @@ const functions = struct {
         };
     };
 };
+pub const MaxParamCount = 12;
