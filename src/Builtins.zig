@@ -53,16 +53,13 @@ const Cache = struct {
     }
 };
 
-const TagToIndexMap = std.AutoHashMapUnmanaged(BuiltinFunction.Tag, Cache.Index);
-const StringIdToTagMap = std.AutoHashMapUnmanaged(StringId, BuiltinFunction.Tag);
+const NameToIndexMap = std.StringHashMapUnmanaged(Cache.Index);
 
-_string_id_to_tag_map: StringIdToTagMap = .{},
-_tag_to_index_map: TagToIndexMap = .{},
+_name_to_index_map: NameToIndexMap = .{},
 _cache: Cache = .{},
 
 pub fn deinit(b: *Builtins, gpa: std.mem.Allocator) void {
-    b._string_id_to_tag_map.deinit(gpa);
-    b._tag_to_index_map.deinit(gpa);
+    b._name_to_index_map.deinit(gpa);
     b._cache.deinit(gpa);
 }
 
@@ -280,15 +277,6 @@ fn createBuiltin(comp: *const Compilation, builtin: BuiltinFunction, type_arena:
     };
 }
 
-fn getTag(b: *Builtins, allocator: std.mem.Allocator, name: []const u8, name_id: StringId) !?BuiltinFunction.Tag {
-    return b._string_id_to_tag_map.get(name_id) orelse {
-        @setEvalBranchQuota(10_000);
-        const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return null;
-        try b._string_id_to_tag_map.put(allocator, name_id, tag);
-        return tag;
-    };
-}
-
 fn atIndex(b: *const Builtins, index: u16) Expanded {
     const item = b._cache.getPtr(index);
     const builtin = BuiltinFunction.fromTag(item.tag);
@@ -300,15 +288,15 @@ fn atIndex(b: *const Builtins, index: u16) Expanded {
 }
 
 /// Asserts that the builtin has already been created
-pub fn lookup(b: *const Builtins, name_id: StringId) Expanded {
-    const tag = b._string_id_to_tag_map.get(name_id).?;
-    const index = b._tag_to_index_map.get(tag).?;
+pub fn lookup(b: *const Builtins, name: []const u8) Expanded {
+    const index = b._name_to_index_map.get(name).?;
     return b.atIndex(index);
 }
 
-pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, name_id: StringId, type_arena: std.mem.Allocator) !?Expanded {
-    const tag = (try b.getTag(comp.gpa, name, name_id)) orelse return null;
-    const index = b._tag_to_index_map.get(tag) orelse blk: {
+pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, type_arena: std.mem.Allocator) !?Expanded {
+    const index = b._name_to_index_map.get(name) orelse blk: {
+        @setEvalBranchQuota(10_000);
+        const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return null;
         const builtin = BuiltinFunction.fromTag(tag);
         if (!comp.hasBuiltinFunction(builtin)) return null;
 
@@ -319,7 +307,7 @@ pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, name_id: 
             .func = func_ty,
             .tag = tag,
         });
-        try b._tag_to_index_map.put(comp.gpa, tag, idx);
+        try b._name_to_index_map.put(comp.gpa, name, idx);
         break :blk idx;
     };
     return b.atIndex(index);
@@ -338,9 +326,8 @@ test "All builtins" {
     while (i < @typeInfo(BuiltinFunction.Tag).Enum.fields.len) : (i += 1) {
         const tag = @intToEnum(BuiltinFunction.Tag, i);
         const name = @tagName(tag);
-        const name_id = try comp.intern(name);
-        if (try comp.builtins.getOrCreate(&comp, name, name_id, type_arena)) |func_ty| {
-            const found = comp.builtins.lookup(name_id);
+        if (try comp.builtins.getOrCreate(&comp, name, type_arena)) |func_ty| {
+            const found = comp.builtins.lookup(name);
             try std.testing.expectEqual(found.builtin.tag, func_ty.builtin.tag);
         }
     }
