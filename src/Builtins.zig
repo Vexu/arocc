@@ -34,9 +34,8 @@ const Cache = struct {
         return &self.list.items[@divTrunc(index, AllocSize)][index % AllocSize];
     }
 
-    /// Add an item to the cache. Returns the number of items that were in the cache
-    /// before the new item was added.
-    fn add(self: *Cache, allocator: std.mem.Allocator, item: BuiltinTy) !u16 {
+    /// Add an item to the cache.
+    fn add(self: *Cache, allocator: std.mem.Allocator, item: BuiltinTy) !void {
         defer self.len += 1;
         if (self.len % AllocSize == 0) {
             const page = try allocator.alloc(BuiltinTy, AllocSize);
@@ -44,7 +43,6 @@ const Cache = struct {
             try self.list.append(allocator, page);
         }
         self.list.items[@divTrunc(self.len, AllocSize)][self.len % AllocSize] = item;
-        return self.len;
     }
 
     fn deinit(self: *Cache, allocator: std.mem.Allocator) void {
@@ -316,7 +314,8 @@ pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, name_id: 
 
         const func_ty = try createBuiltin(comp, builtin, type_arena);
 
-        const idx = try b._cache.add(comp.gpa, .{
+        const idx = b._cache.len;
+        try b._cache.add(comp.gpa, .{
             .func = func_ty,
             .tag = tag,
         });
