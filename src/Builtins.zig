@@ -114,7 +114,6 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
                 if (comp.target.os.tag != .opencl) {
                     builder.combine(undefined, .long, 0) catch unreachable;
                 }
-                @panic("testme");
             },
             .S => builder.combine(undefined, .signed, 0) catch unreachable,
             .U => builder.combine(undefined, .unsigned, 0) catch unreachable,
@@ -283,6 +282,7 @@ fn createBuiltin(comp: *const Compilation, builtin: BuiltinFunction, type_arena:
 
 fn getTag(b: *Builtins, allocator: std.mem.Allocator, name: []const u8, name_id: StringId) !?BuiltinFunction.Tag {
     return b._string_id_to_tag_map.get(name_id) orelse {
+        @setEvalBranchQuota(10_000);
         const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return null;
         try b._string_id_to_tag_map.put(allocator, name_id, tag);
         return tag;
@@ -323,4 +323,25 @@ pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, name_id: 
         break :blk idx;
     };
     return b.atIndex(index);
+}
+
+test "All builtins" {
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+    _ = try comp.generateBuiltinMacros();
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const type_arena = arena.allocator();
+
+    var i: usize = 0;
+    while (i < @typeInfo(BuiltinFunction.Tag).Enum.fields.len) : (i += 1) {
+        const tag = @intToEnum(BuiltinFunction.Tag, i);
+        const name = @tagName(tag);
+        const name_id = try comp.intern(name);
+        if (try comp.builtins.getOrCreate(&comp, name, name_id, type_arena)) |func_ty| {
+            const found = comp.builtins.lookup(name_id);
+            try std.testing.expectEqual(found.builtin.tag, func_ty.builtin.tag);
+        }
+    }
 }
