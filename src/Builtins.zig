@@ -23,7 +23,7 @@ const Expanded = struct {
 /// A growable list with stable addresses for items
 const Cache = struct {
     const Index = u16;
-    const AllocSize = @divTrunc(4096, @sizeOf(BuiltinTy));
+    const AllocSize = @divTrunc(512, @sizeOf(BuiltinTy));
 
     len: u16 = 0,
     list: std.ArrayListUnmanaged([]BuiltinTy) = .{},
@@ -333,4 +333,29 @@ test "All builtins" {
             try std.testing.expectEqual(func_ty.builtin.tag, found_by_lookup.builtin.tag);
         }
     }
+}
+
+test "Allocation failures" {
+    const Test = struct {
+        fn testOne(allocator: std.mem.Allocator) !void {
+            var comp = Compilation.init(allocator);
+            defer comp.deinit();
+            _ = try comp.generateBuiltinMacros();
+            var arena = std.heap.ArenaAllocator.init(comp.gpa);
+            defer arena.deinit();
+
+            const type_arena = arena.allocator();
+
+            var i: usize = 0;
+            const num_builtins = Cache.AllocSize * @sizeOf(BuiltinTy) * 4; // allocate a few pages but no need to test all builtins
+
+            while (i < num_builtins) : (i += 1) {
+                const tag = @intToEnum(BuiltinFunction.Tag, i);
+                const name = @tagName(tag);
+                _ = try comp.builtins.getOrCreate(&comp, name, type_arena);
+            }
+        }
+    };
+
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, Test.testOne, .{});
 }
