@@ -386,7 +386,6 @@ data: union {
         bits: u8,
         signedness: std.builtin.Signedness,
     },
-    builtin: BuiltinFunction.Tag,
 } = .{ .none = {} },
 specifier: Specifier,
 qual: Qualifiers = .{},
