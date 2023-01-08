@@ -742,7 +742,8 @@ fn skipTo(p: *Parser, id: Token.Id) void {
     }
 }
 
-fn typedefDefined(p: *Parser, name: StringId, ty: Type) !void {
+/// Called after a typedef is defined
+fn typedefDefined(p: *Parser, name: StringId, ty: Type) void {
     if (name == p.string_ids.file) {
         p.comp.types.file = ty;
     } else if (name == p.string_ids.jmp_buf) {
@@ -974,7 +975,7 @@ fn decl(p: *Parser) Error!bool {
         const interned_name = try p.comp.intern(p.tokSlice(init_d.d.name));
         if (decl_spec.storage_class == .typedef) {
             try p.syms.defineTypedef(p, interned_name, init_d.d.ty, init_d.d.name, node);
-            try p.typedefDefined(interned_name, init_d.d.ty);
+            p.typedefDefined(interned_name, init_d.d.ty);
         } else if (init_d.initializer.node != .none or
             (p.func.ty != null and decl_spec.storage_class != .@"extern"))
         {
