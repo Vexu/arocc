@@ -40,6 +40,13 @@ types: struct {
     size: Type = undefined,
     va_list: Type = undefined,
     pid_t: Type = undefined,
+    ns_constant_string: struct {
+        ty: Type = undefined,
+        record: Type.Record = undefined,
+        fields: [4]Type.Record.Field = undefined,
+        int_ty: Type = .{ .specifier = .int, .qual = .{ .@"const" = true } },
+        char_ty: Type = .{ .specifier = .char, .qual = .{ .@"const" = true } },
+    } = .{},
     file: Type = .{ .specifier = .invalid },
     jmp_buf: Type = .{ .specifier = .invalid },
     sigjmp_buf: Type = .{ .specifier = .invalid },
@@ -514,6 +521,25 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         .va_list = va_list,
         .pid_t = pid_t,
     };
+    try comp.generateNsConstantStringType();
+}
+
+fn generateNsConstantStringType(comp: *Compilation) !void {
+    comp.types.ns_constant_string.record = .{
+        .name = try comp.intern("__NSConstantString_tag"),
+        .fields = &comp.types.ns_constant_string.fields,
+        .field_attributes = null,
+        .type_layout = undefined,
+    };
+    const const_int_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = &comp.types.ns_constant_string.int_ty } };
+    const const_char_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = &comp.types.ns_constant_string.char_ty } };
+
+    comp.types.ns_constant_string.fields[0] = .{ .name = try comp.intern("isa"), .ty = const_int_ptr };
+    comp.types.ns_constant_string.fields[1] = .{ .name = try comp.intern("flags"), .ty = .{ .specifier = .int } };
+    comp.types.ns_constant_string.fields[2] = .{ .name = try comp.intern("str"), .ty = const_char_ptr };
+    comp.types.ns_constant_string.fields[3] = .{ .name = try comp.intern("length"), .ty = .{ .specifier = .long } };
+    comp.types.ns_constant_string.ty = .{ .specifier = .@"struct", .data = .{ .record = &comp.types.ns_constant_string.record } };
+    record_layout.compute(&comp.types.ns_constant_string.record, comp.types.ns_constant_string.ty, comp, null);
 }
 
 fn generateVaListType(comp: *Compilation) !Type {

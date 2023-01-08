@@ -583,6 +583,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.syms.defineTypedef(&p, try p.comp.intern("__builtin_va_list"), ty.*, 0, .none);
 
         if (ty.isArray()) ty.decayArray();
+
+        try p.syms.defineTypedef(&p, try p.comp.intern("__NSConstantString"), pp.comp.types.ns_constant_string.ty, 0, .none);
     }
 
     while (p.eatToken(.eof) == null) {

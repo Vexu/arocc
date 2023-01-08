@@ -162,8 +162,8 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
             builder.specifier = Type.Builder.fromType(comp.types.wchar);
         },
         .F => {
-            // Todo: __NSConstantString -- struct { const int *isa; int flags; const char *str; long length; }
-            return .{ .specifier = .invalid };
+            std.debug.assert(builder.specifier == .none);
+            builder.specifier = Type.Builder.fromType(comp.types.ns_constant_string.ty);
         },
         .a => {
             std.debug.assert(builder.specifier == .none);
