@@ -168,14 +168,14 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
         .a => {
             std.debug.assert(builder.specifier == .none);
             std.debug.assert(desc.suffix.len == 0);
-            return comp.types.va_list;
+            builder.specifier = Type.Builder.fromType(comp.types.va_list);
         },
         .A => {
             std.debug.assert(builder.specifier == .none);
             std.debug.assert(desc.suffix.len == 0);
             var va_list = comp.types.va_list;
             if (va_list.isArray()) va_list.decayArray();
-            return va_list;
+            builder.specifier = Type.Builder.fromType(va_list);
         },
         .V => |element_count| {
             std.debug.assert(desc.suffix.len == 0);
@@ -186,7 +186,8 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
                 .len = element_count,
                 .elem = child_ty,
             };
-            return .{ .specifier = .vector, .data = .{ .array = arr_ty } };
+            const vector_ty = .{ .specifier = .vector, .data = .{ .array = arr_ty } };
+            builder.specifier = Type.Builder.fromType(vector_ty);
         },
         .q => {
             // Todo: scalable vector
@@ -210,30 +211,42 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
         .Y => {
             std.debug.assert(builder.specifier == .none);
             std.debug.assert(desc.suffix.len == 0);
-            return comp.types.ptrdiff;
+            builder.specifier = Type.Builder.fromType(comp.types.ptrdiff);
         },
         .P => {
             std.debug.assert(builder.specifier == .none);
-            return comp.types.file;
+            if (comp.types.file.specifier == .invalid) {
+                return comp.types.file;
+            }
+            builder.specifier = Type.Builder.fromType(comp.types.file);
         },
         .J => {
             std.debug.assert(builder.specifier == .none);
             std.debug.assert(desc.suffix.len == 0);
-            return comp.types.jmp_buf;
+            if (comp.types.jmp_buf.specifier == .invalid) {
+                return comp.types.jmp_buf;
+            }
+            builder.specifier = Type.Builder.fromType(comp.types.jmp_buf);
         },
         .SJ => {
             std.debug.assert(builder.specifier == .none);
             std.debug.assert(desc.suffix.len == 0);
-            return comp.types.sigjmp_buf;
+            if (comp.types.sigjmp_buf.specifier == .invalid) {
+                return comp.types.sigjmp_buf;
+            }
+            builder.specifier = Type.Builder.fromType(comp.types.sigjmp_buf);
         },
         .K => {
             std.debug.assert(builder.specifier == .none);
-            return comp.types.ucontext_t;
+            if (comp.types.ucontext_t.specifier == .invalid) {
+                return comp.types.ucontext_t;
+            }
+            builder.specifier = Type.Builder.fromType(comp.types.ucontext_t);
         },
         .p => {
             std.debug.assert(builder.specifier == .none);
             std.debug.assert(desc.suffix.len == 0);
-            return comp.types.pid_t;
+            builder.specifier = Type.Builder.fromType(comp.types.pid_t);
         },
         .@"!" => return .{ .specifier = .invalid },
     }
