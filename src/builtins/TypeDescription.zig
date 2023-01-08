@@ -143,6 +143,9 @@ pub const TypeIterator = struct {
         };
     }
 
+    /// Returned `TypeDescription` contains fields which are slices into the underlying `TypeIterator`
+    /// The returned value is invalidated when `.next()` is called again or the TypeIterator goes out
+    // of scope.
     pub fn next(self: *TypeIterator) ?TypeDescription {
         var it = ComponentIterator.init(self.param_str[self.idx..]);
         defer self.idx += it.idx;
