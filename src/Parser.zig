@@ -5667,18 +5667,9 @@ fn castExpr(p: *Parser) Error!Result {
         try p.expectClosing(l_paren, .r_paren);
 
         if (p.tok_ids[p.tok_i] == .l_brace) {
-            // compound literal
-            if (ty.isFunc()) {
-                try p.err(.func_init);
-            } else if (ty.is(.variable_len_array)) {
-                try p.err(.vla_init);
-            } else if (ty.hasIncompleteSize() and !ty.is(.incomplete_array)) {
-                try p.errStr(.variable_incomplete_ty, p.tok_i, try p.typeStr(ty));
-                return error.ParsingFailed;
-            }
-            var init_list_expr = try p.initializer(ty);
-            try init_list_expr.un(p, .compound_literal_expr);
-            return init_list_expr;
+            // Compound literal; handled in unExpr
+            p.tok_i = l_paren;
+            break :cast_expr;
         }
 
         var operand = try p.castExpr();
@@ -5867,7 +5858,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type) Error!Result {
 }
 
 /// unExpr
-///  : primaryExpr suffixExpr*
+///  : (compoundLiteral | primaryExpr) suffixExpr*
 ///  | '&&' IDENTIFIER
 ///  | ('&' | '*' | '+' | '-' | '~' | '!' | '++' | '--' | keyword_extension | keyword_imag | keyword_real) castExpr
 ///  | keyword_sizeof unExpr
@@ -6192,8 +6183,11 @@ fn unExpr(p: *Parser) Error!Result {
             return operand;
         },
         else => {
-            var lhs = try p.primaryExpr();
-            if (lhs.empty(p)) return lhs;
+            var lhs = try p.compoundLiteral();
+            if (lhs.empty(p)) {
+                lhs = try p.primaryExpr();
+                if (lhs.empty(p)) return lhs;
+            }
             while (true) {
                 const suffix = try p.suffixExpr(lhs);
                 if (suffix.empty(p)) break;
@@ -6202,6 +6196,30 @@ fn unExpr(p: *Parser) Error!Result {
             return lhs;
         },
     }
+}
+
+/// compoundLiteral
+///  : '(' type_name ')' '{' initializer_list '}'
+///  | '(' type_name ')' '{' initializer_list ',' '}'
+fn compoundLiteral(p: *Parser) Error!Result {
+    const l_paren = p.eatToken(.l_paren) orelse return Result{};
+    const ty = (try p.typeName()) orelse {
+        p.tok_i = l_paren;
+        return Result{};
+    };
+    try p.expectClosing(l_paren, .r_paren);
+
+    if (ty.isFunc()) {
+        try p.err(.func_init);
+    } else if (ty.is(.variable_len_array)) {
+        try p.err(.vla_init);
+    } else if (ty.hasIncompleteSize() and !ty.is(.incomplete_array)) {
+        try p.errStr(.variable_incomplete_ty, p.tok_i, try p.typeStr(ty));
+        return error.ParsingFailed;
+    }
+    var init_list_expr = try p.initializer(ty);
+    try init_list_expr.un(p, .compound_literal_expr);
+    return init_list_expr;
 }
 
 /// suffixExpr
