@@ -356,7 +356,102 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try generateTypeMacro(w, mapper, "__SIZE_TYPE__", comp.types.size, comp.langopts);
     try generateTypeMacro(w, mapper, "__WCHAR_TYPE__", comp.types.wchar, comp.langopts);
 
+    if (target.FPSemantics.halfPrecisionType(comp.target)) |half| {
+        try generateFloatMacros(w, "FLT16", half, "F16");
+    }
+    try generateFloatMacros(w, "FLT", target.FPSemantics.forType(CType.float, comp.target), "F");
+    try generateFloatMacros(w, "DBL", target.FPSemantics.forType(CType.double, comp.target), "");
+    try generateFloatMacros(w, "LDBL", target.FPSemantics.forType(CType.longdouble, comp.target), "L");
+
+    try w.writeAll(
+        \\#define __FLT_RADIX__ 2
+        \\#define __DECIMAL_DIG__ __LDBL_DECIMAL_DIG__
+        \\
+    );
+
     return comp.addSourceFromBuffer("<builtin>", buf.items);
+}
+
+fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target.FPSemantics, ext: []const u8) !void {
+    const denormMin = semantics.chooseValue(
+        []const u8,
+        .{
+            "5.9604644775390625e-8",
+            "1.40129846e-45",
+            "4.9406564584124654e-324",
+            "3.64519953188247460253e-4951",
+            "4.94065645841246544176568792868221e-324",
+            "6.47517511943802511092443895822764655e-4966",
+        },
+    );
+    const digits = semantics.chooseValue(i32, .{ 3, 6, 15, 18, 31, 33 });
+    const decimalDigits = semantics.chooseValue(i32, .{ 5, 9, 17, 21, 33, 36 });
+    const epsilon = semantics.chooseValue(
+        []const u8,
+        .{
+            "9.765625e-4",
+            "1.19209290e-7",
+            "2.2204460492503131e-16",
+            "1.08420217248550443401e-19",
+            "4.94065645841246544176568792868221e-324",
+            "1.92592994438723585305597794258492732e-34",
+        },
+    );
+    const mantissaDigits = semantics.chooseValue(i32, .{ 11, 24, 53, 64, 106, 113 });
+
+    const min10Exp = semantics.chooseValue(i32, .{ -4, -37, -307, -4931, -291, -4931 });
+    const max10Exp = semantics.chooseValue(i32, .{ 4, 38, 308, 4932, 308, 4932 });
+
+    const minExp = semantics.chooseValue(i32, .{ -13, -125, -1021, -16381, -968, -16381 });
+    const maxExp = semantics.chooseValue(i32, .{ 16, 128, 1024, 16384, 1024, 16384 });
+
+    const min = semantics.chooseValue(
+        []const u8,
+        .{
+            "6.103515625e-5",
+            "1.17549435e-38",
+            "2.2250738585072014e-308",
+            "3.36210314311209350626e-4932",
+            "2.00416836000897277799610805135016e-292",
+            "3.36210314311209350626267781732175260e-4932",
+        },
+    );
+    const max = semantics.chooseValue(
+        []const u8,
+        .{
+            "6.5504e+4",
+            "3.40282347e+38",
+            "1.7976931348623157e+308",
+            "1.18973149535723176502e+4932",
+            "1.79769313486231580793728971405301e+308",
+            "1.18973149535723176508575932662800702e+4932",
+        },
+    );
+
+    var buf: [32]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buf);
+    var defPrefix = std.ArrayList(u8).initCapacity(fba.allocator(), 3 + prefix.len) catch unreachable; // fib
+    defPrefix.appendSliceAssumeCapacity("__");
+    defPrefix.appendSliceAssumeCapacity(prefix);
+    defPrefix.appendSliceAssumeCapacity("_");
+
+    try w.print("#define {s}DENORM_MIN__ {s}{s}\n", .{ defPrefix.items, denormMin, ext });
+    try w.print("#define {s}HAS_DENORM__\n", .{defPrefix.items});
+    try w.print("#define {s}DIG__ {d}\n", .{ defPrefix.items, digits });
+    try w.print("#define {s}DECIMAL_DIG__ {d}\n", .{ defPrefix.items, decimalDigits });
+
+    try w.print("#define {s}EPSILON__ {s}{s}\n", .{ defPrefix.items, epsilon, ext });
+    try w.print("#define {s}HAS_INFINITY__\n", .{defPrefix.items});
+    try w.print("#define {s}HAS_QUIET_NAN__\n", .{defPrefix.items});
+    try w.print("#define {s}MANT_DIG__ {d}\n", .{ defPrefix.items, mantissaDigits });
+
+    try w.print("#define {s}MAX_10_EXP__ {d}\n", .{ defPrefix.items, max10Exp });
+    try w.print("#define {s}MAX_EXP__ {d}\n", .{ defPrefix.items, maxExp });
+    try w.print("#define {s}MAX__ {s}{s}\n", .{ defPrefix.items, max, ext });
+
+    try w.print("#define {s}MIN_10_EXP__ ({d})\n", .{ defPrefix.items, min10Exp });
+    try w.print("#define {s}MIN_EXP__ ({d})\n", .{ defPrefix.items, minExp });
+    try w.print("#define {s}MIN__ {s}{s}\n", .{ defPrefix.items, min, ext });
 }
 
 fn generateTypeMacro(w: anytype, mapper: StringInterner.TypeMapper, name: []const u8, ty: Type, langopts: LangOpts) !void {
