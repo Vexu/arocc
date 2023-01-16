@@ -2209,6 +2209,11 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const cli_invalid_fp_eval_method = struct {
+        const msg = "unsupported argument '{s}' to option '-ffp-eval-method='; expected 'source', 'double', or 'extended'";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
