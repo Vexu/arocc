@@ -17,7 +17,7 @@
 #if __STDC_VERSION__ >= 199901L
 #undef DECIMAL_DIG
 #define DECIMAL_DIG __DECIMAL_DIG__
-#endif  // __STDC_VERSION__ >= 199901L
+#endif  /* __STDC_VERSION__ >= 199901L */
 
 #undef FLT_DIG
 #define FLT_DIG __FLT_DIG__
@@ -120,4 +120,4 @@
 #undef LDBL_HAS_SUBNORM
 #define LDBL_HAS_SUBNORM __LDBL_HAS_DENORM__
 
-#endif  // __STDC_VERSION__ >= 201112L
+#endif  /* __STDC_VERSION__ >= 201112L */
