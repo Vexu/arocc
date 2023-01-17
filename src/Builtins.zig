@@ -10,57 +10,17 @@ const Parser = @import("Parser.zig");
 
 const Builtins = @This();
 
-const BuiltinTy = struct {
-    func: Type.Func,
-    tag: BuiltinFunction.Tag,
-};
-
 const Expanded = struct {
     ty: Type,
     builtin: BuiltinFunction,
 };
 
-/// A growable list with stable addresses for items
-const Cache = struct {
-    const Index = u16;
-    const AllocSize = @divTrunc(512, @sizeOf(BuiltinTy));
+const NameToTypeMap = std.StringHashMapUnmanaged(Type);
 
-    len: u16 = 0,
-    list: std.ArrayListUnmanaged([]BuiltinTy) = .{},
-
-    /// Get a pointer to the nth element. Asserts that the cache has at least n elements
-    fn getPtr(self: *const Cache, index: Index) *BuiltinTy {
-        std.debug.assert(index < self.len);
-        return &self.list.items[@divTrunc(index, AllocSize)][index % AllocSize];
-    }
-
-    /// Add an item to the cache.
-    fn add(self: *Cache, allocator: std.mem.Allocator, item: BuiltinTy) !void {
-        defer self.len += 1;
-        if (self.len % AllocSize == 0) {
-            const page = try allocator.alloc(BuiltinTy, AllocSize);
-            errdefer allocator.free(page);
-            try self.list.append(allocator, page);
-        }
-        self.list.items[@divTrunc(self.len, AllocSize)][self.len % AllocSize] = item;
-    }
-
-    fn deinit(self: *Cache, allocator: std.mem.Allocator) void {
-        for (self.list.items) |item| {
-            allocator.free(item);
-        }
-        self.list.deinit(allocator);
-    }
-};
-
-const NameToIndexMap = std.StringHashMapUnmanaged(Cache.Index);
-
-_name_to_index_map: NameToIndexMap = .{},
-_cache: Cache = .{},
+_name_to_type_map: NameToTypeMap = .{},
 
 pub fn deinit(b: *Builtins, gpa: std.mem.Allocator) void {
-    b._name_to_index_map.deinit(gpa);
-    b._cache.deinit(gpa);
+    b._name_to_type_map.deinit(gpa);
 }
 
 fn specForSize(comp: *const Compilation, size_bits: u32) Type.Builder.Specifier {
@@ -271,7 +231,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
     return builder.finish(undefined) catch unreachable;
 }
 
-fn createBuiltin(comp: *const Compilation, builtin: BuiltinFunction, type_arena: std.mem.Allocator) !Type.Func {
+fn createBuiltin(comp: *const Compilation, builtin: BuiltinFunction, type_arena: std.mem.Allocator) !Type {
     var it = TypeDescription.TypeIterator.init(builtin.param_str);
 
     const ret_ty_desc = it.next().?;
@@ -284,46 +244,52 @@ fn createBuiltin(comp: *const Compilation, builtin: BuiltinFunction, type_arena:
     while (it.next()) |desc| : (param_count += 1) {
         params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, &it, comp, type_arena), .name = .empty };
     }
-    return .{
-        .return_type = ret_ty,
-        .params = try type_arena.dupe(Type.Func.Param, params[0..param_count]),
-    };
-}
 
-fn atIndex(b: *const Builtins, index: u16) Expanded {
-    const item = b._cache.getPtr(index);
-    const builtin = BuiltinFunction.fromTag(item.tag);
-    const specifier: Type.Specifier = if (builtin.isVarArgs()) .var_args_func else .func;
+    const duped_params = try type_arena.dupe(Type.Func.Param, params[0..param_count]);
+    const func = try type_arena.create(Type.Func);
+
+    func.* = .{
+        .return_type = ret_ty,
+        .params = duped_params,
+    };
     return .{
-        .ty = .{ .specifier = specifier, .data = .{ .func = &item.func } },
-        .builtin = builtin,
+        .specifier = if (builtin.isVarArgs()) .var_args_func else .func,
+        .data = .{ .func = func },
     };
 }
 
 /// Asserts that the builtin has already been created
 pub fn lookup(b: *const Builtins, name: []const u8) Expanded {
-    const index = b._name_to_index_map.get(name).?;
-    return b.atIndex(index);
+    @setEvalBranchQuota(10_000);
+    const builtin = BuiltinFunction.fromTag(std.meta.stringToEnum(BuiltinFunction.Tag, name).?);
+    const ty = b._name_to_type_map.get(name).?;
+    return .{
+        .builtin = builtin,
+        .ty = ty,
+    };
 }
 
 pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, type_arena: std.mem.Allocator) !?Expanded {
-    const index = b._name_to_index_map.get(name) orelse blk: {
+    const ty = b._name_to_type_map.get(name) orelse {
         @setEvalBranchQuota(10_000);
         const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return null;
         const builtin = BuiltinFunction.fromTag(tag);
         if (!comp.hasBuiltinFunction(builtin)) return null;
 
-        const func_ty = try createBuiltin(comp, builtin, type_arena);
+        try b._name_to_type_map.ensureUnusedCapacity(comp.gpa, 1);
+        const ty = try createBuiltin(comp, builtin, type_arena);
+        b._name_to_type_map.putAssumeCapacity(name, ty);
 
-        const idx = b._cache.len;
-        try b._cache.add(comp.gpa, .{
-            .func = func_ty,
-            .tag = tag,
-        });
-        try b._name_to_index_map.put(comp.gpa, name, idx);
-        break :blk idx;
+        return .{
+            .builtin = builtin,
+            .ty = ty,
+        };
     };
-    return b.atIndex(index);
+    const builtin = BuiltinFunction.fromTag(std.meta.stringToEnum(BuiltinFunction.Tag, name).?);
+    return .{
+        .builtin = builtin,
+        .ty = ty,
+    };
 }
 
 test "All builtins" {
@@ -360,7 +326,7 @@ test "Allocation failures" {
             const type_arena = arena.allocator();
 
             var i: usize = 0;
-            const num_builtins = Cache.AllocSize * @sizeOf(BuiltinTy) * 4; // allocate a few pages but no need to test all builtins
+            const num_builtins = 40;
 
             while (i < num_builtins) : (i += 1) {
                 const tag = @intToEnum(BuiltinFunction.Tag, i);
