@@ -252,16 +252,20 @@ pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
 
 pub fn defaultFpEvalMethod(target: std.Target) LangOpts.FPEvalMethod {
     if (target.os.tag == .aix) return .double;
-    if (target.cpu.arch == .x86 and target.os.tag == .netbsd) {
-        if (target.os.version_range.semver.isAtLeast(.{ .major = 6, .minor = 99, .patch = 27 }) orelse true) {
+    switch (target.cpu.arch) {
+        .x86, .x86_64 => {
+            if (target.cpu.arch.ptrBitWidth() == 32 and target.os.tag == .netbsd) {
+                if (target.os.version_range.semver.min.order(.{ .major = 6, .minor = 99, .patch = 26 }) != .gt) {
+                    // NETBSD <= 6.99.26 on 32-bit x86 defaults to double
+                    return .double;
+                }
+            }
             if (std.Target.x86.featureSetHas(target.cpu.features, .sse)) {
                 return .source;
-            } else {
-                return .extended;
             }
-        } else {
-            return .double;
-        }
+            return .extended;
+        },
+        else => {},
     }
     return .source;
 }
