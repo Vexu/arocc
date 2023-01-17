@@ -10,6 +10,7 @@ const StringId = StringInterner.StringId;
 const CType = @import("zig").CType;
 const target = @import("target.zig");
 const LangOpts = @import("LangOpts.zig");
+const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Type = @This();
 
@@ -366,9 +367,6 @@ pub const Specifier = enum {
 
     /// data.attributed
     attributed,
-
-    /// special type used to implement __builtin_va_start
-    special_va_start,
 
     /// C23 nullptr_t
     nullptr_t,
@@ -868,7 +866,6 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .typeof_expr => ty.data.expr.ty.sizeof(comp),
         .attributed => ty.data.attributed.base.sizeof(comp),
         .invalid => return null,
-        else => unreachable,
     };
 }
 
@@ -911,7 +908,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
     }
 
     return switch (ty.specifier) {
-        .invalid, .special_va_start => unreachable,
+        .invalid => unreachable,
 
         .variable_len_array,
         .incomplete_array,
@@ -2387,7 +2384,6 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
             try ty.data.attributed.base.dump(mapper, langopts, w);
             try w.writeAll(")");
         },
-        .special_va_start => try w.writeAll("(va start param)"),
         else => try w.writeAll(Builder.fromType(ty).str(langopts).?),
     }
 }

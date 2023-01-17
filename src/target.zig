@@ -2,6 +2,7 @@ const std = @import("std");
 const LangOpts = @import("LangOpts.zig");
 const Type = @import("Type.zig");
 const CType = @import("zig").CType;
+const TargetSet = @import("builtins/Properties.zig").TargetSet;
 
 pub fn getCharSignedness(target: std.Target) std.builtin.Signedness {
     switch (target.cpu.arch) {
@@ -223,6 +224,31 @@ pub const FPSemantics = enum {
         };
     }
 };
+
+pub fn isLP64(target: std.Target) bool {
+    return CType.sizeInBits(.int, target) == 32 and CType.ptrBitWidth(target) == 64;
+}
+
+pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
+    var copy = enabled_for;
+    var it = copy.iterator();
+    while (it.next()) |val| {
+        switch (val) {
+            .basic => return true,
+            .x86_64 => if (target.cpu.arch == .x86_64) return true,
+            .aarch64 => if (target.cpu.arch == .aarch64) return true,
+            .arm => if (target.cpu.arch == .arm) return true,
+            .ppc => switch (target.cpu.arch) {
+                .powerpc, .powerpc64, .powerpc64le => return true,
+                else => {},
+            },
+            else => {
+                // Todo: handle other target predicates
+            },
+        }
+    }
+    return false;
+}
 
 test "alignment functions - smoke test" {
     var target: std.Target = undefined;

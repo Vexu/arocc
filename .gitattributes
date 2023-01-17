@@ -4,3 +4,4 @@ test/cases/ast/* text eol=lf
 
 deps/** linguist-vendored
 test/records/** linguist-generated=true
+src/builtins/BuiltinFunction.zig linguist-generated=true

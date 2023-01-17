@@ -25,6 +25,7 @@ const number_affixes = @import("number_affixes.zig");
 const NumberPrefix = number_affixes.Prefix;
 const NumberSuffix = number_affixes.Suffix;
 const CType = @import("zig").CType;
+const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Parser = @This();
 
@@ -170,6 +171,10 @@ pragma_pack: ?u8 = null,
 string_ids: struct {
     declspec_id: StringId,
     main_id: StringId,
+    file: StringId,
+    jmp_buf: StringId,
+    sigjmp_buf: StringId,
+    ucontext_t: StringId,
 },
 
 fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
@@ -533,6 +538,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .string_ids = .{
             .declspec_id = try pp.comp.intern("__declspec"),
             .main_id = try pp.comp.intern("main"),
+            .file = try pp.comp.intern("FILE"),
+            .jmp_buf = try pp.comp.intern("jmp_buf"),
+            .sigjmp_buf = try pp.comp.intern("sigjmp_buf"),
+            .ucontext_t = try pp.comp.intern("ucontext_t"),
         },
     };
     errdefer {
@@ -574,6 +583,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.syms.defineTypedef(&p, try p.comp.intern("__builtin_va_list"), ty.*, 0, .none);
 
         if (ty.isArray()) ty.decayArray();
+
+        try p.syms.defineTypedef(&p, try p.comp.intern("__NSConstantString"), pp.comp.types.ns_constant_string.ty, 0, .none);
     }
 
     while (p.eatToken(.eof) == null) {
@@ -730,6 +741,19 @@ fn skipTo(p: *Parser, id: Token.Id) void {
             .eof => return,
             else => {},
         }
+    }
+}
+
+/// Called after a typedef is defined
+fn typedefDefined(p: *Parser, name: StringId, ty: Type) void {
+    if (name == p.string_ids.file) {
+        p.comp.types.file = ty;
+    } else if (name == p.string_ids.jmp_buf) {
+        p.comp.types.jmp_buf = ty;
+    } else if (name == p.string_ids.sigjmp_buf) {
+        p.comp.types.sigjmp_buf = ty;
+    } else if (name == p.string_ids.ucontext_t) {
+        p.comp.types.ucontext_t = ty;
     }
 }
 
@@ -953,6 +977,7 @@ fn decl(p: *Parser) Error!bool {
         const interned_name = try p.comp.intern(p.tokSlice(init_d.d.name));
         if (decl_spec.storage_class == .typedef) {
             try p.syms.defineTypedef(p, interned_name, init_d.d.ty, init_d.d.name, node);
+            p.typedefDefined(interned_name, init_d.d.ty);
         } else if (init_d.initializer.node != .none or
             (p.func.ty != null and decl_spec.storage_class != .@"extern"))
         {
@@ -4163,6 +4188,98 @@ pub fn macroExpr(p: *Parser) Compilation.Error!bool {
     return res.val.getBool();
 }
 
+const CallExpr = union(enum) {
+    standard: NodeIndex,
+    builtin: struct {
+        node: NodeIndex,
+        tag: BuiltinFunction.Tag,
+    },
+
+    fn init(p: *Parser, call_node: NodeIndex, func_node: NodeIndex) CallExpr {
+        if (p.getNode(call_node, .builtin_call_expr_one)) |node| {
+            const data = p.nodes.items(.data)[@enumToInt(node)];
+            const name = p.tokSlice(data.decl.name);
+            const builtin_ty = p.comp.builtins.lookup(name);
+            return .{ .builtin = .{ .node = node, .tag = builtin_ty.builtin.tag } };
+        }
+        return .{ .standard = func_node };
+    }
+
+    fn shouldPerformLvalConversion(self: CallExpr, arg_idx: u32) bool {
+        return switch (self) {
+            .standard => true,
+            .builtin => |builtin| switch (builtin.tag) {
+                .__builtin_va_start, .__va_start, .va_start => arg_idx != 1,
+                else => true,
+            },
+        };
+    }
+
+    fn shouldPromoteVarArg(self: CallExpr, arg_idx: u32) bool {
+        return switch (self) {
+            .standard => true,
+            .builtin => |builtin| switch (builtin.tag) {
+                .__builtin_va_start, .__va_start, .va_start => arg_idx != 1,
+                else => true,
+            },
+        };
+    }
+
+    fn shouldCoerceArg(self: CallExpr, arg_idx: u32) bool {
+        _ = self;
+        _ = arg_idx;
+        return true;
+    }
+
+    fn checkVarArg(self: CallExpr, p: *Parser, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32) !void {
+        if (self == .standard) return;
+
+        const builtin_tok = p.nodes.items(.data)[@enumToInt(self.builtin.node)].decl.name;
+        switch (self.builtin.tag) {
+            .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            else => {},
+        }
+    }
+
+    fn finish(self: CallExpr, p: *Parser, ty: Type, list_buf_top: usize, arg_count: u32) Error!Result {
+        switch (self) {
+            .standard => |func_node| {
+                var call_node: Tree.Node = .{
+                    .tag = .call_expr_one,
+                    .ty = ty.returnType(),
+                    .data = .{ .bin = .{ .lhs = func_node, .rhs = .none } },
+                };
+                const args = p.list_buf.items[list_buf_top..];
+                switch (arg_count) {
+                    0 => {},
+                    1 => call_node.data.bin.rhs = args[1], // args[0] == func.node
+                    else => {
+                        call_node.tag = .call_expr;
+                        call_node.data = .{ .range = try p.addList(args) };
+                    },
+                }
+                return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
+            },
+            .builtin => |builtin| {
+                const index = @enumToInt(builtin.node);
+                var call_node = p.nodes.get(index);
+                defer p.nodes.set(index, call_node);
+                const args = p.list_buf.items[list_buf_top..];
+                switch (arg_count) {
+                    0 => {},
+                    1 => call_node.data.decl.node = args[1], // args[0] == func.node
+                    else => {
+                        call_node.tag = .builtin_call_expr;
+                        args[0] = @intToEnum(NodeIndex, call_node.data.decl.name);
+                        call_node.data = .{ .range = try p.addList(args) };
+                    },
+                }
+                return Result{ .node = builtin.node, .ty = call_node.ty.returnType() };
+            },
+        }
+    }
+};
+
 const Result = struct {
     node: NodeIndex = .none,
     ty: Type = .{ .specifier = .int },
@@ -5750,7 +5867,7 @@ fn builtinVaArg(p: *Parser) Error!Result {
     }
 
     return Result{ .ty = ty, .node = try p.addNode(.{
-        .tag = .builtin_call_expr_one,
+        .tag = .special_builtin_call_one,
         .ty = ty,
         .data = .{ .decl = .{ .name = builtin_tok, .node = va_list.node } },
     }) };
@@ -5792,7 +5909,7 @@ fn builtinOffsetof(p: *Parser, want_bits: bool) Error!Result {
         else
             offsetof_expr.val,
         .node = try p.addNode(.{
-            .tag = .builtin_call_expr_one,
+            .tag = .special_builtin_call_one,
             .ty = p.comp.types.size,
             .data = .{ .decl = .{ .name = builtin_tok, .node = offsetof_expr.node } },
         }),
@@ -6391,6 +6508,35 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
     unreachable;
 }
 
+fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
+    assert(idx != 0);
+    if (idx > 1) {
+        try p.errTok(.closing_paren, first_after);
+        return error.ParsingFailed;
+    }
+
+    var func_ty = p.func.ty orelse {
+        try p.errTok(.va_start_not_in_func, builtin_tok);
+        return;
+    };
+    const func_params = func_ty.params();
+    if (func_ty.specifier != .var_args_func or func_params.len == 0) {
+        return p.errTok(.va_start_fixed_args, builtin_tok);
+    }
+    const last_param_name = func_params[func_params.len - 1].name;
+    const decl_ref = p.getNode(arg.node, .decl_ref_expr);
+    if (decl_ref == null or last_param_name != try p.comp.intern(p.tokSlice(p.nodes.items(.data)[@enumToInt(decl_ref.?)].decl_ref))) {
+        try p.errTok(.va_start_not_last_param, param_tok);
+    }
+}
+
+fn checkVariableBuiltinArgument(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32, tag: BuiltinFunction.Tag) !void {
+    switch (tag) {
+        .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+        else => {},
+    }
+}
+
 fn callExpr(p: *Parser, lhs: Result) Error!Result {
     const l_paren = p.tok_i;
     p.tok_i += 1;
@@ -6406,22 +6552,27 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     defer p.list_buf.items.len = list_buf_top;
     try p.list_buf.append(func.node);
     var arg_count: u32 = 0;
-
-    const builtin_node = p.getNode(lhs.node, .builtin_call_expr_one);
-
     var first_after = l_paren;
+
+    const call_expr = CallExpr.init(p, lhs.node, func.node);
+
     while (p.eatToken(.r_paren) == null) {
         const param_tok = p.tok_i;
         if (arg_count == params.len) first_after = p.tok_i;
         var arg = try p.assignExpr();
         try arg.expect(p);
-        const raw_arg_node = arg.node;
-        try arg.lvalConversion(p);
+
+        if (call_expr.shouldPerformLvalConversion(arg_count)) {
+            try arg.lvalConversion(p);
+        }
         if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
 
         if (arg_count >= params.len) {
-            if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.comp), param_tok);
-            if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
+            if (call_expr.shouldPromoteVarArg(arg_count)) {
+                if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.comp), param_tok);
+                if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
+            }
+            try call_expr.checkVarArg(p, first_after, param_tok, &arg, arg_count);
             try arg.saveValue(p);
             try p.list_buf.append(arg.node);
             arg_count += 1;
@@ -6432,28 +6583,10 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             };
             continue;
         }
-
         const p_ty = params[arg_count].ty;
-        if (p_ty.is(.special_va_start)) va_start: {
-            const builtin_tok = p.nodes.items(.data)[@enumToInt(builtin_node.?)].decl.name;
-            var func_ty = p.func.ty orelse {
-                try p.errTok(.va_start_not_in_func, builtin_tok);
-                break :va_start;
-            };
-            const func_params = func_ty.params();
-            if (func_ty.specifier != .var_args_func or func_params.len == 0) {
-                try p.errTok(.va_start_fixed_args, builtin_tok);
-                break :va_start;
-            }
-            const last_param_name = func_params[func_params.len - 1].name;
-            const decl_ref = p.getNode(raw_arg_node, .decl_ref_expr);
-            if (decl_ref == null or last_param_name != try p.comp.intern(p.tokSlice(p.nodes.items(.data)[@enumToInt(decl_ref.?)].decl_ref))) {
-                try p.errTok(.va_start_not_last_param, param_tok);
-            }
-        } else {
+        if (call_expr.shouldCoerceArg(arg_count)) {
             try arg.coerce(p, p_ty, param_tok, .{ .arg = params[arg_count].name_tok });
         }
-
         try arg.saveValue(p);
         try p.list_buf.append(arg.node);
         arg_count += 1;
@@ -6478,38 +6611,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         try p.errExtra(.expected_at_least_arguments, first_after, extra);
     }
 
-    if (builtin_node) |some| {
-        const index = @enumToInt(some);
-        var call_node = p.nodes.get(index);
-        defer p.nodes.set(index, call_node);
-        const args = p.list_buf.items[list_buf_top..];
-        switch (arg_count) {
-            0 => {},
-            1 => call_node.data.decl.node = args[1], // args[0] == func.node
-            else => {
-                call_node.tag = .builtin_call_expr;
-                args[0] = @intToEnum(NodeIndex, call_node.data.decl.name);
-                call_node.data = .{ .range = try p.addList(args) };
-            },
-        }
-        return Result{ .node = some, .ty = call_node.ty.returnType() };
-    }
-
-    var call_node: Tree.Node = .{
-        .tag = .call_expr_one,
-        .ty = ty.returnType(),
-        .data = .{ .bin = .{ .lhs = func.node, .rhs = .none } },
-    };
-    const args = p.list_buf.items[list_buf_top..];
-    switch (arg_count) {
-        0 => {},
-        1 => call_node.data.bin.rhs = args[1], // args[0] == func.node
-        else => {
-            call_node.tag = .call_expr;
-            call_node.data = .{ .range = try p.addList(args) };
-        },
-    }
-    return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
+    return call_expr.finish(p, ty, list_buf_top, arg_count);
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !void {
@@ -6579,24 +6681,6 @@ fn primaryExpr(p: *Parser) Error!Result {
             const name_tok = p.expectIdentifier() catch unreachable;
             const name = p.tokSlice(name_tok);
             const interned_name = try p.comp.intern(name);
-            if (p.comp.builtins.get(name)) |some| {
-                for (p.tok_ids[p.tok_i..]) |id| switch (id) {
-                    .r_paren => {}, // closing grouped expr
-                    .l_paren => break, // beginning of a call
-                    else => {
-                        try p.errTok(.builtin_must_be_called, name_tok);
-                        return error.ParsingFailed;
-                    },
-                };
-                return Result{
-                    .ty = some,
-                    .node = try p.addNode(.{
-                        .tag = .builtin_call_expr_one,
-                        .ty = some,
-                        .data = .{ .decl = .{ .name = name_tok, .node = .none } },
-                    }),
-                };
-            }
             if (p.syms.findSymbol(interned_name)) |sym| {
                 try p.checkDeprecatedUnavailable(sym.ty, name_tok, sym.tok);
                 if (sym.kind == .constexpr) {
@@ -6624,6 +6708,32 @@ fn primaryExpr(p: *Parser) Error!Result {
                         .tag = if (sym.kind == .enumeration) .enumeration_ref else .decl_ref_expr,
                         .ty = sym.ty,
                         .data = .{ .decl_ref = name_tok },
+                    }),
+                };
+            }
+            if (try p.comp.builtins.getOrCreate(p.comp, name, p.arena)) |some| {
+                for (p.tok_ids[p.tok_i..]) |id| switch (id) {
+                    .r_paren => {}, // closing grouped expr
+                    .l_paren => break, // beginning of a call
+                    else => {
+                        try p.errTok(.builtin_must_be_called, name_tok);
+                        return error.ParsingFailed;
+                    },
+                };
+                if (some.builtin.properties.header != .none) {
+                    try p.errStr(.implicit_builtin, name_tok, name);
+                    try p.errExtra(.implicit_builtin_header_note, name_tok, .{ .builtin_with_header = .{
+                        .builtin = some.builtin.tag,
+                        .header = some.builtin.properties.header,
+                    } });
+                }
+
+                return Result{
+                    .ty = some.ty,
+                    .node = try p.addNode(.{
+                        .tag = .builtin_call_expr_one,
+                        .ty = some.ty,
+                        .data = .{ .decl = .{ .name = name_tok, .node = .none } },
                     }),
                 };
             }

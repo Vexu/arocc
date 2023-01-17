@@ -15,6 +15,7 @@ const StringInterner = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
 const CType = @import("zig").CType;
 const target = @import("target.zig");
+const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Compilation = @This();
 
@@ -34,11 +35,23 @@ langopts: LangOpts = .{},
 generated_buf: std.ArrayList(u8),
 builtins: Builtins = .{},
 types: struct {
-    wchar: Type,
-    ptrdiff: Type,
-    size: Type,
-    va_list: Type,
-} = undefined,
+    wchar: Type = undefined,
+    ptrdiff: Type = undefined,
+    size: Type = undefined,
+    va_list: Type = undefined,
+    pid_t: Type = undefined,
+    ns_constant_string: struct {
+        ty: Type = undefined,
+        record: Type.Record = undefined,
+        fields: [4]Type.Record.Field = undefined,
+        int_ty: Type = .{ .specifier = .int, .qual = .{ .@"const" = true } },
+        char_ty: Type = .{ .specifier = .char, .qual = .{ .@"const" = true } },
+    } = .{},
+    file: Type = .{ .specifier = .invalid },
+    jmp_buf: Type = .{ .specifier = .invalid },
+    sigjmp_buf: Type = .{ .specifier = .invalid },
+    ucontext_t: Type = .{ .specifier = .invalid },
+} = .{},
 /// Mapping from Source.Id to byte offset of first non-utf8 byte
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
 string_interner: StringInterner = .{},
@@ -121,7 +134,6 @@ fn generateDateAndTime(w: anytype) !void {
 /// Generate builtin macros that will be available to each source file.
 pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try comp.generateBuiltinTypes();
-    comp.builtins = try Builtins.create(comp);
 
     var buf = std.ArrayList(u8).init(comp.gpa);
     defer buf.deinit();
@@ -495,12 +507,39 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
 
     const va_list = try comp.generateVaListType();
 
+    const pid_t: Type = switch (os) {
+        .haiku => .{ .specifier = .long },
+        // Todo: pid_t is required to "a signed integer type"; are there any systems
+        // on which it is `short int`?
+        else => .{ .specifier = .int },
+    };
+
     comp.types = .{
         .wchar = wchar,
         .ptrdiff = ptrdiff,
         .size = size,
         .va_list = va_list,
+        .pid_t = pid_t,
     };
+    try comp.generateNsConstantStringType();
+}
+
+fn generateNsConstantStringType(comp: *Compilation) !void {
+    comp.types.ns_constant_string.record = .{
+        .name = try comp.intern("__NSConstantString_tag"),
+        .fields = &comp.types.ns_constant_string.fields,
+        .field_attributes = null,
+        .type_layout = undefined,
+    };
+    const const_int_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = &comp.types.ns_constant_string.int_ty } };
+    const const_char_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = &comp.types.ns_constant_string.char_ty } };
+
+    comp.types.ns_constant_string.fields[0] = .{ .name = try comp.intern("isa"), .ty = const_int_ptr };
+    comp.types.ns_constant_string.fields[1] = .{ .name = try comp.intern("flags"), .ty = .{ .specifier = .int } };
+    comp.types.ns_constant_string.fields[2] = .{ .name = try comp.intern("str"), .ty = const_char_ptr };
+    comp.types.ns_constant_string.fields[3] = .{ .name = try comp.intern("length"), .ty = .{ .specifier = .long } };
+    comp.types.ns_constant_string.ty = .{ .specifier = .@"struct", .data = .{ .record = &comp.types.ns_constant_string.record } };
+    record_layout.compute(&comp.types.ns_constant_string.record, comp.types.ns_constant_string.ty, comp, null);
 }
 
 fn generateVaListType(comp: *Compilation) !Type {
@@ -1019,6 +1058,28 @@ pub fn pragmaEvent(comp: *Compilation, event: PragmaEvent) void {
             .after_parse => pragma.afterParse,
         };
         if (maybe_func) |func| func(pragma, comp);
+    }
+}
+
+pub fn hasBuiltin(comp: *const Compilation, name: []const u8) bool {
+    if (std.mem.eql(u8, name, "__builtin_va_arg") or
+        std.mem.eql(u8, name, "__builtin_choose_expr") or
+        std.mem.eql(u8, name, "__builtin_bitoffsetof") or
+        std.mem.eql(u8, name, "__builtin_offsetof")) return true;
+
+    @setEvalBranchQuota(10_000);
+    const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return false;
+    const builtin = BuiltinFunction.fromTag(tag);
+    return comp.hasBuiltinFunction(builtin);
+}
+
+pub fn hasBuiltinFunction(comp: *const Compilation, builtin: BuiltinFunction) bool {
+    if (!target.builtinEnabled(comp.target, builtin.properties.target_set)) return false;
+
+    switch (builtin.properties.language) {
+        .all_languages => return true,
+        .all_ms_languages => return comp.langopts.emulate == .msvc,
+        .gnu_lang, .all_gnu_languages => return comp.langopts.standard.isGNU(),
     }
 }
 
