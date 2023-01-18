@@ -12,7 +12,6 @@ const Diagnostics = @import("Diagnostics.zig");
 const Token = @import("Tree.zig").Token;
 const Attribute = @import("Attribute.zig");
 const features = @import("features.zig");
-const target = @import("target.zig");
 
 const Preprocessor = @This();
 const DefineMap = std.StringHashMap(Macro);
