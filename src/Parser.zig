@@ -1630,6 +1630,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             .keyword_signed => try ty.combine(p, .signed, p.tok_i),
             .keyword_unsigned => try ty.combine(p, .unsigned, p.tok_i),
             .keyword_fp16 => try ty.combine(p, .fp16, p.tok_i),
+            .keyword_float16 => try ty.combine(p, .float16, p.tok_i),
             .keyword_float => try ty.combine(p, .float, p.tok_i),
             .keyword_double => try ty.combine(p, .double, p.tok_i),
             .keyword_complex => try ty.combine(p, .complex, p.tok_i),
@@ -4861,13 +4862,14 @@ const Result = struct {
 
         // if either is a float cast to that type
         if (a.ty.isFloat() or b.ty.isFloat()) {
-            const float_types = [6][2]Type.Specifier{
+            const float_types = [7][2]Type.Specifier{
                 .{ .complex_long_double, .long_double },
                 .{ .complex_float128, .float128 },
                 .{ .complex_float80, .float80 },
                 .{ .complex_double, .double },
                 .{ .complex_float, .float },
                 .{ .complex_fp16, .fp16 },
+                .{ .complex_float16, .float16 },
             };
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
@@ -4885,6 +4887,7 @@ const Result = struct {
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[4])) return;
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
+            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[6])) return;
         }
 
         if (a.ty.eql(b.ty, p.comp, true)) {
