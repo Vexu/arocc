@@ -3573,9 +3573,8 @@ fn stmt(p: *Parser) Error!NodeIndex {
         var cond = try p.expr();
         try cond.expect(p);
         try cond.lvalConversion(p);
-        if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-        else if (!cond.ty.isScalarNonInt())
+        try cond.usualUnaryConversion(p, cond_tok);
+        if (!cond.ty.isScalar())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -3600,9 +3599,9 @@ fn stmt(p: *Parser) Error!NodeIndex {
         var cond = try p.expr();
         try cond.expect(p);
         try cond.lvalConversion(p);
-        if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-        else
+        try cond.usualUnaryConversion(p, cond_tok);
+
+        if (!cond.ty.isInt())
             try p.errStr(.statement_int, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -3631,9 +3630,8 @@ fn stmt(p: *Parser) Error!NodeIndex {
         var cond = try p.expr();
         try cond.expect(p);
         try cond.lvalConversion(p);
-        if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-        else if (!cond.ty.isScalarNonInt())
+        try cond.usualUnaryConversion(p, cond_tok);
+        if (!cond.ty.isScalar())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -3664,9 +3662,9 @@ fn stmt(p: *Parser) Error!NodeIndex {
         var cond = try p.expr();
         try cond.expect(p);
         try cond.lvalConversion(p);
-        if (cond.ty.isInt())
-            try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-        else if (!cond.ty.isScalarNonInt())
+        try cond.usualUnaryConversion(p, cond_tok);
+
+        if (!cond.ty.isScalar())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
@@ -3699,9 +3697,8 @@ fn stmt(p: *Parser) Error!NodeIndex {
         var cond = try p.expr();
         if (cond.node != .none) {
             try cond.lvalConversion(p);
-            if (cond.ty.isInt())
-                try cond.intCast(p, cond.ty.integerPromotion(p.comp), cond_tok)
-            else if (!cond.ty.isScalarNonInt())
+            try cond.usualUnaryConversion(p, cond_tok);
+            if (!cond.ty.isScalar())
                 try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         }
         try cond.saveValue(p);
@@ -4819,7 +4816,16 @@ const Result = struct {
         try res.implicitCast(p, .null_to_pointer);
     }
 
+    fn usualUnaryConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
+        if (res.ty.isInt()) {
+            try res.intCast(p, res.ty.integerPromotion(p.comp), tok);
+        }
+    }
+
     fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser, tok: TokenIndex) Error!void {
+        try a.usualUnaryConversion(p, tok);
+        try b.usualUnaryConversion(p, tok);
+
         // if either is a float cast to that type
         if (a.ty.isFloat() or b.ty.isFloat()) {
             const float_types = [6][2]Type.Specifier{
@@ -4848,21 +4854,18 @@ const Result = struct {
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
         }
 
-        // Do integer promotion on both operands
-        const a_promoted = a.ty.integerPromotion(p.comp);
-        const b_promoted = b.ty.integerPromotion(p.comp);
-        if (a_promoted.eql(b_promoted, p.comp, true)) {
+        if (a.ty.eql(b.ty, p.comp, true)) {
             // cast to promoted type
-            try a.intCast(p, a_promoted, tok);
-            try b.intCast(p, a_promoted, tok);
+            try a.intCast(p, a.ty, tok);
+            try b.intCast(p, b.ty, tok);
             return;
         }
 
-        const a_unsigned = a_promoted.isUnsignedInt(p.comp);
-        const b_unsigned = b_promoted.isUnsignedInt(p.comp);
+        const a_unsigned = a.ty.isUnsignedInt(p.comp);
+        const b_unsigned = b.ty.isUnsignedInt(p.comp);
         if (a_unsigned == b_unsigned) {
             // cast to greater signed or unsigned type
-            const res_spec = std.math.max(@enumToInt(a_promoted.specifier), @enumToInt(b_promoted.specifier));
+            const res_spec = std.math.max(@enumToInt(a.ty.specifier), @enumToInt(b.ty.specifier));
             const res_ty = Type{ .specifier = @intToEnum(Type.Specifier, res_spec) };
             try a.intCast(p, res_ty, tok);
             try b.intCast(p, res_ty, tok);
@@ -4870,15 +4873,15 @@ const Result = struct {
         }
 
         // cast to the unsigned type with greater rank
-        const a_larger = @enumToInt(a_promoted.specifier) > @enumToInt(b_promoted.specifier);
-        const b_larger = @enumToInt(b_promoted.specifier) > @enumToInt(a_promoted.specifier);
+        const a_larger = @enumToInt(a.ty.specifier) > @enumToInt(b.ty.specifier);
+        const b_larger = @enumToInt(b.ty.specifier) > @enumToInt(a.ty.specifier);
         if (a_unsigned) {
-            const target = if (a_larger) a_promoted else b_promoted;
+            const target = if (a_larger) a.ty else b.ty;
             try a.intCast(p, target, tok);
             try b.intCast(p, target, tok);
         } else {
             assert(b_unsigned);
-            const target = if (b_larger) b_promoted else a_promoted;
+            const target = if (b_larger) b.ty else a.ty;
             try a.intCast(p, target, tok);
             try b.intCast(p, target, tok);
         }
@@ -6064,7 +6067,8 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
+            try operand.usualUnaryConversion(p, tok);
+
             return operand;
         },
         .minus => {
@@ -6076,7 +6080,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
+            try operand.usualUnaryConversion(p, tok);
             if (operand.val.tag == .int or operand.val.tag == .float) {
                 _ = operand.val.sub(operand.val.zero(), operand.val, operand.ty, p.comp);
             } else {
@@ -6097,7 +6101,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
+            try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.tag == .int or operand.val.tag == .float) {
                 if (operand.val.add(operand.val, operand.val.one(), operand.ty, p.comp))
@@ -6121,7 +6125,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
+            try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.tag == .int or operand.val.tag == .float) {
                 if (operand.val.sub(operand.val, operand.val.one(), operand.ty, p.comp))
@@ -6139,13 +6143,13 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
             try operand.lvalConversion(p);
-            if (!operand.ty.isInt()) try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+            try operand.usualUnaryConversion(p, tok);
             if (operand.ty.isInt()) {
-                try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
                 if (operand.val.tag == .int) {
                     operand.val = operand.val.bitNot(operand.ty, p.comp);
                 }
             } else {
+                try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
                 operand.val.tag = .unavailable;
             }
             try operand.un(p, .bit_not_expr);
@@ -6160,7 +6164,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), tok);
+            try operand.usualUnaryConversion(p, tok);
             if (operand.val.tag == .int) {
                 const res = Value.int(@boolToInt(!operand.val.getBool()));
                 operand.val = res;
@@ -6362,7 +6366,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), p.tok_i);
+            try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_inc_expr);
             return operand;
@@ -6378,7 +6382,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            if (operand.ty.isInt()) try operand.intCast(p, operand.ty.integerPromotion(p.comp), p.tok_i);
+            try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_dec_expr);
             return operand;
