@@ -375,6 +375,11 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try generateFloatMacros(w, "DBL", target.FPSemantics.forType(CType.double, comp.target), "");
     try generateFloatMacros(w, "LDBL", target.FPSemantics.forType(CType.longdouble, comp.target), "L");
 
+    // TODO: clang treats __FLT_EVAL_METHOD__ as a special-cased macro because evaluating it within a scope
+    // where `#pragma clang fp eval_method(X)` has been called produces an error diagnostic.
+    const flt_eval_method = comp.langopts.fp_eval_method orelse target.defaultFpEvalMethod(comp.target);
+    try w.print("#define __FLT_EVAL_METHOD__ {d}\n", .{@enumToInt(flt_eval_method)});
+
     try w.writeAll(
         \\#define __FLT_RADIX__ 2
         \\#define __DECIMAL_DIG__ __LDBL_DECIMAL_DIG__

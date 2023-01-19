@@ -250,6 +250,26 @@ pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
     return false;
 }
 
+pub fn defaultFpEvalMethod(target: std.Target) LangOpts.FPEvalMethod {
+    if (target.os.tag == .aix) return .double;
+    switch (target.cpu.arch) {
+        .x86, .x86_64 => {
+            if (target.cpu.arch.ptrBitWidth() == 32 and target.os.tag == .netbsd) {
+                if (target.os.version_range.semver.min.order(.{ .major = 6, .minor = 99, .patch = 26 }) != .gt) {
+                    // NETBSD <= 6.99.26 on 32-bit x86 defaults to double
+                    return .double;
+                }
+            }
+            if (std.Target.x86.featureSetHas(target.cpu.features, .sse)) {
+                return .source;
+            }
+            return .extended;
+        },
+        else => {},
+    }
+    return .source;
+}
+
 test "alignment functions - smoke test" {
     var target: std.Target = undefined;
     const x86 = std.Target.Cpu.Arch.x86_64;

@@ -1,4 +1,4 @@
-//aro-args -E --target=aarch64-linux-gnu -std=c11 -ffp-eval-method=extended
+//aro-args -E --target=x86-netbsd.6.99.26-gnu -std=c11
 #include <float.h>
 DBL_DIG
 DBL_EPSILON

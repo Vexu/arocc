@@ -224,6 +224,13 @@ pub fn parseArgs(
                     continue;
                 };
                 d.comp.langopts.setEmulatedCompiler(compiler);
+            } else if (option(arg, "-ffp-eval-method=")) |fp_method_str| {
+                const fp_eval_method = std.meta.stringToEnum(LangOpts.FPEvalMethod, fp_method_str) orelse .indeterminate;
+                if (fp_eval_method == .indeterminate) {
+                    try d.comp.diag.add(.{ .tag = .cli_invalid_fp_eval_method, .extra = .{ .str = fp_method_str } }, &.{});
+                    continue;
+                }
+                d.comp.langopts.setFpEvalMethod(fp_eval_method);
             } else if (mem.startsWith(u8, arg, "-o")) {
                 var file = arg["-o".len..];
                 if (file.len == 0) {
