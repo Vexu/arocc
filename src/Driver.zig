@@ -64,6 +64,8 @@ pub const usage =
     \\  -fno-color-diagnostics  Disable colors in diagnostics
     \\  -fdeclspec              Enable support for __declspec attributes
     \\  -fno-declspec           Disable support for __declspec attributes
+    \\  -ffp-eval-method=[source|double|extended]
+    \\                          Evaluation method to use for floating-point arithmetic
     \\  -fms-extensions         Enable support for Microsoft extensions
     \\  -fno-ms-extensions      Disable support for Microsoft extensions
     \\  -fdollars-in-identifiers        
