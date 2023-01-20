@@ -287,6 +287,9 @@ pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: T
             else => {},
         }
     }
+    if (ty.is(.fp16)) {
+        try p.errStr(.suggest_pointer_for_invalid_parameter_type, tok, "__fp16");
+    }
     try s.syms.append(p.pp.comp.gpa, .{
         .kind = .def,
         .name = name,
