@@ -4818,7 +4818,13 @@ const Result = struct {
 
     fn usualUnaryConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
         if (res.ty.isInt()) {
-            try res.intCast(p, res.ty.integerPromotion(p.comp), tok);
+            const slice = p.nodes.slice();
+            if (Tree.bitfieldWidth(slice, res.node, true)) |width| {
+                if (res.ty.bitfieldPromotion(p.comp, width)) |promotion_ty| {
+                    return res.intCast(p, promotion_ty, tok);
+                }
+            }
+            return res.intCast(p, res.ty.integerPromotion(p.comp), tok);
         }
     }
 

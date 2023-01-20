@@ -702,6 +702,24 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     };
 }
 
+/// Promote a bitfield. If `int` can hold all the values of the underlying field,
+/// promote to int. Otherwise, promote to unsigned int
+/// Returns null if no promotion is necessary
+pub fn bitfieldPromotion(ty: Type, comp: *Compilation, width: u32) ?Type {
+    const type_size_bits = ty.bitSizeof(comp).?;
+
+    // Note: GCC and clang will promote `long: 3` to int even though the C standard does not allow this
+    if (width < type_size_bits) {
+        return int;
+    }
+
+    if (width == type_size_bits) {
+        return if (ty.isUnsignedInt(comp)) .{ .specifier = .uint } else int;
+    }
+
+    return null;
+}
+
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
         .void, .incomplete_array, .invalid => true,
