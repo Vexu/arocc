@@ -74,6 +74,7 @@ pub const usage =
     \\                          Disallow '$' in identifiers
     \\  -fmacro-backtrace-limit=<limit>
     \\                          Set limit on how many macro expansion traces are shown in errors (default 6)
+    \\  -fnative-half-type      Use the native half type for __fp16 instead of promoting to float
     \\  -fshort-enums           Use the narrowest possible integer type for enums
     \\  -fno-short-enums        Use "int" as the tag type for enums
     \\  -fsyntax-only           Only run the preprocessor, parser, and semantic analysis stages
@@ -182,6 +183,8 @@ pub fn parseArgs(
 
                 if (limit == 0) limit = std.math.maxInt(u32);
                 d.comp.diag.macro_backtrace_limit = limit;
+            } else if (mem.eql(u8, arg, "-fnative-half-type")) {
+                d.comp.langopts.use_native_half_type = true;
             } else if (mem.eql(u8, arg, "-fshort-enums")) {
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {

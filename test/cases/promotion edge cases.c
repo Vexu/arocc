@@ -9,4 +9,6 @@ void foo(void) {
     struct S s = { .x = 1U, .y = 1L};
     int x = s.x + 1; // unsigned bitfield promotes to int if it fits
     int y = s.y + 1; // long bitfield promotes to int if it fits
+    __fp16 fp16 = 0.0f;
+    fp16 = fp16 + fp16; // __fp16 casts to float for arithmetic
 }

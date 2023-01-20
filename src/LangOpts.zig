@@ -96,6 +96,8 @@ declspec_attrs: bool = false,
 ms_extensions: bool = false,
 /// true or false if digraph support explicitly enabled/disabled with -fdigraphs/-fno-digraphs
 digraphs: ?bool = null,
+/// If set, use the native half type instead of promoting to float
+use_native_half_type: bool = false,
 
 /// null indicates that the user did not select a value, use target to determine default
 fp_eval_method: ?FPEvalMethod = null,

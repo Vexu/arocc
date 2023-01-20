@@ -4817,6 +4817,9 @@ const Result = struct {
     }
 
     fn usualUnaryConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
+        if (res.ty.is(.fp16) and !p.comp.langopts.use_native_half_type) {
+            return res.floatCast(p, .{ .specifier = .float });
+        }
         if (res.ty.isInt()) {
             const slice = p.nodes.slice();
             if (Tree.bitfieldWidth(slice, res.node, true)) |width| {

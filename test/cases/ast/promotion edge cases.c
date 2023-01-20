@@ -77,5 +77,29 @@ fn_def: 'fn () void'
        rhs:
         int_literal: 'int' (value: 1)
 
+    var: '__fp16'
+     name: fp16
+     init:
+      implicit_cast: (float_cast) '__fp16'
+        float_literal: 'float' (value: 0)
+
+    assign_expr: '__fp16'
+     lhs:
+      decl_ref_expr: '__fp16' lvalue
+       name: fp16
+     rhs:
+      implicit_cast: (float_cast) '__fp16'
+        add_expr: 'float'
+         lhs:
+          implicit_cast: (float_cast) 'float'
+            implicit_cast: (lval_to_rval) '__fp16'
+              decl_ref_expr: '__fp16' lvalue
+               name: fp16
+         rhs:
+          implicit_cast: (float_cast) 'float'
+            implicit_cast: (lval_to_rval) '__fp16'
+              decl_ref_expr: '__fp16' lvalue
+               name: fp16
+
     implicit_return: 'void'
 
