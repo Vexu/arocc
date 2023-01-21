@@ -1139,6 +1139,22 @@ pub fn originalTypeOfDecayedArray(ty: Type) Type {
     return copy;
 }
 
+/// Rank for floating point conversions, ignoring domain (complex vs real)
+/// Asserts that ty is a floating point type
+pub fn floatRank(ty: Type) usize {
+    const real = ty.makeReal();
+    return switch (real.specifier) {
+        // TODO: bfloat16 => 0, float16 => 1
+        .fp16 => 2,
+        .float => 3,
+        .double => 4,
+        .long_double => 5,
+        .float128 => 6,
+        // TODO: ibm128 => 7
+        else => unreachable,
+    };
+}
+
 pub fn makeReal(ty: Type) Type {
     // TODO discards attributed/typeof
     var base = ty.canonicalize(.standard);

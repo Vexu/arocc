@@ -4776,15 +4776,19 @@ const Result = struct {
                 res.ty = float_ty;
                 try res.implicitCast(p, .float_cast);
             } else if (old_real) {
-                res.ty = float_ty.makeReal();
-                try res.implicitCast(p, .float_cast);
+                if (res.ty.floatRank() != float_ty.floatRank()) {
+                    res.ty = float_ty.makeReal();
+                    try res.implicitCast(p, .float_cast);
+                }
                 res.ty = float_ty;
                 try res.implicitCast(p, .real_to_complex_float);
             } else if (new_real) {
                 res.ty = res.ty.makeReal();
                 try res.implicitCast(p, .complex_float_to_real);
-                res.ty = float_ty;
-                try res.implicitCast(p, .float_cast);
+                if (res.ty.floatRank() != float_ty.floatRank()) {
+                    res.ty = float_ty;
+                    try res.implicitCast(p, .float_cast);
+                }
             } else {
                 res.ty = float_ty;
                 try res.implicitCast(p, .complex_float_cast);
@@ -4817,6 +4821,26 @@ const Result = struct {
     }
 
     fn usualUnaryConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
+        if (res.ty.isFloat()) fp_eval: {
+            const eval_method = p.comp.langopts.fp_eval_method orelse break :fp_eval;
+            switch (eval_method) {
+                .source => {},
+                .indeterminate => unreachable,
+                .double => {
+                    if (res.ty.floatRank() < (Type{ .specifier = .double }).floatRank()) {
+                        const spec: Type.Specifier = if (res.ty.isReal()) .double else .complex_double;
+                        return res.floatCast(p, .{ .specifier = spec });
+                    }
+                },
+                .extended => {
+                    if (res.ty.floatRank() < (Type{ .specifier = .long_double }).floatRank()) {
+                        const spec: Type.Specifier = if (res.ty.isReal()) .long_double else .complex_long_double;
+                        return res.floatCast(p, .{ .specifier = spec });
+                    }
+                },
+            }
+        }
+
         if (res.ty.is(.fp16) and !p.comp.langopts.use_native_half_type) {
             return res.floatCast(p, .{ .specifier = .float });
         }
