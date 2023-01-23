@@ -1265,6 +1265,9 @@ pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: TokenIndex) Parser
                 try p.errStr(.qual_on_ret_type, source_tok, "atomic");
                 ret_ty.qual.atomic = false;
             }
+            if (ret_ty.is(.fp16) and !p.comp.hasHalfPrecisionFloatABI()) {
+                try p.errStr(.suggest_pointer_for_invalid_fp16, source_tok, "function return value");
+            }
         },
         .typeof_type, .decayed_typeof_type => return ty.data.sub_type.validateCombinedType(p, source_tok),
         .typeof_expr, .decayed_typeof_expr => return ty.data.expr.ty.validateCombinedType(p, source_tok),
