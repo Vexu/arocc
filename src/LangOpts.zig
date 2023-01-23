@@ -98,7 +98,8 @@ ms_extensions: bool = false,
 digraphs: ?bool = null,
 /// If set, use the native half type instead of promoting to float
 use_native_half_type: bool = false,
-
+/// If set, function arguments and return values may be of type __fp16 even if there is no standard ABI for it
+allow_half_args_and_returns: bool = false,
 /// null indicates that the user did not select a value, use target to determine default
 fp_eval_method: ?FPEvalMethod = null,
 

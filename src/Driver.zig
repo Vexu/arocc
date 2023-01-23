@@ -75,6 +75,8 @@ pub const usage =
     \\  -fmacro-backtrace-limit=<limit>
     \\                          Set limit on how many macro expansion traces are shown in errors (default 6)
     \\  -fnative-half-type      Use the native half type for __fp16 instead of promoting to float
+    \\  -fnative-half-arguments-and-returns
+    \\                          Allow half-precision function arguments and return values
     \\  -fshort-enums           Use the narrowest possible integer type for enums
     \\  -fno-short-enums        Use "int" as the tag type for enums
     \\  -fsyntax-only           Only run the preprocessor, parser, and semantic analysis stages
@@ -185,6 +187,8 @@ pub fn parseArgs(
                 d.comp.diag.macro_backtrace_limit = limit;
             } else if (mem.eql(u8, arg, "-fnative-half-type")) {
                 d.comp.langopts.use_native_half_type = true;
+            } else if (mem.eql(u8, arg, "-fnative-half-arguments-and-returns")) {
+                d.comp.langopts.allow_half_args_and_returns = true;
             } else if (mem.eql(u8, arg, "-fshort-enums")) {
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {

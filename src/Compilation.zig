@@ -530,7 +530,7 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
 }
 
 pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
-    return target.hasHalfPrecisionFloatABI(comp.target);
+    return comp.langopts.allow_half_args_and_returns or target.hasHalfPrecisionFloatABI(comp.target);
 }
 
 fn generateNsConstantStringType(comp: *Compilation) !void {
