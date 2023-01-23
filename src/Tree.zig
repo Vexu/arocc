@@ -470,6 +470,8 @@ pub const Tag = enum(u8) {
     int_literal,
     /// Same as int_literal, but originates from a char literal
     char_literal,
+    /// _Float16 literal
+    float16_literal,
     /// f32 literal
     float_literal,
     /// f64 literal
@@ -1181,6 +1183,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
         .nullptr_literal,
         .int_literal,
         .char_literal,
+        .float16_literal,
         .float_literal,
         .double_literal,
         .string_literal_expr,

@@ -12,7 +12,7 @@ void bar(int x, ...) {
 int baz();
 
 void quux(void) {
-    _Float16 f;
+    _Float16 f = 1.0f16;
     bar(1, f);  // _Float16 does not promote to double when used as vararg
-    baz(1, f);  // _Float16 does not promote to double when used as untyped arg
+    baz(1, 2.0F16);  // _Float16 does not promote to double when used as untyped arg
 }

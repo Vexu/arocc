@@ -54,6 +54,8 @@ fn_def: 'fn () void'
   compound_stmt: 'void'
     var: '_Float16'
      name: f
+     init:
+      float16_literal: '_Float16' (value: 1)
 
     call_expr: 'void'
      lhs:
@@ -73,9 +75,7 @@ fn_def: 'fn () void'
          name: baz
      args:
       int_literal: 'int' (value: 1)
-      implicit_cast: (lval_to_rval) '_Float16'
-        decl_ref_expr: '_Float16' lvalue
-         name: f
+      float16_literal: '_Float16' (value: 2)
 
     implicit_return: 'void'
 

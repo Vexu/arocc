@@ -7189,10 +7189,11 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             try p.err(.gnu_imaginary_constant);
             return p.todo("long double imaginary literals");
         },
-        .None, .I, .F, .IF => {
+        .None, .I, .F, .IF, .F16 => {
             const ty = Type{ .specifier = switch (suffix) {
                 .None, .I => .double,
                 .F, .IF => .float,
+                .F16 => .float16,
                 else => unreachable,
             } };
             const d_val = std.fmt.parseFloat(f64, buf) catch |er| switch (er) {
@@ -7202,6 +7203,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             const tag: Tree.Tag = switch (suffix) {
                 .None, .I => .double_literal,
                 .F, .IF => .float_literal,
+                .F16 => .float16_literal,
                 else => unreachable,
             };
             var res = Result{
