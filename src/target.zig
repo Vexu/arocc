@@ -164,6 +164,13 @@ pub fn hasInt128(target: std.Target) bool {
     return target.cpu.arch.ptrBitWidth() >= 64;
 }
 
+pub fn hasHalfPrecisionFloatABI(target: std.Target) bool {
+    return switch (target.cpu.arch) {
+        .thumb, .thumbeb, .arm, .aarch64 => true,
+        else => false,
+    };
+}
+
 pub const FPSemantics = enum {
     None,
     IEEEHalf,
