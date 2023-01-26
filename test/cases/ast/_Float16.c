@@ -79,3 +79,56 @@ fn_def: 'fn () void'
 
     implicit_return: 'void'
 
+fn_def: 'fn () void'
+ name: conversions
+ body:
+  compound_stmt: 'void'
+    var: 'double'
+     name: d
+     init:
+      double_literal: 'double' (value: 1)
+
+    var: '_Float16'
+     name: f16
+     init:
+      float16_literal: '_Float16' (value: 2)
+
+    var: '__fp16'
+     name: fp16
+     init:
+      implicit_cast: (int_to_float) '__fp16'
+        int_literal: 'int' (value: 0)
+
+    assign_expr: 'double'
+     lhs:
+      decl_ref_expr: 'double' lvalue
+       name: d
+     rhs:
+      add_expr: 'double'
+       lhs:
+        implicit_cast: (lval_to_rval) 'double'
+          decl_ref_expr: 'double' lvalue
+           name: d
+       rhs:
+        implicit_cast: (float_cast) 'double'
+          implicit_cast: (lval_to_rval) '_Float16'
+            decl_ref_expr: '_Float16' lvalue
+             name: f16
+
+    explicit_cast: (to_void) 'void'
+      paren_expr: 'float'
+       operand:
+        add_expr: 'float'
+         lhs:
+          implicit_cast: (float_cast) 'float'
+            implicit_cast: (lval_to_rval) '_Float16'
+              decl_ref_expr: '_Float16' lvalue
+               name: f16
+         rhs:
+          implicit_cast: (float_cast) 'float'
+            implicit_cast: (lval_to_rval) '__fp16'
+              decl_ref_expr: '__fp16' lvalue
+               name: fp16
+
+    implicit_return: 'void'
+

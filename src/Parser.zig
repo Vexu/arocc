@@ -4868,8 +4868,10 @@ const Result = struct {
                 .{ .complex_float80, .float80 },
                 .{ .complex_double, .double },
                 .{ .complex_float, .float },
-                .{ .complex_fp16, .fp16 },
-                .{ .complex_float16, .float16 },
+                // No `_Complex __fp16` type
+                .{ .invalid, .fp16 },
+                // No `_Complex _Float16`
+                .{ .invalid, .float16 },
             };
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
