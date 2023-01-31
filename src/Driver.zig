@@ -217,7 +217,9 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.system_include_dirs.append(path);
+                const duped = try d.comp.gpa.dupe(u8, path);
+                errdefer d.comp.gpa.free(duped);
+                try d.comp.system_include_dirs.append(duped);
             } else if (option(arg, "--emulate=")) |compiler_str| {
                 const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
                     try d.comp.diag.add(.{ .tag = .cli_invalid_emulate, .extra = .{ .str = arg } }, &.{});
