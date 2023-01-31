@@ -2176,6 +2176,32 @@ pub fn hasAttribute(ty: Type, tag: Attribute.Tag) bool {
     return false;
 }
 
+/// Suffix for integer values of this type
+pub fn intValueSuffix(ty: Type, comp: *const Compilation) []const u8 {
+    return switch (ty.specifier) {
+        .schar, .short, .int => "",
+        .long => "L",
+        .long_long => "LL",
+        .uchar, .char => {
+            if (ty.specifier == .char and target.getCharSignedness(comp.target) == .signed) return "";
+            // Only 8-bit char supported currently;
+            // TODO: handle platforms with 16-bit int + 16-bit char
+            std.debug.assert(ty.sizeof(comp).? == 8);
+            return "";
+        },
+        .ushort => {
+            if (ty.sizeof(comp).? < int.sizeof(comp).?) {
+                return "";
+            }
+            return "U";
+        },
+        .uint => "U",
+        .ulong => "UL",
+        .ulong_long => "ULL",
+        else => unreachable, // not integer
+    };
+}
+
 /// Print type in C style
 pub fn print(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: anytype) @TypeOf(w).Error!void {
     _ = try ty.printPrologue(mapper, langopts, w);
