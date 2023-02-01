@@ -538,16 +538,32 @@ pub const Tag = enum(u8) {
 };
 
 pub fn isBitfield(nodes: Node.List.Slice, node: NodeIndex) bool {
+    return bitfieldWidth(nodes, node, false) != null;
+}
+
+/// Returns null if node is not a bitfield. If inspect_lval is true, this function will
+/// recurse into implicit lval_to_rval casts (useful for arithmetic conversions)
+pub fn bitfieldWidth(nodes: Node.List.Slice, node: NodeIndex, inspect_lval: bool) ?u32 {
+    if (node == .none) return null;
     switch (nodes.items(.tag)[@enumToInt(node)]) {
         .member_access_expr, .member_access_ptr_expr => {
             const member = nodes.items(.data)[@enumToInt(node)].member;
             var ty = nodes.items(.ty)[@enumToInt(member.lhs)];
             if (ty.isPtr()) ty = ty.elemType();
-            const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return false;
+            const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return null;
             const field = record_ty.data.record.fields[member.index];
-            return field.bit_width != null;
+            return field.bit_width;
         },
-        else => return false,
+        .implicit_cast => {
+            if (!inspect_lval) return null;
+
+            const data = nodes.items(.data)[@enumToInt(node)];
+            return switch (data.cast.kind) {
+                .lval_to_rval => bitfieldWidth(nodes, data.cast.operand, false),
+                else => null,
+            };
+        },
+        else => return null,
     }
 }
 

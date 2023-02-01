@@ -702,6 +702,24 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     };
 }
 
+/// Promote a bitfield. If `int` can hold all the values of the underlying field,
+/// promote to int. Otherwise, promote to unsigned int
+/// Returns null if no promotion is necessary
+pub fn bitfieldPromotion(ty: Type, comp: *Compilation, width: u32) ?Type {
+    const type_size_bits = ty.bitSizeof(comp).?;
+
+    // Note: GCC and clang will promote `long: 3` to int even though the C standard does not allow this
+    if (width < type_size_bits) {
+        return int;
+    }
+
+    if (width == type_size_bits) {
+        return if (ty.isUnsignedInt(comp)) .{ .specifier = .uint } else int;
+    }
+
+    return null;
+}
+
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
         .void, .incomplete_array, .invalid => true,
@@ -1121,6 +1139,22 @@ pub fn originalTypeOfDecayedArray(ty: Type) Type {
     return copy;
 }
 
+/// Rank for floating point conversions, ignoring domain (complex vs real)
+/// Asserts that ty is a floating point type
+pub fn floatRank(ty: Type) usize {
+    const real = ty.makeReal();
+    return switch (real.specifier) {
+        // TODO: bfloat16 => 0, float16 => 1
+        .fp16 => 2,
+        .float => 3,
+        .double => 4,
+        .long_double => 5,
+        .float128 => 6,
+        // TODO: ibm128 => 7
+        else => unreachable,
+    };
+}
+
 pub fn makeReal(ty: Type) Type {
     // TODO discards attributed/typeof
     var base = ty.canonicalize(.standard);
@@ -1230,6 +1264,9 @@ pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: TokenIndex) Parser
             if (ret_ty.qual.atomic) {
                 try p.errStr(.qual_on_ret_type, source_tok, "atomic");
                 ret_ty.qual.atomic = false;
+            }
+            if (ret_ty.is(.fp16) and !p.comp.hasHalfPrecisionFloatABI()) {
+                try p.errStr(.suggest_pointer_for_invalid_fp16, source_tok, "function return value");
             }
         },
         .typeof_type, .decayed_typeof_type => return ty.data.sub_type.validateCombinedType(p, source_tok),

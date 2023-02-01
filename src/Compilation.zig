@@ -529,6 +529,10 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
     try comp.generateNsConstantStringType();
 }
 
+pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
+    return comp.langopts.allow_half_args_and_returns or target.hasHalfPrecisionFloatABI(comp.target);
+}
+
 fn generateNsConstantStringType(comp: *Compilation) !void {
     comp.types.ns_constant_string.record = .{
         .name = try comp.intern("__NSConstantString_tag"),

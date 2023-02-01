@@ -2214,6 +2214,11 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const suggest_pointer_for_invalid_fp16 = struct {
+        const msg = "{s} cannot have __fp16 type; did you forget * ?";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
