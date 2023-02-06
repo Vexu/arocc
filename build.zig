@@ -1,11 +1,14 @@
 const std = @import("std");
-const Builder = std.build.Builder;
+const Build = std.Build;
 
-fn addFuzzStep(b: *Builder, target: std.zig.CrossTarget) !void {
-    const fuzz_lib = b.addStaticLibrary("fuzz-lib", "test/fuzz/fuzz_lib.zig");
-    fuzz_lib.addPackagePath("aro", "src/lib.zig");
-    fuzz_lib.setTarget(target);
-    fuzz_lib.setBuildMode(.Debug);
+fn addFuzzStep(b: *Build, target: std.zig.CrossTarget) !void {
+    const fuzz_lib = b.addStaticLibrary(.{
+        .name = "fuzz-lib",
+        .target = target,
+        .optimize = .Debug,
+        .root_source_file = .{ .path = "test/fuzz/fuzz_lib.zig" },
+    });
+    fuzz_lib.addAnonymousModule("aro", .{ .source_file = .{ .path = "src/lib.zig" } });
     fuzz_lib.want_lto = true;
     fuzz_lib.bundle_compiler_rt = true;
 
@@ -26,7 +29,7 @@ fn addFuzzStep(b: *Builder, target: std.zig.CrossTarget) !void {
     fuzz_compile_run.dependOn(&fuzz_install.step);
 }
 
-pub fn build(b: *Builder) !void {
+pub fn build(b: *Build) !void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -35,7 +38,7 @@ pub fn build(b: *Builder) !void {
 
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
-    const mode = b.standardReleaseOptions();
+    const mode = b.standardOptimizeOption(.{});
 
     const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
     const link_libc = b.option(bool, "link-libc", "Force self-hosted compiler to link libc") orelse (mode != .Debug);
@@ -43,12 +46,23 @@ pub fn build(b: *Builder) !void {
     const tracy_callstack = b.option(bool, "tracy-callstack", "Include callstack information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
     const tracy_allocation = b.option(bool, "tracy-allocation", "Include allocation information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
 
-    const zig_pkg = std.build.Pkg{
-        .name = "zig",
-        .source = .{ .path = "deps/zig/lib.zig" },
-    };
+    const zig_module = b.createModule(.{
+        .source_file = .{ .path = "deps/zig/lib.zig" },
+    });
+    const aro_module = b.createModule(.{
+        .source_file = .{ .path = "src/lib.zig" },
+        .dependencies = &.{.{
+            .name = "zig",
+            .module = zig_module,
+        }},
+    });
 
-    const exe = b.addExecutable("arocc", "src/main.zig");
+    const exe = b.addExecutable(.{
+        .name = "arocc",
+        .root_source_file = .{ .path = "src/main.zig" },
+        .optimize = mode,
+        .target = target,
+    });
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
     exe_options.addOption(bool, "enable_tracy", tracy != null);
@@ -76,9 +90,7 @@ pub fn build(b: *Builder) !void {
             exe.linkSystemLibrary("ws2_32");
         }
     }
-    exe.setTarget(target);
-    exe.setBuildMode(mode);
-    exe.addPackage(zig_pkg);
+    exe.addModule("zig", zig_module);
     if (link_libc) {
         exe.linkLibC();
     }
@@ -97,16 +109,15 @@ pub fn build(b: *Builder) !void {
     const tests_step = b.step("test", "Run all tests");
     tests_step.dependOn(&exe.step);
 
-    var unit_tests = b.addTest("src/main.zig");
-    unit_tests.addPackage(zig_pkg);
+    var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
+    unit_tests.addModule("zig", zig_module);
     tests_step.dependOn(&unit_tests.step);
 
-    const integration_tests = b.addExecutable("arocc", "test/runner.zig");
-    integration_tests.addPackage(.{
-        .name = "aro",
-        .source = .{ .path = "src/lib.zig" },
-        .dependencies = &.{zig_pkg},
+    const integration_tests = b.addExecutable(.{
+        .name = "test-runner",
+        .root_source_file = .{ .path = "test/runner.zig" },
     });
+    integration_tests.addModule("aro", aro_module);
     const test_runner_options = b.addOptions();
     integration_tests.addOptions("build_options", test_runner_options);
     test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
@@ -115,12 +126,11 @@ pub fn build(b: *Builder) !void {
     integration_test_runner.addArg(b.pathFromRoot("test/cases"));
     integration_test_runner.addArg(b.zig_exe);
 
-    const record_tests = b.addExecutable("arocc", "test/record_runner.zig");
-    record_tests.addPackage(.{
-        .name = "aro",
-        .source = .{ .path = "src/lib.zig" },
-        .dependencies = &.{zig_pkg},
+    const record_tests = b.addExecutable(.{
+        .name = "test-runner",
+        .root_source_file = .{ .path = "test/record_runner.zig" },
     });
+    record_tests.addModule("aro", aro_module);
     const record_tests_runner = record_tests.run();
     record_tests_runner.addArg(b.pathFromRoot("test/records"));
     record_tests_runner.addArg(b.zig_exe);
