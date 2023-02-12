@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const assert = std.debug.assert;
+const big = std.math.big;
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -7280,65 +7281,122 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
         try p.errTok(.binary_integer_literal, tok_i);
     }
     const base = @enumToInt(prefix);
-    var val: u64 = 0;
-    var overflow = false;
-    for (buf) |c| {
-        const digit: u64 = switch (c) {
-            '0'...'9' => c - '0',
-            'A'...'Z' => c - 'A' + 10,
-            'a'...'z' => c - 'a' + 10,
-            '\'' => continue,
-            else => unreachable,
-        };
+    var res: Result = undefined;
+    if (suffix.isBitInt()) {
+        try p.errStr(.pre_c2x_compat, tok_i, "'_BitInt' suffix for literals");
+        try p.errTok(.bitint_suffix, tok_i);
+        res = try p.bitInt(base, buf, suffix, tok_i);
+    } else {
+        var val: u64 = 0;
+        var overflow = false;
+        for (buf) |c| {
+            const digit: u64 = switch (c) {
+                '0'...'9' => c - '0',
+                'A'...'Z' => c - 'A' + 10,
+                'a'...'z' => c - 'a' + 10,
+                '\'' => continue,
+                else => unreachable,
+            };
 
-        if (val != 0) {
-            const mul_ov = @mulWithOverflow(val, base);
-            if (mul_ov[1] != 0) {
-                overflow = true;
+            if (val != 0) {
+                const mul_ov = @mulWithOverflow(val, base);
+                if (mul_ov[1] != 0) {
+                    overflow = true;
+                }
+                val = mul_ov[0];
             }
-            val = mul_ov[0];
+            const add_ov = @addWithOverflow(val, digit);
+            if (add_ov[1] != 0) overflow = true;
+            val = add_ov[0];
         }
-        const add_ov = @addWithOverflow(val, digit);
-        if (add_ov[1] != 0) overflow = true;
-        val = add_ov[0];
-    }
-    if (overflow) {
-        try p.errTok(.int_literal_too_big, tok_i);
-        var res: Result = .{ .ty = .{ .specifier = .ulong_long }, .val = Value.int(val) };
-        res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
-        if (!p.in_macro) try p.value_map.put(res.node, res.val);
-        return res;
-    }
-    if (suffix.isSignedInteger()) {
-        if (val > std.math.maxInt(i64)) {
-            try p.errTok(.implicitly_unsigned_literal, tok_i);
+        if (overflow) {
+            try p.errTok(.int_literal_too_big, tok_i);
+            res = .{ .ty = .{ .specifier = .ulong_long }, .val = Value.int(val) };
+            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+            if (!p.in_macro) try p.value_map.put(res.node, res.val);
+            return res;
         }
-    }
-    var res = try if (base == 10)
-        switch (suffix) {
-            .None, .I => p.castInt(val, &.{ .int, .long, .long_long }),
+        if (suffix.isSignedInteger()) {
+            if (val > std.math.maxInt(i64)) {
+                try p.errTok(.implicitly_unsigned_literal, tok_i);
+            }
+        }
+        res = try if (base == 10)
+            switch (suffix) {
+                .None, .I => p.castInt(val, &.{ .int, .long, .long_long }),
+                .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+                .L, .IL => p.castInt(val, &.{ .long, .long_long }),
+                .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
+                .LL, .ILL => p.castInt(val, &.{.long_long}),
+                .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
+                else => unreachable,
+            }
+        else switch (suffix) {
+            .None, .I => p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
             .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .L, .IL => p.castInt(val, &.{ .long, .long_long }),
+            .L, .IL => p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
             .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
-            .LL, .ILL => p.castInt(val, &.{.long_long}),
+            .LL, .ILL => p.castInt(val, &.{ .long_long, .ulong_long }),
             .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
             else => unreachable,
-        }
-    else switch (suffix) {
-        .None, .I => p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
-        .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-        .L, .IL => p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
-        .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
-        .LL, .ILL => p.castInt(val, &.{ .long_long, .ulong_long }),
-        .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
-        else => unreachable,
-    };
+        };
+    }
     if (suffix.isImaginary()) {
         try p.errTok(.gnu_imaginary_constant, tok_i);
         res.ty = res.ty.makeComplex();
         res.val.tag = .unavailable;
         try res.un(p, .imaginary_literal);
     }
+    return res;
+}
+
+fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) Error!Result {
+    var managed = try big.int.Managed.init(p.comp.gpa);
+    defer managed.deinit();
+
+    managed.setString(base, buf) catch |e| switch (e) {
+        error.InvalidBase => unreachable, // `base` is one of 2, 8, 10, 16
+        error.InvalidCharacter => unreachable, // digits validated by Tokenizer
+        else => |er| return er,
+    };
+    const c = managed.toConst();
+    const bits_needed = blk: {
+        const count = c.bitCountTwosComp();
+        // The wb suffix results in a _BitInt that includes space for the sign bit even if the
+        // value of the constant is positive or was specified in hexadecimal or octal notation.
+        const sign_bits = @boolToInt(suffix.isSignedInteger());
+        const bits_needed = count + sign_bits;
+        if (bits_needed > Compilation.BitIntMaxBits) {
+            const specifier: Type.Builder.Specifier = switch (suffix) {
+                .WB => .{ .bit_int = 0 },
+                .UWB => .{ .ubit_int = 0 },
+                .IWB => .{ .complex_bit_int = 0 },
+                .IUWB => .{ .complex_ubit_int = 0 },
+                else => unreachable,
+            };
+            try p.errStr(.bit_int_too_big, tok_i, specifier.str(p.comp.langopts).?);
+            return error.ParsingFailed;
+        }
+        if (bits_needed > 64) {
+            return p.todo("_BitInt constants > 64 bits");
+        }
+        break :blk @intCast(std.math.IntFittingRange(0, Compilation.BitIntMaxBits), bits_needed);
+    };
+
+    const val = c.to(u64) catch |e| switch (e) {
+        error.NegativeIntoUnsigned => unreachable, // unary minus parsed elsewhere; we only see positive integers
+        error.TargetTooSmall => unreachable, // Validated above but Todo: handle larger _BitInt
+    };
+
+    var res: Result = .{
+        .val = Value.int(val),
+        .ty = .{
+            .specifier = .bit_int,
+            .data = .{ .int = .{ .bits = bits_needed, .signedness = suffix.signedness() } },
+        },
+    };
+    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
+    if (!p.in_macro) try p.value_map.put(res.node, res.val);
     return res;
 }
 

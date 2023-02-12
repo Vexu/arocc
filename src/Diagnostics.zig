@@ -2219,6 +2219,12 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    const bitint_suffix = struct {
+        const msg = "'_BitInt' suffix for literals is a C2x extension";
+        const opt = "c2x-extensions";
+        const kind = .warning;
+        const suppress_version = .c2x;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
