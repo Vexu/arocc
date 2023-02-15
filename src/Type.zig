@@ -2452,7 +2452,12 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
             try ty.data.attributed.base.dump(mapper, langopts, w);
             try w.writeAll(")");
         },
-        else => try w.writeAll(Builder.fromType(ty).str(langopts).?),
+        else => {
+            try w.writeAll(Builder.fromType(ty).str(langopts).?);
+            if (ty.specifier == .bit_int or ty.specifier == .complex_bit_int) {
+                try w.print("({d})", .{ty.data.int.bits});
+            }
+        },
     }
 }
 
