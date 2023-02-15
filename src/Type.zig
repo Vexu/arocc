@@ -683,21 +683,24 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
         if (ty.hasIncompleteSize()) return .{ .specifier = .int };
         specifier = ty.data.@"enum".tag_ty.specifier;
     }
-    return .{
-        .specifier = switch (specifier) {
-            // zig fmt: off
-            .bool, .char, .schar, .uchar, .short => .int,
-            .ushort => if (ty.sizeof(comp).? == sizeof(.{ .specifier = .int }, comp)) Specifier.uint else .int,
-            .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128, .complex_char,
-            .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
-            .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
-            .complex_int128, .complex_uint128, .bit_int, .complex_bit_int => specifier,
-            // zig fmt: on
-            .typeof_type => return ty.data.sub_type.integerPromotion(comp),
-            .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
-            .attributed => return ty.data.attributed.base.integerPromotion(comp),
-            .invalid => .invalid,
-            else => unreachable, // not an integer type
+    return switch (specifier) {
+        .bit_int, .complex_bit_int => .{ .specifier = .bit_int, .data = .{ .int = ty.data.int } },
+        else => .{
+            .specifier = switch (specifier) {
+                // zig fmt: off
+                .bool, .char, .schar, .uchar, .short => .int,
+                .ushort => if (ty.sizeof(comp).? == sizeof(.{ .specifier = .int }, comp)) Specifier.uint else .int,
+                .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128, .complex_char,
+                .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
+                .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
+                .complex_int128, .complex_uint128 => specifier,
+                // zig fmt: on
+                .typeof_type => return ty.data.sub_type.integerPromotion(comp),
+                .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
+                .attributed => return ty.data.attributed.base.integerPromotion(comp),
+                .invalid => .invalid,
+                else => unreachable, // _BitInt, or not an integer type
+            },
         },
     };
 }
