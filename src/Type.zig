@@ -1586,7 +1586,7 @@ pub const Builder = struct {
                         return error.ParsingFailed;
                     }
                 }
-                if (bits > 128) {
+                if (bits > Compilation.BitIntMaxBits) {
                     try p.errStr(.bit_int_too_big, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
                     return error.ParsingFailed;
                 }
