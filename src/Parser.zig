@@ -798,8 +798,8 @@ fn decl(p: *Parser) Error!bool {
             const specifier = decl_spec.ty.canonicalize(.standard).specifier;
             const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
             const toks = p.attr_buf.items(.tok)[attr_buf_top..];
-            for (attrs) |attr, i| {
-                try p.errExtra(.ignored_record_attr, toks[i], .{
+            for (attrs, toks) |attr, tok| {
+                try p.errExtra(.ignored_record_attr, tok, .{
                     .ignored_record_attr = .{ .tag = attr.tag, .specifier = switch (specifier) {
                         .@"enum" => .@"enum",
                         .@"struct" => .@"struct",
@@ -2263,7 +2263,7 @@ fn enumSpec(p: *Parser) Error!Type {
         const vals = p.syms.syms.items(.val)[sym_stack_top..];
         const types = p.syms.syms.items(.ty)[sym_stack_top..];
 
-        for (enum_fields) |*field, i| {
+        for (enum_fields, 0..) |*field, i| {
             if (field.ty.eql(Type.int, p.comp, false)) continue;
 
             var res = Result{ .node = field.node, .ty = field.ty, .val = vals[i] };
@@ -3012,7 +3012,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
 
                 // TODO check if union already has field set
                 outer: while (true) {
-                    for (cur_ty.data.record.fields) |f, i| {
+                    for (cur_ty.data.record.fields, 0..) |f, i| {
                         if (f.isAnonymousRecord()) {
                             // Recurse into anonymous field if it has a field by the name.
                             if (!f.ty.hasField(field_name)) continue;
@@ -3425,7 +3425,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         defer p.list_buf.items.len = list_buf_top;
 
         var init_index: usize = 0;
-        for (struct_ty.data.record.fields) |f, i| {
+        for (struct_ty.data.record.fields, 0..) |f, i| {
             if (init_index < il.list.items.len and il.list.items[init_index].index == i) {
                 const item = try p.convertInitList(il.list.items[init_index].list, f.ty);
                 try p.list_buf.append(item);
@@ -4305,9 +4305,8 @@ const Result = struct {
     fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex, err_start: usize) Error!void {
         if (res.ty.is(.void) or res.node == .none) return;
         // don't warn about unused result if the expression contained errors besides other unused results
-        var i = err_start;
-        while (i < p.comp.diag.list.items.len) : (i += 1) {
-            if (p.comp.diag.list.items[i].tag != .unused_value) return;
+        for (p.comp.diag.list.items[err_start..]) |err_item| {
+            if (err_item.tag != .unused_value) return;
         }
         var cur_node = res.node;
         while (true) switch (p.nodes.items(.tag)[@enumToInt(cur_node)]) {
@@ -6522,7 +6521,7 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
 }
 
 fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: StringId, is_arrow: bool, offset_bits: *u64) Error!Result {
-    for (record_ty.data.record.fields) |f, i| {
+    for (record_ty.data.record.fields, 0..) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
             const inner = try p.addNode(.{
@@ -7242,7 +7241,7 @@ fn getIntegerPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: Toke
         return error.ParsingFailed;
     }
 
-    for (buf) |c, idx| {
+    for (buf, 0..) |c, idx| {
         if (idx == 0) continue;
         switch (c) {
             '.' => return buf[0..idx],
@@ -7350,7 +7349,7 @@ fn getFracPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIn
         try p.errStr(.invalid_int_suffix, tok_i, buf);
         return error.ParsingFailed;
     }
-    for (buf) |c, idx| {
+    for (buf, 0..) |c, idx| {
         if (idx == 0) continue;
         if (c == '\'') continue;
         if (!prefix.digitAllowed(c)) return buf[0..idx];
@@ -7369,7 +7368,7 @@ fn getExponent(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIn
         },
         else => return "",
     }
-    const end = for (buf) |c, idx| {
+    const end = for (buf, 0..) |c, idx| {
         if (idx == 0) continue;
         if (idx == 1 and (c == '+' or c == '-')) continue;
         switch (c) {
@@ -7526,12 +7525,11 @@ fn genericSelection(p: *Parser) Error!Result {
                 try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
                 try p.errStr(.generic_duplicate_here, chosen_tok, try p.typeStr(ty));
             }
-            for (p.list_buf.items[list_buf_top + 1 ..]) |item, i| {
+            for (p.list_buf.items[list_buf_top + 1 ..], p.decl_buf.items[decl_buf_top..]) |item, prev_tok| {
                 const prev_ty = p.nodes.items(.ty)[@enumToInt(item)];
                 if (prev_ty.eql(ty, p.comp, true)) {
                     try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
-                    const prev_tok = @enumToInt(p.decl_buf.items[decl_buf_top + i]);
-                    try p.errStr(.generic_duplicate_here, prev_tok, try p.typeStr(ty));
+                    try p.errStr(.generic_duplicate_here, @enumToInt(prev_tok), try p.typeStr(ty));
                 }
             }
             try p.list_buf.append(try p.addNode(.{

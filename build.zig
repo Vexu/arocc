@@ -13,7 +13,7 @@ fn addFuzzStep(b: *Build, target: std.zig.CrossTarget) !void {
     fuzz_lib.bundle_compiler_rt = true;
 
     const fuzz_executable_name = "fuzz";
-    const fuzz_exe_path = try std.fs.path.join(b.allocator, &.{ b.cache_root, fuzz_executable_name });
+    const fuzz_exe_path = try b.cache_root.join(b.allocator, &.{fuzz_executable_name});
 
     // We want `afl-clang-lto -o path/to/output test/fuzz/main.c path/to/library`
     const fuzz_compile = b.addSystemCommand(&.{ "afl-clang-lto", "-o", fuzz_exe_path, "test/fuzz/main.c" });

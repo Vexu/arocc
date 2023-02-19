@@ -192,7 +192,7 @@ fn genCall(func: *Fn, lhs: NodeIndex, args: []const NodeIndex) Codegen.Error!Val
         return func.c.comp.diag.fatalNoSrc("TODO more than args {d}\n", .{x86_64.c_abi_int_param_regs.len});
 
     const func_value = try func.genNode(lhs);
-    for (args) |arg, i| {
+    for (args, 0..) |arg, i| {
         const value = try func.genNode(arg);
         try func.setReg(value, x86_64.c_abi_int_param_regs[i]);
     }

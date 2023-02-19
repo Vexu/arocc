@@ -27,7 +27,7 @@ splice_locs: []const u32,
 
 /// Todo: binary search instead of scanning entire `splice_locs`.
 pub fn numSplicesBefore(source: Source, byte_offset: u32) u32 {
-    for (source.splice_locs) |splice_offset, i| {
+    for (source.splice_locs, 0..) |splice_offset, i| {
         if (splice_offset > byte_offset) return @intCast(u32, i);
     }
     return @intCast(u32, source.splice_locs.len);
@@ -45,7 +45,7 @@ pub fn lineCol(source: Source, loc: Location) LineCol {
     var start: usize = 0;
     // find the start of the line which is either a newline or a splice
     if (std.mem.lastIndexOfScalar(u8, source.buf[0..loc.byte_offset], '\n')) |some| start = some + 1;
-    const splice_index = for (source.splice_locs) |splice_offset, i| {
+    const splice_index = for (source.splice_locs, 0..) |splice_offset, i| {
         if (splice_offset > start) {
             if (splice_offset < loc.byte_offset) {
                 start = splice_offset;

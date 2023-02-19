@@ -301,8 +301,7 @@ test "All builtins" {
 
     const type_arena = arena.allocator();
 
-    var i: usize = 0;
-    while (i < @typeInfo(BuiltinFunction.Tag).Enum.fields.len) : (i += 1) {
+    for (0..@typeInfo(BuiltinFunction.Tag).Enum.fields.len) |i| {
         const tag = @intToEnum(BuiltinFunction.Tag, i);
         const name = @tagName(tag);
         if (try comp.builtins.getOrCreate(&comp, name, type_arena)) |func_ty| {
@@ -325,10 +324,8 @@ test "Allocation failures" {
 
             const type_arena = arena.allocator();
 
-            var i: usize = 0;
             const num_builtins = 40;
-
-            while (i < num_builtins) : (i += 1) {
+            for (0..num_builtins) |i| {
                 const tag = @intToEnum(BuiltinFunction.Tag, i);
                 const name = @tagName(tag);
                 _ = try comp.builtins.getOrCreate(&comp, name, type_arena);

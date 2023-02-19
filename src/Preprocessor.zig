@@ -47,12 +47,12 @@ const Macro = struct {
     fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
         if (a.tokens.len != b.tokens.len) return false;
         if (a.is_builtin != b.is_builtin) return false;
-        for (a.tokens) |t, i| if (!tokEql(pp, t, b.tokens[i])) return false;
+        for (a.tokens, b.tokens) |a_tok, b_tok| if (!tokEql(pp, a_tok, b_tok)) return false;
 
         if (a.is_func and b.is_func) {
             if (a.var_args != b.var_args) return false;
             if (a.params.len != b.params.len) return false;
-            for (a.params) |p, i| if (!mem.eql(u8, p, b.params[i])) return false;
+            for (a.params, b.params) |a_param, b_param| if (!mem.eql(u8, a_param, b_param)) return false;
         }
 
         return true;
@@ -1723,7 +1723,7 @@ fn expandMacroExhaustive(
 
                     const macro_expansion_locs = macro_tok.expansionSlice();
                     var increment_idx_by = res.items.len;
-                    for (res.items) |*tok, i| {
+                    for (res.items, 0..) |*tok, i| {
                         tok.flags.is_macro_arg = macro_tok.flags.is_macro_arg;
                         try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
@@ -2069,7 +2069,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                         try pp.token_buf.append(tok);
                         continue :tok_loop;
                     }
-                    for (params.items) |p, i| {
+                    for (params.items, 0..) |p, i| {
                         if (mem.eql(u8, p, s)) {
                             tok.id = .stringify_param;
                             tok.end = @intCast(u32, i);
@@ -2114,7 +2114,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                     const s = pp.tokSlice(tok);
                     if (mem.eql(u8, gnu_var_args, s)) {
                         tok.id = .keyword_va_args;
-                    } else for (params.items) |param, i| {
+                    } else for (params.items, 0..) |param, i| {
                         if (mem.eql(u8, param, s)) {
                             // NOTE: it doesn't matter to assign .macro_param_no_expand
                             // here in case a ## was the previous token, because

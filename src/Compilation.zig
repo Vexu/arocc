@@ -913,11 +913,11 @@ pub const IncludeDirIterator = struct {
             const path = self.comp.getSource(source_id).path;
             return std.fs.path.dirname(path) orelse ".";
         }
-        while (self.include_dirs_idx < self.comp.include_dirs.items.len) {
+        if (self.include_dirs_idx < self.comp.include_dirs.items.len) {
             defer self.include_dirs_idx += 1;
             return self.comp.include_dirs.items[self.include_dirs_idx];
         }
-        while (self.sys_include_dirs_idx < self.comp.system_include_dirs.items.len) {
+        if (self.sys_include_dirs_idx < self.comp.system_include_dirs.items.len) {
             defer self.sys_include_dirs_idx += 1;
             return self.comp.system_include_dirs.items[self.sys_include_dirs_idx];
         }

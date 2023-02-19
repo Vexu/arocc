@@ -388,12 +388,12 @@ pub fn dump(ir: Ir, gpa: Allocator, name: []const u8, color: bool, w: anytype) !
                 try ir.writeRef(&ref_map, @"switch".target, color, w);
                 if (color) util.setColor(.reset, w);
                 try w.writeAll(" {");
-                for (@"switch".case_vals[0..@"switch".cases_len]) |val_ref, case_i| {
+                for (@"switch".case_vals[0..@"switch".cases_len], @"switch".case_labels) |val_ref, label_ref| {
                     try w.writeAll("\n        ");
                     try ir.writeValue(val_ref, color, w);
                     if (color) util.setColor(.reset, w);
                     try w.writeAll(" => ");
-                    try ir.writeLabel(&label_map, @"switch".case_labels[case_i], color, w);
+                    try ir.writeLabel(&label_map, label_ref, color, w);
                     if (color) util.setColor(.reset, w);
                 }
                 if (color) util.setColor(LITERAL, w);
@@ -411,7 +411,7 @@ pub fn dump(ir: Ir, gpa: Allocator, name: []const u8, color: bool, w: anytype) !
                 try ir.writeRef(&ref_map, call.func, color, w);
                 if (color) util.setColor(.reset, w);
                 try w.writeAll("(");
-                for (call.args()) |arg, arg_i| {
+                for (call.args(), 0..) |arg, arg_i| {
                     if (arg_i != 0) try w.writeAll(", ");
                     try ir.writeRef(&ref_map, arg, color, w);
                     if (color) util.setColor(.reset, w);
@@ -536,7 +536,7 @@ fn writeType(ir: Ir, ty_ref: Interner.Ref, color: bool, w: anytype) !void {
         .record => |info| {
             // TODO collect into buffer and only print once
             try w.writeAll("{ ");
-            for (info.elements) |elem, i| {
+            for (info.elements, 0..) |elem, i| {
                 if (i != 0) try w.writeAll(", ");
                 try ir.writeType(elem, color, w);
             }

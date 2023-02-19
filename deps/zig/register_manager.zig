@@ -94,7 +94,7 @@ pub fn RegisterManager(
             }
 
             if (i == count) {
-                for (regs) |reg, j| {
+                for (regs, 0..) |reg, j| {
                     if (insts[j]) |inst| {
                         // Track the register
                         const index = reg.allocIndex().?; // allocIndex() on a callee-preserved reg should never return null
@@ -224,7 +224,7 @@ const MockRegister1 = enum(u2) {
     r3,
 
     pub fn allocIndex(self: MockRegister1) ?u2 {
-        inline for (callee_preserved_regs) |cpreg, i| {
+        inline for (callee_preserved_regs, 0..) |cpreg, i| {
             if (self == cpreg) return i;
         }
         return null;
@@ -240,7 +240,7 @@ const MockRegister2 = enum(u2) {
     r3,
 
     pub fn allocIndex(self: MockRegister2) ?u2 {
-        inline for (callee_preserved_regs) |cpreg, i| {
+        inline for (callee_preserved_regs, 0..) |cpreg, i| {
             if (self == cpreg) return i;
         }
         return null;

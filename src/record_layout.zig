@@ -56,7 +56,7 @@ const SysVContext = struct {
     }
 
     fn layoutFields(self: *SysVContext, rec: *const Record) void {
-        for (rec.fields) |*fld, fld_indx| {
+        for (rec.fields, 0..) |*fld, fld_indx| {
             const type_layout = computeLayout(fld.ty, self.comp);
 
             var field_attrs: ?[]const Attribute = null;
@@ -586,7 +586,7 @@ pub fn compute(rec: *Type.Record, ty: Type, comp: *const Compilation, pragma_pac
         },
         .msvc => {
             var context = MsvcContext.init(ty, comp, pragma_pack);
-            for (rec.fields) |*fld, fld_indx| {
+            for (rec.fields, 0..) |*fld, fld_indx| {
                 var field_attrs: ?[]const Attribute = null;
                 if (rec.field_attributes) |attrs| {
                     field_attrs = attrs[fld_indx];

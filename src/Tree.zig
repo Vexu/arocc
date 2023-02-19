@@ -676,7 +676,7 @@ fn dumpAttribute(attr: Attribute, writer: anytype) !void {
                 return;
             }
             try writer.writeByte(' ');
-            inline for (@typeInfo(@TypeOf(args)).Struct.fields) |f, i| {
+            inline for (@typeInfo(@TypeOf(args)).Struct.fields, 0..) |f, i| {
                 if (comptime std.mem.eql(u8, f.name, "__name_tok")) continue;
                 if (i != 0) {
                     try writer.writeAll(", ");
@@ -851,7 +851,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
         .union_decl,
         => {
             const maybe_field_attributes = if (ty.getRecord()) |record| record.field_attributes else null;
-            for (tree.data[data.range.start..data.range.end]) |stmt, i| {
+            for (tree.data[data.range.start..data.range.end], 0..) |stmt, i| {
                 if (i != 0) try w.writeByte('\n');
                 try tree.dumpNode(stmt, level + delta, mapper, color, w);
                 if (maybe_field_attributes) |field_attributes| {
