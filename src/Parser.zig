@@ -7361,7 +7361,8 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
     };
     const c = managed.toConst();
     const bits_needed = blk: {
-        const count = c.bitCountTwosComp();
+        // Literal `0` requires at least 1 bit
+        const count = std.math.max(1, c.bitCountTwosComp());
         // The wb suffix results in a _BitInt that includes space for the sign bit even if the
         // value of the constant is positive or was specified in hexadecimal or octal notation.
         const sign_bits = @boolToInt(suffix.isSignedInteger());
