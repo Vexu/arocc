@@ -18,20 +18,35 @@
 #undef LONG_MAX
 #define LONG_MAX  __LONG_MAX__
 
+#undef SCHAR_MIN
 #define SCHAR_MIN (-__SCHAR_MAX__-1)
+
+#undef SHRT_MIN
 #define SHRT_MIN  (-__SHRT_MAX__ -1)
+
+#undef INT_MIN
 #define INT_MIN   (-__INT_MAX__  -1)
+
+#undef LONG_MIN
 #define LONG_MIN  (-__LONG_MAX__ -1L)
 
+#undef UCHAR_MAX
 #define UCHAR_MAX (__SCHAR_MAX__*2  +1)
+
+#undef USHRT_MAX
 #define USHRT_MAX (__SHRT_MAX__ *2  +1)
+
+#undef UINT_MAX
 #define UINT_MAX  (__INT_MAX__  *2U +1U)
+
+#undef ULONG_MAX
 #define ULONG_MAX (__LONG_MAX__ *2UL+1UL)
 
 #ifndef MB_LEN_MAX
 #define MB_LEN_MAX 1
 #endif
 
+#undef CHAR_BIT
 #define CHAR_BIT  __CHAR_BIT__
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
@@ -77,6 +92,8 @@
 
 #endif  /*  defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L */
 
+#undef CHAR_MIN
+#undef CHAR_MAX
 #ifdef __CHAR_UNSIGNED__
 #define CHAR_MIN 0
 #define CHAR_MAX UCHAR_MAX
