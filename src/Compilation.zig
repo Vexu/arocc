@@ -24,7 +24,7 @@ pub const Error = error{
     FatalError,
 } || Allocator.Error;
 
-pub const BitIntMaxBits = 128;
+pub const bit_int_max_bits = 128;
 
 gpa: Allocator,
 sources: std.StringArrayHashMap(Source),
@@ -349,7 +349,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     // try comp.generateIntMax(w, "UINTPTR", comp.types.size);
 
     // int widths
-    try w.print("#define __BITINT_MAXWIDTH__ {d}\n", .{BitIntMaxBits});
+    try w.print("#define __BITINT_MAXWIDTH__ {d}\n", .{bit_int_max_bits});
 
     // sizeof types
     try comp.generateSizeofType(w, "__SIZEOF_FLOAT__", .{ .specifier = .float });

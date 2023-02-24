@@ -2154,7 +2154,7 @@ const messages = struct {
         const kind = .@"error";
     };
     const bit_int_too_big = struct {
-        const msg = "{s} of bit sizes greater than " ++ std.fmt.comptimePrint("{d}", .{Compilation.BitIntMaxBits}) ++ " not supported";
+        const msg = "{s} of bit sizes greater than " ++ std.fmt.comptimePrint("{d}", .{Compilation.bit_int_max_bits}) ++ " not supported";
         const extra = .str;
         const kind = .@"error";
     };

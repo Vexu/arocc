@@ -7367,7 +7367,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         // value of the constant is positive or was specified in hexadecimal or octal notation.
         const sign_bits = @boolToInt(suffix.isSignedInteger());
         const bits_needed = count + sign_bits;
-        if (bits_needed > Compilation.BitIntMaxBits) {
+        if (bits_needed > Compilation.bit_int_max_bits) {
             const specifier: Type.Builder.Specifier = switch (suffix) {
                 .WB => .{ .bit_int = 0 },
                 .UWB => .{ .ubit_int = 0 },
@@ -7381,7 +7381,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         if (bits_needed > 64) {
             return p.todo("_BitInt constants > 64 bits");
         }
-        break :blk @intCast(std.math.IntFittingRange(0, Compilation.BitIntMaxBits), bits_needed);
+        break :blk @intCast(std.math.IntFittingRange(0, Compilation.bit_int_max_bits), bits_needed);
     };
 
     const val = c.to(u64) catch |e| switch (e) {
