@@ -1126,6 +1126,7 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
 
         .@"struct", .@"union" => if (a.data.record != b.data.record) return false,
         .@"enum" => if (a.data.@"enum" != b.data.@"enum") return false,
+        .bit_int, .complex_bit_int => return a.data.int.bits == b.data.int.bits and a.data.int.signedness == b.data.int.signedness,
 
         else => {},
     }
