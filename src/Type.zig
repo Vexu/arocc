@@ -679,12 +679,15 @@ pub fn getRecord(ty: Type) ?*const Type.Record {
 
 pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     var specifier = ty.specifier;
-    if (specifier == .@"enum") {
-        if (ty.hasIncompleteSize()) return .{ .specifier = .int };
-        specifier = ty.data.@"enum".tag_ty.specifier;
+    switch (specifier) {
+        .@"enum" => {
+            if (ty.hasIncompleteSize()) return .{ .specifier = .int };
+            specifier = ty.data.@"enum".tag_ty.specifier;
+        },
+        .bit_int, .complex_bit_int => return .{ .specifier = specifier, .data = ty.data },
+        else => {},
     }
     return switch (specifier) {
-        .bit_int, .complex_bit_int => .{ .specifier = .bit_int, .data = .{ .int = ty.data.int } },
         else => .{
             .specifier = switch (specifier) {
                 // zig fmt: off
