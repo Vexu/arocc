@@ -7276,71 +7276,72 @@ fn getIntegerPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: Toke
     return buf;
 }
 
+fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) !Result {
+    var val: u64 = 0;
+    var overflow = false;
+    for (buf) |c| {
+        const digit: u64 = switch (c) {
+            '0'...'9' => c - '0',
+            'A'...'Z' => c - 'A' + 10,
+            'a'...'z' => c - 'a' + 10,
+            '\'' => continue,
+            else => unreachable,
+        };
+
+        if (val != 0) {
+            const mul_ov = @mulWithOverflow(val, base);
+            if (mul_ov[1] != 0) {
+                overflow = true;
+            }
+            val = mul_ov[0];
+        }
+        const add_ov = @addWithOverflow(val, digit);
+        if (add_ov[1] != 0) overflow = true;
+        val = add_ov[0];
+    }
+    if (overflow) {
+        try p.errTok(.int_literal_too_big, tok_i);
+        var res: Result = .{ .ty = .{ .specifier = .ulong_long }, .val = Value.int(val) };
+        res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+        if (!p.in_macro) try p.value_map.put(res.node, res.val);
+        return res;
+    }
+    if (suffix.isSignedInteger()) {
+        if (val > std.math.maxInt(i64)) {
+            try p.errTok(.implicitly_unsigned_literal, tok_i);
+        }
+    }
+    return if (base == 10)
+        switch (suffix) {
+            .None, .I => p.castInt(val, &.{ .int, .long, .long_long }),
+            .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+            .L, .IL => p.castInt(val, &.{ .long, .long_long }),
+            .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
+            .LL, .ILL => p.castInt(val, &.{.long_long}),
+            .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
+            else => unreachable,
+        }
+    else switch (suffix) {
+        .None, .I => p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
+        .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
+        .L, .IL => p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
+        .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
+        .LL, .ILL => p.castInt(val, &.{ .long_long, .ulong_long }),
+        .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
+        else => unreachable,
+    };
+}
+
 fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) !Result {
     if (prefix == .binary) {
         try p.errTok(.binary_integer_literal, tok_i);
     }
     const base = @enumToInt(prefix);
-    var res: Result = undefined;
-    if (suffix.isBitInt()) {
-        try p.errStr(.pre_c2x_compat, tok_i, "'_BitInt' suffix for literals");
-        try p.errTok(.bitint_suffix, tok_i);
-        res = try p.bitInt(base, buf, suffix, tok_i);
-    } else {
-        var val: u64 = 0;
-        var overflow = false;
-        for (buf) |c| {
-            const digit: u64 = switch (c) {
-                '0'...'9' => c - '0',
-                'A'...'Z' => c - 'A' + 10,
-                'a'...'z' => c - 'a' + 10,
-                '\'' => continue,
-                else => unreachable,
-            };
+    var res = if (suffix.isBitInt())
+        try p.bitInt(base, buf, suffix, tok_i)
+    else
+        try p.fixedSizeInt(base, buf, suffix, tok_i);
 
-            if (val != 0) {
-                const mul_ov = @mulWithOverflow(val, base);
-                if (mul_ov[1] != 0) {
-                    overflow = true;
-                }
-                val = mul_ov[0];
-            }
-            const add_ov = @addWithOverflow(val, digit);
-            if (add_ov[1] != 0) overflow = true;
-            val = add_ov[0];
-        }
-        if (overflow) {
-            try p.errTok(.int_literal_too_big, tok_i);
-            res = .{ .ty = .{ .specifier = .ulong_long }, .val = Value.int(val) };
-            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
-            if (!p.in_macro) try p.value_map.put(res.node, res.val);
-            return res;
-        }
-        if (suffix.isSignedInteger()) {
-            if (val > std.math.maxInt(i64)) {
-                try p.errTok(.implicitly_unsigned_literal, tok_i);
-            }
-        }
-        res = try if (base == 10)
-            switch (suffix) {
-                .None, .I => p.castInt(val, &.{ .int, .long, .long_long }),
-                .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-                .L, .IL => p.castInt(val, &.{ .long, .long_long }),
-                .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
-                .LL, .ILL => p.castInt(val, &.{.long_long}),
-                .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
-                else => unreachable,
-            }
-        else switch (suffix) {
-            .None, .I => p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
-            .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .L, .IL => p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
-            .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
-            .LL, .ILL => p.castInt(val, &.{ .long_long, .ulong_long }),
-            .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
-            else => unreachable,
-        };
-    }
     if (suffix.isImaginary()) {
         try p.errTok(.gnu_imaginary_constant, tok_i);
         res.ty = res.ty.makeComplex();
@@ -7351,6 +7352,9 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
 }
 
 fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) Error!Result {
+    try p.errStr(.pre_c2x_compat, tok_i, "'_BitInt' suffix for literals");
+    try p.errTok(.bitint_suffix, tok_i);
+
     var managed = try big.int.Managed.init(p.comp.gpa);
     defer managed.deinit();
 
