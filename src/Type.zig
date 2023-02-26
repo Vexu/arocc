@@ -679,25 +679,31 @@ pub fn getRecord(ty: Type) ?*const Type.Record {
 
 pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     var specifier = ty.specifier;
-    if (specifier == .@"enum") {
-        if (ty.hasIncompleteSize()) return .{ .specifier = .int };
-        specifier = ty.data.@"enum".tag_ty.specifier;
+    switch (specifier) {
+        .@"enum" => {
+            if (ty.hasIncompleteSize()) return .{ .specifier = .int };
+            specifier = ty.data.@"enum".tag_ty.specifier;
+        },
+        .bit_int, .complex_bit_int => return .{ .specifier = specifier, .data = ty.data },
+        else => {},
     }
-    return .{
-        .specifier = switch (specifier) {
-            // zig fmt: off
-            .bool, .char, .schar, .uchar, .short => .int,
-            .ushort => if (ty.sizeof(comp).? == sizeof(.{ .specifier = .int }, comp)) Specifier.uint else .int,
-            .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128, .complex_char,
-            .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
-            .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
-            .complex_int128, .complex_uint128, .bit_int, .complex_bit_int => specifier,
-            // zig fmt: on
-            .typeof_type => return ty.data.sub_type.integerPromotion(comp),
-            .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
-            .attributed => return ty.data.attributed.base.integerPromotion(comp),
-            .invalid => .invalid,
-            else => unreachable, // not an integer type
+    return switch (specifier) {
+        else => .{
+            .specifier = switch (specifier) {
+                // zig fmt: off
+                .bool, .char, .schar, .uchar, .short => .int,
+                .ushort => if (ty.sizeof(comp).? == sizeof(.{ .specifier = .int }, comp)) Specifier.uint else .int,
+                .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128, .complex_char,
+                .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
+                .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
+                .complex_int128, .complex_uint128 => specifier,
+                // zig fmt: on
+                .typeof_type => return ty.data.sub_type.integerPromotion(comp),
+                .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
+                .attributed => return ty.data.attributed.base.integerPromotion(comp),
+                .invalid => .invalid,
+                else => unreachable, // _BitInt, or not an integer type
+            },
         },
     };
 }
@@ -1586,7 +1592,7 @@ pub const Builder = struct {
                         return error.ParsingFailed;
                     }
                 }
-                if (bits > 128) {
+                if (bits > Compilation.bit_int_max_bits) {
                     try p.errStr(.bit_int_too_big, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
                     return error.ParsingFailed;
                 }
@@ -2449,7 +2455,12 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
             try ty.data.attributed.base.dump(mapper, langopts, w);
             try w.writeAll(")");
         },
-        else => try w.writeAll(Builder.fromType(ty).str(langopts).?),
+        else => {
+            try w.writeAll(Builder.fromType(ty).str(langopts).?);
+            if (ty.specifier == .bit_int or ty.specifier == .complex_bit_int) {
+                try w.print("({d})", .{ty.data.int.bits});
+            }
+        },
     }
 }
 
