@@ -677,6 +677,93 @@ pub fn getRecord(ty: Type) ?*const Type.Record {
     };
 }
 
+fn compareIntegerRanks(a: Type, b: Type, comp: *const Compilation) std.math.Order {
+    std.debug.assert(a.isInt() and b.isInt());
+    if (a.eql(b, comp, false)) return .eq;
+
+    const a_unsigned = a.isUnsignedInt(comp);
+    const b_unsigned = b.isUnsignedInt(comp);
+
+    const a_rank = a.integerRank(comp);
+    const b_rank = b.integerRank(comp);
+    if (a_unsigned == b_unsigned) {
+        return std.math.order(a_rank, b_rank);
+    }
+    if (a_unsigned) {
+        if (a_rank >= b_rank) return .gt;
+        return .lt;
+    }
+    std.debug.assert(b_unsigned);
+    if (b_rank >= a_rank) return .lt;
+    return .gt;
+}
+
+fn realIntegerConversion(a: Type, b: Type, comp: *const Compilation) Type {
+    std.debug.assert(a.isReal() and b.isReal());
+    const type_order = a.compareIntegerRanks(b, comp);
+    const a_signed = !a.isUnsignedInt(comp);
+    const b_signed = !b.isUnsignedInt(comp);
+    if (a_signed == b_signed) {
+        // If both have the same sign, use higher-rank type.
+        return switch (type_order) {
+            .lt => b,
+            .eq, .gt => a,
+        };
+    } else if (type_order != if (a_signed) std.math.Order.gt else std.math.Order.lt) {
+        // Only one is signed; and the unsigned type has rank >= the signed type
+        // Use the unsigned type
+        return if (b_signed) a else b;
+    } else if (a.bitSizeof(comp).? != b.bitSizeof(comp).?) {
+        // Signed type is higher rank and sizes are not equal
+        // Use the signed type
+        return if (a_signed) a else b;
+    } else {
+        // Signed type is higher rank but same size as unsigned type
+        // e.g. `long` and `unsigned` on x86-linux-gnu
+        // Use unsigned version of the signed type
+        return if (a_signed) a.makeIntegerUnsigned() else b.makeIntegerUnsigned();
+    }
+}
+
+pub fn makeIntegerUnsigned(ty: Type) Type {
+    // TODO discards attributed/typeof
+    var base = ty.canonicalize(.standard);
+    switch (base.specifier) {
+        // zig fmt: off
+        .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128,
+        .complex_uchar, .complex_ushort, .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128,
+        => return ty,
+        // zig fmt: on
+
+        .char, .complex_char => {
+            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 2);
+            return base;
+        },
+
+        // zig fmt: off
+        .schar, .short, .int, .long, .long_long, .int128,
+        .complex_schar, .complex_short, .complex_int, .complex_long, .complex_long_long, .complex_int128 => {
+            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 1);
+            return base;
+        },
+        // zig fmt: on
+
+        .bit_int, .complex_bit_int => {
+            base.data.int.signedness = .unsigned;
+            return base;
+        },
+        else => unreachable,
+    }
+}
+
+/// Find the common type of a and b for binary operations
+pub fn integerConversion(a: Type, b: Type, comp: *const Compilation) Type {
+    const a_real = a.isReal();
+    const b_real = b.isReal();
+    const target_ty = a.makeReal().realIntegerConversion(b.makeReal(), comp);
+    return if (a_real and b_real) target_ty else target_ty.makeComplex();
+}
+
 pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     var specifier = ty.specifier;
     switch (specifier) {
@@ -1159,6 +1246,25 @@ pub fn floatRank(ty: Type) usize {
         .long_double => 5,
         .float128 => 6,
         // TODO: ibm128 => 7
+        else => unreachable,
+    };
+}
+
+/// Rank for integer conversions, ignoring domain (complex vs real)
+/// Asserts that ty is an integer type
+pub fn integerRank(ty: Type, comp: *const Compilation) usize {
+    const real = ty.makeReal();
+    return switch (real.specifier) {
+        .bit_int => @as(usize, real.data.int.bits) << 3,
+
+        .bool => 1 + (ty.bitSizeof(comp).? << 3),
+        .char, .schar, .uchar => 2 + (ty.bitSizeof(comp).? << 3),
+        .short, .ushort => 3 + (ty.bitSizeof(comp).? << 3),
+        .int, .uint => 4 + (ty.bitSizeof(comp).? << 3),
+        .long, .ulong => 5 + (ty.bitSizeof(comp).? << 3),
+        .long_long, .ulong_long => 6 + (ty.bitSizeof(comp).? << 3),
+        .int128, .uint128 => 7 + (ty.bitSizeof(comp).? << 3),
+
         else => unreachable,
     };
 }
