@@ -1254,8 +1254,8 @@ pub fn floatRank(ty: Type) usize {
 /// Asserts that ty is an integer type
 pub fn integerRank(ty: Type, comp: *const Compilation) usize {
     const real = ty.makeReal();
-    return switch (real.specifier) {
-        .bit_int => @as(usize, real.data.int.bits) << 3,
+    return @intCast(usize, switch (real.specifier) {
+        .bit_int => @as(u64, real.data.int.bits) << 3,
 
         .bool => 1 + (ty.bitSizeof(comp).? << 3),
         .char, .schar, .uchar => 2 + (ty.bitSizeof(comp).? << 3),
@@ -1266,7 +1266,7 @@ pub fn integerRank(ty: Type, comp: *const Compilation) usize {
         .int128, .uint128 => 7 + (ty.bitSizeof(comp).? << 3),
 
         else => unreachable,
-    };
+    });
 }
 
 pub fn makeReal(ty: Type) Type {
