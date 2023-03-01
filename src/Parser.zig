@@ -4713,8 +4713,11 @@ const Result = struct {
                 res.ty = int_ty;
                 try res.implicitCast(p, .int_cast);
             } else if (old_real) {
-                res.ty = int_ty.makeReal();
-                try res.implicitCast(p, .int_cast);
+                const real_int_ty = int_ty.makeReal();
+                if (!res.ty.eql(real_int_ty, p.comp, false)) {
+                    res.ty = real_int_ty;
+                    try res.implicitCast(p, .int_cast);
+                }
                 res.ty = int_ty;
                 try res.implicitCast(p, .real_to_complex_int);
             } else if (new_real) {
