@@ -4903,6 +4903,10 @@ const Result = struct {
         }
 
         const target = a.ty.integerConversion(b.ty, p.comp);
+        if (!target.isReal()) {
+            try a.saveValue(p);
+            try b.saveValue(p);
+        }
         try a.intCast(p, target, tok);
         try b.intCast(p, target, tok);
     }

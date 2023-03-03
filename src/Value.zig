@@ -237,10 +237,6 @@ pub fn intCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
     if (v.tag == .unavailable) return;
     if (new_ty.is(.bool)) return v.toBool();
     if (!old_ty.isUnsignedInt(comp)) {
-        if (!new_ty.isReal()) {
-            v.* = .{ .tag = .unavailable };
-            return;
-        }
         const size = new_ty.sizeof(comp).?;
         switch (size) {
             1 => v.* = int(@bitCast(u8, v.getInt(i8))),
