@@ -1,13 +1,10 @@
-#pragma GCC diagnostic ignored "-Wunused-value"
+#include "include/test_helpers.h"
 
 void foo(void) {
-    (long double)1 + 1.fi;
-    1.i + 1.f;
-    (long double)1 + 1.;
-    1.fi + 1.f;
-    1.f + 1.f;
-    (long double)1.f + 1.f;
+    EXPECT_TYPE((long double)1 + 1.fi, _Complex long double);
+    EXPECT_TYPE(1.i + 1.f, _Complex double);
+    EXPECT_TYPE((long double)1 + 1., long double);
+    EXPECT_TYPE(1.fi + 1.f, _Complex float);
+    EXPECT_TYPE(1.f + 1.f, float);
+    EXPECT_TYPE((long double)1.f + 1.f, long double);
 }
-
-#define EXPECTED_TYPES "_Complex long double" "_Complex double" "long double" \
-    "_Complex float" "float" "long double"
