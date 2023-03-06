@@ -1154,6 +1154,23 @@ pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) 
     return max_requested;
 }
 
+/// Checks type compatibility for __builtin_types_compatible_p
+/// Returns true if the unqualified version of `a_param` and `b_param` are the same
+/// Ignores top-level qualifiers (e.g. `int` and `const int` are compatible) but `int *` and `const int *` are not
+/// Two types that are typedefed are considered compatible if their underlying types are compatible.
+/// An enum type is not considered to be compatible with another enum type even if both are compatible with the same integer type;
+/// `A[]` and `A[N]` for a type `A` and integer `N` are compatible
+pub fn compatible(a_param: Type, b_param: Type, comp: *const Compilation) bool {
+    var a_unqual = a_param;
+    a_unqual.qual.@"const" = false;
+    a_unqual.qual.@"volatile" = false;
+    var b_unqual = b_param;
+    b_unqual.qual.@"const" = false;
+    b_unqual.qual.@"volatile" = false;
+
+    return (a_unqual.eql(b_unqual, comp, true));
+}
+
 pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifiers: bool) bool {
     const a = a_param.canonicalize(.standard);
     const b = b_param.canonicalize(.standard);

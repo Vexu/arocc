@@ -5827,10 +5827,39 @@ fn castExpr(p: *Parser) Error!Result {
         .builtin_va_arg => return p.builtinVaArg(),
         .builtin_offsetof => return p.builtinOffsetof(false),
         .builtin_bitoffsetof => return p.builtinOffsetof(true),
+        .builtin_types_compatible_p => return p.typesCompatible(),
         // TODO: other special-cased builtins
         else => {},
     }
     return p.unExpr();
+}
+
+fn typesCompatible(p: *Parser) Error!Result {
+    p.tok_i += 1;
+    const l_paren = try p.expectToken(.l_paren);
+
+    const first = (try p.typeName()) orelse {
+        try p.err(.expected_type);
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    };
+
+    _ = try p.expectToken(.comma);
+
+    const second = (try p.typeName()) orelse {
+        try p.err(.expected_type);
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    };
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    const compatible = first.compatible(second, p.comp);
+    var res = Result{
+        .val = Value.int(@boolToInt(compatible)),
+        .node = try p.addNode(.{ .tag = .int_literal, .ty = Type.int, .data = .{ .int = @boolToInt(compatible) } }),
+    };
+    return res;
 }
 
 fn builtinChooseExpr(p: *Parser) Error!Result {
