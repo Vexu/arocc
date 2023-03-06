@@ -5843,7 +5843,7 @@ fn typesCompatible(p: *Parser) Error!Result {
         p.skipTo(.r_paren);
         return error.ParsingFailed;
     };
-
+    const lhs = try p.addNode(.{ .tag = .invalid, .ty = first, .data = undefined });
     _ = try p.expectToken(.comma);
 
     const second = (try p.typeName()) orelse {
@@ -5851,14 +5851,20 @@ fn typesCompatible(p: *Parser) Error!Result {
         p.skipTo(.r_paren);
         return error.ParsingFailed;
     };
+    const rhs = try p.addNode(.{ .tag = .invalid, .ty = second, .data = undefined });
 
     try p.expectClosing(l_paren, .r_paren);
 
     const compatible = first.compatible(second, p.comp);
+
     var res = Result{
         .val = Value.int(@boolToInt(compatible)),
-        .node = try p.addNode(.{ .tag = .int_literal, .ty = Type.int, .data = .{ .int = @boolToInt(compatible) } }),
+        .node = try p.addNode(.{ .tag = .builtin_types_compatible_p, .ty = Type.int, .data = .{ .bin = .{
+            .lhs = lhs,
+            .rhs = rhs,
+        } } }),
     };
+    try p.value_map.put(res.node, res.val);
     return res;
 }
 
