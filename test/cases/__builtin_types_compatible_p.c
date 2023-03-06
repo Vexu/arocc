@@ -27,3 +27,10 @@ _Static_assert(__builtin_types_compatible_p(__typeof__(x), __typeof__(volatile i
 _Static_assert(!__builtin_types_compatible_p(const int*, int *));
 _Static_assert(!__builtin_types_compatible_p(enum A, enum B));
 _Static_assert(!__builtin_types_compatible_p(__typeof__("Hello"), char *));
+
+_Static_assert(__builtin_types_compatible_p(int, long));
+_Static_assert(__builtin_types_compatible_p(__typeof__(const int) *, int *), "Types do not match");
+
+#define EXPECTED_ERRORS "__builtin_types_compatible_p.c:31:1: error: static assertion failed '__builtin_types_compatible_p(int, long)'" \
+	"__builtin_types_compatible_p.c:32:1: error: static assertion failed '__builtin_types_compatible_p(const int *, int *)' \"Types do not match\"" \
+
