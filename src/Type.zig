@@ -1845,7 +1845,9 @@ pub const Builder = struct {
                 ty.data = .{ .attributed = data };
             },
         }
-        if (!ty.isReal() and ty.isInt()) try p.errTok(.complex_int, b.complex_tok.?);
+        if (!ty.isReal() and ty.isInt()) {
+            if (b.complex_tok) |tok| try p.errTok(.complex_int, tok);
+        }
         try b.qual.finish(p, &ty);
         return ty;
     }
