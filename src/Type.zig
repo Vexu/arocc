@@ -1161,10 +1161,10 @@ pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) 
 /// An enum type is not considered to be compatible with another enum type even if both are compatible with the same integer type;
 /// `A[]` and `A[N]` for a type `A` and integer `N` are compatible
 pub fn compatible(a_param: Type, b_param: Type, comp: *const Compilation) bool {
-    var a_unqual = a_param;
+    var a_unqual = a_param.canonicalize(.standard);
     a_unqual.qual.@"const" = false;
     a_unqual.qual.@"volatile" = false;
-    var b_unqual = b_param;
+    var b_unqual = b_param.canonicalize(.standard);
     b_unqual.qual.@"const" = false;
     b_unqual.qual.@"volatile" = false;
 
