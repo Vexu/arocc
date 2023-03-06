@@ -1168,7 +1168,15 @@ pub fn compatible(a_param: Type, b_param: Type, comp: *const Compilation) bool {
     b_unqual.qual.@"const" = false;
     b_unqual.qual.@"volatile" = false;
 
-    return (a_unqual.eql(b_unqual, comp, true));
+    if (a_unqual.eql(b_unqual, comp, true)) return true;
+    if (!a_unqual.isArray() or !b_unqual.isArray()) return false;
+
+    if (a_unqual.arrayLen() == null or b_unqual.arrayLen() == null) {
+        // incomplete arrays are compatible with arrays of the same element type
+        // GCC and clang ignore cv-qualifiers on arrays
+        return a_unqual.elemType().compatible(b_unqual.elemType(), comp);
+    }
+    return false;
 }
 
 pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifiers: bool) bool {
