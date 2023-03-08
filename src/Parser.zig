@@ -4713,8 +4713,11 @@ const Result = struct {
                 res.ty = int_ty;
                 try res.implicitCast(p, .int_cast);
             } else if (old_real) {
-                res.ty = int_ty.makeReal();
-                try res.implicitCast(p, .int_cast);
+                const real_int_ty = int_ty.makeReal();
+                if (!res.ty.eql(real_int_ty, p.comp, false)) {
+                    res.ty = real_int_ty;
+                    try res.implicitCast(p, .int_cast);
+                }
                 res.ty = int_ty;
                 try res.implicitCast(p, .real_to_complex_int);
             } else if (new_real) {
@@ -4899,30 +4902,13 @@ const Result = struct {
             return;
         }
 
-        const a_unsigned = a.ty.isUnsignedInt(p.comp);
-        const b_unsigned = b.ty.isUnsignedInt(p.comp);
-        if (a_unsigned == b_unsigned) {
-            // cast to greater signed or unsigned type
-            const res_spec = std.math.max(@enumToInt(a.ty.specifier), @enumToInt(b.ty.specifier));
-            const res_ty = Type{ .specifier = @intToEnum(Type.Specifier, res_spec) };
-            try a.intCast(p, res_ty, tok);
-            try b.intCast(p, res_ty, tok);
-            return;
+        const target = a.ty.integerConversion(b.ty, p.comp);
+        if (!target.isReal()) {
+            try a.saveValue(p);
+            try b.saveValue(p);
         }
-
-        // cast to the unsigned type with greater rank
-        const a_larger = @enumToInt(a.ty.specifier) > @enumToInt(b.ty.specifier);
-        const b_larger = @enumToInt(b.ty.specifier) > @enumToInt(a.ty.specifier);
-        if (a_unsigned) {
-            const target = if (a_larger) a.ty else b.ty;
-            try a.intCast(p, target, tok);
-            try b.intCast(p, target, tok);
-        } else {
-            assert(b_unsigned);
-            const target = if (b_larger) b.ty else a.ty;
-            try a.intCast(p, target, tok);
-            try b.intCast(p, target, tok);
-        }
+        try a.intCast(p, target, tok);
+        try b.intCast(p, target, tok);
     }
 
     fn floatConversion(a: *Result, b: *Result, a_spec: Type.Specifier, b_spec: Type.Specifier, p: *Parser, pair: [2]Type.Specifier) !bool {
