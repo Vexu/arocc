@@ -1008,6 +1008,43 @@ fn decl(p: *Parser) Error!bool {
     return true;
 }
 
+fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]const u8 {
+    const cond_tag = p.nodes.items(.tag)[@enumToInt(cond_node)];
+    if (cond_tag != .builtin_types_compatible_p and message.node == .none) return null;
+
+    var buf = std.ArrayList(u8).init(p.gpa);
+    defer buf.deinit();
+
+    if (cond_tag == .builtin_types_compatible_p) {
+        const mapper = p.comp.string_interner.getSlowTypeMapper();
+        const data = p.nodes.items(.data)[@enumToInt(cond_node)].bin;
+
+        try buf.appendSlice("'__builtin_types_compatible_p(");
+
+        const lhs_ty = p.nodes.items(.ty)[@enumToInt(data.lhs)];
+        try lhs_ty.print(mapper, p.comp.langopts, buf.writer());
+        try buf.appendSlice(", ");
+
+        const rhs_ty = p.nodes.items(.ty)[@enumToInt(data.rhs)];
+        try rhs_ty.print(mapper, p.comp.langopts, buf.writer());
+
+        try buf.appendSlice(")'");
+    }
+    if (message.node != .none) {
+        if (buf.items.len > 0) {
+            try buf.append(' ');
+        }
+        const data = message.val.data.bytes;
+        try buf.ensureUnusedCapacity(data.len);
+        try Tree.dumpStr(
+            data,
+            p.nodes.items(.tag)[@enumToInt(message.node)],
+            buf.writer(),
+        );
+    }
+    return try p.comp.diag.arena.allocator().dupe(u8, buf.items);
+}
+
 /// staticAssert
 ///    : keyword_static_assert '(' integerConstExpr (',' STRING_LITERAL)? ')' ';'
 ///    | keyword_c23_static_assert '(' integerConstExpr (',' STRING_LITERAL)? ')' ';'
@@ -1016,6 +1053,7 @@ fn staticAssert(p: *Parser) Error!bool {
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
     var res = try p.constExpr(.gnu_folding_extension);
+    const res_node = res.node;
     const str = if (p.eatToken(.comma) != null)
         switch (p.tok_ids[p.tok_i]) {
             .string_literal,
@@ -1054,23 +1092,11 @@ fn staticAssert(p: *Parser) Error!bool {
         }
     } else {
         if (!res.val.getBool()) {
-            if (str.node != .none) {
-                var buf = std.ArrayList(u8).init(p.gpa);
-                defer buf.deinit();
-
-                const data = str.val.data.bytes;
-                try buf.ensureUnusedCapacity(data.len);
-                try Tree.dumpStr(
-                    data,
-                    p.nodes.items(.tag)[@enumToInt(str.node)],
-                    buf.writer(),
-                );
-                try p.errStr(
-                    .static_assert_failure_message,
-                    static_assert,
-                    try p.comp.diag.arena.allocator().dupe(u8, buf.items),
-                );
-            } else try p.errTok(.static_assert_failure, static_assert);
+            if (try p.staticAssertMessage(res_node, str)) |message| {
+                try p.errStr(.static_assert_failure_message, static_assert, message);
+            } else {
+                try p.errTok(.static_assert_failure, static_assert);
+            }
         }
     }
 
@@ -5827,10 +5853,45 @@ fn castExpr(p: *Parser) Error!Result {
         .builtin_va_arg => return p.builtinVaArg(),
         .builtin_offsetof => return p.builtinOffsetof(false),
         .builtin_bitoffsetof => return p.builtinOffsetof(true),
+        .builtin_types_compatible_p => return p.typesCompatible(),
         // TODO: other special-cased builtins
         else => {},
     }
     return p.unExpr();
+}
+
+fn typesCompatible(p: *Parser) Error!Result {
+    p.tok_i += 1;
+    const l_paren = try p.expectToken(.l_paren);
+
+    const first = (try p.typeName()) orelse {
+        try p.err(.expected_type);
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    };
+    const lhs = try p.addNode(.{ .tag = .invalid, .ty = first, .data = undefined });
+    _ = try p.expectToken(.comma);
+
+    const second = (try p.typeName()) orelse {
+        try p.err(.expected_type);
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    };
+    const rhs = try p.addNode(.{ .tag = .invalid, .ty = second, .data = undefined });
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    const compatible = first.compatible(second, p.comp);
+
+    var res = Result{
+        .val = Value.int(@boolToInt(compatible)),
+        .node = try p.addNode(.{ .tag = .builtin_types_compatible_p, .ty = Type.int, .data = .{ .bin = .{
+            .lhs = lhs,
+            .rhs = rhs,
+        } } }),
+    };
+    try p.value_map.put(res.node, res.val);
+    return res;
 }
 
 fn builtinChooseExpr(p: *Parser) Error!Result {

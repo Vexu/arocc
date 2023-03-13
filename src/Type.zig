@@ -1154,6 +1154,31 @@ pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) 
     return max_requested;
 }
 
+/// Checks type compatibility for __builtin_types_compatible_p
+/// Returns true if the unqualified version of `a_param` and `b_param` are the same
+/// Ignores top-level qualifiers (e.g. `int` and `const int` are compatible) but `int *` and `const int *` are not
+/// Two types that are typedefed are considered compatible if their underlying types are compatible.
+/// An enum type is not considered to be compatible with another enum type even if both are compatible with the same integer type;
+/// `A[]` and `A[N]` for a type `A` and integer `N` are compatible
+pub fn compatible(a_param: Type, b_param: Type, comp: *const Compilation) bool {
+    var a_unqual = a_param.canonicalize(.standard);
+    a_unqual.qual.@"const" = false;
+    a_unqual.qual.@"volatile" = false;
+    var b_unqual = b_param.canonicalize(.standard);
+    b_unqual.qual.@"const" = false;
+    b_unqual.qual.@"volatile" = false;
+
+    if (a_unqual.eql(b_unqual, comp, true)) return true;
+    if (!a_unqual.isArray() or !b_unqual.isArray()) return false;
+
+    if (a_unqual.arrayLen() == null or b_unqual.arrayLen() == null) {
+        // incomplete arrays are compatible with arrays of the same element type
+        // GCC and clang ignore cv-qualifiers on arrays
+        return a_unqual.elemType().compatible(b_unqual.elemType(), comp);
+    }
+    return false;
+}
+
 pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifiers: bool) bool {
     const a = a_param.canonicalize(.standard);
     const b = b_param.canonicalize(.standard);
@@ -1820,7 +1845,9 @@ pub const Builder = struct {
                 ty.data = .{ .attributed = data };
             },
         }
-        if (!ty.isReal() and ty.isInt()) try p.errTok(.complex_int, b.complex_tok.?);
+        if (!ty.isReal() and ty.isInt()) {
+            if (b.complex_tok) |tok| try p.errTok(.complex_int, tok);
+        }
         try b.qual.finish(p, &ty);
         return ty;
     }

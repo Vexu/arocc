@@ -242,7 +242,8 @@ pub const CastKind = enum(u8) {
 };
 
 pub const Tag = enum(u8) {
-    /// Only appears at index 0 and reaching it is always a result of a bug.
+    /// Must appear at index 0. Also used as the tag for __builtin_types_compatible_p arguments, since the arguments are types
+    /// Reaching it is always the result of a bug.
     invalid,
 
     // ====== Decl ======
@@ -494,6 +495,8 @@ pub const Tag = enum(u8) {
     generic_default_expr,
     /// __builtin_choose_expr(lhs, data[0], data[1])
     builtin_choose_expr,
+    /// __builtin_types_compatible_p(lhs, rhs)
+    builtin_types_compatible_p,
     /// decl - special builtins require custom parsing
     special_builtin_call_one,
     /// ({ un })
@@ -959,6 +962,28 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("else:\n");
             try tree.dumpNode(tree.data[data.if3.body + 1], level + delta, mapper, color, w);
+        },
+        .builtin_types_compatible_p => {
+            std.debug.assert(tree.nodes.items(.tag)[@enumToInt(data.bin.lhs)] == .invalid);
+            std.debug.assert(tree.nodes.items(.tag)[@enumToInt(data.bin.rhs)] == .invalid);
+
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("lhs: ");
+
+            const lhs_ty = tree.nodes.items(.ty)[@enumToInt(data.bin.lhs)];
+            if (color) util.setColor(TYPE, w);
+            try lhs_ty.dump(mapper, tree.comp.langopts, w);
+            if (color) util.setColor(.reset, w);
+            try w.writeByte('\n');
+
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("rhs: ");
+
+            const rhs_ty = tree.nodes.items(.ty)[@enumToInt(data.bin.rhs)];
+            if (color) util.setColor(TYPE, w);
+            try rhs_ty.dump(mapper, tree.comp.langopts, w);
+            if (color) util.setColor(.reset, w);
+            try w.writeByte('\n');
         },
         .if_then_stmt => {
             try w.writeByteNTimes(' ', level + half);

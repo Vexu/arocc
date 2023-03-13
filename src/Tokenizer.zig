@@ -268,6 +268,7 @@ pub const Token = struct {
         builtin_va_arg,
         builtin_offsetof,
         builtin_bitoffsetof,
+        builtin_types_compatible_p,
 
         /// preprocessor number
         /// An optional period, followed by a digit 0-9, followed by any number of letters
@@ -363,6 +364,7 @@ pub const Token = struct {
                 .builtin_va_arg,
                 .builtin_offsetof,
                 .builtin_bitoffsetof,
+                .builtin_types_compatible_p,
                 .keyword_attribute1,
                 .keyword_attribute2,
                 .keyword_extension,
@@ -621,6 +623,7 @@ pub const Token = struct {
                 .builtin_va_arg => "__builtin_va_arg",
                 .builtin_offsetof => "__builtin_offsetof",
                 .builtin_bitoffsetof => "__builtin_bitoffsetof",
+                .builtin_types_compatible_p => "__builtin_types_compatible_p",
                 .keyword_attribute1 => "__attribute",
                 .keyword_attribute2 => "__attribute__",
                 .keyword_extension => "__extension__",
@@ -666,6 +669,7 @@ pub const Token = struct {
                 .builtin_va_arg,
                 .builtin_offsetof,
                 .builtin_bitoffsetof,
+                .builtin_types_compatible_p,
                 => "an identifier",
                 .string_literal,
                 .string_literal_utf_16,
@@ -929,6 +933,7 @@ pub const Token = struct {
         .{ "__builtin_va_arg", .builtin_va_arg },
         .{ "__builtin_offsetof", .builtin_offsetof },
         .{ "__builtin_bitoffsetof", .builtin_bitoffsetof },
+        .{ "__builtin_types_compatible_p", .builtin_types_compatible_p },
     });
 };
 
