@@ -242,7 +242,8 @@ pub const CastKind = enum(u8) {
 };
 
 pub const Tag = enum(u8) {
-    /// Only appears at index 0 and reaching it is always a result of a bug.
+    /// Must appear at index 0. Also used as the tag for __builtin_types_compatible_p arguments, since the arguments are types
+    /// Reaching it is always the result of a bug.
     invalid,
 
     // ====== Decl ======
@@ -963,6 +964,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try tree.dumpNode(tree.data[data.if3.body + 1], level + delta, mapper, color, w);
         },
         .builtin_types_compatible_p => {
+            std.debug.assert(tree.nodes.items(.tag)[@enumToInt(data.bin.lhs)] == .invalid);
+            std.debug.assert(tree.nodes.items(.tag)[@enumToInt(data.bin.rhs)] == .invalid);
+
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("lhs: ");
 
