@@ -991,6 +991,51 @@ pub const IncludeType = enum {
     angle_brackets,
 };
 
+fn getFileContents(comp: *Compilation, path: []const u8) ![]const u8 {
+    if (mem.indexOfScalar(u8, path, 0) != null) {
+        return error.FileNotFound;
+    }
+
+    const file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+
+    return file.readToEndAlloc(comp.gpa, std.math.maxInt(u32));
+}
+
+pub fn findEmbed(
+    comp: *Compilation,
+    filename: []const u8,
+    includer_token_source: Source.Id,
+    /// angle bracket vs quotes
+    include_type: IncludeType,
+) !?[]const u8 {
+    var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    if (std.fs.path.isAbsolute(filename)) {
+        return if (comp.getFileContents(filename)) |some|
+            some
+        else |err| switch (err) {
+            error.OutOfMemory => |e| return e,
+            else => null,
+        };
+    }
+
+    const cwd_source_id = switch (include_type) {
+        .quotes => includer_token_source,
+        .angle_brackets => null,
+    };
+    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id, .path_buf = &path_buf };
+
+    while (it.nextWithFile(filename)) |path| {
+        if (comp.getFileContents(path)) |some|
+            return some
+        else |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            else => {},
+        }
+    }
+    return null;
+}
+
 pub fn findInclude(
     comp: *Compilation,
     filename: []const u8,
