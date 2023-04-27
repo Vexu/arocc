@@ -63,7 +63,7 @@ pub fn main() !void {
     const alloc = fixed_alloc.allocator();
     defer {
         gpa.free(fixed_buffer);
-        if (general_purpose_allocator.deinit()) std.process.exit(1);
+        if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
     }
 
     var args = try std.process.argsAlloc(gpa);
