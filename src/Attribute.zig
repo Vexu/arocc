@@ -93,11 +93,13 @@ fn getArguments(comptime descriptor: type) []const ZigType.StructField {
 /// number of required arguments
 pub fn requiredArgCount(attr: Tag) u32 {
     switch (attr) {
-        inline else => |tag| comptime {
-            var needed = 0;
-            const fields = getArguments(@field(attributes, @tagName(tag)));
-            for (fields) |arg_field| {
-                if (!mem.eql(u8, arg_field.name, "__name_tok") and @typeInfo(arg_field.type) != .Optional) needed += 1;
+        inline else => |tag| {
+            comptime var needed = 0;
+            comptime {
+                const fields = getArguments(@field(attributes, @tagName(tag)));
+                for (fields) |arg_field| {
+                    if (!mem.eql(u8, arg_field.name, "__name_tok") and @typeInfo(arg_field.type) != .Optional) needed += 1;
+                }
             }
             return needed;
         },
@@ -107,11 +109,13 @@ pub fn requiredArgCount(attr: Tag) u32 {
 /// maximum number of args that can be passed
 pub fn maxArgCount(attr: Tag) u32 {
     switch (attr) {
-        inline else => |tag| comptime {
-            const fields = getArguments(@field(attributes, @tagName(tag)));
-            var max = 0;
-            for (fields) |arg_field| {
-                if (!mem.eql(u8, arg_field.name, "__name_tok")) max += 1;
+        inline else => |tag| {
+            comptime var max = 0;
+            comptime {
+                const fields = getArguments(@field(attributes, @tagName(tag)));
+                for (fields) |arg_field| {
+                    if (!mem.eql(u8, arg_field.name, "__name_tok")) max += 1;
+                }
             }
             return max;
         },
