@@ -375,18 +375,26 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         }
                         switch (if_kind.get(if_level)) {
                             until_else => {
-                                const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
-                                try pp.expectNl(&tokenizer);
-                                if (pp.defines.get(macro_name) != null) {
-                                    if_kind.set(if_level, until_endif);
-                                    if (pp.verbose) {
-                                        pp.verboseLog(directive, "entering then branch of #elifdef", .{});
-                                    }
-                                } else {
+                                const macro_name = try pp.expectMacroName(&tokenizer);
+                                if (macro_name == null) {
                                     if_kind.set(if_level, until_else);
                                     try pp.skip(&tokenizer, .until_else);
                                     if (pp.verbose) {
                                         pp.verboseLog(directive, "entering else branch of #elifdef", .{});
+                                    }
+                                } else {
+                                    try pp.expectNl(&tokenizer);
+                                    if (pp.defines.get(macro_name.?) != null) {
+                                        if_kind.set(if_level, until_endif);
+                                        if (pp.verbose) {
+                                            pp.verboseLog(directive, "entering then branch of #elifdef", .{});
+                                        }
+                                    } else {
+                                        if_kind.set(if_level, until_else);
+                                        try pp.skip(&tokenizer, .until_else);
+                                        if (pp.verbose) {
+                                            pp.verboseLog(directive, "entering else branch of #elifdef", .{});
+                                        }
                                     }
                                 }
                             },
@@ -408,18 +416,26 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         }
                         switch (if_kind.get(if_level)) {
                             until_else => {
-                                const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
-                                try pp.expectNl(&tokenizer);
-                                if (pp.defines.get(macro_name) == null) {
-                                    if_kind.set(if_level, until_endif);
-                                    if (pp.verbose) {
-                                        pp.verboseLog(directive, "entering then branch of #elifndef", .{});
-                                    }
-                                } else {
+                                const macro_name = try pp.expectMacroName(&tokenizer);
+                                if (macro_name == null) {
                                     if_kind.set(if_level, until_else);
                                     try pp.skip(&tokenizer, .until_else);
                                     if (pp.verbose) {
                                         pp.verboseLog(directive, "entering else branch of #elifndef", .{});
+                                    }
+                                } else {
+                                    try pp.expectNl(&tokenizer);
+                                    if (pp.defines.get(macro_name.?) == null) {
+                                        if_kind.set(if_level, until_endif);
+                                        if (pp.verbose) {
+                                            pp.verboseLog(directive, "entering then branch of #elifndef", .{});
+                                        }
+                                    } else {
+                                        if_kind.set(if_level, until_else);
+                                        try pp.skip(&tokenizer, .until_else);
+                                        if (pp.verbose) {
+                                            pp.verboseLog(directive, "entering else branch of #elifndef", .{});
+                                        }
                                     }
                                 }
                             },
