@@ -187,6 +187,22 @@ const messages = struct {
         const msg = "#elif after #else";
         const kind = .@"error";
     };
+    const elifdef_without_if = struct {
+        const msg = "#elifdef without #if";
+        const kind = .@"error";
+    };
+    const elifdef_after_else = struct {
+        const msg = "#elifdef after #else";
+        const kind = .@"error";
+    };
+    const elifndef_without_if = struct {
+        const msg = "#elifndef without #if";
+        const kind = .@"error";
+    };
+    const elifndef_after_else = struct {
+        const msg = "#elifndef after #else";
+        const kind = .@"error";
+    };
     const else_without_if = struct {
         const msg = "#else without #if";
         const kind = .@"error";

@@ -94,7 +94,7 @@ pub fn build(b: *Build) !void {
     if (link_libc) {
         exe.linkLibC();
     }
-    exe.install();
+    b.installArtifact(exe);
 
     const tests_step = b.step("test", "Run all tests");
     tests_step.dependOn(&exe.step);
@@ -112,7 +112,7 @@ pub fn build(b: *Build) !void {
     integration_tests.addOptions("build_options", test_runner_options);
     test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
 
-    const integration_test_runner = integration_tests.run();
+    const integration_test_runner = b.addRunArtifact(integration_tests);
     integration_test_runner.addArg(b.pathFromRoot("test/cases"));
     integration_test_runner.addArg(b.zig_exe);
 
@@ -121,7 +121,7 @@ pub fn build(b: *Build) !void {
         .root_source_file = .{ .path = "test/record_runner.zig" },
     });
     record_tests.addModule("aro", aro_module);
-    const record_tests_runner = record_tests.run();
+    const record_tests_runner = b.addRunArtifact(record_tests);
     record_tests_runner.addArg(b.pathFromRoot("test/records"));
     record_tests_runner.addArg(b.zig_exe);
 

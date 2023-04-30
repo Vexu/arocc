@@ -365,6 +365,88 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             else => unreachable,
                         }
                     },
+                    .keyword_elifdef => {
+                        if (if_level == 0) {
+                            try pp.err(directive, .elifdef_without_if);
+                            if_level += 1;
+                            if_kind.set(if_level, until_else);
+                        } else if (if_level == 1) {
+                            guard_name = null;
+                        }
+                        switch (if_kind.get(if_level)) {
+                            until_else => {
+                                const macro_name = try pp.expectMacroName(&tokenizer);
+                                if (macro_name == null) {
+                                    if_kind.set(if_level, until_else);
+                                    try pp.skip(&tokenizer, .until_else);
+                                    if (pp.verbose) {
+                                        pp.verboseLog(directive, "entering else branch of #elifdef", .{});
+                                    }
+                                } else {
+                                    try pp.expectNl(&tokenizer);
+                                    if (pp.defines.get(macro_name.?) != null) {
+                                        if_kind.set(if_level, until_endif);
+                                        if (pp.verbose) {
+                                            pp.verboseLog(directive, "entering then branch of #elifdef", .{});
+                                        }
+                                    } else {
+                                        if_kind.set(if_level, until_else);
+                                        try pp.skip(&tokenizer, .until_else);
+                                        if (pp.verbose) {
+                                            pp.verboseLog(directive, "entering else branch of #elifdef", .{});
+                                        }
+                                    }
+                                }
+                            },
+                            until_endif => try pp.skip(&tokenizer, .until_endif),
+                            until_endif_seen_else => {
+                                try pp.err(directive, .elifdef_after_else);
+                                skipToNl(&tokenizer);
+                            },
+                            else => unreachable,
+                        }
+                    },
+                    .keyword_elifndef => {
+                        if (if_level == 0) {
+                            try pp.err(directive, .elifdef_without_if);
+                            if_level += 1;
+                            if_kind.set(if_level, until_else);
+                        } else if (if_level == 1) {
+                            guard_name = null;
+                        }
+                        switch (if_kind.get(if_level)) {
+                            until_else => {
+                                const macro_name = try pp.expectMacroName(&tokenizer);
+                                if (macro_name == null) {
+                                    if_kind.set(if_level, until_else);
+                                    try pp.skip(&tokenizer, .until_else);
+                                    if (pp.verbose) {
+                                        pp.verboseLog(directive, "entering else branch of #elifndef", .{});
+                                    }
+                                } else {
+                                    try pp.expectNl(&tokenizer);
+                                    if (pp.defines.get(macro_name.?) == null) {
+                                        if_kind.set(if_level, until_endif);
+                                        if (pp.verbose) {
+                                            pp.verboseLog(directive, "entering then branch of #elifndef", .{});
+                                        }
+                                    } else {
+                                        if_kind.set(if_level, until_else);
+                                        try pp.skip(&tokenizer, .until_else);
+                                        if (pp.verbose) {
+                                            pp.verboseLog(directive, "entering else branch of #elifndef", .{});
+                                        }
+                                    }
+                                }
+                            },
+                            until_endif => try pp.skip(&tokenizer, .until_endif),
+                            until_endif_seen_else => {
+                                try pp.err(directive, .elifdef_after_else);
+                                skipToNl(&tokenizer);
+                            },
+                            else => unreachable,
+                        }
+                    },
                     .keyword_else => {
                         try pp.expectNl(&tokenizer);
                         if (if_level == 0) {
@@ -807,6 +889,24 @@ fn skip(
                     if (ifs_seen != 0 or cont == .until_endif) continue;
                     if (cont == .until_endif_seen_else) {
                         try pp.err(directive, .elif_after_else);
+                        continue;
+                    }
+                    tokenizer.* = saved_tokenizer;
+                    return;
+                },
+                .keyword_elifdef => {
+                    if (ifs_seen != 0 or cont == .until_endif) continue;
+                    if (cont == .until_endif_seen_else) {
+                        try pp.err(directive, .elifdef_after_else);
+                        continue;
+                    }
+                    tokenizer.* = saved_tokenizer;
+                    return;
+                },
+                .keyword_elifndef => {
+                    if (ifs_seen != 0 or cont == .until_endif) continue;
+                    if (cont == .until_endif_seen_else) {
+                        try pp.err(directive, .elifndef_after_else);
                         continue;
                     }
                     tokenizer.* = saved_tokenizer;
@@ -2452,6 +2552,8 @@ test "Include guards" {
         fn pairsWithIfndef(tok_id: RawToken.Id) bool {
             return switch (tok_id) {
                 .keyword_elif,
+                .keyword_elifdef,
+                .keyword_elifndef,
                 .keyword_else,
                 => true,
 
