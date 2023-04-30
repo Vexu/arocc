@@ -6975,6 +6975,22 @@ fn primaryExpr(p: *Parser) Error!Result {
             return res;
         },
         .pp_num => return p.ppNum(),
+        .embed_byte => {
+            assert(!p.in_macro);
+            const loc = p.pp.tokens.items(.loc)[p.tok_i];
+            p.tok_i += 1;
+            const buf = p.comp.getSource(.generated).buf[loc.byte_offset..];
+            var byte: u8 = buf[0] - '0';
+            for (buf[1..]) |c| {
+                if (!std.ascii.isDigit(c)) break;
+                byte *= 10;
+                byte += c - '0';
+            }
+            var res: Result = .{ .val = Value.int(byte) };
+            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+            try p.value_map.put(res.node, res.val);
+            return res;
+        },
         .keyword_generic => return p.genericSelection(),
         else => return Result{},
     }

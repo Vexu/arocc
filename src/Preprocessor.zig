@@ -509,6 +509,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             try pp.include(&tokenizer, .next);
                         }
                     },
+                    .keyword_embed => try pp.embed(&tokenizer),
                     .keyword_pragma => try pp.pragma(&tokenizer, directive, null, &.{}),
                     .keyword_line => {
                         // #line number "file"
@@ -2243,6 +2244,55 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
             .line = end_index,
         },
     });
+}
+
+/// Handle an #embed directive
+fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
+    const first = tokenizer.nextNoWS();
+    const filename_tok = pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof) catch |er| switch (er) {
+        error.InvalidInclude => return,
+        else => |e| return e,
+    };
+
+    // Check for empty filename.
+    const tok_slice = pp.expandedSlice(filename_tok);
+    if (tok_slice.len < 3) {
+        try pp.err(first, .empty_filename);
+        return;
+    }
+    const filename = tok_slice[1 .. tok_slice.len - 1];
+    const include_type: Compilation.IncludeType = switch (filename_tok.id) {
+        .string_literal => .quotes,
+        .macro_string => .angle_brackets,
+        else => unreachable,
+    };
+
+    const embed_bytes = (try pp.comp.findEmbed(filename, first.source, include_type)) orelse return pp.fatal(first, "'{s}' not found", .{filename});
+    defer pp.comp.gpa.free(embed_bytes);
+
+    if (embed_bytes.len == 0) return;
+
+    try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, 2 * embed_bytes.len - 1); // N bytes and N-1 commas
+
+    // TODO: We currently only support systems with CHAR_BIT == 8
+    // If the target's CHAR_BIT is not 8, we need to write out correctly-sized embed_bytes
+    // and correctly account for the target's endianness
+    const writer = pp.comp.generated_buf.writer();
+
+    {
+        const byte = embed_bytes[0];
+        const start = pp.comp.generated_buf.items.len;
+        try writer.print("{d}", .{byte});
+        pp.tokens.appendAssumeCapacity(try pp.makeGeneratedToken(start, .embed_byte, filename_tok));
+    }
+
+    for (embed_bytes[1..]) |byte| {
+        const start = pp.comp.generated_buf.items.len;
+        try writer.print(",{d}", .{byte});
+        pp.tokens.appendAssumeCapacity(.{ .id = .comma, .loc = .{ .id = .generated, .byte_offset = @intCast(u32, start) } });
+        pp.tokens.appendAssumeCapacity(try pp.makeGeneratedToken(start + 1, .embed_byte, filename_tok));
+    }
+    try pp.comp.generated_buf.append('\n');
 }
 
 // Handle a #include directive.
