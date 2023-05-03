@@ -7246,7 +7246,7 @@ fn charLiteral(p: *Parser) Error!Result {
             6 => val = 0,
             else => {},
         }
-        const ov = @mulWithOverflow(val, max);
+        const ov = @mulWithOverflow(val, max +% 1);
         if (ov[1] != 0 and !overflow_reported) {
             try p.errExtra(.char_lit_too_wide, p.tok_i, .{ .unsigned = i });
             overflow_reported = true;
