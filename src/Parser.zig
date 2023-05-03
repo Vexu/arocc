@@ -7132,6 +7132,14 @@ fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8,
 
 fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
+    const allow_multibyte = switch (p.tok_ids[p.tok_i]) {
+        .char_literal => false,
+        .char_literal_utf_8 => false,
+        .char_literal_wide => true,
+        .char_literal_utf_16 => true,
+        .char_literal_utf_32 => true,
+        else => unreachable,
+    };
     const ty: Type = switch (p.tok_ids[p.tok_i]) {
         .char_literal => .{ .specifier = .int },
         .char_literal_utf_8 => .{ .specifier = .uchar },
@@ -7164,6 +7172,7 @@ fn charLiteral(p: *Parser) Error!Result {
     var i = mem.indexOf(u8, slice, "\'").? + 1;
     while (i < slice.len) : (i += 1) {
         var c: u32 = slice[i];
+        var multibyte = false;
         switch (c) {
             '\\' => {
                 i += 1;
@@ -7194,6 +7203,7 @@ fn charLiteral(p: *Parser) Error!Result {
                 c <<= 6;
                 c |= slice[i + 1] & 0b00111111;
                 i += 1;
+                multibyte = true;
             },
             0b1110_0000...0b1110_1111 => {
                 c &= 0b00001111;
@@ -7202,6 +7212,7 @@ fn charLiteral(p: *Parser) Error!Result {
                 c <<= 6;
                 c |= slice[i + 2] & 0b00111111;
                 i += 2;
+                multibyte = true;
             },
             0b1111_0000...0b1111_0111 => {
                 c &= 0b00000111;
@@ -7212,10 +7223,11 @@ fn charLiteral(p: *Parser) Error!Result {
                 c <<= 6;
                 c |= slice[i + 3] & 0b00111111;
                 i += 3;
+                multibyte = true;
             },
             else => {},
         }
-        if (c > max) try p.err(.char_too_large);
+        if (c > max or (multibyte and !allow_multibyte)) try p.err(.char_too_large);
         switch (multichar) {
             0, 2, 4 => multichar += 1,
             1 => {
