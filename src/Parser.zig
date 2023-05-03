@@ -6956,6 +6956,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         .string_literal_wide,
         => return p.stringLiteral(),
         .char_literal,
+        .char_literal_utf_8,
         .char_literal_utf_16,
         .char_literal_utf_32,
         .char_literal_wide,
@@ -7133,6 +7134,7 @@ fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
     const ty: Type = switch (p.tok_ids[p.tok_i]) {
         .char_literal => .{ .specifier = .int },
+        .char_literal_utf_8 => .{ .specifier = .uchar },
         .char_literal_wide => p.comp.types.wchar,
         .char_literal_utf_16 => .{ .specifier = .ushort },
         .char_literal_utf_32 => .{ .specifier = .ulong },
@@ -7141,6 +7143,7 @@ fn charLiteral(p: *Parser) Error!Result {
     const max: u32 = switch (p.tok_ids[p.tok_i]) {
         .char_literal => std.math.maxInt(u8),
         .char_literal_wide => @intCast(u32, p.comp.types.wchar.maxInt(p.comp)),
+        .char_literal_utf_8 => std.math.maxInt(u8),
         .char_literal_utf_16 => std.math.maxInt(u16),
         .char_literal_utf_32 => std.math.maxInt(u32),
         else => unreachable,
@@ -7148,6 +7151,7 @@ fn charLiteral(p: *Parser) Error!Result {
     var multichar: u8 = switch (p.tok_ids[p.tok_i]) {
         .char_literal => 0,
         .char_literal_wide => 4,
+        .char_literal_utf_8 => 2,
         .char_literal_utf_16 => 2,
         .char_literal_utf_32 => 2,
         else => unreachable,

@@ -37,6 +37,7 @@ pub const Token = struct {
 
         // char literals with prefixes
         char_literal,
+        char_literal_utf_8,
         char_literal_utf_16,
         char_literal_utf_32,
         char_literal_wide,
@@ -464,6 +465,7 @@ pub const Token = struct {
                 .string_literal_utf_32,
                 .string_literal_wide,
                 .char_literal,
+                .char_literal_utf_8,
                 .char_literal_utf_16,
                 .char_literal_utf_32,
                 .char_literal_wide,
@@ -695,6 +697,7 @@ pub const Token = struct {
                 .string_literal_wide,
                 => "a string literal",
                 .char_literal,
+                .char_literal_utf_8,
                 .char_literal_utf_16,
                 .char_literal_utf_32,
                 .char_literal_wide,
@@ -719,6 +722,7 @@ pub const Token = struct {
                 .string_literal_wide,
 
                 .char_literal,
+                .char_literal_utf_8,
                 .char_literal_utf_16,
                 .char_literal_utf_32,
                 .char_literal_wide,
@@ -1151,6 +1155,10 @@ pub fn next(self: *Tokenizer) Token {
                 '\"' => {
                     id = .string_literal_utf_8;
                     state = .string_literal;
+                },
+                '\'' => {
+                    id = .char_literal_utf_8;
+                    state = .char_literal_start;
                 },
                 else => {
                     codepoint_len = 0;
@@ -1954,6 +1962,7 @@ test "string prefix" {
         \\U"foo"
         \\L"foo"
         \\'foo'
+        \\u8'A'
         \\u'foo'
         \\U'foo'
         \\L'foo'
@@ -1970,6 +1979,8 @@ test "string prefix" {
         .string_literal_wide,
         .nl,
         .char_literal,
+        .nl,
+        .char_literal_utf_8,
         .nl,
         .char_literal_utf_16,
         .nl,
