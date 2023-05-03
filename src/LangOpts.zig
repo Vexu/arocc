@@ -102,6 +102,8 @@ use_native_half_type: bool = false,
 allow_half_args_and_returns: bool = false,
 /// null indicates that the user did not select a value, use target to determine default
 fp_eval_method: ?FPEvalMethod = null,
+/// If set, use specified signedness for `char` instead of the target's default char signedness
+char_signedness_override: ?std.builtin.Signedness = null,
 
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
@@ -128,4 +130,8 @@ pub fn setEmulatedCompiler(self: *LangOpts, compiler: Compiler) void {
 
 pub fn setFpEvalMethod(self: *LangOpts, fp_eval_method: FPEvalMethod) void {
     self.fp_eval_method = fp_eval_method;
+}
+
+pub fn setCharSignedness(self: *LangOpts, signedness: std.builtin.Signedness) void {
+    self.char_signedness_override = signedness;
 }
