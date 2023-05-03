@@ -79,7 +79,11 @@ pub const usage =
     \\                          Allow half-precision function arguments and return values
     \\  -fshort-enums           Use the narrowest possible integer type for enums
     \\  -fno-short-enums        Use "int" as the tag type for enums
+    \\  -fsigned-char           "char" is signed
+    \\  -fno-signed-char        "char" is unsigned
     \\  -fsyntax-only           Only run the preprocessor, parser, and semantic analysis stages
+    \\  -funsigned-char         "char" is unsigned
+    \\  -fno-unsigned-char      "char" is signed
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  --emulate=[clang|gcc|msvc]
@@ -193,6 +197,14 @@ pub fn parseArgs(
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {
                 d.comp.langopts.short_enums = false;
+            } else if (mem.eql(u8, arg, "-fsigned-char")) {
+                d.comp.langopts.setCharSignedness(.signed);
+            } else if (mem.eql(u8, arg, "-fno-signed-char")) {
+                d.comp.langopts.setCharSignedness(.unsigned);
+            } else if (mem.eql(u8, arg, "-funsigned-char")) {
+                d.comp.langopts.setCharSignedness(.unsigned);
+            } else if (mem.eql(u8, arg, "-fno-unsigned-char")) {
+                d.comp.langopts.setCharSignedness(.signed);
             } else if (mem.eql(u8, arg, "-fdeclspec")) {
                 d.comp.langopts.declspec_attrs = true;
             } else if (mem.eql(u8, arg, "-fno-declspec")) {
