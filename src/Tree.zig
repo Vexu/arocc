@@ -33,7 +33,7 @@ pub const Token = struct {
         if (new.len == 0 or tok.id == .whitespace) return;
         var list = std.ArrayList(Source.Location).init(gpa);
         defer {
-            std.mem.set(Source.Location, list.items.ptr[list.items.len..list.capacity], .{});
+            @memset(list.items.ptr[list.items.len..list.capacity], .{});
             // Add a sentinel to indicate the end of the list since
             // the ArrayList's capacity isn't guaranteed to be exactly
             // what we ask for.
