@@ -3322,7 +3322,8 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
     const item_spec = item.ty.elemType().canonicalize(.standard).specifier;
 
     const compatible = target.elemType().eql(item.ty.elemType(), p.comp, false) or
-        (is_str_lit and item_spec == .char and (target_spec == .uchar or target_spec == .schar));
+        (is_str_lit and item_spec == .char and (target_spec == .uchar or target_spec == .schar)) or
+        (is_str_lit and item_spec == .uchar and (target_spec == .uchar or target_spec == .schar or target_spec == .char));
     if (!compatible) {
         const e_msg = " with array of type ";
         try p.errStr(.incompatible_array_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
@@ -7022,6 +7023,7 @@ fn stringLiteral(p: *Parser) Error!Result {
     var start = p.tok_i;
     // use 1 for wchar_t
     var width: ?u8 = null;
+    var is_u8_literal = false;
     while (true) {
         switch (p.tok_ids[p.tok_i]) {
             .string_literal => {},
@@ -7030,10 +7032,13 @@ fn stringLiteral(p: *Parser) Error!Result {
             } else {
                 width = 16;
             },
-            .string_literal_utf_8 => if (width) |some| {
-                if (some != 8) try p.err(.unsupported_str_cat);
-            } else {
-                width = 8;
+            .string_literal_utf_8 => {
+                is_u8_literal = true;
+                if (width) |some| {
+                    if (some != 8) try p.err(.unsupported_str_cat);
+                } else {
+                    width = 8;
+                }
             },
             .string_literal_utf_32 => if (width) |some| {
                 if (some != 32) try p.err(.unsupported_str_cat);
@@ -7091,7 +7096,9 @@ fn stringLiteral(p: *Parser) Error!Result {
     const slice = p.strings.items;
 
     const arr_ty = try p.arena.create(Type.Array);
-    arr_ty.* = .{ .elem = .{ .specifier = .char }, .len = slice.len };
+    const specifier: Type.Specifier = if (is_u8_literal and p.comp.langopts.hasChar8_T()) .uchar else .char;
+
+    arr_ty.* = .{ .elem = .{ .specifier = specifier }, .len = slice.len };
     var res: Result = .{
         .ty = .{
             .specifier = .array,
