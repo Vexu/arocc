@@ -554,7 +554,7 @@ pub fn isConst(ty: Type) bool {
 pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
     return switch (ty.specifier) {
         // zig fmt: off
-        .char, .complex_char => return target.getCharSignedness(comp.target) == .unsigned,
+        .char, .complex_char => return comp.getCharSignedness() == .unsigned,
         .uchar, .ushort, .uint, .ulong, .ulong_long, .bool, .complex_uchar, .complex_ushort,
         .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => true,
         // zig fmt: on
@@ -2323,7 +2323,7 @@ pub fn intValueSuffix(ty: Type, comp: *const Compilation) []const u8 {
         .long => "L",
         .long_long => "LL",
         .uchar, .char => {
-            if (ty.specifier == .char and target.getCharSignedness(comp.target) == .signed) return "";
+            if (ty.specifier == .char and comp.getCharSignedness() == .signed) return "";
             // Only 8-bit char supported currently;
             // TODO: handle platforms with 16-bit int + 16-bit char
             std.debug.assert(ty.sizeof(comp).? == 8);

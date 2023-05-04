@@ -329,7 +329,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try generateDateAndTime(w);
 
     // types
-    if (target.getCharSignedness(comp.target) == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
+    if (comp.getCharSignedness() == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
     try w.writeAll("#define __CHAR_BIT__ 8\n");
 
     // int maxs
@@ -681,6 +681,10 @@ pub fn fixedEnumTagSpecifier(comp: *const Compilation) ?Type.Specifier {
         .gcc => {},
     }
     return null;
+}
+
+pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
+    return comp.langopts.char_signedness_override orelse target.getCharSignedness(comp.target);
 }
 
 pub fn defineSystemIncludes(comp: *Compilation) !void {
