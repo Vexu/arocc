@@ -7,6 +7,7 @@ void foo(void) {
     (void)_Generic(7, int: 8, int: 9);
     _Static_assert(_Generic(7, int[2]: 8, int(int): 9, default: 1) == 1, "test failure");
     _Static_assert(_Generic(7, default: 1) == 1, "test failure");
+    _Static_assert(_Generic("hello", char *: 1, default: 2) == 1, "test failure");
 }
 
 #define EXPECTED_ERRORS "generic.c:2:15: error: expected ',', found ')'" \

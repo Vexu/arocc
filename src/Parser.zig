@@ -7634,6 +7634,8 @@ fn genericSelection(p: *Parser) Error!Result {
     const controlling_tok = p.tok_i;
     const controlling = try p.parseNoEval(assignExpr);
     _ = try p.expectToken(.comma);
+    var controlling_ty = controlling.ty;
+    if (controlling_ty.isArray()) controlling_ty.decayArray();
 
     const list_buf_top = p.list_buf.items.len;
     defer p.list_buf.items.len = list_buf_top;
@@ -7661,7 +7663,7 @@ fn genericSelection(p: *Parser) Error!Result {
             const node = try p.assignExpr();
             try node.expect(p);
 
-            if (ty.eql(controlling.ty, p.comp, false)) {
+            if (ty.eql(controlling_ty, p.comp, false)) {
                 if (chosen.node == .none) {
                     chosen = node;
                     chosen_tok = start;
@@ -7711,7 +7713,7 @@ fn genericSelection(p: *Parser) Error!Result {
             }));
             chosen = default;
         } else {
-            try p.errStr(.generic_no_match, controlling_tok, try p.typeStr(controlling.ty));
+            try p.errStr(.generic_no_match, controlling_tok, try p.typeStr(controlling_ty));
             return error.ParsingFailed;
         }
     } else {
