@@ -570,6 +570,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
 
     {
+        if (p.comp.langopts.hasChar8_T()) {
+            try p.syms.defineTypedef(&p, try p.comp.intern("char8_t"), .{ .specifier = .uchar }, 0, .none);
+        }
         try p.syms.defineTypedef(&p, try p.comp.intern("__int128_t"), .{ .specifier = .int128 }, 0, .none);
         try p.syms.defineTypedef(&p, try p.comp.intern("__uint128_t"), .{ .specifier = .uint128 }, 0, .none);
 
