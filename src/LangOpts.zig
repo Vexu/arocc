@@ -104,6 +104,8 @@ allow_half_args_and_returns: bool = false,
 fp_eval_method: ?FPEvalMethod = null,
 /// If set, use specified signedness for `char` instead of the target's default char signedness
 char_signedness_override: ?std.builtin.Signedness = null,
+/// If set, override the default availability of char8_t (by default, enabled in C2X and later; disabled otherwise)
+has_char8_t_override: ?bool = null,
 
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
@@ -117,6 +119,10 @@ pub fn enableMSExtensions(self: *LangOpts) void {
 pub fn disableMSExtensions(self: *LangOpts) void {
     self.declspec_attrs = false;
     self.ms_extensions = true;
+}
+
+pub fn hasChar8_T(self: *const LangOpts) bool {
+    return self.has_char8_t_override orelse self.standard.atLeast(.c2x);
 }
 
 pub fn hasDigraphs(self: *const LangOpts) bool {

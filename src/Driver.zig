@@ -60,6 +60,8 @@ pub const usage =
     \\  -c                      Only run preprocess, compile, and assemble steps
     \\  -D <macro>=<value>      Define <macro> to <value> (defaults to 1)
     \\  -E                      Only run the preprocessor
+    \\  -fchar8_t               Enable char8_t (enabled by default in C2X and later)
+    \\  -fno-char8_t            Disable char8_t (disabled by default for pre-C2X)
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
     \\  -fdeclspec              Enable support for __declspec attributes
@@ -169,6 +171,10 @@ pub fn parseArgs(
                 d.only_compile = true;
             } else if (mem.eql(u8, arg, "-E")) {
                 d.only_preprocess = true;
+            } else if (mem.eql(u8, arg, "-fchar8_t")) {
+                d.comp.langopts.has_char8_t_override = true;
+            } else if (mem.eql(u8, arg, "-fno-char8_t")) {
+                d.comp.langopts.has_char8_t_override = false;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
                 color_setting = .on;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {

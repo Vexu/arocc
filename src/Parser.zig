@@ -570,6 +570,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
 
     {
+        if (p.comp.langopts.hasChar8_T()) {
+            try p.syms.defineTypedef(&p, try p.comp.intern("char8_t"), .{ .specifier = .uchar }, 0, .none);
+        }
         try p.syms.defineTypedef(&p, try p.comp.intern("__int128_t"), .{ .specifier = .int128 }, 0, .none);
         try p.syms.defineTypedef(&p, try p.comp.intern("__uint128_t"), .{ .specifier = .uint128 }, 0, .none);
 
@@ -3319,7 +3322,8 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
     const item_spec = item.ty.elemType().canonicalize(.standard).specifier;
 
     const compatible = target.elemType().eql(item.ty.elemType(), p.comp, false) or
-        (is_str_lit and item_spec == .char and (target_spec == .uchar or target_spec == .schar));
+        (is_str_lit and item_spec == .char and (target_spec == .uchar or target_spec == .schar)) or
+        (is_str_lit and item_spec == .uchar and (target_spec == .uchar or target_spec == .schar or target_spec == .char));
     if (!compatible) {
         const e_msg = " with array of type ";
         try p.errStr(.incompatible_array_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
@@ -7019,6 +7023,7 @@ fn stringLiteral(p: *Parser) Error!Result {
     var start = p.tok_i;
     // use 1 for wchar_t
     var width: ?u8 = null;
+    var is_u8_literal = false;
     while (true) {
         switch (p.tok_ids[p.tok_i]) {
             .string_literal => {},
@@ -7027,10 +7032,13 @@ fn stringLiteral(p: *Parser) Error!Result {
             } else {
                 width = 16;
             },
-            .string_literal_utf_8 => if (width) |some| {
-                if (some != 8) try p.err(.unsupported_str_cat);
-            } else {
-                width = 8;
+            .string_literal_utf_8 => {
+                is_u8_literal = true;
+                if (width) |some| {
+                    if (some != 8) try p.err(.unsupported_str_cat);
+                } else {
+                    width = 8;
+                }
             },
             .string_literal_utf_32 => if (width) |some| {
                 if (some != 32) try p.err(.unsupported_str_cat);
@@ -7088,7 +7096,9 @@ fn stringLiteral(p: *Parser) Error!Result {
     const slice = p.strings.items;
 
     const arr_ty = try p.arena.create(Type.Array);
-    arr_ty.* = .{ .elem = .{ .specifier = .char }, .len = slice.len };
+    const specifier: Type.Specifier = if (is_u8_literal and p.comp.langopts.hasChar8_T()) .uchar else .char;
+
+    arr_ty.* = .{ .elem = .{ .specifier = specifier }, .len = slice.len };
     var res: Result = .{
         .ty = .{
             .specifier = .array,
@@ -7631,6 +7641,8 @@ fn genericSelection(p: *Parser) Error!Result {
     const controlling_tok = p.tok_i;
     const controlling = try p.parseNoEval(assignExpr);
     _ = try p.expectToken(.comma);
+    var controlling_ty = controlling.ty;
+    if (controlling_ty.isArray()) controlling_ty.decayArray();
 
     const list_buf_top = p.list_buf.items.len;
     defer p.list_buf.items.len = list_buf_top;
@@ -7658,7 +7670,7 @@ fn genericSelection(p: *Parser) Error!Result {
             const node = try p.assignExpr();
             try node.expect(p);
 
-            if (ty.eql(controlling.ty, p.comp, false)) {
+            if (ty.eql(controlling_ty, p.comp, false)) {
                 if (chosen.node == .none) {
                     chosen = node;
                     chosen_tok = start;
@@ -7708,7 +7720,7 @@ fn genericSelection(p: *Parser) Error!Result {
             }));
             chosen = default;
         } else {
-            try p.errStr(.generic_no_match, controlling_tok, try p.typeStr(controlling.ty));
+            try p.errStr(.generic_no_match, controlling_tok, try p.typeStr(controlling_ty));
             return error.ParsingFailed;
         }
     } else {
