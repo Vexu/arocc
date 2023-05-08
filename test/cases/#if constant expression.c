@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -Wno-integer-overflow
 
 #if defined FOO & !defined(BAZ)
 void
@@ -20,4 +20,7 @@ long
 
 #if 0 || 0
 # error foo
+#endif
+#if 0U - 1 != 18446744073709551615ULL
+#error incorrect unsigned subtraction in preprocessor
 #endif
