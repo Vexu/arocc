@@ -239,9 +239,9 @@ pub fn intCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
     if (!old_ty.isUnsignedInt(comp)) {
         const size = new_ty.sizeof(comp).?;
         switch (size) {
-            1 => v.* = int(@bitCast(u8, v.getInt(i8))),
-            2 => v.* = int(@bitCast(u16, v.getInt(i16))),
-            4 => v.* = int(@bitCast(u32, v.getInt(i32))),
+            1 => v.* = int(@truncate(u8, @bitCast(u64, v.signExtend(old_ty, comp)))),
+            2 => v.* = int(@truncate(u16, @bitCast(u64, v.signExtend(old_ty, comp)))),
+            4 => v.* = int(@truncate(u32, @bitCast(u64, v.signExtend(old_ty, comp)))),
             8 => return,
             else => unreachable,
         }
