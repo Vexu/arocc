@@ -4,6 +4,37 @@ const Type = @import("Type.zig");
 const CType = @import("zig").CType;
 const TargetSet = @import("builtins/Properties.zig").TargetSet;
 
+/// intmax_t for this target
+pub fn intMaxType(target: std.Target) Type {
+    switch (target.cpu.arch) {
+        .aarch64,
+        .sparc64,
+        => if (target.os.tag != .openbsd) return .{ .specifier = .long },
+
+        .bpfel,
+        .bpfeb,
+        .loongarch64,
+        .riscv64,
+        .powerpc64,
+        .powerpc64le,
+        .tce,
+        .tcele,
+        .ve,
+        => return .{ .specifier = .long },
+
+        .x86_64 => switch (target.os.tag) {
+            .windows, .openbsd => {},
+            else => switch (target.abi) {
+                .gnux32, .muslx32 => {},
+                else => return .{ .specifier = .long },
+            },
+        },
+
+        else => {},
+    }
+    return .{ .specifier = .long_long };
+}
+
 pub fn getCharSignedness(target: std.Target) std.builtin.Signedness {
     switch (target.cpu.arch) {
         .aarch64,

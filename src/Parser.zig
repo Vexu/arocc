@@ -6967,14 +6967,14 @@ fn primaryExpr(p: *Parser) Error!Result {
         => return p.charLiteral(),
         .zero => {
             p.tok_i += 1;
-            var res: Result = .{ .val = Value.int(0) };
+            var res: Result = .{ .val = Value.int(0), .ty = if (p.in_macro) p.comp.intMaxType() else Type.int };
             res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
         },
         .one => {
             p.tok_i += 1;
-            var res: Result = .{ .val = Value.int(1) };
+            var res: Result = .{ .val = Value.int(1), .ty = if (p.in_macro) p.comp.intMaxType() else Type.int };
             res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
@@ -7264,8 +7264,14 @@ fn charLiteral(p: *Parser) Error!Result {
         val = ov[0] + c;
     }
 
+    // This is the type the literal will have if we're in a macro; macros always operate on intmax_t/uintmax_t values
+    const macro_ty = if (ty.isUnsignedInt(p.comp) or (p.tok_ids[p.tok_i] == .char_literal and p.comp.getCharSignedness() == .unsigned))
+        p.comp.uintMaxType()
+    else
+        p.comp.intMaxType();
+
     var res = Result{
-        .ty = ty,
+        .ty = if (p.in_macro) macro_ty else ty,
         .val = Value.int(val),
         .node = try p.addNode(.{ .tag = .char_literal, .ty = ty, .data = undefined }),
     };
@@ -7396,7 +7402,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         return res;
     }
     if (suffix.isSignedInteger()) {
-        if (val > std.math.maxInt(i64)) {
+        if (val > p.comp.intMaxType().maxInt(p.comp)) {
             try p.errTok(.implicitly_unsigned_literal, tok_i);
         }
     }
@@ -7578,12 +7584,13 @@ pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
 
 fn ppNum(p: *Parser) Error!Result {
     defer p.tok_i += 1;
-    const res = try p.parseNumberToken(p.tok_i);
+    var res = try p.parseNumberToken(p.tok_i);
     if (p.in_macro) {
         if (res.ty.isFloat() or !res.ty.isReal()) {
             try p.errTok(.float_literal_in_pp_expr, p.tok_i);
             return error.ParsingFailed;
         }
+        res.ty = if (res.ty.isUnsignedInt(p.comp)) p.comp.uintMaxType() else p.comp.intMaxType();
     } else {
         try p.value_map.put(res.node, res.val);
     }

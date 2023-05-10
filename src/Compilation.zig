@@ -341,9 +341,9 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try comp.generateIntMaxAndWidth(w, "LONG_LONG", .{ .specifier = .long_long });
     try comp.generateIntMaxAndWidth(w, "WCHAR", comp.types.wchar);
     // try comp.generateIntMax(w, "WINT", comp.types.wchar);
-    // try comp.generateIntMax(w, "INTMAX", comp.types.wchar);
+    try comp.generateIntMaxAndWidth(w, "INTMAX", comp.intMaxType());
     try comp.generateIntMax(w, "SIZE", comp.types.size);
-    // try comp.generateIntMax(w, "UINTMAX", comp.types.wchar);
+    try comp.generateIntMaxAndWidth(w, "UINTMAX", comp.uintMaxType());
     try comp.generateIntMax(w, "PTRDIFF", comp.types.ptrdiff);
     // try comp.generateIntMax(w, "INTPTR", comp.types.wchar);
     // try comp.generateIntMax(w, "UINTPTR", comp.types.size);
@@ -554,6 +554,14 @@ fn generateNsConstantStringType(comp: *Compilation) !void {
     record_layout.compute(&comp.types.ns_constant_string.record, comp.types.ns_constant_string.ty, comp, null);
 }
 
+pub fn intMaxType(comp: *const Compilation) Type {
+    return target.intMaxType(comp.target);
+}
+
+pub fn uintMaxType(comp: *const Compilation) Type {
+    return target.intMaxType(comp.target).makeIntegerUnsigned();
+}
+
 fn generateVaListType(comp: *Compilation) !Type {
     const Kind = enum { char_ptr, void_ptr, aarch64_va_list, x86_64_va_list };
     const kind: Kind = switch (comp.target.cpu.arch) {
@@ -639,7 +647,7 @@ fn generateIntMax(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !v
     const max = if (bit_count == 128)
         @as(u128, if (unsigned) std.math.maxInt(u128) else std.math.maxInt(u128))
     else
-        (@as(u64, 1) << @truncate(u6, bit_count - @boolToInt(!unsigned))) - 1;
+        ty.maxInt(comp);
     try w.print("#define __{s}_MAX__ {d}{s}\n", .{ name, max, ty.intValueSuffix(comp) });
 }
 
