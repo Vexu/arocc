@@ -6967,14 +6967,14 @@ fn primaryExpr(p: *Parser) Error!Result {
         => return p.charLiteral(),
         .zero => {
             p.tok_i += 1;
-            var res: Result = .{ .val = Value.int(0), .ty = if (p.in_macro) p.comp.intMaxType() else Type.int };
+            var res: Result = .{ .val = Value.int(0), .ty = if (p.in_macro) p.comp.types.intmax else Type.int };
             res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
         },
         .one => {
             p.tok_i += 1;
-            var res: Result = .{ .val = Value.int(1), .ty = if (p.in_macro) p.comp.intMaxType() else Type.int };
+            var res: Result = .{ .val = Value.int(1), .ty = if (p.in_macro) p.comp.types.intmax else Type.int };
             res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
@@ -7266,9 +7266,9 @@ fn charLiteral(p: *Parser) Error!Result {
 
     // This is the type the literal will have if we're in a macro; macros always operate on intmax_t/uintmax_t values
     const macro_ty = if (ty.isUnsignedInt(p.comp) or (p.tok_ids[p.tok_i] == .char_literal and p.comp.getCharSignedness() == .unsigned))
-        p.comp.uintMaxType()
+        p.comp.types.uintmax
     else
-        p.comp.intMaxType();
+        p.comp.types.intmax;
 
     var res = Result{
         .ty = if (p.in_macro) macro_ty else ty,
@@ -7402,7 +7402,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         return res;
     }
     if (suffix.isSignedInteger()) {
-        if (val > p.comp.intMaxType().maxInt(p.comp)) {
+        if (val > p.comp.types.intmax.maxInt(p.comp)) {
             try p.errTok(.implicitly_unsigned_literal, tok_i);
         }
     }
@@ -7590,7 +7590,7 @@ fn ppNum(p: *Parser) Error!Result {
             try p.errTok(.float_literal_in_pp_expr, p.tok_i);
             return error.ParsingFailed;
         }
-        res.ty = if (res.ty.isUnsignedInt(p.comp)) p.comp.uintMaxType() else p.comp.intMaxType();
+        res.ty = if (res.ty.isUnsignedInt(p.comp)) p.comp.types.uintmax else p.comp.types.intmax;
     } else {
         try p.value_map.put(res.node, res.val);
     }

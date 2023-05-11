@@ -35,6 +35,65 @@ pub fn intMaxType(target: std.Target) Type {
     return .{ .specifier = .long_long };
 }
 
+/// intptr_t for this target
+pub fn intPtrType(target: std.Target) Type {
+    switch (target.os.tag) {
+        .haiku => return .{ .specifier = .long },
+        .nacl => return .{ .specifier = .int },
+        else => {},
+    }
+
+    switch (target.cpu.arch) {
+        .aarch64 => switch (target.os.tag) {
+            .windows => return .{ .specifier = .long_long },
+            else => {},
+        },
+
+        .msp430,
+        .csky,
+        .loongarch32,
+        .riscv32,
+        .xcore,
+        .hexagon,
+        .tce,
+        .tcele,
+        .m68k,
+        .spir,
+        .spirv32,
+        .arc,
+        .avr,
+        => return .{ .specifier = .int },
+
+        .sparc, .sparcel => switch (target.os.tag) {
+            .netbsd, .openbsd => {},
+            else => return .{ .specifier = .int },
+        },
+
+        .powerpc, .powerpcle => switch (target.os.tag) {
+            .linux, .freebsd, .netbsd => return .{ .specifier = .int },
+            else => {},
+        },
+
+        // 32-bit x86 Darwin, OpenBSD, and RTEMS use long (the default); others use int
+        .x86 => switch (target.os.tag) {
+            .openbsd, .rtems => {},
+            else => if (!target.os.tag.isDarwin()) return .{ .specifier = .int },
+        },
+
+        .x86_64 => switch (target.os.tag) {
+            .windows => return .{ .specifier = .long_long },
+            else => switch (target.abi) {
+                .gnux32, .muslx32 => return .{ .specifier = .int },
+                else => {},
+            },
+        },
+
+        else => {},
+    }
+
+    return .{ .specifier = .long };
+}
+
 pub fn getCharSignedness(target: std.Target) std.builtin.Signedness {
     switch (target.cpu.arch) {
         .aarch64,

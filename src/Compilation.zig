@@ -53,6 +53,10 @@ types: struct {
     jmp_buf: Type = .{ .specifier = .invalid },
     sigjmp_buf: Type = .{ .specifier = .invalid },
     ucontext_t: Type = .{ .specifier = .invalid },
+    intmax: Type = .{ .specifier = .invalid },
+    uintmax: Type = .{ .specifier = .invalid },
+    intptr: Type = .{ .specifier = .invalid },
+    uintptr: Type = .{ .specifier = .invalid },
 } = .{},
 /// Mapping from Source.Id to byte offset of first non-utf8 byte
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
@@ -341,12 +345,12 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try comp.generateIntMaxAndWidth(w, "LONG_LONG", .{ .specifier = .long_long });
     try comp.generateIntMaxAndWidth(w, "WCHAR", comp.types.wchar);
     // try comp.generateIntMax(w, "WINT", comp.types.wchar);
-    try comp.generateIntMaxAndWidth(w, "INTMAX", comp.intMaxType());
+    try comp.generateIntMaxAndWidth(w, "INTMAX", comp.types.intmax);
     try comp.generateIntMax(w, "SIZE", comp.types.size);
-    try comp.generateIntMaxAndWidth(w, "UINTMAX", comp.uintMaxType());
+    try comp.generateIntMaxAndWidth(w, "UINTMAX", comp.types.uintmax);
     try comp.generateIntMax(w, "PTRDIFF", comp.types.ptrdiff);
-    // try comp.generateIntMax(w, "INTPTR", comp.types.wchar);
-    // try comp.generateIntMax(w, "UINTPTR", comp.types.size);
+    try comp.generateIntMaxAndWidth(w, "INTPTR", comp.types.intptr);
+    try comp.generateIntMaxAndWidth(w, "UINTPTR", comp.types.uintptr);
 
     // int widths
     try w.print("#define __BITINT_MAXWIDTH__ {d}\n", .{bit_int_max_bits});
@@ -522,12 +526,22 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         else => .{ .specifier = .int },
     };
 
+    const intmax = target.intMaxType(comp.target);
+    const uintmax = intmax.makeIntegerUnsigned();
+
+    const intptr = target.intPtrType(comp.target);
+    const uintptr = intptr.makeIntegerUnsigned();
+
     comp.types = .{
         .wchar = wchar,
         .ptrdiff = ptrdiff,
         .size = size,
         .va_list = va_list,
         .pid_t = pid_t,
+        .intmax = intmax,
+        .uintmax = uintmax,
+        .intptr = intptr,
+        .uintptr = uintptr,
     };
     try comp.generateNsConstantStringType();
 }
@@ -552,14 +566,6 @@ fn generateNsConstantStringType(comp: *Compilation) !void {
     comp.types.ns_constant_string.fields[3] = .{ .name = try comp.intern("length"), .ty = .{ .specifier = .long } };
     comp.types.ns_constant_string.ty = .{ .specifier = .@"struct", .data = .{ .record = &comp.types.ns_constant_string.record } };
     record_layout.compute(&comp.types.ns_constant_string.record, comp.types.ns_constant_string.ty, comp, null);
-}
-
-pub fn intMaxType(comp: *const Compilation) Type {
-    return target.intMaxType(comp.target);
-}
-
-pub fn uintMaxType(comp: *const Compilation) Type {
-    return target.intMaxType(comp.target).makeIntegerUnsigned();
 }
 
 fn generateVaListType(comp: *Compilation) !Type {
