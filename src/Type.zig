@@ -2326,7 +2326,7 @@ pub fn intValueSuffix(ty: Type, comp: *const Compilation) []const u8 {
             if (ty.specifier == .char and comp.getCharSignedness() == .signed) return "";
             // Only 8-bit char supported currently;
             // TODO: handle platforms with 16-bit int + 16-bit char
-            std.debug.assert(ty.sizeof(comp).? == 8);
+            std.debug.assert(ty.sizeof(comp).? == 1);
             return "";
         },
         .ushort => {
