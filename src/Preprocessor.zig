@@ -2609,6 +2609,7 @@ test "Include guards" {
 
                 .keyword_include,
                 .keyword_include_next,
+                .keyword_embed,
                 .keyword_define,
                 .keyword_defined,
                 .keyword_undef,
@@ -2649,7 +2650,11 @@ test "Include guards" {
             switch (tok_id) {
                 .keyword_include, .keyword_include_next => try writer.print(template, .{ tok_id.lexeme().?, " \"bar.h\"" }),
                 .keyword_define, .keyword_undef => try writer.print(template, .{ tok_id.lexeme().?, " BAR" }),
-                .keyword_ifndef, .keyword_ifdef => try writer.print(template, .{ tok_id.lexeme().?, " BAR\n#endif" }),
+                .keyword_ifndef,
+                .keyword_ifdef,
+                .keyword_elifdef,
+                .keyword_elifndef,
+                => try writer.print(template, .{ tok_id.lexeme().?, " BAR\n#endif" }),
                 else => try writer.print(template, .{ tok_id.lexeme().?, "" }),
             }
             const source = try comp.addSourceFromBuffer("test.h", buf.items);

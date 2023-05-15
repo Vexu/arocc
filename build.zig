@@ -101,7 +101,8 @@ pub fn build(b: *Build) !void {
 
     var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
     unit_tests.addModule("zig", zig_module);
-    tests_step.dependOn(&unit_tests.step);
+    const run_test = b.addRunArtifact(unit_tests);
+    tests_step.dependOn(&run_test.step);
 
     const integration_tests = b.addExecutable(.{
         .name = "test-runner",
