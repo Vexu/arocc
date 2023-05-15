@@ -2316,6 +2316,18 @@ pub fn hasAttribute(ty: Type, tag: Attribute.Tag) bool {
     return false;
 }
 
+/// printf format modifier
+pub fn formatModifier(ty: Type) []const u8 {
+    return switch (ty.specifier) {
+        .schar, .uchar => "hh",
+        .short, .ushort => "h",
+        .int, .uint => "",
+        .long, .ulong => "l",
+        .long_long, .ulong_long => "ll",
+        else => unreachable,
+    };
+}
+
 /// Suffix for integer values of this type
 pub fn intValueSuffix(ty: Type, comp: *const Compilation) []const u8 {
     return switch (ty.specifier) {

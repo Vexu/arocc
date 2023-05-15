@@ -57,6 +57,8 @@ types: struct {
     uintmax: Type = .{ .specifier = .invalid },
     intptr: Type = .{ .specifier = .invalid },
     uintptr: Type = .{ .specifier = .invalid },
+    int64: Type = .{ .specifier = .invalid },
+    uint64: Type = .{ .specifier = .invalid },
 } = .{},
 /// Mapping from Source.Id to byte offset of first non-utf8 byte
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
@@ -375,6 +377,8 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try generateTypeMacro(w, mapper, "__SIZE_TYPE__", comp.types.size, comp.langopts);
     try generateTypeMacro(w, mapper, "__WCHAR_TYPE__", comp.types.wchar, comp.langopts);
 
+    try comp.generateExactWidthTypes(w, mapper);
+
     if (target.FPSemantics.halfPrecisionType(comp.target)) |half| {
         try generateFloatMacros(w, "FLT16", half, "F16");
     }
@@ -532,6 +536,9 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
     const intptr = target.intPtrType(comp.target);
     const uintptr = intptr.makeIntegerUnsigned();
 
+    const int64 = target.int64Type(comp.target);
+    const uint64 = int64.makeIntegerUnsigned();
+
     comp.types = .{
         .wchar = wchar,
         .ptrdiff = ptrdiff,
@@ -542,8 +549,104 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         .uintmax = uintmax,
         .intptr = intptr,
         .uintptr = uintptr,
+        .int64 = int64,
+        .uint64 = uint64,
     };
+
     try comp.generateNsConstantStringType();
+}
+
+fn intSize(comp: *const Compilation, specifier: Type.Specifier) u64 {
+    const ty = Type{ .specifier = specifier };
+    return ty.sizeof(comp).?;
+}
+
+fn generateExactWidthTypes(comp: *const Compilation, w: anytype, mapper: StringInterner.TypeMapper) !void {
+    try comp.generateExactWidthType(w, mapper, .schar);
+
+    if (comp.intSize(.short) > comp.intSize(.char)) {
+        try comp.generateExactWidthType(w, mapper, .short);
+    }
+
+    if (comp.intSize(.int) > comp.intSize(.short)) {
+        try comp.generateExactWidthType(w, mapper, .int);
+    }
+
+    if (comp.intSize(.long) > comp.intSize(.int)) {
+        try comp.generateExactWidthType(w, mapper, .long);
+    }
+
+    if (comp.intSize(.long_long) > comp.intSize(.long)) {
+        try comp.generateExactWidthType(w, mapper, .long_long);
+    }
+
+    try comp.generateExactWidthType(w, mapper, .uchar);
+    try comp.generateExactWidthIntMax(w, .uchar);
+    try comp.generateExactWidthIntMax(w, .schar);
+
+    if (comp.intSize(.short) > comp.intSize(.char)) {
+        try comp.generateExactWidthType(w, mapper, .ushort);
+        try comp.generateExactWidthIntMax(w, .ushort);
+        try comp.generateExactWidthIntMax(w, .short);
+    }
+
+    if (comp.intSize(.int) > comp.intSize(.short)) {
+        try comp.generateExactWidthType(w, mapper, .uint);
+        try comp.generateExactWidthIntMax(w, .uint);
+        try comp.generateExactWidthIntMax(w, .int);
+    }
+
+    if (comp.intSize(.long) > comp.intSize(.int)) {
+        try comp.generateExactWidthType(w, mapper, .ulong);
+        try comp.generateExactWidthIntMax(w, .ulong);
+        try comp.generateExactWidthIntMax(w, .long);
+    }
+
+    if (comp.intSize(.long_long) > comp.intSize(.long)) {
+        try comp.generateExactWidthType(w, mapper, .ulong_long);
+        try comp.generateExactWidthIntMax(w, .ulong_long);
+        try comp.generateExactWidthIntMax(w, .long_long);
+    }
+}
+
+fn generateFmt(comp: *const Compilation, prefix: []const u8, w: anytype, ty: Type) !void {
+    const unsigned = ty.isUnsignedInt(comp);
+    const modifier = ty.formatModifier();
+    const formats = if (unsigned) "ouxX" else "di";
+    for (formats) |c| {
+        try w.print("#define {s}_FMT{c}__ \"{s}{c}\"\n", .{ prefix, c, modifier, c });
+    }
+}
+
+/// Generate the following for ty:
+///     Name macro (e.g. #define __UINT32_TYPE__ unsigned int)
+///     Format strings (e.g. #define __UINT32_FMTu__ "u")
+///     Suffix macro (e.g. #define __UINT32_C_SUFFIX__ U)
+fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StringInterner.TypeMapper, specifier: Type.Specifier) !void {
+    var ty = Type{ .specifier = specifier };
+    const width = 8 * ty.sizeof(comp).?;
+    const unsigned = ty.isUnsignedInt(comp);
+
+    if (width == 64) {
+        ty = if (unsigned) comp.types.uint64 else comp.types.int64;
+    }
+
+    // TODO: Use target-specific int16 types when appropriate
+
+    var prefix_buf: [16]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&prefix_buf);
+    var prefix = std.ArrayList(u8).initCapacity(fba.allocator(), prefix_buf.len) catch unreachable;
+    prefix.writer().print("{s}{d}", .{ if (unsigned) "__UINT" else "__INT", width }) catch unreachable;
+
+    {
+        const len = prefix.items.len;
+        defer prefix.items.len = len;
+        prefix.appendSliceAssumeCapacity("_TYPE__");
+        try generateTypeMacro(w, mapper, prefix.items, ty, comp.langopts);
+    }
+
+    try comp.generateFmt(prefix.items, w, ty);
+    try w.print("#define {s}_C_SUFFIX__ {s}\n", .{ prefix.items, ty.intValueSuffix(comp) });
 }
 
 pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
@@ -647,7 +750,7 @@ fn generateVaListType(comp: *Compilation) !Type {
     return ty;
 }
 
-fn generateIntMax(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {
+fn generateIntMax(comp: *const Compilation, w: anytype, name: []const u8, ty: Type) !void {
     const bit_count = @intCast(u8, ty.sizeof(comp).? * 8);
     const unsigned = ty.isUnsignedInt(comp);
     const max = if (bit_count == 128)
@@ -655,6 +758,23 @@ fn generateIntMax(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !v
     else
         ty.maxInt(comp);
     try w.print("#define __{s}_MAX__ {d}{s}\n", .{ name, max, ty.intValueSuffix(comp) });
+}
+
+fn generateExactWidthIntMax(comp: *const Compilation, w: anytype, specifier: Type.Specifier) !void {
+    var ty = Type{ .specifier = specifier };
+    const bit_count = @intCast(u8, ty.sizeof(comp).? * 8);
+    const unsigned = ty.isUnsignedInt(comp);
+
+    if (bit_count == 64) {
+        ty = if (unsigned) comp.types.uint64 else comp.types.int64;
+    }
+
+    var name_buf: [6]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&name_buf);
+    var name = std.ArrayList(u8).initCapacity(fba.allocator(), name_buf.len) catch unreachable;
+    name.writer().print("{s}{d}", .{ if (unsigned) "UINT" else "INT", bit_count }) catch unreachable;
+
+    return comp.generateIntMax(w, name.items, ty);
 }
 
 fn generateIntWidth(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {

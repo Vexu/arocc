@@ -8,6 +8,7 @@ const TargetSet = @import("builtins/Properties.zig").TargetSet;
 pub fn intMaxType(target: std.Target) Type {
     switch (target.cpu.arch) {
         .aarch64,
+        .aarch64_be,
         .sparc64,
         => if (target.os.tag != .openbsd) return .{ .specifier = .long },
 
@@ -44,7 +45,7 @@ pub fn intPtrType(target: std.Target) Type {
     }
 
     switch (target.cpu.arch) {
-        .aarch64 => switch (target.os.tag) {
+        .aarch64, .aarch64_be => switch (target.os.tag) {
             .windows => return .{ .specifier = .long_long },
             else => {},
         },
@@ -92,6 +93,27 @@ pub fn intPtrType(target: std.Target) Type {
     }
 
     return .{ .specifier = .long };
+}
+
+/// int64_t for this target
+pub fn int64Type(target: std.Target) Type {
+    switch (target.cpu.arch) {
+        .loongarch64,
+        .ve,
+        .riscv64,
+        .powerpc64,
+        .powerpc64le,
+        .bpfel,
+        .bpfeb,
+        => return .{ .specifier = .long },
+
+        .sparc64 => return intMaxType(target),
+
+        .x86 => return intMaxType(target),
+        .aarch64, .aarch64_be => if (!target.isDarwin() and target.os.tag != .openbsd and target.os.tag != .windows) return .{ .specifier = .long },
+        else => {},
+    }
+    return .{ .specifier = .long_long };
 }
 
 pub fn getCharSignedness(target: std.Target) std.builtin.Signedness {
