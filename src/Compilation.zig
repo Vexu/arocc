@@ -456,30 +456,28 @@ fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target.FPSeman
         },
     );
 
-    var buf: [32]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&buf);
-    var defPrefix = std.ArrayList(u8).initCapacity(fba.allocator(), 3 + prefix.len) catch unreachable; // fib
-    defPrefix.appendSliceAssumeCapacity("__");
-    defPrefix.appendSliceAssumeCapacity(prefix);
-    defPrefix.appendSliceAssumeCapacity("_");
+    var defPrefix = std.BoundedArray(u8, 32).init(0) catch unreachable;
+    defPrefix.writer().print("__{s}_", .{prefix}) catch return error.OutOfMemory;
 
-    try w.print("#define {s}DENORM_MIN__ {s}{s}\n", .{ defPrefix.items, denormMin, ext });
-    try w.print("#define {s}HAS_DENORM__\n", .{defPrefix.items});
-    try w.print("#define {s}DIG__ {d}\n", .{ defPrefix.items, digits });
-    try w.print("#define {s}DECIMAL_DIG__ {d}\n", .{ defPrefix.items, decimalDigits });
+    const prefix_slice = defPrefix.constSlice();
 
-    try w.print("#define {s}EPSILON__ {s}{s}\n", .{ defPrefix.items, epsilon, ext });
-    try w.print("#define {s}HAS_INFINITY__\n", .{defPrefix.items});
-    try w.print("#define {s}HAS_QUIET_NAN__\n", .{defPrefix.items});
-    try w.print("#define {s}MANT_DIG__ {d}\n", .{ defPrefix.items, mantissaDigits });
+    try w.print("#define {s}DENORM_MIN__ {s}{s}\n", .{ prefix_slice, denormMin, ext });
+    try w.print("#define {s}HAS_DENORM__\n", .{prefix_slice});
+    try w.print("#define {s}DIG__ {d}\n", .{ prefix_slice, digits });
+    try w.print("#define {s}DECIMAL_DIG__ {d}\n", .{ prefix_slice, decimalDigits });
 
-    try w.print("#define {s}MAX_10_EXP__ {d}\n", .{ defPrefix.items, max10Exp });
-    try w.print("#define {s}MAX_EXP__ {d}\n", .{ defPrefix.items, maxExp });
-    try w.print("#define {s}MAX__ {s}{s}\n", .{ defPrefix.items, max, ext });
+    try w.print("#define {s}EPSILON__ {s}{s}\n", .{ prefix_slice, epsilon, ext });
+    try w.print("#define {s}HAS_INFINITY__\n", .{prefix_slice});
+    try w.print("#define {s}HAS_QUIET_NAN__\n", .{prefix_slice});
+    try w.print("#define {s}MANT_DIG__ {d}\n", .{ prefix_slice, mantissaDigits });
 
-    try w.print("#define {s}MIN_10_EXP__ ({d})\n", .{ defPrefix.items, min10Exp });
-    try w.print("#define {s}MIN_EXP__ ({d})\n", .{ defPrefix.items, minExp });
-    try w.print("#define {s}MIN__ {s}{s}\n", .{ defPrefix.items, min, ext });
+    try w.print("#define {s}MAX_10_EXP__ {d}\n", .{ prefix_slice, max10Exp });
+    try w.print("#define {s}MAX_EXP__ {d}\n", .{ prefix_slice, maxExp });
+    try w.print("#define {s}MAX__ {s}{s}\n", .{ prefix_slice, max, ext });
+
+    try w.print("#define {s}MIN_10_EXP__ ({d})\n", .{ prefix_slice, min10Exp });
+    try w.print("#define {s}MIN_EXP__ ({d})\n", .{ prefix_slice, minExp });
+    try w.print("#define {s}MIN__ {s}{s}\n", .{ prefix_slice, min, ext });
 }
 
 fn generateTypeMacro(w: anytype, mapper: StringInterner.TypeMapper, name: []const u8, ty: Type, langopts: LangOpts) !void {
@@ -632,21 +630,18 @@ fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StringIn
     }
 
     // TODO: Use target-specific int16 types when appropriate
-
-    var prefix_buf: [16]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&prefix_buf);
-    var prefix = std.ArrayList(u8).initCapacity(fba.allocator(), prefix_buf.len) catch unreachable;
-    prefix.writer().print("{s}{d}", .{ if (unsigned) "__UINT" else "__INT", width }) catch unreachable;
+    var prefix = std.BoundedArray(u8, 16).init(0) catch unreachable;
+    prefix.writer().print("{s}{d}", .{ if (unsigned) "__UINT" else "__INT", width }) catch return error.OutOfMemory;
 
     {
-        const len = prefix.items.len;
-        defer prefix.items.len = len;
+        const len = prefix.len;
+        defer prefix.resize(len) catch unreachable; // restoring previous size
         prefix.appendSliceAssumeCapacity("_TYPE__");
-        try generateTypeMacro(w, mapper, prefix.items, ty, comp.langopts);
+        try generateTypeMacro(w, mapper, prefix.constSlice(), ty, comp.langopts);
     }
 
-    try comp.generateFmt(prefix.items, w, ty);
-    try w.print("#define {s}_C_SUFFIX__ {s}\n", .{ prefix.items, ty.intValueSuffix(comp) });
+    try comp.generateFmt(prefix.constSlice(), w, ty);
+    try w.print("#define {s}_C_SUFFIX__ {s}\n", .{ prefix.constSlice(), ty.intValueSuffix(comp) });
 }
 
 pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
@@ -769,12 +764,10 @@ fn generateExactWidthIntMax(comp: *const Compilation, w: anytype, specifier: Typ
         ty = if (unsigned) comp.types.uint64 else comp.types.int64;
     }
 
-    var name_buf: [6]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&name_buf);
-    var name = std.ArrayList(u8).initCapacity(fba.allocator(), name_buf.len) catch unreachable;
-    name.writer().print("{s}{d}", .{ if (unsigned) "UINT" else "INT", bit_count }) catch unreachable;
+    var name = std.BoundedArray(u8, 6).init(0) catch unreachable;
+    name.writer().print("{s}{d}", .{ if (unsigned) "UINT" else "INT", bit_count }) catch return error.OutOfMemory;
 
-    return comp.generateIntMax(w, name.items, ty);
+    return comp.generateIntMax(w, name.constSlice(), ty);
 }
 
 fn generateIntWidth(comp: *Compilation, w: anytype, name: []const u8, ty: Type) !void {
