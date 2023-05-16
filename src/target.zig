@@ -117,7 +117,7 @@ pub fn int64Type(target: std.Target) Type {
 
         .sparc64 => return intMaxType(target),
 
-        .x86 => return intMaxType(target),
+        .x86, .x86_64 => return intMaxType(target),
         .aarch64, .aarch64_be => if (!target.isDarwin() and target.os.tag != .openbsd and target.os.tag != .windows) return .{ .specifier = .long },
         else => {},
     }
