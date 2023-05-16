@@ -95,6 +95,14 @@ pub fn intPtrType(target: std.Target) Type {
     return .{ .specifier = .long };
 }
 
+/// int16_t for this target
+pub fn int16Type(target: std.Target) Type {
+    return switch (target.cpu.arch) {
+        .avr => .{ .specifier = .int },
+        else => .{ .specifier = .short },
+    };
+}
+
 /// int64_t for this target
 pub fn int64Type(target: std.Target) Type {
     switch (target.cpu.arch) {

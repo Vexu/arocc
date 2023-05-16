@@ -57,6 +57,8 @@ types: struct {
     uintmax: Type = .{ .specifier = .invalid },
     intptr: Type = .{ .specifier = .invalid },
     uintptr: Type = .{ .specifier = .invalid },
+    int16: Type = .{ .specifier = .invalid },
+    uint16: Type = .{ .specifier = .invalid },
     int64: Type = .{ .specifier = .invalid },
     uint64: Type = .{ .specifier = .invalid },
 } = .{},
@@ -534,6 +536,9 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
     const intptr = target.intPtrType(comp.target);
     const uintptr = intptr.makeIntegerUnsigned();
 
+    const int16 = target.int16Type(comp.target);
+    const uint16 = int16.makeIntegerUnsigned();
+
     const int64 = target.int64Type(comp.target);
     const uint64 = int64.makeIntegerUnsigned();
 
@@ -547,6 +552,8 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         .uintmax = uintmax,
         .intptr = intptr,
         .uintptr = uintptr,
+        .int16 = int16,
+        .uint16 = uint16,
         .int64 = int64,
         .uint64 = uint64,
     };
@@ -625,11 +632,12 @@ fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StringIn
     const width = 8 * ty.sizeof(comp).?;
     const unsigned = ty.isUnsignedInt(comp);
 
-    if (width == 64) {
+    if (width == 16) {
+        ty = if (unsigned) comp.types.uint16 else comp.types.int16;
+    } else if (width == 64) {
         ty = if (unsigned) comp.types.uint64 else comp.types.int64;
     }
 
-    // TODO: Use target-specific int16 types when appropriate
     var prefix = std.BoundedArray(u8, 16).init(0) catch unreachable;
     prefix.writer().print("{s}{d}", .{ if (unsigned) "__UINT" else "__INT", width }) catch return error.OutOfMemory;
 
