@@ -7266,7 +7266,7 @@ fn charLiteral(p: *Parser) Error!Result {
 
     // This is the type the literal will have if we're in a macro; macros always operate on intmax_t/uintmax_t values
     const macro_ty = if (ty.isUnsignedInt(p.comp) or (p.tok_ids[p.tok_i] == .char_literal and p.comp.getCharSignedness() == .unsigned))
-        p.comp.types.uintmax
+        p.comp.types.intmax.makeIntegerUnsigned()
     else
         p.comp.types.intmax;
 
@@ -7590,7 +7590,7 @@ fn ppNum(p: *Parser) Error!Result {
             try p.errTok(.float_literal_in_pp_expr, p.tok_i);
             return error.ParsingFailed;
         }
-        res.ty = if (res.ty.isUnsignedInt(p.comp)) p.comp.types.uintmax else p.comp.types.intmax;
+        res.ty = if (res.ty.isUnsignedInt(p.comp)) p.comp.types.intmax.makeIntegerUnsigned() else p.comp.types.intmax;
     } else {
         try p.value_map.put(res.node, res.val);
     }

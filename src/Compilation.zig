@@ -54,13 +54,9 @@ types: struct {
     sigjmp_buf: Type = .{ .specifier = .invalid },
     ucontext_t: Type = .{ .specifier = .invalid },
     intmax: Type = .{ .specifier = .invalid },
-    uintmax: Type = .{ .specifier = .invalid },
     intptr: Type = .{ .specifier = .invalid },
-    uintptr: Type = .{ .specifier = .invalid },
     int16: Type = .{ .specifier = .invalid },
-    uint16: Type = .{ .specifier = .invalid },
     int64: Type = .{ .specifier = .invalid },
-    uint64: Type = .{ .specifier = .invalid },
 } = .{},
 /// Mapping from Source.Id to byte offset of first non-utf8 byte
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
@@ -351,10 +347,10 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     // try comp.generateIntMax(w, "WINT", comp.types.wchar);
     try comp.generateIntMaxAndWidth(w, "INTMAX", comp.types.intmax);
     try comp.generateIntMax(w, "SIZE", comp.types.size);
-    try comp.generateIntMaxAndWidth(w, "UINTMAX", comp.types.uintmax);
+    try comp.generateIntMaxAndWidth(w, "UINTMAX", comp.types.intmax.makeIntegerUnsigned());
     try comp.generateIntMax(w, "PTRDIFF", comp.types.ptrdiff);
     try comp.generateIntMaxAndWidth(w, "INTPTR", comp.types.intptr);
-    try comp.generateIntMaxAndWidth(w, "UINTPTR", comp.types.uintptr);
+    try comp.generateIntMaxAndWidth(w, "UINTPTR", comp.types.intptr.makeIntegerUnsigned());
 
     // int widths
     try w.print("#define __BITINT_MAXWIDTH__ {d}\n", .{bit_int_max_bits});
@@ -531,16 +527,9 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
     };
 
     const intmax = target.intMaxType(comp.target);
-    const uintmax = intmax.makeIntegerUnsigned();
-
     const intptr = target.intPtrType(comp.target);
-    const uintptr = intptr.makeIntegerUnsigned();
-
     const int16 = target.int16Type(comp.target);
-    const uint16 = int16.makeIntegerUnsigned();
-
     const int64 = target.int64Type(comp.target);
-    const uint64 = int64.makeIntegerUnsigned();
 
     comp.types = .{
         .wchar = wchar,
@@ -549,13 +538,9 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         .va_list = va_list,
         .pid_t = pid_t,
         .intmax = intmax,
-        .uintmax = uintmax,
         .intptr = intptr,
-        .uintptr = uintptr,
         .int16 = int16,
-        .uint16 = uint16,
         .int64 = int64,
-        .uint64 = uint64,
     };
 
     try comp.generateNsConstantStringType();
@@ -633,9 +618,9 @@ fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StringIn
     const unsigned = ty.isUnsignedInt(comp);
 
     if (width == 16) {
-        ty = if (unsigned) comp.types.uint16 else comp.types.int16;
+        ty = if (unsigned) comp.types.int16.makeIntegerUnsigned() else comp.types.int16;
     } else if (width == 64) {
-        ty = if (unsigned) comp.types.uint64 else comp.types.int64;
+        ty = if (unsigned) comp.types.int64.makeIntegerUnsigned() else comp.types.int64;
     }
 
     var prefix = std.BoundedArray(u8, 16).init(0) catch unreachable;
@@ -769,7 +754,7 @@ fn generateExactWidthIntMax(comp: *const Compilation, w: anytype, specifier: Typ
     const unsigned = ty.isUnsignedInt(comp);
 
     if (bit_count == 64) {
-        ty = if (unsigned) comp.types.uint64 else comp.types.int64;
+        ty = if (unsigned) comp.types.int64.makeIntegerUnsigned() else comp.types.int64;
     }
 
     var name = std.BoundedArray(u8, 6).init(0) catch unreachable;
