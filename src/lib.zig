@@ -12,6 +12,7 @@ pub const Preprocessor = @import("Preprocessor.zig");
 pub const Source = @import("Source.zig");
 pub const Tokenizer = @import("Tokenizer.zig");
 pub const Tree = @import("Tree.zig");
+pub const Type = @import("Type.zig");
 pub const TypeMapper = @import("StringInterner.zig").TypeMapper;
 pub const target_util = @import("target.zig");
 
