@@ -371,6 +371,10 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
 
     // various int types
     const mapper = comp.string_interner.getSlowTypeMapper();
+    try generateTypeMacro(w, mapper, "__INTPTR_TYPE__", comp.types.intptr, comp.langopts);
+    try generateTypeMacro(w, mapper, "__UINTPTR_TYPE__", comp.types.intptr.makeIntegerUnsigned(), comp.langopts);
+    try generateTypeMacro(w, mapper, "__INTMAX_TYPE__", comp.types.intmax, comp.langopts);
+    try generateTypeMacro(w, mapper, "__UINTMAX_TYPE__", comp.types.intmax.makeIntegerUnsigned(), comp.langopts);
     try generateTypeMacro(w, mapper, "__PTRDIFF_TYPE__", comp.types.ptrdiff, comp.langopts);
     try generateTypeMacro(w, mapper, "__SIZE_TYPE__", comp.types.size, comp.langopts);
     try generateTypeMacro(w, mapper, "__WCHAR_TYPE__", comp.types.wchar, comp.langopts);
