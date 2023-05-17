@@ -8,6 +8,7 @@ const TargetSet = @import("builtins/Properties.zig").TargetSet;
 pub fn intMaxType(target: std.Target) Type {
     switch (target.cpu.arch) {
         .aarch64,
+        .aarch64_be,
         .sparc64,
         => if (target.os.tag != .openbsd) return .{ .specifier = .long },
 
@@ -30,6 +31,94 @@ pub fn intMaxType(target: std.Target) Type {
             },
         },
 
+        else => {},
+    }
+    return .{ .specifier = .long_long };
+}
+
+/// intptr_t for this target
+pub fn intPtrType(target: std.Target) Type {
+    switch (target.os.tag) {
+        .haiku => return .{ .specifier = .long },
+        .nacl => return .{ .specifier = .int },
+        else => {},
+    }
+
+    switch (target.cpu.arch) {
+        .aarch64, .aarch64_be => switch (target.os.tag) {
+            .windows => return .{ .specifier = .long_long },
+            else => {},
+        },
+
+        .msp430,
+        .csky,
+        .loongarch32,
+        .riscv32,
+        .xcore,
+        .hexagon,
+        .tce,
+        .tcele,
+        .m68k,
+        .spir,
+        .spirv32,
+        .arc,
+        .avr,
+        => return .{ .specifier = .int },
+
+        .sparc, .sparcel => switch (target.os.tag) {
+            .netbsd, .openbsd => {},
+            else => return .{ .specifier = .int },
+        },
+
+        .powerpc, .powerpcle => switch (target.os.tag) {
+            .linux, .freebsd, .netbsd => return .{ .specifier = .int },
+            else => {},
+        },
+
+        // 32-bit x86 Darwin, OpenBSD, and RTEMS use long (the default); others use int
+        .x86 => switch (target.os.tag) {
+            .openbsd, .rtems => {},
+            else => if (!target.os.tag.isDarwin()) return .{ .specifier = .int },
+        },
+
+        .x86_64 => switch (target.os.tag) {
+            .windows => return .{ .specifier = .long_long },
+            else => switch (target.abi) {
+                .gnux32, .muslx32 => return .{ .specifier = .int },
+                else => {},
+            },
+        },
+
+        else => {},
+    }
+
+    return .{ .specifier = .long };
+}
+
+/// int16_t for this target
+pub fn int16Type(target: std.Target) Type {
+    return switch (target.cpu.arch) {
+        .avr => .{ .specifier = .int },
+        else => .{ .specifier = .short },
+    };
+}
+
+/// int64_t for this target
+pub fn int64Type(target: std.Target) Type {
+    switch (target.cpu.arch) {
+        .loongarch64,
+        .ve,
+        .riscv64,
+        .powerpc64,
+        .powerpc64le,
+        .bpfel,
+        .bpfeb,
+        => return .{ .specifier = .long },
+
+        .sparc64 => return intMaxType(target),
+
+        .x86, .x86_64 => if (!target.isDarwin()) return intMaxType(target),
+        .aarch64, .aarch64_be => if (!target.isDarwin() and target.os.tag != .openbsd and target.os.tag != .windows) return .{ .specifier = .long },
         else => {},
     }
     return .{ .specifier = .long_long };
