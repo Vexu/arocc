@@ -1,6 +1,7 @@
 //aro-args -std=c2x
 
 #include <stdint.h>
+#include "test_helpers.h"
 
 #ifndef INTPTR_WIDTH
 #error INTPTR_WIDTH
@@ -47,6 +48,8 @@ void int64(void) {
     _Static_assert(UINT64_MAX == 18446744073709551615ULL);
     _Static_assert(INT64_WIDTH == 64);
     _Static_assert(UINT64_WIDTH == 64);
+    EXPECT_TYPE(INT64_C(0), __INT64_TYPE__);
+    EXPECT_TYPE(UINT64_C(0), __UINT64_TYPE__);
 }
 
 void int32(void) {
@@ -61,6 +64,8 @@ void int32(void) {
     _Static_assert(UINT32_MAX == 4294967295U);
     _Static_assert(INT32_WIDTH == 32);
     _Static_assert(UINT32_WIDTH == 32);
+    EXPECT_TYPE(INT32_C(0), __INT32_TYPE__);
+    EXPECT_TYPE(UINT32_C(0), __UINT32_TYPE__);
 }
 
 void int16(void) {
