@@ -23,10 +23,10 @@
 #define INTMAX_MAX   __INTMAX_MAX__
 #define UINTMAX_MAX  __UINTMAX_MAX__
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
-# define INTPTR_WIDTH  __INTPTR_WIDTH__
-# define UINTPTR_WIDTH __UINTPTR_WIDTH__
-# define INTMAX_WIDTH __INTMAX_WIDTH__
-# define UINTMAX_WIDTH __UINTMAX_WIDTH__
+# define INTPTR_WIDTH     __INTPTR_WIDTH__
+# define UINTPTR_WIDTH    __UINTPTR_WIDTH__
+# define INTMAX_WIDTH     __INTMAX_WIDTH__
+# define UINTMAX_WIDTH    __UINTMAX_WIDTH__
 # define PTRDIFF_WIDTH    __PTRDIFF_WIDTH__
 # define SIZE_WIDTH       __SIZE_WIDTH__
 # define WCHAR_WIDTH      __WCHAR_WIDTH__
@@ -84,5 +84,97 @@ typedef __UINTMAX_TYPE__ uintmax_t;
 
 #endif /* __INT64_TYPE__ */
 
+#ifdef __INT32_TYPE__
+# ifndef __int8_t_defined /* glibc sys/types.h also defines int32_t*/
+   typedef __INT32_TYPE__ int32_t;
+# endif /* __int8_t_defined */
+  typedef __UINT32_TYPE__ uint32_t;
+
+# undef __int32_c_suffix
+# undef __int16_c_suffix
+# undef  __int8_c_suffix
+# ifdef __INT32_C_SUFFIX__
+#  define __int32_c_suffix __INT32_C_SUFFIX__
+#  define __int16_c_suffix __INT32_C_SUFFIX__
+#  define  __int8_c_suffix __INT32_C_SUFFIX__
+# endif /* __INT32_C_SUFFIX__ */
+
+# ifdef __int32_c_suffix
+#  define INT32_C(v) (__stdint_int_c(v, __int32_c_suffix))
+#  define UINT32_C(v) (__stdint_uint_c(v, __int32_c_suffix))
+# else
+#  define INT32_C(v) (v)
+#  define UINT32_C(v) (v ## U)
+# endif /* __int32_c_suffix */
+
+# define INT32_MAX           INT32_C( 2147483647)
+# define INT32_MIN         (-INT32_C( 2147483647)-1)
+# define UINT32_MAX         UINT32_C(4294967295)
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#  define UINT32_WIDTH         32
+#  define INT32_WIDTH          UINT32_WIDTH
+# endif /* __STDC_VERSION__ */
+
+#endif /* __INT32_TYPE__ */
+
+#ifdef __INT16_TYPE__
+# ifndef __int8_t_defined /* glibc sys/types.h also defines int16_t*/
+   typedef __INT16_TYPE__ int16_t;
+# endif /* __int8_t_defined */
+  typedef __UINT16_TYPE__ uint16_t;
+
+# undef __int16_c_suffix
+# undef  __int8_c_suffix
+# ifdef __INT16_C_SUFFIX__
+#  define __int16_c_suffix __INT16_C_SUFFIX__
+#  define  __int8_c_suffix __INT16_C_SUFFIX__
+# endif /* __INT16_C_SUFFIX__ */
+
+# ifdef __int16_c_suffix
+#  define INT16_C(v) (__stdint_int_c(v, __int16_c_suffix))
+#  define UINT16_C(v) (__stdint_uint_c(v, __int16_c_suffix))
+# else
+#  define INT16_C(v) (v)
+#  define UINT16_C(v) (v ## U)
+# endif /* __int16_c_suffix */
+
+# define INT16_MAX           INT16_C( 32767)
+# define INT16_MIN         (-INT16_C( 32767)-1)
+# define UINT16_MAX         UINT16_C(65535)
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#  define UINT16_WIDTH         16
+#  define INT16_WIDTH          UINT16_WIDTH
+# endif /* __STDC_VERSION__ */
+
+#endif /* __INT16_TYPE__ */
+
+#ifdef __INT8_TYPE__
+# ifndef __int8_t_defined /* glibc sys/types.h also defines int8_t*/
+   typedef __INT8_TYPE__ int8_t;
+# endif /* __int8_t_defined */
+  typedef __UINT8_TYPE__ uint8_t;
+
+# undef  __int8_c_suffix
+# ifdef __INT8_C_SUFFIX__
+#  define  __int8_c_suffix __INT8_C_SUFFIX__
+# endif /* __INT8_C_SUFFIX__ */
+
+# ifdef __int8_c_suffix
+#  define INT8_C(v) (__stdint_int_c(v, __int8_c_suffix))
+#  define UINT8_C(v) (__stdint_uint_c(v, __int8_c_suffix))
+# else
+#  define INT8_C(v) (v)
+#  define UINT8_C(v) (v ## U)
+# endif /* __int8_c_suffix */
+
+# define INT8_MAX           INT8_C(127)
+# define INT8_MIN         (-INT8_C(127)-1)
+# define UINT8_MAX         UINT8_C(255)
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#  define UINT8_WIDTH         8
+#  define INT8_WIDTH          UINT8_WIDTH
+# endif /* __STDC_VERSION__ */
+
+#endif /* __INT8_TYPE__ */
 
 #endif /* __STDC_HOSTED__ && __has_include_next(<stdint.h>) */
