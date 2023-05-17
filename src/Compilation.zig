@@ -346,9 +346,9 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     try comp.generateIntMaxAndWidth(w, "WCHAR", comp.types.wchar);
     // try comp.generateIntMax(w, "WINT", comp.types.wchar);
     try comp.generateIntMaxAndWidth(w, "INTMAX", comp.types.intmax);
-    try comp.generateIntMax(w, "SIZE", comp.types.size);
+    try comp.generateIntMaxAndWidth(w, "SIZE", comp.types.size);
     try comp.generateIntMaxAndWidth(w, "UINTMAX", comp.types.intmax.makeIntegerUnsigned());
-    try comp.generateIntMax(w, "PTRDIFF", comp.types.ptrdiff);
+    try comp.generateIntMaxAndWidth(w, "PTRDIFF", comp.types.ptrdiff);
     try comp.generateIntMaxAndWidth(w, "INTPTR", comp.types.intptr);
     try comp.generateIntMaxAndWidth(w, "UINTPTR", comp.types.intptr.makeIntegerUnsigned());
 
