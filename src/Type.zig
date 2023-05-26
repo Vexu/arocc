@@ -7,8 +7,7 @@ const Compilation = @import("Compilation.zig");
 const Attribute = @import("Attribute.zig");
 const StringInterner = @import("StringInterner.zig");
 const StringId = StringInterner.StringId;
-const CType = @import("zig").CType;
-const target = @import("target.zig");
+const target_util = @import("target.zig");
 const LangOpts = @import("LangOpts.zig");
 const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
@@ -922,19 +921,19 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .incomplete_array => return if (comp.langopts.emulate == .msvc) @as(?u64, 0) else null,
         .func, .var_args_func, .old_style_func, .void, .bool => 1,
         .char, .schar, .uchar => 1,
-        .short => @divExact(CType.sizeInBits(.short, comp.target), 8),
-        .ushort => @divExact(CType.sizeInBits(.ushort, comp.target), 8),
-        .int => @divExact(CType.sizeInBits(.int, comp.target), 8),
-        .uint => @divExact(CType.sizeInBits(.uint, comp.target), 8),
-        .long => @divExact(CType.sizeInBits(.long, comp.target), 8),
-        .ulong => @divExact(CType.sizeInBits(.ulong, comp.target), 8),
-        .long_long => @divExact(CType.sizeInBits(.longlong, comp.target), 8),
-        .ulong_long => @divExact(CType.sizeInBits(.ulonglong, comp.target), 8),
-        .long_double => @divExact(CType.sizeInBits(.longdouble, comp.target), 8),
+        .short => comp.target.c_type_byte_size(.short),
+        .ushort => comp.target.c_type_byte_size(.ushort),
+        .int => comp.target.c_type_byte_size(.int),
+        .uint => comp.target.c_type_byte_size(.uint),
+        .long => comp.target.c_type_byte_size(.long),
+        .ulong => comp.target.c_type_byte_size(.ulong),
+        .long_long => comp.target.c_type_byte_size(.longlong),
+        .ulong_long => comp.target.c_type_byte_size(.ulonglong),
+        .long_double => comp.target.c_type_byte_size(.longdouble),
         .int128, .uint128 => 16,
         .fp16, .float16 => 2,
-        .float => @divExact(CType.sizeInBits(.float, comp.target), 8),
-        .double => @divExact(CType.sizeInBits(.double, comp.target), 8),
+        .float => comp.target.c_type_byte_size(.float),
+        .double => comp.target.c_type_byte_size(.double),
         .float80 => 16,
         .float128 => 16,
         .bit_int => {
@@ -957,7 +956,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .decayed_typeof_expr,
         .static_array,
         .nullptr_t,
-        => CType.ptrBitWidth(comp.target) >> 3,
+        => comp.target.ptrBitWidth() / 8,
         .array, .vector => {
             const size = ty.data.array.elem.sizeof(comp) orelse return null;
             const arr_size = size * ty.data.array.len;
@@ -987,7 +986,7 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.bitSizeof(comp),
         .attributed => ty.data.attributed.base.bitSizeof(comp),
         .bit_int => return ty.data.int.bits,
-        .long_double => CType.sizeInBits(.longdouble, comp.target),
+        .long_double => comp.target.c_type_bit_size(.longdouble),
         .float80 => return 80,
         else => 8 * (ty.sizeof(comp) orelse return null),
     };
@@ -1027,7 +1026,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .array,
         .vector,
         => ty.elemType().alignof(comp),
-        .func, .var_args_func, .old_style_func => target.defaultFunctionAlignment(comp.target),
+        .func, .var_args_func, .old_style_func => target_util.defaultFunctionAlignment(comp.target),
         .char, .schar, .uchar, .void, .bool => 1,
 
         // zig fmt: off
@@ -1038,24 +1037,24 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         => return ty.makeReal().alignof(comp),
         // zig fmt: on
 
-        .short => CType.short.alignment(comp.target),
-        .ushort => CType.ushort.alignment(comp.target),
-        .int => CType.int.alignment(comp.target),
-        .uint => CType.uint.alignment(comp.target),
+        .short => comp.target.c_type_alignment(.short),
+        .ushort => comp.target.c_type_alignment(.ushort),
+        .int => comp.target.c_type_alignment(.int),
+        .uint => comp.target.c_type_alignment(.uint),
 
-        .long => CType.long.alignment(comp.target),
-        .ulong => CType.ulong.alignment(comp.target),
-        .long_long => CType.longlong.alignment(comp.target),
-        .ulong_long => CType.ulonglong.alignment(comp.target),
+        .long => comp.target.c_type_alignment(.long),
+        .ulong => comp.target.c_type_alignment(.ulong),
+        .long_long => comp.target.c_type_alignment(.longlong),
+        .ulong_long => comp.target.c_type_alignment(.ulonglong),
 
         .bit_int => @min(
             std.math.ceilPowerOfTwoPromote(u16, (ty.data.int.bits + 7) / 8),
             comp.target.maxIntAlignment(),
         ),
 
-        .float => CType.float.alignment(comp.target),
-        .double => CType.double.alignment(comp.target),
-        .long_double => CType.longdouble.alignment(comp.target),
+        .float => comp.target.c_type_alignment(.float),
+        .double => comp.target.c_type_alignment(.double),
+        .long_double => comp.target.c_type_alignment(.longdouble),
 
         .int128, .uint128 => if (comp.target.cpu.arch == .s390x and comp.target.os.tag == .linux and comp.target.isGnu()) 8 else 16,
         .fp16, .float16 => 2,
@@ -1071,7 +1070,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .nullptr_t,
         => switch (comp.target.cpu.arch) {
             .avr => 1,
-            else => CType.ptrBitWidth(comp.target) >> 3,
+            else => comp.target.ptrBitWidth() / 8,
         },
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @intCast(u29, ty.data.record.type_layout.field_alignment_bits / 8),
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
@@ -1137,7 +1136,7 @@ pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
 
 pub fn enumIsPacked(ty: Type, comp: *const Compilation) bool {
     std.debug.assert(ty.is(.@"enum"));
-    return comp.langopts.short_enums or target.packAllEnums(comp.target) or ty.hasAttribute(.@"packed");
+    return comp.langopts.short_enums or target_util.packAllEnums(comp.target) or ty.hasAttribute(.@"packed");
 }
 
 pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) ?u29 {
@@ -1146,7 +1145,7 @@ pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) 
     var max_requested: ?u29 = null;
     for (a) |attribute| {
         if (attribute.tag != .aligned) continue;
-        const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else target.defaultAlignment(comp.target);
+        const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else target_util.defaultAlignment(comp.target);
         if (max_requested == null or max_requested.? < requested) {
             max_requested = requested;
         }
@@ -1913,7 +1912,7 @@ pub const Builder = struct {
         if (new == .complex) b.complex_tok = source_tok;
         if (new == .bit_int) b.bit_int_tok = source_tok;
 
-        if (new == .int128 and !target.hasInt128(p.comp.target)) {
+        if (new == .int128 and !target_util.hasInt128(p.comp.target)) {
             try p.errStr(.type_not_supported_on_target, source_tok, "__int128");
         }
 

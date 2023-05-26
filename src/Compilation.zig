@@ -13,8 +13,7 @@ const Type = @import("Type.zig");
 const Pragma = @import("Pragma.zig");
 const StringInterner = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
-const CType = @import("zig").CType;
-const target = @import("target.zig");
+const target_util = @import("target.zig");
 const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Compilation = @This();
@@ -161,6 +160,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     if (comp.langopts.standard.StdCVersionMacro()) |stdc_version| {
         try w.print("#define __STDC_VERSION__ {s}\n", .{stdc_version});
     }
+    const ptr_width = comp.target.ptrBitWidth();
 
     // os macros
     switch (comp.target.os.tag) {
@@ -170,7 +170,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
             \\#define __linux__ 1
             \\
         ),
-        .windows => if (CType.ptrBitWidth(comp.target) == 32) try w.writeAll(
+        .windows => if (ptr_width == 32) try w.writeAll(
             \\#define WIN32 1
             \\#define _WIN32 1
             \\#define __WIN32 1
@@ -303,7 +303,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         else => {},
     }
 
-    if (comp.target.os.tag != .windows) switch (CType.ptrBitWidth(comp.target)) {
+    if (comp.target.os.tag != .windows) switch (ptr_width) {
         64 => try w.writeAll(
             \\#define _LP64 1
             \\#define __LP64__ 1
@@ -386,16 +386,16 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
 
     try comp.generateExactWidthTypes(w, mapper);
 
-    if (target.FPSemantics.halfPrecisionType(comp.target)) |half| {
+    if (target_util.FPSemantics.halfPrecisionType(comp.target)) |half| {
         try generateFloatMacros(w, "FLT16", half, "F16");
     }
-    try generateFloatMacros(w, "FLT", target.FPSemantics.forType(CType.float, comp.target), "F");
-    try generateFloatMacros(w, "DBL", target.FPSemantics.forType(CType.double, comp.target), "");
-    try generateFloatMacros(w, "LDBL", target.FPSemantics.forType(CType.longdouble, comp.target), "L");
+    try generateFloatMacros(w, "FLT", target_util.FPSemantics.forType(.float, comp.target), "F");
+    try generateFloatMacros(w, "DBL", target_util.FPSemantics.forType(.double, comp.target), "");
+    try generateFloatMacros(w, "LDBL", target_util.FPSemantics.forType(.longdouble, comp.target), "L");
 
     // TODO: clang treats __FLT_EVAL_METHOD__ as a special-cased macro because evaluating it within a scope
     // where `#pragma clang fp eval_method(X)` has been called produces an error diagnostic.
-    const flt_eval_method = comp.langopts.fp_eval_method orelse target.defaultFpEvalMethod(comp.target);
+    const flt_eval_method = comp.langopts.fp_eval_method orelse target_util.defaultFpEvalMethod(comp.target);
     try w.print("#define __FLT_EVAL_METHOD__ {d}\n", .{@enumToInt(flt_eval_method)});
 
     try w.writeAll(
@@ -407,7 +407,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     return comp.addSourceFromBuffer("<builtin>", buf.items);
 }
 
-fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target.FPSemantics, ext: []const u8) !void {
+fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target_util.FPSemantics, ext: []const u8) !void {
     const denormMin = semantics.chooseValue(
         []const u8,
         .{
@@ -508,18 +508,19 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         else => .{ .specifier = .int },
     };
 
-    const ptrdiff = if (os == .windows and CType.ptrBitWidth(comp.target) == 64)
+    const ptr_width = comp.target.ptrBitWidth();
+    const ptrdiff = if (os == .windows and ptr_width == 64)
         Type{ .specifier = .long_long }
-    else switch (CType.ptrBitWidth(comp.target)) {
+    else switch (ptr_width) {
         16 => Type{ .specifier = .int },
         32 => Type{ .specifier = .int },
         64 => Type{ .specifier = .long },
         else => unreachable,
     };
 
-    const size = if (os == .windows and CType.ptrBitWidth(comp.target) == 64)
+    const size = if (os == .windows and ptr_width == 64)
         Type{ .specifier = .ulong_long }
-    else switch (CType.ptrBitWidth(comp.target)) {
+    else switch (ptr_width) {
         16 => Type{ .specifier = .uint },
         32 => Type{ .specifier = .uint },
         64 => Type{ .specifier = .ulong },
@@ -535,10 +536,10 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         else => .{ .specifier = .int },
     };
 
-    const intmax = target.intMaxType(comp.target);
-    const intptr = target.intPtrType(comp.target);
-    const int16 = target.int16Type(comp.target);
-    const int64 = target.int64Type(comp.target);
+    const intmax = target_util.intMaxType(comp.target);
+    const intptr = target_util.intPtrType(comp.target);
+    const int16 = target_util.int16Type(comp.target);
+    const int64 = target_util.int64Type(comp.target);
 
     comp.types = .{
         .wchar = wchar,
@@ -651,7 +652,7 @@ fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StringIn
 }
 
 pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
-    return comp.langopts.allow_half_args_and_returns or target.hasHalfPrecisionFloatABI(comp.target);
+    return comp.langopts.allow_half_args_and_returns or target_util.hasHalfPrecisionFloatABI(comp.target);
 }
 
 fn generateNsConstantStringType(comp: *Compilation) !void {
@@ -817,7 +818,7 @@ pub fn fixedEnumTagSpecifier(comp: *const Compilation) ?Type.Specifier {
 }
 
 pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
-    return comp.langopts.char_signedness_override orelse target.getCharSignedness(comp.target);
+    return comp.langopts.char_signedness_override orelse target_util.getCharSignedness(comp.target);
 }
 
 pub fn defineSystemIncludes(comp: *Compilation) !void {
@@ -1278,7 +1279,7 @@ pub fn hasBuiltin(comp: *const Compilation, name: []const u8) bool {
 }
 
 pub fn hasBuiltinFunction(comp: *const Compilation, builtin: BuiltinFunction) bool {
-    if (!target.builtinEnabled(comp.target, builtin.properties.target_set)) return false;
+    if (!target_util.builtinEnabled(comp.target, builtin.properties.target_set)) return false;
 
     switch (builtin.properties.language) {
         .all_languages => return true,

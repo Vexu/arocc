@@ -9,7 +9,7 @@ const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
 const util = @import("util.zig");
-const target = @import("target.zig");
+const target_util = @import("target.zig");
 
 const Driver = @This();
 
@@ -119,7 +119,7 @@ pub fn parseArgs(
     d: *Driver,
     std_out: anytype,
     macro_buf: anytype,
-    args: [][]const u8,
+    args: []const []const u8,
 ) !bool {
     var i: usize = 1;
     var color_setting: enum {
@@ -294,7 +294,7 @@ pub fn parseArgs(
                     continue;
                 };
                 d.comp.target = cross.toTarget(); // TODO deprecated
-                d.comp.langopts.setEmulatedCompiler(target.systemCompiler(d.comp.target));
+                d.comp.langopts.setEmulatedCompiler(target_util.systemCompiler(d.comp.target));
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
@@ -354,7 +354,7 @@ fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{FatalError} 
     return d.comp.diag.fatalNoSrc(fmt, args);
 }
 
-pub fn main(d: *Driver, args: [][]const u8) !void {
+pub fn main(d: *Driver, args: []const []const u8) !void {
     var macro_buf = std.ArrayList(u8).init(d.comp.gpa);
     defer macro_buf.deinit();
 

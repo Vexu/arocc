@@ -25,8 +25,8 @@ const StringId = @import("StringInterner.zig").StringId;
 const number_affixes = @import("number_affixes.zig");
 const NumberPrefix = number_affixes.Prefix;
 const NumberSuffix = number_affixes.Suffix;
-const CType = @import("zig").CType;
 const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
+const target_util = @import("target.zig");
 
 const Parser = @This();
 
@@ -2701,7 +2701,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         if (static) |_| try size.expect(p);
 
         const outer = try p.directDeclarator(base_type, d, kind);
-        var max_bits = CType.ptrBitWidth(p.comp.target);
+        var max_bits = p.comp.target.ptrBitWidth();
         if (max_bits > 61) max_bits = 61;
         const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
         // `outer` is validated later so it may be invalid here
@@ -4908,15 +4908,15 @@ const Result = struct {
             };
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
-            if (CType.longdouble.sizeInBits(p.comp.target) == 128) {
+            if (p.comp.target.c_type_bit_size(.longdouble) == 128) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[1])) return;
-            if (CType.longdouble.sizeInBits(p.comp.target) == 80) {
+            if (p.comp.target.c_type_bit_size(.longdouble) == 80) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[2])) return;
-            if (CType.longdouble.sizeInBits(p.comp.target) == 64) {
+            if (p.comp.target.c_type_bit_size(.longdouble) == 64) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;

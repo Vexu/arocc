@@ -4,7 +4,7 @@ const Allocator = mem.Allocator;
 const process = std.process;
 const Compilation = @import("Compilation.zig");
 const Driver = @import("Driver.zig");
-const target = @import("target.zig");
+const target_util = @import("target.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -39,7 +39,7 @@ pub fn main() u8 {
             return 1;
         },
     };
-    comp.langopts.setEmulatedCompiler(target.systemCompiler(comp.target));
+    comp.langopts.setEmulatedCompiler(target_util.systemCompiler(comp.target));
 
     var driver: Driver = .{ .comp = &comp };
     defer driver.deinit();
