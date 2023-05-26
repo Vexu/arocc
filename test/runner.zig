@@ -111,8 +111,8 @@ pub fn main() !void {
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
-            if (entry.kind == .Directory) continue;
-            if (entry.kind != .File) {
+            if (entry.kind == .directory) continue;
+            if (entry.kind != .file) {
                 print("skipping non file entry '{s}'\n", .{entry.name});
                 continue;
             }

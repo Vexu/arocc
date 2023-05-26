@@ -89,8 +89,8 @@ pub fn main() !void {
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
-            if (entry.kind == .Directory) continue;
-            if (entry.kind != .File) {
+            if (entry.kind == .directory) continue;
+            if (entry.kind != .file) {
                 print("skipping non file entry '{s}'\n", .{entry.name});
                 continue;
             }
@@ -103,7 +103,12 @@ pub fn main() !void {
         }
     }
 
-    std.sort.sort([]const u8, cases.items, u8, std.mem.lessThan);
+    const lessThan = struct {
+        pub fn lessThan(_: void, rhs: []const u8, lhs: []const u8) bool {
+            return std.mem.lessThan(u8, lhs, rhs);
+        }
+    }.lessThan;
+    std.mem.sort([]const u8, cases.items, {}, lessThan);
 
     var progress = std.Progress{};
     const root_node = progress.start("Layout", 0);

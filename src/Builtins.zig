@@ -3,7 +3,7 @@ const Compilation = @import("Compilation.zig");
 const Type = @import("Type.zig");
 const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 const TypeDescription = @import("builtins/TypeDescription.zig");
-const target = @import("target.zig");
+const target_util = @import("target.zig");
 const StringId = @import("StringInterner.zig").StringId;
 const LangOpts = @import("LangOpts.zig");
 const Parser = @import("Parser.zig");
@@ -62,7 +62,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
             .W => require_native_int64 = true,
             .N => {
                 std.debug.assert(desc.spec == .i);
-                if (!target.isLP64(comp.target)) {
+                if (!target_util.isLP64(comp.target)) {
                     builder.combine(undefined, .long, 0) catch unreachable;
                 }
             },

@@ -1,7 +1,6 @@
 const std = @import("std");
 const LangOpts = @import("LangOpts.zig");
 const Type = @import("Type.zig");
-const CType = @import("zig").CType;
 const TargetSet = @import("builtins/Properties.zig").TargetSet;
 
 /// intmax_t for this target
@@ -281,7 +280,8 @@ pub fn systemCompiler(target: std.Target) LangOpts.Compiler {
 
 pub fn hasInt128(target: std.Target) bool {
     if (target.cpu.arch == .wasm32) return true;
-    return target.cpu.arch.ptrBitWidth() >= 64;
+    if (target.cpu.arch == .x86_64) return true;
+    return target.ptrBitWidth() >= 64;
 }
 
 pub fn hasHalfPrecisionFloatABI(target: std.Target) bool {
@@ -306,9 +306,9 @@ pub const FPSemantics = enum {
     IBMExtendedDouble,
 
     /// Only intended for generating float.h macros for the preprocessor
-    pub fn forType(ty: CType, target: std.Target) FPSemantics {
+    pub fn forType(ty: std.Target.CType, target: std.Target) FPSemantics {
         std.debug.assert(ty == .float or ty == .double or ty == .longdouble);
-        return switch (ty.sizeInBits(target)) {
+        return switch (target.c_type_bit_size(ty)) {
             32 => .IEEESingle,
             64 => .IEEEDouble,
             80 => .x87ExtendedDouble,
@@ -353,7 +353,7 @@ pub const FPSemantics = enum {
 };
 
 pub fn isLP64(target: std.Target) bool {
-    return CType.sizeInBits(.int, target) == 32 and CType.ptrBitWidth(target) == 64;
+    return target.c_type_bit_size(.int) == 32 and target.ptrBitWidth() == 64;
 }
 
 pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
@@ -381,7 +381,7 @@ pub fn defaultFpEvalMethod(target: std.Target) LangOpts.FPEvalMethod {
     if (target.os.tag == .aix) return .double;
     switch (target.cpu.arch) {
         .x86, .x86_64 => {
-            if (target.cpu.arch.ptrBitWidth() == 32 and target.os.tag == .netbsd) {
+            if (target.ptrBitWidth() == 32 and target.os.tag == .netbsd) {
                 if (target.os.version_range.semver.min.order(.{ .major = 6, .minor = 99, .patch = 26 }) != .gt) {
                     // NETBSD <= 6.99.26 on 32-bit x86 defaults to double
                     return .double;

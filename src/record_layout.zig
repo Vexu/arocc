@@ -10,7 +10,7 @@ const Record = Type.Record;
 const Field = Record.Field;
 const TypeLayout = Type.TypeLayout;
 const FieldLayout = Type.FieldLayout;
-const target = @import("target.zig");
+const target_util = @import("target.zig");
 
 const BITS_PER_BYTE = 8;
 
@@ -279,18 +279,18 @@ const SysVContext = struct {
             // Some targets ignore the alignment of the underlying type when laying out
             // non-zero-sized bit-fields. See test case 0072. On such targets, bit-fields never
             // cross a storage boundary. See test case 0081.
-            if (target.ignoreNonZeroSizedBitfieldTypeAlignment(self.comp.target)) {
+            if (target_util.ignoreNonZeroSizedBitfieldTypeAlignment(self.comp.target)) {
                 ty_fld_algn_bits = 1;
             }
         } else {
             // Some targets ignore the alignment of the underlying type when laying out
             // zero-sized bit-fields. See test case 0073.
-            if (target.ignoreZeroSizedBitfieldTypeAlignment(self.comp.target)) {
+            if (target_util.ignoreZeroSizedBitfieldTypeAlignment(self.comp.target)) {
                 ty_fld_algn_bits = 1;
             }
             // Some targets have a minimum alignment of zero-sized bit-fields. See test case
             // 0074.
-            if (target.minZeroWidthBitfieldAlignment(self.comp.target)) |target_align| {
+            if (target_util.minZeroWidthBitfieldAlignment(self.comp.target)) |target_align| {
                 ty_fld_algn_bits = std.math.max(ty_fld_algn_bits, target_align);
             }
         }
@@ -353,7 +353,7 @@ const SysVContext = struct {
 
         // Unnamed fields do not contribute to the record alignment except on a few targets.
         // See test case 0079.
-        if (is_named or target.unnamedFieldAffectsAlignment(self.comp.target)) {
+        if (is_named or target_util.unnamedFieldAffectsAlignment(self.comp.target)) {
             var inherited_align_bits: u32 = undefined;
 
             if (bit_width == 0) {
