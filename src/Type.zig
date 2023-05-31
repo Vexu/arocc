@@ -273,6 +273,10 @@ pub const Specifier = enum {
     /// A NaN-like poison value
     invalid,
 
+    /// GNU auto type
+    /// This is a placeholder specifier - it must be replaced by the actual type specifier (determined by the initializer)
+    auto_type,
+
     void,
     bool,
 
@@ -917,6 +921,7 @@ pub fn sizeCompare(a: Type, b: Type, comp: *Compilation) TypeSizeOrder {
 /// Size of type as reported by sizeof
 pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
     return switch (ty.specifier) {
+        .auto_type => unreachable,
         .variable_len_array, .unspecified_variable_len_array => return null,
         .incomplete_array => return if (comp.langopts.emulate == .msvc) @as(?u64, 0) else null,
         .func, .var_args_func, .old_style_func, .void, .bool => 1,
@@ -1019,6 +1024,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
 
     return switch (ty.specifier) {
         .invalid => unreachable,
+        .auto_type => unreachable,
 
         .variable_len_array,
         .incomplete_array,
@@ -1182,6 +1188,7 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
     const a = a_param.canonicalize(.standard);
     const b = b_param.canonicalize(.standard);
 
+    if (a.specifier == .invalid or b.specifier == .invalid) return false;
     if (a.alignof(comp) != b.alignof(comp)) return false;
     if (a.isPtr()) {
         if (!b.isPtr()) return false;
@@ -1418,6 +1425,7 @@ pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: TokenIndex) Parser
 pub const Builder = struct {
     complex_tok: ?TokenIndex = null,
     bit_int_tok: ?TokenIndex = null,
+    auto_type_tok: ?TokenIndex = null,
     typedef: ?struct {
         tok: TokenIndex,
         ty: Type,
@@ -1432,6 +1440,8 @@ pub const Builder = struct {
     pub const Specifier = union(enum) {
         none,
         void,
+        /// GNU __auto_type extension
+        auto_type,
         nullptr_t,
         bool,
         char,
@@ -1543,6 +1553,7 @@ pub const Builder = struct {
             return switch (spec) {
                 .none => unreachable,
                 .void => "void",
+                .auto_type => "__auto_type",
                 .nullptr_t => "nullptr_t",
                 .bool => if (langopts.standard.atLeast(.c2x)) "bool" else "_Bool",
                 .char => "char",
@@ -1677,6 +1688,7 @@ pub const Builder = struct {
                 }
             },
             .void => ty.specifier = .void,
+            .auto_type => ty.specifier = .auto_type,
             .nullptr_t => unreachable, // nullptr_t can only be accessed via typeof(nullptr)
             .bool => ty.specifier = .bool,
             .char => ty.specifier = .char,
@@ -1909,8 +1921,12 @@ pub const Builder = struct {
             try p.errStr(.invalid_typeof, source_tok, @tagName(new));
         }
 
-        if (new == .complex) b.complex_tok = source_tok;
-        if (new == .bit_int) b.bit_int_tok = source_tok;
+        switch (new) {
+            .complex => b.complex_tok = source_tok,
+            .bit_int => b.bit_int_tok = source_tok,
+            .auto_type => b.auto_type_tok = source_tok,
+            else => {},
+        }
 
         if (new == .int128 and !target_util.hasInt128(p.comp.target)) {
             try p.errStr(.type_not_supported_on_target, source_tok, "__int128");
@@ -2097,6 +2113,10 @@ pub const Builder = struct {
                 .complex_unsigned => .{ .complex_ubit_int = new.bit_int },
                 else => return b.cannotCombine(p, source_tok),
             },
+            .auto_type => b.specifier = switch (b.specifier) {
+                .none => .auto_type,
+                else => return b.cannotCombine(p, source_tok),
+            },
             .fp16 => b.specifier = switch (b.specifier) {
                 .none => .fp16,
                 else => return b.cannotCombine(p, source_tok),
@@ -2213,6 +2233,7 @@ pub const Builder = struct {
     pub fn fromType(ty: Type) Builder.Specifier {
         return switch (ty.specifier) {
             .void => .void,
+            .auto_type => .auto_type,
             .nullptr_t => .nullptr_t,
             .bool => .bool,
             .char => .char,
