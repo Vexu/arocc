@@ -821,6 +821,11 @@ fn decl(p: *Parser) Error!bool {
 
     // Check for function definition.
     if (init_d.d.func_declarator != null and init_d.initializer.node == .none and init_d.d.ty.isFunc()) fn_def: {
+        if (decl_spec.auto_type) |tok_i| {
+            try p.errStr(.auto_type_not_allowed, tok_i, "function return type");
+            return error.ParsingFailed;
+        }
+
         switch (p.tok_ids[p.tok_i]) {
             .comma, .semicolon => break :fn_def,
             .l_brace => {},
@@ -921,7 +926,7 @@ fn decl(p: *Parser) Error!bool {
         } else {
             for (init_d.d.ty.params()) |param| {
                 if (param.ty.hasUnboundVLA()) try p.errTok(.unbound_vla, param.name_tok);
-                if (param.ty.hasIncompleteSize() and !param.ty.is(.void)) try p.errStr(.parameter_incomplete_ty, param.name_tok, try p.typeStr(param.ty));
+                if (param.ty.hasIncompleteSize() and !param.ty.is(.void) and param.ty.specifier != .invalid) try p.errStr(.parameter_incomplete_ty, param.name_tok, try p.typeStr(param.ty));
 
                 if (param.name == .empty) {
                     try p.errTok(.omitting_parameter_name, param.name_tok);
@@ -1000,6 +1005,8 @@ fn decl(p: *Parser) Error!bool {
         }
 
         if (p.eatToken(.comma) == null) break;
+
+        if (decl_spec.auto_type) |tok_i| try p.errTok(.auto_type_requires_single_declarator, tok_i);
 
         init_d = (try p.initDeclarator(&decl_spec, attr_buf_top)) orelse {
             try p.err(.expected_ident_or_l_paren);
@@ -1127,6 +1134,7 @@ pub const DeclSpec = struct {
     constexpr: ?TokenIndex = null,
     @"inline": ?TokenIndex = null,
     noreturn: ?TokenIndex = null,
+    auto_type: ?TokenIndex = null,
     ty: Type,
 
     fn validateParam(d: DeclSpec, p: *Parser, ty: *Type) Error!void {
@@ -1139,6 +1147,10 @@ pub const DeclSpec = struct {
         if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
         if (d.noreturn) |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
         if (d.constexpr) |tok_i| try p.errTok(.invalid_storage_on_param, tok_i);
+        if (d.auto_type) |tok_i| {
+            try p.errStr(.auto_type_not_allowed, tok_i, "function prototype");
+            ty.* = Type.invalid;
+        }
     }
 
     fn validateFnDef(d: DeclSpec, p: *Parser) Error!Tree.Tag {
@@ -1347,6 +1359,7 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
     if (p.tok_i == start) return null;
 
     d.ty = try spec.finish(p);
+    d.auto_type = spec.auto_type_tok;
     return d;
 }
 
@@ -1543,8 +1556,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     try p.attributeSpecifierExtra(init_d.d.name);
 
     var apply_var_attributes = false;
-
     if (decl_spec.storage_class == .typedef) {
+        if (decl_spec.auto_type) |tok_i| {
+            try p.errStr(.auto_type_not_allowed, tok_i, "typedef");
+            return error.ParsingFailed;
+        }
         init_d.d.ty = try Attribute.applyTypeAttributes(p, init_d.d.ty, attr_buf_top, null);
     } else if (init_d.d.ty.isFunc()) {
         init_d.d.ty = try Attribute.applyFunctionAttributes(p, init_d.d.ty, attr_buf_top);
@@ -1581,10 +1597,21 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
             init_d.d.ty.specifier = .array;
         }
     }
+
+    const name = init_d.d.name;
+    if (init_d.d.ty.is(.auto_type)) {
+        if (init_d.initializer.node == .none) {
+            init_d.d.ty = Type.invalid;
+            try p.errStr(.auto_type_requires_initializer, name, p.tokSlice(name));
+            return init_d;
+        } else {
+            init_d.d.ty.specifier = init_d.initializer.ty.specifier;
+            init_d.d.ty.data = init_d.initializer.ty.data;
+        }
+    }
     if (apply_var_attributes) {
         init_d.d.ty = try Attribute.applyVariableAttributes(p, init_d.d.ty, attr_buf_top, null);
     }
-    const name = init_d.d.name;
     if (decl_spec.storage_class != .typedef and init_d.d.ty.hasIncompleteSize()) incomplete: {
         const specifier = init_d.d.ty.canonicalize(.standard).specifier;
         if (decl_spec.storage_class == .@"extern") switch (specifier) {
@@ -1610,6 +1637,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
 
 /// typeSpec
 ///  : keyword_void
+///  | keyword_auto_type
 ///  | keyword_char
 ///  | keyword_short
 ///  | keyword_int
@@ -1645,6 +1673,10 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
         if (try p.typeQual(&ty.qual)) continue;
         switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try ty.combine(p, .void, p.tok_i),
+            .keyword_auto_type => {
+                try p.errTok(.auto_type_extension, p.tok_i);
+                try ty.combine(p, .auto_type, p.tok_i);
+            },
             .keyword_bool, .keyword_c23_bool => try ty.combine(p, .bool, p.tok_i),
             .keyword_int8, .keyword_int8_2, .keyword_char => try ty.combine(p, .char, p.tok_i),
             .keyword_int16, .keyword_int16_2, .keyword_short => try ty.combine(p, .short, p.tok_i),
@@ -2038,6 +2070,10 @@ fn recordDeclarator(p: *Parser) Error!bool {
         // 0 means unnamed
         var name_tok: TokenIndex = 0;
         var ty = base_ty;
+        if (ty.is(.auto_type)) {
+            try p.errStr(.auto_type_not_allowed, p.tok_i, if (p.record.kind == .keyword_struct) "struct member" else "union member");
+            ty = Type.invalid;
+        }
         var bits_node: NodeIndex = .none;
         var bits: ?u32 = null;
         const first_tok = p.tok_i;
@@ -2144,7 +2180,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 }
             }
             p.record.flexible_field = first_tok;
-        } else if (ty.hasIncompleteSize()) {
+        } else if (ty.specifier != .invalid and ty.hasIncompleteSize()) {
             try p.errStr(.field_incomplete_ty, first_tok, try p.typeStr(ty));
         } else if (p.record.flexible_field) |some| {
             if (some != first_tok and p.record.kind == .keyword_struct) try p.errTok(.flexible_non_final, some);
@@ -2597,6 +2633,10 @@ fn declarator(
 ) Error!?Declarator {
     const start = p.tok_i;
     var d = Declarator{ .name = 0, .ty = try p.pointer(base_type) };
+    if (base_type.is(.auto_type) and !d.ty.is(.auto_type)) {
+        try p.errTok(.auto_type_requires_plain_declarator, start);
+        return error.ParsingFailed;
+    }
 
     const maybe_ident = p.tok_i;
     if (kind != .abstract and (try p.eatIdentifier()) != null) {
@@ -2695,6 +2735,10 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         }
         if (static) |_| try size.expect(p);
 
+        if (base_type.is(.auto_type)) {
+            try p.errStr(.array_of_auto_type, d.name, p.tokSlice(d.name));
+            return error.ParsingFailed;
+        }
         const outer = try p.directDeclarator(base_type, d, kind);
         var max_bits = p.comp.target.ptrBitWidth();
         if (max_bits > 61) max_bits = 61;
@@ -2932,6 +2976,10 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
         if (try p.coerceArrayInit(&res, tok, init_ty)) return res;
         try p.coerceInit(&res, tok, init_ty);
         return res;
+    }
+    if (init_ty.is(.auto_type)) {
+        try p.err(.auto_type_with_init_list);
+        return error.ParsingFailed;
     }
 
     var il: InitList = .{};
@@ -3347,7 +3395,15 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
 fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     if (target.is(.void)) return; // Do not do type coercion on excess items
 
+    const node = item.node;
     try item.lvalConversion(p);
+    if (target.is(.auto_type)) {
+        if (p.getNode(node, .member_access_expr) orelse p.getNode(node, .member_access_ptr_expr)) |member_node| {
+            if (Tree.isBitfield(p.nodes.slice(), member_node)) try p.errTok(.auto_type_from_bitfield, tok);
+        }
+        return;
+    }
+
     try item.coerce(p, target, tok, .init);
 }
 
@@ -5152,7 +5208,11 @@ const Result = struct {
                 res.val.intCast(res.ty, to, p.comp);
             }
         } else {
-            try p.errStr(.invalid_cast_type, tok, try p.typeStr(to));
+            if (to.is(.auto_type)) {
+                try p.errTok(.invalid_cast_to_auto_type, tok);
+            } else {
+                try p.errStr(.invalid_cast_type, tok, try p.typeStr(to));
+            }
             return error.ParsingFailed;
         }
         if (to.anyQual()) try p.errStr(.qual_cast, tok, try p.typeStr(to));

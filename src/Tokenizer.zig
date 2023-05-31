@@ -139,6 +139,7 @@ pub const Token = struct {
         macro_pretty_func,
 
         keyword_auto,
+        keyword_auto_type,
         keyword_break,
         keyword_case,
         keyword_char,
@@ -313,6 +314,7 @@ pub const Token = struct {
                 .macro_function,
                 .macro_pretty_func,
                 .keyword_auto,
+                .keyword_auto_type,
                 .keyword_break,
                 .keyword_case,
                 .keyword_char,
@@ -555,6 +557,7 @@ pub const Token = struct {
                 .hash_hash => "##",
 
                 .keyword_auto => "auto",
+                .keyword_auto_type => "__auto_type",
                 .keyword_break => "break",
                 .keyword_case => "case",
                 .keyword_char => "char",
@@ -908,6 +911,7 @@ pub const Token = struct {
         .{ "__PRETTY_FUNCTION__", .macro_pretty_func },
 
         // gcc keywords
+        .{ "__auto_type", .keyword_auto_type },
         .{ "__const", .keyword_const1 },
         .{ "__const__", .keyword_const2 },
         .{ "__inline", .keyword_inline1 },
@@ -1819,7 +1823,7 @@ test "operators" {
 
 test "keywords" {
     try expectTokens(
-        \\auto break case char const continue default do 
+        \\auto __auto_type break case char const continue default do
         \\double else enum extern float for goto if int 
         \\long register return short signed sizeof static 
         \\struct switch typedef union unsigned void volatile 
@@ -1829,6 +1833,7 @@ test "keywords" {
         \\
     , &.{
         .keyword_auto,
+        .keyword_auto_type,
         .keyword_break,
         .keyword_case,
         .keyword_char,

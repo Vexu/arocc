@@ -160,6 +160,7 @@ pub const Options = packed struct {
     @"pre-c2x-compat": Kind = .default,
     @"pointer-bool-conversion": Kind = .default,
     @"string-conversion": Kind = .default,
+    @"gnu-auto-type": Kind = .default,
 };
 
 const messages = struct {
@@ -2240,6 +2241,47 @@ const messages = struct {
         const opt = "c2x-extensions";
         const kind = .warning;
         const suppress_version = .c2x;
+    };
+    const auto_type_extension = struct {
+        const msg = "'__auto_type' is a GNU extension";
+        const opt = "gnu-auto-type";
+        const kind = .off;
+        const pedantic = true;
+    };
+    const auto_type_not_allowed = struct {
+        const msg = "'__auto_type' not allowed in {s}";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    const auto_type_requires_initializer = struct {
+        const msg = "declaration of variable '{s}' with deduced type requires an initializer";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    const auto_type_requires_single_declarator = struct {
+        const msg = "'__auto_type' may only be used with a single declarator";
+        const kind = .@"error";
+    };
+    const auto_type_requires_plain_declarator = struct {
+        const msg = "'__auto_type' requires a plain identifier as declarator";
+        const kind = .@"error";
+    };
+    const invalid_cast_to_auto_type = struct {
+        const msg = "Invalid cast to '__auto_type'";
+        const kind = .@"error";
+    };
+    const auto_type_from_bitfield = struct {
+        const msg = "cannot use bit-field as '__auto_type' initializer";
+        const kind = .@"error";
+    };
+    const array_of_auto_type = struct {
+        const msg = "'{s}' declared as array of '__auto_type'";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    const auto_type_with_init_list = struct {
+        const msg = "cannot use '__auto_type' with initializer list";
+        const kind = .@"error";
     };
 };
 
