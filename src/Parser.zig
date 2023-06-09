@@ -5340,8 +5340,9 @@ fn expr(p: *Parser) Error!Result {
         expr_start = p.tok_i;
         err_start = p.comp.diag.list.items.len;
 
-        const rhs = try p.assignExpr();
+        var rhs = try p.assignExpr();
         try rhs.expect(p);
+        try rhs.lvalConversion(p);
         lhs.val = rhs.val;
         lhs.ty = rhs.ty;
         try lhs.bin(p, .comma_expr, rhs);
