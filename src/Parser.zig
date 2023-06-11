@@ -1542,12 +1542,14 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     _ = try p.assembly(.decl_label);
     try p.attributeSpecifierExtra(init_d.d.name);
 
+    var apply_var_attributes = false;
+
     if (decl_spec.storage_class == .typedef) {
         init_d.d.ty = try Attribute.applyTypeAttributes(p, init_d.d.ty, attr_buf_top, null);
     } else if (init_d.d.ty.isFunc()) {
         init_d.d.ty = try Attribute.applyFunctionAttributes(p, init_d.d.ty, attr_buf_top);
     } else {
-        init_d.d.ty = try Attribute.applyVariableAttributes(p, init_d.d.ty, attr_buf_top, null);
+        apply_var_attributes = true;
     }
 
     if (p.eatToken(.equal)) |eq| init: {
@@ -1577,17 +1579,10 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
             // Modifying .data is exceptionally allowed for .incomplete_array.
             init_d.d.ty.data.array.len = init_list_expr.ty.arrayLen() orelse break :init;
             init_d.d.ty.specifier = .array;
-        } else if (init_d.d.ty.is(.incomplete_array)) {
-            const attrs = init_d.d.ty.getAttributes();
-
-            const arr_ty = try p.arena.create(Type.Array);
-            arr_ty.* = .{ .elem = init_d.d.ty.elemType(), .len = init_list_expr.ty.arrayLen().? };
-            const ty = Type{
-                .specifier = .array,
-                .data = .{ .array = arr_ty },
-            };
-            init_d.d.ty = try ty.withAttributes(p.arena, attrs);
         }
+    }
+    if (apply_var_attributes) {
+        init_d.d.ty = try Attribute.applyVariableAttributes(p, init_d.d.ty, attr_buf_top, null);
     }
     const name = init_d.d.name;
     if (decl_spec.storage_class != .typedef and init_d.d.ty.hasIncompleteSize()) incomplete: {
