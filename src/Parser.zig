@@ -2187,7 +2187,15 @@ fn recordDeclarator(p: *Parser) Error!bool {
         }
         if (p.eatToken(.comma) == null) break;
     }
-    _ = try p.expectToken(.semicolon);
+
+    if (p.eatToken(.semicolon) == null) {
+        const tok_id = p.tok_ids[p.tok_i];
+        if (tok_id == .r_brace) {
+            try p.err(.missing_semicolon);
+        } else {
+            return p.errExpectedToken(.semicolon, tok_id);
+        }
+    }
 
     return true;
 }
