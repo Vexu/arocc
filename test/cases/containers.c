@@ -134,6 +134,11 @@ void qux(void) {
 struct A;
 struct A a2;
 
+struct NoTrailingSemicolon {
+    int a;
+    int b
+};
+
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
     "containers.c:15:12: error: variable has incomplete type 'struct Foo'" \
@@ -159,3 +164,5 @@ struct A a2;
     "containers.c:132:12: error: use of 'A' with tag type that does not match previous definition" \
     "containers.c:131:10: note: previous definition is here" \
     "containers.c:132:14: error: variable has incomplete type 'struct A'" \
+    "containers.c:140:1: warning: expected ';' at end of declaration list" \
+

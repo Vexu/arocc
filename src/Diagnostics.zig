@@ -2283,6 +2283,10 @@ const messages = struct {
         const msg = "cannot use '__auto_type' with initializer list";
         const kind = .@"error";
     };
+    const missing_semicolon = struct {
+        const msg = "expected ';' at end of declaration list";
+        const kind = .warning;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
