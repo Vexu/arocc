@@ -289,11 +289,11 @@ pub const Tag = enum(u8) {
     union_decl,
     /// { range }
     enum_decl,
-    /// struct Name;
+    /// struct decl_ref;
     struct_forward_decl,
-    /// union Name;
+    /// union decl_ref;
     union_forward_decl,
-    /// enum Name;
+    /// enum decl_ref;
     enum_forward_decl,
 
     /// name = node
