@@ -41,7 +41,8 @@ int qux[] = baz;
     "invalid types.c:6:1: error: atomic cannot be applied to incomplete type 'void'" \
     "invalid types.c:6:14: error: variable has incomplete type 'void'" \
     "invalid types.c:7:7: error: array has incomplete element type 'void'" \
-    "invalid types.c:8:12: error: variable has incomplete type 'struct Bar'" \
+    "invalid types.c:8:12: error: tentative definition has type 'struct Bar' that is never completed" \
+    "invalid types.c:8:8: note: forward declaration of 'struct Bar'" \
     "invalid types.c:9:6: error: array is too large" \
     "invalid types.c:11:1: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'" \
     "invalid types.c:16:15: error: expected identifier or '('" \
@@ -51,3 +52,4 @@ int qux[] = baz;
     "invalid types.c:22:9: error: size of array has non-integer type 'char [4]'" \
     "invalid types.c:23:13: error: array initializer must be an initializer list or wide string literal" \
     "invalid types.c:24:13: error: array initializer must be an initializer list or wide string literal" \
+

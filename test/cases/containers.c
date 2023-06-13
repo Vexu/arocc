@@ -141,7 +141,8 @@ struct NoTrailingSemicolon {
 
 #define EXPECTED_ERRORS "containers.c:15:8: error: use of 'Foo' with tag type that does not match previous definition" \
     "containers.c:9:6: note: previous definition is here" \
-    "containers.c:15:12: error: variable has incomplete type 'struct Foo'" \
+    "containers.c:15:12: error: tentative definition has type 'struct Foo' that is never completed" \
+    "containers.c:15:8: note: forward declaration of 'struct Foo'" \
     "containers.c:20:6: warning: declaration does not declare anything [-Wmissing-declaration]" \
     "containers.c:21:25: warning: declaration does not declare anything [-Wmissing-declaration]" \
     "containers.c:22:20: error: invalid application of 'sizeof' to an incomplete type 'struct StructTest'" \

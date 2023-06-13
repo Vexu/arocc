@@ -2287,6 +2287,16 @@ const messages = struct {
         const msg = "expected ';' at end of declaration list";
         const kind = .warning;
     };
+    const tentative_definition_incomplete = struct {
+        const msg = "tentative definition has type '{s}' that is never completed";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    const forward_declaration_here = struct {
+        const msg = "forward declaration of '{s}'";
+        const kind = .note;
+        const extra = .str;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

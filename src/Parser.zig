@@ -113,6 +113,13 @@ record_buf: std.ArrayList(Type.Record.Field),
 attr_buf: std.MultiArrayList(TentativeAttribute) = .{},
 attr_application_buf: std.ArrayListUnmanaged(Attribute) = .{},
 field_attr_buf: std.ArrayList([]const Attribute),
+/// type name -> variable name location for tentative definitions (top-level defs with thus-far-incomplete types)
+/// e.g. `struct Foo bar;` where `struct Foo` is not defined yet.
+/// The key is the StringId of `Foo` and the value is the TokenIndex of `bar`
+/// Items are removed if the type is subsequently completed with a definition.
+/// We only store the first tentative definition that uses a given type because this map is only used
+/// for issuing an error message, and correcting the first error for a type will fix all of them for that type.
+tentative_defs: std.AutoHashMapUnmanaged(StringId, TokenIndex) = .{},
 
 // configuration and miscellaneous info
 no_eval: bool = false,
@@ -514,6 +521,40 @@ fn pragma(p: *Parser) Compilation.Error!bool {
     return found_pragma;
 }
 
+/// Issue errors for top-level definitions whose type was never completed.
+fn diagnoseIncompleteDefinitions(p: *Parser) !void {
+    @setCold(true);
+
+    const node_slices = p.nodes.slice();
+    const tags = node_slices.items(.tag);
+    const tys = node_slices.items(.ty);
+    const data = node_slices.items(.data);
+
+    const err_start = p.comp.diag.list.items.len;
+    for (p.decl_buf.items) |decl_node| {
+        const idx = @enumToInt(decl_node);
+        switch (tags[idx]) {
+            .struct_forward_decl, .union_forward_decl, .enum_forward_decl => {},
+            else => continue,
+        }
+
+        const ty = tys[idx];
+        const decl_type_name = if (ty.getRecord()) |rec|
+            rec.name
+        else if (ty.get(.@"enum")) |en|
+            en.data.@"enum".name
+        else
+            unreachable;
+
+        const tentative_def_tok = p.tentative_defs.get(decl_type_name) orelse continue;
+        const type_str = try p.typeStr(ty);
+        try p.errStr(.tentative_definition_incomplete, tentative_def_tok, type_str);
+        try p.errStr(.forward_declaration_here, data[idx].decl_ref, type_str);
+    }
+    const errors_added = p.comp.diag.list.items.len - err_start;
+    assert(errors_added == 2 * p.tentative_defs.count()); // Each tentative def should add an error + note
+}
+
 /// root : (decl | assembly ';' | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     pp.comp.pragmaEvent(.before_parse);
@@ -562,6 +603,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.record_members.deinit(pp.comp.gpa);
         p.attr_buf.deinit(pp.comp.gpa);
         p.attr_application_buf.deinit(pp.comp.gpa);
+        p.tentative_defs.deinit(pp.comp.gpa);
         assert(p.field_attr_buf.items.len == 0);
         p.field_attr_buf.deinit();
     }
@@ -629,6 +671,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.err(.expected_external_decl);
         p.tok_i += 1;
     }
+    if (p.tentative_defs.count() > 0) {
+        try p.diagnoseIncompleteDefinitions();
+    }
+
     const root_decls = try p.decl_buf.toOwnedSlice();
     errdefer pp.comp.gpa.free(root_decls);
     if (root_decls.len == 0) {
@@ -1624,13 +1670,21 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         };
         // if there was an initializer expression it must have contained an error
         if (init_d.initializer.node != .none) break :incomplete;
-        if (p.func.ty == null and specifier == .incomplete_array) {
-            // TODO properly check this after finishing parsing
-            try p.errStr(.tentative_array, name, try p.typeStr(init_d.d.ty));
-            return init_d;
+
+        if (p.func.ty == null) {
+            if (specifier == .incomplete_array) {
+                // TODO properly check this after finishing parsing
+                try p.errStr(.tentative_array, name, try p.typeStr(init_d.d.ty));
+                break :incomplete;
+            } else if (init_d.d.ty.getRecord()) |record| {
+                _ = try p.tentative_defs.getOrPutValue(p.comp.gpa, record.name, init_d.d.name);
+                break :incomplete;
+            } else if (init_d.d.ty.get(.@"enum")) |en| {
+                _ = try p.tentative_defs.getOrPutValue(p.comp.gpa, en.data.@"enum".name, init_d.d.name);
+                break :incomplete;
+            }
         }
         try p.errStr(.variable_incomplete_ty, name, try p.typeStr(init_d.d.ty));
-        return init_d;
     }
     return init_d;
 }
@@ -1897,7 +1951,7 @@ fn recordSpec(p: *Parser) Error!Type {
             try p.decl_buf.append(try p.addNode(.{
                 .tag = if (is_struct) .struct_forward_decl else .union_forward_decl,
                 .ty = ty,
-                .data = undefined,
+                .data = .{ .decl_ref = ident },
             }));
             return ty;
         }
@@ -2029,6 +2083,9 @@ fn recordSpec(p: *Parser) Error!Type {
         },
     }
     p.decl_buf.items[decl_buf_top - 1] = try p.addNode(node);
+    if (p.func.ty == null) {
+        _ = p.tentative_defs.remove(record_ty.name);
+    }
     return ty;
 }
 
@@ -2262,7 +2319,7 @@ fn enumSpec(p: *Parser) Error!Type {
             try p.decl_buf.append(try p.addNode(.{
                 .tag = .enum_forward_decl,
                 .ty = ty,
-                .data = undefined,
+                .data = .{ .decl_ref = ident },
             }));
             return ty;
         }
@@ -2386,6 +2443,9 @@ fn enumSpec(p: *Parser) Error!Type {
         },
     }
     p.decl_buf.items[decl_buf_top - 1] = try p.addNode(node);
+    if (p.func.ty == null) {
+        _ = p.tentative_defs.remove(enum_ty.name);
+    }
     return ty;
 }
 
