@@ -2267,7 +2267,7 @@ const messages = struct {
         const kind = .@"error";
     };
     const invalid_cast_to_auto_type = struct {
-        const msg = "Invalid cast to '__auto_type'";
+        const msg = "invalid cast to '__auto_type'";
         const kind = .@"error";
     };
     const auto_type_from_bitfield = struct {
