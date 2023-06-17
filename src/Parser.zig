@@ -2602,9 +2602,9 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     res.ty = try Attribute.applyEnumeratorAttributes(p, res.ty, attr_buf_top);
 
     if (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, Value.int(0), res.ty, p.comp)) {
-        e.num_positive_bits = std.math.max(e.num_positive_bits, res.val.minUnsignedBits(res.ty, p.comp));
+        e.num_positive_bits = @max(e.num_positive_bits, res.val.minUnsignedBits(res.ty, p.comp));
     } else {
-        e.num_negative_bits = std.math.max(e.num_negative_bits, res.val.minSignedBits(res.ty, p.comp));
+        e.num_negative_bits = @max(e.num_negative_bits, res.val.minSignedBits(res.ty, p.comp));
     }
 
     if (err_start == p.comp.diag.list.items.len) {
@@ -2813,7 +2813,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
         // `outer` is validated later so it may be invalid here
         const outer_size = outer.sizeof(p.comp);
-        const max_elems = max_bytes / std.math.max(1, outer_size orelse 1);
+        const max_elems = max_bytes / @max(1, outer_size orelse 1);
 
         if (!size.ty.isInt()) {
             try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
@@ -7585,7 +7585,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
     const c = managed.toConst();
     const bits_needed = blk: {
         // Literal `0` requires at least 1 bit
-        const count = std.math.max(1, c.bitCountTwosComp());
+        const count = @max(1, c.bitCountTwosComp());
         // The wb suffix results in a _BitInt that includes space for the sign bit even if the
         // value of the constant is positive or was specified in hexadecimal or octal notation.
         const sign_bits = @boolToInt(suffix.isSignedInteger());

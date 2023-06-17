@@ -148,7 +148,7 @@ pub fn main() !void {
 
             try singleRun(alloc, path, source, test_case, &stats);
 
-            max_alloc_size = std.math.max(max_alloc_size, fixed_alloc.end_index);
+            max_alloc_size = @max(max_alloc_size, fixed_alloc.end_index);
         }
     }
 

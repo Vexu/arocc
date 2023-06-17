@@ -51,7 +51,7 @@ pub const Token = struct {
             list.capacity = i + 1;
         }
 
-        const min_len = std.math.max(list.items.len + new.len + 1, 4);
+        const min_len = @max(list.items.len + new.len + 1, 4);
         const wanted_len = std.math.ceilPowerOfTwo(usize, min_len) catch
             return error.OutOfMemory;
         try list.ensureTotalCapacity(wanted_len);
