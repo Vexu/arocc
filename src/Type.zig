@@ -1014,10 +1014,10 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         } else if (ty.getRecord()) |rec| {
             if (ty.hasIncompleteSize()) return 0;
             const computed = @intCast(u29, @divExact(rec.type_layout.field_alignment_bits, 8));
-            return std.math.max(requested, computed);
+            return @max(requested, computed);
         } else if (comp.langopts.emulate == .msvc) {
             const type_align = ty.data.attributed.base.alignof(comp);
-            return std.math.max(requested, type_align);
+            return @max(requested, type_align);
         }
         return requested;
     }
