@@ -29,9 +29,65 @@ const Stats = struct {
     ok_count: u32 = 0,
     fail_count: u32 = 0,
     skip_count: u32 = 0,
+    max_alloc: usize = 0,
     progress: *std.Progress,
     root_node: *std.Progress.Node,
+
+    const ResultKind = enum {
+        ok,
+        fail,
+        skip,
+    };
+
+    fn recordResult(self: *Stats, kind: ResultKind) void {
+        var ptr = switch (kind) {
+            .ok => &self.ok_count,
+            .fail => &self.fail_count,
+            .skip => &self.skip_count,
+        };
+        _ = @atomicRmw(u32, ptr, .Add, 1, .Monotonic);
+    }
+
+    fn updateMaxMemUsage(self: *Stats, bytes: usize) void {
+        _ = @atomicRmw(usize, &self.max_alloc, .Max, bytes, .Monotonic);
+    }
 };
+
+fn ThreadSafeMemoryPool(comptime Item: type) type {
+    return struct {
+        const Self = @This();
+        const BasePool = std.heap.MemoryPoolExtra(Item, .{ .growable = false });
+
+        pool: BasePool,
+        mutex: std.Thread.Mutex,
+
+        fn initPreheated(allocator: std.mem.Allocator, initial_size: usize) !Self {
+            return .{
+                .pool = try BasePool.initPreheated(allocator, initial_size),
+                .mutex = .{},
+            };
+        }
+
+        fn deinit(self: *Self) void {
+            self.pool.deinit();
+        }
+
+        /// Creates a new item and adds it to the memory pool.
+        fn create(self: *Self) @TypeOf(self.pool.create()) {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            return self.pool.create();
+        }
+
+        fn destroy(self: *Self, item: @TypeOf(self.create() catch unreachable)) @TypeOf(self.pool.destroy(item)) {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            return self.pool.destroy(item);
+        }
+    };
+}
+
+const Pool = ThreadSafeMemoryPool([1024 * 1024 * 16]u8);
 
 const TestCase = struct {
     c_define: []const u8,
@@ -53,18 +109,12 @@ const ExpectedFailure = struct {
         return std.meta.eql(self, other);
     }
 };
+const builtin = @import("builtin");
 
 pub fn main() !void {
     var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = general_purpose_allocator.allocator();
-    // max file size < 2M. max total use < 12M
-    var fixed_buffer = try gpa.alloc(u8, 1024 * 1024 * 16);
-    var fixed_alloc = std.heap.FixedBufferAllocator.init(fixed_buffer);
-    const alloc = fixed_alloc.allocator();
-    defer {
-        gpa.free(fixed_buffer);
-        if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
-    }
+    defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
 
     var args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
@@ -117,43 +167,51 @@ pub fn main() !void {
         .progress = &progress,
         .root_node = root_node,
     };
-    // The most memory used for a single run.
-    var max_alloc_size: usize = 0;
+
+    var arena_instance = std.heap.ArenaAllocator.init(gpa);
+    defer arena_instance.deinit();
+    const arena = arena_instance.allocator();
+
+    const thread_count = @intCast(u32, @max(1, std.Thread.getCpuCount() catch 1));
+
+    var thread_pool: std.Thread.Pool = undefined;
+    try thread_pool.init(.{ .allocator = arena, .n_jobs = thread_count });
+    defer thread_pool.deinit();
+
+    var pool = try Pool.initPreheated(gpa, thread_count + 1);
+    defer pool.deinit();
+
+    var wait_group: std.Thread.WaitGroup = .{};
 
     // Iterate over all cases
     for (cases.items) |path| {
-        fixed_alloc.reset();
+        // fixed_alloc.reset();
         // Read the test into memory.
         const source: []const u8 = fread: {
             const file = try std.fs.cwd().openFile(path, .{});
             defer file.close();
-            const file_size = (try file.stat()).size;
-            var src_buf = try alloc.alloc(u8, file_size);
-            const read_len = try file.readAll(src_buf);
-            std.debug.assert(read_len >= file_size);
-            break :fread src_buf[0..read_len];
+            break :fread try file.readToEndAlloc(arena, std.math.maxInt(u32));
         };
 
-        const test_targets = try parseTargetsFromCode(alloc, source);
+        const test_targets = try parseTargetsFromCode(arena, source);
         defer test_targets.deinit();
 
-        // Reset the fixed allocator to this point before each run.
-        const mem_reset_pos = fixed_alloc.end_index;
         for (test_targets.items) |test_case| {
             if (test_single_target) {
                 if (std.ascii.indexOfIgnoreCase(test_case.target, single_target.target) == null) continue;
                 if (std.mem.indexOf(u8, path, single_target.c_test) == null) continue;
             }
-            fixed_alloc.end_index = mem_reset_pos;
 
-            try singleRun(alloc, path, source, test_case, &stats);
-
-            max_alloc_size = @max(max_alloc_size, fixed_alloc.end_index);
+            wait_group.start();
+            try thread_pool.spawn(singleRunWrapper, .{
+                &pool, &wait_group, path, source, test_case, &stats,
+            });
         }
     }
-
+    thread_pool.waitAndWork(&wait_group);
     root_node.end();
-    std.debug.print("max mem used = {:.2}\n", .{std.fmt.fmtIntSizeBin(max_alloc_size)});
+
+    std.debug.print("max mem used = {:.2}\n", .{std.fmt.fmtIntSizeBin(stats.max_alloc)});
     if (stats.ok_count == cases.items.len and stats.skip_count == 0) {
         print("All {d} tests passed.\n", .{stats.ok_count});
     } else if (stats.fail_count == 0) {
@@ -162,6 +220,32 @@ pub fn main() !void {
         print("{d} passed; {d} failed.\n\n", .{ stats.ok_count, stats.fail_count });
         std.process.exit(1);
     }
+}
+
+fn singleRunWrapper(pool: *Pool, wg: *std.Thread.WaitGroup, path: []const u8, source: []const u8, test_case: TestCase, state: *Stats) void {
+    defer wg.finish();
+    var mem = pool.create() catch |err| {
+        std.log.err("{s}", .{@errorName(err)});
+        if (@errorReturnTrace()) |trace| {
+            std.debug.dumpStackTrace(trace.*);
+        }
+        state.recordResult(.fail);
+        return;
+    };
+
+    defer pool.destroy(mem);
+
+    var fixed_alloc = std.heap.FixedBufferAllocator.init(mem);
+    const my_alloc = fixed_alloc.allocator();
+
+    singleRun(my_alloc, path, source, test_case, state) catch |err| {
+        std.log.err("{s}", .{@errorName(err)});
+        if (@errorReturnTrace()) |trace| {
+            std.debug.dumpStackTrace(trace.*);
+        }
+        state.recordResult(.fail);
+    };
+    state.updateMaxMemUsage(fixed_alloc.end_index);
 }
 
 fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, test_case: TestCase, state: *Stats) !void {
@@ -196,7 +280,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     state.progress.refresh();
 
     const file = comp.addSourceFromBuffer(path, source) catch |err| {
-        state.fail_count += 1;
+        state.recordResult(.fail);
         state.progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
         return;
     };
@@ -231,8 +315,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
                 return;
             }
         }
-
-        state.fail_count += 1;
+        state.recordResult(.fail);
         state.progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
         return;
     };
@@ -248,7 +331,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     }
 
     if (global_test_exclude.has(test_name)) {
-        state.skip_count += 1;
+        state.recordResult(.skip);
         return;
     }
 
@@ -290,11 +373,11 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
             for (comp.diag.list.items) |msg| {
                 aro.Diagnostics.renderMessage(&comp, &m, msg);
             }
-            state.fail_count += 1;
+            state.recordResult(.fail);
         } else if (actual.any()) {
-            state.skip_count += 1;
+            state.recordResult(.skip);
         } else {
-            state.ok_count += 1;
+            state.recordResult(.ok);
         }
     }
 }
