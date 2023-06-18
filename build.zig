@@ -124,7 +124,6 @@ pub fn build(b: *Build) !void {
     record_tests.addModule("aro", aro_module);
     const record_tests_runner = b.addRunArtifact(record_tests);
     record_tests_runner.addArg(b.pathFromRoot("test/records"));
-    record_tests_runner.addArg(b.zig_exe);
 
     tests_step.dependOn(&integration_test_runner.step);
     tests_step.dependOn(&record_tests_runner.step);

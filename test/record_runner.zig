@@ -69,8 +69,8 @@ pub fn main() !void {
     var args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    if (args.len != 3) {
-        print("expected test case directory and zig executable as only arguments\n", .{});
+    if (args.len != 2) {
+        print("expected test case directory as only argument\n", .{});
         return error.InvalidArguments;
     }
 
