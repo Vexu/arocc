@@ -189,11 +189,11 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
     const symtab_len = (elf.local_symbols.count() + elf.global_symbols.count() + 1) * @sizeOf(std.elf.Elf64_Sym);
 
     const symtab_offset = @sizeOf(std.elf.Elf64_Ehdr) + sections_len;
-    const symtab_offset_aligned = std.mem.alignForwardGeneric(u64, symtab_offset, 8);
+    const symtab_offset_aligned = std.mem.alignForward(u64, symtab_offset, 8);
     const rela_offset = symtab_offset_aligned + symtab_len;
     const strtab_offset = rela_offset + relocations_len;
     const sh_offset = strtab_offset + elf.strtab_len;
-    const sh_offset_aligned = std.mem.alignForwardGeneric(u64, sh_offset, 16);
+    const sh_offset_aligned = std.mem.alignForward(u64, sh_offset, 16);
 
     var elf_header = std.elf.Elf64_Ehdr{
         .e_ident = .{ 0x7F, 'E', 'L', 'F', 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },

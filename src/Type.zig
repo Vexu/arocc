@@ -942,7 +942,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .float80 => 16,
         .float128 => 16,
         .bit_int => {
-            return std.mem.alignForwardGeneric(u64, (ty.data.int.bits + 7) / 8, ty.alignof(comp));
+            return std.mem.alignForward(u64, (ty.data.int.bits + 7) / 8, ty.alignof(comp));
         },
         // zig fmt: off
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
@@ -972,7 +972,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
                 // for the field alignment. A flexible array has size 0. See test case 0018.
                 return arr_size;
             } else {
-                return std.mem.alignForwardGeneric(u64, arr_size, ty.alignof(comp));
+                return std.mem.alignForward(u64, arr_size, ty.alignof(comp));
             }
         },
         .@"struct", .@"union" => if (ty.data.record.isIncomplete()) null else @as(u64, ty.data.record.type_layout.size_bits / 8),
