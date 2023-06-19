@@ -14,6 +14,8 @@ fn lessThan(_: void, lhs: []const u8, rhs: []const u8) bool {
     return std.mem.lessThan(u8, lhs, rhs);
 }
 
+const MAX_MEM_PER_TEST = 1024 * 1024 * 16;
+
 /// Set true to debug specific targets w/ specific tests.
 const test_single_target = false;
 const single_target = .{
@@ -157,7 +159,7 @@ pub fn main() !void {
 
     for (0..thread_count) |i| {
         wait_group.start();
-        try thread_pool.spawn(singleRunWrapper, .{
+        try thread_pool.spawn(runTestCases, .{
             gpa, &wait_group, test_cases.items[i..], thread_count, &stats,
         });
     }
@@ -176,9 +178,9 @@ pub fn main() !void {
     }
 }
 
-fn singleRunWrapper(allocator: std.mem.Allocator, wg: *std.Thread.WaitGroup, test_cases: []const TestCase, stride: usize, stats: *Stats) void {
+fn runTestCases(allocator: std.mem.Allocator, wg: *std.Thread.WaitGroup, test_cases: []const TestCase, stride: usize, stats: *Stats) void {
     defer wg.finish();
-    var mem = allocator.alloc(u8, 1024 * 1024 * 16) catch |err| {
+    var mem = allocator.alloc(u8, MAX_MEM_PER_TEST) catch |err| {
         std.log.err("{s}", .{@errorName(err)});
         if (@errorReturnTrace()) |trace| {
             std.debug.dumpStackTrace(trace.*);
