@@ -307,14 +307,6 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     _ = try pp.preprocess(builtin_macros);
     _ = try pp.preprocess(user_macros);
     const eof = pp.preprocess(file) catch |err| {
-        if (!std.unicode.utf8ValidateSlice(file.buf)) {
-            // non-utf8 files are not preprocessed, so we can't use EXPECTED_ERRORS; instead we
-            // check that the most recent error is .invalid_utf8
-            if (comp.diag.list.items.len > 0 and comp.diag.list.items[comp.diag.list.items.len - 1].tag == .invalid_utf8) {
-                _ = comp.diag.list.pop();
-                return;
-            }
-        }
         state.recordResult(.fail);
         state.progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
         return;
