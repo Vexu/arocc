@@ -159,7 +159,7 @@ pub fn isTlsSupported(target: std.Target) bool {
     if (target.isDarwin()) {
         var supported = false;
         switch (target.os.tag) {
-            .macos => supported = !(target.os.isAtLeast(.macos, .{ .major = 10, .minor = 7 }) orelse false),
+            .macos => supported = !(target.os.isAtLeast(.macos, .{ .major = 10, .minor = 7, .patch = 0 }) orelse false),
             else => {},
         }
         return supported;
