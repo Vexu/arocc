@@ -35,6 +35,7 @@ const Stats = struct {
     ok_count: u32 = 0,
     fail_count: u32 = 0,
     skip_count: u32 = 0,
+    invalid_target_count: u32 = 0,
     max_alloc: usize = 0,
     progress: *std.Progress,
     root_node: *std.Progress.Node,
@@ -43,6 +44,7 @@ const Stats = struct {
         ok,
         fail,
         skip,
+        invalid_target,
     };
 
     fn recordResult(self: *Stats, kind: ResultKind) void {
@@ -50,6 +52,7 @@ const Stats = struct {
             .ok => &self.ok_count,
             .fail => &self.fail_count,
             .skip => &self.skip_count,
+            .invalid_target => &self.invalid_target_count,
         };
         _ = @atomicRmw(u32, ptr, .Add, 1, .Monotonic);
     }
@@ -169,11 +172,11 @@ pub fn main() !void {
 
     std.debug.print("max mem used = {:.2}\n", .{std.fmt.fmtIntSizeBin(stats.max_alloc)});
     if (stats.ok_count == cases.items.len and stats.skip_count == 0) {
-        print("All {d} tests passed.\n", .{stats.ok_count});
+        print("All {d} tests passed ({d} invalid targets)\n", .{ stats.ok_count, stats.invalid_target_count });
     } else if (stats.fail_count == 0) {
-        print("{d} passed; {d} skipped.\n", .{ stats.ok_count, stats.skip_count });
+        print("{d} passed; {d} skipped ({d} invalid targets).\n", .{ stats.ok_count, stats.skip_count, stats.invalid_target_count });
     } else {
-        print("{d} passed; {d} failed.\n\n", .{ stats.ok_count, stats.fail_count });
+        print("{d} passed; {d} failed ({d} invalid targets).\n\n", .{ stats.ok_count, stats.fail_count, stats.invalid_target_count });
         std.process.exit(1);
     }
 }
@@ -216,11 +219,13 @@ fn singleRun(alloc: std.mem.Allocator, test_case: TestCase, stats: *Stats) !void
     try comp.defineSystemIncludes();
 
     const target = setTarget(&comp, test_case.target) catch |err| switch (err) {
-        error.InvalidTarget => return, // Skip invalid targets.
         error.UnknownCpuModel => unreachable,
     };
     switch (target.os.tag) {
-        .hermit => return, // Skip targets Aro doesn't support.
+        .hermit => {
+            stats.recordResult(.invalid_target);
+            return; // Skip targets Aro doesn't support.
+        },
         else => {},
     }
 
