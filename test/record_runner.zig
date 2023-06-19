@@ -10,6 +10,10 @@ const global_test_exclude = std.ComptimeStringMap(void, .{
     .{"NONE"},
 });
 
+fn lessThan(_: void, lhs: []const u8, rhs: []const u8) bool {
+    return std.mem.lessThan(u8, lhs, rhs);
+}
+
 /// Set true to debug specific targets w/ specific tests.
 const test_single_target = false;
 const single_target = .{
@@ -121,11 +125,6 @@ pub fn main() !void {
         }
     }
 
-    const lessThan = struct {
-        pub fn lessThan(_: void, rhs: []const u8, lhs: []const u8) bool {
-            return std.mem.lessThan(u8, lhs, rhs);
-        }
-    }.lessThan;
     std.mem.sort([]const u8, cases.items, {}, lessThan);
 
     var arena_instance = std.heap.ArenaAllocator.init(gpa);
