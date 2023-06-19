@@ -222,33 +222,32 @@ pub fn main() !void {
     }
 }
 
-fn singleRunWrapper(pool: *Pool, wg: *std.Thread.WaitGroup, path: []const u8, source: []const u8, test_case: TestCase, state: *Stats) void {
+fn singleRunWrapper(pool: *Pool, wg: *std.Thread.WaitGroup, path: []const u8, source: []const u8, test_case: TestCase, stats: *Stats) void {
     defer wg.finish();
     var mem = pool.create() catch |err| {
         std.log.err("{s}", .{@errorName(err)});
         if (@errorReturnTrace()) |trace| {
             std.debug.dumpStackTrace(trace.*);
         }
-        state.recordResult(.fail);
+        stats.recordResult(.fail);
         return;
     };
 
     defer pool.destroy(mem);
 
-    var fixed_alloc = std.heap.FixedBufferAllocator.init(mem);
-    const my_alloc = fixed_alloc.allocator();
+    var fib = std.heap.FixedBufferAllocator.init(mem);
 
-    singleRun(my_alloc, path, source, test_case, state) catch |err| {
+    singleRun(fib.allocator(), path, source, test_case, stats) catch |err| {
         std.log.err("{s}", .{@errorName(err)});
         if (@errorReturnTrace()) |trace| {
             std.debug.dumpStackTrace(trace.*);
         }
-        state.recordResult(.fail);
+        stats.recordResult(.fail);
     };
-    state.updateMaxMemUsage(fixed_alloc.end_index);
+    stats.updateMaxMemUsage(fib.end_index);
 }
 
-fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, test_case: TestCase, state: *Stats) !void {
+fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, test_case: TestCase, stats: *Stats) !void {
     var comp = aro.Compilation.init(alloc);
     defer comp.deinit();
 
@@ -274,14 +273,14 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
         test_case.c_define,
     });
 
-    var case_node = state.root_node.start(case_name.items, 0);
+    var case_node = stats.root_node.start(case_name.items, 0);
     case_node.activate();
     defer case_node.end();
-    state.progress.refresh();
+    stats.progress.refresh();
 
     const file = comp.addSourceFromBuffer(path, source) catch |err| {
-        state.recordResult(.fail);
-        state.progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
+        stats.recordResult(.fail);
+        stats.progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
         return;
     };
 
@@ -307,8 +306,8 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     _ = try pp.preprocess(builtin_macros);
     _ = try pp.preprocess(user_macros);
     const eof = pp.preprocess(file) catch |err| {
-        state.recordResult(.fail);
-        state.progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
+        stats.recordResult(.fail);
+        stats.progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
         return;
     };
     try pp.tokens.append(alloc, eof);
@@ -323,7 +322,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     }
 
     if (global_test_exclude.has(test_name)) {
-        state.recordResult(.skip);
+        stats.recordResult(.skip);
         return;
     }
 
@@ -334,7 +333,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     const expected = compErr.get(buf[0..buf_strm.pos]) orelse ExpectedFailure{};
 
     if (comp.diag.list.items.len == 0 and expected.any()) {
-        state.progress.log("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
+        stats.progress.log("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
     } else {
         var m = aro.Diagnostics.defaultMsgWriter(&comp);
         defer m.deinit();
@@ -365,11 +364,11 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
             for (comp.diag.list.items) |msg| {
                 aro.Diagnostics.renderMessage(&comp, &m, msg);
             }
-            state.recordResult(.fail);
+            stats.recordResult(.fail);
         } else if (actual.any()) {
-            state.recordResult(.skip);
+            stats.recordResult(.skip);
         } else {
-            state.recordResult(.ok);
+            stats.recordResult(.ok);
         }
     }
 }
