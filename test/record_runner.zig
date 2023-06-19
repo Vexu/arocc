@@ -53,45 +53,13 @@ const Stats = struct {
     }
 };
 
-fn ThreadSafeMemoryPool(comptime Item: type) type {
-    return struct {
-        const Self = @This();
-        const BasePool = std.heap.MemoryPoolExtra(Item, .{ .growable = false });
-
-        pool: BasePool,
-        mutex: std.Thread.Mutex,
-
-        fn initPreheated(allocator: std.mem.Allocator, initial_size: usize) !Self {
-            return .{
-                .pool = try BasePool.initPreheated(allocator, initial_size),
-                .mutex = .{},
-            };
-        }
-
-        fn deinit(self: *Self) void {
-            self.pool.deinit();
-        }
-
-        /// Creates a new item and adds it to the memory pool.
-        fn create(self: *Self) @TypeOf(self.pool.create()) {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            return self.pool.create();
-        }
-
-        fn destroy(self: *Self, item: @TypeOf(self.create() catch unreachable)) @TypeOf(self.pool.destroy(item)) {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            return self.pool.destroy(item);
-        }
-    };
-}
-
-const Pool = ThreadSafeMemoryPool([1024 * 1024 * 16]u8);
-
 const TestCase = struct {
     c_define: []const u8,
     target: []const u8,
+    path: []const u8,
+    source: []const u8,
+
+    const List = std.ArrayList(TestCase);
 };
 
 /// Types of failures expected.
@@ -160,54 +128,41 @@ pub fn main() !void {
     }.lessThan;
     std.mem.sort([]const u8, cases.items, {}, lessThan);
 
+    var arena_instance = std.heap.ArenaAllocator.init(gpa);
+    defer arena_instance.deinit();
+    const arena = arena_instance.allocator();
+
+    const thread_count = @max(1, std.Thread.getCpuCount() catch 1);
+
+    var thread_pool: std.Thread.Pool = undefined;
+    try thread_pool.init(.{ .allocator = arena, .n_jobs = @intCast(u32, thread_count) });
+    defer thread_pool.deinit();
+
+    var wait_group: std.Thread.WaitGroup = .{};
+
+    var test_cases = TestCase.List.init(gpa);
+    defer test_cases.deinit();
+
+    for (cases.items) |path| {
+        const source = try std.fs.cwd().readFileAlloc(arena, path, std.math.maxInt(u32));
+        try parseTargetsFromCode(&test_cases, path, source);
+    }
+
     var progress = std.Progress{};
-    const root_node = progress.start("Layout", 0);
+    const root_node = progress.start("Layout", test_cases.items.len);
 
     var stats = Stats{
         .progress = &progress,
         .root_node = root_node,
     };
 
-    var arena_instance = std.heap.ArenaAllocator.init(gpa);
-    defer arena_instance.deinit();
-    const arena = arena_instance.allocator();
-
-    const thread_count = @intCast(u32, @max(1, std.Thread.getCpuCount() catch 1));
-
-    var thread_pool: std.Thread.Pool = undefined;
-    try thread_pool.init(.{ .allocator = arena, .n_jobs = thread_count });
-    defer thread_pool.deinit();
-
-    var pool = try Pool.initPreheated(gpa, thread_count + 1);
-    defer pool.deinit();
-
-    var wait_group: std.Thread.WaitGroup = .{};
-
-    // Iterate over all cases
-    for (cases.items) |path| {
-        // fixed_alloc.reset();
-        // Read the test into memory.
-        const source: []const u8 = fread: {
-            const file = try std.fs.cwd().openFile(path, .{});
-            defer file.close();
-            break :fread try file.readToEndAlloc(arena, std.math.maxInt(u32));
-        };
-
-        const test_targets = try parseTargetsFromCode(arena, source);
-        defer test_targets.deinit();
-
-        for (test_targets.items) |test_case| {
-            if (test_single_target) {
-                if (std.ascii.indexOfIgnoreCase(test_case.target, single_target.target) == null) continue;
-                if (std.mem.indexOf(u8, path, single_target.c_test) == null) continue;
-            }
-
-            wait_group.start();
-            try thread_pool.spawn(singleRunWrapper, .{
-                &pool, &wait_group, path, source, test_case, &stats,
-            });
-        }
+    for (0..thread_count) |i| {
+        wait_group.start();
+        try thread_pool.spawn(singleRunWrapper, .{
+            gpa, &wait_group, test_cases.items[i..], thread_count, &stats,
+        });
     }
+
     thread_pool.waitAndWork(&wait_group);
     root_node.end();
 
@@ -222,9 +177,9 @@ pub fn main() !void {
     }
 }
 
-fn singleRunWrapper(pool: *Pool, wg: *std.Thread.WaitGroup, path: []const u8, source: []const u8, test_case: TestCase, stats: *Stats) void {
+fn singleRunWrapper(allocator: std.mem.Allocator, wg: *std.Thread.WaitGroup, test_cases: []const TestCase, stride: usize, stats: *Stats) void {
     defer wg.finish();
-    var mem = pool.create() catch |err| {
+    var mem = allocator.alloc(u8, 1024 * 1024 * 16) catch |err| {
         std.log.err("{s}", .{@errorName(err)});
         if (@errorReturnTrace()) |trace| {
             std.debug.dumpStackTrace(trace.*);
@@ -232,22 +187,27 @@ fn singleRunWrapper(pool: *Pool, wg: *std.Thread.WaitGroup, path: []const u8, so
         stats.recordResult(.fail);
         return;
     };
-
-    defer pool.destroy(mem);
-
+    defer allocator.free(mem);
     var fib = std.heap.FixedBufferAllocator.init(mem);
 
-    singleRun(fib.allocator(), path, source, test_case, stats) catch |err| {
-        std.log.err("{s}", .{@errorName(err)});
-        if (@errorReturnTrace()) |trace| {
-            std.debug.dumpStackTrace(trace.*);
-        }
-        stats.recordResult(.fail);
-    };
-    stats.updateMaxMemUsage(fib.end_index);
+    for (test_cases, 0..) |case, i| {
+        if (i % stride != 0) continue;
+        defer fib.end_index = 0;
+
+        singleRun(fib.allocator(), case, stats) catch |err| {
+            std.log.err("{s}", .{@errorName(err)});
+            if (@errorReturnTrace()) |trace| {
+                std.debug.dumpStackTrace(trace.*);
+            }
+            stats.recordResult(.fail);
+        };
+        stats.updateMaxMemUsage(fib.end_index);
+    }
 }
 
-fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, test_case: TestCase, stats: *Stats) !void {
+fn singleRun(alloc: std.mem.Allocator, test_case: TestCase, stats: *Stats) !void {
+    const path = test_case.path;
+
     var comp = aro.Compilation.init(alloc);
     defer comp.deinit();
 
@@ -278,7 +238,7 @@ fn singleRun(alloc: std.mem.Allocator, path: []const u8, source: []const u8, tes
     defer case_node.end();
     stats.progress.refresh();
 
-    const file = comp.addSourceFromBuffer(path, source) catch |err| {
+    const file = comp.addSourceFromBuffer(path, test_case.source) catch |err| {
         stats.recordResult(.fail);
         stats.progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
         return;
@@ -414,8 +374,7 @@ fn setTarget(comp: *aro.Compilation, target: []const u8) !std.Target {
     return zig_target;
 }
 
-fn parseTargetsFromCode(alloc: std.mem.Allocator, source: []const u8) !std.ArrayList(TestCase) {
-    var result = std.ArrayList(TestCase).init(alloc);
+fn parseTargetsFromCode(cases: *TestCase.List, path: []const u8, source: []const u8) !void {
     var lines = std.mem.tokenize(u8, source, "\n");
     while (lines.next()) |line| {
         if (std.mem.indexOf(u8, line, "// MAPPING|") == null) continue;
@@ -429,13 +388,14 @@ fn parseTargetsFromCode(alloc: std.mem.Allocator, source: []const u8) !std.Array
             if (std.mem.startsWith(u8, target, "END")) break;
             // These point to source, which lives
             // for the life of the test. So should be ok
-            try result.append(.{
+            try cases.append(.{
+                .path = path,
+                .source = source,
                 .c_define = define,
                 .target = target,
             });
         }
     }
-    return result;
 }
 
 const compErr = blk: {
