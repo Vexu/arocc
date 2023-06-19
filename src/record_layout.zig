@@ -193,7 +193,7 @@ const SysVContext = struct {
                 .unused_size_bits = ty_size_bits - width,
             };
         }
-        const offset_bits = std.mem.alignForwardGeneric(u64, self.size_bits, field_alignment_bits);
+        const offset_bits = std.mem.alignForward(u64, self.size_bits, field_alignment_bits);
         self.size_bits = if (width == 0) offset_bits else offset_bits + ty_size_bits;
         if (!is_named) return .{};
         return .{
@@ -211,7 +211,7 @@ const SysVContext = struct {
         // A struct field starts at the next offset in the struct that is properly
         // aligned with respect to the start of the struct. See test case 0033.
         // A union field always starts at offset 0.
-        const offset_bits = if (self.is_union) 0 else std.mem.alignForwardGeneric(u64, self.size_bits, field_alignment_bits);
+        const offset_bits = if (self.is_union) 0 else std.mem.alignForward(u64, self.size_bits, field_alignment_bits);
 
         // Set the size of the record to the maximum of the current size and the end of
         // the field. See test case 0034.
@@ -250,7 +250,7 @@ const SysVContext = struct {
 
         // A struct field starts at the next offset in the struct that is properly
         // aligned with respect to the start of the struct.
-        const offset_bits = if (self.is_union) 0 else std.mem.alignForwardGeneric(u64, self.size_bits, fld_align_bits);
+        const offset_bits = if (self.is_union) 0 else std.mem.alignForward(u64, self.size_bits, fld_align_bits);
         const size_bits = fld_layout.size_bits;
 
         // The alignment of a record is the maximum of its field alignments. See test cases
@@ -321,7 +321,7 @@ const SysVContext = struct {
             // - the alignment of the type is larger than its size,
             // then it is aligned to the type's field alignment. See test case 0083.
             if (!has_packing_annotation) {
-                const start_bit = std.mem.alignForwardGeneric(u64, first_unused_bit, field_align_bits);
+                const start_bit = std.mem.alignForward(u64, first_unused_bit, field_align_bits);
 
                 const does_field_cross_boundary = start_bit % ty_fld_algn_bits + bit_width > ty_size_bits;
 
@@ -348,7 +348,7 @@ const SysVContext = struct {
             }
         }
 
-        const offset_bits = std.mem.alignForwardGeneric(u64, first_unused_bit, field_align_bits);
+        const offset_bits = std.mem.alignForward(u64, first_unused_bit, field_align_bits);
         self.size_bits = @max(self.size_bits, offset_bits + bit_width);
 
         // Unnamed fields do not contribute to the record alignment except on a few targets.
@@ -521,7 +521,7 @@ const MsvcContext = struct {
             self.pointer_align_bits = @max(self.pointer_align_bits, p_align);
             self.field_align_bits = @max(self.field_align_bits, field_align);
 
-            const offset_bits = std.mem.alignForwardGeneric(u64, self.size_bits, field_align);
+            const offset_bits = std.mem.alignForward(u64, self.size_bits, field_align);
             self.size_bits = if (bit_width == 0) offset_bits else offset_bits + ty_size_bits;
 
             break :bits offset_bits;
@@ -542,7 +542,7 @@ const MsvcContext = struct {
         self.field_align_bits = @max(self.field_align_bits, field_align);
         const offset_bits = switch (self.is_union) {
             true => 0,
-            false => std.mem.alignForwardGeneric(u64, self.size_bits, field_align),
+            false => std.mem.alignForward(u64, self.size_bits, field_align),
         };
         self.size_bits = @max(self.size_bits, offset_bits + size_bits);
         return .{ .offset_bits = offset_bits, .size_bits = size_bits };
@@ -575,7 +575,7 @@ pub fn compute(rec: *Type.Record, ty: Type, comp: *const Compilation, pragma_pac
 
             context.layoutFields(rec);
 
-            context.size_bits = std.mem.alignForwardGeneric(u64, context.size_bits, context.aligned_bits);
+            context.size_bits = std.mem.alignForward(u64, context.size_bits, context.aligned_bits);
 
             rec.type_layout = .{
                 .size_bits = context.size_bits,
@@ -600,7 +600,7 @@ pub fn compute(rec: *Type.Record, ty: Type, comp: *const Compilation, pragma_pac
                 // ensure that there are no zero-sized records.
                 context.handleZeroSizedRecord();
             }
-            context.size_bits = std.mem.alignForwardGeneric(u64, context.size_bits, context.pointer_align_bits);
+            context.size_bits = std.mem.alignForward(u64, context.size_bits, context.pointer_align_bits);
             rec.type_layout = .{
                 .size_bits = context.size_bits,
                 .field_alignment_bits = context.field_align_bits,
