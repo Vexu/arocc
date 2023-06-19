@@ -344,15 +344,16 @@ fn getTarget(zig_target_string: []const u8) !std.Target {
 
     const tag = std.meta.stringToEnum(std.Target.Os.Tag, iter.next().?).?;
     // `defaultVersionRange` will panic for invalid targets, check that
-    // here and return an error instead.
+    // here and set it to a reasonable default instead
+    var os: ?std.Target.Os = null;
     if (tag == .macos) {
         switch (ret.cpu.arch) {
             .x86_64, .aarch64 => {},
-            else => return error.InvalidTarget,
+            else => os = .{ .version_range = .{ .none = {} }, .tag = .macos },
         }
     }
 
-    ret.os = std.Target.Os.Tag.defaultVersionRange(tag, ret.cpu.arch);
+    ret.os = os orelse std.Target.Os.Tag.defaultVersionRange(tag, ret.cpu.arch);
     ret.abi = std.meta.stringToEnum(std.Target.Abi, iter.next().?).?;
     return ret;
 }
