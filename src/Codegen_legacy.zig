@@ -29,7 +29,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!*Object {
 
     const node_tags = tree.nodes.items(.tag);
     for (tree.root_decls) |decl| {
-        switch (node_tags[@enumToInt(decl)]) {
+        switch (node_tags[@intFromEnum(decl)]) {
             // these produce no code
             .static_assert,
             .typedef,
@@ -52,7 +52,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!*Object {
             .extern_var,
             .threadlocal_extern_var,
             => {
-                const name = c.tree.tokSlice(c.node_data[@enumToInt(decl)].decl.name);
+                const name = c.tree.tokSlice(c.node_data[@intFromEnum(decl)].decl.name);
                 _ = try c.obj.declareSymbol(.undefined, name, .Strong, .external, 0, 0);
             },
 
@@ -93,7 +93,7 @@ fn genFn(c: *Codegen, decl: NodeIndex) Error!void {
         .x86_64 => try x86_64.genFn(c, decl, data),
         else => unreachable,
     }
-    const name = c.tree.tokSlice(c.node_data[@enumToInt(decl)].decl.name);
+    const name = c.tree.tokSlice(c.node_data[@intFromEnum(decl)].decl.name);
     _ = try c.obj.declareSymbol(section, name, .Strong, .func, start_len, data.items.len - start_len);
 }
 

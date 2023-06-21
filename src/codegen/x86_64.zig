@@ -32,7 +32,7 @@ pub fn genFn(c: *Codegen, decl: NodeIndex, data: *std.ArrayList(u8)) Codegen.Err
         0x55, // push rbp
         0x48, 0x89, 0xe5, // mov rbp,rsp
     });
-    _ = try func.genNode(c.node_data[@enumToInt(decl)].decl.node);
+    _ = try func.genNode(c.node_data[@intFromEnum(decl)].decl.node);
     // all functions are guaranteed to end in a return statement so no extra work required here
 }
 
@@ -126,8 +126,8 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
             return Value{ .immediate = @bitCast(i64, some.data.int) };
     }
 
-    const data = func.c.node_data[@enumToInt(node)];
-    switch (func.c.node_tag[@enumToInt(node)]) {
+    const data = func.c.node_data[@intFromEnum(node)];
+    switch (func.c.node_tag[@intFromEnum(node)]) {
         .static_assert => return Value{ .none = {} },
         .compound_stmt_two => {
             if (data.bin.lhs != .none) _ = try func.genNode(data.bin.lhs);
@@ -183,7 +183,7 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
             const symbol_name = try func.c.obj.declareSymbol(.strings, null, .Internal, .variable, start, str_bytes.len);
             return Value{ .symbol = symbol_name };
         },
-        else => return func.c.comp.diag.fatalNoSrc("TODO x86_64 genNode {}\n", .{func.c.node_tag[@enumToInt(node)]}),
+        else => return func.c.comp.diag.fatalNoSrc("TODO x86_64 genNode {}\n", .{func.c.node_tag[@intFromEnum(node)]}),
     }
 }
 

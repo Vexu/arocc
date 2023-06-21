@@ -183,7 +183,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
             relocations_len += sect.*.relocations.items.len * @sizeOf(std.elf.Elf64_Rela);
             sect.*.index = num_sections;
             num_sections += 1;
-            num_sections += @boolToInt(sect.*.relocations.items.len != 0);
+            num_sections += @intFromBool(sect.*.relocations.items.len != 0);
         }
     }
     const symtab_len = (elf.local_symbols.count() + elf.global_symbols.count() + 1) * @sizeOf(std.elf.Elf64_Sym);

@@ -396,7 +396,7 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     // TODO: clang treats __FLT_EVAL_METHOD__ as a special-cased macro because evaluating it within a scope
     // where `#pragma clang fp eval_method(X)` has been called produces an error diagnostic.
     const flt_eval_method = comp.langopts.fp_eval_method orelse target_util.defaultFpEvalMethod(comp.target);
-    try w.print("#define __FLT_EVAL_METHOD__ {d}\n", .{@enumToInt(flt_eval_method)});
+    try w.print("#define __FLT_EVAL_METHOD__ {d}\n", .{@intFromEnum(flt_eval_method)});
 
     try w.writeAll(
         \\#define __FLT_RADIX__ 2
@@ -858,7 +858,7 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
         .id = .generated,
         .splice_locs = &.{},
     };
-    return comp.sources.values()[@enumToInt(id) - 2];
+    return comp.sources.values()[@intFromEnum(id) - 2];
 }
 
 /// Creates a Source from the contents of `reader` and adds it to the Compilation
@@ -878,7 +878,7 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
     var splice_list = std.ArrayList(u32).init(comp.gpa);
     defer splice_list.deinit();
 
-    const source_id = @intToEnum(Source.Id, comp.sources.count() + 2);
+    const source_id = @enumFromInt(Source.Id, comp.sources.count() + 2);
 
     var i: u32 = 0;
     var backslash_loc: u32 = undefined;

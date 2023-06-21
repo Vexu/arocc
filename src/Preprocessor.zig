@@ -1410,7 +1410,7 @@ fn expandFuncMacro(
                     break :blk false;
                 } else try pp.handleBuiltinMacro(raw.id, arg, loc);
                 const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.writer().print("{}\n", .{@boolToInt(result)});
+                try pp.comp.generated_buf.writer().print("{}\n", .{@intFromBool(result)});
                 try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
             },
             .macro_param_pragma_operator => {

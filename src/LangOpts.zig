@@ -59,7 +59,7 @@ pub const Standard = enum {
     });
 
     pub fn atLeast(self: Standard, other: Standard) bool {
-        return @enumToInt(self) >= @enumToInt(other);
+        return @intFromEnum(self) >= @intFromEnum(other);
     }
 
     pub fn isGNU(standard: Standard) bool {

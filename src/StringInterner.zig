@@ -24,7 +24,7 @@ pub const TypeMapper = struct {
     pub fn lookup(self: TypeMapper, string_id: StringInterner.StringId) []const u8 {
         if (string_id == .empty) return "";
         switch (self.data) {
-            .fast => |arr| return arr[@enumToInt(string_id)],
+            .fast => |arr| return arr[@intFromEnum(string_id)],
             .slow => |map| {
                 var it = map.iterator();
                 while (it.next()) |entry| {
@@ -44,7 +44,7 @@ pub const TypeMapper = struct {
 };
 
 string_table: StringToIdMap = .{},
-next_id: StringId = @intToEnum(StringId, @enumToInt(StringId.empty) + 1),
+next_id: StringId = @enumFromInt(StringId, @intFromEnum(StringId.empty) + 1),
 
 pub fn deinit(self: *StringInterner, allocator: mem.Allocator) void {
     self.string_table.deinit(allocator);
@@ -56,7 +56,7 @@ pub fn intern(self: *StringInterner, allocator: mem.Allocator, str: []const u8) 
     const gop = try self.string_table.getOrPut(allocator, str);
     if (gop.found_existing) return gop.value_ptr.*;
 
-    defer self.next_id = @intToEnum(StringId, @enumToInt(self.next_id) + 1);
+    defer self.next_id = @enumFromInt(StringId, @intFromEnum(self.next_id) + 1);
     gop.value_ptr.* = self.next_id;
     return self.next_id;
 }
@@ -68,11 +68,11 @@ pub fn getSlowTypeMapper(self: *const StringInterner) TypeMapper {
 
 /// Caller must call `deinit` on the returned TypeMapper
 pub fn getFastTypeMapper(self: *const StringInterner, allocator: mem.Allocator) !TypeMapper {
-    var strings = try allocator.alloc([]const u8, @enumToInt(self.next_id));
+    var strings = try allocator.alloc([]const u8, @intFromEnum(self.next_id));
     var it = self.string_table.iterator();
     strings[0] = "";
     while (it.next()) |entry| {
-        strings[@enumToInt(entry.value_ptr.*)] = entry.key_ptr.*;
+        strings[@intFromEnum(entry.value_ptr.*)] = entry.key_ptr.*;
     }
     return TypeMapper{ .data = .{ .fast = strings } };
 }
