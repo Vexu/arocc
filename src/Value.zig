@@ -224,9 +224,9 @@ pub fn intToFloat(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) voi
     if (!new_ty.isReal() or new_ty.sizeof(comp).? > 8) {
         v.tag = .unavailable;
     } else if (old_ty.isUnsignedInt(comp)) {
-        v.* = float(@intToFloat(f64, v.data.int));
+        v.* = float(@floatFromInt(f64, v.data.int));
     } else {
-        v.* = float(@intToFloat(f64, @bitCast(i64, v.data.int)));
+        v.* = float(@floatFromInt(f64, @bitCast(i64, v.data.int)));
     }
 }
 
@@ -265,7 +265,7 @@ pub fn floatCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void
 pub fn toBool(v: *Value) void {
     if (v.tag == .unavailable) return;
     const res = v.getBool();
-    v.* = int(@boolToInt(res));
+    v.* = int(@intFromBool(res));
 }
 
 pub fn isZero(v: Value) bool {

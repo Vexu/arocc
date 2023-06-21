@@ -550,10 +550,10 @@ pub fn isBitfield(nodes: Node.List.Slice, node: NodeIndex) bool {
 /// recurse into implicit lval_to_rval casts (useful for arithmetic conversions)
 pub fn bitfieldWidth(nodes: Node.List.Slice, node: NodeIndex, inspect_lval: bool) ?u32 {
     if (node == .none) return null;
-    switch (nodes.items(.tag)[@enumToInt(node)]) {
+    switch (nodes.items(.tag)[@intFromEnum(node)]) {
         .member_access_expr, .member_access_ptr_expr => {
-            const member = nodes.items(.data)[@enumToInt(node)].member;
-            var ty = nodes.items(.ty)[@enumToInt(member.lhs)];
+            const member = nodes.items(.data)[@intFromEnum(node)].member;
+            var ty = nodes.items(.ty)[@intFromEnum(member.lhs)];
             if (ty.isPtr()) ty = ty.elemType();
             const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return null;
             const field = record_ty.data.record.fields[member.index];
@@ -562,7 +562,7 @@ pub fn bitfieldWidth(nodes: Node.List.Slice, node: NodeIndex, inspect_lval: bool
         .implicit_cast => {
             if (!inspect_lval) return null;
 
-            const data = nodes.items(.data)[@enumToInt(node)];
+            const data = nodes.items(.data)[@intFromEnum(node)];
             return switch (data.cast.kind) {
                 .lval_to_rval => bitfieldWidth(nodes, data.cast.operand, false),
                 else => null,
@@ -579,51 +579,51 @@ pub fn isLval(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: Value
 
 pub fn isLvalExtra(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: ValueMap, node: NodeIndex, is_const: *bool) bool {
     is_const.* = false;
-    switch (nodes.items(.tag)[@enumToInt(node)]) {
+    switch (nodes.items(.tag)[@intFromEnum(node)]) {
         .compound_literal_expr => {
-            is_const.* = nodes.items(.ty)[@enumToInt(node)].isConst();
+            is_const.* = nodes.items(.ty)[@intFromEnum(node)].isConst();
             return true;
         },
         .string_literal_expr => return true,
         .member_access_ptr_expr => {
-            const lhs_expr = nodes.items(.data)[@enumToInt(node)].member.lhs;
-            const ptr_ty = nodes.items(.ty)[@enumToInt(lhs_expr)];
+            const lhs_expr = nodes.items(.data)[@intFromEnum(node)].member.lhs;
+            const ptr_ty = nodes.items(.ty)[@intFromEnum(lhs_expr)];
             if (ptr_ty.isPtr()) is_const.* = ptr_ty.elemType().isConst();
             return true;
         },
         .array_access_expr => {
-            const lhs_expr = nodes.items(.data)[@enumToInt(node)].bin.lhs;
+            const lhs_expr = nodes.items(.data)[@intFromEnum(node)].bin.lhs;
             if (lhs_expr != .none) {
-                const array_ty = nodes.items(.ty)[@enumToInt(lhs_expr)];
+                const array_ty = nodes.items(.ty)[@intFromEnum(lhs_expr)];
                 if (array_ty.isPtr() or array_ty.isArray()) is_const.* = array_ty.elemType().isConst();
             }
             return true;
         },
         .decl_ref_expr => {
-            const decl_ty = nodes.items(.ty)[@enumToInt(node)];
+            const decl_ty = nodes.items(.ty)[@intFromEnum(node)];
             is_const.* = decl_ty.isConst();
             return true;
         },
         .deref_expr => {
-            const data = nodes.items(.data)[@enumToInt(node)];
-            const operand_ty = nodes.items(.ty)[@enumToInt(data.un)];
+            const data = nodes.items(.data)[@intFromEnum(node)];
+            const operand_ty = nodes.items(.ty)[@intFromEnum(data.un)];
             if (operand_ty.isFunc()) return false;
             if (operand_ty.isPtr() or operand_ty.isArray()) is_const.* = operand_ty.elemType().isConst();
             return true;
         },
         .member_access_expr => {
-            const data = nodes.items(.data)[@enumToInt(node)];
+            const data = nodes.items(.data)[@intFromEnum(node)];
             return isLvalExtra(nodes, extra, value_map, data.member.lhs, is_const);
         },
         .paren_expr => {
-            const data = nodes.items(.data)[@enumToInt(node)];
+            const data = nodes.items(.data)[@intFromEnum(node)];
             return isLvalExtra(nodes, extra, value_map, data.un, is_const);
         },
         .builtin_choose_expr => {
-            const data = nodes.items(.data)[@enumToInt(node)];
+            const data = nodes.items(.data)[@intFromEnum(node)];
 
             if (value_map.get(data.if3.cond)) |val| {
-                const offset = @boolToInt(val.isZero());
+                const offset = @intFromBool(val.isZero());
                 return isLvalExtra(nodes, extra, value_map, extra[data.if3.body + offset], is_const);
             }
             return false;
@@ -713,9 +713,9 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
     const ATTRIBUTE = util.Color.yellow;
     std.debug.assert(node != .none);
 
-    const tag = tree.nodes.items(.tag)[@enumToInt(node)];
-    const data = tree.nodes.items(.data)[@enumToInt(node)];
-    const ty = tree.nodes.items(.ty)[@enumToInt(node)];
+    const tag = tree.nodes.items(.tag)[@intFromEnum(node)];
+    const data = tree.nodes.items(.data)[@intFromEnum(node)];
+    const ty = tree.nodes.items(.ty)[@intFromEnum(node)];
     try w.writeByteNTimes(' ', level);
 
     if (color) util.setColor(if (tag.isImplicit()) IMPLICIT else TAG, w);
@@ -964,13 +964,13 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try tree.dumpNode(tree.data[data.if3.body + 1], level + delta, mapper, color, w);
         },
         .builtin_types_compatible_p => {
-            std.debug.assert(tree.nodes.items(.tag)[@enumToInt(data.bin.lhs)] == .invalid);
-            std.debug.assert(tree.nodes.items(.tag)[@enumToInt(data.bin.rhs)] == .invalid);
+            std.debug.assert(tree.nodes.items(.tag)[@intFromEnum(data.bin.lhs)] == .invalid);
+            std.debug.assert(tree.nodes.items(.tag)[@intFromEnum(data.bin.rhs)] == .invalid);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("lhs: ");
 
-            const lhs_ty = tree.nodes.items(.ty)[@enumToInt(data.bin.lhs)];
+            const lhs_ty = tree.nodes.items(.ty)[@intFromEnum(data.bin.lhs)];
             if (color) util.setColor(TYPE, w);
             try lhs_ty.dump(mapper, tree.comp.langopts, w);
             if (color) util.setColor(.reset, w);
@@ -979,7 +979,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("rhs: ");
 
-            const rhs_ty = tree.nodes.items(.ty)[@enumToInt(data.bin.rhs)];
+            const rhs_ty = tree.nodes.items(.ty)[@intFromEnum(data.bin.rhs)];
             if (color) util.setColor(TYPE, w);
             try rhs_ty.dump(mapper, tree.comp.langopts, w);
             if (color) util.setColor(.reset, w);
@@ -1101,7 +1101,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("name: ");
             if (color) util.setColor(NAME, w);
-            try w.print("{s}\n", .{tree.tokSlice(@enumToInt(tree.data[data.range.start]))});
+            try w.print("{s}\n", .{tree.tokSlice(@intFromEnum(tree.data[data.range.start]))});
             if (color) util.setColor(.reset, w);
 
             try w.writeByteNTimes(' ', level + half);
@@ -1218,7 +1218,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
             try w.writeAll("lhs:\n");
             try tree.dumpNode(data.member.lhs, level + delta, mapper, color, w);
 
-            var lhs_ty = tree.nodes.items(.ty)[@enumToInt(data.member.lhs)];
+            var lhs_ty = tree.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
             if (lhs_ty.isPtr()) lhs_ty = lhs_ty.elemType();
             lhs_ty = lhs_ty.canonicalize(.standard);
 

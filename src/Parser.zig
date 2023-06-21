@@ -462,7 +462,7 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     if (p.in_macro) return .none;
     const res = p.nodes.len;
     try p.nodes.append(p.gpa, node);
-    return @intToEnum(NodeIndex, res);
+    return @enumFromInt(NodeIndex, res);
 }
 
 fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range {
@@ -492,9 +492,9 @@ fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
     while (true) {
-        const cur_tag = tags[@enumToInt(cur)];
+        const cur_tag = tags[@intFromEnum(cur)];
         if (cur_tag == .paren_expr) {
-            cur = data[@enumToInt(cur)].un;
+            cur = data[@intFromEnum(cur)].un;
         } else if (cur_tag == tag) {
             return cur;
         } else {
@@ -532,7 +532,7 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
 
     const err_start = p.comp.diag.list.items.len;
     for (p.decl_buf.items) |decl_node| {
-        const idx = @enumToInt(decl_node);
+        const idx = @intFromEnum(decl_node);
         switch (tags[idx]) {
             .struct_forward_decl, .union_forward_decl, .enum_forward_decl => {},
             else => continue,
@@ -995,7 +995,7 @@ fn decl(p: *Parser) Error!bool {
             try p.err(.expected_fn_body);
             return true;
         };
-        p.nodes.set(@enumToInt(node), .{
+        p.nodes.set(@intFromEnum(node), .{
             .ty = init_d.d.ty,
             .tag = try decl_spec.validateFnDef(p),
             .data = .{ .decl = .{ .name = init_d.d.name, .node = body } },
@@ -1065,7 +1065,7 @@ fn decl(p: *Parser) Error!bool {
 }
 
 fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]const u8 {
-    const cond_tag = p.nodes.items(.tag)[@enumToInt(cond_node)];
+    const cond_tag = p.nodes.items(.tag)[@intFromEnum(cond_node)];
     if (cond_tag != .builtin_types_compatible_p and message.node == .none) return null;
 
     var buf = std.ArrayList(u8).init(p.gpa);
@@ -1073,15 +1073,15 @@ fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]co
 
     if (cond_tag == .builtin_types_compatible_p) {
         const mapper = p.comp.string_interner.getSlowTypeMapper();
-        const data = p.nodes.items(.data)[@enumToInt(cond_node)].bin;
+        const data = p.nodes.items(.data)[@intFromEnum(cond_node)].bin;
 
         try buf.appendSlice("'__builtin_types_compatible_p(");
 
-        const lhs_ty = p.nodes.items(.ty)[@enumToInt(data.lhs)];
+        const lhs_ty = p.nodes.items(.ty)[@intFromEnum(data.lhs)];
         try lhs_ty.print(mapper, p.comp.langopts, buf.writer());
         try buf.appendSlice(", ");
 
-        const rhs_ty = p.nodes.items(.ty)[@enumToInt(data.rhs)];
+        const rhs_ty = p.nodes.items(.ty)[@intFromEnum(data.rhs)];
         try rhs_ty.print(mapper, p.comp.langopts, buf.writer());
 
         try buf.appendSlice(")'");
@@ -1094,7 +1094,7 @@ fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]co
         try buf.ensureUnusedCapacity(data.len);
         try Tree.dumpStr(
             data,
-            p.nodes.items(.tag)[@enumToInt(message.node)],
+            p.nodes.items(.tag)[@intFromEnum(message.node)],
             buf.writer(),
         );
     }
@@ -1489,7 +1489,7 @@ fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, ar
     if (Attribute.wantsAlignment(attr, arg_idx)) {
         return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res.val, res.ty, p.comp);
     }
-    const node = p.nodes.get(@enumToInt(res.node));
+    const node = p.nodes.get(@intFromEnum(res.node));
     return Attribute.diagnose(attr, arguments, arg_idx, res.val, node);
 }
 
@@ -2404,14 +2404,14 @@ fn enumSpec(p: *Parser) Error!Type {
 
             vals[i].intCast(field.ty, dest_ty, p.comp);
             types[i] = dest_ty;
-            p.nodes.items(.ty)[@enumToInt(field_nodes[i])] = dest_ty;
+            p.nodes.items(.ty)[@intFromEnum(field_nodes[i])] = dest_ty;
             field.ty = dest_ty;
             res.ty = dest_ty;
 
             if (res.node != .none) {
                 try res.implicitCast(p, .int_cast);
                 field.node = res.node;
-                p.nodes.items(.data)[@enumToInt(field_nodes[i])].decl.node = res.node;
+                p.nodes.items(.data)[@intFromEnum(field_nodes[i])].decl.node = res.node;
             }
         }
     }
@@ -3056,7 +3056,7 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
     _ = try p.initializerItem(&il, init_ty);
 
     const res = try p.convertInitList(il, init_ty);
-    var res_ty = p.nodes.items(.ty)[@enumToInt(res)];
+    var res_ty = p.nodes.items(.ty)[@intFromEnum(res)];
     res_ty.qual = init_ty.qual;
     return Result{ .ty = res_ty, .node = res };
 }
@@ -4118,7 +4118,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
                 .last_expr_tok = stmt_tok,
                 .last_expr_res = .{
                     .node = s,
-                    .ty = p.nodes.items(.ty)[@enumToInt(s)],
+                    .ty = p.nodes.items(.ty)[@intFromEnum(s)],
                 },
             };
         }
@@ -4128,7 +4128,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
             noreturn_index = p.tok_i;
             noreturn_label_count = p.label_count;
         }
-        switch (p.nodes.items(.tag)[@enumToInt(s)]) {
+        switch (p.nodes.items(.tag)[@intFromEnum(s)]) {
             .case_stmt, .default_stmt, .labeled_stmt => noreturn_index = null,
             else => {},
         }
@@ -4182,10 +4182,10 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
 const NoreturnKind = enum { no, yes, complex };
 
 fn nodeIsNoreturn(p: *Parser, node: NodeIndex) NoreturnKind {
-    switch (p.nodes.items(.tag)[@enumToInt(node)]) {
+    switch (p.nodes.items(.tag)[@intFromEnum(node)]) {
         .break_stmt, .continue_stmt, .return_stmt => return .yes,
         .if_then_else_stmt => {
-            const data = p.data.items[p.nodes.items(.data)[@enumToInt(node)].if3.body..];
+            const data = p.data.items[p.nodes.items(.data)[@intFromEnum(node)].if3.body..];
             const then_type = p.nodeIsNoreturn(data[0]);
             const else_type = p.nodeIsNoreturn(data[1]);
             if (then_type == .complex or else_type == .complex) return .complex;
@@ -4193,21 +4193,21 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) NoreturnKind {
             return .no;
         },
         .compound_stmt_two => {
-            const data = p.nodes.items(.data)[@enumToInt(node)];
+            const data = p.nodes.items(.data)[@intFromEnum(node)];
             if (data.bin.rhs != .none) return p.nodeIsNoreturn(data.bin.rhs);
             if (data.bin.lhs != .none) return p.nodeIsNoreturn(data.bin.lhs);
             return .no;
         },
         .compound_stmt => {
-            const data = p.nodes.items(.data)[@enumToInt(node)];
+            const data = p.nodes.items(.data)[@intFromEnum(node)];
             return p.nodeIsNoreturn(p.data.items[data.range.end - 1]);
         },
         .labeled_stmt => {
-            const data = p.nodes.items(.data)[@enumToInt(node)];
+            const data = p.nodes.items(.data)[@intFromEnum(node)];
             return p.nodeIsNoreturn(data.decl.node);
         },
         .switch_stmt => {
-            const data = p.nodes.items(.data)[@enumToInt(node)];
+            const data = p.nodes.items(.data)[@intFromEnum(node)];
             if (data.bin.rhs == .none) return .complex;
             if (p.nodeIsNoreturn(data.bin.rhs) == .yes) return .yes;
             return .complex;
@@ -4345,7 +4345,7 @@ const CallExpr = union(enum) {
 
     fn init(p: *Parser, call_node: NodeIndex, func_node: NodeIndex) CallExpr {
         if (p.getNode(call_node, .builtin_call_expr_one)) |node| {
-            const data = p.nodes.items(.data)[@enumToInt(node)];
+            const data = p.nodes.items(.data)[@intFromEnum(node)];
             const name = p.tokSlice(data.decl.name);
             const builtin_ty = p.comp.builtins.lookup(name);
             return .{ .builtin = .{ .node = node, .tag = builtin_ty.builtin.tag } };
@@ -4382,7 +4382,7 @@ const CallExpr = union(enum) {
     fn checkVarArg(self: CallExpr, p: *Parser, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32) !void {
         if (self == .standard) return;
 
-        const builtin_tok = p.nodes.items(.data)[@enumToInt(self.builtin.node)].decl.name;
+        const builtin_tok = p.nodes.items(.data)[@intFromEnum(self.builtin.node)].decl.name;
         switch (self.builtin.tag) {
             .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
             else => {},
@@ -4409,7 +4409,7 @@ const CallExpr = union(enum) {
                 return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
             },
             .builtin => |builtin| {
-                const index = @enumToInt(builtin.node);
+                const index = @intFromEnum(builtin.node);
                 var call_node = p.nodes.get(index);
                 defer p.nodes.set(index, call_node);
                 const args = p.list_buf.items[list_buf_top..];
@@ -4418,7 +4418,7 @@ const CallExpr = union(enum) {
                     1 => call_node.data.decl.node = args[1], // args[0] == func.node
                     else => {
                         call_node.tag = .builtin_call_expr;
-                        args[0] = @intToEnum(NodeIndex, call_node.data.decl.name);
+                        args[0] = @enumFromInt(NodeIndex, call_node.data.decl.name);
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
@@ -4459,7 +4459,7 @@ const Result = struct {
             if (err_item.tag != .unused_value) return;
         }
         var cur_node = res.node;
-        while (true) switch (p.nodes.items(.tag)[@enumToInt(cur_node)]) {
+        while (true) switch (p.nodes.items(.tag)[@intFromEnum(cur_node)]) {
             .invalid, // So that we don't need to check for node == 0
             .assign_expr,
             .mul_assign_expr,
@@ -4478,35 +4478,35 @@ const Result = struct {
             .post_dec_expr,
             => return,
             .call_expr_one => {
-                const fn_ptr = p.nodes.items(.data)[@enumToInt(cur_node)].bin.lhs;
-                const fn_ty = p.nodes.items(.ty)[@enumToInt(fn_ptr)].elemType();
+                const fn_ptr = p.nodes.items(.data)[@intFromEnum(cur_node)].bin.lhs;
+                const fn_ty = p.nodes.items(.ty)[@intFromEnum(fn_ptr)].elemType();
                 if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, "TODO get name");
                 if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, "TODO get name");
                 return;
             },
             .call_expr => {
-                const fn_ptr = p.data.items[p.nodes.items(.data)[@enumToInt(cur_node)].range.start];
-                const fn_ty = p.nodes.items(.ty)[@enumToInt(fn_ptr)].elemType();
+                const fn_ptr = p.data.items[p.nodes.items(.data)[@intFromEnum(cur_node)].range.start];
+                const fn_ty = p.nodes.items(.ty)[@intFromEnum(fn_ptr)].elemType();
                 if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, "TODO get name");
                 if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, "TODO get name");
                 return;
             },
             .stmt_expr => {
-                const body = p.nodes.items(.data)[@enumToInt(cur_node)].un;
-                switch (p.nodes.items(.tag)[@enumToInt(body)]) {
+                const body = p.nodes.items(.data)[@intFromEnum(cur_node)].un;
+                switch (p.nodes.items(.tag)[@intFromEnum(body)]) {
                     .compound_stmt_two => {
-                        const body_stmt = p.nodes.items(.data)[@enumToInt(body)].bin;
+                        const body_stmt = p.nodes.items(.data)[@intFromEnum(body)].bin;
                         cur_node = if (body_stmt.rhs != .none) body_stmt.rhs else body_stmt.lhs;
                     },
                     .compound_stmt => {
-                        const data = p.nodes.items(.data)[@enumToInt(body)];
+                        const data = p.nodes.items(.data)[@intFromEnum(body)];
                         cur_node = p.data.items[data.range.end - 1];
                     },
                     else => unreachable,
                 }
             },
-            .comma_expr => cur_node = p.nodes.items(.data)[@enumToInt(cur_node)].bin.rhs,
-            .paren_expr => cur_node = p.nodes.items(.data)[@enumToInt(cur_node)].un,
+            .comma_expr => cur_node = p.nodes.items(.data)[@intFromEnum(cur_node)].bin.rhs,
+            .paren_expr => cur_node = p.nodes.items(.data)[@intFromEnum(cur_node)].un,
             else => break,
         };
         try p.errTok(.unused_value, expr_start);
@@ -5065,7 +5065,7 @@ const Result = struct {
             b_spec == pair[0] or b_spec == pair[1])
         {
             const both_real = a.ty.isReal() and b.ty.isReal();
-            const res_spec = pair[@boolToInt(both_real)];
+            const res_spec = pair[@intFromBool(both_real)];
             const ty = Type{ .specifier = res_spec };
             try a.floatCast(p, ty);
             try b.floatCast(p, ty);
@@ -5689,7 +5689,7 @@ fn lorExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
-            const res = @boolToInt(lhs.val.getBool() or rhs.val.getBool());
+            const res = @intFromBool(lhs.val.getBool() or rhs.val.getBool());
             lhs.val = Value.int(res);
         }
         try lhs.boolRes(p, .bool_or_expr, rhs);
@@ -5710,7 +5710,7 @@ fn landExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
-            const res = @boolToInt(lhs.val.getBool() and rhs.val.getBool());
+            const res = @intFromBool(lhs.val.getBool() and rhs.val.getBool());
             lhs.val = Value.int(res);
         }
         try lhs.boolRes(p, .bool_and_expr, rhs);
@@ -5780,7 +5780,7 @@ fn eqExpr(p: *Parser) Error!Result {
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const op: std.math.CompareOperator = if (tag == .equal_expr) .eq else .neq;
             const res = lhs.val.compare(op, rhs.val, lhs.ty, p.comp);
-            lhs.val = Value.int(@boolToInt(res));
+            lhs.val = Value.int(@intFromBool(res));
         }
         try lhs.boolRes(p, tag, rhs);
     }
@@ -5809,7 +5809,7 @@ fn compExpr(p: *Parser) Error!Result {
                 else => unreachable,
             };
             const res = lhs.val.compare(op, rhs.val, lhs.ty, p.comp);
-            lhs.val = Value.int(@boolToInt(res));
+            lhs.val = Value.int(@intFromBool(res));
         }
         try lhs.boolRes(p, tag, rhs);
     }
@@ -6012,7 +6012,7 @@ fn typesCompatible(p: *Parser) Error!Result {
     const compatible = first.compatible(second, p.comp);
 
     var res = Result{
-        .val = Value.int(@boolToInt(compatible)),
+        .val = Value.int(@intFromBool(compatible)),
         .node = try p.addNode(.{ .tag = .builtin_types_compatible_p, .ty = Type.int, .data = .{ .bin = .{
             .lhs = lhs,
             .rhs = rhs,
@@ -6379,7 +6379,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             try operand.usualUnaryConversion(p, tok);
             if (operand.val.tag == .int) {
-                const res = Value.int(@boolToInt(!operand.val.getBool()));
+                const res = Value.int(@intFromBool(!operand.val.getBool()));
                 operand.val = res;
             } else if (operand.val.tag == .nullptr_t) {
                 operand.val = Value.int(1);
@@ -6742,7 +6742,7 @@ fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     }
     const last_param_name = func_params[func_params.len - 1].name;
     const decl_ref = p.getNode(arg.node, .decl_ref_expr);
-    if (decl_ref == null or last_param_name != try p.comp.intern(p.tokSlice(p.nodes.items(.data)[@enumToInt(decl_ref.?)].decl_ref))) {
+    if (decl_ref == null or last_param_name != try p.comp.intern(p.tokSlice(p.nodes.items(.data)[@intFromEnum(decl_ref.?)].decl_ref))) {
         try p.errTok(.va_start_not_last_param, param_tok);
     }
 }
@@ -6839,8 +6839,8 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 
     if (array_len == 1) {
         if (p.getNode(array.node, .member_access_expr) orelse p.getNode(array.node, .member_access_ptr_expr)) |node| {
-            const data = p.nodes.items(.data)[@enumToInt(node)];
-            var lhs = p.nodes.items(.ty)[@enumToInt(data.member.lhs)];
+            const data = p.nodes.items(.data)[@intFromEnum(node)];
+            var lhs = p.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
             if (lhs.get(.pointer)) |ptr| {
                 lhs = ptr.data.sub_type.*;
             }
@@ -6987,7 +6987,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         },
         .keyword_true, .keyword_false => |id| {
             p.tok_i += 1;
-            const numeric_value = @boolToInt(id == .keyword_true);
+            const numeric_value = @intFromBool(id == .keyword_true);
             const res = Result{
                 .val = Value.int(numeric_value),
                 .ty = .{ .specifier = .bool },
@@ -7020,7 +7020,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             var tok = p.tok_i;
             if (p.func.ident) |some| {
                 ty = some.ty;
-                tok = p.nodes.items(.data)[@enumToInt(some.node)].decl.name;
+                tok = p.nodes.items(.data)[@intFromEnum(some.node)].decl.name;
             } else if (p.func.ty) |_| {
                 p.strings.items.len = 0;
                 try p.strings.appendSlice(p.tokSlice(p.func.name));
@@ -7555,7 +7555,7 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
     if (prefix == .binary) {
         try p.errTok(.binary_integer_literal, tok_i);
     }
-    const base = @enumToInt(prefix);
+    const base = @intFromEnum(prefix);
     var res = if (suffix.isBitInt())
         try p.bitInt(base, buf, suffix, tok_i)
     else
@@ -7588,7 +7588,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         const count = @max(1, c.bitCountTwosComp());
         // The wb suffix results in a _BitInt that includes space for the sign bit even if the
         // value of the constant is positive or was specified in hexadecimal or octal notation.
-        const sign_bits = @boolToInt(suffix.isSignedInteger());
+        const sign_bits = @intFromBool(suffix.isSignedInteger());
         const bits_needed = count + sign_bits;
         if (bits_needed > Compilation.bit_int_max_bits) {
             const specifier: Type.Builder.Specifier = switch (suffix) {
@@ -7811,10 +7811,10 @@ fn genericSelection(p: *Parser) Error!Result {
                 try p.errStr(.generic_duplicate_here, chosen_tok, try p.typeStr(ty));
             }
             for (p.list_buf.items[list_buf_top + 1 ..], p.decl_buf.items[decl_buf_top..]) |item, prev_tok| {
-                const prev_ty = p.nodes.items(.ty)[@enumToInt(item)];
+                const prev_ty = p.nodes.items(.ty)[@intFromEnum(item)];
                 if (prev_ty.eql(ty, p.comp, true)) {
                     try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
-                    try p.errStr(.generic_duplicate_here, @enumToInt(prev_tok), try p.typeStr(ty));
+                    try p.errStr(.generic_duplicate_here, @intFromEnum(prev_tok), try p.typeStr(ty));
                 }
             }
             try p.list_buf.append(try p.addNode(.{
@@ -7822,7 +7822,7 @@ fn genericSelection(p: *Parser) Error!Result {
                 .ty = ty,
                 .data = .{ .un = node.node },
             }));
-            try p.decl_buf.append(@intToEnum(NodeIndex, start));
+            try p.decl_buf.append(@enumFromInt(NodeIndex, start));
         } else if (p.eatToken(.keyword_default)) |tok| {
             if (default_tok) |prev| {
                 try p.errTok(.generic_duplicate_default, tok);

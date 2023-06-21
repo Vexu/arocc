@@ -45,7 +45,7 @@ pub const Register = enum(u8) {
 
     /// Returns the bit-width of the register.
     pub fn size(self: Register) u7 {
-        return switch (@enumToInt(self)) {
+        return switch (@intFromEnum(self)) {
             0...15 => 64,
             16...31 => 32,
             32...47 => 16,
@@ -60,7 +60,7 @@ pub const Register = enum(u8) {
     /// on. This is needed because access to these registers requires special
     /// handling via the REX prefix, via the B or R bits, depending on context.
     pub fn isExtended(self: Register) bool {
-        return @enumToInt(self) & 0x08 != 0;
+        return @intFromEnum(self) & 0x08 != 0;
     }
 
     /// This returns the 4-bit register ID, which is used in practically every
@@ -69,12 +69,12 @@ pub const Register = enum(u8) {
     /// lower three bits are often embedded directly in instructions (such as
     /// the B8 variant of moves), or used in R/M bytes.
     pub fn id(self: Register) u4 {
-        return @truncate(u4, @enumToInt(self));
+        return @truncate(u4, @intFromEnum(self));
     }
 
     /// Like id, but only returns the lower 3 bits.
     pub fn low_id(self: Register) u3 {
-        return @truncate(u3, @enumToInt(self));
+        return @truncate(u3, @intFromEnum(self));
     }
 
     /// Returns the index into `callee_preserved_regs`.
@@ -95,22 +95,22 @@ pub const Register = enum(u8) {
 
     /// Convert from any register to its 64 bit alias.
     pub fn to64(self: Register) Register {
-        return @intToEnum(Register, self.id());
+        return @enumFromInt(Register, self.id());
     }
 
     /// Convert from any register to its 32 bit alias.
     pub fn to32(self: Register) Register {
-        return @intToEnum(Register, @as(u8, self.id()) + 16);
+        return @enumFromInt(Register, @as(u8, self.id()) + 16);
     }
 
     /// Convert from any register to its 16 bit alias.
     pub fn to16(self: Register) Register {
-        return @intToEnum(Register, @as(u8, self.id()) + 32);
+        return @enumFromInt(Register, @as(u8, self.id()) + 32);
     }
 
     /// Convert from any register to its 8 bit alias.
     pub fn to8(self: Register) Register {
-        return @intToEnum(Register, @as(u8, self.id()) + 48);
+        return @enumFromInt(Register, @as(u8, self.id()) + 48);
     }
 
     pub fn dwarfLocOp(self: Register) u8 {

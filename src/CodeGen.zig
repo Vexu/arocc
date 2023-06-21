@@ -74,7 +74,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
         c.builder.arena.deinit();
         c.builder.arena = std.heap.ArenaAllocator.init(comp.gpa);
 
-        switch (node_tags[@enumToInt(decl)]) {
+        switch (node_tags[@intFromEnum(decl)]) {
             .static_assert,
             .typedef,
             .struct_decl_two,
@@ -171,8 +171,8 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
 }
 
 fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
-    const name = c.tree.tokSlice(c.node_data[@enumToInt(decl)].decl.name);
-    const func_ty = c.node_ty[@enumToInt(decl)].canonicalize(.standard);
+    const name = c.tree.tokSlice(c.node_data[@intFromEnum(decl)].decl.name);
+    const func_ty = c.node_ty[@intFromEnum(decl)].canonicalize(.standard);
     c.ret_nodes.items.len = 0;
 
     try c.builder.startFn();
@@ -190,7 +190,7 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
 
     // Generate body
     c.return_label = try c.builder.makeLabel("return");
-    try c.genStmt(c.node_data[@enumToInt(decl)].decl.node);
+    try c.genStmt(c.node_data[@intFromEnum(decl)].decl.node);
 
     // Relocate returns
     if (c.ret_nodes.items.len == 0) {
@@ -236,7 +236,7 @@ fn addBranch(c: *CodeGen, cond: Ir.Ref, true_label: Ir.Ref, false_label: Ir.Ref)
 }
 
 fn addBoolPhi(c: *CodeGen, value: bool) !void {
-    const val = try c.builder.addConstant(Value.int(@boolToInt(value)), .i1);
+    const val = try c.builder.addConstant(Value.int(@intFromBool(value)), .i1);
     try c.phi_nodes.append(c.comp.gpa, .{ .label = c.builder.current_label, .value = val });
 }
 
@@ -246,12 +246,12 @@ fn genStmt(c: *CodeGen, node: NodeIndex) Error!void {
 
 fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     std.debug.assert(node != .none);
-    const ty = c.node_ty[@enumToInt(node)];
+    const ty = c.node_ty[@intFromEnum(node)];
     if (c.tree.value_map.get(node)) |val| {
         return c.builder.addConstant(val, try c.genType(ty));
     }
-    const data = c.node_data[@enumToInt(node)];
-    switch (c.node_tag[@enumToInt(node)]) {
+    const data = c.node_data[@intFromEnum(node)];
+    switch (c.node_tag[@intFromEnum(node)]) {
         .enumeration_ref,
         .bool_literal,
         .int_literal,
@@ -351,7 +351,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .switch_stmt => {
             var wip_switch = WipSwitch{
-                .size = c.node_ty[@enumToInt(data.bin.lhs)].sizeof(c.comp).?,
+                .size = c.node_ty[@intFromEnum(data.bin.lhs)].sizeof(c.comp).?,
             };
             defer wip_switch.cases.deinit(c.builder.gpa);
 
@@ -543,7 +543,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .goto_stmt,
         .computed_goto_stmt,
         .nullptr_literal,
-        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genStmt {}\n", .{c.node_tag[@enumToInt(node)]}),
+        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genStmt {}\n", .{c.node_tag[@intFromEnum(node)]}),
         .comma_expr => {
             _ = try c.genExpr(data.bin.lhs);
             return c.genExpr(data.bin.rhs);
@@ -595,11 +595,11 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .shr_expr => return c.genBinOp(node, .bit_shr),
         .add_expr => {
             if (ty.isPtr()) {
-                const lhs_ty = c.node_ty[@enumToInt(data.bin.lhs)];
+                const lhs_ty = c.node_ty[@intFromEnum(data.bin.lhs)];
                 if (lhs_ty.isPtr()) {
                     const ptr = try c.genExpr(data.bin.lhs);
                     const offset = try c.genExpr(data.bin.rhs);
-                    const offset_ty = c.node_ty[@enumToInt(data.bin.rhs)];
+                    const offset_ty = c.node_ty[@intFromEnum(data.bin.rhs)];
                     return c.genPtrArithmetic(ptr, offset, offset_ty, ty);
                 } else {
                     const offset = try c.genExpr(data.bin.lhs);
@@ -614,7 +614,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             if (ty.isPtr()) {
                 const ptr = try c.genExpr(data.bin.lhs);
                 const offset = try c.genExpr(data.bin.rhs);
-                const offset_ty = c.node_ty[@enumToInt(data.bin.rhs)];
+                const offset_ty = c.node_ty[@intFromEnum(data.bin.rhs)];
                 return c.genPtrArithmetic(ptr, offset, offset_ty, ty);
             }
             return c.genBinOp(node, .sub);
@@ -624,8 +624,8 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .mod_expr => return c.genBinOp(node, .mod),
         .addr_of_expr => return try c.genLval(data.un),
         .deref_expr => {
-            const un_data = c.node_data[@enumToInt(data.un)];
-            if (c.node_tag[@enumToInt(data.un)] == .implicit_cast and un_data.cast.kind == .function_to_pointer) {
+            const un_data = c.node_data[@intFromEnum(data.un)];
+            if (c.node_tag[@intFromEnum(data.un)] == .implicit_cast and un_data.cast.kind == .function_to_pointer) {
                 return c.genExpr(data.un);
             }
             const operand = try c.genLval(data.un);
@@ -695,7 +695,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             },
             .int_cast => {
                 const operand = try c.genExpr(data.cast.operand);
-                const src_ty = c.node_ty[@enumToInt(data.cast.operand)];
+                const src_ty = c.node_ty[@intFromEnum(data.cast.operand)];
                 const src_bits = src_ty.bitSizeof(c.comp).?;
                 const dest_bits = ty.bitSizeof(c.comp).?;
                 if (src_bits == dest_bits) {
@@ -715,7 +715,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             },
             .pointer_to_bool, .int_to_bool, .float_to_bool => {
                 const lhs = try c.genExpr(data.cast.operand);
-                const rhs = try c.builder.addConstant(Value.int(0), try c.genType(c.node_ty[@enumToInt(node)]));
+                const rhs = try c.builder.addConstant(Value.int(0), try c.genType(c.node_ty[@intFromEnum(node)]));
                 return c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
             },
             .bitcast,
@@ -752,7 +752,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const then_label = try c.builder.makeLabel("ternary.then");
             const else_label = try c.builder.makeLabel("ternary.else");
             const end_label = try c.builder.makeLabel("ternary.end");
-            const cond_ty = c.node_ty[@enumToInt(data.if3.cond)];
+            const cond_ty = c.node_ty[@intFromEnum(data.if3.cond)];
             {
                 const old_cond_dummy_ty = c.cond_dummy_ty;
                 defer c.cond_dummy_ty = old_cond_dummy_ty;
@@ -762,7 +762,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             }
 
             try c.builder.startBlock(then_label);
-            if (c.builder.instructions.items(.ty)[@enumToInt(c.cond_dummy_ref)] == .i1) {
+            if (c.builder.instructions.items(.ty)[@intFromEnum(c.cond_dummy_ref)] == .i1) {
                 c.cond_dummy_ref = try c.addUn(.zext, c.cond_dummy_ref, cond_ty);
             }
             const then_val = try c.genExpr(c.tree.data[data.if3.body]); // then
@@ -889,7 +889,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             }
         },
         .generic_expr_one => {
-            const index = @enumToInt(data.bin.rhs);
+            const index = @intFromEnum(data.bin.rhs);
             switch (c.node_tag[index]) {
                 .generic_association_expr, .generic_default_expr => {
                     return c.genExpr(c.node_data[index].un);
@@ -898,7 +898,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             }
         },
         .generic_expr => {
-            const index = @enumToInt(c.tree.data[data.range.start + 1]);
+            const index = @intFromEnum(c.tree.data[data.range.start + 1]);
             switch (c.node_tag[index]) {
                 .generic_association_expr, .generic_default_expr => {
                     return c.genExpr(c.node_data[index].un);
@@ -907,12 +907,12 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             }
         },
         .generic_association_expr, .generic_default_expr => unreachable,
-        .stmt_expr => switch (c.node_tag[@enumToInt(data.un)]) {
+        .stmt_expr => switch (c.node_tag[@intFromEnum(data.un)]) {
             .compound_stmt_two => {
                 const old_sym_len = c.symbols.items.len;
                 c.symbols.items.len = old_sym_len;
 
-                const stmt_data = c.node_data[@enumToInt(data.un)];
+                const stmt_data = c.node_data[@intFromEnum(data.un)];
                 if (stmt_data.bin.rhs == .none) return c.genExpr(stmt_data.bin.lhs);
                 try c.genStmt(stmt_data.bin.lhs);
                 return c.genExpr(stmt_data.bin.rhs);
@@ -921,7 +921,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
                 const old_sym_len = c.symbols.items.len;
                 c.symbols.items.len = old_sym_len;
 
-                const stmt_data = c.node_data[@enumToInt(data.un)];
+                const stmt_data = c.node_data[@intFromEnum(data.un)];
                 for (c.tree.data[stmt_data.range.start .. stmt_data.range.end - 1]) |stmt| try c.genStmt(stmt);
                 return c.genExpr(c.tree.data[stmt_data.range.end]);
             },
@@ -938,7 +938,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .builtin_call_expr => {
             const name_node_idx = c.tree.data[data.range.start];
-            const name = c.tree.tokSlice(@enumToInt(name_node_idx));
+            const name = c.tree.tokSlice(@intFromEnum(name_node_idx));
             const builtin = c.comp.builtins.lookup(name).builtin;
             return c.genBuiltinCall(builtin, c.tree.data[data.range.start + 1 .. data.range.end], ty);
         },
@@ -947,7 +947,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .real_expr,
         .sizeof_expr,
         .special_builtin_call_one,
-        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genExpr {}\n", .{c.node_tag[@enumToInt(node)]}),
+        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genExpr {}\n", .{c.node_tag[@intFromEnum(node)]}),
         else => unreachable, // Not an expression.
     }
     return .none;
@@ -956,8 +956,8 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
 fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     std.debug.assert(node != .none);
     assert(Tree.isLval(c.tree.nodes, c.tree.data, c.tree.value_map, node));
-    const data = c.node_data[@enumToInt(node)];
-    switch (c.node_tag[@enumToInt(node)]) {
+    const data = c.node_data[@intFromEnum(node)];
+    switch (c.node_tag[@intFromEnum(node)]) {
         .string_literal_expr => {
             const val = c.tree.value_map.get(node).?;
             return c.builder.addConstant(val, .ptr);
@@ -975,13 +975,13 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             }
 
             const duped_name = try c.builder.arena.allocator().dupeZ(u8, slice);
-            const ref = @intToEnum(Ir.Ref, c.builder.instructions.len);
+            const ref = @enumFromInt(Ir.Ref, c.builder.instructions.len);
             try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
             return ref;
         },
         .deref_expr => return c.genExpr(data.un),
         .compound_literal_expr => {
-            const ty = c.node_ty[@enumToInt(node)];
+            const ty = c.node_ty[@intFromEnum(node)];
             const size = @intCast(u32, ty.sizeof(c.comp).?); // TODO add error in parser
             const @"align" = ty.alignof(c.comp);
             const alloc = try c.builder.addAlloc(size, @"align");
@@ -999,22 +999,22 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .member_access_expr,
         .member_access_ptr_expr,
         .array_access_expr,
-        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genLval {}\n", .{c.node_tag[@enumToInt(node)]}),
+        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genLval {}\n", .{c.node_tag[@intFromEnum(node)]}),
         else => unreachable, // Not an lval expression.
     }
 }
 
 fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir.Ref) Error!void {
     var node = base;
-    while (true) switch (c.node_tag[@enumToInt(node)]) {
+    while (true) switch (c.node_tag[@intFromEnum(node)]) {
         .paren_expr => {
-            node = c.node_data[@enumToInt(node)].un;
+            node = c.node_data[@intFromEnum(node)].un;
         },
         else => break,
     };
 
-    const data = c.node_data[@enumToInt(node)];
-    switch (c.node_tag[@enumToInt(node)]) {
+    const data = c.node_data[@intFromEnum(node)];
+    switch (c.node_tag[@intFromEnum(node)]) {
         .bool_or_expr => {
             if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
                 const cond = lhs.getBool();
@@ -1152,7 +1152,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
 
     // Assume int operand.
     const lhs = try c.genExpr(node);
-    const rhs = try c.builder.addConstant(Value.int(0), try c.genType(c.node_ty[@enumToInt(node)]));
+    const rhs = try c.builder.addConstant(Value.int(0), try c.genType(c.node_ty[@intFromEnum(node)]));
     const cmp = try c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
     if (c.cond_dummy_ty != null) c.cond_dummy_ref = cmp;
     try c.addBranch(cmp, true_label, false_label);
@@ -1167,22 +1167,22 @@ fn genBuiltinCall(c: *CodeGen, builtin: BuiltinFunction, arg_nodes: []const Node
 fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
     // Detect direct calls.
     const fn_ref = blk: {
-        const data = c.node_data[@enumToInt(fn_node)];
-        if (c.node_tag[@enumToInt(fn_node)] != .implicit_cast or data.cast.kind != .function_to_pointer) {
+        const data = c.node_data[@intFromEnum(fn_node)];
+        if (c.node_tag[@intFromEnum(fn_node)] != .implicit_cast or data.cast.kind != .function_to_pointer) {
             break :blk try c.genExpr(fn_node);
         }
 
-        var cur = @enumToInt(data.cast.operand);
+        var cur = @intFromEnum(data.cast.operand);
         while (true) switch (c.node_tag[cur]) {
             .paren_expr, .addr_of_expr, .deref_expr => {
-                cur = @enumToInt(c.node_data[cur].un);
+                cur = @intFromEnum(c.node_data[cur].un);
             },
             .implicit_cast => {
                 const cast = c.node_data[cur].cast;
                 if (cast.kind != .function_to_pointer) {
                     break :blk try c.genExpr(fn_node);
                 }
-                cur = @enumToInt(cast.operand);
+                cur = @intFromEnum(cast.operand);
             },
             .decl_ref_expr => {
                 const slice = c.tree.tokSlice(c.node_data[cur].decl_ref);
@@ -1196,7 +1196,7 @@ fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Ty
                 }
 
                 const duped_name = try c.builder.arena.allocator().dupeZ(u8, slice);
-                const ref = @intToEnum(Ir.Ref, c.builder.instructions.len);
+                const ref = @enumFromInt(Ir.Ref, c.builder.instructions.len);
                 try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
                 break :blk ref;
             },
@@ -1220,8 +1220,8 @@ fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Ty
 }
 
 fn genCompoundAssign(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
-    const bin = c.node_data[@enumToInt(node)].bin;
-    const ty = c.node_ty[@enumToInt(node)];
+    const bin = c.node_data[@intFromEnum(node)].bin;
+    const ty = c.node_ty[@intFromEnum(node)];
     const rhs = try c.genExpr(bin.rhs);
     const lhs = try c.genLval(bin.lhs);
     const res = try c.addBin(tag, lhs, rhs, ty);
@@ -1230,15 +1230,15 @@ fn genCompoundAssign(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Re
 }
 
 fn genBinOp(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
-    const bin = c.node_data[@enumToInt(node)].bin;
-    const ty = c.node_ty[@enumToInt(node)];
+    const bin = c.node_data[@intFromEnum(node)].bin;
+    const ty = c.node_ty[@intFromEnum(node)];
     const lhs = try c.genExpr(bin.lhs);
     const rhs = try c.genExpr(bin.rhs);
     return c.addBin(tag, lhs, rhs, ty);
 }
 
 fn genComparison(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
-    const bin = c.node_data[@enumToInt(node)].bin;
+    const bin = c.node_data[@intFromEnum(node)].bin;
     const lhs = try c.genExpr(bin.lhs);
     const rhs = try c.genExpr(bin.rhs);
 
@@ -1259,7 +1259,7 @@ fn genPtrArithmetic(c: *CodeGen, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, t
 
 fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: Type, initializer: NodeIndex) Error!void {
     std.debug.assert(initializer != .none);
-    switch (c.node_tag[@enumToInt(initializer)]) {
+    switch (c.node_tag[@intFromEnum(initializer)]) {
         .array_init_expr_two,
         .array_init_expr,
         .struct_init_expr_two,
@@ -1267,7 +1267,7 @@ fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: Type, initializer: NodeInde
         .union_init_expr,
         .array_filler_expr,
         .default_init_expr,
-        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genInitializer {}\n", .{c.node_tag[@enumToInt(initializer)]}),
+        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genInitializer {}\n", .{c.node_tag[@intFromEnum(initializer)]}),
         .string_literal_expr => {
             const val = c.tree.value_map.get(initializer).?;
             const str_ptr = try c.builder.addConstant(val, .ptr);

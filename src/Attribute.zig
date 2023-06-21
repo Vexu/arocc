@@ -162,7 +162,7 @@ pub const Formatting = struct {
 
                 const enum_fields = @typeInfo(Unwrapped).Enum.fields;
                 @setEvalBranchQuota(3000);
-                const quote = comptime quoteChar(@intToEnum(Tag, @enumToInt(tag)));
+                const quote = comptime quoteChar(@enumFromInt(Tag, @intFromEnum(tag)));
                 comptime var values: []const u8 = quote ++ enum_fields[0].name ++ quote;
                 inline for (enum_fields[1..]) |enum_field| {
                     values = values ++ ", ";
@@ -300,7 +300,7 @@ fn diagnoseField(
 pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node: Tree.Node) ?Diagnostics.Message {
     switch (attr) {
         inline else => |tag| {
-            const decl = @typeInfo(attributes).Struct.decls[@enumToInt(tag)];
+            const decl = @typeInfo(attributes).Struct.decls[@intFromEnum(tag)];
             const max_arg_count = comptime maxArgCount(tag);
             if (arg_idx >= max_arg_count) return Diagnostics.Message{
                 .tag = .attribute_too_many_args,
@@ -916,7 +916,7 @@ pub const Arguments = blk: {
 };
 
 pub fn ArgumentsForTag(comptime tag: Tag) type {
-    const decl = @typeInfo(attributes).Struct.decls[@enumToInt(tag)];
+    const decl = @typeInfo(attributes).Struct.decls[@intFromEnum(tag)];
     return if (@hasDecl(@field(attributes, decl.name), "Args")) @field(attributes, decl.name).Args else void;
 }
 
@@ -947,7 +947,7 @@ fn fromStringGnu(name: []const u8) ?Tag {
     inline for (decls, 0..) |decl, i| {
         if (@hasDecl(@field(attributes, decl.name), "gnu")) {
             if (mem.eql(u8, @field(attributes, decl.name).gnu, normalized)) {
-                return @intToEnum(Tag, i);
+                return @enumFromInt(Tag, i);
             }
         }
     }
@@ -967,7 +967,7 @@ fn fromStringC2X(namespace: ?[]const u8, name: []const u8) ?Tag {
     inline for (decls, 0..) |decl, i| {
         if (@hasDecl(@field(attributes, decl.name), "c2x")) {
             if (mem.eql(u8, @field(attributes, decl.name).c2x, normalized)) {
-                return @intToEnum(Tag, i);
+                return @enumFromInt(Tag, i);
             }
         }
     }
@@ -979,7 +979,7 @@ fn fromStringDeclspec(name: []const u8) ?Tag {
     inline for (decls, 0..) |decl, i| {
         if (@hasDecl(@field(attributes, decl.name), "declspec")) {
             if (mem.eql(u8, @field(attributes, decl.name).declspec, name)) {
-                return @intToEnum(Tag, i);
+                return @enumFromInt(Tag, i);
             }
         }
     }

@@ -284,7 +284,7 @@ pub fn main() !void {
 
         if (expected_types) |types| {
             const test_fn = for (tree.root_decls) |decl| {
-                if (tree.nodes.items(.tag)[@enumToInt(decl)] == .fn_def) break tree.nodes.items(.data)[@enumToInt(decl)];
+                if (tree.nodes.items(.tag)[@intFromEnum(decl)] == .fn_def) break tree.nodes.items(.data)[@intFromEnum(decl)];
             } else {
                 fail_count += 1;
                 progress.log("EXPECTED_TYPES requires a function to be defined\n", .{});
@@ -537,9 +537,9 @@ const StmtTypeDumper = struct {
 
     fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, mapper: aro.TypeMapper, node: NodeIndex, m: *MsgWriter) AllocatorError!void {
         if (node == .none) return;
-        const tag = tree.nodes.items(.tag)[@enumToInt(node)];
+        const tag = tree.nodes.items(.tag)[@intFromEnum(node)];
         if (tag == .implicit_return) return;
-        const ty = tree.nodes.items(.ty)[@enumToInt(node)];
+        const ty = tree.nodes.items(.ty)[@intFromEnum(node)];
         ty.dump(mapper, tree.comp.langopts, m.buf.writer()) catch {};
         const owned = try m.buf.toOwnedSlice();
         errdefer m.buf.allocator.free(owned);
@@ -550,7 +550,7 @@ const StmtTypeDumper = struct {
         var m = MsgWriter.init(allocator);
         defer m.deinit();
 
-        const idx = @enumToInt(decl_idx);
+        const idx = @intFromEnum(decl_idx);
 
         const tag = tree.nodes.items(.tag)[idx];
         const data = tree.nodes.items(.data)[idx];

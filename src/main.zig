@@ -61,8 +61,8 @@ pub fn main() u8 {
             return 1;
         },
     };
-    if (fast_exit) std.process.exit(@boolToInt(comp.diag.errors != 0));
-    return @boolToInt(comp.diag.errors != 0);
+    if (fast_exit) std.process.exit(@intFromBool(comp.diag.errors != 0));
+    return @intFromBool(comp.diag.errors != 0);
 }
 
 test {

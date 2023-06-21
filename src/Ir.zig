@@ -51,7 +51,7 @@ pub const Builder = struct {
     }
 
     pub fn addArg(b: *Builder, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref = @intToEnum(Ref, b.instructions.len);
+        const ref = @enumFromInt(Ref, b.instructions.len);
         try b.instructions.append(b.gpa, .{ .tag = .arg, .data = .{ .none = {} }, .ty = ty });
         try b.body.insert(b.gpa, b.arg_count, ref);
         b.arg_count += 1;
@@ -59,7 +59,7 @@ pub const Builder = struct {
     }
 
     pub fn addAlloc(b: *Builder, size: u32, @"align": u32) Allocator.Error!Ref {
-        const ref = @intToEnum(Ref, b.instructions.len);
+        const ref = @enumFromInt(Ref, b.instructions.len);
         try b.instructions.append(b.gpa, .{
             .tag = .alloc,
             .data = .{ .alloc = .{ .size = size, .@"align" = @"align" } },
@@ -71,14 +71,14 @@ pub const Builder = struct {
     }
 
     pub fn addInst(b: *Builder, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref = @intToEnum(Ref, b.instructions.len);
+        const ref = @enumFromInt(Ref, b.instructions.len);
         try b.instructions.append(b.gpa, .{ .tag = tag, .data = data, .ty = ty });
         try b.body.append(b.gpa, ref);
         return ref;
     }
 
     pub fn makeLabel(b: *Builder, name: [*:0]const u8) Allocator.Error!Ref {
-        const ref = @intToEnum(Ref, b.instructions.len);
+        const ref = @enumFromInt(Ref, b.instructions.len);
         try b.instructions.append(b.gpa, .{ .tag = .label, .data = .{ .label = name }, .ty = .void });
         return ref;
     }
@@ -116,7 +116,7 @@ pub const Builder = struct {
     }
 
     pub fn addConstant(b: *Builder, val: Value, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref = @intToEnum(Ref, b.instructions.len);
+        const ref = @enumFromInt(Ref, b.instructions.len);
         const key: Interner.Key = .{
             .value = val,
         };
@@ -130,7 +130,7 @@ pub const Builder = struct {
     pub fn addPhi(b: *Builder, inputs: []const Inst.Phi.Input, ty: Interner.Ref) Allocator.Error!Ref {
         const a = b.arena.allocator();
         const input_refs = try a.alloc(Ref, inputs.len * 2 + 1);
-        input_refs[0] = @intToEnum(Ref, inputs.len);
+        input_refs[0] = @enumFromInt(Ref, inputs.len);
         std.mem.copy(Ref, input_refs[1..], std.mem.bytesAsSlice(Ref, std.mem.sliceAsBytes(inputs)));
 
         return b.addInst(.phi, .{ .phi = .{ .ptr = input_refs.ptr } }, ty);
@@ -272,7 +272,7 @@ pub const Inst = struct {
         };
 
         pub fn inputs(p: Phi) []Input {
-            const len = @enumToInt(p.ptr[0]) * 2;
+            const len = @intFromEnum(p.ptr[0]) * 2;
             const slice = (p.ptr + 1)[0..len];
             return std.mem.bytesAsSlice(Input, std.mem.sliceAsBytes(slice));
         }
@@ -305,8 +305,8 @@ pub fn dump(ir: Ir, gpa: Allocator, name: []const u8, color: bool, w: anytype) !
     defer label_map.deinit();
 
     const ret_inst = ir.body.items[ir.body.items.len - 1];
-    const ret_operand = data[@enumToInt(ret_inst)].un;
-    const ret_ty = ir.instructions.items(.ty)[@enumToInt(ret_operand)];
+    const ret_operand = data[@intFromEnum(ret_inst)].un;
+    const ret_ty = ir.instructions.items(.ty)[@intFromEnum(ret_operand)];
     try ir.writeType(ret_ty, color, w);
     if (color) util.setColor(REF, w);
     try w.print(" @{s}", .{name});
@@ -316,7 +316,7 @@ pub fn dump(ir: Ir, gpa: Allocator, name: []const u8, color: bool, w: anytype) !
     var arg_count: u32 = 0;
     while (true) : (arg_count += 1) {
         const ref = ir.body.items[arg_count];
-        if (tags[@enumToInt(ref)] != .arg) break;
+        if (tags[@intFromEnum(ref)] != .arg) break;
         if (arg_count != 0) try w.writeAll(", ");
         try ref_map.put(ref, {});
         try ir.writeRef(&ref_map, ref, color, w);
@@ -324,14 +324,14 @@ pub fn dump(ir: Ir, gpa: Allocator, name: []const u8, color: bool, w: anytype) !
     }
     try w.writeAll(") {\n");
     for (ir.body.items[arg_count..]) |ref| {
-        switch (tags[@enumToInt(ref)]) {
+        switch (tags[@intFromEnum(ref)]) {
             .label => try label_map.put(ref, {}),
             else => {},
         }
     }
 
     for (ir.body.items[arg_count..]) |ref| {
-        const i = @enumToInt(ref);
+        const i = @intFromEnum(ref);
         const tag = tags[i];
         switch (tag) {
             .arg, .constant, .symbol => unreachable,
@@ -342,7 +342,7 @@ pub fn dump(ir: Ir, gpa: Allocator, name: []const u8, color: bool, w: anytype) !
             },
             // .label_val => {
             //     const un = data[i].un;
-            //     try w.print("    %{d} = label.{d}\n", .{ i, @enumToInt(un) });
+            //     try w.print("    %{d} = label.{d}\n", .{ i, @intFromEnum(un) });
             // },
             .jmp => {
                 const un = data[i].un;
@@ -379,7 +379,7 @@ pub fn dump(ir: Ir, gpa: Allocator, name: []const u8, color: bool, w: anytype) !
             },
             // .jmp_val => {
             //     const bin = data[i].bin;
-            //     try w.print("    %{s} %{d} label.{d}\n", .{ @tagName(tag), @enumToInt(bin.lhs), @enumToInt(bin.rhs) });
+            //     try w.print("    %{s} %{d} label.{d}\n", .{ @tagName(tag), @intFromEnum(bin.lhs), @intFromEnum(bin.rhs) });
             // },
             .@"switch" => {
                 const @"switch" = data[i].@"switch";
@@ -560,7 +560,7 @@ fn writeValue(ir: Ir, val_ref: Interner.Ref, color: bool, w: anytype) !void {
 
 fn writeRef(ir: Ir, ref_map: *RefMap, ref: Ref, color: bool, w: anytype) !void {
     assert(ref != .none);
-    const index = @enumToInt(ref);
+    const index = @intFromEnum(ref);
     const ty_ref = ir.instructions.items(.ty)[index];
     if (ir.instructions.items(.tag)[index] == .constant) {
         try ir.writeType(ty_ref, color, w);
@@ -592,7 +592,7 @@ fn writeNewRef(ir: Ir, ref_map: *RefMap, ref: Ref, color: bool, w: anytype) !voi
 
 fn writeLabel(ir: Ir, label_map: *RefMap, ref: Ref, color: bool, w: anytype) !void {
     assert(ref != .none);
-    const index = @enumToInt(ref);
+    const index = @intFromEnum(ref);
     const label = ir.instructions.items(.data)[index].label;
     if (color) util.setColor(REF, w);
     const label_index = label_map.getIndex(ref).?;

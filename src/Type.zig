@@ -739,14 +739,14 @@ pub fn makeIntegerUnsigned(ty: Type) Type {
         // zig fmt: on
 
         .char, .complex_char => {
-            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 2);
+            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) + 2);
             return base;
         },
 
         // zig fmt: off
         .schar, .short, .int, .long, .long_long, .int128,
         .complex_schar, .complex_short, .complex_int, .complex_long, .complex_long_long, .complex_int128 => {
-            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 1);
+            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) + 1);
             return base;
         },
         // zig fmt: on
@@ -1254,13 +1254,13 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
 /// Decays an array to a pointer
 pub fn decayArray(ty: *Type) void {
     // the decayed array type is the current specifier +1
-    ty.specifier = @intToEnum(Type.Specifier, @enumToInt(ty.specifier) + 1);
+    ty.specifier = @enumFromInt(Type.Specifier, @intFromEnum(ty.specifier) + 1);
 }
 
 pub fn originalTypeOfDecayedArray(ty: Type) Type {
     std.debug.assert(ty.isDecayed());
     var copy = ty;
-    copy.specifier = @intToEnum(Type.Specifier, @enumToInt(ty.specifier) - 1);
+    copy.specifier = @enumFromInt(Type.Specifier, @intFromEnum(ty.specifier) - 1);
     return copy;
 }
 
@@ -1305,11 +1305,11 @@ pub fn makeReal(ty: Type) Type {
     var base = ty.canonicalize(.standard);
     switch (base.specifier) {
         .complex_float, .complex_double, .complex_long_double, .complex_float80, .complex_float128 => {
-            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) - 5);
+            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) - 5);
             return base;
         },
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128 => {
-            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) - 13);
+            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) - 13);
             return base;
         },
         .complex_bit_int => {
@@ -1325,11 +1325,11 @@ pub fn makeComplex(ty: Type) Type {
     var base = ty.canonicalize(.standard);
     switch (base.specifier) {
         .float, .double, .long_double, .float80, .float128 => {
-            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 5);
+            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) + 5);
             return base;
         },
         .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128 => {
-            base.specifier = @intToEnum(Type.Specifier, @enumToInt(base.specifier) + 13);
+            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) + 13);
             return base;
         },
         .bit_int => {

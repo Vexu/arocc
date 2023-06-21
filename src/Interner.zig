@@ -54,7 +54,7 @@ pub const Key = union(enum) {
                 }
             },
             .record => |info| {
-                std.hash.autoHash(&hasher, @ptrToInt(info.user_ptr));
+                std.hash.autoHash(&hasher, @intFromPtr(info.user_ptr));
             },
             inline else => |info| {
                 std.hash.autoHash(&hasher, info);
@@ -148,13 +148,13 @@ pub fn deinit(ip: *Interner, gpa: Allocator) void {
 pub fn put(ip: *Interner, gpa: Allocator, key: Key) !Ref {
     if (key.toRef()) |some| return some;
     const gop = try ip.map.getOrPut(gpa, key);
-    return @intToEnum(Ref, gop.index);
+    return @enumFromInt(Ref, gop.index);
 }
 
 pub fn has(ip: *Interner, key: Key) ?Ref {
     if (key.toRef()) |some| return some;
     if (ip.map.getIndex(key)) |index| {
-        return @intToEnum(Ref, index);
+        return @enumFromInt(Ref, index);
     }
     return null;
 }
@@ -178,5 +178,5 @@ pub fn get(ip: Interner, ref: Ref) Key {
         .f128 => return .{ .float = 128 },
         else => {},
     }
-    return ip.map.keys()[@enumToInt(ref)];
+    return ip.map.keys()[@intFromEnum(ref)];
 }
