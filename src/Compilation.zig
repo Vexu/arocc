@@ -818,7 +818,7 @@ pub fn fixedEnumTagSpecifier(comp: *const Compilation) ?Type.Specifier {
 }
 
 pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
-    return comp.langopts.char_signedness_override orelse target_util.getCharSignedness(comp.target);
+    return comp.langopts.char_signedness_override orelse comp.target.charSignedness();
 }
 
 pub fn defineSystemIncludes(comp: *Compilation) !void {

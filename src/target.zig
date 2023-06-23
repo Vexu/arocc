@@ -123,27 +123,6 @@ pub fn int64Type(target: std.Target) Type {
     return .{ .specifier = .long_long };
 }
 
-pub fn getCharSignedness(target: std.Target) std.builtin.Signedness {
-    switch (target.cpu.arch) {
-        .aarch64,
-        .aarch64_32,
-        .aarch64_be,
-        .arm,
-        .armeb,
-        .thumb,
-        .thumbeb,
-        => return if (target.os.tag.isDarwin() or target.os.tag == .windows) .signed else .unsigned,
-        .powerpc, .powerpc64 => return if (target.os.tag.isDarwin()) .signed else .unsigned,
-        .powerpc64le,
-        .s390x,
-        .xcore,
-        .arc,
-        .msp430,
-        => return .unsigned,
-        else => return .signed,
-    }
-}
-
 /// This function returns 1 if function alignment is not observable or settable.
 pub fn defaultFunctionAlignment(target: std.Target) u8 {
     return switch (target.cpu.arch) {
