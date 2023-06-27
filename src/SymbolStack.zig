@@ -48,7 +48,7 @@ pub fn scopeEnd(s: SymbolStack) u32 {
 }
 
 pub fn pushScope(s: *SymbolStack, p: *Parser) !void {
-    try s.scopes.append(p.pp.comp.gpa, @intCast(u32, s.syms.len));
+    try s.scopes.append(p.pp.comp.gpa, @intCast(s.syms.len));
 }
 
 pub fn popScope(s: *SymbolStack) void {

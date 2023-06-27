@@ -2473,7 +2473,7 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
             .invalid_universal_character,
             .non_standard_escape_char,
             // use msg.extra.unsigned for index into string literal
-            => loc.byte_offset += @truncate(u32, msg.extra.unsigned),
+            => loc.byte_offset += @truncate(msg.extra.unsigned),
             else => {},
         }
         const source = comp.getSource(loc.id);

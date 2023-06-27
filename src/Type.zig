@@ -739,14 +739,14 @@ pub fn makeIntegerUnsigned(ty: Type) Type {
         // zig fmt: on
 
         .char, .complex_char => {
-            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) + 2);
+            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 2);
             return base;
         },
 
         // zig fmt: off
         .schar, .short, .int, .long, .long_long, .int128,
         .complex_schar, .complex_short, .complex_int, .complex_long, .complex_long_long, .complex_int128 => {
-            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) + 1);
+            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 1);
             return base;
         },
         // zig fmt: on
@@ -1013,7 +1013,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
             }
         } else if (ty.getRecord()) |rec| {
             if (ty.hasIncompleteSize()) return 0;
-            const computed = @intCast(u29, @divExact(rec.type_layout.field_alignment_bits, 8));
+            const computed: u29 = @intCast(@divExact(rec.type_layout.field_alignment_bits, 8));
             return @max(requested, computed);
         } else if (comp.langopts.emulate == .msvc) {
             const type_align = ty.data.attributed.base.alignof(comp);
@@ -1078,7 +1078,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
             .avr => 1,
             else => comp.target.ptrBitWidth() / 8,
         },
-        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @intCast(u29, ty.data.record.type_layout.field_alignment_bits / 8),
+        .@"struct", .@"union" => if (ty.data.record.isIncomplete()) 0 else @intCast(ty.data.record.type_layout.field_alignment_bits / 8),
         .@"enum" => if (ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed) 0 else ty.data.@"enum".tag_ty.alignof(comp),
         .typeof_type, .decayed_typeof_type => ty.data.sub_type.alignof(comp),
         .typeof_expr, .decayed_typeof_expr => ty.data.expr.ty.alignof(comp),
@@ -1254,13 +1254,13 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
 /// Decays an array to a pointer
 pub fn decayArray(ty: *Type) void {
     // the decayed array type is the current specifier +1
-    ty.specifier = @enumFromInt(Type.Specifier, @intFromEnum(ty.specifier) + 1);
+    ty.specifier = @enumFromInt(@intFromEnum(ty.specifier) + 1);
 }
 
 pub fn originalTypeOfDecayedArray(ty: Type) Type {
     std.debug.assert(ty.isDecayed());
     var copy = ty;
-    copy.specifier = @enumFromInt(Type.Specifier, @intFromEnum(ty.specifier) - 1);
+    copy.specifier = @enumFromInt(@intFromEnum(ty.specifier) - 1);
     return copy;
 }
 
@@ -1285,7 +1285,7 @@ pub fn floatRank(ty: Type) usize {
 /// Asserts that ty is an integer type
 pub fn integerRank(ty: Type, comp: *const Compilation) usize {
     const real = ty.makeReal();
-    return @intCast(usize, switch (real.specifier) {
+    return @intCast(switch (real.specifier) {
         .bit_int => @as(u64, real.data.int.bits) << 3,
 
         .bool => 1 + (ty.bitSizeof(comp).? << 3),
@@ -1305,11 +1305,11 @@ pub fn makeReal(ty: Type) Type {
     var base = ty.canonicalize(.standard);
     switch (base.specifier) {
         .complex_float, .complex_double, .complex_long_double, .complex_float80, .complex_float128 => {
-            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) - 5);
+            base.specifier = @enumFromInt(@intFromEnum(base.specifier) - 5);
             return base;
         },
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128 => {
-            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) - 13);
+            base.specifier = @enumFromInt(@intFromEnum(base.specifier) - 13);
             return base;
         },
         .complex_bit_int => {
@@ -1325,11 +1325,11 @@ pub fn makeComplex(ty: Type) Type {
     var base = ty.canonicalize(.standard);
     switch (base.specifier) {
         .float, .double, .long_double, .float80, .float128 => {
-            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) + 5);
+            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 5);
             return base;
         },
         .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128 => {
-            base.specifier = @enumFromInt(Type.Specifier, @intFromEnum(base.specifier) + 13);
+            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 13);
             return base;
         },
         .bit_int => {
@@ -1742,7 +1742,7 @@ pub const Builder = struct {
                 ty.specifier = if (b.complex_tok != null) .complex_bit_int else .bit_int;
                 ty.data = .{ .int = .{
                     .signedness = if (unsigned) .unsigned else .signed,
-                    .bits = @intCast(u8, bits),
+                    .bits = @intCast(bits),
                 } };
             },
 

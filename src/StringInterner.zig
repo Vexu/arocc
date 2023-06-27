@@ -44,7 +44,7 @@ pub const TypeMapper = struct {
 };
 
 string_table: StringToIdMap = .{},
-next_id: StringId = @enumFromInt(StringId, @intFromEnum(StringId.empty) + 1),
+next_id: StringId = @enumFromInt(@intFromEnum(StringId.empty) + 1),
 
 pub fn deinit(self: *StringInterner, allocator: mem.Allocator) void {
     self.string_table.deinit(allocator);
@@ -56,7 +56,7 @@ pub fn intern(self: *StringInterner, allocator: mem.Allocator, str: []const u8) 
     const gop = try self.string_table.getOrPut(allocator, str);
     if (gop.found_existing) return gop.value_ptr.*;
 
-    defer self.next_id = @enumFromInt(StringId, @intFromEnum(self.next_id) + 1);
+    defer self.next_id = @enumFromInt(@intFromEnum(self.next_id) + 1);
     gop.value_ptr.* = self.next_id;
     return self.next_id;
 }

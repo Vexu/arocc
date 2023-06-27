@@ -69,12 +69,12 @@ pub const Register = enum(u8) {
     /// lower three bits are often embedded directly in instructions (such as
     /// the B8 variant of moves), or used in R/M bytes.
     pub fn id(self: Register) u4 {
-        return @truncate(u4, @intFromEnum(self));
+        return @truncate(@intFromEnum(self));
     }
 
     /// Like id, but only returns the lower 3 bits.
     pub fn low_id(self: Register) u3 {
-        return @truncate(u3, @intFromEnum(self));
+        return @truncate(@intFromEnum(self));
     }
 
     /// Returns the index into `callee_preserved_regs`.
@@ -95,22 +95,22 @@ pub const Register = enum(u8) {
 
     /// Convert from any register to its 64 bit alias.
     pub fn to64(self: Register) Register {
-        return @enumFromInt(Register, self.id());
+        return @enumFromInt(self.id());
     }
 
     /// Convert from any register to its 32 bit alias.
     pub fn to32(self: Register) Register {
-        return @enumFromInt(Register, @as(u8, self.id()) + 16);
+        return @enumFromInt(@as(u8, self.id()) + 16);
     }
 
     /// Convert from any register to its 16 bit alias.
     pub fn to16(self: Register) Register {
-        return @enumFromInt(Register, @as(u8, self.id()) + 32);
+        return @enumFromInt(@as(u8, self.id()) + 32);
     }
 
     /// Convert from any register to its 8 bit alias.
     pub fn to8(self: Register) Register {
-        return @enumFromInt(Register, @as(u8, self.id()) + 48);
+        return @enumFromInt(@as(u8, self.id()) + 48);
     }
 
     pub fn dwarfLocOp(self: Register) u8 {
@@ -229,7 +229,7 @@ pub const Encoder = struct {
 
     /// Encodes legacy prefixes
     pub fn legacyPrefixes(self: Self, prefixes: LegacyPrefixes) void {
-        if (@bitCast(u16, prefixes) != 0) {
+        if (@as(u16, @bitCast(prefixes)) != 0) {
             // Hopefully this path isn't taken very often, so we'll do it the slow way for now
 
             // LOCK
@@ -521,14 +521,14 @@ pub const Encoder = struct {
     ///
     /// It is sign-extended to 64 bits by the cpu.
     pub fn imm8(self: Self, imm: i8) void {
-        self.code.appendAssumeCapacity(@bitCast(u8, imm));
+        self.code.appendAssumeCapacity(@as(u8, @bitCast(imm)));
     }
 
     /// Encode an 8 bit displacement
     ///
     /// It is sign-extended to 64 bits by the cpu.
     pub fn disp8(self: Self, disp: i8) void {
-        self.code.appendAssumeCapacity(@bitCast(u8, disp));
+        self.code.appendAssumeCapacity(@as(u8, @bitCast(disp)));
     }
 
     /// Encode an 16 bit immediate

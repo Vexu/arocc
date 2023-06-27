@@ -788,7 +788,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .comp = pp.comp,
         .gpa = pp.gpa,
         .tok_ids = pp.tokens.items(.id),
-        .tok_i = @intCast(u32, start),
+        .tok_i = @intCast(start),
         .arena = pp.arena.allocator(),
         .in_macro = true,
         .data = undefined,
@@ -1055,7 +1055,7 @@ fn pragmaOperator(pp: *Preprocessor, arg_tok: Token, operator_loc: Source.Locati
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.generated_buf.items,
         .comp = pp.comp,
-        .index = @intCast(u32, start),
+        .index = @intCast(start),
         .source = .generated,
         .line = pp.generated_line,
     };
@@ -1187,7 +1187,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
                 const start = params[0].loc;
                 try pp.comp.diag.add(.{
                     .tag = .header_str_closing,
-                    .loc = .{ .id = start.id, .byte_offset = start.byte_offset + @intCast(u32, include_str.len) + 1, .line = start.line },
+                    .loc = .{ .id = start.id, .byte_offset = start.byte_offset + @as(u32, @intCast(include_str.len)) + 1, .line = start.line },
                 }, params[0].expansionSlice());
                 try pp.comp.diag.add(.{
                     .tag = .header_str_match,
@@ -1751,7 +1751,7 @@ fn expandMacroExhaustive(
                         args.deinit();
                     }
 
-                    var args_count = @intCast(u32, args.items.len);
+                    var args_count: u32 = @intCast(args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
                     // an empty token list g() and a whitespace-only token list g(    )
                     // counts as zero arguments for the purposes of argument-count validation
@@ -1765,7 +1765,7 @@ fn expandMacroExhaustive(
 
                     // Validate argument count.
                     const extra = Diagnostics.Message.Extra{
-                        .arguments = .{ .expected = @intCast(u32, macro.params.len), .actual = args_count },
+                        .arguments = .{ .expected = @intCast(macro.params.len), .actual = args_count },
                     };
                     if (macro.var_args and args_count < macro.params.len) {
                         try pp.comp.diag.add(
@@ -1948,7 +1948,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.generated_buf.items,
         .comp = pp.comp,
-        .index = @intCast(u32, start),
+        .index = @intCast(start),
         .source = .generated,
     };
     const pasted_token = tmp_tokenizer.nextNoWS();
@@ -1975,7 +1975,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
 fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: Token) !Token {
     var pasted_token = Token{ .id = id, .loc = .{
         .id = .generated,
-        .byte_offset = @intCast(u32, start),
+        .byte_offset = @intCast(start),
         .line = pp.generated_line,
     } };
     pp.generated_line += 1;
@@ -2173,7 +2173,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                     for (params.items, 0..) |p, i| {
                         if (mem.eql(u8, p, s)) {
                             tok.id = .stringify_param;
-                            tok.end = @intCast(u32, i);
+                            tok.end = @intCast(i);
                             try pp.token_buf.append(tok);
                             continue :tok_loop;
                         }
@@ -2221,7 +2221,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                             // here in case a ## was the previous token, because
                             // ## processing will eat this token with the same semantics
                             tok.id = .macro_param;
-                            tok.end = @intCast(u32, i);
+                            tok.end = @intCast(i);
                             break;
                         }
                     }
@@ -2289,7 +2289,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     for (embed_bytes[1..]) |byte| {
         const start = pp.comp.generated_buf.items.len;
         try writer.print(",{d}", .{byte});
-        pp.tokens.appendAssumeCapacity(.{ .id = .comma, .loc = .{ .id = .generated, .byte_offset = @intCast(u32, start) } });
+        pp.tokens.appendAssumeCapacity(.{ .id = .comma, .loc = .{ .id = .generated, .byte_offset = @intCast(start) } });
         pp.tokens.appendAssumeCapacity(try pp.makeGeneratedToken(start + 1, .embed_byte, filename_tok));
     }
     try pp.comp.generated_buf.append('\n');
@@ -2350,7 +2350,7 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
 
     const name = pp.tokSlice(name_tok);
     try pp.tokens.append(pp.gpa, try pp.makePragmaToken(pragma_tok, operator_loc, arg_locs));
-    const pragma_start = @intCast(u32, pp.tokens.len);
+    const pragma_start: u32 = @intCast(pp.tokens.len);
 
     const pragma_name_tok = try pp.makePragmaToken(name_tok, operator_loc, arg_locs);
     try pp.tokens.append(pp.gpa, pragma_name_tok);
@@ -2472,7 +2472,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
             .keyword_pragma => {
                 const pragma_name = pp.expandedSlice(pp.tokens.get(i + 1));
                 const end_idx = mem.indexOfScalarPos(Token.Id, pp.tokens.items(.id), i, .nl) orelse i + 1;
-                const pragma_len = @intCast(u32, end_idx) - i;
+                const pragma_len = @as(u32, @intCast(end_idx)) - i;
 
                 if (pp.comp.getPragma(pragma_name)) |prag| {
                     if (!prag.shouldPreserveTokens(pp, i + 1)) {

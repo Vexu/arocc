@@ -129,7 +129,7 @@ fn packInt(p: *Parser, tok_i: TokenIndex) Compilation.Error!?u8 {
     };
     const int = if (res.val.tag == .int) res.val.getInt(u64) else 99;
     switch (int) {
-        1, 2, 4, 8, 16 => return @intCast(u8, int),
+        1, 2, 4, 8, 16 => return @intCast(int),
         else => {
             try p.errTok(.pragma_pack_int, tok_i);
             return null;

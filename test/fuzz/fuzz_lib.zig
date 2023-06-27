@@ -12,7 +12,7 @@ const Parser = aro.Parser;
 var fixed_buffer_mem: [10 * 1024 * 1024]u8 = undefined;
 
 export fn compile_c_buf(buf: [*]const u8, len: c_int) void {
-    compileSlice(buf[0..@intCast(usize, len)]) catch unreachable;
+    compileSlice(buf[0..@as(usize, @intCast(len))]) catch unreachable;
 }
 
 fn compileSlice(buf: []const u8) !void {
