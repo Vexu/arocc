@@ -47,5 +47,5 @@ fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void
     var tree = try Parser.parse(&pp);
     defer tree.deinit();
 
-    try tree.dump(std.io.null_writer);
+    try tree.dump(false, std.io.null_writer);
 }
