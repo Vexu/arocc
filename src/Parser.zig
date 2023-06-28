@@ -3344,7 +3344,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type,
         }
         const struct_il = il.*;
         while (index < fields.len) : (index += 1) {
-            const field = fields[@as(u32, @intCast(index))];
+            const field = fields[@intCast(index)];
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, index);
             if (il.*.node == .none and actual_ty.eql(field.ty, p.comp, false)) return true;
@@ -3401,7 +3401,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
 
         const field_count = struct_ty.data.record.fields.len;
         if (index < field_count) {
-            ty.* = struct_ty.data.record.fields[@as(usize, @intCast(index))].ty;
+            ty.* = struct_ty.data.record.fields[@intCast(index)].ty;
             il.* = try il.*.find(p.gpa, index);
             return true;
         }
