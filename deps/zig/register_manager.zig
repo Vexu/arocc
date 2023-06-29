@@ -35,7 +35,7 @@ pub fn RegisterManager(
         fn markRegUsed(self: *Self, reg: Register) void {
             if (FreeRegInt == u0) return;
             const index = reg.allocIndex() orelse return;
-            const shift = @intCast(ShiftInt, index);
+            const shift: ShiftInt = @intCast(index);
             const mask = @as(FreeRegInt, 1) << shift;
             self.free_registers &= ~mask;
             self.allocated_registers |= mask;
@@ -44,7 +44,7 @@ pub fn RegisterManager(
         fn markRegFree(self: *Self, reg: Register) void {
             if (FreeRegInt == u0) return;
             const index = reg.allocIndex() orelse return;
-            const shift = @intCast(ShiftInt, index);
+            const shift: ShiftInt = @intCast(index);
             self.free_registers |= @as(FreeRegInt, 1) << shift;
         }
 
@@ -52,7 +52,7 @@ pub fn RegisterManager(
         pub fn isRegFree(self: Self, reg: Register) bool {
             if (FreeRegInt == u0) return true;
             const index = reg.allocIndex() orelse return true;
-            const shift = @intCast(ShiftInt, index);
+            const shift: ShiftInt = @intCast(index);
             return self.free_registers & @as(FreeRegInt, 1) << shift != 0;
         }
 
@@ -62,7 +62,7 @@ pub fn RegisterManager(
         pub fn isRegAllocated(self: Self, reg: Register) bool {
             if (FreeRegInt == u0) return false;
             const index = reg.allocIndex() orelse return false;
-            const shift = @intCast(ShiftInt, index);
+            const shift: ShiftInt = @intCast(index);
             return self.allocated_registers & @as(FreeRegInt, 1) << shift != 0;
         }
 

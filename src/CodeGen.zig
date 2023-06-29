@@ -154,16 +154,16 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
     if (!ty.isReal()) return c.comp.diag.fatalNoSrc("TODO lower complex types", .{});
     if (ty.isInt()) {
         const bits = ty.bitSizeof(c.comp).?;
-        key = .{ .int = @intCast(u16, bits) };
+        key = .{ .int = @intCast(bits) };
     } else if (ty.isFloat()) {
         const bits = ty.bitSizeof(c.comp).?;
-        key = .{ .float = @intCast(u16, bits) };
+        key = .{ .float = @intCast(bits) };
     } else if (ty.isArray()) {
         const elem = try c.genType(ty.elemType());
         key = .{ .array = .{ .child = elem, .len = ty.arrayLen().? } };
     } else if (ty.specifier == .vector) {
         const elem = try c.genType(ty.elemType());
-        key = .{ .vector = .{ .child = elem, .len = @intCast(u32, ty.data.array.len) } };
+        key = .{ .vector = .{ .child = elem, .len = @intCast(ty.data.array.len) } };
     } else if (ty.is(.nullptr_t)) {
         return c.comp.diag.fatalNoSrc("TODO lower nullptr_t", .{});
     }
@@ -181,7 +181,7 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
         // TODO handle calling convention here
         const arg = try c.builder.addArg(try c.genType(param.ty));
 
-        const size = @intCast(u32, param.ty.sizeof(c.comp).?); // TODO add error in parser
+        const size: u32 = @intCast(param.ty.sizeof(c.comp).?); // TODO add error in parser
         const @"align" = param.ty.alignof(c.comp);
         const alloc = try c.builder.addAlloc(size, @"align");
         try c.builder.addStore(alloc, arg);
@@ -296,7 +296,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .threadlocal_static_var,
         => try c.genVar(node), // TODO
         .@"var" => {
-            const size = @intCast(u32, ty.sizeof(c.comp).?); // TODO add error in parser
+            const size: u32 = @intCast(ty.sizeof(c.comp).?); // TODO add error in parser
             const @"align" = ty.alignof(c.comp);
             const alloc = try c.builder.addAlloc(size, @"align");
             const name = try c.comp.intern(c.tree.tokSlice(data.decl.name));
@@ -377,7 +377,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const switch_data = try a.create(Ir.Inst.Switch);
             switch_data.* = .{
                 .target = cond,
-                .cases_len = @intCast(u32, wip_switch.cases.len),
+                .cases_len = @intCast(wip_switch.cases.len),
                 .case_vals = (try a.dupe(Interner.Ref, wip_switch.cases.items(.val))).ptr,
                 .case_labels = (try a.dupe(Ir.Ref, wip_switch.cases.items(.label))).ptr,
                 .default = default_ref,
@@ -975,14 +975,14 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             }
 
             const duped_name = try c.builder.arena.allocator().dupeZ(u8, slice);
-            const ref = @enumFromInt(Ir.Ref, c.builder.instructions.len);
+            const ref: Ir.Ref = @enumFromInt(c.builder.instructions.len);
             try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
             return ref;
         },
         .deref_expr => return c.genExpr(data.un),
         .compound_literal_expr => {
             const ty = c.node_ty[@intFromEnum(node)];
-            const size = @intCast(u32, ty.sizeof(c.comp).?); // TODO add error in parser
+            const size: u32 = @intCast(ty.sizeof(c.comp).?); // TODO add error in parser
             const @"align" = ty.alignof(c.comp);
             const alloc = try c.builder.addAlloc(size, @"align");
             try c.genInitializer(alloc, ty, data.un);
@@ -1196,7 +1196,7 @@ fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Ty
                 }
 
                 const duped_name = try c.builder.arena.allocator().dupeZ(u8, slice);
-                const ref = @enumFromInt(Ir.Ref, c.builder.instructions.len);
+                const ref: Ir.Ref = @enumFromInt(c.builder.instructions.len);
                 try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
                 break :blk ref;
             },
@@ -1213,7 +1213,7 @@ fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Ty
     const call = try c.builder.arena.allocator().create(Ir.Inst.Call);
     call.* = .{
         .func = fn_ref,
-        .args_len = @intCast(u32, args.len),
+        .args_len = @intCast(args.len),
         .args_ptr = args.ptr,
     };
     return c.builder.addInst(.call, .{ .call = call }, try c.genType(ty));

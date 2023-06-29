@@ -51,7 +51,7 @@ pub const Builder = struct {
     }
 
     pub fn addArg(b: *Builder, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref = @enumFromInt(Ref, b.instructions.len);
+        const ref: Ref = @enumFromInt(b.instructions.len);
         try b.instructions.append(b.gpa, .{ .tag = .arg, .data = .{ .none = {} }, .ty = ty });
         try b.body.insert(b.gpa, b.arg_count, ref);
         b.arg_count += 1;
@@ -59,7 +59,7 @@ pub const Builder = struct {
     }
 
     pub fn addAlloc(b: *Builder, size: u32, @"align": u32) Allocator.Error!Ref {
-        const ref = @enumFromInt(Ref, b.instructions.len);
+        const ref: Ref = @enumFromInt(b.instructions.len);
         try b.instructions.append(b.gpa, .{
             .tag = .alloc,
             .data = .{ .alloc = .{ .size = size, .@"align" = @"align" } },
@@ -71,14 +71,14 @@ pub const Builder = struct {
     }
 
     pub fn addInst(b: *Builder, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref = @enumFromInt(Ref, b.instructions.len);
+        const ref: Ref = @enumFromInt(b.instructions.len);
         try b.instructions.append(b.gpa, .{ .tag = tag, .data = data, .ty = ty });
         try b.body.append(b.gpa, ref);
         return ref;
     }
 
     pub fn makeLabel(b: *Builder, name: [*:0]const u8) Allocator.Error!Ref {
-        const ref = @enumFromInt(Ref, b.instructions.len);
+        const ref: Ref = @enumFromInt(b.instructions.len);
         try b.instructions.append(b.gpa, .{ .tag = .label, .data = .{ .label = name }, .ty = .void });
         return ref;
     }
@@ -103,7 +103,7 @@ pub const Builder = struct {
         const @"switch" = try a.create(Ir.Inst.Switch);
         @"switch".* = .{
             .target = target,
-            .cases_len = @intCast(u32, values.len),
+            .cases_len = @intCast(values.len),
             .case_vals = (try a.dupe(Interner.Ref, values)).ptr,
             .case_labels = (try a.dupe(Ref, labels)).ptr,
             .default = default,
@@ -116,7 +116,7 @@ pub const Builder = struct {
     }
 
     pub fn addConstant(b: *Builder, val: Value, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref = @enumFromInt(Ref, b.instructions.len);
+        const ref: Ref = @enumFromInt(b.instructions.len);
         const key: Interner.Key = .{
             .value = val,
         };
@@ -130,7 +130,7 @@ pub const Builder = struct {
     pub fn addPhi(b: *Builder, inputs: []const Inst.Phi.Input, ty: Interner.Ref) Allocator.Error!Ref {
         const a = b.arena.allocator();
         const input_refs = try a.alloc(Ref, inputs.len * 2 + 1);
-        input_refs[0] = @enumFromInt(Ref, inputs.len);
+        input_refs[0] = @enumFromInt(inputs.len);
         std.mem.copy(Ref, input_refs[1..], std.mem.bytesAsSlice(Ref, std.mem.sliceAsBytes(inputs)));
 
         return b.addInst(.phi, .{ .phi = .{ .ptr = input_refs.ptr } }, ty);
@@ -553,7 +553,7 @@ fn writeValue(ir: Ir, val_ref: Interner.Ref, color: bool, w: anytype) !void {
         .int => try w.print("{d}", .{v.data.int}),
         .bytes => try w.print("\"{s}\"", .{v.data.bytes}),
         // std.fmt does @as instead of @floatCast
-        .float => try w.print("{d}", .{@floatCast(f64, v.data.float)}),
+        .float => try w.print("{d}", .{@as(f64, @floatCast(v.data.float))}),
         else => try w.print("({s})", .{@tagName(v.tag)}),
     }
 }

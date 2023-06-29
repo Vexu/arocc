@@ -132,7 +132,7 @@ const SysVContext = struct {
             }
             ty_alignment_bits = @max(ty_alignment_bits, annotation_alignment_bits);
             if (self.max_field_align_bits) |bits| {
-                ty_alignment_bits = @intCast(u32, @min(ty_alignment_bits, bits));
+                ty_alignment_bits = @intCast(@min(ty_alignment_bits, bits));
             }
             self.aligned_bits = @max(self.aligned_bits, ty_alignment_bits);
         }
@@ -245,7 +245,7 @@ const SysVContext = struct {
         // #pragma pack takes precedence over all other attributes. See test cases 0084 and
         // 0085.
         if (self.max_field_align_bits) |req_bits| {
-            fld_align_bits = @intCast(u32, @min(fld_align_bits, req_bits));
+            fld_align_bits = @intCast(@min(fld_align_bits, req_bits));
         }
 
         // A struct field starts at the next offset in the struct that is properly
@@ -364,7 +364,7 @@ const SysVContext = struct {
                 // Otherwise, if a #pragma pack is in effect, __attribute__((packed)) on the field or
                 // record is ignored. See test case 0076.
                 inherited_align_bits = @max(ty_fld_algn_bits, annotation_alignment);
-                inherited_align_bits = @intCast(u32, @min(inherited_align_bits, max_align_bits));
+                inherited_align_bits = @intCast(@min(inherited_align_bits, max_align_bits));
             } else if (attr_packed) {
                 // Otherwise, if the field or the record is packed, the field alignment is 1 bit unless
                 // it is explicitly increased with __attribute__((aligned)). See test case 0077.
@@ -563,7 +563,7 @@ const MsvcContext = struct {
             // If all fields in a struct have size 0, its size is set to its required alignment
             // but at least to 4 bytes. See test case 0026.
             self.size_bits = @max(self.req_align_bits, 4 * BITS_PER_BYTE);
-            self.pointer_align_bits = @intCast(u32, @min(self.pointer_align_bits, self.size_bits));
+            self.pointer_align_bits = @intCast(@min(self.pointer_align_bits, self.size_bits));
         }
     }
 };

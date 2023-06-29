@@ -157,7 +157,7 @@ pub fn addRelocation(elf: *Elf, name: []const u8, section_kind: Object.Section, 
 
     try section.relocations.append(elf.arena.child_allocator, .{
         .symbol = symbol,
-        .offset = @intCast(u48, address),
+        .offset = @intCast(address),
         .addend = addend,
         .type = if (symbol.section == null) 4 else 2, // TODO
     });
@@ -220,7 +220,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
     }
 
     // pad to 8 bytes
-    try w.writeByteNTimes(0, @intCast(usize, symtab_offset_aligned - symtab_offset));
+    try w.writeByteNTimes(0, @intCast(symtab_offset_aligned - symtab_offset));
 
     var name_offset: u32 = strtab_default.len;
     // write symbols
@@ -242,7 +242,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
             });
             sym.index = sym_index;
             sym_index += 1;
-            name_offset += @intCast(u32, entry.key_ptr.len + 1); // +1 for null byte
+            name_offset += @intCast(entry.key_ptr.len + 1); // +1 for null byte
         }
         it = elf.global_symbols.iterator();
         while (it.next()) |entry| {
@@ -257,7 +257,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
             });
             sym.index = sym_index;
             sym_index += 1;
-            name_offset += @intCast(u32, entry.key_ptr.len + 1); // +1 for null byte
+            name_offset += @intCast(entry.key_ptr.len + 1); // +1 for null byte
         }
     }
 
@@ -292,7 +292,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
     }
 
     // pad to 16 bytes
-    try w.writeByteNTimes(0, @intCast(usize, sh_offset_aligned - sh_offset));
+    try w.writeByteNTimes(0, @intCast(sh_offset_aligned - sh_offset));
     // mandatory null header
     try w.writeStruct(std.mem.zeroes(std.elf.Elf64_Shdr));
 
@@ -338,7 +338,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
         while (it.next()) |entry| {
             const sect = entry.value_ptr.*;
             const rela_count = sect.relocations.items.len;
-            const rela_name_offset = if (rela_count != 0) @truncate(u32, ".rela".len) else 0;
+            const rela_name_offset: u32 = if (rela_count != 0) @truncate(".rela".len) else 0;
             try w.writeStruct(std.elf.Elf64_Shdr{
                 .sh_name = rela_name_offset + name_offset,
                 .sh_type = sect.type,
@@ -370,7 +370,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
             }
 
             sect_offset += sect.data.items.len;
-            name_offset += @intCast(u32, entry.key_ptr.len + ".\x00".len) + rela_name_offset;
+            name_offset += @as(u32, @intCast(entry.key_ptr.len + ".\x00".len)) + rela_name_offset;
         }
     }
     try buf_writer.flush();

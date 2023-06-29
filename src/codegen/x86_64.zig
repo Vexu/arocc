@@ -86,7 +86,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
             // no ModR/M byte
 
             // IMM
-            encoder.imm32(@intCast(i32, x));
+            encoder.imm32(@intCast(x));
         } else {
             // Worst case: we need to load the 64-bit register with the IMM. GNU's assemblers calls
             // this `movabs`, though this is officially just a different variant of the plain `mov`
@@ -99,7 +99,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
                 const encoder = try x86_64.Encoder.init(func.data, 10);
                 encoder.rex(.{ .w = true, .b = reg.isExtended() });
                 encoder.opcode_withReg(0xB8, reg.low_id());
-                encoder.imm64(@bitCast(u64, x));
+                encoder.imm64(@bitCast(x));
             }
         },
         .register => |src_reg| {
@@ -123,7 +123,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
 fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
     if (func.c.tree.value_map.get(node)) |some| {
         if (some.tag == .int)
-            return Value{ .immediate = @bitCast(i64, some.data.int) };
+            return Value{ .immediate = @bitCast(some.data.int) };
     }
 
     const data = func.c.node_data[@intFromEnum(node)];
@@ -174,7 +174,7 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
             });
             return Value{ .none = {} };
         },
-        .int_literal => return Value{ .immediate = @bitCast(i64, data.int) },
+        .int_literal => return Value{ .immediate = @bitCast(data.int) },
         .string_literal_expr => {
             const str_bytes = func.c.tree.value_map.get(node).?.data.bytes;
             const section = try func.c.obj.getSection(.strings);

@@ -48,7 +48,7 @@ pub const Key = union(enum) {
                     .unavailable => unreachable,
                     .nullptr_t => std.hash.autoHash(&hasher, @as(u64, 0)),
                     .int => std.hash.autoHash(&hasher, val.data.int),
-                    .float => std.hash.autoHash(&hasher, @bitCast(u64, val.data.float)),
+                    .float => std.hash.autoHash(&hasher, @as(u64, @bitCast(val.data.float))),
                     .array => @panic("TODO"),
                     .bytes => std.hash.autoHashStrat(&hasher, val.data.bytes, .Shallow),
                 }
@@ -60,7 +60,7 @@ pub const Key = union(enum) {
                 std.hash.autoHash(&hasher, info);
             },
         }
-        return @truncate(u32, hasher.final());
+        return @truncate(hasher.final());
     }
 
     pub fn eql(a: Key, b: Key) bool {
@@ -148,13 +148,13 @@ pub fn deinit(ip: *Interner, gpa: Allocator) void {
 pub fn put(ip: *Interner, gpa: Allocator, key: Key) !Ref {
     if (key.toRef()) |some| return some;
     const gop = try ip.map.getOrPut(gpa, key);
-    return @enumFromInt(Ref, gop.index);
+    return @enumFromInt(gop.index);
 }
 
 pub fn has(ip: *Interner, key: Key) ?Ref {
     if (key.toRef()) |some| return some;
     if (ip.map.getIndex(key)) |index| {
-        return @enumFromInt(Ref, index);
+        return @enumFromInt(index);
     }
     return null;
 }

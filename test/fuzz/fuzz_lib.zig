@@ -12,7 +12,7 @@ const Parser = aro.Parser;
 var fixed_buffer_mem: [10 * 1024 * 1024]u8 = undefined;
 
 export fn compile_c_buf(buf: [*]const u8, len: c_int) void {
-    compileSlice(buf[0..@intCast(usize, len)]) catch unreachable;
+    compileSlice(buf[0..@intCast(len)]) catch unreachable;
 }
 
 fn compileSlice(buf: []const u8) !void {
@@ -47,5 +47,5 @@ fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void
     var tree = try Parser.parse(&pp);
     defer tree.deinit();
 
-    try tree.dump(std.io.null_writer);
+    try tree.dump(false, std.io.null_writer);
 }

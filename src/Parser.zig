@@ -223,7 +223,7 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
             var loc = p.pp.tokens.items(.loc)[p.tok_i];
 
             if (mem.indexOfScalar(u8, slice, '$')) |i| {
-                loc.byte_offset += @intCast(u32, i);
+                loc.byte_offset += @intCast(i);
                 try p.comp.diag.add(.{
                     .tag = .dollar_in_identifier_extension,
                     .loc = loc,
@@ -337,7 +337,7 @@ pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diag
         // if the token is EOF, point at the end of the previous token instead
         const prev = p.pp.tokens.get(tok_i - 1);
         loc = prev.loc;
-        loc.byte_offset += @intCast(u32, p.tokSlice(tok_i - 1).len);
+        loc.byte_offset += @intCast(p.tokSlice(tok_i - 1).len);
     }
     try p.comp.diag.add(.{
         .tag = tag,
@@ -462,14 +462,14 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
     if (p.in_macro) return .none;
     const res = p.nodes.len;
     try p.nodes.append(p.gpa, node);
-    return @enumFromInt(NodeIndex, res);
+    return @enumFromInt(res);
 }
 
 fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range {
     if (p.in_macro) return Tree.Node.Range{ .start = 0, .end = 0 };
-    const start = @intCast(u32, p.data.items.len);
+    const start: u32 = @intCast(p.data.items.len);
     try p.data.appendSlice(nodes);
-    const end = @intCast(u32, p.data.items.len);
+    const end: u32 = @intCast(p.data.items.len);
     return Tree.Node.Range{ .start = start, .end = end };
 }
 
@@ -512,7 +512,7 @@ fn pragma(p: *Parser) Compilation.Error!bool {
         const name = p.tokSlice(name_tok);
 
         const end_idx = mem.indexOfScalarPos(Token.Id, p.tok_ids, p.tok_i, .nl).?;
-        const pragma_len = @intCast(TokenIndex, end_idx) - p.tok_i;
+        const pragma_len = @as(TokenIndex, @intCast(end_idx)) - p.tok_i;
         defer p.tok_i += pragma_len + 1; // skip past .nl as well
         if (p.comp.getPragma(name)) |prag| {
             try prag.parserCB(p, p.tok_i);
@@ -2498,7 +2498,7 @@ const Enumerator = struct {
         }
         if (e.res.val.add(e.res.val, Value.int(1), e.res.ty, p.comp)) {
             const byte_size = e.res.ty.sizeof(p.comp).?;
-            const bit_size = @intCast(u8, if (e.res.ty.isUnsignedInt(p.comp)) byte_size * 8 else byte_size * 8 - 1);
+            const bit_size: u8 = @intCast(if (e.res.ty.isUnsignedInt(p.comp)) byte_size * 8 else byte_size * 8 - 1);
             if (e.fixed) {
                 try p.errStr(.enum_not_representable_fixed, tok, try p.typeStr(e.res.ty));
                 return;
@@ -2810,7 +2810,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         const outer = try p.directDeclarator(base_type, d, kind);
         var max_bits = p.comp.target.ptrBitWidth();
         if (max_bits > 61) max_bits = 61;
-        const max_bytes = (@as(u64, 1) << @truncate(u6, max_bits)) - 1;
+        const max_bytes = (@as(u64, 1) << @truncate(max_bits)) - 1;
         // `outer` is validated later so it may be invalid here
         const outer_size = outer.sizeof(p.comp);
         const max_elems = max_bytes / @max(1, outer_size orelse 1);
@@ -3296,7 +3296,7 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, actual_ty: Typ
         }
         const struct_il = il.*;
         if (start_index.* < fields.len) {
-            const field = fields[@intCast(usize, start_index.*)];
+            const field = fields[@intCast(start_index.*)];
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, start_index.*);
             _ = try p.findScalarInitializer(il, ty, actual_ty, first_tok);
@@ -3344,7 +3344,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type,
         }
         const struct_il = il.*;
         while (index < fields.len) : (index += 1) {
-            const field = fields[@intCast(u32, index)];
+            const field = fields[@intCast(index)];
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, index);
             if (il.*.node == .none and actual_ty.eql(field.ty, p.comp, false)) return true;
@@ -3401,7 +3401,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
 
         const field_count = struct_ty.data.record.fields.len;
         if (index < field_count) {
-            ty.* = struct_ty.data.record.fields[@intCast(usize, index)].ty;
+            ty.* = struct_ty.data.record.fields[@intCast(index)].ty;
             il.* = try il.*.find(p.gpa, index);
             return true;
         }
@@ -3622,7 +3622,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             });
         } else {
             const init = il.list.items[0];
-            const index = @truncate(u32, init.index);
+            const index: u32 = @truncate(init.index);
             const field_ty = union_ty.data.record.fields[index].ty;
             union_init_node.data.union_init = .{
                 .field_index = index,
@@ -4418,7 +4418,7 @@ const CallExpr = union(enum) {
                     1 => call_node.data.decl.node = args[1], // args[0] == func.node
                     else => {
                         call_node.tag = .builtin_call_expr;
-                        args[0] = @enumFromInt(NodeIndex, call_node.data.decl.name);
+                        args[0] = @enumFromInt(call_node.data.decl.name);
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
@@ -6703,7 +6703,7 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
             const inner = try p.addNode(.{
                 .tag = if (is_arrow) .member_access_ptr_expr else .member_access_expr,
                 .ty = f.ty,
-                .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
+                .data = .{ .member = .{ .lhs = lhs, .index = @intCast(i) } },
             });
             const ret = p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
             offset_bits.* += f.layout.offset_bits;
@@ -6716,7 +6716,7 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
                 .node = try p.addNode(.{
                     .tag = if (is_arrow) .member_access_ptr_expr else .member_access_expr,
                     .ty = f.ty,
-                    .data = .{ .member = .{ .lhs = lhs, .index = @intCast(u32, i) } },
+                    .data = .{ .member = .{ .lhs = lhs, .index = @intCast(i) } },
                 }),
             };
         }
@@ -6815,8 +6815,8 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     }
 
     const extra = Diagnostics.Message.Extra{ .arguments = .{
-        .expected = @intCast(u32, params.len),
-        .actual = @intCast(u32, arg_count),
+        .expected = @intCast(params.len),
+        .actual = @intCast(arg_count),
     } };
     if (ty.is(.func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments, first_after, extra);
@@ -7284,7 +7284,7 @@ fn charLiteral(p: *Parser) Error!Result {
     };
     const max: u32 = switch (p.tok_ids[p.tok_i]) {
         .char_literal => std.math.maxInt(u8),
-        .char_literal_wide => @intCast(u32, p.comp.types.wchar.maxInt(p.comp)),
+        .char_literal_wide => @intCast(p.comp.types.wchar.maxInt(p.comp)),
         .char_literal_utf_8 => std.math.maxInt(u8),
         .char_literal_utf_16 => std.math.maxInt(u16),
         .char_literal_utf_32 => std.math.maxInt(u32),
@@ -7453,8 +7453,8 @@ fn getIntegerPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: Toke
 
     if (!prefix.digitAllowed(buf[0])) {
         switch (prefix) {
-            .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(u7, buf[0]) }),
-            .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(u7, buf[0]) }),
+            .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(buf[0]) }),
+            .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(buf[0]) }),
             .hex => try p.errStr(.invalid_int_suffix, tok_i, buf),
             .decimal => unreachable,
         }
@@ -7473,16 +7473,16 @@ fn getIntegerPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: Toke
                 switch (prefix) {
                     .hex => continue,
                     .decimal => return buf[0..idx],
-                    .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(u7, c) }),
-                    .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(u7, c) }),
+                    .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(c) }),
+                    .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(c) }),
                 }
                 return error.ParsingFailed;
             },
             '0'...'9', 'a'...'d', 'A'...'D', 'f', 'F' => {
                 if (!prefix.digitAllowed(c)) {
                     switch (prefix) {
-                        .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(u7, c) }),
-                        .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(u7, c) }),
+                        .binary => try p.errExtra(.invalid_binary_digit, tok_i, .{ .ascii = @intCast(c) }),
+                        .octal => try p.errExtra(.invalid_octal_digit, tok_i, .{ .ascii = @intCast(c) }),
                         .decimal, .hex => try p.errStr(.invalid_int_suffix, tok_i, buf[idx..]),
                     }
                     return error.ParsingFailed;
@@ -7583,7 +7583,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         else => |er| return er,
     };
     const c = managed.toConst();
-    const bits_needed = blk: {
+    const bits_needed: std.math.IntFittingRange(0, Compilation.bit_int_max_bits) = blk: {
         // Literal `0` requires at least 1 bit
         const count = @max(1, c.bitCountTwosComp());
         // The wb suffix results in a _BitInt that includes space for the sign bit even if the
@@ -7604,7 +7604,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         if (bits_needed > 64) {
             return p.todo("_BitInt constants > 64 bits");
         }
-        break :blk @intCast(std.math.IntFittingRange(0, Compilation.bit_int_max_bits), bits_needed);
+        break :blk @intCast(bits_needed);
     };
 
     const val = c.to(u64) catch |e| switch (e) {
@@ -7822,7 +7822,7 @@ fn genericSelection(p: *Parser) Error!Result {
                 .ty = ty,
                 .data = .{ .un = node.node },
             }));
-            try p.decl_buf.append(@enumFromInt(NodeIndex, start));
+            try p.decl_buf.append(@enumFromInt(start));
         } else if (p.eatToken(.keyword_default)) |tok| {
             if (default_tok) |prev| {
                 try p.errTok(.generic_duplicate_default, tok);

@@ -162,7 +162,7 @@ pub const Formatting = struct {
 
                 const enum_fields = @typeInfo(Unwrapped).Enum.fields;
                 @setEvalBranchQuota(3000);
-                const quote = comptime quoteChar(@enumFromInt(Tag, @intFromEnum(tag)));
+                const quote = comptime quoteChar(@enumFromInt(@intFromEnum(tag)));
                 comptime var values: []const u8 = quote ++ enum_fields[0].name ++ quote;
                 inline for (enum_fields[1..]) |enum_field| {
                     values = values ++ ", ";
@@ -947,7 +947,7 @@ fn fromStringGnu(name: []const u8) ?Tag {
     inline for (decls, 0..) |decl, i| {
         if (@hasDecl(@field(attributes, decl.name), "gnu")) {
             if (mem.eql(u8, @field(attributes, decl.name).gnu, normalized)) {
-                return @enumFromInt(Tag, i);
+                return @enumFromInt(i);
             }
         }
     }
@@ -967,7 +967,7 @@ fn fromStringC2X(namespace: ?[]const u8, name: []const u8) ?Tag {
     inline for (decls, 0..) |decl, i| {
         if (@hasDecl(@field(attributes, decl.name), "c2x")) {
             if (mem.eql(u8, @field(attributes, decl.name).c2x, normalized)) {
-                return @enumFromInt(Tag, i);
+                return @enumFromInt(i);
             }
         }
     }
@@ -979,7 +979,7 @@ fn fromStringDeclspec(name: []const u8) ?Tag {
     inline for (decls, 0..) |decl, i| {
         if (@hasDecl(@field(attributes, decl.name), "declspec")) {
             if (mem.eql(u8, @field(attributes, decl.name).declspec, name)) {
-                return @enumFromInt(Tag, i);
+                return @enumFromInt(i);
             }
         }
     }

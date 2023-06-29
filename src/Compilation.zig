@@ -101,7 +101,7 @@ pub fn intern(comp: *Compilation, str: []const u8) !StringInterner.StringId {
 fn generateDateAndTime(w: anytype) !void {
     // TODO take timezone into account here once it is supported in Zig std
     const timestamp = std.math.clamp(std.time.timestamp(), 0, std.math.maxInt(i64));
-    const epoch_seconds = EpochSeconds{ .secs = @intCast(u64, timestamp) };
+    const epoch_seconds = EpochSeconds{ .secs = @intCast(timestamp) };
     const epoch_day = epoch_seconds.getEpochDay();
     const day_seconds = epoch_seconds.getDaySeconds();
     const year_day = epoch_day.calculateYearDay();
@@ -124,7 +124,7 @@ fn generateDateAndTime(w: anytype) !void {
 
     const day_names = [_][]const u8{ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
     // days since Thu Oct 1 1970
-    const day_name = day_names[@truncate(u8, (epoch_day.day + 3) % 7)];
+    const day_name = day_names[@intCast((epoch_day.day + 3) % 7)];
     try w.print("#define __TIMESTAMP__ \"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"\n", .{
         day_name,
         month_name,
@@ -753,7 +753,7 @@ fn generateVaListType(comp: *Compilation) !Type {
 }
 
 fn generateIntMax(comp: *const Compilation, w: anytype, name: []const u8, ty: Type) !void {
-    const bit_count = @intCast(u8, ty.sizeof(comp).? * 8);
+    const bit_count: u8 = @intCast(ty.sizeof(comp).? * 8);
     const unsigned = ty.isUnsignedInt(comp);
     const max = if (bit_count == 128)
         @as(u128, if (unsigned) std.math.maxInt(u128) else std.math.maxInt(u128))
@@ -764,7 +764,7 @@ fn generateIntMax(comp: *const Compilation, w: anytype, name: []const u8, ty: Ty
 
 fn generateExactWidthIntMax(comp: *const Compilation, w: anytype, specifier: Type.Specifier) !void {
     var ty = Type{ .specifier = specifier };
-    const bit_count = @intCast(u8, ty.sizeof(comp).? * 8);
+    const bit_count: u8 = @intCast(ty.sizeof(comp).? * 8);
     const unsigned = ty.isUnsignedInt(comp);
 
     if (bit_count == 64) {
@@ -878,7 +878,7 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
     var splice_list = std.ArrayList(u32).init(comp.gpa);
     defer splice_list.deinit();
 
-    const source_id = @enumFromInt(Source.Id, comp.sources.count() + 2);
+    const source_id: Source.Id = @enumFromInt(comp.sources.count() + 2);
 
     var i: u32 = 0;
     var backslash_loc: u32 = undefined;
@@ -1297,10 +1297,10 @@ test "addSourceFromReader" {
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(str);
-            const source = try comp.addSourceFromReader(buf_reader.reader(), "path", @intCast(u32, str.len));
+            const source = try comp.addSourceFromReader(buf_reader.reader(), "path", @intCast(str.len));
 
             try std.testing.expectEqualStrings(expected, source.buf);
-            try std.testing.expectEqual(warning_count, @intCast(u32, comp.diag.list.items.len));
+            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diag.list.items.len)));
             try std.testing.expectEqualSlices(u32, splices, source.splice_locs);
         }
 
@@ -1379,7 +1379,7 @@ test "ignore BOM at beginning of file" {
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(buf);
-            const source = try comp.addSourceFromReader(buf_reader.reader(), "file.c", @intCast(u32, buf.len));
+            const source = try comp.addSourceFromReader(buf_reader.reader(), "file.c", @intCast(buf.len));
             switch (input_type) {
                 .valid_utf8 => {
                     const expected_output = if (mem.startsWith(u8, buf, BOM)) buf[BOM.len..] else buf;

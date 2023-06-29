@@ -44,7 +44,7 @@ pub fn int(v: anytype) Value {
     if (@TypeOf(v) == comptime_int or @typeInfo(@TypeOf(v)).Int.signedness == .unsigned)
         return .{ .tag = .int, .data = .{ .int = v } }
     else
-        return .{ .tag = .int, .data = .{ .int = @bitCast(u64, @as(i64, v)) } };
+        return .{ .tag = .int, .data = .{ .int = @bitCast(@as(i64, v)) } };
 }
 
 pub fn float(v: anytype) Value {
@@ -200,7 +200,7 @@ pub fn floatToInt(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) Flo
         return .overflow;
     }
     const old_size = old_ty.sizeof(comp).?;
-    const new_size = @intCast(u16, new_ty.sizeof(comp).?);
+    const new_size: u16 = @intCast(new_ty.sizeof(comp).?);
     if (new_ty.isUnsignedInt(comp)) switch (old_size) {
         1 => unreachable, // promoted to int
         2 => unreachable, // promoted to int
@@ -224,9 +224,9 @@ pub fn intToFloat(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) voi
     if (!new_ty.isReal() or new_ty.sizeof(comp).? > 8) {
         v.tag = .unavailable;
     } else if (old_ty.isUnsignedInt(comp)) {
-        v.* = float(@floatFromInt(f64, v.data.int));
+        v.* = float(@as(f64, @floatFromInt(v.data.int)));
     } else {
-        v.* = float(@floatFromInt(f64, @bitCast(i64, v.data.int)));
+        v.* = float(@as(f64, @floatFromInt(@as(i64, @bitCast(v.data.int)))));
     }
 }
 
@@ -239,9 +239,9 @@ pub fn intCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
     if (!old_ty.isUnsignedInt(comp)) {
         const size = new_ty.sizeof(comp).?;
         switch (size) {
-            1 => v.* = int(@truncate(u8, @bitCast(u64, v.signExtend(old_ty, comp)))),
-            2 => v.* = int(@truncate(u16, @bitCast(u64, v.signExtend(old_ty, comp)))),
-            4 => v.* = int(@truncate(u32, @bitCast(u64, v.signExtend(old_ty, comp)))),
+            1 => v.* = int(@as(u8, @truncate(@as(u64, @bitCast(v.signExtend(old_ty, comp)))))),
+            2 => v.* = int(@as(u16, @truncate(@as(u64, @bitCast(v.signExtend(old_ty, comp)))))),
+            4 => v.* = int(@as(u32, @truncate(@as(u64, @bitCast(v.signExtend(old_ty, comp)))))),
             8 => return,
             else => unreachable,
         }
@@ -257,7 +257,7 @@ pub fn floatCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void
     if (!new_ty.isReal() or size > 8) {
         v.tag = .unavailable;
     } else if (size == 32) {
-        v.* = float(@floatCast(f32, v.data.float));
+        v.* = float(@as(f32, @floatCast(v.data.float)));
     }
 }
 
@@ -293,14 +293,14 @@ pub fn getBool(v: Value) bool {
 pub fn getInt(v: Value, comptime T: type) T {
     if (T == u64) return v.data.int;
     return if (@typeInfo(T).Int.signedness == .unsigned)
-        @truncate(T, v.data.int)
+        @truncate(v.data.int)
     else
-        @truncate(T, @bitCast(i64, v.data.int));
+        @truncate(@as(i64, @bitCast(v.data.int)));
 }
 
 pub fn getFloat(v: Value, comptime T: type) T {
     if (T == f64) return v.data.float;
-    return @floatCast(T, v.data.float);
+    return @floatCast(v.data.float);
 }
 
 const bin_overflow = struct {
@@ -435,7 +435,7 @@ const bin_ops = struct {
             else
                 int(@as(T, std.math.minInt(T)));
         }
-        const amt = @truncate(ShiftT, @bitCast(UT, b_val));
+        const amt: ShiftT = @truncate(@as(UT, @bitCast(b_val)));
         const a_val = a.getInt(T);
         return int(a_val << amt);
     }
@@ -446,7 +446,7 @@ const bin_ops = struct {
         const b_val = b.getInt(T);
         if (b_val > std.math.maxInt(ShiftT)) return Value.int(0);
 
-        const amt = @truncate(ShiftT, @intCast(UT, b_val));
+        const amt: ShiftT = @truncate(@as(UT, @intCast(b_val)));
         const a_val = a.getInt(T);
         return int(a_val >> amt);
     }
@@ -581,7 +581,7 @@ pub fn dump(v: Value, ty: Type, comp: *Compilation, w: anytype) !void {
         },
         .bytes => try w.print("\"{s}\"", .{v.data.bytes}),
         // std.fmt does @as instead of @floatCast
-        .float => try w.print("{d}", .{@floatCast(f64, v.data.float)}),
+        .float => try w.print("{d}", .{@as(f64, @floatCast(v.data.float))}),
         else => try w.print("({s})", .{@tagName(v.tag)}),
     }
 }

@@ -139,7 +139,7 @@ pub fn main() !void {
     const thread_count = @max(1, std.Thread.getCpuCount() catch 1);
 
     var thread_pool: std.Thread.Pool = undefined;
-    try thread_pool.init(.{ .allocator = arena, .n_jobs = @intCast(u32, thread_count) });
+    try thread_pool.init(.{ .allocator = arena, .n_jobs = @intCast(thread_count) });
     defer thread_pool.deinit();
 
     var wait_group: std.Thread.WaitGroup = .{};
