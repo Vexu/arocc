@@ -161,6 +161,7 @@ pub const Options = packed struct {
     @"pointer-bool-conversion": Kind = .default,
     @"string-conversion": Kind = .default,
     @"gnu-auto-type": Kind = .default,
+    @"gnu-union-cast": Kind = .default,
 };
 
 const messages = struct {
@@ -2295,6 +2296,22 @@ const messages = struct {
     const forward_declaration_here = struct {
         const msg = "forward declaration of '{s}'";
         const kind = .note;
+        const extra = .str;
+    };
+    const gnu_union_cast = struct {
+        const msg = "cast to union type is a GNU extension";
+        const opt = "gnu-union-cast";
+        const kind = .off;
+        const pedantic = true;
+    };
+    const invalid_union_cast = struct {
+        const msg = "cast to union type from type '{s}' not present in union";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    const cast_to_incomplete_type = struct {
+        const msg = "cast to incomplete type '{s}'";
+        const kind = .@"error";
         const extra = .str;
     };
 };

@@ -49,7 +49,7 @@ void foo(void) {
     (void)p; // to_void
 
     union U u;
-    // TODO: cast to union
-    // u = (union U)x;
-    // u = (union U)f;
+
+    u = (union U)x; // to_union
+    u = (union U)f; // to_union
 }

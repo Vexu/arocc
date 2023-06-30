@@ -267,6 +267,14 @@ pub const Record = struct {
         };
         return r;
     }
+
+    pub fn hasFieldOfType(self: *const Record, ty: Type, comp: *const Compilation) bool {
+        if (self.isIncomplete()) return false;
+        for (self.fields) |f| {
+            if (ty.eql(f.ty, comp, false)) return true;
+        }
+        return false;
+    }
 };
 
 pub const Specifier = enum {
