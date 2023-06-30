@@ -204,5 +204,25 @@ fn_def: 'fn () void'
     var: 'union U'
      name: u
 
+    assign_expr: 'union U'
+     lhs:
+      decl_ref_expr: 'union U' lvalue
+       name: u
+     rhs:
+      explicit_cast: (union_cast) 'union U'
+        implicit_cast: (lval_to_rval) 'int'
+          decl_ref_expr: 'int' lvalue
+           name: x
+
+    assign_expr: 'union U'
+     lhs:
+      decl_ref_expr: 'union U' lvalue
+       name: u
+     rhs:
+      explicit_cast: (union_cast) 'union U'
+        implicit_cast: (lval_to_rval) 'float'
+          decl_ref_expr: 'float' lvalue
+           name: f
+
     implicit_return: 'void'
 

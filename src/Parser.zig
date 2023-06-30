@@ -5275,6 +5275,18 @@ const Result = struct {
             } else if (old_int and new_int) {
                 res.val.intCast(res.ty, to, p.comp);
             }
+        } else if (to.get(.@"union")) |union_ty| {
+            if (union_ty.data.record.hasFieldOfType(res.ty, p.comp)) {
+                cast_kind = .union_cast;
+                try p.errTok(.gnu_union_cast, tok);
+            } else {
+                if (union_ty.data.record.isIncomplete()) {
+                    try p.errStr(.cast_to_incomplete_type, tok, try p.typeStr(to));
+                } else {
+                    try p.errStr(.invalid_union_cast, tok, try p.typeStr(res.ty));
+                }
+                return error.ParsingFailed;
+            }
         } else {
             if (to.is(.auto_type)) {
                 try p.errTok(.invalid_cast_to_auto_type, tok);
