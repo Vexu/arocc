@@ -5273,6 +5273,10 @@ const Result = struct {
             } else if (new_float and old_float) {
                 res.val.floatCast(res.ty, to, p.comp);
             } else if (old_int and new_int) {
+                if (to.hasIncompleteSize()) {
+                    try p.errStr(.cast_to_incomplete_type, tok, try p.typeStr(to));
+                    return error.ParsingFailed;
+                }
                 res.val.intCast(res.ty, to, p.comp);
             }
         } else if (to.get(.@"union")) |union_ty| {
