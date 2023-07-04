@@ -3087,6 +3087,8 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
     };
 
     const is_scalar = init_ty.isScalar();
+    const is_complex = init_ty.isComplex();
+    const scalar_inits_needed: usize = if (is_complex) 2 else 1;
     if (p.eatToken(.r_brace)) |_| {
         if (is_scalar) try p.errTok(.empty_scalar_init, l_brace);
         if (il.tok != 0) {
@@ -3195,7 +3197,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         } else if (count == 0 and p.isStringInit(init_ty)) {
             is_str_init = true;
             saw = try p.initializerItem(il, init_ty);
-        } else if (is_scalar and count != 0) {
+        } else if (is_scalar and count >= scalar_inits_needed) {
             // discard further scalars
             var tmp_il = InitList{};
             defer tmp_il.deinit(p.gpa);
@@ -3250,13 +3252,18 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             break;
         } else if (count == 1) {
             if (is_str_init) try p.errTok(.excess_str_init, first_tok);
-            if (is_scalar) try p.errTok(.excess_scalar_init, first_tok);
+            if (is_scalar and !is_complex) try p.errTok(.excess_scalar_init, first_tok);
+        } else if (count == 2) {
+            if (is_scalar and is_complex) try p.errTok(.excess_scalar_init, first_tok);
         }
 
         if (p.eatToken(.comma) == null) break;
     }
     try p.expectClosing(l_brace, .r_brace);
 
+    if (is_complex and count == 1) { // count of 1 means we saw exactly 2 items in the initializer list
+        try p.errTok(.complex_component_init, l_brace);
+    }
     if (is_scalar or is_str_init) return true;
     if (il.tok != 0) {
         try p.errTok(.initializer_overrides, l_brace);
@@ -3314,13 +3321,13 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, actual_ty: Typ
 
 /// Returns true if the value is unused.
 fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type, first_tok: TokenIndex) Error!bool {
-    if (ty.isArray()) {
+    if (ty.isArray() or ty.isComplex()) {
         if (il.*.node != .none) return false;
         const start_index = il.*.list.items.len;
         var index = if (start_index != 0) il.*.list.items[start_index - 1].index else start_index;
 
         const arr_ty = ty.*;
-        const elem_count = arr_ty.arrayLen() orelse std.math.maxInt(u64);
+        const elem_count: u64 = arr_ty.expectedInitListSize() orelse std.math.maxInt(u64);
         if (elem_count == 0) {
             try p.errTok(.empty_aggregate_init_braces, first_tok);
             return error.ParsingFailed;
@@ -3497,14 +3504,15 @@ fn isStringInit(p: *Parser, ty: Type) bool {
 
 /// Convert InitList into an AST
 fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
-    if (init_ty.isScalar()) {
+    const is_complex = init_ty.isComplex();
+    if (init_ty.isScalar() and !is_complex) {
         if (il.node == .none) {
             return p.addNode(.{ .tag = .default_init_expr, .ty = init_ty, .data = undefined });
         }
         return il.node;
     } else if (init_ty.is(.variable_len_array)) {
         return error.ParsingFailed; // vla invalid, reported earlier
-    } else if (init_ty.isArray()) {
+    } else if (init_ty.isArray() or is_complex) {
         if (il.node != .none) {
             return il.node;
         }
@@ -3513,7 +3521,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
 
         const elem_ty = init_ty.elemType();
 
-        const max_items = init_ty.arrayLen() orelse std.math.maxInt(usize);
+        const max_items: u64 = init_ty.expectedInitListSize() orelse std.math.maxInt(usize);
         var start: u64 = 0;
         for (il.list.items) |*init| {
             if (init.index > start) {

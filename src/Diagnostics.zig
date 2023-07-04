@@ -167,6 +167,7 @@ pub const Options = packed struct {
     @"pointer-sign": Kind = .default,
     @"fuse-ld-path": Kind = .default,
     @"language-extension-token": Kind = .default,
+    @"complex-component-init": Kind = .default,
 };
 
 const messages = struct {
@@ -2386,6 +2387,12 @@ const messages = struct {
         const kind = .off;
         const pedantic = true;
         const opt = "language-extension-token";
+    };
+    pub const complex_component_init = struct {
+        const msg = "complex initialization specifying real and imaginary components is an extension";
+        const opt = "complex-component-init";
+        const kind = .off;
+        const pedantic = true;
     };
 };
 
