@@ -2394,6 +2394,13 @@ const messages = struct {
         const kind = .off;
         const pedantic = true;
     };
+    pub const complex_prefix_postfix_op = struct {
+        const msg = "ISO C does not support '++'/'--' on complex type '{s}'";
+        const opt = "pedantic";
+        const extra = .str;
+        const kind = .off;
+        const pedantic = true;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

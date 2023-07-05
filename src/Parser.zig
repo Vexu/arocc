@@ -6538,6 +6538,8 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.expect(p);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+            if (operand.ty.isComplex())
+                try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
@@ -6562,6 +6564,8 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.expect(p);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+            if (operand.ty.isComplex())
+                try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
@@ -6822,6 +6826,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             var operand = lhs;
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
+            if (operand.ty.isComplex())
+                try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
@@ -6838,6 +6844,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             var operand = lhs;
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
+            if (operand.ty.isComplex())
+                try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
