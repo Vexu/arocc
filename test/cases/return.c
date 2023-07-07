@@ -92,6 +92,10 @@ int else_noreturn(int arg) {
     return 1; // reachable; no warning
 }
 
+void *void_star_return(void) {
+    return 4.2;
+}
+
 #define EXPECTED_ERRORS "return.c:2:5: error: non-void function 'b' should return a value [-Wreturn-type]" \
     "return.c:3:5: warning: unreachable code [-Wunreachable-code]" \
     "return.c:6:12: error: returning 'void' from a function with incompatible result type '_Bool'" \
@@ -108,3 +112,5 @@ int else_noreturn(int arg) {
     "return.c:35:12: error: void function 'baz' should not return a value [-Wreturn-type]" \
     "return.c:38:17: error: function cannot return a function" \
     "return.c:74:5: warning: unreachable code [-Wunreachable-code]" \
+    "return.c:96:12: error: returning 'double' from a function with incompatible result type 'void *'" \
+

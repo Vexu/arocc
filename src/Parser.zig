@@ -5389,13 +5389,15 @@ const Result = struct {
             if (res.ty.is(.nullptr_t) or res.val.isZero()) {
                 try res.nullCast(p, dest_ty);
                 return;
-            } else if (res.ty.isInt()) {
+            } else if (res.ty.isInt() and res.ty.isReal()) {
                 if (ctx == .test_coerce) return error.CoercionFailed;
                 try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
                 try ctx.note(p);
                 try res.ptrCast(p, unqual_ty);
                 return;
-            } else if (res.ty.isVoidStar() or unqual_ty.isVoidStar() or unqual_ty.eql(res.ty, p.comp, true)) {
+            } else if (res.ty.isVoidStar() or unqual_ty.eql(res.ty, p.comp, true)) {
+                return; // ok
+            } else if (unqual_ty.isVoidStar() and res.ty.isPtr() or (res.ty.isInt() and res.ty.isReal())) {
                 return; // ok
             } else if (unqual_ty.eql(res.ty, p.comp, false)) {
                 if (!unqual_ty.elemType().qual.hasQuals(res.ty.elemType().qual)) {
