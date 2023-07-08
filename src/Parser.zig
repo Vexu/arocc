@@ -5419,11 +5419,12 @@ const Result = struct {
                 try res.ptrCast(p, unqual_ty);
                 return;
             } else if (res.ty.isPtr()) {
+                const different_sign_only = unqual_ty.elemType().sameRankDifferentSign(res.ty.elemType(), p.comp);
                 try p.errStr(switch (ctx) {
-                    .assign => .incompatible_ptr_assign,
-                    .init => .incompatible_ptr_init,
-                    .ret => .incompatible_return,
-                    .arg => .incompatible_ptr_arg,
+                    .assign => ([2]Diagnostics.Tag{ .incompatible_ptr_assign, .incompatible_ptr_assign_sign })[@intFromBool(different_sign_only)],
+                    .init => ([2]Diagnostics.Tag{ .incompatible_ptr_init, .incompatible_ptr_init_sign })[@intFromBool(different_sign_only)],
+                    .ret => ([2]Diagnostics.Tag{ .incompatible_return, .incompatible_return_sign })[@intFromBool(different_sign_only)],
+                    .arg => ([2]Diagnostics.Tag{ .incompatible_ptr_arg, .incompatible_ptr_arg_sign })[@intFromBool(different_sign_only)],
                     .test_coerce => return error.CoercionFailed,
                 }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 try ctx.note(p);

@@ -12,6 +12,8 @@ const is_windows = @import("builtin").os.tag == .windows;
 
 const Diagnostics = @This();
 
+const PointerSignMessage = " converts between pointers to integer types with different sign";
+
 pub const Message = struct {
     tag: Tag,
     kind: Kind = undefined,
@@ -162,6 +164,7 @@ pub const Options = packed struct {
     @"string-conversion": Kind = .default,
     @"gnu-auto-type": Kind = .default,
     @"gnu-union-cast": Kind = .default,
+    @"pointer-sign": Kind = .default,
 };
 
 const messages = struct {
@@ -979,6 +982,12 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    pub const incompatible_return_sign = struct {
+        const msg = "returning {s}" ++ PointerSignMessage;
+        const extra = .str;
+        const kind = .warning;
+        const opt = "pointer-sign";
+    };
     pub const implicit_int_to_ptr = struct {
         const msg = "implicit integer to pointer conversion from {s}";
         const extra = .str;
@@ -1009,6 +1018,12 @@ const messages = struct {
         const extra = .str;
         const kind = .warning;
         const opt = "incompatible-pointer-types";
+    };
+    pub const incompatible_ptr_arg_sign = struct {
+        const msg = "passing {s}" ++ PointerSignMessage;
+        const extra = .str;
+        const kind = .warning;
+        const opt = "pointer-sign";
     };
     pub const parameter_here = struct {
         const msg = "passing argument to parameter here";
@@ -1124,10 +1139,22 @@ const messages = struct {
         const opt = "incompatible-pointer-types";
         const kind = .warning;
     };
+    pub const incompatible_ptr_init_sign = struct {
+        const msg = "incompatible pointer types initializing {s}" ++ PointerSignMessage;
+        const extra = .str;
+        const opt = "pointer-sign";
+        const kind = .warning;
+    };
     pub const incompatible_ptr_assign = struct {
         const msg = "incompatible pointer types assigning to {s}";
         const extra = .str;
         const opt = "incompatible-pointer-types";
+        const kind = .warning;
+    };
+    pub const incompatible_ptr_assign_sign = struct {
+        const msg = "incompatible pointer types assigning to {s} " ++ PointerSignMessage;
+        const extra = .str;
+        const opt = "pointer-sign";
         const kind = .warning;
     };
     pub const vla_init = struct {

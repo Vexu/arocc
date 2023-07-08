@@ -96,6 +96,15 @@ void *void_star_return(void) {
     return 4.2;
 }
 
+int *return_signed(unsigned int *x) {
+    return x;
+}
+
+void call_return_signed(void) {
+    unsigned int x = 0;
+    int *y = return_signed(&x);
+}
+
 #define EXPECTED_ERRORS "return.c:2:5: error: non-void function 'b' should return a value [-Wreturn-type]" \
     "return.c:3:5: warning: unreachable code [-Wunreachable-code]" \
     "return.c:6:12: error: returning 'void' from a function with incompatible result type '_Bool'" \
@@ -113,4 +122,5 @@ void *void_star_return(void) {
     "return.c:38:17: error: function cannot return a function" \
     "return.c:74:5: warning: unreachable code [-Wunreachable-code]" \
     "return.c:96:12: error: returning 'double' from a function with incompatible result type 'void *'" \
+    "warning: returning 'unsigned int *' from a function with incompatible result type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
 

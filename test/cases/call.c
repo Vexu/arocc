@@ -49,6 +49,12 @@ void call_void_star(void) {
     ip(&x);
 }
 
+void signed_int(int *p) {}
+
+void call_with_unsigned(void) {
+    unsigned int x = 0;
+    signed_int(&x);
+}
 
 #define EXPECTED_ERRORS "call.c:16:7: error: passing 'void' to parameter of incompatible type '_Bool'" \
     "call.c:5:21: note: passing argument to parameter here" \
@@ -72,4 +78,6 @@ void call_void_star(void) {
     "call.c:37:28: note: passing argument to parameter here" \
     "call.c:49:8: warning: passing 'long *' to parameter of incompatible type 'int *' [-Wincompatible-pointer-types]" \
     "call.c:8:20: note: passing argument to parameter here" \
+    "call.c:56:16: warning: passing 'unsigned int *' to parameter of incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "call.c:52:22: note: passing argument to parameter here" \
 

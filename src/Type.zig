@@ -1308,6 +1308,13 @@ pub fn integerRank(ty: Type, comp: *const Compilation) usize {
     });
 }
 
+/// Returns true if `a` and `b` are integer types that differ only in sign
+pub fn sameRankDifferentSign(a: Type, b: Type, comp: *const Compilation) bool {
+    if (!a.isInt() or !b.isInt()) return false;
+    if (a.integerRank(comp) != b.integerRank(comp)) return false;
+    return a.isUnsignedInt(comp) != b.isUnsignedInt(comp);
+}
+
 pub fn makeReal(ty: Type) Type {
     // TODO discards attributed/typeof
     var base = ty.canonicalize(.standard);
