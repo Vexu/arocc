@@ -4949,6 +4949,7 @@ const Result = struct {
         }
     }
 
+    /// Converts a bool or integer to a pointer
     fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
         if (res.ty.is(.bool)) {
             res.ty = ptr_ty;
@@ -4958,6 +4959,12 @@ const Result = struct {
             res.ty = ptr_ty;
             try res.implicitCast(p, .int_to_pointer);
         }
+    }
+
+    /// Convert pointer to one with a different child type
+    fn ptrChildTypeCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
+        res.ty = ptr_ty;
+        return res.implicitCast(p, .bitcast);
     }
 
     fn toVoid(res: *Result, p: *Parser) Error!void {
@@ -5416,11 +5423,11 @@ const Result = struct {
                     .assign => .incompatible_ptr_assign,
                     .init => .incompatible_ptr_init,
                     .ret => .incompatible_return,
-                    .arg => .incompatible_arg,
+                    .arg => .incompatible_ptr_arg,
                     .test_coerce => return error.CoercionFailed,
                 }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 try ctx.note(p);
-                try res.ptrCast(p, unqual_ty);
+                try res.ptrChildTypeCast(p, unqual_ty);
                 return;
             }
         } else if (unqual_ty.isRecord()) {

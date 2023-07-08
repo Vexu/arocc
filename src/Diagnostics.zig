@@ -1004,6 +1004,12 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
+    pub const incompatible_ptr_arg = struct {
+        const msg = "passing {s}";
+        const extra = .str;
+        const kind = .warning;
+        const opt = "incompatible-pointer-types";
+    };
     pub const parameter_here = struct {
         const msg = "passing argument to parameter here";
         const kind = .note;
