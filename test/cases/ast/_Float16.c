@@ -27,7 +27,7 @@ fn_def: 'fn (x: int, ...) void'
     var: '[1]struct __va_list_tag'
      name: va
 
-    builtin_call_expr: 'fn (d[1]struct __va_list_tag, ...) void'
+    builtin_call_expr: 'void'
      name: __builtin_va_start
      args:
       implicit_cast: (array_to_pointer) 'd[1]struct __va_list_tag'
@@ -36,7 +36,7 @@ fn_def: 'fn (x: int, ...) void'
       decl_ref_expr: 'int' lvalue
        name: x
 
-    builtin_call_expr_one: 'fn (d[1]struct __va_list_tag) void'
+    builtin_call_expr_one: 'void'
      name: __builtin_va_end
      arg:
       implicit_cast: (array_to_pointer) 'd[1]struct __va_list_tag'

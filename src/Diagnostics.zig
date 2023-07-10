@@ -2401,6 +2401,16 @@ const messages = struct {
         const kind = .off;
         const pedantic = true;
     };
+    pub const not_floating_type = struct {
+        const msg = "argument type '{s}' is not a real floating point type";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    pub const argument_types_differ = struct {
+        const msg = "arguments are of different types ({s})";
+        const extra = .str;
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

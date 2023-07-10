@@ -4571,6 +4571,7 @@ const CallExpr = union(enum) {
             .standard => true,
             .builtin => |builtin| switch (builtin.tag) {
                 .__builtin_va_start, .__va_start, .va_start => arg_idx != 1,
+                .__builtin_complex => false,
                 else => true,
             },
         };
@@ -4588,16 +4589,46 @@ const CallExpr = union(enum) {
         const builtin_tok = p.nodes.items(.data)[@intFromEnum(self.builtin.node)].decl.name;
         switch (self.builtin.tag) {
             .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            .__builtin_complex => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
             else => {},
         }
     }
 
+    /// Some functions cannot be expressed as standard C prototypes. For example `__builtin_complex` requires
+    /// two arguments of the same real floating point type (e.g. two doubles or two floats). These functions are
+    /// encoded as varargs functions with custom typechecking. Since varargs functions do not have a fixed number
+    /// of arguments, `paramCountOverride` is used to tell us how many arguments we should actually expect to see for
+    /// these custom-typechecked functions.
+    fn paramCountOverride(self: CallExpr) ?u32 {
+        return switch (self) {
+            .standard => null,
+            .builtin => |builtin| switch (builtin.tag) {
+                .__builtin_complex => 2,
+                else => null,
+            },
+        };
+    }
+
+    fn returnType(self: CallExpr, p: *Parser, callable_ty: Type) Type {
+        return switch (self) {
+            .standard => callable_ty.returnType(),
+            .builtin => |builtin| switch (builtin.tag) {
+                .__builtin_complex => {
+                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                    return p.nodes.items(.ty)[@intFromEnum(last_param)].makeComplex();
+                },
+                else => callable_ty.returnType(),
+            },
+        };
+    }
+
     fn finish(self: CallExpr, p: *Parser, ty: Type, list_buf_top: usize, arg_count: u32) Error!Result {
+        const ret_ty = self.returnType(p, ty);
         switch (self) {
             .standard => |func_node| {
                 var call_node: Tree.Node = .{
                     .tag = .call_expr_one,
-                    .ty = ty.returnType(),
+                    .ty = ret_ty,
                     .data = .{ .bin = .{ .lhs = func_node, .rhs = .none } },
                 };
                 const args = p.list_buf.items[list_buf_top..];
@@ -4609,12 +4640,13 @@ const CallExpr = union(enum) {
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
-                return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
+                return Result{ .node = try p.addNode(call_node), .ty = ret_ty };
             },
             .builtin => |builtin| {
                 const index = @intFromEnum(builtin.node);
                 var call_node = p.nodes.get(index);
                 defer p.nodes.set(index, call_node);
+                call_node.ty = ret_ty;
                 const args = p.list_buf.items[list_buf_top..];
                 switch (arg_count) {
                     0 => {},
@@ -4625,7 +4657,7 @@ const CallExpr = union(enum) {
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
-                return Result{ .node = builtin.node, .ty = call_node.ty.returnType() };
+                return Result{ .node = builtin.node, .ty = ret_ty };
             },
         }
     }
@@ -7003,6 +7035,20 @@ fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     }
 }
 
+fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
+    _ = builtin_tok;
+    _ = first_after;
+    if (idx <= 1 and !arg.ty.isFloat()) {
+        try p.errStr(.not_floating_type, param_tok, try p.typeStr(arg.ty));
+    } else if (idx == 1) {
+        const prev_idx = p.list_buf.items[p.list_buf.items.len - 1];
+        const prev_ty = p.nodes.items(.ty)[@intFromEnum(prev_idx)];
+        if (!prev_ty.eql(arg.ty, p.comp, false)) {
+            try p.errStr(.argument_types_differ, param_tok, try p.typePairStrExtra(prev_ty, " vs ", arg.ty));
+        }
+    }
+}
+
 fn checkVariableBuiltinArgument(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32, tag: BuiltinFunction.Tag) !void {
     switch (tag) {
         .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
@@ -7070,17 +7116,20 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         };
     }
 
+    const actual: u32 = @intCast(arg_count);
     const extra = Diagnostics.Message.Extra{ .arguments = .{
         .expected = @intCast(params.len),
-        .actual = @intCast(arg_count),
+        .actual = actual,
     } };
-    if (ty.is(.func) and params.len != arg_count) {
+    if (call_expr.paramCountOverride()) |expected| {
+        if (expected != actual) {
+            try p.errExtra(.expected_arguments, first_after, .{ .arguments = .{ .expected = expected, .actual = actual } });
+        }
+    } else if (ty.is(.func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments, first_after, extra);
-    }
-    if (ty.is(.old_style_func) and params.len != arg_count) {
+    } else if (ty.is(.old_style_func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments_old, first_after, extra);
-    }
-    if (ty.is(.var_args_func) and arg_count < params.len) {
+    } else if (ty.is(.var_args_func) and arg_count < params.len) {
         try p.errExtra(.expected_at_least_arguments, first_after, extra);
     }
 
