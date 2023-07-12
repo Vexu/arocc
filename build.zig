@@ -68,9 +68,14 @@ pub fn build(b: *Build) !void {
     });
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
-    exe_options.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
-    exe_options.addOption([]const u8, "default_linker", default_linker);
-    exe_options.addOption([]const u8, "default_sysroot", default_sysroot);
+
+    const system_defaults = b.addOptions();
+    exe.addOptions("system_defaults", system_defaults);
+
+    system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
+    system_defaults.addOption([]const u8, "linker", default_linker);
+    system_defaults.addOption([]const u8, "sysroot", default_sysroot);
+
     exe_options.addOption(bool, "enable_tracy", tracy != null);
     exe_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
     exe_options.addOption(bool, "enable_tracy_allocation", tracy_allocation);
@@ -117,6 +122,7 @@ pub fn build(b: *Build) !void {
     integration_tests.addModule("aro", aro_module);
     const test_runner_options = b.addOptions();
     integration_tests.addOptions("build_options", test_runner_options);
+    integration_tests.addOptions("system_defaults", system_defaults);
     test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
 
     const integration_test_runner = b.addRunArtifact(integration_tests);

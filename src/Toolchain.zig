@@ -3,7 +3,7 @@ const Driver = @import("Driver.zig");
 const Compilation = @import("Compilation.zig");
 const util = @import("util.zig");
 const mem = std.mem;
-const build_options = @import("build_options");
+const system_defaults = @import("system_defaults");
 const Linux = @import("toolchains/Linux.zig");
 
 const Toolchain = @This();
@@ -98,7 +98,7 @@ pub fn getLinkerPath(self: *const Toolchain, buf: []u8) ![]const u8 {
     // contain a path component separator.
     // -fuse-ld=lld can be used with --ld-path= to indicate that the binary
     // that --ld-path= points to is lld.
-    const use_linker = self.driver.use_linker orelse build_options.default_linker;
+    const use_linker = self.driver.use_linker orelse system_defaults.linker;
 
     if (self.driver.linker_path) |ld_path| {
         var path = ld_path;
@@ -207,12 +207,18 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
     return buf[0..name.len];
 }
 
+pub fn getSysroot(tc: *const Toolchain) []const u8 {
+    return tc.driver.sysroot orelse system_defaults.sysroot;
+}
+
 /// Search for `name` in a variety of places
 /// TODO: cache results based on `name` so we're not repeatedly allocating the same strings?
 pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
     const allocator = fib.allocator();
+
+    const sysroot = tc.getSysroot();
 
     // todo check resource dir
     // todo check compiler RT path
@@ -223,12 +229,12 @@ pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
     }
 
     fib.reset();
-    if (searchPaths(allocator, tc.driver.sysroot, tc.library_paths.items, name)) |path| {
+    if (searchPaths(allocator, sysroot, tc.library_paths.items, name)) |path| {
         return tc.arena.dupe(u8, path);
     }
 
     fib.reset();
-    if (searchPaths(allocator, tc.driver.sysroot, tc.file_paths.items, name)) |path| {
+    if (searchPaths(allocator, sysroot, tc.file_paths.items, name)) |path| {
         return try tc.arena.dupe(u8, path);
     }
 

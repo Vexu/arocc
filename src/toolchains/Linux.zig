@@ -5,7 +5,7 @@ const Toolchain = @import("../Toolchain.zig");
 const Driver = @import("../Driver.zig");
 const Distro = @import("../Distro.zig");
 const target_util = @import("../target.zig");
-const build_options = @import("build_options");
+const system_defaults = @import("system_defaults");
 
 const Linux = @This();
 
@@ -51,7 +51,7 @@ fn buildExtraOpts(self: *Linux, tc: *Toolchain) !void {
         });
     }
 
-    if (build_options.enable_linker_build_id) {
+    if (system_defaults.enable_linker_build_id) {
         try self.extra_opts.append(gpa, "--build-id");
     }
 }
@@ -60,7 +60,7 @@ fn buildExtraOpts(self: *Linux, tc: *Toolchain) !void {
 fn findPaths(self: *Linux, tc: *Toolchain) !void {
     _ = self;
     const target = tc.getTarget();
-    const sysroot = tc.driver.sysroot;
+    const sysroot = tc.getSysroot();
 
     const os_lib_dir = getOSLibDir(target);
     const multiarch_triple = getMultiarchTriple(target);
