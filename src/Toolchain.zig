@@ -212,12 +212,12 @@ pub fn getFilePath(toolchain: *const Toolchain, name: []const u8) ![]const u8 {
     }
 
     fib.reset();
-    if (try searchPaths(allocator, toolchain.library_paths.items, name)) |path| {
+    if (searchPaths(allocator, toolchain.library_paths.items, name)) |path| {
         return toolchain.arena.dupe(u8, path);
     }
 
     fib.reset();
-    if (try searchPaths(allocator, toolchain.file_paths.items, name)) |path| {
+    if (searchPaths(allocator, toolchain.file_paths.items, name)) |path| {
         return try toolchain.arena.dupe(u8, path);
     }
 
@@ -225,11 +225,11 @@ pub fn getFilePath(toolchain: *const Toolchain, name: []const u8) ![]const u8 {
 }
 
 /// find path
-fn searchPaths(allocator: mem.Allocator, paths: []const []const u8, name: []const u8) !?[]const u8 {
+fn searchPaths(allocator: mem.Allocator, paths: []const []const u8, name: []const u8) ?[]const u8 {
     for (paths) |path| {
         if (path.len == 0) continue;
 
-        const candidate = try std.fs.path.join(allocator, &.{ path, name });
+        const candidate = std.fs.path.join(allocator, &.{ path, name }) catch continue;
         if (util.exists(candidate)) {
             return candidate;
         }
