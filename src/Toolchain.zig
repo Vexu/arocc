@@ -197,28 +197,27 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
     return name;
 }
 
-pub fn getFilePath(toolchain: *const Toolchain, name: []const u8) ![]const u8 {
+pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
     const allocator = fib.allocator();
-    const d = toolchain.driver;
 
     // todo check resource dir
     // todo check compiler RT path
 
-    const candidate = try std.fs.path.join(allocator, &.{ d.aro_dir, "..", name });
+    const candidate = try std.fs.path.join(allocator, &.{ tc.driver.aro_dir, "..", name });
     if (util.exists(candidate)) {
-        return toolchain.arena.dupe(u8, candidate);
+        return tc.arena.dupe(u8, candidate);
     }
 
     fib.reset();
-    if (searchPaths(allocator, toolchain.library_paths.items, name)) |path| {
-        return toolchain.arena.dupe(u8, path);
+    if (searchPaths(allocator, tc.driver.sysroot, tc.library_paths.items, name)) |path| {
+        return tc.arena.dupe(u8, path);
     }
 
     fib.reset();
-    if (searchPaths(allocator, toolchain.file_paths.items, name)) |path| {
-        return try toolchain.arena.dupe(u8, path);
+    if (searchPaths(allocator, tc.driver.sysroot, tc.file_paths.items, name)) |path| {
+        return try tc.arena.dupe(u8, path);
     }
 
     return name;
@@ -226,11 +225,15 @@ pub fn getFilePath(toolchain: *const Toolchain, name: []const u8) ![]const u8 {
 
 /// Search a list of `path_prefixes` for the existence `name`
 /// Assumes that `fba` is a fixed-buffer allocator, so does not free joined path candidates
-fn searchPaths(fba: mem.Allocator, path_prefixes: []const []const u8, name: []const u8) ?[]const u8 {
+fn searchPaths(fba: mem.Allocator, sysroot: []const u8, path_prefixes: []const []const u8, name: []const u8) ?[]const u8 {
     for (path_prefixes) |path| {
         if (path.len == 0) continue;
 
-        const candidate = std.fs.path.join(fba, &.{ path, name }) catch continue;
+        const candidate = if (path[0] == '=')
+            std.fs.path.join(fba, &.{ sysroot, path[1..], name }) catch continue
+        else
+            std.fs.path.join(fba, &.{ path, name }) catch continue;
+
         if (util.exists(candidate)) {
             return candidate;
         }
