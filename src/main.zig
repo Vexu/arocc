@@ -79,6 +79,7 @@ test {
     _ = @import("Codegen_legacy.zig");
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
+    _ = @import("Distro.zig");
     _ = @import("InitList.zig");
     _ = @import("LangOpts.zig");
     _ = @import("Parser.zig");
