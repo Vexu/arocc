@@ -42,6 +42,9 @@ aro_name: []const u8 = "arocc",
 /// Directory from which aro was invoked
 aro_dir: []const u8 = "",
 
+/// Value of --triple= passed via CLI
+raw_target_triple: ?[]const u8 = null,
+
 // linker options
 use_linker: ?[]const u8 = null,
 linker_path: ?[]const u8 = null,
@@ -328,6 +331,7 @@ pub fn parseArgs(
                 };
                 d.comp.target = cross.toTarget(); // TODO deprecated
                 d.comp.langopts.setEmulatedCompiler(target_util.systemCompiler(d.comp.target));
+                d.raw_target_triple = triple;
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
