@@ -159,9 +159,40 @@ pub fn getLinkerPath(self: *const Toolchain, buf: []u8) ![]const u8 {
     return self.getProgramPath(default_linker, buf);
 }
 
-fn getProgramPath(toolchain: *const Toolchain, name: []const u8, buf: []u8) []const u8 {
-    _ = toolchain;
-    _ = buf;
+const TargetSpecificToolName = std.BoundedArray(u8, 64);
+
+fn possibleProgramNames(raw_triple: ?[]const u8, name: []const u8, target_specific: *TargetSpecificToolName) std.BoundedArray([]const u8, 2) {
+    var possible_names = std.BoundedArray([]const u8, 2).init(0) catch unreachable;
+    if (raw_triple) |triple| {
+        const w = target_specific.writer();
+        if (w.print("{s}-{s}", .{ triple, name })) {
+            possible_names.appendAssumeCapacity(target_specific.slice());
+        } else |_| {}
+    }
+    possible_names.appendAssumeCapacity(name);
+
+    return possible_names;
+}
+
+fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 {
+    var stack_fb = std.heap.stackFallback(PathStackSize, tc.driver.comp.gpa);
+    var allocator = stack_fb.get();
+
+    var tool_specific_name = TargetSpecificToolName.init(0) catch unreachable;
+    const possible_names = possibleProgramNames(tc.driver.raw_target_triple, name, &tool_specific_name);
+
+    for (possible_names.slice()) |tool_name| {
+        for (tc.program_paths.items) |program_path| {
+            const candidate = std.fs.path.join(allocator, &.{ program_path, tool_name }) catch continue;
+            defer allocator.free(candidate);
+
+            if (util.canExecute(candidate) and candidate.len <= buf.len) {
+                @memcpy(buf[0..candidate.len], candidate);
+                return buf[0..candidate.len];
+            }
+        }
+        // todo: check $PATH
+    }
     return name;
 }
 
