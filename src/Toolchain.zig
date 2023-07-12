@@ -161,6 +161,10 @@ pub fn getLinkerPath(self: *const Toolchain, buf: []u8) ![]const u8 {
 
 const TargetSpecificToolName = std.BoundedArray(u8, 64);
 
+/// If an explicit target is provided, also check the prefixed tool-specific name
+/// TODO: this isn't exactly right since our target names don't necessarily match up
+/// with GCC's.
+/// For example the Zig target `arm-freestanding-eabi` would need the `arm-none-eabi` tools
 fn possibleProgramNames(raw_triple: ?[]const u8, name: []const u8, target_specific: *TargetSpecificToolName) std.BoundedArray([]const u8, 2) {
     var possible_names = std.BoundedArray([]const u8, 2).init(0) catch unreachable;
     if (raw_triple) |triple| {
@@ -174,6 +178,9 @@ fn possibleProgramNames(raw_triple: ?[]const u8, name: []const u8, target_specif
     return possible_names;
 }
 
+/// Search for an executable called `name` or `{triple}-{name} in program_paths and the $PATH environment variable
+/// If not found there, just use `name`
+/// Writes the result to `buf` and returns a slice of it
 fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
@@ -194,9 +201,12 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
         }
         // todo: check $PATH
     }
-    return name;
+    @memcpy(buf[0..name.len], name);
+    return buf[0..name.len];
 }
 
+/// Search for `name` in a variety of places
+/// TODO: cache results based on `name` so we're not repeatedly allocating the same strings?
 pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
@@ -247,6 +257,7 @@ const PathKind = enum {
     program,
 };
 
+/// Join `components` into a path. If the path exists, add it to the specified path list.
 pub fn addPathIfExists(self: *Toolchain, components: []const []const u8, dest_kind: PathKind) !void {
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
