@@ -175,16 +175,17 @@ fn possibleProgramNames(raw_triple: ?[]const u8, name: []const u8, target_specif
 }
 
 fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 {
-    var stack_fb = std.heap.stackFallback(PathStackSize, tc.driver.comp.gpa);
-    var allocator = stack_fb.get();
+    var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var fib = std.heap.FixedBufferAllocator.init(&path_buf);
 
     var tool_specific_name = TargetSpecificToolName.init(0) catch unreachable;
     const possible_names = possibleProgramNames(tc.driver.raw_target_triple, name, &tool_specific_name);
 
     for (possible_names.slice()) |tool_name| {
         for (tc.program_paths.items) |program_path| {
-            const candidate = std.fs.path.join(allocator, &.{ program_path, tool_name }) catch continue;
-            defer allocator.free(candidate);
+            defer fib.reset();
+
+            const candidate = std.fs.path.join(fib.allocator(), &.{ program_path, tool_name }) catch continue;
 
             if (util.canExecute(candidate) and candidate.len <= buf.len) {
                 @memcpy(buf[0..candidate.len], candidate);
@@ -196,31 +197,27 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
     return name;
 }
 
-const PathStackSize = 128;
-const PathAllocator = std.heap.StackFallbackAllocator(PathStackSize);
-
 pub fn getFilePath(toolchain: *const Toolchain, name: []const u8) ![]const u8 {
+    var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var fib = std.heap.FixedBufferAllocator.init(&path_buf);
+    const allocator = fib.allocator();
     const d = toolchain.driver;
-
-    var stack_fb = std.heap.stackFallback(PathStackSize, d.comp.gpa);
-    var allocator = stack_fb.get();
 
     // todo check resource dir
     // todo check compiler RT path
 
     const candidate = try std.fs.path.join(allocator, &.{ d.aro_dir, "..", name });
-    defer allocator.free(candidate);
     if (util.exists(candidate)) {
         return toolchain.arena.dupe(u8, candidate);
     }
 
-    if (try searchPaths(&stack_fb, toolchain.library_paths.items, name)) |path| {
-        defer allocator.free(path);
+    fib.reset();
+    if (try searchPaths(allocator, toolchain.library_paths.items, name)) |path| {
         return toolchain.arena.dupe(u8, path);
     }
 
-    if (try searchPaths(&stack_fb, toolchain.file_paths.items, name)) |path| {
-        defer allocator.free(path);
+    fib.reset();
+    if (try searchPaths(allocator, toolchain.file_paths.items, name)) |path| {
         return try toolchain.arena.dupe(u8, path);
     }
 
@@ -228,18 +225,14 @@ pub fn getFilePath(toolchain: *const Toolchain, name: []const u8) ![]const u8 {
 }
 
 /// find path
-fn searchPaths(path_allocator: *PathAllocator, paths: []const []const u8, name: []const u8) !?[]const u8 {
+fn searchPaths(allocator: mem.Allocator, paths: []const []const u8, name: []const u8) !?[]const u8 {
     for (paths) |path| {
         if (path.len == 0) continue;
 
-        const allocator = path_allocator.get(); // resets underlying fixed buffer
         const candidate = try std.fs.path.join(allocator, &.{ path, name });
-
         if (util.exists(candidate)) {
-            const duped = try path_allocator.fallback_allocator.dupe(u8, candidate);
-            return duped;
+            return candidate;
         }
-        allocator.free(candidate);
     }
     return null;
 }
@@ -251,10 +244,11 @@ const PathKind = enum {
 };
 
 pub fn addPathIfExists(self: *Toolchain, components: []const []const u8, dest_kind: PathKind) !void {
-    var stack_fb = std.heap.stackFallback(PathStackSize, self.driver.comp.gpa);
-    var allocator = stack_fb.get();
-    const candidate = try std.fs.path.join(allocator, components);
-    defer allocator.free(candidate);
+    var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var fib = std.heap.FixedBufferAllocator.init(&path_buf);
+
+    const candidate = try std.fs.path.join(fib.allocator(), components);
+
     if (util.exists(candidate)) {
         const gpa = self.driver.comp.gpa;
         const duped = try gpa.dupe(u8, candidate);
