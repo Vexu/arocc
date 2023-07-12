@@ -280,6 +280,6 @@ pub fn addPathIfExists(self: *Toolchain, components: []const []const u8, dest_ki
 pub fn buildLinkerArgs(self: *Toolchain, argv: *std.ArrayList([]const u8)) !void {
     return switch (self.inner) {
         .linux => |*linux| linux.buildLinkerArgs(self, argv),
-        .unknown => {},
+        .unknown => @panic("This toolchain does not support linking yet"),
     };
 }
