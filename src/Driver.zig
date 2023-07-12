@@ -8,6 +8,7 @@ const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
+const Toolchain = @import("Toolchain.zig");
 const util = @import("util.zig");
 const target_util = @import("target.zig");
 
@@ -25,6 +26,7 @@ comp: *Compilation,
 inputs: std.ArrayListUnmanaged(Source) = .{},
 link_objects: std.ArrayListUnmanaged([]const u8) = .{},
 output_name: ?[]const u8 = null,
+sysroot: ?[]const u8 = null,
 temp_file_count: u32 = 0,
 only_preprocess: bool = false,
 only_syntax: bool = false,
@@ -33,10 +35,27 @@ only_preprocess_and_compile: bool = false,
 verbose_ast: bool = false,
 verbose_pp: bool = false,
 verbose_ir: bool = false,
+verbose_linker_args: bool = false,
+
+/// name of the aro executable
+aro_name: []const u8 = "arocc",
+/// Directory from which aro was invoked
+aro_dir: []const u8 = "",
 
 // linker options
-use_linker: Linker = .ld,
+use_linker: ?[]const u8 = null,
 linker_path: ?[]const u8 = null,
+nodefaultlibs: bool = false,
+nolibc: bool = false,
+nostartfiles: bool = false,
+nostdlib: bool = false,
+pie: ?bool = null,
+rdynamic: bool = false,
+relocatable: bool = false,
+shared: bool = false,
+static: bool = false,
+static_pie: bool = false,
+strip: bool = false,
 
 pub fn deinit(d: *Driver) void {
     for (d.link_objects.items[d.link_objects.items.len - d.temp_file_count ..]) |obj| {
@@ -93,6 +112,7 @@ pub const usage =
     \\  -pedantic               Warn on language extensions
     \\  -std=<standard>         Specify language standard
     \\  -S, --assemble          Only run preprocess and compilation steps
+    \\  --sysroot=<dir>         Use dir as the logical root directory for headers and libraries (not fully implemented)
     \\  --target=<value>        Generate code for the given target
     \\  -U <macro>              Undefine <macro>
     \\  -Werror                 Treat all warnings as errors
@@ -103,12 +123,24 @@ pub const usage =
     \\Link options:
     \\  -fuse-ld=[bfd|gold|lld|mold]
     \\                          Use specific linker
+    \\  -nodefaultlibs          Do not use the standard system libraries when linking.
+    \\  -nolibc                 Do not use the C library or system libraries tightly coupled with it when linking.
+    \\  -nostdlib               Do not use the standard system startup files or libraries when linking
+    \\  -nostartfiles           Do not use the standard system startup files when linking.
+    \\  -pie                    Produce a dynamically linked position independent executable on targets that support it.
     \\  --ld-path=<path>        Use linker specified by <path>
+    \\  -r                      Produce a relocatable object as output.
+    \\  -rdynamic               Pass the flag -export-dynamic to the ELF linker, on targets that support it.
+    \\  -s                      Remove all symbol table and relocation information from the executable.
+    \\  -shared                 Produce a shared object which can then be linked with other objects to form an executable.
+    \\  -static                 On systems that support dynamic linking, this overrides -pie and prevents linking with the shared libraries.
+    \\  -static-pie             Produce a static position independent executable on targets that support it.
     \\
     \\Debug options:
     \\  --verbose-ast           Dump produced AST to stdout
     \\  --verbose-pp            Dump preprocessor state
     \\  --verbose-ir            Dump ir to stdout
+    \\  --verbose-linker-args   Dump linker args to stdout
     \\
     \\
 ;
@@ -270,6 +302,8 @@ pub fn parseArgs(
                     file = args[i];
                 }
                 d.output_name = file;
+            } else if (option(arg, "--sysroot=")) |sysroot| {
+                d.sysroot = sysroot;
             } else if (mem.eql(u8, arg, "-pedantic")) {
                 d.comp.diag.options.pedantic = .warning;
             } else if (option(arg, "-Werror=")) |err_name| {
@@ -300,13 +334,38 @@ pub fn parseArgs(
                 d.verbose_pp = true;
             } else if (mem.eql(u8, arg, "--verbose-ir")) {
                 d.verbose_ir = true;
+            } else if (mem.eql(u8, arg, "--verbose-linker-args")) {
+                d.verbose_linker_args = true;
             } else if (option(arg, "-fuse-ld=")) |linker_name| {
-                d.use_linker = std.meta.stringToEnum(Linker, linker_name) orelse {
-                    try d.comp.diag.add(.{ .tag = .cli_unknown_linker, .extra = .{ .str = arg } }, &.{});
-                    continue;
-                };
+                d.use_linker = linker_name;
+            } else if (mem.eql(u8, arg, "-fuse-ld=")) {
+                d.use_linker = null;
             } else if (option(arg, "--ld-path=")) |linker_path| {
                 d.linker_path = linker_path;
+            } else if (mem.eql(u8, arg, "-r")) {
+                d.relocatable = true;
+            } else if (mem.eql(u8, arg, "-shared")) {
+                d.shared = true;
+            } else if (mem.eql(u8, arg, "-static")) {
+                d.static = true;
+            } else if (mem.eql(u8, arg, "-static-pie")) {
+                d.static_pie = true;
+            } else if (mem.eql(u8, arg, "-pie")) {
+                d.pie = true;
+            } else if (mem.eql(u8, arg, "-no-pie") or mem.eql(u8, arg, "-nopie")) {
+                d.pie = false;
+            } else if (mem.eql(u8, arg, "-rdynamic")) {
+                d.rdynamic = true;
+            } else if (mem.eql(u8, arg, "-s")) {
+                d.strip = true;
+            } else if (mem.eql(u8, arg, "-nodefaultlibs")) {
+                d.nodefaultlibs = true;
+            } else if (mem.eql(u8, arg, "-nolibc")) {
+                d.nolibc = true;
+            } else if (mem.eql(u8, arg, "-nostdlib")) {
+                d.nostdlib = true;
+            } else if (mem.eql(u8, arg, "-nostartfiles")) {
+                d.nostartfiles = true;
             } else {
                 try d.comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }
@@ -324,6 +383,8 @@ pub fn parseArgs(
         .off => false,
         .unset => util.fileSupportsColor(std.io.getStdErr()) and !std.process.hasEnvVarConstant("NO_COLOR"),
     };
+    d.aro_name = std.fs.path.basename(args[0]);
+    d.aro_dir = std.fs.path.dirname(args[0]) orelse "";
     return false;
 }
 
@@ -344,21 +405,22 @@ fn addSource(d: *Driver, path: []const u8) !Source {
     return d.comp.addSourceFromPath(path);
 }
 
-fn err(d: *Driver, msg: []const u8) !void {
+pub fn err(d: *Driver, msg: []const u8) !void {
     try d.comp.diag.add(.{ .tag = .cli_error, .extra = .{ .str = msg } }, &.{});
 }
 
-fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{FatalError} {
+pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{FatalError} {
     d.comp.renderErrors();
     return d.comp.diag.fatalNoSrc(fmt, args);
 }
 
-pub fn main(d: *Driver, args: []const []const u8) !void {
+pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8) !void {
     var macro_buf = std.ArrayList(u8).init(d.comp.gpa);
     defer macro_buf.deinit();
 
     const std_out = std.io.getStdOut().writer();
     if (try parseArgs(d, std_out, macro_buf.writer(), args)) return;
+    try tc.discover();
 
     const linking = !(d.only_preprocess or d.only_syntax or d.only_compile or d.only_preprocess_and_compile);
     if (d.inputs.items.len == 0) {
@@ -370,10 +432,6 @@ pub fn main(d: *Driver, args: []const []const u8) !void {
     if (!linking) for (d.link_objects.items) |obj| {
         try d.comp.diag.add(.{ .tag = .cli_unused_link_object, .extra = .{ .str = obj } }, &.{});
     };
-
-    if (linking and d.linker_path == null) {
-        d.linker_path = d.getLinkerPath();
-    }
 
     d.comp.defineSystemIncludes() catch |er| switch (er) {
         error.OutOfMemory => return error.OutOfMemory,
@@ -387,7 +445,7 @@ pub fn main(d: *Driver, args: []const []const u8) !void {
     const fast_exit = @import("builtin").mode != .Debug;
 
     if (fast_exit and d.inputs.items.len == 1) {
-        d.processSource(d.inputs.items[0], builtin, user_macros, fast_exit) catch |e| switch (e) {
+        d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 d.comp.renderErrors();
@@ -398,7 +456,7 @@ pub fn main(d: *Driver, args: []const []const u8) !void {
     }
 
     for (d.inputs.items) |source| {
-        d.processSource(source, builtin, user_macros, fast_exit) catch |e| switch (e) {
+        d.processSource(tc, source, builtin, user_macros, fast_exit) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 d.comp.renderErrors();
@@ -410,7 +468,7 @@ pub fn main(d: *Driver, args: []const []const u8) !void {
         return;
     }
     if (linking) {
-        try d.invokeLinker();
+        try d.invokeLinker(tc);
         if (fast_exit) d.exitWithCleanup(0);
     }
     if (fast_exit) std.process.exit(0);
@@ -418,6 +476,7 @@ pub fn main(d: *Driver, args: []const []const u8) !void {
 
 fn processSource(
     d: *Driver,
+    tc: *Toolchain,
     source: Source,
     builtin: Source,
     user_macros: Source,
@@ -538,31 +597,25 @@ fn processSource(
     d.link_objects.appendAssumeCapacity(try d.comp.gpa.dupe(u8, out_file_name));
     d.temp_file_count += 1;
     if (fast_exit) {
-        try d.invokeLinker();
+        try d.invokeLinker(tc);
         d.exitWithCleanup(0);
     }
 }
 
-pub fn invokeLinker(d: *Driver) !void {
-    const args_len = 1 // linker name
-    + 2 // -o output
-    + 2 // -dynamic-linker <path>
-    + 1 // -lc
-    + 1 // Scrt1.0
-    + d.link_objects.items.len;
-
-    var argv = try std.ArrayList([]const u8).initCapacity(d.comp.gpa, args_len);
+pub fn invokeLinker(d: *Driver, tc: *Toolchain) !void {
+    var argv = std.ArrayList([]const u8).init(d.comp.gpa);
     defer argv.deinit();
 
-    argv.appendAssumeCapacity(d.linker_path.?);
-    argv.appendAssumeCapacity("-o");
-    argv.appendAssumeCapacity(d.output_name orelse "a.out");
-    argv.appendAssumeCapacity("-dynamic-linker");
-    argv.appendAssumeCapacity(d.comp.target.standardDynamicLinkerPath().get().?);
-    argv.appendAssumeCapacity("-lc");
-    argv.appendAssumeCapacity("/usr/lib/Scrt1.o"); // TODO very bad
-    argv.appendSliceAssumeCapacity(d.link_objects.items);
+    var linker_path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const linker_path = try tc.getLinkerPath(&linker_path_buf);
+    try argv.append(linker_path);
 
+    try tc.buildLinkerArgs(&argv);
+
+    if (d.verbose_linker_args) {
+        const stdout = std.io.getStdOut().writer();
+        try stdout.print("{s}\n", .{argv.items});
+    }
     var child = std.ChildProcess.init(argv.items, d.comp.gpa);
     // TODO handle better
     child.stdin_behavior = .Inherit;
@@ -584,15 +637,4 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
         std.fs.deleteFileAbsolute(obj) catch {};
     }
     std.process.exit(code);
-}
-
-pub fn getLinkerPath(d: *Driver) []const u8 {
-    // TODO extremely incomplete
-    return switch (d.use_linker) {
-        .ld => "/usr/bin/ld",
-        .bfd => "/usr/bin/ld.bfd",
-        .gold => "/usr/bin/ld.gold",
-        .lld => "/usr/bin/ld.lld",
-        .mold => "/usr/bin/ld.mold",
-    };
 }

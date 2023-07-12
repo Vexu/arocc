@@ -165,6 +165,7 @@ pub const Options = packed struct {
     @"gnu-auto-type": Kind = .default,
     @"gnu-union-cast": Kind = .default,
     @"pointer-sign": Kind = .default,
+    @"fuse-ld-path": Kind = .default,
 };
 
 const messages = struct {
@@ -2350,6 +2351,11 @@ const messages = struct {
     pub const invalid_source_epoch = struct {
         const msg = "environment variable SOURCE_DATE_EPOCH must expand to a non-negative integer less than or equal to 253402300799";
         const kind = .@"error";
+    };
+    pub const fuse_ld_path = struct {
+        const msg = "'-fuse-ld=' taking a path is deprecated; use '--ld-path=' instead";
+        const kind = .off;
+        const opt = "fuse-ld-path";
     };
 };
 

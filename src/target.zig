@@ -376,6 +376,42 @@ pub fn defaultFpEvalMethod(target: std.Target) LangOpts.FPEvalMethod {
     return .source;
 }
 
+/// Value of the `-m` flag for `ld` for this target
+pub fn ldEmulationOption(target: std.Target, arm_endianness: ?std.builtin.Endian) ?[]const u8 {
+    return switch (target.cpu.arch) {
+        .x86 => if (target.os.tag == .elfiamcu) "elf_iamcu" else "elf_i386",
+        .arm,
+        .armeb,
+        .thumb,
+        .thumbeb,
+        => switch (arm_endianness orelse target.cpu.arch.endian()) {
+            .Little => "armelf_linux_eabi",
+            .Big => "armelfb_linux_eabi",
+        },
+        .aarch64 => "aarch64linux",
+        .aarch64_be => "aarch64linuxb",
+        .m68k => "m68kelf",
+        .powerpc => if (target.os.tag == .linux) "elf32ppclinux" else "elf32ppc",
+        .powerpcle => if (target.os.tag == .linux) "elf32lppclinux" else "elf32lppc",
+        .powerpc64 => "elf64ppc",
+        .powerpc64le => "elf64lppc",
+        .riscv32 => "elf32lriscv",
+        .riscv64 => "elf64lriscv",
+        .sparc, .sparcel => "elf32_sparc",
+        .sparc64 => "elf64_sparc",
+        .loongarch32 => "elf32loongarch",
+        .loongarch64 => "elf64loongarch",
+        .mips => "elf32btsmip",
+        .mipsel => "elf32ltsmip",
+        .mips64 => if (target.abi == .gnuabin32) "elf32btsmipn32" else "elf64btsmip",
+        .mips64el => if (target.abi == .gnuabin32) "elf32ltsmipn32" else "elf64ltsmip",
+        .x86_64 => if (target.abi == .gnux32 or target.abi == .muslx32) "elf32_x86_64" else "elf_x86_64",
+        .ve => "elf64ve",
+        .csky => "cskyelf_linux",
+        else => null,
+    };
+}
+
 test "alignment functions - smoke test" {
     var target: std.Target = undefined;
     const x86 = std.Target.Cpu.Arch.x86_64;

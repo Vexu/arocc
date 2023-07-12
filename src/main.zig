@@ -5,10 +5,11 @@ const process = std.process;
 const Compilation = @import("Compilation.zig");
 const Driver = @import("Driver.zig");
 const target_util = @import("target.zig");
+const Toolchain = @import("Toolchain.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub fn main() u8 {
+pub fn main() !u8 {
     const gpa = if (@import("builtin").link_libc)
         std.heap.raw_c_allocator
     else
@@ -53,7 +54,10 @@ pub fn main() u8 {
     var driver: Driver = .{ .comp = &comp };
     defer driver.deinit();
 
-    driver.main(args) catch |er| switch (er) {
+    var toolchain: Toolchain = .{ .driver = &driver, .arena = arena };
+    defer toolchain.deinit();
+
+    driver.main(&toolchain, args) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) std.process.exit(1);
@@ -69,6 +73,7 @@ pub fn main() u8 {
             if (fast_exit) std.process.exit(1);
             return 1;
         },
+        else => |err| return err,
     };
     if (fast_exit) std.process.exit(@intFromBool(comp.diag.errors != 0));
     return @intFromBool(comp.diag.errors != 0);

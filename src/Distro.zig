@@ -6,6 +6,12 @@ const util = @import("util.zig");
 
 const MAX_BYTES = 1024; // TODO: Can we assume 1024 bytes enough for the info we need?
 
+/// Value for linker `--hash-style=` argument
+pub const HashStyle = enum {
+    both,
+    gnu,
+};
+
 /// Read the file at `path` into `buf`.
 /// Returns null if any errors are encountered
 /// Otherwise returns a slice of `buf`. If the file is larger than `buf` partial contents are returned
@@ -68,6 +74,17 @@ pub const Tag = enum {
     ubuntu_kinetic,
     ubuntu_lunar,
     unknown,
+
+    pub fn getHashStyle(self: Tag) HashStyle {
+        if (self.isOpenSUSE()) return .both;
+        return switch (self) {
+            .ubuntu_lucid,
+            .ubuntu_jaunty,
+            .ubuntu_karmic,
+            => .both,
+            else => .gnu,
+        };
+    }
 
     pub fn isRedhat(self: Tag) bool {
         return switch (self) {
