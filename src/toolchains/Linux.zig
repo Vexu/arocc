@@ -60,7 +60,7 @@ fn buildExtraOpts(self: *Linux, tc: *Toolchain) !void {
 fn findPaths(self: *Linux, tc: *Toolchain) !void {
     _ = self;
     const target = tc.getTarget();
-    const sysroot = tc.driver.sysroot orelse "";
+    const sysroot = tc.driver.sysroot;
 
     const os_lib_dir = getOSLibDir(target);
     const multiarch_triple = getMultiarchTriple(target);

@@ -11,6 +11,7 @@ const Source = @import("Source.zig");
 const Toolchain = @import("Toolchain.zig");
 const util = @import("util.zig");
 const target_util = @import("target.zig");
+const build_options = @import("build_options");
 
 const Driver = @This();
 
@@ -26,7 +27,7 @@ comp: *Compilation,
 inputs: std.ArrayListUnmanaged(Source) = .{},
 link_objects: std.ArrayListUnmanaged([]const u8) = .{},
 output_name: ?[]const u8 = null,
-sysroot: ?[]const u8 = null,
+sysroot: []const u8 = build_options.default_sysroot,
 temp_file_count: u32 = 0,
 only_preprocess: bool = false,
 only_syntax: bool = false,
