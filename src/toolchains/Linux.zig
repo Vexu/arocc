@@ -18,7 +18,7 @@ pub fn discover(self: *Linux, tc: *Toolchain) !void {
     try self.findPaths(tc);
 }
 
-fn buildExtraOpts(self: *Linux, tc: *Toolchain) !void {
+fn buildExtraOpts(self: *Linux, tc: *const Toolchain) !void {
     const gpa = tc.driver.comp.gpa;
     const target = tc.getTarget();
     const is_android = target.isAndroid();
