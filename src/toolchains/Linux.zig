@@ -5,6 +5,7 @@ const Toolchain = @import("../Toolchain.zig");
 const Driver = @import("../Driver.zig");
 const Distro = @import("../Distro.zig");
 const target_util = @import("../target.zig");
+const build_options = @import("build_options");
 
 const Linux = @This();
 
@@ -48,6 +49,10 @@ fn buildExtraOpts(self: *Linux, tc: *Toolchain) !void {
         try self.extra_opts.append(gpa, switch (hash_style) {
             inline else => |tag| "--hash-style=" ++ @tagName(tag),
         });
+    }
+
+    if (build_options.enable_linker_build_id) {
+        try self.extra_opts.append(gpa, "--build-id");
     }
 }
 

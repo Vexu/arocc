@@ -40,6 +40,7 @@ pub fn build(b: *Build) !void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardOptimizeOption(.{});
 
+    const enable_linker_build_id = b.option(bool, "enable-linker-build-id", "pass --build-id to linker") orelse false;
     const default_linker = b.option([]const u8, "default-linker", "Default linker aro will use if none is supplied via -fuse-ld") orelse "ld";
     const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
     const link_libc = b.option(bool, "link-libc", "Force self-hosted compiler to link libc") orelse (mode != .Debug);
@@ -66,6 +67,7 @@ pub fn build(b: *Build) !void {
     });
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
+    exe_options.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
     exe_options.addOption([]const u8, "default_linker", default_linker);
     exe_options.addOption(bool, "enable_tracy", tracy != null);
     exe_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
