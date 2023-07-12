@@ -224,12 +224,13 @@ pub fn getFilePath(toolchain: *const Toolchain, name: []const u8) ![]const u8 {
     return name;
 }
 
-/// find path
-fn searchPaths(allocator: mem.Allocator, paths: []const []const u8, name: []const u8) ?[]const u8 {
-    for (paths) |path| {
+/// Search a list of `path_prefixes` for the existence `name`
+/// Assumes that `fba` is a fixed-buffer allocator, so does not free joined path candidates
+fn searchPaths(fba: mem.Allocator, path_prefixes: []const []const u8, name: []const u8) ?[]const u8 {
+    for (path_prefixes) |path| {
         if (path.len == 0) continue;
 
-        const candidate = std.fs.path.join(allocator, &.{ path, name }) catch continue;
+        const candidate = std.fs.path.join(fba, &.{ path, name }) catch continue;
         if (util.exists(candidate)) {
             return candidate;
         }
