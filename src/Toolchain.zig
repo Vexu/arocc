@@ -41,8 +41,10 @@ pub fn getTarget(self: *const Toolchain) std.Target {
 }
 
 fn getDefaultLinker(self: *const Toolchain) []const u8 {
-    _ = self;
-    return "ld";
+    return switch (self.inner) {
+        .linux => |linux| linux.getDefaultLinker(self.getTarget()),
+        .unknown => "ld",
+    };
 }
 
 /// Call this after driver has finished parsing command line arguments to find the toolchain

@@ -103,6 +103,14 @@ fn getStatic(self: *const Linux, d: *const Driver) bool {
     return d.static and !d.static_pie;
 }
 
+pub fn getDefaultLinker(self: *const Linux, target: std.Target) []const u8 {
+    _ = self;
+    if (target.isAndroid()) {
+        return "ld.lld";
+    }
+    return "ld";
+}
+
 pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.ArrayList([]const u8)) Compilation.Error!void {
     const d = tc.driver;
 
