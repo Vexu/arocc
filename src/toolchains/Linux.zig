@@ -200,7 +200,9 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
 
     // TODO add -L opts
     // TODO add -u opts
-    // TODO add filepath lib args
+
+    try tc.addFilePathLibArgs(argv);
+
     // TODO handle LTO
 
     try argv.appendSlice(d.link_objects.items);
