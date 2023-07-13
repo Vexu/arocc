@@ -1,5 +1,7 @@
 const std = @import("std");
-const is_windows = @import("builtin").os.tag == .windows;
+const mem = std.mem;
+const builtin = @import("builtin");
+const is_windows = builtin.os.tag == .windows;
 
 pub const Color = enum {
     reset,
@@ -89,4 +91,43 @@ pub fn canExecute(path: []const u8) bool {
 pub fn exists(path: []const u8) bool {
     std.os.access(path, std.os.F_OK) catch return false;
     return true;
+}
+
+/// TODO
+fn findProgramByNameWindows(allocator: std.mem.Allocator, name: []const u8, buf: []u8) ?[]const u8 {
+    _ = buf;
+    _ = name;
+    _ = allocator;
+    return null;
+}
+
+/// TODO: does WASI need special handling?
+fn findProgramByNamePosix(name: []const u8, buf: []u8) ?[]const u8 {
+    if (mem.indexOfScalar(u8, name, '/') != null) {
+        @memcpy(buf[0..name.len], name);
+        return buf[0..name.len];
+    }
+    const path_env = std.os.getenvZ("PATH") orelse return null;
+    var fib = std.heap.FixedBufferAllocator.init(buf);
+
+    var it = mem.tokenizeScalar(u8, path_env, ':');
+    while (it.next()) |path_dir| {
+        defer fib.reset();
+        const full_path = std.fs.path.join(fib.allocator(), &.{ path_dir, name }) catch continue;
+        if (canExecute(full_path)) return full_path;
+    }
+
+    return null;
+}
+
+/// Search for an executable named `name` using platform-specific logic
+/// If it's found, write the full path to `buf` and return a slice of it
+/// Otherwise retun null
+pub fn findProgramByName(allocator: std.mem.Allocator, name: []const u8, buf: []u8) ?[]const u8 {
+    std.debug.assert(name.len > 0);
+    if (is_windows) {
+        return findProgramByNameWindows(allocator, name, buf);
+    } else {
+        return findProgramByNamePosix(name, buf);
+    }
 }

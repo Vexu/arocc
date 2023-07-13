@@ -190,7 +190,7 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
                 return buf[0..candidate.len];
             }
         }
-        // todo: check $PATH
+        return util.findProgramByName(tc.driver.comp.gpa, name, buf) orelse continue;
     }
     @memcpy(buf[0..name.len], name);
     return buf[0..name.len];
