@@ -82,10 +82,24 @@ pub fn errorDescription(err: anyerror) []const u8 {
     };
 }
 
-pub fn canExecute(path: []const u8) bool {
+fn canExecutePosix(path: []const u8) bool {
     std.os.access(path, std.os.X_OK) catch return false;
     // Todo: ensure path is not a directory
     return true;
+}
+
+/// TODO
+fn canExecuteWindows(path: []const u8) bool {
+    _ = path;
+    return true;
+}
+
+pub fn canExecute(path: []const u8) bool {
+    if (is_windows) {
+        return canExecuteWindows(path);
+    } else {
+        return canExecutePosix(path);
+    }
 }
 
 pub fn exists(path: []const u8) bool {
