@@ -92,6 +92,7 @@ test {
     _ = @import("Preprocessor.zig");
     _ = @import("Source.zig");
     _ = @import("Tokenizer.zig");
+    _ = @import("toolchains/GCCVersion.zig");
     _ = @import("Tree.zig");
     _ = @import("Type.zig");
     _ = @import("target.zig");
