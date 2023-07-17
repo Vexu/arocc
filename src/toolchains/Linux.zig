@@ -1,6 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 const Compilation = @import("../Compilation.zig");
+const GCCDetector = @import("GCCDetector.zig");
 const Toolchain = @import("../Toolchain.zig");
 const Driver = @import("../Driver.zig");
 const Distro = @import("../Distro.zig");
@@ -11,9 +12,14 @@ const Linux = @This();
 
 distro: Distro.Tag = .unknown,
 extra_opts: std.ArrayListUnmanaged([]const u8) = .{},
+gcc_detector: GCCDetector = .{},
 
 pub fn discover(self: *Linux, tc: *Toolchain) !void {
     self.distro = Distro.detect(tc.getTarget());
+    try self.gcc_detector.discover(tc);
+    tc.selected_multilib = self.gcc_detector.selected;
+
+    try self.gcc_detector.appendToolPath(tc);
     try self.buildExtraOpts(tc);
     try self.findPaths(tc);
 }
@@ -56,22 +62,65 @@ fn buildExtraOpts(self: *Linux, tc: *const Toolchain) !void {
     }
 }
 
+fn addMultiLibPaths(self: *Linux, tc: *Toolchain, sysroot: []const u8, os_lib_dir: []const u8) !void {
+    if (!self.gcc_detector.is_valid) return;
+    const gcc_triple = self.gcc_detector.gcc_triple;
+    const lib_path = self.gcc_detector.parent_lib_path;
+
+    // Add lib/gcc/$triple/$version, with an optional /multilib suffix.
+    try tc.addPathIfExists(&.{ self.gcc_detector.install_path, tc.selected_multilib.gcc_suffix }, .file);
+
+    // Add lib/gcc/$triple/$libdir
+    // For GCC built with --enable-version-specific-runtime-libs.
+    try tc.addPathIfExists(&.{ self.gcc_detector.install_path, "..", os_lib_dir }, .file);
+
+    try tc.addPathIfExists(&.{ lib_path, "..", gcc_triple, "lib", "..", os_lib_dir, tc.selected_multilib.os_suffix }, .file);
+
+    // If the GCC installation we found is inside of the sysroot, we want to
+    // prefer libraries installed in the parent prefix of the GCC installation.
+    // It is important to *not* use these paths when the GCC installation is
+    // outside of the system root as that can pick up unintended libraries.
+    // This usually happens when there is an external cross compiler on the
+    // host system, and a more minimal sysroot available that is the target of
+    // the cross. Note that GCC does include some of these directories in some
+    // configurations but this seems somewhere between questionable and simply
+    // a bug.
+    if (mem.startsWith(u8, lib_path, sysroot)) {
+        try tc.addPathIfExists(&.{ lib_path, "..", os_lib_dir }, .file);
+    }
+}
+
+fn addMultiArchPaths(self: *Linux, tc: *Toolchain) !void {
+    if (!self.gcc_detector.is_valid) return;
+    const lib_path = self.gcc_detector.parent_lib_path;
+    const gcc_triple = self.gcc_detector.gcc_triple;
+    const multilib = self.gcc_detector.selected;
+    try tc.addPathIfExists(&.{ lib_path, "..", gcc_triple, "lib", multilib.os_suffix }, .file);
+}
+
 /// TODO: Very incomplete
 fn findPaths(self: *Linux, tc: *Toolchain) !void {
-    _ = self;
     const target = tc.getTarget();
     const sysroot = tc.getSysroot();
 
     const os_lib_dir = getOSLibDir(target);
     const multiarch_triple = getMultiarchTriple(target);
 
+    try self.addMultiLibPaths(tc, sysroot, os_lib_dir);
+
     try tc.addPathIfExists(&.{ sysroot, "/lib", multiarch_triple }, .file);
-    try tc.addPathIfExists(&.{ sysroot, "/lib/..", os_lib_dir }, .file);
-    try tc.addPathIfExists(&.{ sysroot, "/usr/lib", multiarch_triple }, .file);
-    try tc.addPathIfExists(&.{ sysroot, "/usr/lib/..", os_lib_dir }, .file);
+    try tc.addPathIfExists(&.{ sysroot, "/lib", "..", os_lib_dir }, .file);
+
+    if (target.isAndroid()) {
+        // TODO
+    }
+    try tc.addPathIfExists(&.{ sysroot, "/usr", "lib", multiarch_triple }, .file);
+    try tc.addPathIfExists(&.{ sysroot, "/usr", "lib", "..", os_lib_dir }, .file);
+
+    try self.addMultiArchPaths(tc);
 
     try tc.addPathIfExists(&.{ sysroot, "/lib" }, .file);
-    try tc.addPathIfExists(&.{ sysroot, "/usr/lib" }, .file);
+    try tc.addPathIfExists(&.{ sysroot, "/usr", "lib" }, .file);
 }
 
 pub fn deinit(self: *Linux, allocator: std.mem.Allocator) void {

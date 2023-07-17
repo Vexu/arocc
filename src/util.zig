@@ -107,6 +107,13 @@ pub fn exists(path: []const u8) bool {
     return true;
 }
 
+pub fn joinedExists(parts: []const []const u8) bool {
+    var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var fib = std.heap.FixedBufferAllocator.init(&buf);
+    const joined = std.fs.path.join(fib.allocator(), parts) catch return false;
+    return exists(joined);
+}
+
 /// TODO
 fn findProgramByNameWindows(allocator: std.mem.Allocator, name: []const u8, buf: []u8) ?[]const u8 {
     _ = buf;

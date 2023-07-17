@@ -1,0 +1,67 @@
+const std = @import("std");
+const util = @import("../util.zig");
+
+pub const Flags = std.BoundedArray([]const u8, 6);
+
+pub const Detected = struct {
+    multilibs: std.BoundedArray(Multilib, 4) = .{},
+    selected: Multilib = .{},
+    biarch_sibling: ?Multilib = null,
+
+    pub fn filter(self: *Detected, multilib_filter: Filter) void {
+        var found_count: usize = 0;
+        for (self.multilibs.constSlice()) |multilib| {
+            if (multilib_filter.exists(multilib)) {
+                self.multilibs.set(found_count, multilib);
+                found_count += 1;
+            }
+        }
+        self.multilibs.resize(found_count) catch unreachable;
+    }
+
+    pub fn select(self: *Detected, flags: Flags) bool {
+        var filtered: std.BoundedArray(Multilib, 4) = .{};
+        for (self.multilibs.constSlice()) |multilib| {
+            for (multilib.flags.constSlice()) |multilib_flag| {
+                const matched = for (flags.constSlice()) |arg_flag| {
+                    if (std.mem.eql(u8, arg_flag[1..], multilib_flag[1..])) break arg_flag;
+                } else multilib_flag;
+                if (matched[0] != multilib_flag[0]) break;
+            } else {
+                filtered.appendAssumeCapacity(multilib);
+            }
+        }
+        if (filtered.len == 0) return false;
+        if (filtered.len == 1) {
+            self.selected = filtered.get(0);
+            return true;
+        }
+        @panic("Got too many multilibs");
+    }
+};
+
+pub const Filter = struct {
+    base: [2][]const u8,
+    file: []const u8,
+    pub fn exists(self: Filter, m: Multilib) bool {
+        return util.joinedExists(&.{ self.base[0], self.base[1], m.gcc_suffix, self.file });
+    }
+};
+
+const Multilib = @This();
+
+gcc_suffix: []const u8 = "",
+os_suffix: []const u8 = "",
+include_suffix: []const u8 = "",
+flags: Flags = .{},
+priority: u32 = 0,
+
+pub fn init(gcc_suffix: []const u8, os_suffix: []const u8, flags: []const []const u8) Multilib {
+    var self: Multilib = .{
+        .flags = Flags.init(0) catch unreachable,
+        .gcc_suffix = gcc_suffix,
+        .os_suffix = os_suffix,
+    };
+    self.flags.appendSliceAssumeCapacity(flags);
+    return self;
+}

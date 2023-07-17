@@ -7,7 +7,8 @@ const GCCVersion = @This();
 /// Raw version number text
 raw: []const u8 = "",
 
-major: i32,
+/// -1 indicates not present
+major: i32 = -1,
 /// -1 indicates not present
 minor: i32 = -1,
 /// -1 indicates not present

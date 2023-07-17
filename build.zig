@@ -43,6 +43,7 @@ pub fn build(b: *Build) !void {
     const enable_linker_build_id = b.option(bool, "enable-linker-build-id", "pass --build-id to linker") orelse false;
     const default_linker = b.option([]const u8, "default-linker", "Default linker aro will use if none is supplied via -fuse-ld") orelse "ld";
     const default_sysroot = b.option([]const u8, "default-sysroot", "Default <path> to all compiler invocations for --sysroot=<path>.") orelse "";
+    const gcc_install_prefix = b.option([]const u8, "gcc-install-prefix", "Directory where gcc is installed.") orelse "";
     const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
     const link_libc = b.option(bool, "link-libc", "Force self-hosted compiler to link libc") orelse (mode != .Debug);
     const tracy = b.option([]const u8, "tracy", "Enable Tracy integration. Supply path to Tracy source");
@@ -75,6 +76,7 @@ pub fn build(b: *Build) !void {
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
     system_defaults.addOption([]const u8, "linker", default_linker);
     system_defaults.addOption([]const u8, "sysroot", default_sysroot);
+    system_defaults.addOption([]const u8, "gcc_install_prefix", gcc_install_prefix);
 
     exe_options.addOption(bool, "enable_tracy", tracy != null);
     exe_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
