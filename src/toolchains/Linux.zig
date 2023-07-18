@@ -15,7 +15,7 @@ extra_opts: std.ArrayListUnmanaged([]const u8) = .{},
 gcc_detector: GCCDetector = .{},
 
 pub fn discover(self: *Linux, tc: *Toolchain) !void {
-    self.distro = Distro.detect(tc.getTarget());
+    self.distro = Distro.detect(tc.getTarget(), tc.filesystem);
     try self.gcc_detector.discover(tc);
     tc.selected_multilib = self.gcc_detector.selected;
 

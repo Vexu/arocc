@@ -6,6 +6,7 @@ const mem = std.mem;
 const system_defaults = @import("system_defaults");
 const Linux = @import("toolchains/Linux.zig");
 const Multilib = @import("driver/Multilib.zig");
+const Filesystem = @import("driver/Filesystem.zig").Filesystem;
 
 const Toolchain = @This();
 
@@ -23,6 +24,7 @@ const Inner = union(enum) {
     }
 };
 
+filesystem: Filesystem = .{ .real = {} },
 driver: *Driver,
 arena: mem.Allocator,
 
@@ -98,7 +100,7 @@ pub fn getLinkerPath(self: *const Toolchain, buf: []u8) ![]const u8 {
             if (std.fs.path.dirname(path) == null) {
                 path = self.getProgramPath(path, buf);
             }
-            if (util.canExecute(path)) {
+            if (self.filesystem.canExecute(path)) {
                 return path;
             }
         }
@@ -125,7 +127,7 @@ pub fn getLinkerPath(self: *const Toolchain, buf: []u8) ![]const u8 {
     }
 
     if (std.fs.path.isAbsolute(use_linker)) {
-        if (util.canExecute(use_linker)) {
+        if (self.filesystem.canExecute(use_linker)) {
             return use_linker;
         }
     } else {
@@ -138,7 +140,7 @@ pub fn getLinkerPath(self: *const Toolchain, buf: []u8) ![]const u8 {
         }
         linker_name.appendSliceAssumeCapacity(use_linker);
         const linker_path = self.getProgramPath(linker_name.items, buf);
-        if (util.canExecute(linker_path)) {
+        if (self.filesystem.canExecute(linker_path)) {
             return linker_path;
         }
     }
@@ -206,12 +208,12 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
 
             const candidate = std.fs.path.join(fib.allocator(), &.{ program_path, tool_name }) catch continue;
 
-            if (util.canExecute(candidate) and candidate.len <= buf.len) {
+            if (tc.filesystem.canExecute(candidate) and candidate.len <= buf.len) {
                 @memcpy(buf[0..candidate.len], candidate);
                 return buf[0..candidate.len];
             }
         }
-        return util.findProgramByName(tc.driver.comp.gpa, name, buf) orelse continue;
+        return tc.filesystem.findProgramByName(tc.driver.comp.gpa, name, buf) orelse continue;
     }
     @memcpy(buf[0..name.len], name);
     return buf[0..name.len];
@@ -234,17 +236,17 @@ pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
     // todo check compiler RT path
 
     const candidate = try std.fs.path.join(allocator, &.{ tc.driver.aro_dir, "..", name });
-    if (util.exists(candidate)) {
+    if (tc.filesystem.exists(candidate)) {
         return tc.arena.dupe(u8, candidate);
     }
 
     fib.reset();
-    if (searchPaths(allocator, sysroot, tc.library_paths.items, name)) |path| {
+    if (tc.searchPaths(allocator, sysroot, tc.library_paths.items, name)) |path| {
         return tc.arena.dupe(u8, path);
     }
 
     fib.reset();
-    if (searchPaths(allocator, sysroot, tc.file_paths.items, name)) |path| {
+    if (tc.searchPaths(allocator, sysroot, tc.file_paths.items, name)) |path| {
         return try tc.arena.dupe(u8, path);
     }
 
@@ -253,7 +255,7 @@ pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
 
 /// Search a list of `path_prefixes` for the existence `name`
 /// Assumes that `fba` is a fixed-buffer allocator, so does not free joined path candidates
-fn searchPaths(fba: mem.Allocator, sysroot: []const u8, path_prefixes: []const []const u8, name: []const u8) ?[]const u8 {
+fn searchPaths(tc: *const Toolchain, fba: mem.Allocator, sysroot: []const u8, path_prefixes: []const []const u8, name: []const u8) ?[]const u8 {
     for (path_prefixes) |path| {
         if (path.len == 0) continue;
 
@@ -262,7 +264,7 @@ fn searchPaths(fba: mem.Allocator, sysroot: []const u8, path_prefixes: []const [
         else
             std.fs.path.join(fba, &.{ path, name }) catch continue;
 
-        if (util.exists(candidate)) {
+        if (tc.filesystem.exists(candidate)) {
             return candidate;
         }
     }
@@ -283,7 +285,7 @@ pub fn addPathIfExists(self: *Toolchain, components: []const []const u8, dest_ki
 
     const candidate = try std.fs.path.join(fib.allocator(), components);
 
-    if (util.exists(candidate)) {
+    if (self.filesystem.exists(candidate)) {
         const duped = try self.arena.dupe(u8, candidate);
         const dest = switch (dest_kind) {
             .library => &self.library_paths,

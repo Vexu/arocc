@@ -32,7 +32,7 @@ pub fn appendToolPath(self: *const GCCDetector, tc: *Toolchain) !void {
 fn addDefaultGCCPrefixes(prefixes: *PathPrefixes, tc: *const Toolchain) !void {
     const sysroot = tc.getSysroot();
     const target = tc.getTarget();
-    if (sysroot.len == 0 and target.os.tag == .linux and util.exists("/opt/rh")) {
+    if (sysroot.len == 0 and target.os.tag == .linux and tc.filesystem.exists("/opt/rh")) {
         prefixes.appendAssumeCapacity("/opt/rh/gcc-toolset-12/root/usr");
         prefixes.appendAssumeCapacity("/opt/rh/gcc-toolset-11/root/usr");
         prefixes.appendAssumeCapacity("/opt/rh/gcc-toolset-10/root/usr");
@@ -406,36 +406,36 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
 
     const v0 = GCCVersion.parse("0.0.0");
     for (prefixes.constSlice()) |prefix| {
-        if (!util.exists(prefix)) continue;
+        if (!tc.filesystem.exists(prefix)) continue;
 
         for (candidate_lib_dirs.constSlice()) |suffix| {
             defer fib.reset();
             const lib_dir = std.fs.path.join(fib.allocator(), &.{ prefix, suffix }) catch continue;
-            if (!util.exists(lib_dir)) continue;
+            if (!tc.filesystem.exists(lib_dir)) continue;
 
-            const gcc_dir_exists = util.joinedExists(&.{ lib_dir, "/gcc" });
-            const gcc_cross_dir_exists = util.joinedExists(&.{ lib_dir, "/gcc-cross" });
+            const gcc_dir_exists = tc.filesystem.joinedExists(&.{ lib_dir, "/gcc" });
+            const gcc_cross_dir_exists = tc.filesystem.joinedExists(&.{ lib_dir, "/gcc-cross" });
 
-            try self.scanLibDirForGCCTriple(tc.arena, target, lib_dir, triple_str, false, gcc_dir_exists, gcc_cross_dir_exists);
+            try self.scanLibDirForGCCTriple(tc, target, lib_dir, triple_str, false, gcc_dir_exists, gcc_cross_dir_exists);
             for (candidate_triple_aliases.constSlice()) |candidate| {
-                try self.scanLibDirForGCCTriple(tc.arena, target, lib_dir, candidate, false, gcc_dir_exists, gcc_cross_dir_exists);
+                try self.scanLibDirForGCCTriple(tc, target, lib_dir, candidate, false, gcc_dir_exists, gcc_cross_dir_exists);
             }
         }
         for (candidate_biarch_lib_dirs.constSlice()) |suffix| {
             const lib_dir = std.fs.path.join(fib.allocator(), &.{ prefix, suffix }) catch continue;
-            if (!util.exists(lib_dir)) continue;
+            if (!tc.filesystem.exists(lib_dir)) continue;
 
-            const gcc_dir_exists = util.joinedExists(&.{ lib_dir, "/gcc" });
-            const gcc_cross_dir_exists = util.joinedExists(&.{ lib_dir, "/gcc-cross" });
+            const gcc_dir_exists = tc.filesystem.joinedExists(&.{ lib_dir, "/gcc" });
+            const gcc_cross_dir_exists = tc.filesystem.joinedExists(&.{ lib_dir, "/gcc-cross" });
             for (candidate_biarch_triple_aliases.constSlice()) |candidate| {
-                try self.scanLibDirForGCCTriple(tc.arena, target, lib_dir, candidate, true, gcc_dir_exists, gcc_cross_dir_exists);
+                try self.scanLibDirForGCCTriple(tc, target, lib_dir, candidate, true, gcc_dir_exists, gcc_cross_dir_exists);
             }
         }
         if (self.version.order(v0) == .gt) break;
     }
 }
 
-fn findBiarchMultilibs(self: *GCCDetector, result: *Multilib.Detected, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
+fn findBiarchMultilibs(self: *GCCDetector, tc: *const Toolchain, result: *Multilib.Detected, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
     const suff64 = if (target.os.tag == .solaris) switch (target.cpu.arch) {
         .x86, .x86_64 => "/amd64",
         .sparc => "/sparcv9",
@@ -459,11 +459,11 @@ fn findBiarchMultilibs(self: *GCCDetector, result: *Multilib.Detected, target: s
     };
     const is_x32 = target.abi == .gnux32 or target.abi == .muslx32;
     const target_ptr_width = target.ptrBitWidth();
-    const want: Want = if (target_ptr_width == 32 and multilib_filter.exists(alt_32))
+    const want: Want = if (target_ptr_width == 32 and multilib_filter.exists(alt_32, tc.filesystem))
         .want64
-    else if (target_ptr_width == 64 and is_x32 and multilib_filter.exists(alt_x32))
+    else if (target_ptr_width == 64 and is_x32 and multilib_filter.exists(alt_x32, tc.filesystem))
         .want64
-    else if (target_ptr_width == 64 and !is_x32 and multilib_filter.exists(alt_64))
+    else if (target_ptr_width == 64 and !is_x32 and multilib_filter.exists(alt_64, tc.filesystem))
         .want32
     else if (target_ptr_width == 32)
         if (needs_biarch_suffix) .want64 else .want32
@@ -482,7 +482,7 @@ fn findBiarchMultilibs(self: *GCCDetector, result: *Multilib.Detected, target: s
         alt_32,
         alt_x32,
     });
-    result.filter(multilib_filter);
+    result.filter(multilib_filter, tc.filesystem);
     var flags: Multilib.Flags = .{};
     flags.appendAssumeCapacity(if (target_ptr_width == 64 and !is_x32) "+m64" else "-m64");
     flags.appendAssumeCapacity(if (target_ptr_width == 32) "+m32" else "-m32");
@@ -494,7 +494,7 @@ fn findBiarchMultilibs(self: *GCCDetector, result: *Multilib.Detected, target: s
     return true;
 }
 
-fn scanGCCForMultilibs(self: *GCCDetector, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
+fn scanGCCForMultilibs(self: *GCCDetector, tc: *const Toolchain, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
     var detected: Multilib.Detected = .{};
     if (target.cpu.arch == .csky) {
         // TODO
@@ -506,7 +506,7 @@ fn scanGCCForMultilibs(self: *GCCDetector, target: std.Target, path: [2][]const 
         // TODO
     } else if (target.cpu.arch == .avr) {
         // No multilibs
-    } else if (!try self.findBiarchMultilibs(&detected, target, path, needs_biarch_suffix)) {
+    } else if (!try self.findBiarchMultilibs(tc, &detected, target, path, needs_biarch_suffix)) {
         return false;
     }
     self.selected = detected.selected;
@@ -516,7 +516,7 @@ fn scanGCCForMultilibs(self: *GCCDetector, target: std.Target, path: [2][]const 
 
 fn scanLibDirForGCCTriple(
     self: *GCCDetector,
-    allocator: std.mem.Allocator,
+    tc: *const Toolchain,
     target: std.Target,
     lib_dir: []const u8,
     candidate_triple: []const u8,
@@ -557,12 +557,12 @@ fn scanLibDirForGCCTriple(
                 .gt => {},
             }
 
-            if (!try self.scanGCCForMultilibs(target, .{ dir_name, version_text }, needs_biarch_suffix)) continue;
+            if (!try self.scanGCCForMultilibs(tc, target, .{ dir_name, version_text }, needs_biarch_suffix)) continue;
 
             self.version = candidate_version;
-            self.gcc_triple = try allocator.dupe(u8, candidate_triple);
-            self.install_path = try std.fs.path.join(allocator, &.{ lib_dir, lib_suffix, version_text });
-            self.parent_lib_path = try std.fs.path.join(allocator, &.{ self.install_path, "..", "..", ".." });
+            self.gcc_triple = try tc.arena.dupe(u8, candidate_triple);
+            self.install_path = try std.fs.path.join(tc.arena, &.{ lib_dir, lib_suffix, version_text });
+            self.parent_lib_path = try std.fs.path.join(tc.arena, &.{ self.install_path, "..", "..", ".." });
             self.is_valid = true;
         }
     }

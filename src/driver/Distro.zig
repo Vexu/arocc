@@ -3,6 +3,7 @@
 const std = @import("std");
 const mem = std.mem;
 const util = @import("../util.zig");
+const Filesystem = @import("Filesystem.zig").Filesystem;
 
 const MAX_BYTES = 1024; // TODO: Can we assume 1024 bytes enough for the info we need?
 
@@ -286,7 +287,7 @@ fn detectDebian() ?Tag {
     return scanForDebian(data);
 }
 
-pub fn detect(target: std.Target) Tag {
+pub fn detect(target: std.Target, fs: Filesystem) Tag {
     if (target.os.tag != .linux) return .unknown;
 
     if (detectOsRelease()) |tag| return tag;
@@ -294,7 +295,7 @@ pub fn detect(target: std.Target) Tag {
     if (detectRedhat()) |tag| return tag;
     if (detectDebian()) |tag| return tag;
 
-    if (util.exists("/etc/gentoo-release")) return .gentoo;
+    if (fs.exists("/etc/gentoo-release")) return .gentoo;
 
     return .unknown;
 }
