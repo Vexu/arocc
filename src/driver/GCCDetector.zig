@@ -1,5 +1,4 @@
 const std = @import("std");
-const Driver = @import("../Driver.zig");
 const Toolchain = @import("../Toolchain.zig");
 const target_util = @import("../target.zig");
 const system_defaults = @import("system_defaults");

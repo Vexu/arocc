@@ -2,15 +2,15 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
-const Codegen = @import("Codegen_legacy.zig");
-const Compilation = @import("Compilation.zig");
-const LangOpts = @import("LangOpts.zig");
-const Preprocessor = @import("Preprocessor.zig");
-const Parser = @import("Parser.zig");
-const Source = @import("Source.zig");
-const Toolchain = @import("Toolchain.zig");
-const util = @import("util.zig");
-const target_util = @import("target.zig");
+const Codegen = @import("../Codegen_legacy.zig");
+const Compilation = @import("../Compilation.zig");
+const LangOpts = @import("../LangOpts.zig");
+const Preprocessor = @import("../Preprocessor.zig");
+const Parser = @import("../Parser.zig");
+const Source = @import("../Source.zig");
+const Toolchain = @import("../Toolchain.zig");
+const util = @import("../util.zig");
+const target_util = @import("../target.zig");
 
 const Driver = @This();
 
@@ -170,7 +170,7 @@ pub fn parseArgs(
                 };
                 return true;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
-                std_out.writeAll(@import("lib.zig").version_str ++ "\n") catch |er| {
+                std_out.writeAll(@import("../lib.zig").version_str ++ "\n") catch |er| {
                     return d.fatal("unable to print version: {s}", .{util.errorDescription(er)});
                 };
                 return true;
@@ -551,7 +551,7 @@ fn processSource(
     }
 
     if (d.verbose_ir) {
-        try @import("CodeGen.zig").generateTree(d.comp, tree);
+        try @import("../CodeGen.zig").generateTree(d.comp, tree);
     }
 
     const obj = try Codegen.generateTree(d.comp, tree);
