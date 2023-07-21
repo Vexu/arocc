@@ -162,23 +162,21 @@ pub fn getDefaultLinker(self: *const Linux, target: std.Target) []const u8 {
 
 pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.ArrayList([]const u8)) Compilation.Error!void {
     const d = tc.driver;
+    const target = tc.getTarget();
 
     const is_pie = self.getPIE(d);
     const is_static_pie = try self.getStaticPIE(d);
     const is_static = self.getStatic(d);
-    const is_android = d.comp.target.isAndroid();
-    const is_iamcu = d.comp.target.os.tag == .elfiamcu;
+    const is_android = target.isAndroid();
+    const is_iamcu = target.os.tag == .elfiamcu;
+    const is_ve = target.cpu.arch == .ve;
+    const has_crt_begin_end_files = target.abi != .none; // TODO: clang checks for MIPS vendor
 
     if (is_pie) {
         try argv.append("-pie");
     }
     if (is_static_pie) {
-        try argv.ensureUnusedCapacity(5);
-        argv.appendAssumeCapacity("-static");
-        argv.appendAssumeCapacity("-pie");
-        argv.appendAssumeCapacity("--no-dynamic-linker");
-        argv.appendAssumeCapacity("-z");
-        argv.appendAssumeCapacity("text");
+        try argv.appendSlice(&.{ "-static", "-pie", "--no-dynamic-linker", "-z", "text" });
     }
 
     if (d.rdynamic) {
@@ -189,16 +187,12 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
         try argv.append("-s");
     }
 
-    try argv.ensureUnusedCapacity(self.extra_opts.items.len);
-    argv.appendSliceAssumeCapacity(self.extra_opts.items);
-
+    try argv.appendSlice(self.extra_opts.items);
     try argv.append("--eh-frame-hdr");
 
     // Todo: Driver should parse `-EL`/`-EB` for arm to set endianness for arm targets
     if (target_util.ldEmulationOption(d.comp.target, null)) |emulation| {
-        try argv.ensureUnusedCapacity(2);
-        argv.appendAssumeCapacity("-m");
-        argv.appendAssumeCapacity(emulation);
+        try argv.appendSlice(&.{ "-m", emulation });
     } else {
         try d.err("Unknown target triple");
         return;
@@ -219,18 +213,14 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
             const dynamic_linker = d.comp.target.standardDynamicLinkerPath();
             // todo: check for --dyld-prefix
             if (dynamic_linker.get()) |path| {
-                try argv.ensureUnusedCapacity(2);
-                argv.appendAssumeCapacity("-dynamic-linker");
-                argv.appendAssumeCapacity(try tc.arena.dupe(u8, path));
+                try argv.appendSlice(&.{ "-dynamic-linker", try tc.arena.dupe(u8, path) });
             } else {
                 try d.err("Could not find dynamic linker path");
             }
         }
     }
 
-    try argv.ensureUnusedCapacity(2);
-    argv.appendAssumeCapacity("-o");
-    argv.appendAssumeCapacity(d.output_name orelse "a.out");
+    try argv.appendSlice(&.{ "-o", d.output_name orelse "a.out" });
 
     if (!d.nostdlib and !d.nostartfiles and !d.relocatable) {
         if (!is_android and !is_iamcu) {
@@ -244,6 +234,32 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
                 try argv.append(try tc.getFilePath(crt1));
             }
             try argv.append(try tc.getFilePath("crti.o"));
+        }
+        if (is_ve) {
+            try argv.appendSlice(&.{ "-z", "max-page-size=0x4000000" });
+        }
+
+        if (is_iamcu) {
+            try argv.append(try tc.getFilePath("crt0.o"));
+        } else if (has_crt_begin_end_files) {
+            var path: []const u8 = "";
+            if (tc.getRuntimeLibType() == .compiler_rt and !is_android) {
+                const crt_begin = try tc.getCompilerRt("crtbegin", .object);
+                if (tc.filesystem.exists(crt_begin)) {
+                    path = crt_begin;
+                }
+            }
+            if (path.len == 0) {
+                const crt_begin = if (tc.driver.shared)
+                    if (is_android) "crtbegin_so.o" else "crtbeginS.o"
+                else if (is_static)
+                    if (is_android) "crtbegin_static.o" else "crtbeginT.o"
+                else if (is_pie or is_static_pie)
+                    if (is_android) "crtbegin_dynamic.o" else "crtbeginS.o"
+                else if (is_android) "crtbegin_dynamic.o" else "crtbegin.o";
+                path = try tc.getFilePath(crt_begin);
+            }
+            try argv.append(path);
         }
     }
 
@@ -270,16 +286,32 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
             }
             if (is_static or is_static_pie) {
                 try argv.append("--end-group");
-            } else {}
+            } else {
+                // Add runtime libs
+            }
             if (is_iamcu) {
-                try argv.ensureUnusedCapacity(3);
-                argv.appendAssumeCapacity("--as-needed");
-                argv.appendAssumeCapacity("-lsoftfp");
-                argv.appendAssumeCapacity("--no-as-needed");
+                try argv.appendSlice(&.{ "--as-needed", "-lsoftfp", "--no-as-needed" });
             }
         }
         if (!d.nostartfiles and !is_iamcu) {
-            // TODO: handle CRT begin/end files
+            if (has_crt_begin_end_files) {
+                var path: []const u8 = "";
+                if (tc.getRuntimeLibType() == .compiler_rt and !is_android) {
+                    const crt_end = try tc.getCompilerRt("crtend", .object);
+                    if (tc.filesystem.exists(crt_end)) {
+                        path = crt_end;
+                    }
+                }
+                if (path.len == 0) {
+                    const crt_end = if (d.shared)
+                        if (is_android) "crtend_so.o" else "crtendS.o"
+                    else if (is_pie or is_static_pie)
+                        if (is_android) "crtend_android.o" else "crtendS.o"
+                    else if (is_android) "crtend_android.o" else "crtend.o";
+                    path = try tc.getFilePath(crt_end);
+                }
+                try argv.append(path);
+            }
             if (!is_android) {
                 try argv.append(try tc.getFilePath("crtn.o"));
             }

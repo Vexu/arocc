@@ -55,6 +55,7 @@ nostdlib: bool = false,
 pie: ?bool = null,
 rdynamic: bool = false,
 relocatable: bool = false,
+rtlib: ?[]const u8 = null,
 shared: bool = false,
 static: bool = false,
 static_pie: bool = false,
@@ -113,6 +114,7 @@ pub const usage =
     \\                          Select which C compiler to emulate (default clang)
     \\  -o <file>               Write output to <file>
     \\  -pedantic               Warn on language extensions
+    \\  --rtlib=<arg>           Compiler runtime library to use (libgcc or compiler-rt)
     \\  -std=<standard>         Specify language standard
     \\  -S, --assemble          Only run preprocess and compilation steps
     \\  --sysroot=<dir>         Use dir as the logical root directory for headers and libraries (not fully implemented)
@@ -309,6 +311,12 @@ pub fn parseArgs(
                 d.sysroot = sysroot;
             } else if (mem.eql(u8, arg, "-pedantic")) {
                 d.comp.diag.options.pedantic = .warning;
+            } else if (option(arg, "--rtlib=")) |rtlib| {
+                if (mem.eql(u8, rtlib, "compiler-rt") or mem.eql(u8, rtlib, "libgcc") or mem.eql(u8, rtlib, "platform")) {
+                    d.rtlib = rtlib;
+                } else {
+                    try d.comp.diag.add(.{ .tag = .invalid_rtlib, .extra = .{ .str = rtlib } }, &.{});
+                }
             } else if (option(arg, "-Werror=")) |err_name| {
                 try d.comp.diag.set(err_name, .@"error");
             } else if (mem.eql(u8, arg, "-Wno-fatal-errors")) {

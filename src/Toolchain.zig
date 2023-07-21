@@ -4,6 +4,7 @@ const Compilation = @import("Compilation.zig");
 const util = @import("util.zig");
 const mem = std.mem;
 const system_defaults = @import("system_defaults");
+const target_util = @import("target.zig");
 const Linux = @import("toolchains/Linux.zig");
 const Multilib = @import("driver/Multilib.zig");
 const Filesystem = @import("driver/Filesystem.zig").Filesystem;
@@ -11,6 +12,17 @@ const Filesystem = @import("driver/Filesystem.zig").Filesystem;
 const Toolchain = @This();
 
 pub const PathList = std.ArrayListUnmanaged([]const u8);
+
+pub const RuntimeLibKind = enum {
+    compiler_rt,
+    libgcc,
+};
+
+pub const FileKind = enum {
+    object,
+    static,
+    shared,
+};
 
 const Inner = union(enum) {
     linux: Linux,
@@ -313,4 +325,29 @@ pub fn buildLinkerArgs(self: *Toolchain, argv: *std.ArrayList([]const u8)) !void
         .linux => |*linux| linux.buildLinkerArgs(self, argv),
         .unknown => @panic("This toolchain does not support linking yet"),
     };
+}
+
+fn getDefaultRuntimeLibKind(self: *const Toolchain) RuntimeLibKind {
+    if (self.getTarget().isAndroid()) {
+        return .compiler_rt;
+    }
+    return .libgcc;
+}
+
+pub fn getRuntimeLibType(self: *const Toolchain) RuntimeLibKind {
+    const libname = self.driver.rtlib orelse system_defaults.rtlib;
+    if (mem.eql(u8, libname, "compiler-rt"))
+        return .compiler_rt
+    else if (mem.eql(u8, libname, "libgcc"))
+        return .libgcc
+    else
+        return self.getDefaultRuntimeLibKind();
+}
+
+/// TODO
+pub fn getCompilerRt(tc: *const Toolchain, component: []const u8, file_kind: FileKind) ![]const u8 {
+    _ = file_kind;
+    _ = component;
+    _ = tc;
+    return "";
 }

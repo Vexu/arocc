@@ -86,6 +86,7 @@ test {
     _ = @import("Diagnostics.zig");
     _ = @import("driver/Distro.zig");
     _ = @import("driver/Filesystem.zig");
+    _ = @import("driver_test.zig");
     _ = @import("InitList.zig");
     _ = @import("LangOpts.zig");
     _ = @import("Parser.zig");

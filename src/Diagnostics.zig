@@ -2357,6 +2357,11 @@ const messages = struct {
         const kind = .off;
         const opt = "fuse-ld-path";
     };
+    pub const invalid_rtlib = struct {
+        const msg = "invalid runtime library name '{s}'";
+        const kind = .@"error";
+        const extra = .str;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
