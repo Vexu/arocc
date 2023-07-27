@@ -336,6 +336,18 @@ pub fn isLP64(target: std.Target) bool {
     return target.c_type_bit_size(.int) == 32 and target.ptrBitWidth() == 64;
 }
 
+pub fn isKnownWindowsMSVCEnvironment(target: std.Target) bool {
+    return target.os.tag == .windows and target.abi == .msvc;
+}
+
+pub fn isWindowsMSVCEnvironment(target: std.Target) bool {
+    return target.os.tag == .windows and (target.abi == .msvc or target.abi == .none);
+}
+
+pub fn isCygwinMinGW(target: std.Target) bool {
+    return target.os.tag == .windows and (target.abi == .gnu or target.abi == .cygnus);
+}
+
 pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
     var copy = enabled_for;
     var it = copy.iterator();

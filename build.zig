@@ -45,6 +45,8 @@ pub fn build(b: *Build) !void {
     const default_sysroot = b.option([]const u8, "default-sysroot", "Default <path> to all compiler invocations for --sysroot=<path>.") orelse "";
     const gcc_install_prefix = b.option([]const u8, "gcc-install-prefix", "Directory where gcc is installed.") orelse "";
     const default_rtlib = b.option([]const u8, "default-rtlib", "Default compiler runtime library if --rtlib is not specified") orelse "";
+    const default_unwindlib = b.option([]const u8, "default-unwindlib", "Default unwind library to use (\"none\" \"libgcc\" or \"libunwind\", empty to match runtime library.)") orelse
+        if (std.mem.eql(u8, default_rtlib, "libgcc")) "libgcc" else "";
     const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
     const link_libc = b.option(bool, "link-libc", "Force self-hosted compiler to link libc") orelse (mode != .Debug);
     const tracy = b.option([]const u8, "tracy", "Enable Tracy integration. Supply path to Tracy source");
@@ -79,6 +81,7 @@ pub fn build(b: *Build) !void {
     system_defaults.addOption([]const u8, "sysroot", default_sysroot);
     system_defaults.addOption([]const u8, "gcc_install_prefix", gcc_install_prefix);
     system_defaults.addOption([]const u8, "rtlib", default_rtlib);
+    system_defaults.addOption([]const u8, "unwindlib", default_unwindlib);
 
     exe_options.addOption(bool, "enable_tracy", tracy != null);
     exe_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);

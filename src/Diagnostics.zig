@@ -2362,6 +2362,20 @@ const messages = struct {
         const kind = .@"error";
         const extra = .str;
     };
+    pub const unsupported_rtlib_gcc = struct {
+        const msg = "unsupported runtime library 'libgcc' for platform '{s}'";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    pub const invalid_unwindlib = struct {
+        const msg = "invalid unwind library name '{s}'";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    pub const incompatible_unwindlib = struct {
+        const msg = "--rtlib=libgcc requires --unwindlib=libgcc";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
