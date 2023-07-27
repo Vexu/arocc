@@ -388,7 +388,7 @@ def render_builtin(builtin: Builtin, targets: typing.Sequence[Target]) -> None:
     if '&' in builtin.param_str:
         return
 
-    print(f'const {builtin.name} = struct {{')
+    print(f'pub const {builtin.name} = struct {{')
     print(f'const param_str = "{builtin.param_str}";')
 
     if builtin.lang != Language.ALL_LANGUAGES:
