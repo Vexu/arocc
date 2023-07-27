@@ -165,2151 +165,2151 @@ pub const Options = packed struct {
 };
 
 const messages = struct {
-    const todo = struct { // Maybe someday this will no longer be needed.
+    pub const todo = struct { // Maybe someday this will no longer be needed.
         const msg = "TODO: {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const error_directive = struct {
+    pub const error_directive = struct {
         const msg = "{s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const warning_directive = struct {
+    pub const warning_directive = struct {
         const msg = "{s}";
         const opt = "#warnings";
         const extra = .str;
         const kind = .warning;
     };
-    const elif_without_if = struct {
+    pub const elif_without_if = struct {
         const msg = "#elif without #if";
         const kind = .@"error";
     };
-    const elif_after_else = struct {
+    pub const elif_after_else = struct {
         const msg = "#elif after #else";
         const kind = .@"error";
     };
-    const elifdef_without_if = struct {
+    pub const elifdef_without_if = struct {
         const msg = "#elifdef without #if";
         const kind = .@"error";
     };
-    const elifdef_after_else = struct {
+    pub const elifdef_after_else = struct {
         const msg = "#elifdef after #else";
         const kind = .@"error";
     };
-    const elifndef_without_if = struct {
+    pub const elifndef_without_if = struct {
         const msg = "#elifndef without #if";
         const kind = .@"error";
     };
-    const elifndef_after_else = struct {
+    pub const elifndef_after_else = struct {
         const msg = "#elifndef after #else";
         const kind = .@"error";
     };
-    const else_without_if = struct {
+    pub const else_without_if = struct {
         const msg = "#else without #if";
         const kind = .@"error";
     };
-    const else_after_else = struct {
+    pub const else_after_else = struct {
         const msg = "#else after #else";
         const kind = .@"error";
     };
-    const endif_without_if = struct {
+    pub const endif_without_if = struct {
         const msg = "#endif without #if";
         const kind = .@"error";
     };
-    const unknown_pragma = struct {
+    pub const unknown_pragma = struct {
         const msg = "unknown pragma ignored";
         const opt = "unknown-pragmas";
         const kind = .off;
         const all = true;
     };
-    const line_simple_digit = struct {
+    pub const line_simple_digit = struct {
         const msg = "#line directive requires a simple digit sequence";
         const kind = .@"error";
     };
-    const line_invalid_filename = struct {
+    pub const line_invalid_filename = struct {
         const msg = "invalid filename for #line directive";
         const kind = .@"error";
     };
-    const unterminated_conditional_directive = struct {
+    pub const unterminated_conditional_directive = struct {
         const msg = "unterminated conditional directive";
         const kind = .@"error";
     };
-    const invalid_preprocessing_directive = struct {
+    pub const invalid_preprocessing_directive = struct {
         const msg = "invalid preprocessing directive";
         const kind = .@"error";
     };
-    const macro_name_missing = struct {
+    pub const macro_name_missing = struct {
         const msg = "macro name missing";
         const kind = .@"error";
     };
-    const extra_tokens_directive_end = struct {
+    pub const extra_tokens_directive_end = struct {
         const msg = "extra tokens at end of macro directive";
         const kind = .@"error";
     };
-    const expected_value_in_expr = struct {
+    pub const expected_value_in_expr = struct {
         const msg = "expected value in expression";
         const kind = .@"error";
     };
-    const closing_paren = struct {
+    pub const closing_paren = struct {
         const msg = "expected closing ')'";
         const kind = .@"error";
     };
-    const to_match_paren = struct {
+    pub const to_match_paren = struct {
         const msg = "to match this '('";
         const kind = .note;
     };
-    const to_match_brace = struct {
+    pub const to_match_brace = struct {
         const msg = "to match this '{'";
         const kind = .note;
     };
-    const to_match_bracket = struct {
+    pub const to_match_bracket = struct {
         const msg = "to match this '['";
         const kind = .note;
     };
-    const header_str_closing = struct {
+    pub const header_str_closing = struct {
         const msg = "expected closing '>'";
         const kind = .@"error";
     };
-    const header_str_match = struct {
+    pub const header_str_match = struct {
         const msg = "to match this '<'";
         const kind = .note;
     };
-    const string_literal_in_pp_expr = struct {
+    pub const string_literal_in_pp_expr = struct {
         const msg = "string literal in preprocessor expression";
         const kind = .@"error";
     };
-    const float_literal_in_pp_expr = struct {
+    pub const float_literal_in_pp_expr = struct {
         const msg = "floating point literal in preprocessor expression";
         const kind = .@"error";
     };
-    const defined_as_macro_name = struct {
+    pub const defined_as_macro_name = struct {
         const msg = "'defined' cannot be used as a macro name";
         const kind = .@"error";
     };
-    const macro_name_must_be_identifier = struct {
+    pub const macro_name_must_be_identifier = struct {
         const msg = "macro name must be an identifier";
         const kind = .@"error";
     };
-    const whitespace_after_macro_name = struct {
+    pub const whitespace_after_macro_name = struct {
         const msg = "ISO C99 requires whitespace after the macro name";
         const opt = "c99-extensions";
         const kind = .warning;
     };
-    const hash_hash_at_start = struct {
+    pub const hash_hash_at_start = struct {
         const msg = "'##' cannot appear at the start of a macro expansion";
         const kind = .@"error";
     };
-    const hash_hash_at_end = struct {
+    pub const hash_hash_at_end = struct {
         const msg = "'##' cannot appear at the end of a macro expansion";
         const kind = .@"error";
     };
-    const pasting_formed_invalid = struct {
+    pub const pasting_formed_invalid = struct {
         const msg = "pasting formed '{s}', an invalid preprocessing token";
         const extra = .str;
         const kind = .@"error";
     };
-    const missing_paren_param_list = struct {
+    pub const missing_paren_param_list = struct {
         const msg = "missing ')' in macro parameter list";
         const kind = .@"error";
     };
-    const unterminated_macro_param_list = struct {
+    pub const unterminated_macro_param_list = struct {
         const msg = "unterminated macro param list";
         const kind = .@"error";
     };
-    const invalid_token_param_list = struct {
+    pub const invalid_token_param_list = struct {
         const msg = "invalid token in macro parameter list";
         const kind = .@"error";
     };
-    const expected_comma_param_list = struct {
+    pub const expected_comma_param_list = struct {
         const msg = "expected comma in macro parameter list";
         const kind = .@"error";
     };
-    const hash_not_followed_param = struct {
+    pub const hash_not_followed_param = struct {
         const msg = "'#' is not followed by a macro parameter";
         const kind = .@"error";
     };
-    const expected_filename = struct {
+    pub const expected_filename = struct {
         const msg = "expected \"FILENAME\" or <FILENAME>";
         const kind = .@"error";
     };
-    const empty_filename = struct {
+    pub const empty_filename = struct {
         const msg = "empty filename";
         const kind = .@"error";
     };
-    const expected_invalid = struct {
+    pub const expected_invalid = struct {
         const msg = "expected '{s}', found invalid bytes";
         const extra = .tok_id_expected;
         const kind = .@"error";
     };
-    const expected_eof = struct {
+    pub const expected_eof = struct {
         const msg = "expected '{s}' before end of file";
         const extra = .tok_id_expected;
         const kind = .@"error";
     };
-    const expected_token = struct {
+    pub const expected_token = struct {
         const msg = "expected '{s}', found '{s}'";
         const extra = .tok_id;
         const kind = .@"error";
     };
-    const expected_expr = struct {
+    pub const expected_expr = struct {
         const msg = "expected expression";
         const kind = .@"error";
     };
-    const expected_integer_constant_expr = struct {
+    pub const expected_integer_constant_expr = struct {
         const msg = "expression is not an integer constant expression";
         const kind = .@"error";
     };
-    const missing_type_specifier = struct {
+    pub const missing_type_specifier = struct {
         const msg = "type specifier missing, defaults to 'int'";
         const opt = "implicit-int";
         const kind = .warning;
         const all = true;
     };
-    const multiple_storage_class = struct {
+    pub const multiple_storage_class = struct {
         const msg = "cannot combine with previous '{s}' declaration specifier";
         const extra = .str;
         const kind = .@"error";
     };
-    const static_assert_failure = struct {
+    pub const static_assert_failure = struct {
         const msg = "static assertion failed";
         const kind = .@"error";
     };
-    const static_assert_failure_message = struct {
+    pub const static_assert_failure_message = struct {
         const msg = "static assertion failed {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const expected_type = struct {
+    pub const expected_type = struct {
         const msg = "expected a type";
         const kind = .@"error";
     };
-    const cannot_combine_spec = struct {
+    pub const cannot_combine_spec = struct {
         const msg = "cannot combine with previous '{s}' specifier";
         const extra = .str;
         const kind = .@"error";
     };
-    const duplicate_decl_spec = struct {
+    pub const duplicate_decl_spec = struct {
         const msg = "duplicate '{s}' declaration specifier";
         const extra = .str;
         const opt = "duplicate-decl-specifier";
         const kind = .warning;
         const all = true;
     };
-    const restrict_non_pointer = struct {
+    pub const restrict_non_pointer = struct {
         const msg = "restrict requires a pointer or reference ('{s}' is invalid)";
         const extra = .str;
         const kind = .@"error";
     };
-    const expected_external_decl = struct {
+    pub const expected_external_decl = struct {
         const msg = "expected external declaration";
         const kind = .@"error";
     };
-    const expected_ident_or_l_paren = struct {
+    pub const expected_ident_or_l_paren = struct {
         const msg = "expected identifier or '('";
         const kind = .@"error";
     };
-    const missing_declaration = struct {
+    pub const missing_declaration = struct {
         const msg = "declaration does not declare anything";
         const opt = "missing-declaration";
         const kind = .warning;
     };
-    const func_not_in_root = struct {
+    pub const func_not_in_root = struct {
         const msg = "function definition is not allowed here";
         const kind = .@"error";
     };
-    const illegal_initializer = struct {
+    pub const illegal_initializer = struct {
         const msg = "illegal initializer (only variables can be initialized)";
         const kind = .@"error";
     };
-    const extern_initializer = struct {
+    pub const extern_initializer = struct {
         const msg = "extern variable has initializer";
         const opt = "extern-initializer";
         const kind = .warning;
     };
-    const spec_from_typedef = struct {
+    pub const spec_from_typedef = struct {
         const msg = "'{s}' came from typedef";
         const extra = .str;
         const kind = .note;
     };
-    const param_before_var_args = struct {
+    pub const param_before_var_args = struct {
         const msg = "ISO C requires a named parameter before '...'";
         const kind = .@"error";
     };
-    const void_only_param = struct {
+    pub const void_only_param = struct {
         const msg = "'void' must be the only parameter if specified";
         const kind = .@"error";
     };
-    const void_param_qualified = struct {
+    pub const void_param_qualified = struct {
         const msg = "'void' parameter cannot be qualified";
         const kind = .@"error";
     };
-    const void_must_be_first_param = struct {
+    pub const void_must_be_first_param = struct {
         const msg = "'void' must be the first parameter if specified";
         const kind = .@"error";
     };
-    const invalid_storage_on_param = struct {
+    pub const invalid_storage_on_param = struct {
         const msg = "invalid storage class on function parameter";
         const kind = .@"error";
     };
-    const threadlocal_non_var = struct {
+    pub const threadlocal_non_var = struct {
         const msg = "_Thread_local only allowed on variables";
         const kind = .@"error";
     };
-    const func_spec_non_func = struct {
+    pub const func_spec_non_func = struct {
         const msg = "'{s}' can only appear on functions";
         const extra = .str;
         const kind = .@"error";
     };
-    const illegal_storage_on_func = struct {
+    pub const illegal_storage_on_func = struct {
         const msg = "illegal storage class on function";
         const kind = .@"error";
     };
-    const illegal_storage_on_global = struct {
+    pub const illegal_storage_on_global = struct {
         const msg = "illegal storage class on global variable";
         const kind = .@"error";
     };
-    const expected_stmt = struct {
+    pub const expected_stmt = struct {
         const msg = "expected statement";
         const kind = .@"error";
     };
-    const func_cannot_return_func = struct {
+    pub const func_cannot_return_func = struct {
         const msg = "function cannot return a function";
         const kind = .@"error";
     };
-    const func_cannot_return_array = struct {
+    pub const func_cannot_return_array = struct {
         const msg = "function cannot return an array";
         const kind = .@"error";
     };
-    const undeclared_identifier = struct {
+    pub const undeclared_identifier = struct {
         const msg = "use of undeclared identifier '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const not_callable = struct {
+    pub const not_callable = struct {
         const msg = "cannot call non function type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const unsupported_str_cat = struct {
+    pub const unsupported_str_cat = struct {
         const msg = "unsupported string literal concatenation";
         const kind = .@"error";
     };
-    const static_func_not_global = struct {
+    pub const static_func_not_global = struct {
         const msg = "static functions must be global";
         const kind = .@"error";
     };
-    const implicit_func_decl = struct {
+    pub const implicit_func_decl = struct {
         const msg = "implicit declaration of function '{s}' is invalid in C99";
         const extra = .str;
         const opt = "implicit-function-declaration";
         const kind = .warning;
         const all = true;
     };
-    const unknown_builtin = struct {
+    pub const unknown_builtin = struct {
         const msg = "use of unknown builtin '{s}'";
         const extra = .str;
         const opt = "implicit-function-declaration";
         const kind = .@"error";
         const all = true;
     };
-    const implicit_builtin = struct {
+    pub const implicit_builtin = struct {
         const msg = "implicitly declaring library function '{s}'";
         const extra = .str;
         const opt = "implicit-function-declaration";
         const kind = .@"error";
         const all = true;
     };
-    const implicit_builtin_header_note = struct {
+    pub const implicit_builtin_header_note = struct {
         const msg = "include the header <{s}.h> or explicitly provide a declaration for '{s}'";
         const extra = .builtin_with_header;
         const opt = "implicit-function-declaration";
         const kind = .note;
         const all = true;
     };
-    const expected_param_decl = struct {
+    pub const expected_param_decl = struct {
         const msg = "expected parameter declaration";
         const kind = .@"error";
     };
-    const invalid_old_style_params = struct {
+    pub const invalid_old_style_params = struct {
         const msg = "identifier parameter lists are only allowed in function definitions";
         const kind = .@"error";
     };
-    const expected_fn_body = struct {
+    pub const expected_fn_body = struct {
         const msg = "expected function body after function declaration";
         const kind = .@"error";
     };
-    const invalid_void_param = struct {
+    pub const invalid_void_param = struct {
         const msg = "parameter cannot have void type";
         const kind = .@"error";
     };
-    const unused_value = struct {
+    pub const unused_value = struct {
         const msg = "expression result unused";
         const opt = "unused-value";
         const kind = .warning;
         const all = true;
     };
-    const continue_not_in_loop = struct {
+    pub const continue_not_in_loop = struct {
         const msg = "'continue' statement not in a loop";
         const kind = .@"error";
     };
-    const break_not_in_loop_or_switch = struct {
+    pub const break_not_in_loop_or_switch = struct {
         const msg = "'break' statement not in a loop or a switch";
         const kind = .@"error";
     };
-    const unreachable_code = struct {
+    pub const unreachable_code = struct {
         const msg = "unreachable code";
         const opt = "unreachable-code";
         const kind = .warning;
         const all = true;
     };
-    const duplicate_label = struct {
+    pub const duplicate_label = struct {
         const msg = "duplicate label '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const previous_label = struct {
+    pub const previous_label = struct {
         const msg = "previous definition of label '{s}' was here";
         const extra = .str;
         const kind = .note;
     };
-    const undeclared_label = struct {
+    pub const undeclared_label = struct {
         const msg = "use of undeclared label '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const case_not_in_switch = struct {
+    pub const case_not_in_switch = struct {
         const msg = "'{s}' statement not in a switch statement";
         const extra = .str;
         const kind = .@"error";
     };
-    const duplicate_switch_case_signed = struct {
+    pub const duplicate_switch_case_signed = struct {
         const msg = "duplicate case value '{d}'";
         const extra = .signed;
         const kind = .@"error";
     };
-    const duplicate_switch_case_unsigned = struct {
+    pub const duplicate_switch_case_unsigned = struct {
         const msg = "duplicate case value '{d}'";
         const extra = .unsigned;
         const kind = .@"error";
     };
-    const multiple_default = struct {
+    pub const multiple_default = struct {
         const msg = "multiple default cases in the same switch";
         const kind = .@"error";
     };
-    const previous_case = struct {
+    pub const previous_case = struct {
         const msg = "previous case defined here";
         const kind = .note;
     };
-    const expected_arguments = struct {
+    pub const expected_arguments = struct {
         const msg = "expected {d} argument(s) got {d}";
         const extra = .arguments;
         const kind = .@"error";
     };
-    const expected_arguments_old = struct {
+    pub const expected_arguments_old = struct {
         const msg = expected_arguments.msg;
         const extra = .arguments;
         const kind = .warning;
     };
-    const expected_at_least_arguments = struct {
+    pub const expected_at_least_arguments = struct {
         const msg = "expected at least {d} argument(s) got {d}";
         const extra = .arguments;
         const kind = .warning;
     };
-    const invalid_static_star = struct {
+    pub const invalid_static_star = struct {
         const msg = "'static' may not be used with an unspecified variable length array size";
         const kind = .@"error";
     };
-    const static_non_param = struct {
+    pub const static_non_param = struct {
         const msg = "'static' used outside of function parameters";
         const kind = .@"error";
     };
-    const array_qualifiers = struct {
+    pub const array_qualifiers = struct {
         const msg = "type qualifier in non parameter array type";
         const kind = .@"error";
     };
-    const star_non_param = struct {
+    pub const star_non_param = struct {
         const msg = "star modifier used outside of function parameters";
         const kind = .@"error";
     };
-    const variable_len_array_file_scope = struct {
+    pub const variable_len_array_file_scope = struct {
         const msg = "variable length arrays not allowed at file scope";
         const kind = .@"error";
     };
-    const useless_static = struct {
+    pub const useless_static = struct {
         const msg = "'static' useless without a constant size";
         const kind = .warning;
         const w_extra = true;
     };
-    const negative_array_size = struct {
+    pub const negative_array_size = struct {
         const msg = "array size must be 0 or greater";
         const kind = .@"error";
     };
-    const array_incomplete_elem = struct {
+    pub const array_incomplete_elem = struct {
         const msg = "array has incomplete element type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const array_func_elem = struct {
+    pub const array_func_elem = struct {
         const msg = "arrays cannot have functions as their element type";
         const kind = .@"error";
     };
-    const static_non_outermost_array = struct {
+    pub const static_non_outermost_array = struct {
         const msg = "'static' used in non-outermost array type";
         const kind = .@"error";
     };
-    const qualifier_non_outermost_array = struct {
+    pub const qualifier_non_outermost_array = struct {
         const msg = "type qualifier used in non-outermost array type";
         const kind = .@"error";
     };
-    const unterminated_macro_arg_list = struct {
+    pub const unterminated_macro_arg_list = struct {
         const msg = "unterminated function macro argument list";
         const kind = .@"error";
     };
-    const unknown_warning = struct {
+    pub const unknown_warning = struct {
         const msg = "unknown warning '{s}'";
         const extra = .str;
         const opt = "unknown-warning-option";
         const kind = .warning;
     };
-    const overflow_signed = struct {
+    pub const overflow_signed = struct {
         const msg = "overflow in expression; result is '{d}'";
         const extra = .signed;
         const opt = "integer-overflow";
         const kind = .warning;
     };
-    const overflow_unsigned = struct {
+    pub const overflow_unsigned = struct {
         const msg = overflow_signed.msg;
         const extra = .unsigned;
         const opt = "integer-overflow";
         const kind = .warning;
     };
-    const int_literal_too_big = struct {
+    pub const int_literal_too_big = struct {
         const msg = "integer literal is too large to be represented in any integer type";
         const kind = .@"error";
     };
-    const indirection_ptr = struct {
+    pub const indirection_ptr = struct {
         const msg = "indirection requires pointer operand";
         const kind = .@"error";
     };
-    const addr_of_rvalue = struct {
+    pub const addr_of_rvalue = struct {
         const msg = "cannot take the address of an rvalue";
         const kind = .@"error";
     };
-    const addr_of_bitfield = struct {
+    pub const addr_of_bitfield = struct {
         const msg = "address of bit-field requested";
         const kind = .@"error";
     };
-    const not_assignable = struct {
+    pub const not_assignable = struct {
         const msg = "expression is not assignable";
         const kind = .@"error";
     };
-    const ident_or_l_brace = struct {
+    pub const ident_or_l_brace = struct {
         const msg = "expected identifier or '{'";
         const kind = .@"error";
     };
-    const empty_enum = struct {
+    pub const empty_enum = struct {
         const msg = "empty enum is invalid";
         const kind = .@"error";
     };
-    const redefinition = struct {
+    pub const redefinition = struct {
         const msg = "redefinition of '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const previous_definition = struct {
+    pub const previous_definition = struct {
         const msg = "previous definition is here";
         const kind = .note;
     };
-    const expected_identifier = struct {
+    pub const expected_identifier = struct {
         const msg = "expected identifier";
         const kind = .@"error";
     };
-    const expected_str_literal = struct {
+    pub const expected_str_literal = struct {
         const msg = "expected string literal for diagnostic message in static_assert";
         const kind = .@"error";
     };
-    const expected_str_literal_in = struct {
+    pub const expected_str_literal_in = struct {
         const msg = "expected string literal in '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const parameter_missing = struct {
+    pub const parameter_missing = struct {
         const msg = "parameter named '{s}' is missing";
         const extra = .str;
         const kind = .@"error";
     };
-    const empty_record = struct {
+    pub const empty_record = struct {
         const msg = "empty {s} is a GNU extension";
         const extra = .str;
         const opt = "gnu-empty-struct";
         const kind = .off;
         const pedantic = true;
     };
-    const empty_record_size = struct {
+    pub const empty_record_size = struct {
         const msg = "empty {s} has size 0 in C, size 1 in C++";
         const extra = .str;
         const opt = "c++-compat";
         const kind = .off;
     };
-    const wrong_tag = struct {
+    pub const wrong_tag = struct {
         const msg = "use of '{s}' with tag type that does not match previous definition";
         const extra = .str;
         const kind = .@"error";
     };
-    const expected_parens_around_typename = struct {
+    pub const expected_parens_around_typename = struct {
         const msg = "expected parentheses around type name";
         const kind = .@"error";
     };
-    const alignof_expr = struct {
+    pub const alignof_expr = struct {
         const msg = "'_Alignof' applied to an expression is a GNU extension";
         const opt = "gnu-alignof-expression";
         const kind = .warning;
         const suppress_gnu = true;
     };
-    const invalid_alignof = struct {
+    pub const invalid_alignof = struct {
         const msg = "invalid application of 'alignof' to an incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_sizeof = struct {
+    pub const invalid_sizeof = struct {
         const msg = "invalid application of 'sizeof' to an incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const macro_redefined = struct {
+    pub const macro_redefined = struct {
         const msg = "'{s}' macro redefined";
         const extra = .str;
         const opt = "macro-redefined";
         const kind = .warning;
     };
-    const generic_qual_type = struct {
+    pub const generic_qual_type = struct {
         const msg = "generic association with qualifiers cannot be matched with";
         const opt = "generic-qual-type";
         const kind = .warning;
     };
-    const generic_array_type = struct {
+    pub const generic_array_type = struct {
         const msg = "generic association array type cannot be matched with";
         const opt = "generic-qual-type";
         const kind = .warning;
     };
-    const generic_func_type = struct {
+    pub const generic_func_type = struct {
         const msg = "generic association function type cannot be matched with";
         const opt = "generic-qual-type";
         const kind = .warning;
     };
-    const generic_duplicate = struct {
+    pub const generic_duplicate = struct {
         const msg = "type '{s}' in generic association compatible with previously specified type";
         const extra = .str;
         const kind = .@"error";
     };
-    const generic_duplicate_here = struct {
+    pub const generic_duplicate_here = struct {
         const msg = "compatible type '{s}' specified here";
         const extra = .str;
         const kind = .note;
     };
-    const generic_duplicate_default = struct {
+    pub const generic_duplicate_default = struct {
         const msg = "duplicate default generic association";
         const kind = .@"error";
     };
-    const generic_no_match = struct {
+    pub const generic_no_match = struct {
         const msg = "controlling expression type '{s}' not compatible with any generic association type";
         const extra = .str;
         const kind = .@"error";
     };
-    const escape_sequence_overflow = struct {
+    pub const escape_sequence_overflow = struct {
         const msg = "escape sequence out of range";
         const kind = .@"error";
     };
-    const invalid_universal_character = struct {
+    pub const invalid_universal_character = struct {
         const msg = "invalid universal character";
         const kind = .@"error";
     };
-    const multichar_literal = struct {
+    pub const multichar_literal = struct {
         const msg = "multi-character character constant";
         const opt = "multichar";
         const kind = .warning;
         const all = true;
     };
-    const unicode_multichar_literal = struct {
+    pub const unicode_multichar_literal = struct {
         const msg = "Unicode character literals may not contain multiple characters";
         const kind = .@"error";
     };
-    const wide_multichar_literal = struct {
+    pub const wide_multichar_literal = struct {
         const msg = "extraneous characters in character constant ignored";
         const kind = .warning;
     };
-    const char_lit_too_wide = struct {
+    pub const char_lit_too_wide = struct {
         const msg = "character constant too long for its type";
         const kind = .warning;
         const all = true;
     };
-    const char_too_large = struct {
+    pub const char_too_large = struct {
         const msg = "character too large for enclosing character literal type";
         const kind = .@"error";
     };
-    const must_use_struct = struct {
+    pub const must_use_struct = struct {
         const msg = "must use 'struct' tag to refer to type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const must_use_union = struct {
+    pub const must_use_union = struct {
         const msg = "must use 'union' tag to refer to type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const must_use_enum = struct {
+    pub const must_use_enum = struct {
         const msg = "must use 'enum' tag to refer to type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const redefinition_different_sym = struct {
+    pub const redefinition_different_sym = struct {
         const msg = "redefinition of '{s}' as different kind of symbol";
         const extra = .str;
         const kind = .@"error";
     };
-    const redefinition_incompatible = struct {
+    pub const redefinition_incompatible = struct {
         const msg = "redefinition of '{s}' with a different type";
         const extra = .str;
         const kind = .@"error";
     };
-    const redefinition_of_parameter = struct {
+    pub const redefinition_of_parameter = struct {
         const msg = "redefinition of parameter '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_bin_types = struct {
+    pub const invalid_bin_types = struct {
         const msg = "invalid operands to binary expression ({s})";
         const extra = .str;
         const kind = .@"error";
     };
-    const comparison_ptr_int = struct {
+    pub const comparison_ptr_int = struct {
         const msg = "comparison between pointer and integer ({s})";
         const extra = .str;
         const opt = "pointer-integer-compare";
         const kind = .warning;
     };
-    const comparison_distinct_ptr = struct {
+    pub const comparison_distinct_ptr = struct {
         const msg = "comparison of distinct pointer types ({s})";
         const extra = .str;
         const opt = "compare-distinct-pointer-types";
         const kind = .warning;
     };
-    const incompatible_pointers = struct {
+    pub const incompatible_pointers = struct {
         const msg = "incompatible pointer types ({s})";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_argument_un = struct {
+    pub const invalid_argument_un = struct {
         const msg = "invalid argument type '{s}' to unary expression";
         const extra = .str;
         const kind = .@"error";
     };
-    const incompatible_assign = struct {
+    pub const incompatible_assign = struct {
         const msg = "assignment to {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const implicit_ptr_to_int = struct {
+    pub const implicit_ptr_to_int = struct {
         const msg = "implicit pointer to integer conversion from {s}";
         const extra = .str;
         const opt = "int-conversion";
         const kind = .warning;
     };
-    const invalid_cast_to_float = struct {
+    pub const invalid_cast_to_float = struct {
         const msg = "pointer cannot be cast to type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_cast_to_pointer = struct {
+    pub const invalid_cast_to_pointer = struct {
         const msg = "operand of type '{s}' cannot be cast to a pointer type";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_cast_type = struct {
+    pub const invalid_cast_type = struct {
         const msg = "cannot cast to non arithmetic or pointer type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const qual_cast = struct {
+    pub const qual_cast = struct {
         const msg = "cast to type '{s}' will not preserve qualifiers";
         const extra = .str;
         const opt = "cast-qualifiers";
         const kind = .warning;
     };
-    const invalid_index = struct {
+    pub const invalid_index = struct {
         const msg = "array subscript is not an integer";
         const kind = .@"error";
     };
-    const invalid_subscript = struct {
+    pub const invalid_subscript = struct {
         const msg = "subscripted value is not an array or pointer";
         const kind = .@"error";
     };
-    const array_after = struct {
+    pub const array_after = struct {
         const msg = "array index {d} is past the end of the array";
         const extra = .unsigned;
         const opt = "array-bounds";
         const kind = .warning;
     };
-    const array_before = struct {
+    pub const array_before = struct {
         const msg = "array index {d} is before the beginning of the array";
         const extra = .signed;
         const opt = "array-bounds";
         const kind = .warning;
     };
-    const statement_int = struct {
+    pub const statement_int = struct {
         const msg = "statement requires expression with integer type ('{s}' invalid)";
         const extra = .str;
         const kind = .@"error";
     };
-    const statement_scalar = struct {
+    pub const statement_scalar = struct {
         const msg = "statement requires expression with scalar type ('{s}' invalid)";
         const extra = .str;
         const kind = .@"error";
     };
-    const func_should_return = struct {
+    pub const func_should_return = struct {
         const msg = "non-void function '{s}' should return a value";
         const extra = .str;
         const opt = "return-type";
         const kind = .@"error";
         const all = true;
     };
-    const incompatible_return = struct {
+    pub const incompatible_return = struct {
         const msg = "returning {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const implicit_int_to_ptr = struct {
+    pub const implicit_int_to_ptr = struct {
         const msg = "implicit integer to pointer conversion from {s}";
         const extra = .str;
         const opt = "int-conversion";
         const kind = .warning;
     };
-    const func_does_not_return = struct {
+    pub const func_does_not_return = struct {
         const msg = "non-void function '{s}' does not return a value";
         const extra = .str;
         const opt = "return-type";
         const kind = .warning;
         const all = true;
     };
-    const void_func_returns_value = struct {
+    pub const void_func_returns_value = struct {
         const msg = "void function '{s}' should not return a value";
         const extra = .str;
         const opt = "return-type";
         const kind = .@"error";
         const all = true;
     };
-    const incompatible_arg = struct {
+    pub const incompatible_arg = struct {
         const msg = "passing {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const parameter_here = struct {
+    pub const parameter_here = struct {
         const msg = "passing argument to parameter here";
         const kind = .note;
     };
-    const atomic_array = struct {
+    pub const atomic_array = struct {
         const msg = "atomic cannot be applied to array type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const atomic_func = struct {
+    pub const atomic_func = struct {
         const msg = "atomic cannot be applied to function type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const atomic_incomplete = struct {
+    pub const atomic_incomplete = struct {
         const msg = "atomic cannot be applied to incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const addr_of_register = struct {
+    pub const addr_of_register = struct {
         const msg = "address of register variable requested";
         const kind = .@"error";
     };
-    const variable_incomplete_ty = struct {
+    pub const variable_incomplete_ty = struct {
         const msg = "variable has incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const parameter_incomplete_ty = struct {
+    pub const parameter_incomplete_ty = struct {
         const msg = "parameter has incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const tentative_array = struct {
+    pub const tentative_array = struct {
         const msg = "tentative array definition assumed to have one element";
         const kind = .warning;
     };
-    const deref_incomplete_ty_ptr = struct {
+    pub const deref_incomplete_ty_ptr = struct {
         const msg = "dereferencing pointer to incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const alignas_on_func = struct {
+    pub const alignas_on_func = struct {
         const msg = "'_Alignas' attribute only applies to variables and fields";
         const kind = .@"error";
     };
-    const alignas_on_param = struct {
+    pub const alignas_on_param = struct {
         const msg = "'_Alignas' attribute cannot be applied to a function parameter";
         const kind = .@"error";
     };
-    const minimum_alignment = struct {
+    pub const minimum_alignment = struct {
         const msg = "requested alignment is less than minimum alignment of {d}";
         const extra = .unsigned;
         const kind = .@"error";
     };
-    const maximum_alignment = struct {
+    pub const maximum_alignment = struct {
         const msg = "requested alignment of {d} is too large";
         const extra = .unsigned;
         const kind = .@"error";
     };
-    const negative_alignment = struct {
+    pub const negative_alignment = struct {
         const msg = "requested negative alignment of {d} is invalid";
         const extra = .signed;
         const kind = .@"error";
     };
-    const align_ignored = struct {
+    pub const align_ignored = struct {
         const msg = "'_Alignas' attribute is ignored here";
         const kind = .warning;
     };
-    const zero_align_ignored = struct {
+    pub const zero_align_ignored = struct {
         const msg = "requested alignment of zero is ignored";
         const kind = .warning;
     };
-    const non_pow2_align = struct {
+    pub const non_pow2_align = struct {
         const msg = "requested alignment is not a power of 2";
         const kind = .@"error";
     };
-    const pointer_mismatch = struct {
+    pub const pointer_mismatch = struct {
         const msg = "pointer type mismatch ({s})";
         const extra = .str;
         const opt = "pointer-type-mismatch";
         const kind = .warning;
     };
-    const static_assert_not_constant = struct {
+    pub const static_assert_not_constant = struct {
         const msg = "static_assert expression is not an integral constant expression";
         const kind = .@"error";
     };
-    const static_assert_missing_message = struct {
+    pub const static_assert_missing_message = struct {
         const msg = "static_assert with no message is a C2X extension";
         const opt = "c2x-extensions";
         const kind = .warning;
         const suppress_version = .c2x;
     };
-    const pre_c2x_compat = struct {
+    pub const pre_c2x_compat = struct {
         const msg = "{s} is incompatible with C standards before C2x";
         const extra = .str;
         const kind = .off;
         const suppress_unless_version = .c2x;
         const opt = "pre-c2x-compat";
     };
-    const unbound_vla = struct {
+    pub const unbound_vla = struct {
         const msg = "variable length array must be bound in function definition";
         const kind = .@"error";
     };
-    const array_too_large = struct {
+    pub const array_too_large = struct {
         const msg = "array is too large";
         const kind = .@"error";
     };
-    const incompatible_ptr_init = struct {
+    pub const incompatible_ptr_init = struct {
         const msg = "incompatible pointer types initializing {s}";
         const extra = .str;
         const opt = "incompatible-pointer-types";
         const kind = .warning;
     };
-    const incompatible_ptr_assign = struct {
+    pub const incompatible_ptr_assign = struct {
         const msg = "incompatible pointer types assigning to {s}";
         const extra = .str;
         const opt = "incompatible-pointer-types";
         const kind = .warning;
     };
-    const vla_init = struct {
+    pub const vla_init = struct {
         const msg = "variable-sized object may not be initialized";
         const kind = .@"error";
     };
-    const func_init = struct {
+    pub const func_init = struct {
         const msg = "illegal initializer type";
         const kind = .@"error";
     };
-    const incompatible_init = struct {
+    pub const incompatible_init = struct {
         const msg = "initializing {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const empty_scalar_init = struct {
+    pub const empty_scalar_init = struct {
         const msg = "scalar initializer cannot be empty";
         const kind = .@"error";
     };
-    const excess_scalar_init = struct {
+    pub const excess_scalar_init = struct {
         const msg = "excess elements in scalar initializer";
         const opt = "excess-initializers";
         const kind = .warning;
     };
-    const excess_str_init = struct {
+    pub const excess_str_init = struct {
         const msg = "excess elements in string initializer";
         const opt = "excess-initializers";
         const kind = .warning;
     };
-    const excess_struct_init = struct {
+    pub const excess_struct_init = struct {
         const msg = "excess elements in struct initializer";
         const opt = "excess-initializers";
         const kind = .warning;
     };
-    const excess_array_init = struct {
+    pub const excess_array_init = struct {
         const msg = "excess elements in array initializer";
         const opt = "excess-initializers";
         const kind = .warning;
     };
-    const str_init_too_long = struct {
+    pub const str_init_too_long = struct {
         const msg = "initializer-string for char array is too long";
         const opt = "excess-initializers";
         const kind = .warning;
     };
-    const arr_init_too_long = struct {
+    pub const arr_init_too_long = struct {
         const msg = "cannot initialize type ({s})";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_typeof = struct {
+    pub const invalid_typeof = struct {
         const msg = "'{s} typeof' is invalid";
         const extra = .str;
         const kind = .@"error";
     };
-    const division_by_zero = struct {
+    pub const division_by_zero = struct {
         const msg = "{s} by zero is undefined";
         const extra = .str;
         const opt = "division-by-zero";
         const kind = .warning;
     };
-    const division_by_zero_macro = struct {
+    pub const division_by_zero_macro = struct {
         const msg = "{s} by zero in preprocessor expression";
         const extra = .str;
         const kind = .@"error";
     };
-    const builtin_choose_cond = struct {
+    pub const builtin_choose_cond = struct {
         const msg = "'__builtin_choose_expr' requires a constant expression";
         const kind = .@"error";
     };
-    const alignas_unavailable = struct {
+    pub const alignas_unavailable = struct {
         const msg = "'_Alignas' attribute requires integer constant expression";
         const kind = .@"error";
     };
-    const case_val_unavailable = struct {
+    pub const case_val_unavailable = struct {
         const msg = "case value must be an integer constant expression";
         const kind = .@"error";
     };
-    const enum_val_unavailable = struct {
+    pub const enum_val_unavailable = struct {
         const msg = "enum value must be an integer constant expression";
         const kind = .@"error";
     };
-    const incompatible_array_init = struct {
+    pub const incompatible_array_init = struct {
         const msg = "cannot initialize array of type {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const array_init_str = struct {
+    pub const array_init_str = struct {
         const msg = "array initializer must be an initializer list or wide string literal";
         const kind = .@"error";
     };
-    const initializer_overrides = struct {
+    pub const initializer_overrides = struct {
         const msg = "initializer overrides previous initialization";
         const opt = "initializer-overrides";
         const kind = .warning;
         const w_extra = true;
     };
-    const previous_initializer = struct {
+    pub const previous_initializer = struct {
         const msg = "previous initialization";
         const kind = .note;
     };
-    const invalid_array_designator = struct {
+    pub const invalid_array_designator = struct {
         const msg = "array designator used for non-array type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const negative_array_designator = struct {
+    pub const negative_array_designator = struct {
         const msg = "array designator value {d} is negative";
         const extra = .signed;
         const kind = .@"error";
     };
-    const oob_array_designator = struct {
+    pub const oob_array_designator = struct {
         const msg = "array designator index {d} exceeds array bounds";
         const extra = .unsigned;
         const kind = .@"error";
     };
-    const invalid_field_designator = struct {
+    pub const invalid_field_designator = struct {
         const msg = "field designator used for non-record type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const no_such_field_designator = struct {
+    pub const no_such_field_designator = struct {
         const msg = "record type has no field named '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const empty_aggregate_init_braces = struct {
+    pub const empty_aggregate_init_braces = struct {
         const msg = "initializer for aggregate with no elements requires explicit braces";
         const kind = .@"error";
     };
-    const ptr_init_discards_quals = struct {
+    pub const ptr_init_discards_quals = struct {
         const msg = "initializing {s} discards qualifiers";
         const extra = .str;
         const opt = "incompatible-pointer-types-discards-qualifiers";
         const kind = .warning;
     };
-    const ptr_assign_discards_quals = struct {
+    pub const ptr_assign_discards_quals = struct {
         const msg = "assigning to {s} discards qualifiers";
         const extra = .str;
         const opt = "incompatible-pointer-types-discards-qualifiers";
         const kind = .warning;
     };
-    const ptr_ret_discards_quals = struct {
+    pub const ptr_ret_discards_quals = struct {
         const msg = "returning {s} discards qualifiers";
         const extra = .str;
         const opt = "incompatible-pointer-types-discards-qualifiers";
         const kind = .warning;
     };
-    const ptr_arg_discards_quals = struct {
+    pub const ptr_arg_discards_quals = struct {
         const msg = "passing {s} discards qualifiers";
         const extra = .str;
         const opt = "incompatible-pointer-types-discards-qualifiers";
         const kind = .warning;
     };
-    const unknown_attribute = struct {
+    pub const unknown_attribute = struct {
         const msg = "unknown attribute '{s}' ignored";
         const extra = .str;
         const opt = "unknown-attributes";
         const kind = .warning;
     };
-    const ignored_attribute = struct {
+    pub const ignored_attribute = struct {
         const msg = "{s}";
         const extra = .str;
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const invalid_fallthrough = struct {
+    pub const invalid_fallthrough = struct {
         const msg = "fallthrough annotation does not directly precede switch label";
         const kind = .@"error";
     };
-    const cannot_apply_attribute_to_statement = struct {
+    pub const cannot_apply_attribute_to_statement = struct {
         const msg = "'{s}' attribute cannot be applied to a statement";
         const extra = .str;
         const kind = .@"error";
     };
-    const builtin_macro_redefined = struct {
+    pub const builtin_macro_redefined = struct {
         const msg = "redefining builtin macro";
         const opt = "builtin-macro-redefined";
         const kind = .warning;
     };
-    const feature_check_requires_identifier = struct {
+    pub const feature_check_requires_identifier = struct {
         const msg = "builtin feature check macro requires a parenthesized identifier";
         const kind = .@"error";
     };
-    const missing_tok_builtin = struct {
+    pub const missing_tok_builtin = struct {
         const msg = "missing '{s}', after builtin feature-check macro";
         const extra = .tok_id_expected;
         const kind = .@"error";
     };
-    const gnu_label_as_value = struct {
+    pub const gnu_label_as_value = struct {
         const msg = "use of GNU address-of-label extension";
         const opt = "gnu-label-as-value";
         const kind = .off;
         const pedantic = true;
     };
-    const expected_record_ty = struct {
+    pub const expected_record_ty = struct {
         const msg = "member reference base type '{s}' is not a structure or union";
         const extra = .str;
         const kind = .@"error";
     };
-    const member_expr_not_ptr = struct {
+    pub const member_expr_not_ptr = struct {
         const msg = "member reference type '{s}' is not a pointer; did you mean to use '.'?";
         const extra = .str;
         const kind = .@"error";
     };
-    const member_expr_ptr = struct {
+    pub const member_expr_ptr = struct {
         const msg = "member reference type '{s}' is a pointer; did you mean to use '->'?";
         const extra = .str;
         const kind = .@"error";
     };
-    const no_such_member = struct {
+    pub const no_such_member = struct {
         const msg = "no member named {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const malformed_warning_check = struct {
+    pub const malformed_warning_check = struct {
         const msg = "{s} expected option name (e.g. \"-Wundef\")";
         const extra = .str;
         const opt = "malformed-warning-check";
         const kind = .warning;
         const all = true;
     };
-    const invalid_computed_goto = struct {
+    pub const invalid_computed_goto = struct {
         const msg = "computed goto in function with no address-of-label expressions";
         const kind = .@"error";
     };
-    const pragma_warning_message = struct {
+    pub const pragma_warning_message = struct {
         const msg = "{s}";
         const extra = .str;
         const opt = "#pragma-messages";
         const kind = .warning;
     };
-    const pragma_error_message = struct {
+    pub const pragma_error_message = struct {
         const msg = "{s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const pragma_message = struct {
+    pub const pragma_message = struct {
         const msg = "#pragma message: {s}";
         const extra = .str;
         const kind = .note;
     };
-    const pragma_requires_string_literal = struct {
+    pub const pragma_requires_string_literal = struct {
         const msg = "pragma {s} requires string literal";
         const extra = .str;
         const kind = .@"error";
     };
-    const poisoned_identifier = struct {
+    pub const poisoned_identifier = struct {
         const msg = "attempt to use a poisoned identifier";
         const kind = .@"error";
     };
-    const pragma_poison_identifier = struct {
+    pub const pragma_poison_identifier = struct {
         const msg = "can only poison identifier tokens";
         const kind = .@"error";
     };
-    const pragma_poison_macro = struct {
+    pub const pragma_poison_macro = struct {
         const msg = "poisoning existing macro";
         const kind = .warning;
     };
-    const newline_eof = struct {
+    pub const newline_eof = struct {
         const msg = "no newline at end of file";
         const opt = "newline-eof";
         const kind = .off;
         const pedantic = true;
     };
-    const empty_translation_unit = struct {
+    pub const empty_translation_unit = struct {
         const msg = "ISO C requires a translation unit to contain at least one declaration";
         const opt = "empty-translation-unit";
         const kind = .off;
         const pedantic = true;
     };
-    const omitting_parameter_name = struct {
+    pub const omitting_parameter_name = struct {
         const msg = "omitting the parameter name in a function definition is a C2x extension";
         const opt = "c2x-extensions";
         const kind = .warning;
         const suppress_version = .c2x;
     };
-    const non_int_bitfield = struct {
+    pub const non_int_bitfield = struct {
         const msg = "bit-field has non-integer type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const negative_bitwidth = struct {
+    pub const negative_bitwidth = struct {
         const msg = "bit-field has negative width ({d})";
         const extra = .signed;
         const kind = .@"error";
     };
-    const zero_width_named_field = struct {
+    pub const zero_width_named_field = struct {
         const msg = "named bit-field has zero width";
         const kind = .@"error";
     };
-    const bitfield_too_big = struct {
+    pub const bitfield_too_big = struct {
         const msg = "width of bit-field exceeds width of its type";
         const kind = .@"error";
     };
-    const invalid_utf8 = struct {
+    pub const invalid_utf8 = struct {
         const msg = "source file is not valid UTF-8";
         const kind = .@"error";
     };
-    const implicitly_unsigned_literal = struct {
+    pub const implicitly_unsigned_literal = struct {
         const msg = "integer literal is too large to be represented in a signed integer type, interpreting as unsigned";
         const opt = "implicitly-unsigned-literal";
         const kind = .warning;
     };
-    const invalid_preproc_operator = struct {
+    pub const invalid_preproc_operator = struct {
         const msg = "token is not a valid binary operator in a preprocessor subexpression";
         const kind = .@"error";
     };
-    const invalid_preproc_expr_start = struct {
+    pub const invalid_preproc_expr_start = struct {
         const msg = "invalid token at start of a preprocessor expression";
         const kind = .@"error";
     };
-    const c99_compat = struct {
+    pub const c99_compat = struct {
         const msg = "using this character in an identifier is incompatible with C99";
         const opt = "c99-compat";
         const kind = .off;
     };
-    const unicode_zero_width = struct {
+    pub const unicode_zero_width = struct {
         const msg = "identifier contains Unicode character <U+{X:0>4}> that is invisible in some environments";
         const opt = "unicode-homoglyph";
         const extra = .actual_codepoint;
         const kind = .warning;
     };
-    const unicode_homoglyph = struct {
+    pub const unicode_homoglyph = struct {
         const msg = "treating Unicode character <U+{X:0>4}> as identifier character rather than as '{u}' symbol";
         const extra = .codepoints;
         const opt = "unicode-homoglyph";
         const kind = .warning;
     };
-    const meaningless_asm_qual = struct {
+    pub const meaningless_asm_qual = struct {
         const msg = "meaningless '{s}' on assembly outside function";
         const extra = .str;
         const kind = .@"error";
     };
-    const duplicate_asm_qual = struct {
+    pub const duplicate_asm_qual = struct {
         const msg = "duplicate asm qualifier '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_asm_str = struct {
+    pub const invalid_asm_str = struct {
         const msg = "cannot use {s} string literal in assembly";
         const extra = .str;
         const kind = .@"error";
     };
-    const dollar_in_identifier_extension = struct {
+    pub const dollar_in_identifier_extension = struct {
         const msg = "'$' in identifier";
         const opt = "dollar-in-identifier-extension";
         const kind = .off;
         const suppress_language_option = "dollars_in_identifiers";
         const pedantic = true;
     };
-    const dollars_in_identifiers = struct {
+    pub const dollars_in_identifiers = struct {
         const msg = "illegal character '$' in identifier";
         const kind = .@"error";
     };
-    const expanded_from_here = struct {
+    pub const expanded_from_here = struct {
         const msg = "expanded from here";
         const kind = .note;
     };
-    const skipping_macro_backtrace = struct {
+    pub const skipping_macro_backtrace = struct {
         const msg = "(skipping {d} expansions in backtrace; use -fmacro-backtrace-limit=0 to see all)";
         const extra = .unsigned;
         const kind = .note;
     };
-    const pragma_operator_string_literal = struct {
+    pub const pragma_operator_string_literal = struct {
         const msg = "_Pragma requires exactly one string literal token";
         const kind = .@"error";
     };
-    const unknown_gcc_pragma = struct {
+    pub const unknown_gcc_pragma = struct {
         const msg = "pragma GCC expected 'error', 'warning', 'diagnostic', 'poison'";
         const opt = "unknown-pragmas";
         const kind = .off;
         const all = true;
     };
-    const unknown_gcc_pragma_directive = struct {
+    pub const unknown_gcc_pragma_directive = struct {
         const msg = "pragma GCC diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'";
         const opt = "unknown-pragmas";
         const kind = .warning;
         const all = true;
     };
-    const predefined_top_level = struct {
+    pub const predefined_top_level = struct {
         const msg = "predefined identifier is only valid inside function";
         const opt = "predefined-identifier-outside-function";
         const kind = .warning;
     };
-    const incompatible_va_arg = struct {
+    pub const incompatible_va_arg = struct {
         const msg = "first argument to va_arg, is of type '{s}' and not 'va_list'";
         const extra = .str;
         const kind = .@"error";
     };
-    const too_many_scalar_init_braces = struct {
+    pub const too_many_scalar_init_braces = struct {
         const msg = "too many braces around scalar initializer";
         const opt = "many-braces-around-scalar-init";
         const kind = .warning;
     };
-    const uninitialized_in_own_init = struct {
+    pub const uninitialized_in_own_init = struct {
         const msg = "variable '{s}' is uninitialized when used within its own initialization";
         const extra = .str;
         const opt = "uninitialized";
         const kind = .off;
         const all = true;
     };
-    const gnu_statement_expression = struct {
+    pub const gnu_statement_expression = struct {
         const msg = "use of GNU statement expression extension";
         const opt = "gnu-statement-expression";
         const kind = .off;
         const suppress_gnu = true;
         const pedantic = true;
     };
-    const stmt_expr_not_allowed_file_scope = struct {
+    pub const stmt_expr_not_allowed_file_scope = struct {
         const msg = "statement expression not allowed at file scope";
         const kind = .@"error";
     };
-    const gnu_imaginary_constant = struct {
+    pub const gnu_imaginary_constant = struct {
         const msg = "imaginary constants are a GNU extension";
         const opt = "gnu-imaginary-constant";
         const kind = .off;
         const suppress_gnu = true;
         const pedantic = true;
     };
-    const plain_complex = struct {
+    pub const plain_complex = struct {
         const msg = "plain '_Complex' requires a type specifier; assuming '_Complex double'";
         const kind = .warning;
     };
-    const complex_int = struct {
+    pub const complex_int = struct {
         const msg = "complex integer types are a GNU extension";
         const opt = "gnu-complex-integer";
         const suppress_gnu = true;
         const kind = .off;
     };
-    const qual_on_ret_type = struct {
+    pub const qual_on_ret_type = struct {
         const msg = "'{s}' type qualifier on return type has no effect";
         const opt = "ignored-qualifiers";
         const extra = .str;
         const kind = .off;
         const all = true;
     };
-    const cli_invalid_standard = struct {
+    pub const cli_invalid_standard = struct {
         const msg = "invalid standard '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const cli_invalid_target = struct {
+    pub const cli_invalid_target = struct {
         const msg = "invalid target '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const cli_invalid_emulate = struct {
+    pub const cli_invalid_emulate = struct {
         const msg = "invalid compiler '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const cli_unknown_arg = struct {
+    pub const cli_unknown_arg = struct {
         const msg = "unknown argument '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const cli_error = struct {
+    pub const cli_error = struct {
         const msg = "{s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const cli_unused_link_object = struct {
+    pub const cli_unused_link_object = struct {
         const msg = "{s}: linker input file unused because linking not done";
         const extra = .str;
         const kind = .warning;
     };
-    const cli_unknown_linker = struct {
+    pub const cli_unknown_linker = struct {
         const msg = "unrecognized linker '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const extra_semi = struct {
+    pub const extra_semi = struct {
         const msg = "extra ';' outside of a function";
         const opt = "extra-semi";
         const kind = .off;
         const pedantic = true;
     };
-    const func_field = struct {
+    pub const func_field = struct {
         const msg = "field declared as a function";
         const kind = .@"error";
     };
-    const vla_field = struct {
+    pub const vla_field = struct {
         const msg = "variable length array fields extension is not supported";
         const kind = .@"error";
     };
-    const field_incomplete_ty = struct {
+    pub const field_incomplete_ty = struct {
         const msg = "field has incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const flexible_in_union = struct {
+    pub const flexible_in_union = struct {
         const msg = "flexible array member in union is not allowed";
         const kind = .@"error";
         const suppress_msvc = true;
     };
-    const flexible_non_final = struct {
+    pub const flexible_non_final = struct {
         const msg = "flexible array member is not at the end of struct";
         const kind = .@"error";
     };
-    const flexible_in_empty = struct {
+    pub const flexible_in_empty = struct {
         const msg = "flexible array member in otherwise empty struct";
         const kind = .@"error";
         const suppress_msvc = true;
     };
-    const duplicate_member = struct {
+    pub const duplicate_member = struct {
         const msg = "duplicate member '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const binary_integer_literal = struct {
+    pub const binary_integer_literal = struct {
         const msg = "binary integer literals are a GNU extension";
         const kind = .off;
         const opt = "gnu-binary-literal";
         const pedantic = true;
     };
-    const gnu_va_macro = struct {
+    pub const gnu_va_macro = struct {
         const msg = "named variadic macros are a GNU extension";
         const opt = "variadic-macros";
         const kind = .off;
         const pedantic = true;
     };
-    const builtin_must_be_called = struct {
+    pub const builtin_must_be_called = struct {
         const msg = "builtin function must be directly called";
         const kind = .@"error";
     };
-    const va_start_not_in_func = struct {
+    pub const va_start_not_in_func = struct {
         const msg = "'va_start' cannot be used outside a function";
         const kind = .@"error";
     };
-    const va_start_fixed_args = struct {
+    pub const va_start_fixed_args = struct {
         const msg = "'va_start' used in a function with fixed args";
         const kind = .@"error";
     };
-    const va_start_not_last_param = struct {
+    pub const va_start_not_last_param = struct {
         const msg = "second argument to 'va_start' is not the last named parameter";
         const opt = "varargs";
         const kind = .warning;
     };
-    const attribute_not_enough_args = struct {
+    pub const attribute_not_enough_args = struct {
         const msg = "'{s}' attribute takes at least {d} argument(s)";
         const kind = .@"error";
         const extra = .attr_arg_count;
     };
-    const attribute_too_many_args = struct {
+    pub const attribute_too_many_args = struct {
         const msg = "'{s}' attribute takes at most {d} argument(s)";
         const kind = .@"error";
         const extra = .attr_arg_count;
     };
-    const attribute_arg_invalid = struct {
+    pub const attribute_arg_invalid = struct {
         const msg = "Attribute argument is invalid, expected {s} but got {s}";
         const kind = .@"error";
         const extra = .attr_arg_type;
     };
-    const unknown_attr_enum = struct {
+    pub const unknown_attr_enum = struct {
         const msg = "Unknown `{s}` argument. Possible values are: {s}";
         const kind = .@"error";
         const extra = .attr_enum;
     };
-    const attribute_requires_identifier = struct {
+    pub const attribute_requires_identifier = struct {
         const msg = "'{s}' attribute requires an identifier";
         const kind = .@"error";
         const extra = .str;
     };
-    const declspec_not_enabled = struct {
+    pub const declspec_not_enabled = struct {
         const msg = "'__declspec' attributes are not enabled; use '-fdeclspec' or '-fms-extensions' to enable support for __declspec attributes";
         const kind = .@"error";
     };
-    const declspec_attr_not_supported = struct {
+    pub const declspec_attr_not_supported = struct {
         const msg = "__declspec attribute '{s}' is not supported";
         const extra = .str;
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const deprecated_declarations = struct {
+    pub const deprecated_declarations = struct {
         const msg = "{s}";
         const extra = .str;
         const opt = "deprecated-declarations";
         const kind = .warning;
     };
-    const deprecated_note = struct {
+    pub const deprecated_note = struct {
         const msg = "'{s}' has been explicitly marked deprecated here";
         const extra = .str;
         const opt = "deprecated-declarations";
         const kind = .note;
     };
-    const unavailable = struct {
+    pub const unavailable = struct {
         const msg = "{s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const unavailable_note = struct {
+    pub const unavailable_note = struct {
         const msg = "'{s}' has been explicitly marked unavailable here";
         const extra = .str;
         const kind = .note;
     };
-    const warning_attribute = struct {
+    pub const warning_attribute = struct {
         const msg = "{s}";
         const extra = .str;
         const kind = .warning;
         const opt = "attribute-warning";
     };
-    const error_attribute = struct {
+    pub const error_attribute = struct {
         const msg = "{s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const ignored_record_attr = struct {
+    pub const ignored_record_attr = struct {
         const msg = "attribute '{s}' is ignored, place it after \"{s}\" to apply attribute to type declaration";
         const extra = .ignored_record_attr;
         const kind = .warning;
         const opt = "ignored-attributes";
     };
-    const backslash_newline_escape = struct {
+    pub const backslash_newline_escape = struct {
         const msg = "backslash and newline separated by space";
         const kind = .warning;
         const opt = "backslash-newline-escape";
     };
-    const array_size_non_int = struct {
+    pub const array_size_non_int = struct {
         const msg = "size of array has non-integer type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const cast_to_smaller_int = struct {
+    pub const cast_to_smaller_int = struct {
         const msg = "cast to smaller integer type {s}";
         const extra = .str;
         const kind = .warning;
         const opt = "pointer-to-int-cast";
     };
-    const gnu_switch_range = struct {
+    pub const gnu_switch_range = struct {
         const msg = "use of GNU case range extension";
         const opt = "gnu-case-range";
         const kind = .off;
         const pedantic = true;
     };
-    const empty_case_range = struct {
+    pub const empty_case_range = struct {
         const msg = "empty case range specified";
         const kind = .warning;
     };
-    const non_standard_escape_char = struct {
+    pub const non_standard_escape_char = struct {
         const msg = "use of non-standard escape character '\\e'";
         const kind = .off;
         const opt = "pedantic";
     };
-    const invalid_pp_stringify_escape = struct {
+    pub const invalid_pp_stringify_escape = struct {
         const msg = "invalid string literal, ignoring final '\\'";
         const kind = .warning;
     };
-    const vla = struct {
+    pub const vla = struct {
         const msg = "variable length array used";
         const kind = .off;
         const opt = "vla";
     };
-    const float_overflow_conversion = struct {
+    pub const float_overflow_conversion = struct {
         const msg = "implicit conversion of non-finite value from {s} is undefined";
         const extra = .str;
         const kind = .off;
         const opt = "float-overflow-conversion";
     };
-    const float_out_of_range = struct {
+    pub const float_out_of_range = struct {
         const msg = "implicit conversion of out of range value from {s} is undefined";
         const extra = .str;
         const kind = .warning;
         const opt = "literal-conversion";
     };
-    const float_zero_conversion = struct {
+    pub const float_zero_conversion = struct {
         const msg = "implicit conversion from {s}";
         const extra = .str;
         const kind = .off;
         const opt = "float-zero-conversion";
     };
-    const float_value_changed = struct {
+    pub const float_value_changed = struct {
         const msg = "implicit conversion from {s}";
         const extra = .str;
         const kind = .warning;
         const opt = "float-conversion";
     };
-    const float_to_int = struct {
+    pub const float_to_int = struct {
         const msg = "implicit conversion turns floating-point number into integer: {s}";
         const extra = .str;
         const kind = .off;
         const opt = "literal-conversion";
     };
-    const const_decl_folded = struct {
+    pub const const_decl_folded = struct {
         const msg = "expression is not an integer constant expression; folding it to a constant is a GNU extension";
         const kind = .off;
         const opt = "gnu-folding-constant";
         const pedantic = true;
     };
-    const const_decl_folded_vla = struct {
+    pub const const_decl_folded_vla = struct {
         const msg = "variable length array folded to constant array as an extension";
         const kind = .off;
         const opt = "gnu-folding-constant";
         const pedantic = true;
     };
-    const redefinition_of_typedef = struct {
+    pub const redefinition_of_typedef = struct {
         const msg = "typedef redefinition with different types ({s})";
         const extra = .str;
         const kind = .@"error";
     };
-    const undefined_macro = struct {
+    pub const undefined_macro = struct {
         const msg = "'{s}' is not defined, evaluates to 0";
         const extra = .str;
         const kind = .off;
         const opt = "undef";
     };
-    const fn_macro_undefined = struct {
+    pub const fn_macro_undefined = struct {
         const msg = "function-like macro '{s}' is not defined";
         const extra = .str;
         const kind = .@"error";
     };
-    const preprocessing_directive_only = struct {
+    pub const preprocessing_directive_only = struct {
         const msg = "'{s}' must be used within a preprocessing directive";
         const extra = .tok_id_expected;
         const kind = .@"error";
     };
-    const missing_lparen_after_builtin = struct {
+    pub const missing_lparen_after_builtin = struct {
         const msg = "Missing '(' after built-in macro '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const offsetof_ty = struct {
+    pub const offsetof_ty = struct {
         const msg = "offsetof requires struct or union type, '{s}' invalid";
         const extra = .str;
         const kind = .@"error";
     };
-    const offsetof_incomplete = struct {
+    pub const offsetof_incomplete = struct {
         const msg = "offsetof of incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const offsetof_array = struct {
+    pub const offsetof_array = struct {
         const msg = "offsetof requires array type, '{s}' invalid";
         const extra = .str;
         const kind = .@"error";
     };
-    const pragma_pack_lparen = struct {
+    pub const pragma_pack_lparen = struct {
         const msg = "missing '(' after '#pragma pack' - ignoring";
         const kind = .warning;
         const opt = "ignored-pragmas";
     };
-    const pragma_pack_rparen = struct {
+    pub const pragma_pack_rparen = struct {
         const msg = "missing ')' after '#pragma pack' - ignoring";
         const kind = .warning;
         const opt = "ignored-pragmas";
     };
-    const pragma_pack_unknown_action = struct {
+    pub const pragma_pack_unknown_action = struct {
         const msg = "unknown action for '#pragma pack' - ignoring";
         const opt = "ignored-pragmas";
         const kind = .warning;
     };
-    const pragma_pack_show = struct {
+    pub const pragma_pack_show = struct {
         const msg = "value of #pragma pack(show) == {d}";
         const extra = .unsigned;
         const kind = .warning;
     };
-    const pragma_pack_int = struct {
+    pub const pragma_pack_int = struct {
         const msg = "expected #pragma pack parameter to be '1', '2', '4', '8', or '16'";
         const opt = "ignored-pragmas";
         const kind = .warning;
     };
-    const pragma_pack_int_ident = struct {
+    pub const pragma_pack_int_ident = struct {
         const msg = "expected integer or identifier in '#pragma pack' - ignored";
         const opt = "ignored-pragmas";
         const kind = .warning;
     };
-    const pragma_pack_undefined_pop = struct {
+    pub const pragma_pack_undefined_pop = struct {
         const msg = "specifying both a name and alignment to 'pop' is undefined";
         const kind = .warning;
     };
-    const pragma_pack_empty_stack = struct {
+    pub const pragma_pack_empty_stack = struct {
         const msg = "#pragma pack(pop, ...) failed: stack empty";
         const opt = "ignored-pragmas";
         const kind = .warning;
     };
-    const cond_expr_type = struct {
+    pub const cond_expr_type = struct {
         const msg = "used type '{s}' where arithmetic or pointer type is required";
         const extra = .str;
         const kind = .@"error";
     };
-    const too_many_includes = struct {
+    pub const too_many_includes = struct {
         const msg = "#include nested too deeply";
         const kind = .@"error";
     };
-    const enumerator_too_small = struct {
+    pub const enumerator_too_small = struct {
         const msg = "ISO C restricts enumerator values to range of 'int' ({d} is too small)";
         const extra = .signed;
         const kind = .off;
         const opt = "pedantic";
     };
-    const enumerator_too_large = struct {
+    pub const enumerator_too_large = struct {
         const msg = "ISO C restricts enumerator values to range of 'int' ({d} is too large)";
         const extra = .unsigned;
         const kind = .off;
         const opt = "pedantic";
     };
-    const include_next = struct {
+    pub const include_next = struct {
         const msg = "#include_next is a language extension";
         const kind = .off;
         const pedantic = true;
         const opt = "gnu-include-next";
     };
-    const include_next_outside_header = struct {
+    pub const include_next_outside_header = struct {
         const msg = "#include_next in primary source file; will search from start of include path";
         const kind = .warning;
         const opt = "include-next-outside-header";
     };
-    const enumerator_overflow = struct {
+    pub const enumerator_overflow = struct {
         const msg = "overflow in enumeration value";
         const kind = .warning;
     };
-    const enum_not_representable = struct {
+    pub const enum_not_representable = struct {
         const msg = "incremented enumerator value {s} is not representable in the largest integer type";
         const kind = .warning;
         const opt = "enum-too-large";
         const extra = .pow_2_as_string;
     };
-    const enum_too_large = struct {
+    pub const enum_too_large = struct {
         const msg = "enumeration values exceed range of largest integer";
         const kind = .warning;
         const opt = "enum-too-large";
     };
-    const enum_fixed = struct {
+    pub const enum_fixed = struct {
         const msg = "enumeration types with a fixed underlying type are a Clang extension";
         const kind = .off;
         const pedantic = true;
         const opt = "fixed-enum-extension";
     };
-    const enum_prev_nonfixed = struct {
+    pub const enum_prev_nonfixed = struct {
         const msg = "enumeration previously declared with nonfixed underlying type";
         const kind = .@"error";
     };
-    const enum_prev_fixed = struct {
+    pub const enum_prev_fixed = struct {
         const msg = "enumeration previously declared with fixed underlying type";
         const kind = .@"error";
     };
-    const enum_different_explicit_ty = struct {
+    pub const enum_different_explicit_ty = struct {
         // str will be like 'new' (was 'old'
         const msg = "enumeration redeclared with different underlying type {s})";
         const extra = .str;
         const kind = .@"error";
     };
-    const enum_not_representable_fixed = struct {
+    pub const enum_not_representable_fixed = struct {
         const msg = "enumerator value is not representable in the underlying type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const transparent_union_wrong_type = struct {
+    pub const transparent_union_wrong_type = struct {
         const msg = "'transparent_union' attribute only applies to unions";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const transparent_union_one_field = struct {
+    pub const transparent_union_one_field = struct {
         const msg = "transparent union definition must contain at least one field; transparent_union attribute ignored";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const transparent_union_size = struct {
+    pub const transparent_union_size = struct {
         const msg = "size of field {s} bits) does not match the size of the first field in transparent union; transparent_union attribute ignored";
         const extra = .str;
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const transparent_union_size_note = struct {
+    pub const transparent_union_size_note = struct {
         const msg = "size of first field is {d}";
         const extra = .unsigned;
         const kind = .note;
     };
-    const designated_init_invalid = struct {
+    pub const designated_init_invalid = struct {
         const msg = "'designated_init' attribute is only valid on 'struct' type'";
         const kind = .@"error";
     };
-    const designated_init_needed = struct {
+    pub const designated_init_needed = struct {
         const msg = "positional initialization of field in 'struct' declared with 'designated_init' attribute";
         const opt = "designated-init";
         const kind = .warning;
     };
-    const ignore_common = struct {
+    pub const ignore_common = struct {
         const msg = "ignoring attribute 'common' because it conflicts with attribute 'nocommon'";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const ignore_nocommon = struct {
+    pub const ignore_nocommon = struct {
         const msg = "ignoring attribute 'nocommon' because it conflicts with attribute 'common'";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const non_string_ignored = struct {
+    pub const non_string_ignored = struct {
         const msg = "'nonstring' attribute ignored on objects of type '{s}'";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const local_variable_attribute = struct {
+    pub const local_variable_attribute = struct {
         const msg = "'{s}' attribute only applies to local variables";
         const extra = .str;
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const ignore_cold = struct {
+    pub const ignore_cold = struct {
         const msg = "ignoring attribute 'cold' because it conflicts with attribute 'hot'";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const ignore_hot = struct {
+    pub const ignore_hot = struct {
         const msg = "ignoring attribute 'hot' because it conflicts with attribute 'cold'";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const ignore_noinline = struct {
+    pub const ignore_noinline = struct {
         const msg = "ignoring attribute 'noinline' because it conflicts with attribute 'always_inline'";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const ignore_always_inline = struct {
+    pub const ignore_always_inline = struct {
         const msg = "ignoring attribute 'always_inline' because it conflicts with attribute 'noinline'";
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const invalid_noreturn = struct {
+    pub const invalid_noreturn = struct {
         const msg = "function '{s}' declared 'noreturn' should not return";
         const extra = .str;
         const kind = .warning;
         const opt = "invalid-noreturn";
     };
-    const nodiscard_unused = struct {
+    pub const nodiscard_unused = struct {
         const msg = "ignoring return value of '{s}', declared with 'nodiscard' attribute";
         const extra = .str;
         const kind = .warning;
         const op = "unused-result";
     };
-    const warn_unused_result = struct {
+    pub const warn_unused_result = struct {
         const msg = "ignoring return value of '{s}', declared with 'warn_unused_result' attribute";
         const extra = .str;
         const kind = .warning;
         const op = "unused-result";
     };
-    const invalid_vec_elem_ty = struct {
+    pub const invalid_vec_elem_ty = struct {
         const msg = "invalid vector element type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const vec_size_not_multiple = struct {
+    pub const vec_size_not_multiple = struct {
         const msg = "vector size not an integral multiple of component size";
         const kind = .@"error";
     };
-    const invalid_imag = struct {
+    pub const invalid_imag = struct {
         const msg = "invalid type '{s}' to __imag operator";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_real = struct {
+    pub const invalid_real = struct {
         const msg = "invalid type '{s}' to __real operator";
         const extra = .str;
         const kind = .@"error";
     };
-    const zero_length_array = struct {
+    pub const zero_length_array = struct {
         const msg = "zero size arrays are an extension";
         const kind = .off;
         const pedantic = true;
         const opt = "zero-length-array";
     };
-    const old_style_flexible_struct = struct {
+    pub const old_style_flexible_struct = struct {
         const msg = "array index {d} is past the end of the array";
         const extra = .unsigned;
         const kind = .off;
         const pedantic = true;
         const opt = "old-style-flexible-struct";
     };
-    const comma_deletion_va_args = struct {
+    pub const comma_deletion_va_args = struct {
         const msg = "token pasting of ',' and __VA_ARGS__ is a GNU extension";
         const kind = .off;
         const pedantic = true;
         const opt = "gnu-zero-variadic-macro-arguments";
         const suppress_gcc = true;
     };
-    const main_return_type = struct {
+    pub const main_return_type = struct {
         const msg = "return type of 'main' is not 'int'";
         const kind = .warning;
         const opt = "main-return-type";
     };
-    const expansion_to_defined = struct {
+    pub const expansion_to_defined = struct {
         const msg = "macro expansion producing 'defined' has undefined behavior";
         const kind = .off;
         const pedantic = true;
         const opt = "expansion-to-defined";
     };
-    const invalid_int_suffix = struct {
+    pub const invalid_int_suffix = struct {
         const msg = "invalid suffix '{s}' on integer constant";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_float_suffix = struct {
+    pub const invalid_float_suffix = struct {
         const msg = "invalid suffix '{s}' on floating constant";
         const extra = .str;
         const kind = .@"error";
     };
-    const invalid_octal_digit = struct {
+    pub const invalid_octal_digit = struct {
         const msg = "invalid digit '{c}' in octal constant";
         const extra = .ascii;
         const kind = .@"error";
     };
-    const invalid_binary_digit = struct {
+    pub const invalid_binary_digit = struct {
         const msg = "invalid digit '{c}' in binary constant";
         const extra = .ascii;
         const kind = .@"error";
     };
-    const exponent_has_no_digits = struct {
+    pub const exponent_has_no_digits = struct {
         const msg = "exponent has no digits";
         const kind = .@"error";
     };
-    const hex_floating_constant_requires_exponent = struct {
+    pub const hex_floating_constant_requires_exponent = struct {
         const msg = "hexadecimal floating constant requires an exponent";
         const kind = .@"error";
     };
-    const sizeof_returns_zero = struct {
+    pub const sizeof_returns_zero = struct {
         const msg = "sizeof returns 0";
         const kind = .warning;
         const suppress_gcc = true;
         const suppress_clang = true;
     };
-    const declspec_not_allowed_after_declarator = struct {
+    pub const declspec_not_allowed_after_declarator = struct {
         const msg = "'declspec' attribute not allowed after declarator";
         const kind = .@"error";
     };
-    const declarator_name_tok = struct {
+    pub const declarator_name_tok = struct {
         const msg = "this declarator";
         const kind = .note;
     };
-    const type_not_supported_on_target = struct {
+    pub const type_not_supported_on_target = struct {
         const msg = "{s} is not supported on this target";
         const extra = .str;
         const kind = .@"error";
     };
-    const bit_int = struct {
+    pub const bit_int = struct {
         const msg = "'_BitInt' in C17 and earlier is a Clang extension'";
         const kind = .off;
         const pedantic = true;
         const opt = "bit-int-extension";
         const suppress_version = .c2x;
     };
-    const unsigned_bit_int_too_small = struct {
+    pub const unsigned_bit_int_too_small = struct {
         const msg = "{s} must have a bit size of at least 1";
         const extra = .str;
         const kind = .@"error";
     };
-    const signed_bit_int_too_small = struct {
+    pub const signed_bit_int_too_small = struct {
         const msg = "{s} must have a bit size of at least 2";
         const extra = .str;
         const kind = .@"error";
     };
-    const bit_int_too_big = struct {
+    pub const bit_int_too_big = struct {
         const msg = "{s} of bit sizes greater than " ++ std.fmt.comptimePrint("{d}", .{Compilation.bit_int_max_bits}) ++ " not supported";
         const extra = .str;
         const kind = .@"error";
     };
-    const keyword_macro = struct {
+    pub const keyword_macro = struct {
         const msg = "keyword is hidden by macro definition";
         const kind = .off;
         const pedantic = true;
         const opt = "keyword-macro";
     };
-    const ptr_arithmetic_incomplete = struct {
+    pub const ptr_arithmetic_incomplete = struct {
         const msg = "arithmetic on a pointer to an incomplete type '{s}'";
         const extra = .str;
         const kind = .@"error";
     };
-    const callconv_not_supported = struct {
+    pub const callconv_not_supported = struct {
         const msg = "'{s}' calling convention is not supported for this target";
         const extra = .str;
         const opt = "ignored-attributes";
         const kind = .warning;
     };
-    const pointer_arith_void = struct {
+    pub const pointer_arith_void = struct {
         const msg = "invalid application of '{s}' to a void type";
         const extra = .str;
         const kind = .off;
         const pedantic = true;
         const opt = "pointer-arith";
     };
-    const sizeof_array_arg = struct {
+    pub const sizeof_array_arg = struct {
         const msg = "sizeof on array function parameter will return size of {s}";
         const extra = .str;
         const kind = .warning;
         const opt = "sizeof-array-argument";
     };
-    const array_address_to_bool = struct {
+    pub const array_address_to_bool = struct {
         const msg = "address of array '{s}' will always evaluate to 'true'";
         const extra = .str;
         const kind = .warning;
         const opt = "pointer-bool-conversion";
     };
-    const string_literal_to_bool = struct {
+    pub const string_literal_to_bool = struct {
         const msg = "implicit conversion turns string literal into bool: {s}";
         const extra = .str;
         const kind = .off;
         const opt = "string-conversion";
     };
-    const constant_expression_conversion_not_allowed = struct {
+    pub const constant_expression_conversion_not_allowed = struct {
         const msg = "this conversion is not allowed in a constant expression";
         const kind = .note;
     };
-    const invalid_object_cast = struct {
+    pub const invalid_object_cast = struct {
         const msg = "cannot cast an object of type {s}";
         const extra = .str;
         const kind = .@"error";
     };
-    const cli_invalid_fp_eval_method = struct {
+    pub const cli_invalid_fp_eval_method = struct {
         const msg = "unsupported argument '{s}' to option '-ffp-eval-method='; expected 'source', 'double', or 'extended'";
         const extra = .str;
         const kind = .@"error";
     };
-    const suggest_pointer_for_invalid_fp16 = struct {
+    pub const suggest_pointer_for_invalid_fp16 = struct {
         const msg = "{s} cannot have __fp16 type; did you forget * ?";
         const extra = .str;
         const kind = .@"error";
     };
-    const bitint_suffix = struct {
+    pub const bitint_suffix = struct {
         const msg = "'_BitInt' suffix for literals is a C2x extension";
         const opt = "c2x-extensions";
         const kind = .warning;
         const suppress_version = .c2x;
     };
-    const auto_type_extension = struct {
+    pub const auto_type_extension = struct {
         const msg = "'__auto_type' is a GNU extension";
         const opt = "gnu-auto-type";
         const kind = .off;
         const pedantic = true;
     };
-    const auto_type_not_allowed = struct {
+    pub const auto_type_not_allowed = struct {
         const msg = "'__auto_type' not allowed in {s}";
         const kind = .@"error";
         const extra = .str;
     };
-    const auto_type_requires_initializer = struct {
+    pub const auto_type_requires_initializer = struct {
         const msg = "declaration of variable '{s}' with deduced type requires an initializer";
         const kind = .@"error";
         const extra = .str;
     };
-    const auto_type_requires_single_declarator = struct {
+    pub const auto_type_requires_single_declarator = struct {
         const msg = "'__auto_type' may only be used with a single declarator";
         const kind = .@"error";
     };
-    const auto_type_requires_plain_declarator = struct {
+    pub const auto_type_requires_plain_declarator = struct {
         const msg = "'__auto_type' requires a plain identifier as declarator";
         const kind = .@"error";
     };
-    const invalid_cast_to_auto_type = struct {
+    pub const invalid_cast_to_auto_type = struct {
         const msg = "invalid cast to '__auto_type'";
         const kind = .@"error";
     };
-    const auto_type_from_bitfield = struct {
+    pub const auto_type_from_bitfield = struct {
         const msg = "cannot use bit-field as '__auto_type' initializer";
         const kind = .@"error";
     };
-    const array_of_auto_type = struct {
+    pub const array_of_auto_type = struct {
         const msg = "'{s}' declared as array of '__auto_type'";
         const kind = .@"error";
         const extra = .str;
     };
-    const auto_type_with_init_list = struct {
+    pub const auto_type_with_init_list = struct {
         const msg = "cannot use '__auto_type' with initializer list";
         const kind = .@"error";
     };
-    const missing_semicolon = struct {
+    pub const missing_semicolon = struct {
         const msg = "expected ';' at end of declaration list";
         const kind = .warning;
     };
-    const tentative_definition_incomplete = struct {
+    pub const tentative_definition_incomplete = struct {
         const msg = "tentative definition has type '{s}' that is never completed";
         const kind = .@"error";
         const extra = .str;
     };
-    const forward_declaration_here = struct {
+    pub const forward_declaration_here = struct {
         const msg = "forward declaration of '{s}'";
         const kind = .note;
         const extra = .str;
     };
-    const gnu_union_cast = struct {
+    pub const gnu_union_cast = struct {
         const msg = "cast to union type is a GNU extension";
         const opt = "gnu-union-cast";
         const kind = .off;
         const pedantic = true;
     };
-    const invalid_union_cast = struct {
+    pub const invalid_union_cast = struct {
         const msg = "cast to union type from type '{s}' not present in union";
         const kind = .@"error";
         const extra = .str;
     };
-    const cast_to_incomplete_type = struct {
+    pub const cast_to_incomplete_type = struct {
         const msg = "cast to incomplete type '{s}'";
         const kind = .@"error";
         const extra = .str;
