@@ -332,6 +332,8 @@ pub fn addPathFromComponents(tc: *Toolchain, components: []const []const u8, des
     try dest.append(tc.driver.comp.gpa, full_path);
 }
 
+/// Add linker args to `argv`. Does not add path to linker executable as first item; that must be handled separately
+/// Items added to `argv` will be string literals or owned by `tc.arena` so they must not be individually freed
 pub fn buildLinkerArgs(tc: *Toolchain, argv: *std.ArrayList([]const u8)) !void {
     return switch (tc.inner) {
         .linux => |*linux| linux.buildLinkerArgs(tc, argv),
