@@ -4949,6 +4949,7 @@ const Result = struct {
         }
     }
 
+    /// Converts a bool or integer to a pointer
     fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
         if (res.ty.is(.bool)) {
             res.ty = ptr_ty;
@@ -4958,6 +4959,12 @@ const Result = struct {
             res.ty = ptr_ty;
             try res.implicitCast(p, .int_to_pointer);
         }
+    }
+
+    /// Convert pointer to one with a different child type
+    fn ptrChildTypeCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
+        res.ty = ptr_ty;
+        return res.implicitCast(p, .bitcast);
     }
 
     fn toVoid(res: *Result, p: *Parser) Error!void {
@@ -5389,13 +5396,15 @@ const Result = struct {
             if (res.ty.is(.nullptr_t) or res.val.isZero()) {
                 try res.nullCast(p, dest_ty);
                 return;
-            } else if (res.ty.isInt()) {
+            } else if (res.ty.isInt() and res.ty.isReal()) {
                 if (ctx == .test_coerce) return error.CoercionFailed;
                 try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
                 try ctx.note(p);
                 try res.ptrCast(p, unqual_ty);
                 return;
-            } else if (res.ty.isVoidStar() or unqual_ty.isVoidStar() or unqual_ty.eql(res.ty, p.comp, true)) {
+            } else if (res.ty.isVoidStar() or unqual_ty.eql(res.ty, p.comp, true)) {
+                return; // ok
+            } else if (unqual_ty.isVoidStar() and res.ty.isPtr() or (res.ty.isInt() and res.ty.isReal())) {
                 return; // ok
             } else if (unqual_ty.eql(res.ty, p.comp, false)) {
                 if (!unqual_ty.elemType().qual.hasQuals(res.ty.elemType().qual)) {
@@ -5410,15 +5419,16 @@ const Result = struct {
                 try res.ptrCast(p, unqual_ty);
                 return;
             } else if (res.ty.isPtr()) {
+                const different_sign_only = unqual_ty.elemType().sameRankDifferentSign(res.ty.elemType(), p.comp);
                 try p.errStr(switch (ctx) {
-                    .assign => .incompatible_ptr_assign,
-                    .init => .incompatible_ptr_init,
-                    .ret => .incompatible_return,
-                    .arg => .incompatible_arg,
+                    .assign => ([2]Diagnostics.Tag{ .incompatible_ptr_assign, .incompatible_ptr_assign_sign })[@intFromBool(different_sign_only)],
+                    .init => ([2]Diagnostics.Tag{ .incompatible_ptr_init, .incompatible_ptr_init_sign })[@intFromBool(different_sign_only)],
+                    .ret => ([2]Diagnostics.Tag{ .incompatible_return, .incompatible_return_sign })[@intFromBool(different_sign_only)],
+                    .arg => ([2]Diagnostics.Tag{ .incompatible_ptr_arg, .incompatible_ptr_arg_sign })[@intFromBool(different_sign_only)],
                     .test_coerce => return error.CoercionFailed,
                 }, tok, try ctx.typePairStr(p, dest_ty, res.ty));
                 try ctx.note(p);
-                try res.ptrCast(p, unqual_ty);
+                try res.ptrChildTypeCast(p, unqual_ty);
                 return;
             }
         } else if (unqual_ty.isRecord()) {

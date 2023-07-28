@@ -124,6 +124,12 @@ void quux(void) {
     struct Bar {
         struct Foo a;
     } b = {a};
+
+    void *vp1 = 1.0;
+    void *vp2 = a;
+    int x;
+    long *y = &x;
+    unsigned int *z = &x;
 }
 
 #define TESTS_SKIPPED 3
@@ -174,3 +180,8 @@ void quux(void) {
     "initializers.c:115:13: note: previous initialization" \
     "initializers.c:115:12: warning: excess elements in struct initializer [-Wexcess-initializers]" \
     "initializers.c:117:22: error: array initializer must be an initializer list or wide string literal" \
+    "initializers.c:128:17: error: initializing 'void *' from incompatible type 'double'" \
+    "initializers.c:129:17: error: initializing 'void *' from incompatible type 'struct Foo'" \
+    "initializers.c:131:15: warning: incompatible pointer types initializing 'long *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
+    "initializers.c:132:23: warning: incompatible pointer types initializing 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
+
