@@ -498,8 +498,75 @@ pub fn get32BitArchVariant(target: std.Target) ?std.Target {
 }
 
 pub fn get64BitArchVariant(target: std.Target) ?std.Target {
-    // TODO: do the right thing
-    return get32BitArchVariant(target);
+    var copy = target;
+    switch (target.cpu.arch) {
+        .arc,
+        .avr,
+        .csky,
+        .dxil,
+        .hexagon,
+        .kalimba,
+        .lanai,
+        .m68k,
+        .msp430,
+        .r600,
+        .shave,
+        .sparcel,
+        .spu_2,
+        .tce,
+        .tcele,
+        .xcore,
+        .xtensa,
+        => return null,
+
+        .aarch64,
+        .aarch64_be,
+        .amdgcn,
+        .bpfeb,
+        .bpfel,
+        .le64,
+        .amdil64,
+        .nvptx64,
+        .wasm64,
+        .hsail64,
+        .spir64,
+        .spirv64,
+        .renderscript64,
+        .loongarch64,
+        .mips64,
+        .mips64el,
+        .powerpc64,
+        .powerpc64le,
+        .riscv64,
+        .s390x,
+        .sparc64,
+        .ve,
+        .x86_64,
+        => {}, // Already 64 bit
+
+        .aarch64_32 => copy.cpu.arch = .aarch64,
+        .amdil => copy.cpu.arch = .amdil64,
+        .arm => copy.cpu.arch = .aarch64,
+        .armeb => copy.cpu.arch = .aarch64_be,
+        .hsail => copy.cpu.arch = .hsail64,
+        .le32 => copy.cpu.arch = .le64,
+        .loongarch32 => copy.cpu.arch = .loongarch64,
+        .mips => copy.cpu.arch = .mips64,
+        .mipsel => copy.cpu.arch = .mips64el,
+        .nvptx => copy.cpu.arch = .nvptx64,
+        .powerpc => copy.cpu.arch = .powerpc64,
+        .powerpcle => copy.cpu.arch = .powerpc64le,
+        .renderscript32 => copy.cpu.arch = .renderscript64,
+        .riscv32 => copy.cpu.arch = .riscv64,
+        .sparc => copy.cpu.arch = .sparc64,
+        .spir => copy.cpu.arch = .spir64,
+        .spirv32 => copy.cpu.arch = .spirv64,
+        .thumb => copy.cpu.arch = .aarch64,
+        .thumbeb => copy.cpu.arch = .aarch64_be,
+        .wasm32 => copy.cpu.arch = .wasm64,
+        .x86 => copy.cpu.arch = .x86_64,
+    }
+    return copy;
 }
 
 /// Adapted from Zig's src/codegen/llvm.zig
