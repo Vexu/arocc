@@ -452,9 +452,9 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8) !void {
 
     const std_out = std.io.getStdOut().writer();
     if (try parseArgs(d, std_out, macro_buf.writer(), args)) return;
-    try tc.discover();
 
     const linking = !(d.only_preprocess or d.only_syntax or d.only_compile or d.only_preprocess_and_compile);
+
     if (d.inputs.items.len == 0) {
         return d.fatal("no input files", .{});
     } else if (d.inputs.items.len != 1 and d.output_name != null and !linking) {
@@ -644,6 +644,8 @@ fn dumpLinkerArgs(items: []const []const u8) !void {
 }
 
 pub fn invokeLinker(d: *Driver, tc: *Toolchain) !void {
+    try tc.discover();
+
     var argv = std.ArrayList([]const u8).init(d.comp.gpa);
     defer argv.deinit();
 
