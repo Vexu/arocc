@@ -28,7 +28,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
 }
 
 fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
-    var comp = aro.Compilation.init(allocator);
+    var comp = aro.Compilation.init(allocator, .{});
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
@@ -130,7 +130,7 @@ pub fn main() !void {
     const root_node = progress.start("Test", cases.items.len);
 
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa);
+    var initial_comp = aro.Compilation.init(gpa, .{});
     defer initial_comp.deinit();
 
     const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });

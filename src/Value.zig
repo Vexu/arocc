@@ -87,7 +87,7 @@ test "minUnsignedBits" {
         }
     };
 
-    var comp = Compilation.init(std.testing.allocator);
+    var comp = Compilation.init(std.testing.allocator, .{});
     defer comp.deinit();
     comp.target = (try std.zig.CrossTarget.parse(.{ .arch_os_abi = "x86_64-linux-gnu" })).toTarget();
 
@@ -127,7 +127,7 @@ test "minSignedBits" {
         }
     };
 
-    var comp = Compilation.init(std.testing.allocator);
+    var comp = Compilation.init(std.testing.allocator, .{});
     defer comp.deinit();
     comp.target = (try std.zig.CrossTarget.parse(.{ .arch_os_abi = "x86_64-linux-gnu" })).toTarget();
 

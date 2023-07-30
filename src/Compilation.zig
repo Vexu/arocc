@@ -5,6 +5,7 @@ const Allocator = mem.Allocator;
 const EpochSeconds = std.time.epoch.EpochSeconds;
 const Builtins = @import("Builtins.zig");
 const Diagnostics = @import("Diagnostics.zig");
+const Environment = @import("Environment.zig");
 const LangOpts = @import("LangOpts.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -26,6 +27,7 @@ pub const Error = error{
 pub const bit_int_max_bits = 128;
 
 gpa: Allocator,
+environment: Environment,
 sources: std.StringArrayHashMap(Source),
 diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
@@ -61,9 +63,10 @@ types: struct {
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
 string_interner: StringInterner = .{},
 
-pub fn init(gpa: Allocator) Compilation {
+pub fn init(gpa: Allocator, environment: Environment) Compilation {
     return .{
         .gpa = gpa,
+        .environment = environment,
         .sources = std.StringArrayHashMap(Source).init(gpa),
         .diag = Diagnostics.init(gpa),
         .include_dirs = std.ArrayList([]const u8).init(gpa),
@@ -1293,7 +1296,7 @@ pub const renderErrors = Diagnostics.render;
 test "addSourceFromReader" {
     const Test = struct {
         fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
-            var comp = Compilation.init(std.testing.allocator);
+            var comp = Compilation.init(std.testing.allocator, .{});
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(str);
@@ -1305,7 +1308,7 @@ test "addSourceFromReader" {
         }
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator);
+            var comp = Compilation.init(allocator, .{});
             defer comp.deinit();
 
             _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
@@ -1347,7 +1350,7 @@ test "addSourceFromReader - exhaustive check for carriage return elimination" {
     const alen = alphabet.len;
     var buf: [alphabet.len]u8 = [1]u8{alphabet[0]} ** alen;
 
-    var comp = Compilation.init(std.testing.allocator);
+    var comp = Compilation.init(std.testing.allocator, .{});
     defer comp.deinit();
 
     var source_count: u32 = 0;
@@ -1375,7 +1378,7 @@ test "ignore BOM at beginning of file" {
 
     const Test = struct {
         fn run(buf: []const u8, input_type: enum { valid_utf8, invalid_utf8 }) !void {
-            var comp = Compilation.init(std.testing.allocator);
+            var comp = Compilation.init(std.testing.allocator, .{});
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(buf);

@@ -4,6 +4,7 @@ const Allocator = mem.Allocator;
 const process = std.process;
 const Compilation = @import("Compilation.zig");
 const Driver = @import("Driver.zig");
+const Environment = @import("Environment.zig");
 const target_util = @import("target.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
@@ -29,7 +30,14 @@ pub fn main() u8 {
         return 1;
     };
 
-    var comp = Compilation.init(gpa);
+    const environment = Environment.initFromProcess(gpa) catch {
+        std.debug.print("out of memory\n", .{});
+        if (fast_exit) std.process.exit(1);
+        return 1;
+    };
+    defer environment.deinitFromProcess(gpa);
+
+    var comp = Compilation.init(gpa, environment);
     defer comp.deinit();
 
     comp.addDefaultPragmaHandlers() catch |er| switch (er) {
@@ -70,6 +78,7 @@ test {
     _ = @import("Codegen_legacy.zig");
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
+    _ = @import("Environment.zig");
     _ = @import("InitList.zig");
     _ = @import("LangOpts.zig");
     _ = @import("Parser.zig");
