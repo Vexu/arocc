@@ -101,10 +101,23 @@ pub fn intern(comp: *Compilation, str: []const u8) !StringInterner.StringId {
     return comp.string_interner.intern(comp.gpa, str);
 }
 
-fn generateDateAndTime(w: anytype) !void {
-    // TODO take timezone into account here once it is supported in Zig std
-    const timestamp = std.math.clamp(std.time.timestamp(), 0, std.math.maxInt(i64));
-    const epoch_seconds = EpochSeconds{ .secs = @intCast(timestamp) };
+/// Dec 31 9999 23:59:59
+const max_timestamp = 253402300799;
+
+fn getTimestamp(comp: *Compilation) !u47 {
+    const provided: ?i64 = comp.environment.getSourceEpoch(max_timestamp) catch blk: {
+        try comp.diag.add(.{
+            .tag = .invalid_source_epoch,
+            .loc = .{ .id = .unused, .byte_offset = 0, .line = 0 },
+        }, &.{});
+        break :blk null;
+    };
+    const timestamp = provided orelse std.time.timestamp();
+    return @intCast(std.math.clamp(timestamp, 0, max_timestamp));
+}
+
+fn generateDateAndTime(w: anytype, timestamp: u47) !void {
+    const epoch_seconds = EpochSeconds{ .secs = timestamp };
     const epoch_day = epoch_seconds.getEpochDay();
     const day_seconds = epoch_seconds.getDaySeconds();
     const year_day = epoch_day.calculateYearDay();
@@ -333,7 +346,8 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
     );
 
     // timestamps
-    try generateDateAndTime(w);
+    const timestamp = try comp.getTimestamp();
+    try generateDateAndTime(w, timestamp);
 
     // types
     if (comp.getCharSignedness() == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");

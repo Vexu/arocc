@@ -2347,6 +2347,10 @@ const messages = struct {
         const kind = .@"error";
         const extra = .str;
     };
+    pub const invalid_source_epoch = struct {
+        const msg = "environment variable SOURCE_DATE_EPOCH must expand to a non-negative integer less than or equal to 253402300799";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

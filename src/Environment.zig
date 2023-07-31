@@ -59,6 +59,13 @@ pub fn get(self: *const Environment, name: Name) ?[]const u8 {
     return self.variables[@intFromEnum(name)];
 }
 
+pub fn getSourceEpoch(self: *const Environment, max: i64) !?i64 {
+    const provided = self.get(.SOURCE_DATE_EPOCH) orelse return null;
+    const parsed = std.fmt.parseInt(i64, provided, 10) catch return error.InvalidEpoch;
+    if (parsed < 0 or parsed > max) return error.InvalidEpoch;
+    return parsed;
+}
+
 test Environment {
     var env1 = Environment.init(.{
         .SOURCE_DATE_EPOCH = "123",
