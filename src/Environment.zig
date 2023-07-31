@@ -78,3 +78,15 @@ test Environment {
     var env3: Environment = .{};
     try std.testing.expectEqual(default_value, env3.get(.SOURCE_DATE_EPOCH));
 }
+
+test getSourceEpoch {
+    var env: Environment = .{};
+    try std.testing.expectEqual(@as(?i64, null), try env.getSourceEpoch(100));
+
+    env.set(.SOURCE_DATE_EPOCH, "123");
+    try std.testing.expectEqual(@as(?i64, 123), try env.getSourceEpoch(123));
+    try std.testing.expectError(error.InvalidEpoch, env.getSourceEpoch(100));
+
+    env.set(.SOURCE_DATE_EPOCH, "-1");
+    try std.testing.expectError(error.InvalidEpoch, env.getSourceEpoch(100));
+}
