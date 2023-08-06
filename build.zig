@@ -49,7 +49,7 @@ pub fn build(b: *Build) !void {
     const zig_module = b.createModule(.{
         .source_file = .{ .path = "deps/zig/lib.zig" },
     });
-    const aro_module = b.createModule(.{
+    const aro_module = b.addModule("aro", .{
         .source_file = .{ .path = "src/lib.zig" },
         .dependencies = &.{.{
             .name = "zig",
