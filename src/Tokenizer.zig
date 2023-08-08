@@ -2095,7 +2095,7 @@ test "C23 keywords" {
 }
 
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {
-    var comp = Compilation.init(std.testing.allocator, .{});
+    var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
     if (standard) |provided| {
         comp.langopts.standard = provided;

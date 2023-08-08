@@ -212,7 +212,7 @@ fn runTestCases(allocator: std.mem.Allocator, wg: *std.Thread.WaitGroup, test_ca
 fn singleRun(alloc: std.mem.Allocator, test_case: TestCase, stats: *Stats) !void {
     const path = test_case.path;
 
-    var comp = aro.Compilation.init(alloc, .{});
+    var comp = aro.Compilation.init(alloc);
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();

@@ -2517,7 +2517,7 @@ test "Preserve pragma tokens sometimes" {
             var buf = std.ArrayList(u8).init(allocator);
             defer buf.deinit();
 
-            var comp = Compilation.init(allocator, .{});
+            var comp = Compilation.init(allocator);
             defer comp.deinit();
 
             try comp.addDefaultPragmaHandlers();
@@ -2575,7 +2575,7 @@ test "destringify" {
             try std.testing.expectEqualStrings(destringified, pp.char_buf.items);
         }
     };
-    var comp = Compilation.init(allocator, .{});
+    var comp = Compilation.init(allocator);
     defer comp.deinit();
     var pp = Preprocessor.init(&comp);
     defer pp.deinit();
@@ -2633,7 +2633,7 @@ test "Include guards" {
         }
 
         fn testIncludeGuard(allocator: std.mem.Allocator, comptime template: []const u8, tok_id: RawToken.Id, expected_guards: u32) !void {
-            var comp = Compilation.init(allocator, .{});
+            var comp = Compilation.init(allocator);
             defer comp.deinit();
             var pp = Preprocessor.init(&comp);
             defer pp.deinit();

@@ -4,7 +4,6 @@ pub const CodeGen = @import("CodeGen.zig");
 pub const Compilation = @import("Compilation.zig");
 pub const Diagnostics = @import("Diagnostics.zig");
 pub const Driver = @import("Driver.zig");
-pub const Environment = @import("Environment.zig");
 pub const Interner = @import("Interner.zig");
 pub const Ir = @import("Ir.zig");
 pub const Object = @import("Object.zig");

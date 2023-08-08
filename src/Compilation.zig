@@ -5,7 +5,6 @@ const Allocator = mem.Allocator;
 const EpochSeconds = std.time.epoch.EpochSeconds;
 const Builtins = @import("Builtins.zig");
 const Diagnostics = @import("Diagnostics.zig");
-const Environment = @import("Environment.zig");
 const LangOpts = @import("LangOpts.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -26,8 +25,66 @@ pub const Error = error{
 
 pub const bit_int_max_bits = 128;
 
+/// Environment variables used during compilation / linking.
+pub const Environment = struct {
+    /// Directory to use for temporary files
+    /// TODO: not implemented yet
+    tmpdir: ?[]const u8 = null,
+
+    /// Directories to try when searching for subprograms.
+    /// TODO: not implemented yet
+    compiler_path: ?[]const u8 = null,
+
+    /// Directories to try when searching for special linker files, if compiling for the native target
+    /// TODO: not implemented yet
+    library_path: ?[]const u8 = null,
+
+    /// List of directories to be searched as if specified with -I, but after any paths given with -I options on the command line
+    /// Used regardless of the language being compiled
+    /// TODO: not implemented yet
+    cpath: ?[]const u8 = null,
+
+    /// List of directories to be searched as if specified with -I, but after any paths given with -I options on the command line
+    /// Used if the language being compiled is C
+    /// TODO: not implemented yet
+    c_include_path: ?[]const u8 = null,
+
+    /// UNIX timestamp to be used instead of the current date and time in the __DATE__ and __TIME__ macros
+    source_date_epoch: ?[]const u8 = null,
+
+    /// Load all of the environment variables using the std.process API. Do not use if using Aro as a shared library on Linux without libc
+    /// See https://github.com/ziglang/zig/issues/4524
+    /// Assumes that `self` has been default-initialized
+    pub fn loadAll(self: *Environment, allocator: std.mem.Allocator) !void {
+        errdefer self.deinit(allocator);
+
+        inline for (@typeInfo(@TypeOf(self.*)).Struct.fields) |field| {
+            std.debug.assert(@field(self, field.name) == null);
+
+            var env_var_buf: [field.name.len]u8 = undefined;
+            const env_var_name = std.ascii.upperString(&env_var_buf, field.name);
+            const val: ?[]const u8 = std.process.getEnvVarOwned(allocator, env_var_name) catch |err| switch (err) {
+                error.OutOfMemory => |e| return e,
+                error.EnvironmentVariableNotFound => null,
+                error.InvalidUtf8 => null,
+            };
+            @field(self, field.name) = val;
+        }
+    }
+
+    /// Use this only if environment slices were allocated with `allocator` (such as via `loadAll`)
+    pub fn deinit(self: *Environment, allocator: std.mem.Allocator) void {
+        inline for (@typeInfo(@TypeOf(self.*)).Struct.fields) |field| {
+            if (@field(self, field.name)) |slice| {
+                allocator.free(slice);
+            }
+        }
+        self.* = undefined;
+    }
+};
+
 gpa: Allocator,
-environment: Environment,
+environment: Environment = .{},
 sources: std.StringArrayHashMap(Source),
 diag: Diagnostics,
 include_dirs: std.ArrayList([]const u8),
@@ -63,10 +120,9 @@ types: struct {
 invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
 string_interner: StringInterner = .{},
 
-pub fn init(gpa: Allocator, environment: Environment) Compilation {
+pub fn init(gpa: Allocator) Compilation {
     return .{
         .gpa = gpa,
-        .environment = environment,
         .sources = std.StringArrayHashMap(Source).init(gpa),
         .diag = Diagnostics.init(gpa),
         .include_dirs = std.ArrayList([]const u8).init(gpa),
@@ -101,11 +157,18 @@ pub fn intern(comp: *Compilation, str: []const u8) !StringInterner.StringId {
     return comp.string_interner.intern(comp.gpa, str);
 }
 
+pub fn getSourceEpoch(self: *const Compilation, max: i64) !?i64 {
+    const provided = self.environment.source_date_epoch orelse return null;
+    const parsed = std.fmt.parseInt(i64, provided, 10) catch return error.InvalidEpoch;
+    if (parsed < 0 or parsed > max) return error.InvalidEpoch;
+    return parsed;
+}
+
 /// Dec 31 9999 23:59:59
 const max_timestamp = 253402300799;
 
 fn getTimestamp(comp: *Compilation) !u47 {
-    const provided: ?i64 = comp.environment.getSourceEpoch(max_timestamp) catch blk: {
+    const provided: ?i64 = comp.getSourceEpoch(max_timestamp) catch blk: {
         try comp.diag.add(.{
             .tag = .invalid_source_epoch,
             .loc = .{ .id = .unused, .byte_offset = 0, .line = 0 },
@@ -1310,7 +1373,7 @@ pub const renderErrors = Diagnostics.render;
 test "addSourceFromReader" {
     const Test = struct {
         fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
-            var comp = Compilation.init(std.testing.allocator, .{});
+            var comp = Compilation.init(std.testing.allocator);
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(str);
@@ -1322,7 +1385,7 @@ test "addSourceFromReader" {
         }
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator, .{});
+            var comp = Compilation.init(allocator);
             defer comp.deinit();
 
             _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
@@ -1364,7 +1427,7 @@ test "addSourceFromReader - exhaustive check for carriage return elimination" {
     const alen = alphabet.len;
     var buf: [alphabet.len]u8 = [1]u8{alphabet[0]} ** alen;
 
-    var comp = Compilation.init(std.testing.allocator, .{});
+    var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
 
     var source_count: u32 = 0;
@@ -1392,7 +1455,7 @@ test "ignore BOM at beginning of file" {
 
     const Test = struct {
         fn run(buf: []const u8, input_type: enum { valid_utf8, invalid_utf8 }) !void {
-            var comp = Compilation.init(std.testing.allocator, .{});
+            var comp = Compilation.init(std.testing.allocator);
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(buf);

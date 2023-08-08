@@ -293,7 +293,7 @@ pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, type_aren
 }
 
 test "All builtins" {
-    var comp = Compilation.init(std.testing.allocator, .{});
+    var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
     _ = try comp.generateBuiltinMacros();
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
@@ -316,7 +316,7 @@ test "All builtins" {
 test "Allocation failures" {
     const Test = struct {
         fn testOne(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator, .{});
+            var comp = Compilation.init(allocator);
             defer comp.deinit();
             _ = try comp.generateBuiltinMacros();
             var arena = std.heap.ArenaAllocator.init(comp.gpa);

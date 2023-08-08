@@ -3,7 +3,6 @@ const build_options = @import("build_options");
 const print = std.debug.print;
 const aro = @import("aro");
 const Codegen = aro.Codegen;
-const Environment = aro.Environment;
 const Tree = aro.Tree;
 const Token = Tree.Token;
 const NodeIndex = Tree.NodeIndex;
@@ -34,8 +33,11 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
             var parts = std.mem.splitScalar(u8, some, '=');
             const name = parts.next().?;
             const val = parts.next() orelse "";
-            const varname = std.meta.stringToEnum(Environment.Name, name) orelse continue;
-            comp.environment.set(varname, val);
+            inline for (@typeInfo(aro.Compilation.Environment).Struct.fields) |field| {
+                if (std.ascii.eqlIgnoreCase(name, field.name)) {
+                    @field(comp.environment, field.name) = val;
+                }
+            }
         }
     }
 
@@ -43,7 +45,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
 }
 
 fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
-    var comp = aro.Compilation.init(allocator, .{});
+    var comp = aro.Compilation.init(allocator);
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
@@ -145,7 +147,7 @@ pub fn main() !void {
     const root_node = progress.start("Test", cases.items.len);
 
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa, .{});
+    var initial_comp = aro.Compilation.init(gpa);
     defer initial_comp.deinit();
 
     const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });
