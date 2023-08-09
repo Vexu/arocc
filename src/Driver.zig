@@ -528,7 +528,7 @@ fn processSource(
     defer out_file.close();
 
     obj.finish(out_file) catch |er|
-        return d.fatal("could output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
+        return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
 
     if (d.only_compile) {
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
