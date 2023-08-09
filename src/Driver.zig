@@ -57,7 +57,7 @@ pub const usage =
     \\  -v, --version   Print aro version.
     \\
     \\Compile options:
-    \\  -c                      Only run preprocess, compile, and assemble steps
+    \\  -c, --compile           Only run preprocess, compile, and assemble steps
     \\  -D <macro>=<value>      Define <macro> to <value> (defaults to 1)
     \\  -E                      Only run the preprocessor
     \\  -fchar8_t               Enable char8_t (enabled by default in C2X and later)
@@ -93,7 +93,7 @@ pub const usage =
     \\  -o <file>               Write output to <file>
     \\  -pedantic               Warn on language extensions
     \\  -std=<standard>         Specify language standard
-    \\  -S                      Only run preprocess and compilation steps
+    \\  -S, --assemble          Only run preprocess and compilation steps
     \\  --target=<value>        Generate code for the given target
     \\  -U <macro>              Undefine <macro>
     \\  -Werror                 Treat all warnings as errors
@@ -167,7 +167,7 @@ pub fn parseArgs(
                     macro = args[i];
                 }
                 try macro_buf.print("#undef {s}\n", .{macro});
-            } else if (mem.eql(u8, arg, "-c")) {
+            } else if (mem.eql(u8, arg, "-c") or mem.eql(u8, arg, "--compile")) {
                 d.only_compile = true;
             } else if (mem.eql(u8, arg, "-E")) {
                 d.only_preprocess = true;
@@ -286,7 +286,7 @@ pub fn parseArgs(
             } else if (option(arg, "-std=")) |standard| {
                 d.comp.langopts.setStandard(standard) catch
                     try d.comp.diag.add(.{ .tag = .cli_invalid_standard, .extra = .{ .str = arg } }, &.{});
-            } else if (mem.eql(u8, arg, "-S")) {
+            } else if (mem.eql(u8, arg, "-S") or mem.eql(u8, arg, "--assemble")) {
                 d.only_preprocess_and_compile = true;
             } else if (option(arg, "--target=")) |triple| {
                 const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch {
