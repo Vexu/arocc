@@ -12,6 +12,7 @@ var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 /// Returns true if saw -E
 fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !bool {
+    var only_preprocess = false;
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
         var test_args = std.ArrayList([]const u8).init(comp.gpa);
         defer test_args.deinit();
@@ -22,9 +23,25 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         var driver: aro.Driver = .{ .comp = comp };
         defer driver.deinit();
         _ = try driver.parseArgs(std.io.null_writer, macro_buf, test_args.items);
-        return driver.only_preprocess;
+        only_preprocess = driver.only_preprocess;
     }
-    return false;
+    if (std.mem.indexOf(u8, file.buf, "//aro-env")) |idx| {
+        const buf = file.buf[idx..];
+        const nl = std.mem.indexOfAny(u8, buf, "\n\r") orelse buf.len;
+        var it = std.mem.tokenize(u8, buf[0..nl], " ");
+        while (it.next()) |some| {
+            var parts = std.mem.splitScalar(u8, some, '=');
+            const name = parts.next().?;
+            const val = parts.next() orelse "";
+            inline for (@typeInfo(aro.Compilation.Environment).Struct.fields) |field| {
+                if (std.ascii.eqlIgnoreCase(name, field.name)) {
+                    @field(comp.environment, field.name) = val;
+                }
+            }
+        }
+    }
+
+    return only_preprocess;
 }
 
 fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
