@@ -39,11 +39,10 @@ use_linker: Linker = .ld,
 linker_path: ?[]const u8 = null,
 
 pub fn deinit(d: *Driver) void {
-    const linking = !(d.only_preprocess or d.only_syntax or d.only_compile or d.only_preprocess_and_compile);
-    if (linking) for (d.link_objects.items[d.link_objects.items.len - d.temp_file_count ..]) |obj| {
+    for (d.link_objects.items[d.link_objects.items.len - d.temp_file_count ..]) |obj| {
         std.fs.deleteFileAbsolute(obj) catch {};
         d.comp.gpa.free(obj);
-    };
+    }
     d.inputs.deinit(d.comp.gpa);
     d.link_objects.deinit(d.comp.gpa);
     d.* = undefined;
@@ -57,7 +56,7 @@ pub const usage =
     \\  -v, --version   Print aro version.
     \\
     \\Compile options:
-    \\  -c                      Only run preprocess, compile, and assemble steps
+    \\  -c, --compile           Only run preprocess, compile, and assemble steps
     \\  -D <macro>=<value>      Define <macro> to <value> (defaults to 1)
     \\  -E                      Only run the preprocessor
     \\  -fchar8_t               Enable char8_t (enabled by default in C2X and later)
@@ -93,7 +92,7 @@ pub const usage =
     \\  -o <file>               Write output to <file>
     \\  -pedantic               Warn on language extensions
     \\  -std=<standard>         Specify language standard
-    \\  -S                      Only run preprocess and compilation steps
+    \\  -S, --assemble          Only run preprocess and compilation steps
     \\  --target=<value>        Generate code for the given target
     \\  -U <macro>              Undefine <macro>
     \\  -Werror                 Treat all warnings as errors
@@ -167,7 +166,7 @@ pub fn parseArgs(
                     macro = args[i];
                 }
                 try macro_buf.print("#undef {s}\n", .{macro});
-            } else if (mem.eql(u8, arg, "-c")) {
+            } else if (mem.eql(u8, arg, "-c") or mem.eql(u8, arg, "--compile")) {
                 d.only_compile = true;
             } else if (mem.eql(u8, arg, "-E")) {
                 d.only_preprocess = true;
@@ -286,7 +285,7 @@ pub fn parseArgs(
             } else if (option(arg, "-std=")) |standard| {
                 d.comp.langopts.setStandard(standard) catch
                     try d.comp.diag.add(.{ .tag = .cli_invalid_standard, .extra = .{ .str = arg } }, &.{});
-            } else if (mem.eql(u8, arg, "-S")) {
+            } else if (mem.eql(u8, arg, "-S") or mem.eql(u8, arg, "--assemble")) {
                 d.only_preprocess_and_compile = true;
             } else if (option(arg, "--target=")) |triple| {
                 const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch {
@@ -495,11 +494,18 @@ fn processSource(
     const obj = try Codegen.generateTree(d.comp, tree);
     defer obj.deinit();
 
+    // If it's used, name_buf will either hold a filename or `/tmp/<12 random bytes with base-64 encoding>.<extension>`
+    // both of which should fit into MAX_NAME_BYTES for all systems
+    var name_buf: [std.fs.MAX_NAME_BYTES]u8 = undefined;
+
     const out_file_name = if (d.only_compile) blk: {
-        break :blk d.output_name orelse try std.fmt.allocPrint(d.comp.gpa, "{s}{s}", .{
+        const fmt_template = "{s}{s}";
+        const fmt_args = .{
             std.fs.path.stem(source.path),
             d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
-        });
+        };
+        break :blk d.output_name orelse
+            std.fmt.bufPrint(&name_buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
     } else blk: {
         const random_bytes_count = 12;
         const sub_path_len = comptime std.fs.base64_encoder.calcSize(random_bytes_count);
@@ -509,25 +515,27 @@ fn processSource(
         var random_name: [sub_path_len]u8 = undefined;
         _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
 
-        break :blk try std.fmt.allocPrint(d.comp.gpa, "/tmp/{s}{s}", .{
-            random_name, d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
-        });
+        const fmt_template = "/tmp/{s}{s}";
+        const fmt_args = .{
+            random_name,
+            d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
+        };
+        break :blk std.fmt.bufPrint(&name_buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
     };
-    defer if (d.only_compile) d.comp.gpa.free(out_file_name);
 
     const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |er|
         return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
     defer out_file.close();
 
     obj.finish(out_file) catch |er|
-        return d.fatal("could output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
+        return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
 
     if (d.only_compile) {
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
     }
-
-    try d.link_objects.append(d.comp.gpa, out_file_name);
+    try d.link_objects.ensureUnusedCapacity(d.comp.gpa, 1);
+    d.link_objects.appendAssumeCapacity(try d.comp.gpa.dupe(u8, out_file_name));
     d.temp_file_count += 1;
     if (fast_exit) {
         try d.invokeLinker();
