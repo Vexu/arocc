@@ -191,11 +191,11 @@ const TargetSpecificToolName = std.BoundedArray(u8, 64);
 /// with GCC's.
 /// For example the Zig target `arm-freestanding-eabi` would need the `arm-none-eabi` tools
 fn possibleProgramNames(raw_triple: ?[]const u8, name: []const u8, target_specific: *TargetSpecificToolName) std.BoundedArray([]const u8, 2) {
-    var possible_names = std.BoundedArray([]const u8, 2).init(0) catch unreachable;
+    var possible_names: std.BoundedArray([]const u8, 2) = .{};
     if (raw_triple) |triple| {
         const w = target_specific.writer();
         if (w.print("{s}-{s}", .{ triple, name })) {
-            possible_names.appendAssumeCapacity(target_specific.slice());
+            possible_names.appendAssumeCapacity(target_specific.constSlice());
         } else |_| {}
     }
     possible_names.appendAssumeCapacity(name);
@@ -228,10 +228,10 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
 
-    var tool_specific_name = TargetSpecificToolName.init(0) catch unreachable;
+    var tool_specific_name: TargetSpecificToolName = .{};
     const possible_names = possibleProgramNames(tc.driver.raw_target_triple, name, &tool_specific_name);
 
-    for (possible_names.slice()) |tool_name| {
+    for (possible_names.constSlice()) |tool_name| {
         for (tc.program_paths.items) |program_path| {
             defer fib.reset();
 

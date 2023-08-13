@@ -59,7 +59,6 @@ priority: u32 = 0,
 
 pub fn init(gcc_suffix: []const u8, os_suffix: []const u8, flags: []const []const u8) Multilib {
     var self: Multilib = .{
-        .flags = Flags.init(0) catch unreachable,
         .gcc_suffix = gcc_suffix,
         .os_suffix = os_suffix,
     };

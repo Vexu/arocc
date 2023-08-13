@@ -368,10 +368,10 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     const bivariant_target = if (target.ptrBitWidth() == 32) target_util.get64BitArchVariant(target) else target_util.get32BitArchVariant(target);
     _ = bivariant_target;
 
-    var candidate_lib_dirs = PathPrefixes.init(0) catch unreachable;
-    var candidate_biarch_lib_dirs = PathPrefixes.init(0) catch unreachable;
-    var candidate_triple_aliases = PathPrefixes.init(0) catch unreachable;
-    var candidate_biarch_triple_aliases = PathPrefixes.init(0) catch unreachable;
+    var candidate_lib_dirs: PathPrefixes = .{};
+    var candidate_biarch_lib_dirs: PathPrefixes = .{};
+    var candidate_triple_aliases: PathPrefixes = .{};
+    var candidate_biarch_triple_aliases: PathPrefixes = .{};
     try self.collectLibDirsAndTriples(tc, &candidate_lib_dirs, &candidate_biarch_lib_dirs, &candidate_triple_aliases, &candidate_biarch_triple_aliases);
 
     var target_buf: std.BoundedArray(u8, 32) = .{};
@@ -383,7 +383,7 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     //   if (TargetTriple.str() != BiarchTriple.str())
     //     BiarchTripleAliases.push_back(BiarchTriple.str());
 
-    var prefixes = PathPrefixes.init(0) catch unreachable;
+    var prefixes: PathPrefixes = .{};
     const gcc_toolchain_dir = gccToolchainDir(tc);
     if (gcc_toolchain_dir.len != 0) {
         const adjusted = if (gcc_toolchain_dir[gcc_toolchain_dir.len - 1] == '/')
