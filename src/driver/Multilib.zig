@@ -20,7 +20,7 @@ pub const Detected = struct {
         self.multilibs.resize(found_count) catch unreachable;
     }
 
-    pub fn select(self: *Detected, flags: Flags) bool {
+    pub fn select(self: *Detected, flags: Flags) !bool {
         var filtered: std.BoundedArray(Multilib, 4) = .{};
         for (self.multilibs.constSlice()) |multilib| {
             for (multilib.flags.constSlice()) |multilib_flag| {
@@ -37,7 +37,7 @@ pub const Detected = struct {
             self.selected = filtered.get(0);
             return true;
         }
-        @panic("Got too many multilibs");
+        return error.TooManyMultilibs;
     }
 };
 

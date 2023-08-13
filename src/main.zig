@@ -73,6 +73,11 @@ pub fn main() !u8 {
             if (fast_exit) std.process.exit(1);
             return 1;
         },
+        error.TooManyMultilibs => {
+            std.debug.print("found more than one multilib with the same priority\n", .{});
+            if (fast_exit) std.process.exit(1);
+            return 1;
+        },
         else => |err| return err,
     };
     if (fast_exit) std.process.exit(@intFromBool(comp.diag.errors != 0));

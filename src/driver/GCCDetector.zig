@@ -488,10 +488,7 @@ fn findBiarchMultilibs(self: *GCCDetector, tc: *const Toolchain, result: *Multil
     flags.appendAssumeCapacity(if (target_ptr_width == 32) "+m32" else "-m32");
     flags.appendAssumeCapacity(if (target_ptr_width == 64 and is_x32) "+mx32" else "-mx32");
 
-    const success = result.select(flags);
-    if (!success) return false;
-
-    return true;
+    return result.select(flags);
 }
 
 fn scanGCCForMultilibs(self: *GCCDetector, tc: *const Toolchain, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
