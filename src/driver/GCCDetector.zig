@@ -60,15 +60,12 @@ fn addDefaultGCCPrefixes(prefixes: *PathPrefixes, tc: *const Toolchain) !void {
 const PathPrefixes = std.BoundedArray([]const u8, 16);
 
 fn collectLibDirsAndTriples(
-    self: *GCCDetector,
     tc: *Toolchain,
     lib_dirs: *PathPrefixes,
     triple_aliases: *PathPrefixes,
     biarch_libdirs: *PathPrefixes,
     biarch_triple_aliases: *PathPrefixes,
 ) !void {
-    _ = self;
-
     const AArch64LibDirs: [2][]const u8 = .{ "/lib64", "/lib" };
     const AArch64Triples: [4][]const u8 = .{ "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-redhat-linux", "aarch64-suse-linux" };
     const AArch64beLibDirs: [1][]const u8 = .{"/lib"};
@@ -406,23 +403,28 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
 
     const target = tc.getTarget();
-    const bivariant_target = if (target.ptrBitWidth() == 32) target_util.get64BitArchVariant(target) else target_util.get32BitArchVariant(target);
-    _ = bivariant_target;
+    const biarch_variant_target = if (target.ptrBitWidth() == 32) target_util.get64BitArchVariant(target) else target_util.get32BitArchVariant(target);
 
     var candidate_lib_dirs: PathPrefixes = .{};
     var candidate_biarch_lib_dirs: PathPrefixes = .{};
     var candidate_triple_aliases: PathPrefixes = .{};
     var candidate_biarch_triple_aliases: PathPrefixes = .{};
-    try self.collectLibDirsAndTriples(tc, &candidate_lib_dirs, &candidate_biarch_lib_dirs, &candidate_triple_aliases, &candidate_biarch_triple_aliases);
+    try collectLibDirsAndTriples(tc, &candidate_lib_dirs, &candidate_biarch_lib_dirs, &candidate_triple_aliases, &candidate_biarch_triple_aliases);
 
     var target_buf: std.BoundedArray(u8, 32) = .{};
     try target_util.toLLVMTriple(target_buf.writer(), target);
     const triple_str = target_buf.constSlice();
     candidate_triple_aliases.appendAssumeCapacity(triple_str);
 
-    //   // Also include the multiarch variant if it's different.
-    //   if (TargetTriple.str() != BiarchTriple.str())
-    //     BiarchTripleAliases.push_back(BiarchTriple.str());
+    // Also include the multiarch variant if it's different.
+    var biarch_buf: std.BoundedArray(u8, 32) = .{};
+    if (biarch_variant_target) |biarch_target| {
+        try target_util.toLLVMTriple(biarch_buf.writer(), biarch_target);
+        const biarch_triple_str = biarch_buf.constSlice();
+        if (!std.mem.eql(u8, biarch_triple_str, triple_str)) {
+            candidate_triple_aliases.appendAssumeCapacity(biarch_triple_str);
+        }
+    }
 
     var prefixes: PathPrefixes = .{};
     const gcc_toolchain_dir = gccToolchainDir(tc);
