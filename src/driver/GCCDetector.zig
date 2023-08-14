@@ -140,69 +140,49 @@ fn collectLibDirsAndTriples(
     const MIPSN32ELTriples: [2][]const u8 = .{ "mips64el-linux-gnuabin32", "mipsisa64r6el-linux-gnuabin32" };
 
     const MSP430LibDirs: [1][]const u8 = .{"/lib"};
-    _ = MSP430LibDirs;
     const MSP430Triples: [1][]const u8 = .{"msp430-elf"};
-    _ = MSP430Triples;
 
     const PPCLibDirs: [2][]const u8 = .{ "/lib32", "/lib" };
-    _ = PPCLibDirs;
     const PPCTriples: [5][]const u8 = .{
         "powerpc-linux-gnu",    "powerpc-unknown-linux-gnu",   "powerpc-linux-gnuspe",
         // On 32-bit PowerPC systems running SUSE Linux, gcc is configured as a
         // 64-bit compiler which defaults to "-m32", hence "powerpc64-suse-linux".
         "powerpc64-suse-linux", "powerpc-montavista-linuxspe",
     };
-    _ = PPCTriples;
     const PPCLELibDirs: [2][]const u8 = .{ "/lib32", "/lib" };
-    _ = PPCLELibDirs;
     const PPCLETriples: [3][]const u8 = .{ "powerpcle-linux-gnu", "powerpcle-unknown-linux-gnu", "powerpcle-linux-musl" };
-    _ = PPCLETriples;
 
     const PPC64LibDirs: [2][]const u8 = .{ "/lib64", "/lib" };
-    _ = PPC64LibDirs;
     const PPC64Triples: [4][]const u8 = .{
         "powerpc64-linux-gnu",  "powerpc64-unknown-linux-gnu",
         "powerpc64-suse-linux", "ppc64-redhat-linux",
     };
-    _ = PPC64Triples;
     const PPC64LELibDirs: [2][]const u8 = .{ "/lib64", "/lib" };
-    _ = PPC64LELibDirs;
     const PPC64LETriples: [5][]const u8 = .{
         "powerpc64le-linux-gnu",      "powerpc64le-unknown-linux-gnu",
         "powerpc64le-none-linux-gnu", "powerpc64le-suse-linux",
         "ppc64le-redhat-linux",
     };
-    _ = PPC64LETriples;
 
     const RISCV32LibDirs: [2][]const u8 = .{ "/lib32", "/lib" };
-    _ = RISCV32LibDirs;
     const RISCV32Triples: [3][]const u8 = .{ "riscv32-unknown-linux-gnu", "riscv32-linux-gnu", "riscv32-unknown-elf" };
-    _ = RISCV32Triples;
     const RISCV64LibDirs: [2][]const u8 = .{ "/lib64", "/lib" };
-    _ = RISCV64LibDirs;
     const RISCV64Triples: [3][]const u8 = .{
         "riscv64-unknown-linux-gnu",
         "riscv64-linux-gnu",
         "riscv64-unknown-elf",
     };
-    _ = RISCV64Triples;
 
     const SPARCv8LibDirs: [2][]const u8 = .{ "/lib32", "/lib" };
-    _ = SPARCv8LibDirs;
     const SPARCv8Triples: [2][]const u8 = .{ "sparc-linux-gnu", "sparcv8-linux-gnu" };
-    _ = SPARCv8Triples;
     const SPARCv9LibDirs: [2][]const u8 = .{ "/lib64", "/lib" };
-    _ = SPARCv9LibDirs;
     const SPARCv9Triples: [2][]const u8 = .{ "sparc64-linux-gnu", "sparcv9-linux-gnu" };
-    _ = SPARCv9Triples;
 
     const SystemZLibDirs: [2][]const u8 = .{ "/lib64", "/lib" };
-    _ = SystemZLibDirs;
     const SystemZTriples: [5][]const u8 = .{
         "s390x-linux-gnu",  "s390x-unknown-linux-gnu", "s390x-ibm-linux-gnu",
         "s390x-suse-linux", "s390x-redhat-linux",
     };
-    _ = SystemZTriples;
     const target = tc.getTarget();
     if (target.os.tag == .solaris) {
         // TODO
@@ -344,18 +324,79 @@ fn collectLibDirsAndTriples(
             biarch_libdirs.appendSliceAssumeCapacity(&MIPSN32ELLibDirs);
             biarch_triple_aliases.appendSliceAssumeCapacity(&MIPSN32ELTriples);
         },
-        .mips64 => @panic("TODO"),
-        .mips64el => @panic("TODO"),
-        .msp430 => @panic("TODO"),
-        .powerpc => @panic("TODO"),
-        .powerpcle => @panic("TODO"),
-        .powerpc64 => @panic("TODO"),
-        .powerpc64le => @panic("TODO"),
-        .riscv32 => @panic("TODO"),
-        .riscv64 => @panic("TODO"),
-        .sparc, .sparcel => @panic("TODO"),
-        .sparc64 => @panic("TODO"),
-        .s390x => @panic("TODO"),
+        .mips64 => {
+            lib_dirs.appendSliceAssumeCapacity(&MIPS64LibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&MIPS64Triples);
+            biarch_libdirs.appendSliceAssumeCapacity(&MIPSLibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&MIPSTriples);
+            biarch_libdirs.appendSliceAssumeCapacity(&MIPSN32LibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&MIPSN32Triples);
+        },
+        .mips64el => {
+            lib_dirs.appendSliceAssumeCapacity(&MIPS64ELLibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&MIPS64ELTriples);
+            biarch_libdirs.appendSliceAssumeCapacity(&MIPSELLibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&MIPSELTriples);
+            biarch_libdirs.appendSliceAssumeCapacity(&MIPSN32ELLibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&MIPSN32ELTriples);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&MIPSTriples);
+        },
+        .msp430 => {
+            lib_dirs.appendSliceAssumeCapacity(&MSP430LibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&MSP430Triples);
+        },
+        .powerpc => {
+            lib_dirs.appendSliceAssumeCapacity(&PPCLibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&PPCTriples);
+            biarch_libdirs.appendSliceAssumeCapacity(&PPC64LibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&PPC64Triples);
+        },
+        .powerpcle => {
+            lib_dirs.appendSliceAssumeCapacity(&PPCLELibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&PPCLETriples);
+            biarch_libdirs.appendSliceAssumeCapacity(&PPC64LELibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&PPC64LETriples);
+        },
+        .powerpc64 => {
+            lib_dirs.appendSliceAssumeCapacity(&PPC64LibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&PPC64Triples);
+            biarch_libdirs.appendSliceAssumeCapacity(&PPCLibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&PPCTriples);
+        },
+        .powerpc64le => {
+            lib_dirs.appendSliceAssumeCapacity(&PPC64LELibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&PPC64LETriples);
+            biarch_libdirs.appendSliceAssumeCapacity(&PPCLELibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&PPCLETriples);
+        },
+        .riscv32 => {
+            lib_dirs.appendSliceAssumeCapacity(&RISCV32LibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&RISCV32Triples);
+            biarch_libdirs.appendSliceAssumeCapacity(&RISCV64LibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&RISCV64Triples);
+        },
+        .riscv64 => {
+            lib_dirs.appendSliceAssumeCapacity(&RISCV64LibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&RISCV64Triples);
+            biarch_libdirs.appendSliceAssumeCapacity(&RISCV32LibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&RISCV32Triples);
+        },
+        .sparc, .sparcel => {
+            lib_dirs.appendSliceAssumeCapacity(&SPARCv8LibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&SPARCv8Triples);
+            biarch_libdirs.appendSliceAssumeCapacity(&SPARCv9LibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&SPARCv9Triples);
+        },
+        .sparc64 => {
+            lib_dirs.appendSliceAssumeCapacity(&SPARCv9LibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&SPARCv9Triples);
+            biarch_libdirs.appendSliceAssumeCapacity(&SPARCv8LibDirs);
+            biarch_triple_aliases.appendSliceAssumeCapacity(&SPARCv8Triples);
+        },
+        .s390x => {
+            lib_dirs.appendSliceAssumeCapacity(&SystemZLibDirs);
+            triple_aliases.appendSliceAssumeCapacity(&SystemZTriples);
+        },
         else => {},
     }
 }
