@@ -13,17 +13,6 @@ pub const HashStyle = enum {
     gnu,
 };
 
-/// Read the file at `path` into `buf`.
-/// Returns null if any errors are encountered
-/// Otherwise returns a slice of `buf`. If the file is larger than `buf` partial contents are returned
-fn readFile(path: []const u8, buf: []u8) ?[]const u8 {
-    const file = std.fs.openFileAbsolute(path, .{}) catch return null;
-    defer file.close();
-
-    const bytes_read = file.readAll(buf) catch return null;
-    return buf[0..bytes_read];
-}
-
 pub const Tag = enum {
     alpine,
     arch,
@@ -180,9 +169,9 @@ fn scanForOsRelease(buf: []const u8) ?Tag {
     return null;
 }
 
-fn detectOsRelease() ?Tag {
+fn detectOsRelease(fs: Filesystem) ?Tag {
     var buf: [MAX_BYTES]u8 = undefined;
-    const data = readFile("/etc/os-release", &buf) orelse readFile("/usr/lib/os-release", &buf) orelse return null;
+    const data = fs.readFile("/etc/os-release", &buf) orelse fs.readFile("/usr/lib/os-release", &buf) orelse return null;
     return scanForOsRelease(data);
 }
 
@@ -227,9 +216,9 @@ fn scanForLSBRelease(buf: []const u8) ?Tag {
     return null;
 }
 
-fn detectLSBRelease() ?Tag {
+fn detectLSBRelease(fs: Filesystem) ?Tag {
     var buf: [MAX_BYTES]u8 = undefined;
-    const data = readFile("/etc/lsb-release", &buf) orelse return null;
+    const data = fs.readFile("/etc/lsb-release", &buf) orelse return null;
 
     return scanForLSBRelease(data);
 }
@@ -245,9 +234,9 @@ fn scanForRedHat(buf: []const u8) Tag {
     return .unknown;
 }
 
-fn detectRedhat() ?Tag {
+fn detectRedhat(fs: Filesystem) ?Tag {
     var buf: [MAX_BYTES]u8 = undefined;
-    const data = readFile("/etc/redhat-release", &buf) orelse return null;
+    const data = fs.readFile("/etc/redhat-release", &buf) orelse return null;
     return scanForRedHat(data);
 }
 
@@ -281,19 +270,19 @@ fn scanForDebian(buf: []const u8) Tag {
     return .unknown;
 }
 
-fn detectDebian() ?Tag {
+fn detectDebian(fs: Filesystem) ?Tag {
     var buf: [MAX_BYTES]u8 = undefined;
-    const data = readFile("/etc/debian_version", &buf) orelse return null;
+    const data = fs.readFile("/etc/debian_version", &buf) orelse return null;
     return scanForDebian(data);
 }
 
 pub fn detect(target: std.Target, fs: Filesystem) Tag {
     if (target.os.tag != .linux) return .unknown;
 
-    if (detectOsRelease()) |tag| return tag;
-    if (detectLSBRelease()) |tag| return tag;
-    if (detectRedhat()) |tag| return tag;
-    if (detectDebian()) |tag| return tag;
+    if (detectOsRelease(fs)) |tag| return tag;
+    if (detectLSBRelease(fs)) |tag| return tag;
+    if (detectRedhat(fs)) |tag| return tag;
+    if (detectDebian(fs)) |tag| return tag;
 
     if (fs.exists("/etc/gentoo-release")) return .gentoo;
 

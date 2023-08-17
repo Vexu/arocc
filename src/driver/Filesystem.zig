@@ -4,6 +4,18 @@ const builtin = @import("builtin");
 const system_defaults = @import("system_defaults");
 const is_windows = builtin.os.tag == .windows;
 
+fn readFileFake(entries: []const Filesystem.Entry, path: []const u8, buf: []u8) ?[]const u8 {
+    @setCold(true);
+    for (entries) |entry| {
+        if (mem.eql(u8, entry.path, path)) {
+            const len = @min(entry.contents.len, buf.len);
+            @memcpy(buf[0..len], entry.contents[0..len]);
+            return buf[0..len];
+        }
+    }
+    return null;
+}
+
 fn findProgramByNameFake(entries: []const Filesystem.Entry, name: []const u8, path: ?[]const u8, buf: []u8) ?[]const u8 {
     @setCold(true);
     if (mem.indexOfScalar(u8, name, '/') != null) {
@@ -90,7 +102,75 @@ pub const Filesystem = union(enum) {
 
     const Entry = struct {
         path: []const u8,
+        contents: []const u8 = "",
         executable: bool = false,
+    };
+
+    const FakeDir = struct {
+        entries: []const Entry,
+        path: []const u8,
+
+        fn iterate(self: FakeDir) FakeDir.Iterator {
+            return .{
+                .entries = self.entries,
+                .base = self.path,
+            };
+        }
+
+        const Iterator = struct {
+            entries: []const Entry,
+            base: []const u8,
+            i: usize = 0,
+
+            const Self = @This();
+
+            fn next(self: *@This()) !?std.fs.IterableDir.Entry {
+                while (self.i < self.entries.len) {
+                    const entry = self.entries[self.i];
+                    self.i += 1;
+                    if (entry.path.len == self.base.len) continue;
+                    if (std.mem.startsWith(u8, entry.path, self.base)) {
+                        const remaining = entry.path[self.base.len + 1 ..];
+                        if (std.mem.indexOfScalar(u8, remaining, std.fs.path.sep) != null) continue;
+                        const extension = std.fs.path.extension(remaining);
+                        const kind: std.fs.IterableDir.Entry.Kind = if (extension.len == 0) .directory else .file;
+                        return .{ .name = remaining, .kind = kind };
+                    }
+                }
+                return null;
+            }
+        };
+    };
+
+    const IterableDir = union(enum) {
+        dir: std.fs.IterableDir,
+        fake: FakeDir,
+
+        pub fn iterate(self: IterableDir) Iterator {
+            return switch (self) {
+                .dir => |dir| .{ .iterator = dir.iterate() },
+                .fake => |fake| .{ .fake = fake.iterate() },
+            };
+        }
+
+        pub fn close(self: *IterableDir) void {
+            switch (self.*) {
+                .dir => |*d| d.close(),
+                .fake => {},
+            }
+        }
+    };
+
+    const Iterator = union(enum) {
+        iterator: std.fs.IterableDir.Iterator,
+        fake: FakeDir.Iterator,
+
+        pub fn next(self: *Iterator) std.fs.IterableDir.Iterator.Error!?std.fs.IterableDir.Entry {
+            return switch (self.*) {
+                .iterator => |*it| it.next(),
+                .fake => |*it| it.next(),
+            };
+        }
     };
 
     pub fn exists(fs: Filesystem, path: []const u8) bool {
@@ -125,6 +205,29 @@ pub const Filesystem = union(enum) {
         return switch (fs) {
             .real => if (is_windows) findProgramByNameWindows(allocator, name, path, buf) else findProgramByNamePosix(name, path, buf),
             .fake => |entries| findProgramByNameFake(entries, name, path, buf),
+        };
+    }
+
+    /// Read the file at `path` into `buf`.
+    /// Returns null if any errors are encountered
+    /// Otherwise returns a slice of `buf`. If the file is larger than `buf` partial contents are returned
+    pub fn readFile(fs: Filesystem, path: []const u8, buf: []u8) ?[]const u8 {
+        return switch (fs) {
+            .real => {
+                const file = std.fs.cwd().openFile(path, .{}) catch return null;
+                defer file.close();
+
+                const bytes_read = file.readAll(buf) catch return null;
+                return buf[0..bytes_read];
+            },
+            .fake => |entries| readFileFake(entries, path, buf),
+        };
+    }
+
+    pub fn openIterableDir(fs: Filesystem, dir_name: []const u8) std.fs.Dir.OpenError!IterableDir {
+        return switch (fs) {
+            .real => .{ .dir = try std.fs.cwd().openIterableDir(dir_name, .{ .access_sub_paths = false }) },
+            .fake => |entries| .{ .fake = .{ .entries = entries, .path = dir_name } },
         };
     }
 };

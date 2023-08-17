@@ -579,7 +579,7 @@ fn scanLibDirForGCCTriple(
         const lib_suffix = lib_suffix_buf.constSlice();
 
         const dir_name = std.fs.path.join(fib.allocator(), &.{ lib_dir, lib_suffix }) catch continue;
-        var parent_dir = std.fs.cwd().openIterableDir(dir_name, .{ .access_sub_paths = false }) catch continue;
+        var parent_dir = tc.filesystem.openIterableDir(dir_name) catch continue;
         defer parent_dir.close();
 
         var it = parent_dir.iterate();
