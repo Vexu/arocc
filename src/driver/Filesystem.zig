@@ -1,6 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 const builtin = @import("builtin");
+const system_defaults = @import("system_defaults");
 const is_windows = builtin.os.tag == .windows;
 
 fn findProgramByNameFake(allocator: std.mem.Allocator, name: []const u8, path: ?[]const u8, buf: []u8) ?[]const u8 {
@@ -58,7 +59,7 @@ fn findProgramByNamePosix(name: []const u8, path: ?[]const u8, buf: []u8) ?[]con
     const path_env = path orelse return null;
     var fib = std.heap.FixedBufferAllocator.init(buf);
 
-    var it = mem.tokenizeScalar(u8, path_env, ':');
+    var it = mem.tokenizeScalar(u8, path_env, system_defaults.path_sep);
     while (it.next()) |path_dir| {
         defer fib.reset();
         const full_path = std.fs.path.join(fib.allocator(), &.{ path_dir, name }) catch continue;
