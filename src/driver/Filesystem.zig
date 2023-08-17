@@ -4,27 +4,42 @@ const builtin = @import("builtin");
 const system_defaults = @import("system_defaults");
 const is_windows = builtin.os.tag == .windows;
 
-fn findProgramByNameFake(allocator: std.mem.Allocator, name: []const u8, path: ?[]const u8, buf: []u8) ?[]const u8 {
-    _ = path;
-    _ = buf;
-    _ = name;
-    _ = allocator;
-    @panic("TODO");
-}
-
-fn canExecuteFake(paths: []const []const u8, path: []const u8) bool {
-    _ = path;
-    _ = paths;
+fn findProgramByNameFake(entries: []const Filesystem.Entry, name: []const u8, path: ?[]const u8, buf: []u8) ?[]const u8 {
     @setCold(true);
-    @panic("TODO");
+    if (mem.indexOfScalar(u8, name, '/') != null) {
+        @memcpy(buf[0..name.len], name);
+        return buf[0..name.len];
+    }
+    const path_env = path orelse return null;
+    var fib = std.heap.FixedBufferAllocator.init(buf);
+
+    var it = mem.tokenizeScalar(u8, path_env, system_defaults.path_sep);
+    while (it.next()) |path_dir| {
+        defer fib.reset();
+        const full_path = std.fs.path.join(fib.allocator(), &.{ path_dir, name }) catch continue;
+        if (canExecuteFake(entries, full_path)) return full_path;
+    }
+
+    return null;
 }
 
-fn existsFake(paths: []const []const u8, path: []const u8) bool {
+fn canExecuteFake(entries: []const Filesystem.Entry, path: []const u8) bool {
+    @setCold(true);
+    for (entries) |entry| {
+        if (mem.eql(u8, entry.path, path)) {
+            return entry.executable;
+        }
+    }
+    return false;
+}
+
+fn existsFake(entries: []const Filesystem.Entry, path: []const u8) bool {
+    @setCold(true);
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&buf);
     const resolved = std.fs.path.resolvePosix(fib.allocator(), &.{path}) catch return false;
-    for (paths) |fakepath| {
-        if (mem.eql(u8, fakepath, resolved)) return true;
+    for (entries) |entry| {
+        if (mem.eql(u8, entry.path, resolved)) return true;
     }
     return false;
 }
@@ -71,7 +86,12 @@ fn findProgramByNamePosix(name: []const u8, path: ?[]const u8, buf: []u8) ?[]con
 
 pub const Filesystem = union(enum) {
     real: void,
-    fake: []const []const u8,
+    fake: []const Entry,
+
+    const Entry = struct {
+        path: []const u8,
+        executable: bool = false,
+    };
 
     pub fn exists(fs: Filesystem, path: []const u8) bool {
         switch (fs) {
@@ -93,7 +113,7 @@ pub const Filesystem = union(enum) {
     pub fn canExecute(fs: Filesystem, path: []const u8) bool {
         return switch (fs) {
             .real => if (is_windows) canExecuteWindows(path) else canExecutePosix(path),
-            .fake => |paths| canExecuteFake(paths, path),
+            .fake => |entries| canExecuteFake(entries, path),
         };
     }
 
@@ -104,14 +124,14 @@ pub const Filesystem = union(enum) {
         std.debug.assert(name.len > 0);
         return switch (fs) {
             .real => if (is_windows) findProgramByNameWindows(allocator, name, path, buf) else findProgramByNamePosix(name, path, buf),
-            .fake => findProgramByNameFake(allocator, name, path, buf),
+            .fake => |entries| findProgramByNameFake(entries, name, path, buf),
         };
     }
 };
 
 test "Fake filesystem" {
     const fs: Filesystem = .{ .fake = &.{
-        "/usr/bin",
+        .{ .path = "/usr/bin" },
     } };
     try std.testing.expect(fs.exists("/usr/bin"));
     try std.testing.expect(fs.exists("/usr/bin/foo/.."));

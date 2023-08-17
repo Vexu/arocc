@@ -375,3 +375,104 @@ fn getOSLibDir(target: std.Target) []const u8 {
     }
     return "lib64";
 }
+
+test Linux {
+    if (@import("builtin").os.tag == .windows) return error.SkipZigTest;
+
+    var arena_instance = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_instance.deinit();
+    const arena = arena_instance.allocator();
+
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+    comp.environment = .{
+        .path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    };
+
+    const raw_triple = "x86_64-linux-gnu";
+    const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = raw_triple }) catch unreachable;
+    comp.target = cross.toTarget(); // TODO deprecated
+    comp.langopts.setEmulatedCompiler(.gcc);
+
+    var driver: Driver = .{ .comp = &comp };
+    defer driver.deinit();
+    driver.raw_target_triple = raw_triple;
+
+    const link_obj = try driver.comp.gpa.dupe(u8, "/tmp/foo.o");
+    try driver.link_objects.append(driver.comp.gpa, link_obj);
+    driver.temp_file_count += 1;
+
+    var toolchain: Toolchain = .{ .driver = &driver, .arena = arena, .filesystem = .{ .fake = &.{
+        .{ .path = "/tmp" },
+        .{ .path = "/usr" },
+        .{ .path = "/usr/lib64" },
+        .{ .path = "/usr/bin" },
+        .{ .path = "/usr/bin/ld", .executable = true },
+        .{ .path = "/lib" },
+        .{ .path = "/lib/x86_64-linux-gnu" },
+        .{ .path = "/lib/x86_64-linux-gnu/crt1.o" },
+        .{ .path = "/lib/x86_64-linux-gnu/crti.o" },
+        .{ .path = "/lib/x86_64-linux-gnu/crtn.o" },
+        .{ .path = "/lib64" },
+        .{ .path = "/usr/lib" },
+        .{ .path = "/usr/lib/gcc" },
+        .{ .path = "/usr/lib/gcc/x86_64-linux-gnu" },
+        .{ .path = "/usr/lib/gcc/x86_64-linux-gnu/9" },
+        .{ .path = "/usr/lib/gcc/x86_64-linux-gnu/9/crtbegin.o" },
+        .{ .path = "/usr/lib/gcc/x86_64-linux-gnu/9/crtend.o" },
+        .{ .path = "/usr/lib/x86_64-linux-gnu" },
+    } } };
+    defer toolchain.deinit();
+
+    try toolchain.discover();
+
+    var argv = std.ArrayList([]const u8).init(driver.comp.gpa);
+    defer argv.deinit();
+
+    var linker_path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const linker_path = try toolchain.getLinkerPath(&linker_path_buf);
+    try argv.append(linker_path);
+
+    try toolchain.buildLinkerArgs(&argv);
+
+    const expected = [_][]const u8{
+        "/usr/bin/ld",
+        "-z",
+        "relro",
+        "--hash-style=gnu",
+        "--eh-frame-hdr",
+        "-m",
+        "elf_x86_64",
+        "-dynamic-linker",
+        "/lib64/ld-linux-x86-64.so.2",
+        "-o",
+        "a.out",
+        "/lib/x86_64-linux-gnu/crt1.o",
+        "/lib/x86_64-linux-gnu/crti.o",
+        "/usr/lib/gcc/x86_64-linux-gnu/9/crtbegin.o",
+        "-L/usr/lib/gcc/x86_64-linux-gnu/9",
+        "-L/usr/lib/gcc/x86_64-linux-gnu/9/../../../../lib64",
+        "-L/lib/x86_64-linux-gnu",
+        "-L/lib/../lib64",
+        "-L/usr/lib/x86_64-linux-gnu",
+        "-L/usr/lib/../lib64",
+        "-L/lib",
+        "-L/usr/lib",
+        link_obj,
+        "-lgcc",
+        "--as-needed",
+        "-lgcc_s",
+        "--no-as-needed",
+        "-lc",
+        "-lgcc",
+        "--as-needed",
+        "-lgcc_s",
+        "--no-as-needed",
+        "/usr/lib/gcc/x86_64-linux-gnu/9/crtend.o",
+        "/lib/x86_64-linux-gnu/crtn.o",
+    };
+    try std.testing.expectEqual(expected.len, argv.items.len);
+    for (expected, argv.items) |expected_item, actual_item| {
+        try std.testing.expectEqualStrings(expected_item, actual_item);
+    }
+}

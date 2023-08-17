@@ -100,6 +100,7 @@ test {
     _ = @import("Source.zig");
     _ = @import("Tokenizer.zig");
     _ = @import("driver/GCCVersion.zig");
+    _ = @import("toolchains/Linux.zig");
     _ = @import("Tree.zig");
     _ = @import("Type.zig");
     _ = @import("target.zig");

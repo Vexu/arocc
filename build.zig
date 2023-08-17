@@ -123,6 +123,7 @@ pub fn build(b: *Build) !void {
 
     var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
     unit_tests.addModule("zig", zig_module);
+    unit_tests.addOptions("system_defaults", system_defaults);
     const run_test = b.addRunArtifact(unit_tests);
     tests_step.dependOn(&run_test.step);
 
