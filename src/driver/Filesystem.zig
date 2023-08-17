@@ -3,7 +3,8 @@ const mem = std.mem;
 const builtin = @import("builtin");
 const is_windows = builtin.os.tag == .windows;
 
-fn findProgramByNameFake(allocator: std.mem.Allocator, name: []const u8, buf: []u8) ?[]const u8 {
+fn findProgramByNameFake(allocator: std.mem.Allocator, name: []const u8, path: ?[]const u8, buf: []u8) ?[]const u8 {
+    _ = path;
     _ = buf;
     _ = name;
     _ = allocator;
@@ -40,7 +41,8 @@ fn canExecuteWindows(path: []const u8) bool {
 }
 
 /// TODO
-fn findProgramByNameWindows(allocator: std.mem.Allocator, name: []const u8, buf: []u8) ?[]const u8 {
+fn findProgramByNameWindows(allocator: std.mem.Allocator, name: []const u8, path: ?[]const u8, buf: []u8) ?[]const u8 {
+    _ = path;
     _ = buf;
     _ = name;
     _ = allocator;
@@ -48,12 +50,12 @@ fn findProgramByNameWindows(allocator: std.mem.Allocator, name: []const u8, buf:
 }
 
 /// TODO: does WASI need special handling?
-fn findProgramByNamePosix(name: []const u8, buf: []u8) ?[]const u8 {
+fn findProgramByNamePosix(name: []const u8, path: ?[]const u8, buf: []u8) ?[]const u8 {
     if (mem.indexOfScalar(u8, name, '/') != null) {
         @memcpy(buf[0..name.len], name);
         return buf[0..name.len];
     }
-    const path_env = std.os.getenvZ("PATH") orelse return null;
+    const path_env = path orelse return null;
     var fib = std.heap.FixedBufferAllocator.init(buf);
 
     var it = mem.tokenizeScalar(u8, path_env, ':');
@@ -97,11 +99,11 @@ pub const Filesystem = union(enum) {
     /// Search for an executable named `name` using platform-specific logic
     /// If it's found, write the full path to `buf` and return a slice of it
     /// Otherwise retun null
-    pub fn findProgramByName(fs: Filesystem, allocator: std.mem.Allocator, name: []const u8, buf: []u8) ?[]const u8 {
+    pub fn findProgramByName(fs: Filesystem, allocator: std.mem.Allocator, name: []const u8, path: ?[]const u8, buf: []u8) ?[]const u8 {
         std.debug.assert(name.len > 0);
         return switch (fs) {
-            .real => if (is_windows) findProgramByNameWindows(allocator, name, buf) else findProgramByNamePosix(name, buf),
-            .fake => findProgramByNameFake(allocator, name, buf),
+            .real => if (is_windows) findProgramByNameWindows(allocator, name, path, buf) else findProgramByNamePosix(name, path, buf),
+            .fake => findProgramByNameFake(allocator, name, path, buf),
         };
     }
 };

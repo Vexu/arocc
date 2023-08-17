@@ -242,7 +242,7 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
                 return buf[0..candidate.len];
             }
         }
-        return tc.filesystem.findProgramByName(tc.driver.comp.gpa, name, buf) orelse continue;
+        return tc.filesystem.findProgramByName(tc.driver.comp.gpa, name, tc.driver.comp.environment.path, buf) orelse continue;
     }
     @memcpy(buf[0..name.len], name);
     return buf[0..name.len];

@@ -31,6 +31,9 @@ pub const Environment = struct {
     /// TODO: not implemented yet
     tmpdir: ?[]const u8 = null,
 
+    /// PATH environment variable used to search for programs
+    path: ?[]const u8 = null,
+
     /// Directories to try when searching for subprograms.
     /// TODO: not implemented yet
     compiler_path: ?[]const u8 = null,
