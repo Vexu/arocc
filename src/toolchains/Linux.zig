@@ -103,8 +103,13 @@ fn findPaths(self: *Linux, tc: *Toolchain) !void {
     const target = tc.getTarget();
     const sysroot = tc.getSysroot();
 
+    var target_buf: std.BoundedArray(u8, 32) = .{};
+
     const os_lib_dir = getOSLibDir(target);
-    const multiarch_triple = getMultiarchTriple(target);
+    const multiarch_triple = getMultiarchTriple(target) orelse blk: {
+        try target_util.toLLVMTriple(target_buf.writer(), target);
+        break :blk target_buf.constSlice();
+    };
 
     try self.addMultiLibPaths(tc, sysroot, os_lib_dir);
 
@@ -323,17 +328,29 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
     // TODO add -T args
 }
 
-fn getMultiarchTriple(target: std.Target) []const u8 {
+fn getMultiarchTriple(target: std.Target) ?[]const u8 {
     const is_android = target.isAndroid();
-
+    const is_mips_r6 = std.Target.mips.featureSetHas(target.cpu.features, .mips32r6);
     return switch (target.cpu.arch) {
+        .arm, .thumb => if (is_android) "arm-linux-androideabi" else if (target.abi == .gnueabihf) "arm-linux-gnueabihf" else "arm-linux-gnueabi",
+        .armeb, .thumbeb => if (target.abi == .gnueabihf) "armeb-linux-gnueabihf" else "armeb-linux-gnueabi",
         .aarch64 => if (is_android) "aarch64-linux-android" else "aarch64-linux-gnu",
         .aarch64_be => "aarch64_be-linux-gnu",
         .x86 => if (is_android) "i686-linux-android" else "i386-linux-gnu",
         .x86_64 => if (is_android) "x86_64-linux-android" else if (target.abi == .gnux32) "x86_64-linux-gnux32" else "x86_64-linux-gnu",
+        .m68k => "m68k-linux-gnu",
+        .mips => if (is_mips_r6) "mipsisa32r6-linux-gnu" else "mips-linux-gnu",
+        .mipsel => if (is_android) "mipsel-linux-android" else if (is_mips_r6) "mipsisa32r6el-linux-gnu" else "mipsel-linux-gnu",
+        .powerpcle => "powerpcle-linux-gnu",
+        .powerpc64 => "powerpc64-linux-gnu",
+        .powerpc64le => "powerpc64le-linux-gnu",
+        .riscv64 => "riscv64-linux-gnu",
+        .sparc => "sparc-linux-gnu",
+        .sparc64 => "sparc64-linux-gnu",
+        .s390x => "s390x-linux-gnu",
 
         // TODO: expand this
-        else => "",
+        else => null,
     };
 }
 
