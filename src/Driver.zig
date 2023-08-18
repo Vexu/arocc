@@ -91,6 +91,8 @@ pub const usage =
     \\  -fno-declspec           Disable support for __declspec attributes
     \\  -ffp-eval-method=[source|double|extended]
     \\                          Evaluation method to use for floating-point arithmetic
+    \\  -fgnu-inline-asm        Enable GNU style inline asm (default: enabled)
+    \\  -fno-gnu-inline-asm     Disable GNU style inline asm
     \\  -fms-extensions         Enable support for Microsoft extensions
     \\  -fno-ms-extensions      Disable support for Microsoft extensions
     \\  -fdollars-in-identifiers        
@@ -225,6 +227,10 @@ pub fn parseArgs(
                 d.comp.langopts.dollars_in_identifiers = false;
             } else if (mem.eql(u8, arg, "-fdigraphs")) {
                 d.comp.langopts.digraphs = true;
+            } else if (mem.eql(u8, arg, "-fgnu-inline-asm")) {
+                d.comp.langopts.gnu_asm = true;
+            } else if (mem.eql(u8, arg, "-fno-gnu-inline-asm")) {
+                d.comp.langopts.gnu_asm = false;
             } else if (mem.eql(u8, arg, "-fno-digraphs")) {
                 d.comp.langopts.digraphs = false;
             } else if (option(arg, "-fmacro-backtrace-limit=")) |limit_str| {

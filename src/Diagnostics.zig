@@ -2376,6 +2376,10 @@ const messages = struct {
         const msg = "--rtlib=libgcc requires --unwindlib=libgcc";
         const kind = .@"error";
     };
+    pub const gnu_asm_disabled = struct {
+        const msg = "GNU-style inline assembly is disabled";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

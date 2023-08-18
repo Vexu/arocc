@@ -3678,6 +3678,13 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
         },
         .global => {
             const asm_str = try p.asmStr();
+            if (!p.comp.langopts.gnu_asm) {
+                const str = asm_str.val.data.bytes;
+                if (str.len > 1) {
+                    // Empty string (just a NUL byte) is ok because it does not emit any assembly
+                    try p.errTok(.gnu_asm_disabled, l_paren);
+                }
+            }
             result_node = try p.addNode(.{
                 .tag = .file_scope_asm,
                 .ty = .{ .specifier = .void },
