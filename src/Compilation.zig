@@ -904,9 +904,9 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
     return comp.langopts.char_signedness_override orelse comp.target.charSignedness();
 }
 
-pub fn defineSystemIncludes(comp: *Compilation) !void {
+pub fn defineSystemIncludes(comp: *Compilation, aro_dir: []const u8) !void {
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    var search_path: []const u8 = std.fs.selfExePath(&buf) catch return error.SelfExeNotFound;
+    var search_path = aro_dir;
     while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
         var base_dir = std.fs.cwd().openDir(dirname, .{}) catch continue;
         defer base_dir.close();

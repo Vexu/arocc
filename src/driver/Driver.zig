@@ -37,10 +37,8 @@ verbose_pp: bool = false,
 verbose_ir: bool = false,
 verbose_linker_args: bool = false,
 
-/// name of the aro executable
-aro_name: []const u8 = "arocc",
-/// Directory from which aro was invoked
-aro_dir: []const u8 = "",
+/// Full path to the aro executable
+aro_name: []const u8 = "",
 
 /// Value of --triple= passed via CLI
 raw_target_triple: ?[]const u8 = null,
@@ -415,8 +413,6 @@ pub fn parseArgs(
         .off => false,
         .unset => util.fileSupportsColor(std.io.getStdErr()) and !std.process.hasEnvVarConstant("NO_COLOR"),
     };
-    d.aro_name = std.fs.path.basename(args[0]);
-    d.aro_dir = std.fs.path.dirname(args[0]) orelse "";
     return false;
 }
 
@@ -465,9 +461,8 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8) !void {
         try d.comp.diag.add(.{ .tag = .cli_unused_link_object, .extra = .{ .str = obj } }, &.{});
     };
 
-    d.comp.defineSystemIncludes() catch |er| switch (er) {
+    d.comp.defineSystemIncludes(d.aro_name) catch |er| switch (er) {
         error.OutOfMemory => return error.OutOfMemory,
-        error.SelfExeNotFound => return d.fatal("unable to find Aro executable path", .{}),
         error.AroIncludeNotFound => return d.fatal("unable to find Aro builtin headers", .{}),
     };
 

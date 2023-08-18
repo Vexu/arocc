@@ -30,6 +30,13 @@ pub fn main() !u8 {
         return 1;
     };
 
+    const aro_name = std.fs.selfExePathAlloc(gpa) catch {
+        std.debug.print("unable to find Aro executable path\n", .{});
+        if (fast_exit) std.process.exit(1);
+        return 1;
+    };
+    defer gpa.free(aro_name);
+
     var comp = Compilation.init(gpa);
     defer comp.deinit();
 
@@ -51,7 +58,7 @@ pub fn main() !u8 {
     };
     comp.langopts.setEmulatedCompiler(target_util.systemCompiler(comp.target));
 
-    var driver: Driver = .{ .comp = &comp };
+    var driver: Driver = .{ .comp = &comp, .aro_name = aro_name };
     defer driver.deinit();
 
     var toolchain: Toolchain = .{ .driver = &driver, .arena = arena };

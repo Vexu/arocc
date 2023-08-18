@@ -93,6 +93,9 @@ pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
 
+    const self_exe_dir = try std.fs.selfExePathAlloc(gpa);
+    defer gpa.free(self_exe_dir);
+
     var args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
@@ -163,7 +166,7 @@ pub fn main() !void {
     for (0..thread_count) |i| {
         wait_group.start();
         try thread_pool.spawn(runTestCases, .{
-            gpa, &wait_group, test_cases.items[i..], thread_count, &stats,
+            gpa, self_exe_dir, &wait_group, test_cases.items[i..], thread_count, &stats,
         });
     }
 
@@ -181,7 +184,7 @@ pub fn main() !void {
     }
 }
 
-fn runTestCases(allocator: std.mem.Allocator, wg: *std.Thread.WaitGroup, test_cases: []const TestCase, stride: usize, stats: *Stats) void {
+fn runTestCases(allocator: std.mem.Allocator, self_exe_dir: []const u8, wg: *std.Thread.WaitGroup, test_cases: []const TestCase, stride: usize, stats: *Stats) void {
     defer wg.finish();
     var mem = allocator.alloc(u8, MAX_MEM_PER_TEST) catch |err| {
         std.log.err("{s}", .{@errorName(err)});
@@ -198,7 +201,7 @@ fn runTestCases(allocator: std.mem.Allocator, wg: *std.Thread.WaitGroup, test_ca
         if (i % stride != 0) continue;
         defer fib.end_index = 0;
 
-        singleRun(fib.allocator(), case, stats) catch |err| {
+        singleRun(fib.allocator(), self_exe_dir, case, stats) catch |err| {
             std.log.err("{s}", .{@errorName(err)});
             if (@errorReturnTrace()) |trace| {
                 std.debug.dumpStackTrace(trace.*);
@@ -209,14 +212,14 @@ fn runTestCases(allocator: std.mem.Allocator, wg: *std.Thread.WaitGroup, test_ca
     }
 }
 
-fn singleRun(alloc: std.mem.Allocator, test_case: TestCase, stats: *Stats) !void {
+fn singleRun(alloc: std.mem.Allocator, self_exe_dir: []const u8, test_case: TestCase, stats: *Stats) !void {
     const path = test_case.path;
 
     var comp = aro.Compilation.init(alloc);
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.defineSystemIncludes();
+    try comp.defineSystemIncludes(self_exe_dir);
 
     const target = setTarget(&comp, test_case.target) catch |err| switch (err) {
         error.UnknownCpuModel => unreachable,
