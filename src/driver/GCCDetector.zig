@@ -572,11 +572,9 @@ fn scanLibDirForGCCTriple(
         defer fib.reset();
 
         const base: []const u8 = if (i == 0) "gcc" else "gcc-cross";
-        var lib_suffix_buf: std.BoundedArray(u8, 64) = .{};
-        lib_suffix_buf.appendSliceAssumeCapacity(base);
-        lib_suffix_buf.appendAssumeCapacity(std.fs.path.sep);
-        lib_suffix_buf.appendSliceAssumeCapacity(candidate_triple);
-        const lib_suffix = lib_suffix_buf.constSlice();
+        var lib_suffix_buf: [64]u8 = undefined;
+        var suffix_buf_fib = std.heap.FixedBufferAllocator.init(&lib_suffix_buf);
+        const lib_suffix = std.fs.path.join(suffix_buf_fib.allocator(), &.{ base, candidate_triple }) catch continue;
 
         const dir_name = std.fs.path.join(fib.allocator(), &.{ lib_dir, lib_suffix }) catch continue;
         var parent_dir = tc.filesystem.openIterableDir(dir_name) catch continue;
