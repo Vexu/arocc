@@ -663,7 +663,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
                 continue;
             },
             else => |e| return e,
-        }) |_| continue;
+        }) |node| {
+            try p.decl_buf.append(node);
+            continue;
+        }
         if (p.eatToken(.semicolon)) |tok| {
             try p.errTok(.extra_semi, tok);
             continue;
@@ -3666,19 +3669,27 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
     };
 
     const l_paren = try p.expectToken(.l_paren);
+    var result_node: NodeIndex = .none;
     switch (kind) {
         .decl_label => {
             const str = (try p.asmStr()).val.data.bytes;
             const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } }, .syntax = .keyword };
             try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
         },
-        .global => _ = try p.asmStr(),
+        .global => {
+            const asm_str = try p.asmStr();
+            result_node = try p.addNode(.{
+                .tag = .file_scope_asm,
+                .ty = .{ .specifier = .void },
+                .data = .{ .decl = .{ .name = asm_tok, .node = asm_str.node } },
+            });
+        },
         .stmt => return p.todo("assembly statements"),
     }
     try p.expectClosing(l_paren, .r_paren);
 
     if (kind != .decl_label) _ = try p.expectToken(.semicolon);
-    return .none;
+    return result_node;
 }
 
 /// Same as stringLiteral but errors on unicode and wide string literals

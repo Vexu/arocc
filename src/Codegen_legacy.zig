@@ -78,6 +78,9 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!*Object {
                 error.CodegenFailed => continue,
             },
 
+            // TODO
+            .file_scope_asm => {},
+
             else => unreachable,
         }
     }
