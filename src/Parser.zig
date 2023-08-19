@@ -3638,6 +3638,154 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
     }
 }
 
+fn parseMSVCAsmStmt(p: *Parser) Error!?NodeIndex {
+    return p.todo("MSVC assembly statements");
+}
+
+fn parseAsmOperands(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *NodeList, exprs: *NodeList) Error!void {
+    if (!p.tok_ids[p.tok_i].isStringLiteral() and p.tok_ids[p.tok_i] != .l_bracket) {
+        // Empty
+        return;
+    }
+    while (true) {
+        if (p.eatToken(.l_bracket)) |l_bracket| {
+            const ident = (try p.eatIdentifier()) orelse {
+                try p.err(.expected_identifier);
+                return error.ParsingFailed;
+            };
+            try names.append(ident);
+            try p.expectClosing(l_bracket, .r_bracket);
+        } else {
+            try names.append(null);
+        }
+        const constraint = try p.asmStr();
+        try constraints.append(constraint.node);
+
+        const l_paren = p.eatToken(.l_paren) orelse {
+            try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{ .actual = p.tok_ids[p.tok_i], .expected = .l_paren } });
+            return error.ParsingFailed;
+        };
+        const res = try p.expr();
+        try p.expectClosing(l_paren, .r_paren);
+        try res.expect(p);
+        try exprs.append(res.node);
+        if (p.eatToken(.comma) == null) return;
+    }
+}
+fn parseGNUAsmStmt(p: *Parser, asm_str_node: NodeIndex, quals: Tree.GNUAssemblyQualifiers) Error!NodeIndex {
+    if (p.tok_ids[p.tok_i] == .r_paren) {
+        return p.addNode(.{
+            .tag = .gnu_asm_simple,
+            .ty = .{ .specifier = .void },
+            .data = .{ .un = asm_str_node },
+        });
+    }
+
+    const expected_items = 8; // arbitrarily chosen, most assembly will have fewer than 8 inputs/outputs/constraints/names
+    const bytes_needed = expected_items * @sizeOf(?TokenIndex) + expected_items * 3 * @sizeOf(NodeIndex);
+
+    var stack_fallback = std.heap.stackFallback(bytes_needed, p.comp.gpa);
+    const allocator = stack_fallback.get();
+
+    var names = std.ArrayList(?TokenIndex).initCapacity(allocator, expected_items) catch unreachable;
+    defer names.deinit();
+    var constraints = NodeList.initCapacity(allocator, expected_items) catch unreachable;
+    defer constraints.deinit();
+    var exprs = NodeList.initCapacity(allocator, expected_items) catch unreachable;
+    defer exprs.deinit();
+    var clobbers = NodeList.initCapacity(allocator, expected_items) catch unreachable;
+    defer clobbers.deinit();
+
+    // Outputs
+    var ate_extra_colon = false;
+    if (p.eatToken(.colon) orelse p.eatToken(.colon_colon)) |tok_i| {
+        ate_extra_colon = p.tok_ids[tok_i] == .colon_colon;
+        if (!ate_extra_colon) {
+            try p.parseAsmOperands(&names, &constraints, &exprs);
+        }
+    }
+
+    const num_outputs = names.items.len;
+
+    // Inputs
+    if (ate_extra_colon or p.tok_ids[p.tok_i] == .colon or p.tok_ids[p.tok_i] == .colon_colon) {
+        if (ate_extra_colon) {
+            ate_extra_colon = false;
+        } else {
+            ate_extra_colon = p.tok_ids[p.tok_i] == .colon_colon;
+            p.tok_i += 1;
+        }
+        if (!ate_extra_colon) {
+            try p.parseAsmOperands(&names, &constraints, &exprs);
+        }
+    }
+    std.debug.assert(names.items.len == constraints.items.len and constraints.items.len == exprs.items.len);
+    const num_inputs = names.items.len - num_outputs;
+    _ = num_inputs;
+
+    // Clobbers
+    if (ate_extra_colon or p.tok_ids[p.tok_i] == .colon or p.tok_ids[p.tok_i] == .colon_colon) {
+        if (ate_extra_colon) {
+            ate_extra_colon = false;
+        } else {
+            ate_extra_colon = p.tok_ids[p.tok_i] == .colon_colon;
+            p.tok_i += 1;
+        }
+        if (!ate_extra_colon and p.tok_ids[p.tok_i].isStringLiteral()) {
+            while (true) {
+                const clobber = try p.asmStr();
+                try clobbers.append(clobber.node);
+                if (p.eatToken(.comma) == null) break;
+            }
+        }
+    }
+
+    if (!quals.goto and (p.tok_ids[p.tok_i] != .r_paren or ate_extra_colon)) {
+        try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{ .actual = p.tok_ids[p.tok_i], .expected = .r_paren } });
+        return error.ParsingFailed;
+    }
+
+    // Goto labels
+    var num_labels: u32 = 0;
+    if (ate_extra_colon or p.tok_ids[p.tok_i] == .colon) {
+        if (!ate_extra_colon) {
+            p.tok_i += 1;
+        }
+        while (true) {
+            const ident = (try p.eatIdentifier()) orelse {
+                try p.err(.expected_identifier);
+                return error.ParsingFailed;
+            };
+            const ident_str = p.tokSlice(ident);
+            const label = p.findLabel(ident_str) orelse blk: {
+                try p.labels.append(.{ .unresolved_goto = ident });
+                break :blk ident;
+            };
+            try names.append(ident);
+
+            const elem_ty = try p.arena.create(Type);
+            elem_ty.* = .{ .specifier = .void };
+            const result_ty = Type{ .specifier = .pointer, .data = .{ .sub_type = elem_ty } };
+
+            const label_addr_node = try p.addNode(.{
+                .tag = .addr_of_label,
+                .data = .{ .decl_ref = label },
+                .ty = result_ty,
+            });
+            try exprs.append(label_addr_node);
+
+            num_labels += 1;
+            if (p.eatToken(.comma) == null) break;
+        }
+    } else if (quals.goto) {
+        try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{ .actual = p.tok_ids[p.tok_i], .expected = .colon } });
+        return error.ParsingFailed;
+    }
+
+    // TODO: validate and insert into AST
+    return .none;
+}
+
 /// assembly : keyword_asm asmQual* '(' asmStr ')'
 fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeIndex {
     const asm_tok = p.tok_i;
@@ -3646,52 +3794,54 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
         else => return null,
     }
 
-    var @"volatile" = false;
-    var @"inline" = false;
-    var goto = false;
+    if (!p.tok_ids[p.tok_i].canOpenGCCAsmStmt()) {
+        return p.parseMSVCAsmStmt();
+    }
+
+    var quals: Tree.GNUAssemblyQualifiers = .{};
     while (true) : (p.tok_i += 1) switch (p.tok_ids[p.tok_i]) {
         .keyword_volatile, .keyword_volatile1, .keyword_volatile2 => {
             if (kind != .stmt) try p.errStr(.meaningless_asm_qual, p.tok_i, "volatile");
-            if (@"volatile") try p.errStr(.duplicate_asm_qual, p.tok_i, "volatile");
-            @"volatile" = true;
+            if (quals.@"volatile") try p.errStr(.duplicate_asm_qual, p.tok_i, "volatile");
+            quals.@"volatile" = true;
         },
         .keyword_inline, .keyword_inline1, .keyword_inline2 => {
             if (kind != .stmt) try p.errStr(.meaningless_asm_qual, p.tok_i, "inline");
-            if (@"inline") try p.errStr(.duplicate_asm_qual, p.tok_i, "inline");
-            @"inline" = true;
+            if (quals.@"inline") try p.errStr(.duplicate_asm_qual, p.tok_i, "inline");
+            quals.@"inline" = true;
         },
         .keyword_goto => {
             if (kind != .stmt) try p.errStr(.meaningless_asm_qual, p.tok_i, "goto");
-            if (goto) try p.errStr(.duplicate_asm_qual, p.tok_i, "goto");
-            goto = true;
+            if (quals.goto) try p.errStr(.duplicate_asm_qual, p.tok_i, "goto");
+            quals.goto = true;
         },
         else => break,
     };
 
     const l_paren = try p.expectToken(.l_paren);
     var result_node: NodeIndex = .none;
+    const asm_str = try p.asmStr();
+    if (kind != .decl_label and !p.comp.langopts.gnu_asm) {
+        const str = asm_str.val.data.bytes;
+        if (str.len > 1) {
+            // Empty string (just a NUL byte) is ok because it does not emit any assembly
+            try p.errTok(.gnu_asm_disabled, l_paren);
+        }
+    }
     switch (kind) {
         .decl_label => {
-            const str = (try p.asmStr()).val.data.bytes;
+            const str = asm_str.val.data.bytes;
             const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } }, .syntax = .keyword };
             try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
         },
         .global => {
-            const asm_str = try p.asmStr();
-            if (!p.comp.langopts.gnu_asm) {
-                const str = asm_str.val.data.bytes;
-                if (str.len > 1) {
-                    // Empty string (just a NUL byte) is ok because it does not emit any assembly
-                    try p.errTok(.gnu_asm_disabled, l_paren);
-                }
-            }
             result_node = try p.addNode(.{
                 .tag = .file_scope_asm,
                 .ty = .{ .specifier = .void },
                 .data = .{ .decl = .{ .name = asm_tok, .node = asm_str.node } },
             });
         },
-        .stmt => return p.todo("assembly statements"),
+        .stmt => result_node = try p.parseGNUAsmStmt(asm_str.node, quals),
     }
     try p.expectClosing(l_paren, .r_paren);
 
