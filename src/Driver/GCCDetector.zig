@@ -476,14 +476,13 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     }
 }
 
-fn findBiarchMultilibs(self: *GCCDetector, tc: *const Toolchain, result: *Multilib.Detected, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
+fn findBiarchMultilibs(tc: *const Toolchain, result: *Multilib.Detected, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
     const suff64 = if (target.os.tag == .solaris) switch (target.cpu.arch) {
         .x86, .x86_64 => "/amd64",
         .sparc => "/sparcv9",
         else => "/64",
     } else "/64";
 
-    _ = self;
     const alt_64 = Multilib.init(suff64, suff64, &.{ "-m32", "+m64", "-mx32" });
     const alt_32 = Multilib.init("/32", "/32", &.{ "+m32", "-m64", "-mx32" });
     const alt_x32 = Multilib.init("/x32", "/x32", &.{ "-m32", "-m64", "+mx32" });
@@ -544,7 +543,7 @@ fn scanGCCForMultilibs(self: *GCCDetector, tc: *const Toolchain, target: std.Tar
         // TODO
     } else if (target.cpu.arch == .avr) {
         // No multilibs
-    } else if (!try self.findBiarchMultilibs(tc, &detected, target, path, needs_biarch_suffix)) {
+    } else if (!try findBiarchMultilibs(tc, &detected, target, path, needs_biarch_suffix)) {
         return false;
     }
     self.selected = detected.selected;
@@ -579,7 +578,7 @@ fn scanLibDirForGCCTriple(
         defer parent_dir.close();
 
         var it = parent_dir.iterate();
-        while (try it.next()) |entry| {
+        while (it.next() catch continue) |entry| {
             if (entry.kind != .directory) continue;
 
             const version_text = entry.name;
