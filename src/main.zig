@@ -9,7 +9,7 @@ const Toolchain = @import("Toolchain.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub fn main() !u8 {
+pub fn main() u8 {
     const gpa = if (@import("builtin").link_libc)
         std.heap.raw_c_allocator
     else
