@@ -632,7 +632,8 @@ pub fn toLLVMTriple(writer: anytype, target: std.Target) !void {
         .renderscript32 => "renderscript32",
         .renderscript64 => "renderscript64",
         .ve => "ve",
-        .spu_2 => return error.@"LLVM backend does not support SPU Mark II",
+        // Note: spu_2 is not supported in LLVM; this is the Zig arch name
+        .spu_2 => "spu_2",
     };
     try writer.writeAll(llvm_arch);
     try writer.writeByte('-');
