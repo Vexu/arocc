@@ -3,7 +3,7 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
 const Compilation = @import("Compilation.zig");
-const Driver = @import("driver/Driver.zig");
+const Driver = @import("Driver.zig");
 const target_util = @import("target.zig");
 const Toolchain = @import("Toolchain.zig");
 
@@ -96,8 +96,8 @@ test {
     _ = @import("Codegen_legacy.zig");
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
-    _ = @import("driver/Distro.zig");
-    _ = @import("driver/Filesystem.zig");
+    _ = @import("Driver/Distro.zig");
+    _ = @import("Driver/Filesystem.zig");
     _ = @import("InitList.zig");
     _ = @import("LangOpts.zig");
     _ = @import("Parser.zig");
@@ -105,7 +105,7 @@ test {
     _ = @import("Preprocessor.zig");
     _ = @import("Source.zig");
     _ = @import("Tokenizer.zig");
-    _ = @import("driver/GCCVersion.zig");
+    _ = @import("Driver/GCCVersion.zig");
     _ = @import("toolchains/Linux.zig");
     _ = @import("Tree.zig");
     _ = @import("Type.zig");
