@@ -4,8 +4,13 @@ const Filesystem = @import("Filesystem.zig").Filesystem;
 
 pub const Flags = std.BoundedArray([]const u8, 6);
 
+/// Large enough for GCCDetector for Linux; may need to be increased to support other toolchains.
+const max_multilibs = 4;
+
+const MultilibArray = std.BoundedArray(Multilib, max_multilibs);
+
 pub const Detected = struct {
-    multilibs: std.BoundedArray(Multilib, 4) = .{},
+    multilibs: MultilibArray = .{},
     selected: Multilib = .{},
     biarch_sibling: ?Multilib = null,
 
@@ -21,7 +26,7 @@ pub const Detected = struct {
     }
 
     pub fn select(self: *Detected, flags: Flags) !bool {
-        var filtered: std.BoundedArray(Multilib, 4) = .{};
+        var filtered: MultilibArray = .{};
         for (self.multilibs.constSlice()) |multilib| {
             for (multilib.flags.constSlice()) |multilib_flag| {
                 const matched = for (flags.constSlice()) |arg_flag| {
