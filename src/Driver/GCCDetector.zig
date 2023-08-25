@@ -411,16 +411,14 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     var candidate_biarch_triple_aliases: PathPrefixes = .{};
     try collectLibDirsAndTriples(tc, &candidate_lib_dirs, &candidate_biarch_lib_dirs, &candidate_triple_aliases, &candidate_biarch_triple_aliases);
 
-    var target_buf: std.BoundedArray(u8, 32) = .{};
-    try target_util.toLLVMTriple(target_buf.writer(), target);
-    const triple_str = target_buf.constSlice();
+    var target_buf: [64]u8 = undefined;
+    const triple_str = target_util.toLLVMTriple(target, &target_buf);
     candidate_triple_aliases.appendAssumeCapacity(triple_str);
 
     // Also include the multiarch variant if it's different.
-    var biarch_buf: std.BoundedArray(u8, 32) = .{};
+    var biarch_buf: [64]u8 = undefined;
     if (biarch_variant_target) |biarch_target| {
-        try target_util.toLLVMTriple(biarch_buf.writer(), biarch_target);
-        const biarch_triple_str = biarch_buf.constSlice();
+        const biarch_triple_str = target_util.toLLVMTriple(biarch_target, &biarch_buf);
         if (!std.mem.eql(u8, biarch_triple_str, triple_str)) {
             candidate_triple_aliases.appendAssumeCapacity(biarch_triple_str);
         }
