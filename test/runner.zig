@@ -44,12 +44,12 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
     return only_preprocess;
 }
 
-fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
+fn testOne(allocator: std.mem.Allocator, path: []const u8, self_exe_dir: []const u8) !void {
     var comp = aro.Compilation.init(allocator);
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.defineSystemIncludes();
+    try comp.defineSystemIncludes(self_exe_dir);
 
     const file = try comp.addSourceFromPath(path);
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
@@ -82,7 +82,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8) !void {
     tree.dump(false, std.io.null_writer) catch {};
 }
 
-fn testAllAllocationFailures(cases: [][]const u8) !void {
+fn testAllAllocationFailures(cases: [][]const u8, self_exe_dir: []const u8) !void {
     var progress = std.Progress{};
     const root_node = progress.start("Memory Allocation Test", cases.len);
 
@@ -93,7 +93,7 @@ fn testAllAllocationFailures(cases: [][]const u8) !void {
         defer case_node.end();
         progress.refresh();
 
-        std.testing.checkAllAllocationFailures(std.testing.allocator, testOne, .{case}) catch |er| switch (er) {
+        std.testing.checkAllAllocationFailures(std.testing.allocator, testOne, .{ case, self_exe_dir }) catch |er| switch (er) {
             error.SwallowedOutOfMemoryError => {},
             else => |e| return e,
         };
@@ -104,6 +104,9 @@ fn testAllAllocationFailures(cases: [][]const u8) !void {
 pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
+
+    const self_exe_dir = try std.fs.selfExePathAlloc(gpa);
+    defer gpa.free(self_exe_dir);
 
     var args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
@@ -140,7 +143,7 @@ pub fn main() !void {
         }
     }
     if (build_options.test_all_allocation_failures) {
-        return testAllAllocationFailures(cases.items);
+        return testAllAllocationFailures(cases.items, self_exe_dir);
     }
 
     var progress = std.Progress{};
@@ -161,7 +164,7 @@ pub fn main() !void {
     try initial_comp.include_dirs.append(cases_next_include_dir);
 
     try initial_comp.addDefaultPragmaHandlers();
-    try initial_comp.defineSystemIncludes();
+    try initial_comp.defineSystemIncludes(self_exe_dir);
 
     // apparently we can't use setAstCwd without libc on windows yet
     const win = @import("builtin").os.tag == .windows;

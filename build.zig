@@ -40,8 +40,18 @@ pub fn build(b: *Build) !void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardOptimizeOption(.{});
 
+    const default_path_sep: u8 = if (target.isWindows()) ';' else ':';
+
+    const enable_linker_build_id = b.option(bool, "enable-linker-build-id", "pass --build-id to linker") orelse false;
+    const default_linker = b.option([]const u8, "default-linker", "Default linker aro will use if none is supplied via -fuse-ld") orelse "ld";
+    const default_sysroot = b.option([]const u8, "default-sysroot", "Default <path> to all compiler invocations for --sysroot=<path>.") orelse "";
+    const gcc_install_prefix = b.option([]const u8, "gcc-install-prefix", "Directory where gcc is installed.") orelse "";
+    const default_rtlib = b.option([]const u8, "default-rtlib", "Default compiler runtime library if --rtlib is not specified") orelse "";
+    const default_unwindlib = b.option([]const u8, "default-unwindlib", "Default unwind library to use (\"none\" \"libgcc\" or \"libunwind\", empty to match runtime library.)") orelse
+        if (std.mem.eql(u8, default_rtlib, "libgcc")) "libgcc" else "";
     const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
     const link_libc = b.option(bool, "link-libc", "Force self-hosted compiler to link libc") orelse (mode != .Debug);
+    const path_sep = b.option(u8, "path-sep", "Path separator in PATH environment variable") orelse default_path_sep;
     const tracy = b.option([]const u8, "tracy", "Enable Tracy integration. Supply path to Tracy source");
     const tracy_callstack = b.option(bool, "tracy-callstack", "Include callstack information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
     const tracy_allocation = b.option(bool, "tracy-allocation", "Include allocation information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
@@ -65,6 +75,18 @@ pub fn build(b: *Build) !void {
     });
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
+
+    const system_defaults = b.addOptions();
+    exe.addOptions("system_defaults", system_defaults);
+
+    system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
+    system_defaults.addOption([]const u8, "linker", default_linker);
+    system_defaults.addOption(u8, "path_sep", path_sep);
+    system_defaults.addOption([]const u8, "sysroot", default_sysroot);
+    system_defaults.addOption([]const u8, "gcc_install_prefix", gcc_install_prefix);
+    system_defaults.addOption([]const u8, "rtlib", default_rtlib);
+    system_defaults.addOption([]const u8, "unwindlib", default_unwindlib);
+
     exe_options.addOption(bool, "enable_tracy", tracy != null);
     exe_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
     exe_options.addOption(bool, "enable_tracy_allocation", tracy_allocation);
@@ -101,6 +123,7 @@ pub fn build(b: *Build) !void {
 
     var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
     unit_tests.addModule("zig", zig_module);
+    unit_tests.addOptions("system_defaults", system_defaults);
     const run_test = b.addRunArtifact(unit_tests);
     tests_step.dependOn(&run_test.step);
 
@@ -111,6 +134,7 @@ pub fn build(b: *Build) !void {
     integration_tests.addModule("aro", aro_module);
     const test_runner_options = b.addOptions();
     integration_tests.addOptions("build_options", test_runner_options);
+    integration_tests.addOptions("system_defaults", system_defaults);
     test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
 
     const integration_test_runner = b.addRunArtifact(integration_tests);

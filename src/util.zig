@@ -1,5 +1,7 @@
 const std = @import("std");
-const is_windows = @import("builtin").os.tag == .windows;
+const mem = std.mem;
+const builtin = @import("builtin");
+const is_windows = builtin.os.tag == .windows;
 
 pub const Color = enum {
     reset,

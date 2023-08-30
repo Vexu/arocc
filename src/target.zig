@@ -1,6 +1,7 @@
 const std = @import("std");
 const LangOpts = @import("LangOpts.zig");
 const Type = @import("Type.zig");
+const llvm = @import("zig").codegen.llvm;
 const TargetSet = @import("builtins/Properties.zig").TargetSet;
 
 /// intmax_t for this target
@@ -335,6 +336,18 @@ pub fn isLP64(target: std.Target) bool {
     return target.c_type_bit_size(.int) == 32 and target.ptrBitWidth() == 64;
 }
 
+pub fn isKnownWindowsMSVCEnvironment(target: std.Target) bool {
+    return target.os.tag == .windows and target.abi == .msvc;
+}
+
+pub fn isWindowsMSVCEnvironment(target: std.Target) bool {
+    return target.os.tag == .windows and (target.abi == .msvc or target.abi == .none);
+}
+
+pub fn isCygwinMinGW(target: std.Target) bool {
+    return target.os.tag == .windows and (target.abi == .gnu or target.abi == .cygnus);
+}
+
 pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
     var copy = enabled_for;
     var it = copy.iterator();
@@ -374,6 +387,366 @@ pub fn defaultFpEvalMethod(target: std.Target) LangOpts.FPEvalMethod {
         else => {},
     }
     return .source;
+}
+
+/// Value of the `-m` flag for `ld` for this target
+pub fn ldEmulationOption(target: std.Target, arm_endianness: ?std.builtin.Endian) ?[]const u8 {
+    return switch (target.cpu.arch) {
+        .x86 => if (target.os.tag == .elfiamcu) "elf_iamcu" else "elf_i386",
+        .arm,
+        .armeb,
+        .thumb,
+        .thumbeb,
+        => switch (arm_endianness orelse target.cpu.arch.endian()) {
+            .Little => "armelf_linux_eabi",
+            .Big => "armelfb_linux_eabi",
+        },
+        .aarch64 => "aarch64linux",
+        .aarch64_be => "aarch64linuxb",
+        .m68k => "m68kelf",
+        .powerpc => if (target.os.tag == .linux) "elf32ppclinux" else "elf32ppc",
+        .powerpcle => if (target.os.tag == .linux) "elf32lppclinux" else "elf32lppc",
+        .powerpc64 => "elf64ppc",
+        .powerpc64le => "elf64lppc",
+        .riscv32 => "elf32lriscv",
+        .riscv64 => "elf64lriscv",
+        .sparc, .sparcel => "elf32_sparc",
+        .sparc64 => "elf64_sparc",
+        .loongarch32 => "elf32loongarch",
+        .loongarch64 => "elf64loongarch",
+        .mips => "elf32btsmip",
+        .mipsel => "elf32ltsmip",
+        .mips64 => if (target.abi == .gnuabin32) "elf32btsmipn32" else "elf64btsmip",
+        .mips64el => if (target.abi == .gnuabin32) "elf32ltsmipn32" else "elf64ltsmip",
+        .x86_64 => if (target.abi == .gnux32 or target.abi == .muslx32) "elf32_x86_64" else "elf_x86_64",
+        .ve => "elf64ve",
+        .csky => "cskyelf_linux",
+        else => null,
+    };
+}
+
+pub fn get32BitArchVariant(target: std.Target) ?std.Target {
+    var copy = target;
+    switch (target.cpu.arch) {
+        .amdgcn,
+        .avr,
+        .msp430,
+        .spu_2,
+        .ve,
+        .bpfel,
+        .bpfeb,
+        .s390x,
+        => return null,
+
+        .arc,
+        .arm,
+        .armeb,
+        .csky,
+        .hexagon,
+        .m68k,
+        .le32,
+        .mips,
+        .mipsel,
+        .powerpc,
+        .powerpcle,
+        .r600,
+        .riscv32,
+        .sparc,
+        .sparcel,
+        .tce,
+        .tcele,
+        .thumb,
+        .thumbeb,
+        .x86,
+        .xcore,
+        .nvptx,
+        .amdil,
+        .hsail,
+        .spir,
+        .kalimba,
+        .shave,
+        .lanai,
+        .wasm32,
+        .renderscript32,
+        .aarch64_32,
+        .spirv32,
+        .loongarch32,
+        .dxil,
+        .xtensa,
+        => {}, // Already 32 bit
+
+        .aarch64 => copy.cpu.arch = .arm,
+        .aarch64_be => copy.cpu.arch = .armeb,
+        .le64 => copy.cpu.arch = .le32,
+        .amdil64 => copy.cpu.arch = .amdil,
+        .nvptx64 => copy.cpu.arch = .nvptx,
+        .wasm64 => copy.cpu.arch = .wasm32,
+        .hsail64 => copy.cpu.arch = .hsail,
+        .spir64 => copy.cpu.arch = .spir,
+        .spirv64 => copy.cpu.arch = .spirv32,
+        .renderscript64 => copy.cpu.arch = .renderscript32,
+        .loongarch64 => copy.cpu.arch = .loongarch32,
+        .mips64 => copy.cpu.arch = .mips,
+        .mips64el => copy.cpu.arch = .mipsel,
+        .powerpc64 => copy.cpu.arch = .powerpc,
+        .powerpc64le => copy.cpu.arch = .powerpcle,
+        .riscv64 => copy.cpu.arch = .riscv32,
+        .sparc64 => copy.cpu.arch = .sparc,
+        .x86_64 => copy.cpu.arch = .x86,
+    }
+    return copy;
+}
+
+pub fn get64BitArchVariant(target: std.Target) ?std.Target {
+    var copy = target;
+    switch (target.cpu.arch) {
+        .arc,
+        .avr,
+        .csky,
+        .dxil,
+        .hexagon,
+        .kalimba,
+        .lanai,
+        .m68k,
+        .msp430,
+        .r600,
+        .shave,
+        .sparcel,
+        .spu_2,
+        .tce,
+        .tcele,
+        .xcore,
+        .xtensa,
+        => return null,
+
+        .aarch64,
+        .aarch64_be,
+        .amdgcn,
+        .bpfeb,
+        .bpfel,
+        .le64,
+        .amdil64,
+        .nvptx64,
+        .wasm64,
+        .hsail64,
+        .spir64,
+        .spirv64,
+        .renderscript64,
+        .loongarch64,
+        .mips64,
+        .mips64el,
+        .powerpc64,
+        .powerpc64le,
+        .riscv64,
+        .s390x,
+        .sparc64,
+        .ve,
+        .x86_64,
+        => {}, // Already 64 bit
+
+        .aarch64_32 => copy.cpu.arch = .aarch64,
+        .amdil => copy.cpu.arch = .amdil64,
+        .arm => copy.cpu.arch = .aarch64,
+        .armeb => copy.cpu.arch = .aarch64_be,
+        .hsail => copy.cpu.arch = .hsail64,
+        .le32 => copy.cpu.arch = .le64,
+        .loongarch32 => copy.cpu.arch = .loongarch64,
+        .mips => copy.cpu.arch = .mips64,
+        .mipsel => copy.cpu.arch = .mips64el,
+        .nvptx => copy.cpu.arch = .nvptx64,
+        .powerpc => copy.cpu.arch = .powerpc64,
+        .powerpcle => copy.cpu.arch = .powerpc64le,
+        .renderscript32 => copy.cpu.arch = .renderscript64,
+        .riscv32 => copy.cpu.arch = .riscv64,
+        .sparc => copy.cpu.arch = .sparc64,
+        .spir => copy.cpu.arch = .spir64,
+        .spirv32 => copy.cpu.arch = .spirv64,
+        .thumb => copy.cpu.arch = .aarch64,
+        .thumbeb => copy.cpu.arch = .aarch64_be,
+        .wasm32 => copy.cpu.arch = .wasm64,
+        .x86 => copy.cpu.arch = .x86_64,
+    }
+    return copy;
+}
+
+/// Adapted from Zig's src/codegen/llvm.zig
+pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
+    // 64 bytes is assumed to be large enough to hold any target triple; increase if necessary
+    std.debug.assert(buf.len >= 64);
+
+    var stream = std.io.fixedBufferStream(buf);
+    const writer = stream.writer();
+
+    const llvm_arch = switch (target.cpu.arch) {
+        .arm => "arm",
+        .armeb => "armeb",
+        .aarch64 => "aarch64",
+        .aarch64_be => "aarch64_be",
+        .aarch64_32 => "aarch64_32",
+        .arc => "arc",
+        .avr => "avr",
+        .bpfel => "bpfel",
+        .bpfeb => "bpfeb",
+        .csky => "csky",
+        .dxil => "dxil",
+        .hexagon => "hexagon",
+        .loongarch32 => "loongarch32",
+        .loongarch64 => "loongarch64",
+        .m68k => "m68k",
+        .mips => "mips",
+        .mipsel => "mipsel",
+        .mips64 => "mips64",
+        .mips64el => "mips64el",
+        .msp430 => "msp430",
+        .powerpc => "powerpc",
+        .powerpcle => "powerpcle",
+        .powerpc64 => "powerpc64",
+        .powerpc64le => "powerpc64le",
+        .r600 => "r600",
+        .amdgcn => "amdgcn",
+        .riscv32 => "riscv32",
+        .riscv64 => "riscv64",
+        .sparc => "sparc",
+        .sparc64 => "sparc64",
+        .sparcel => "sparcel",
+        .s390x => "s390x",
+        .tce => "tce",
+        .tcele => "tcele",
+        .thumb => "thumb",
+        .thumbeb => "thumbeb",
+        .x86 => "i386",
+        .x86_64 => "x86_64",
+        .xcore => "xcore",
+        .xtensa => "xtensa",
+        .nvptx => "nvptx",
+        .nvptx64 => "nvptx64",
+        .le32 => "le32",
+        .le64 => "le64",
+        .amdil => "amdil",
+        .amdil64 => "amdil64",
+        .hsail => "hsail",
+        .hsail64 => "hsail64",
+        .spir => "spir",
+        .spir64 => "spir64",
+        .spirv32 => "spirv32",
+        .spirv64 => "spirv64",
+        .kalimba => "kalimba",
+        .shave => "shave",
+        .lanai => "lanai",
+        .wasm32 => "wasm32",
+        .wasm64 => "wasm64",
+        .renderscript32 => "renderscript32",
+        .renderscript64 => "renderscript64",
+        .ve => "ve",
+        // Note: spu_2 is not supported in LLVM; this is the Zig arch name
+        .spu_2 => "spu_2",
+    };
+    writer.writeAll(llvm_arch) catch unreachable;
+    writer.writeByte('-') catch unreachable;
+
+    const llvm_os = switch (target.os.tag) {
+        .freestanding => "unknown",
+        .ananas => "ananas",
+        .cloudabi => "cloudabi",
+        .dragonfly => "dragonfly",
+        .freebsd => "freebsd",
+        .fuchsia => "fuchsia",
+        .kfreebsd => "kfreebsd",
+        .linux => "linux",
+        .lv2 => "lv2",
+        .netbsd => "netbsd",
+        .openbsd => "openbsd",
+        .solaris => "solaris",
+        .windows => "windows",
+        .zos => "zos",
+        .haiku => "haiku",
+        .minix => "minix",
+        .rtems => "rtems",
+        .nacl => "nacl",
+        .aix => "aix",
+        .cuda => "cuda",
+        .nvcl => "nvcl",
+        .amdhsa => "amdhsa",
+        .ps4 => "ps4",
+        .ps5 => "ps5",
+        .elfiamcu => "elfiamcu",
+        .mesa3d => "mesa3d",
+        .contiki => "contiki",
+        .amdpal => "amdpal",
+        .hermit => "hermit",
+        .hurd => "hurd",
+        .wasi => "wasi",
+        .emscripten => "emscripten",
+        .uefi => "windows",
+        .macos => "macosx",
+        .ios => "ios",
+        .tvos => "tvos",
+        .watchos => "watchos",
+        .driverkit => "driverkit",
+        .shadermodel => "shadermodel",
+        .opencl,
+        .glsl450,
+        .vulkan,
+        .plan9,
+        .other,
+        => "unknown",
+    };
+    writer.writeAll(llvm_os) catch unreachable;
+
+    if (target.os.tag.isDarwin()) {
+        const min_version = target.os.version_range.semver.min;
+        writer.print("{d}.{d}.{d}", .{
+            min_version.major,
+            min_version.minor,
+            min_version.patch,
+        }) catch unreachable;
+    }
+    writer.writeByte('-') catch unreachable;
+
+    const llvm_abi = switch (target.abi) {
+        .none => "unknown",
+        .gnu => "gnu",
+        .gnuabin32 => "gnuabin32",
+        .gnuabi64 => "gnuabi64",
+        .gnueabi => "gnueabi",
+        .gnueabihf => "gnueabihf",
+        .gnuf32 => "gnuf32",
+        .gnuf64 => "gnuf64",
+        .gnusf => "gnusf",
+        .gnux32 => "gnux32",
+        .gnuilp32 => "gnuilp32",
+        .code16 => "code16",
+        .eabi => "eabi",
+        .eabihf => "eabihf",
+        .android => "android",
+        .musl => "musl",
+        .musleabi => "musleabi",
+        .musleabihf => "musleabihf",
+        .muslx32 => "muslx32",
+        .msvc => "msvc",
+        .itanium => "itanium",
+        .cygnus => "cygnus",
+        .coreclr => "coreclr",
+        .simulator => "simulator",
+        .macabi => "macabi",
+        .pixel => "pixel",
+        .vertex => "vertex",
+        .geometry => "geometry",
+        .hull => "hull",
+        .domain => "domain",
+        .compute => "compute",
+        .library => "library",
+        .raygeneration => "raygeneration",
+        .intersection => "intersection",
+        .anyhit => "anyhit",
+        .closesthit => "closesthit",
+        .miss => "miss",
+        .callable => "callable",
+        .mesh => "mesh",
+        .amplification => "amplification",
+    };
+    writer.writeAll(llvm_abi) catch unreachable;
+    return stream.getWritten();
 }
 
 test "alignment functions - smoke test" {

@@ -5,6 +5,7 @@ const process = std.process;
 const Compilation = @import("Compilation.zig");
 const Driver = @import("Driver.zig");
 const target_util = @import("target.zig");
+const Toolchain = @import("Toolchain.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -29,6 +30,13 @@ pub fn main() u8 {
         return 1;
     };
 
+    const aro_name = std.fs.selfExePathAlloc(gpa) catch {
+        std.debug.print("unable to find Aro executable path\n", .{});
+        if (fast_exit) std.process.exit(1);
+        return 1;
+    };
+    defer gpa.free(aro_name);
+
     var comp = Compilation.init(gpa);
     defer comp.deinit();
 
@@ -50,10 +58,13 @@ pub fn main() u8 {
     };
     comp.langopts.setEmulatedCompiler(target_util.systemCompiler(comp.target));
 
-    var driver: Driver = .{ .comp = &comp };
+    var driver: Driver = .{ .comp = &comp, .aro_name = aro_name };
     defer driver.deinit();
 
-    driver.main(args) catch |er| switch (er) {
+    var toolchain: Toolchain = .{ .driver = &driver, .arena = arena };
+    defer toolchain.deinit();
+
+    driver.main(&toolchain, args) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) std.process.exit(1);
@@ -69,6 +80,12 @@ pub fn main() u8 {
             if (fast_exit) std.process.exit(1);
             return 1;
         },
+        error.TooManyMultilibs => {
+            std.debug.print("found more than one multilib with the same priority\n", .{});
+            if (fast_exit) std.process.exit(1);
+            return 1;
+        },
+        else => |err| return err,
     };
     if (fast_exit) std.process.exit(@intFromBool(comp.diag.errors != 0));
     return @intFromBool(comp.diag.errors != 0);
@@ -79,6 +96,8 @@ test {
     _ = @import("Codegen_legacy.zig");
     _ = @import("Compilation.zig");
     _ = @import("Diagnostics.zig");
+    _ = @import("Driver/Distro.zig");
+    _ = @import("Driver/Filesystem.zig");
     _ = @import("InitList.zig");
     _ = @import("LangOpts.zig");
     _ = @import("Parser.zig");
@@ -86,6 +105,8 @@ test {
     _ = @import("Preprocessor.zig");
     _ = @import("Source.zig");
     _ = @import("Tokenizer.zig");
+    _ = @import("Driver/GCCVersion.zig");
+    _ = @import("toolchains/Linux.zig");
     _ = @import("Tree.zig");
     _ = @import("Type.zig");
     _ = @import("target.zig");
