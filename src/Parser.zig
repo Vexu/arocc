@@ -3790,7 +3790,11 @@ fn parseGNUAsmStmt(p: *Parser, asm_str_node: NodeIndex, quals: Tree.GNUAssemblyQ
 fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeIndex {
     const asm_tok = p.tok_i;
     switch (p.tok_ids[p.tok_i]) {
-        .keyword_asm, .keyword_asm1, .keyword_asm2 => p.tok_i += 1,
+        .keyword_asm => {
+            try p.err(.extension_token_used);
+            p.tok_i += 1;
+        },
+        .keyword_asm1, .keyword_asm2 => p.tok_i += 1,
         else => return null,
     }
 

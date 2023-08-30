@@ -166,6 +166,7 @@ pub const Options = packed struct {
     @"gnu-union-cast": Kind = .default,
     @"pointer-sign": Kind = .default,
     @"fuse-ld-path": Kind = .default,
+    @"language-extension-token": Kind = .default,
 };
 
 const messages = struct {
@@ -2379,6 +2380,12 @@ const messages = struct {
     pub const gnu_asm_disabled = struct {
         const msg = "GNU-style inline assembly is disabled";
         const kind = .@"error";
+    };
+    pub const extension_token_used = struct {
+        const msg = "extension used";
+        const kind = .off;
+        const pedantic = true;
+        const opt = "language-extension-token";
     };
 };
 
