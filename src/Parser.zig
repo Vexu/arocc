@@ -3687,13 +3687,14 @@ fn parseGNUAsmStmt(p: *Parser, asm_str_node: NodeIndex, quals: Tree.GNUAssemblyQ
     var stack_fallback = std.heap.stackFallback(bytes_needed, p.comp.gpa);
     const allocator = stack_fallback.get();
 
-    var names = std.ArrayList(?TokenIndex).initCapacity(allocator, expected_items) catch unreachable;
+    // TODO: Consider using a TokenIndex of 0 instead of null if we need to store the names in the tree
+    var names = std.ArrayList(?TokenIndex).initCapacity(allocator, expected_items) catch unreachable; // stack allocation already succeeded
     defer names.deinit();
-    var constraints = NodeList.initCapacity(allocator, expected_items) catch unreachable;
+    var constraints = NodeList.initCapacity(allocator, expected_items) catch unreachable; // stack allocation already succeeded
     defer constraints.deinit();
-    var exprs = NodeList.initCapacity(allocator, expected_items) catch unreachable;
+    var exprs = NodeList.initCapacity(allocator, expected_items) catch unreachable; //stack allocation already succeeded
     defer exprs.deinit();
-    var clobbers = NodeList.initCapacity(allocator, expected_items) catch unreachable;
+    var clobbers = NodeList.initCapacity(allocator, expected_items) catch unreachable; //stack allocation already succeeded
     defer clobbers.deinit();
 
     // Outputs
