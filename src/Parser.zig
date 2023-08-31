@@ -3638,46 +3638,50 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
     }
 }
 
-fn parseMSVCAsmStmt(p: *Parser) Error!?NodeIndex {
+fn msvcAsmStmt(p: *Parser) Error!?NodeIndex {
     return p.todo("MSVC assembly statements");
 }
 
-fn parseAsmOperands(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *NodeList, exprs: *NodeList) Error!void {
-    if (!p.tok_ids[p.tok_i].isStringLiteral() and p.tok_ids[p.tok_i] != .l_bracket) {
-        // Empty
-        return;
-    }
-    while (true) {
-        if (p.eatToken(.l_bracket)) |l_bracket| {
-            const ident = (try p.eatIdentifier()) orelse {
-                try p.err(.expected_identifier);
-                return error.ParsingFailed;
-            };
-            try names.append(ident);
-            try p.expectClosing(l_bracket, .r_bracket);
-        } else {
-            try names.append(null);
-        }
-        const constraint = try p.asmStr();
-        try constraints.append(constraint.node);
-
-        const l_paren = p.eatToken(.l_paren) orelse {
-            try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{ .actual = p.tok_ids[p.tok_i], .expected = .l_paren } });
+/// asmOperand : ('[' IDENTIFIER ']')? asmStr '(' expr ')'
+fn asmOperand(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *NodeList, exprs: *NodeList) Error!void {
+    if (p.eatToken(.l_bracket)) |l_bracket| {
+        const ident = (try p.eatIdentifier()) orelse {
+            try p.err(.expected_identifier);
             return error.ParsingFailed;
         };
-        const res = try p.expr();
-        try p.expectClosing(l_paren, .r_paren);
-        try res.expect(p);
-        try exprs.append(res.node);
-        if (p.eatToken(.comma) == null) return;
+        try names.append(ident);
+        try p.expectClosing(l_bracket, .r_bracket);
+    } else {
+        try names.append(null);
     }
+    const constraint = try p.asmStr();
+    try constraints.append(constraint.node);
+
+    const l_paren = p.eatToken(.l_paren) orelse {
+        try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{ .actual = p.tok_ids[p.tok_i], .expected = .l_paren } });
+        return error.ParsingFailed;
+    };
+    const res = try p.expr();
+    try p.expectClosing(l_paren, .r_paren);
+    try res.expect(p);
+    try exprs.append(res.node);
 }
-fn parseGNUAsmStmt(p: *Parser, asm_str_node: NodeIndex, quals: Tree.GNUAssemblyQualifiers) Error!NodeIndex {
+
+/// gnuAsmStmt
+///  : asmStr
+///  | asmStr ':' asmOperand*
+///  | asmStr ':' asmOperand* ':' asmOperand*
+///  | asmStr ':' asmOperand* ':' asmOperand* : asmStr? (',' asmStr)*
+///  | asmStr ':' asmOperand* ':' asmOperand* : asmStr? (',' asmStr)* : IDENTIFIER (',' IDENTIFIER)*
+fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, l_paren: TokenIndex) Error!NodeIndex {
+    const asm_str = try p.asmStr();
+    try p.checkAsmStr(asm_str.val, l_paren);
+
     if (p.tok_ids[p.tok_i] == .r_paren) {
         return p.addNode(.{
             .tag = .gnu_asm_simple,
             .ty = .{ .specifier = .void },
-            .data = .{ .un = asm_str_node },
+            .data = .{ .un = asm_str.node },
         });
     }
 
@@ -3702,7 +3706,12 @@ fn parseGNUAsmStmt(p: *Parser, asm_str_node: NodeIndex, quals: Tree.GNUAssemblyQ
     if (p.eatToken(.colon) orelse p.eatToken(.colon_colon)) |tok_i| {
         ate_extra_colon = p.tok_ids[tok_i] == .colon_colon;
         if (!ate_extra_colon) {
-            try p.parseAsmOperands(&names, &constraints, &exprs);
+            if (p.tok_ids[p.tok_i].isStringLiteral() or p.tok_ids[p.tok_i] == .l_bracket) {
+                while (true) {
+                    try p.asmOperand(&names, &constraints, &exprs);
+                    if (p.eatToken(.comma) == null) break;
+                }
+            }
         }
     }
 
@@ -3717,7 +3726,12 @@ fn parseGNUAsmStmt(p: *Parser, asm_str_node: NodeIndex, quals: Tree.GNUAssemblyQ
             p.tok_i += 1;
         }
         if (!ate_extra_colon) {
-            try p.parseAsmOperands(&names, &constraints, &exprs);
+            if (p.tok_ids[p.tok_i].isStringLiteral() or p.tok_ids[p.tok_i] == .l_bracket) {
+                while (true) {
+                    try p.asmOperand(&names, &constraints, &exprs);
+                    if (p.eatToken(.comma) == null) break;
+                }
+            }
         }
     }
     std.debug.assert(names.items.len == constraints.items.len and constraints.items.len == exprs.items.len);
@@ -3787,7 +3801,20 @@ fn parseGNUAsmStmt(p: *Parser, asm_str_node: NodeIndex, quals: Tree.GNUAssemblyQ
     return .none;
 }
 
-/// assembly : keyword_asm asmQual* '(' asmStr ')'
+fn checkAsmStr(p: *Parser, asm_str: Value, tok: TokenIndex) !void {
+    if (!p.comp.langopts.gnu_asm) {
+        const str = asm_str.data.bytes;
+        if (str.len > 1) {
+            // Empty string (just a NUL byte) is ok because it does not emit any assembly
+            try p.errTok(.gnu_asm_disabled, tok);
+        }
+    }
+}
+
+/// assembly
+///  : keyword_asm asmQual* '(' asmStr ')'
+///  | keyword_asm asmQual* '(' gnuAsmStmt ')'
+///  | keyword_asm msvcAsmStmt
 fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeIndex {
     const asm_tok = p.tok_i;
     switch (p.tok_ids[p.tok_i]) {
@@ -3800,7 +3827,7 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
     }
 
     if (!p.tok_ids[p.tok_i].canOpenGCCAsmStmt()) {
-        return p.parseMSVCAsmStmt();
+        return p.msvcAsmStmt();
     }
 
     var quals: Tree.GNUAssemblyQualifiers = .{};
@@ -3825,28 +3852,23 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
 
     const l_paren = try p.expectToken(.l_paren);
     var result_node: NodeIndex = .none;
-    const asm_str = try p.asmStr();
-    if (kind != .decl_label and !p.comp.langopts.gnu_asm) {
-        const str = asm_str.val.data.bytes;
-        if (str.len > 1) {
-            // Empty string (just a NUL byte) is ok because it does not emit any assembly
-            try p.errTok(.gnu_asm_disabled, l_paren);
-        }
-    }
     switch (kind) {
         .decl_label => {
+            const asm_str = try p.asmStr();
             const str = asm_str.val.data.bytes;
             const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str[0 .. str.len - 1] } }, .syntax = .keyword };
             try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
         },
         .global => {
+            const asm_str = try p.asmStr();
+            try p.checkAsmStr(asm_str.val, l_paren);
             result_node = try p.addNode(.{
                 .tag = .file_scope_asm,
                 .ty = .{ .specifier = .void },
                 .data = .{ .decl = .{ .name = asm_tok, .node = asm_str.node } },
             });
         },
-        .stmt => result_node = try p.parseGNUAsmStmt(asm_str.node, quals),
+        .stmt => result_node = try p.gnuAsmStmt(quals, l_paren),
     }
     try p.expectClosing(l_paren, .r_paren);
 
