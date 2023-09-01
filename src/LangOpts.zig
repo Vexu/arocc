@@ -107,6 +107,9 @@ char_signedness_override: ?std.builtin.Signedness = null,
 /// If set, override the default availability of char8_t (by default, enabled in C2X and later; disabled otherwise)
 has_char8_t_override: ?bool = null,
 
+/// Whether to allow GNU-style inline assembly
+gnu_asm: bool = true,
+
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
 }

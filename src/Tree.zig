@@ -104,6 +104,12 @@ pub fn deinit(tree: *Tree) void {
     tree.value_map.deinit();
 }
 
+pub const GNUAssemblyQualifiers = struct {
+    @"volatile": bool = false,
+    @"inline": bool = false,
+    goto: bool = false,
+};
+
 pub const Node = struct {
     tag: Tag,
     ty: Type = .{ .specifier = .void },
@@ -273,6 +279,9 @@ pub const Tag = enum(u8) {
     threadlocal_extern_var,
     threadlocal_static_var,
 
+    /// __asm__("...") at file scope
+    file_scope_asm,
+
     // typedef declaration
     typedef,
 
@@ -345,6 +354,8 @@ pub const Tag = enum(u8) {
     null_stmt,
     /// return first; first may be null
     return_stmt,
+    /// Assembly statement of the form __asm__("string literal")
+    gnu_asm_simple,
 
     // ====== Expr ======
 
@@ -764,6 +775,14 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
 
     switch (tag) {
         .invalid => unreachable,
+        .file_scope_asm => {
+            try w.writeByteNTimes(' ', level + 1);
+            try tree.dumpNode(data.decl.node, level + delta, mapper, color, w);
+        },
+        .gnu_asm_simple => {
+            try w.writeByteNTimes(' ', level);
+            try tree.dumpNode(data.un, level, mapper, color, w);
+        },
         .static_assert => {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("condition:\n");

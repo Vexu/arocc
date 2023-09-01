@@ -759,6 +759,20 @@ pub const Token = struct {
                 else => false,
             };
         }
+
+        pub fn canOpenGCCAsmStmt(id: Id) bool {
+            return switch (id) {
+                .keyword_volatile, .keyword_volatile1, .keyword_volatile2, .keyword_inline, .keyword_inline1, .keyword_inline2, .keyword_goto, .l_paren => true,
+                else => false,
+            };
+        }
+
+        pub fn isStringLiteral(id: Id) bool {
+            return switch (id) {
+                .string_literal, .string_literal_utf_16, .string_literal_utf_8, .string_literal_utf_32, .string_literal_wide => true,
+                else => false,
+            };
+        }
     };
 
     /// double underscore and underscore + capital letter identifiers
