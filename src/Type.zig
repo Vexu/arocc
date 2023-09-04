@@ -536,6 +536,22 @@ pub fn isReal(ty: Type) bool {
     };
 }
 
+pub fn isComplex(ty: Type) bool {
+    return switch (ty.specifier) {
+        // zig fmt: off
+        .complex_float, .complex_double, .complex_long_double, .complex_float80,
+        .complex_float128, .complex_char, .complex_schar, .complex_uchar, .complex_short,
+        .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong,
+        .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
+        .complex_bit_int => true,
+        // zig fmt: on
+        .typeof_type => ty.data.sub_type.isComplex(),
+        .typeof_expr => ty.data.expr.ty.isComplex(),
+        .attributed => ty.data.attributed.base.isComplex(),
+        else => false,
+    };
+}
+
 pub fn isVoidStar(ty: Type) bool {
     return switch (ty.specifier) {
         .pointer => ty.data.sub_type.specifier == .void,
@@ -625,6 +641,13 @@ pub fn elemType(ty: Type) Type {
         },
         .attributed => ty.data.attributed.base,
         .invalid => Type.invalid,
+        // zig fmt: off
+        .complex_float, .complex_double, .complex_long_double, .complex_float80,
+        .complex_float128, .complex_char, .complex_schar, .complex_uchar, .complex_short,
+        .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong,
+        .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
+        .complex_bit_int => ty.makeReal(),
+        // zig fmt: on
         else => unreachable,
     };
 }
@@ -659,6 +682,11 @@ pub fn arrayLen(ty: Type) ?u64 {
         .attributed => ty.data.attributed.base.arrayLen(),
         else => null,
     };
+}
+
+/// Complex numbers are scalars but they can be initialized with a 2-element initList
+pub fn expectedInitListSize(ty: Type) ?u64 {
+    return if (ty.isComplex()) 2 else ty.arrayLen();
 }
 
 pub fn anyQual(ty: Type) bool {

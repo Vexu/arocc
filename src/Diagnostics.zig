@@ -167,6 +167,7 @@ pub const Options = packed struct {
     @"pointer-sign": Kind = .default,
     @"fuse-ld-path": Kind = .default,
     @"language-extension-token": Kind = .default,
+    @"complex-component-init": Kind = .default,
 };
 
 const messages = struct {
@@ -2386,6 +2387,29 @@ const messages = struct {
         const kind = .off;
         const pedantic = true;
         const opt = "language-extension-token";
+    };
+    pub const complex_component_init = struct {
+        const msg = "complex initialization specifying real and imaginary components is an extension";
+        const opt = "complex-component-init";
+        const kind = .off;
+        const pedantic = true;
+    };
+    pub const complex_prefix_postfix_op = struct {
+        const msg = "ISO C does not support '++'/'--' on complex type '{s}'";
+        const opt = "pedantic";
+        const extra = .str;
+        const kind = .off;
+        const pedantic = true;
+    };
+    pub const not_floating_type = struct {
+        const msg = "argument type '{s}' is not a real floating point type";
+        const extra = .str;
+        const kind = .@"error";
+    };
+    pub const argument_types_differ = struct {
+        const msg = "arguments are of different types ({s})";
+        const extra = .str;
+        const kind = .@"error";
     };
 };
 

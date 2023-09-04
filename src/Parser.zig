@@ -3087,6 +3087,8 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
     };
 
     const is_scalar = init_ty.isScalar();
+    const is_complex = init_ty.isComplex();
+    const scalar_inits_needed: usize = if (is_complex) 2 else 1;
     if (p.eatToken(.r_brace)) |_| {
         if (is_scalar) try p.errTok(.empty_scalar_init, l_brace);
         if (il.tok != 0) {
@@ -3195,7 +3197,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         } else if (count == 0 and p.isStringInit(init_ty)) {
             is_str_init = true;
             saw = try p.initializerItem(il, init_ty);
-        } else if (is_scalar and count != 0) {
+        } else if (is_scalar and count >= scalar_inits_needed) {
             // discard further scalars
             var tmp_il = InitList{};
             defer tmp_il.deinit(p.gpa);
@@ -3250,13 +3252,18 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             break;
         } else if (count == 1) {
             if (is_str_init) try p.errTok(.excess_str_init, first_tok);
-            if (is_scalar) try p.errTok(.excess_scalar_init, first_tok);
+            if (is_scalar and !is_complex) try p.errTok(.excess_scalar_init, first_tok);
+        } else if (count == 2) {
+            if (is_scalar and is_complex) try p.errTok(.excess_scalar_init, first_tok);
         }
 
         if (p.eatToken(.comma) == null) break;
     }
     try p.expectClosing(l_brace, .r_brace);
 
+    if (is_complex and count == 1) { // count of 1 means we saw exactly 2 items in the initializer list
+        try p.errTok(.complex_component_init, l_brace);
+    }
     if (is_scalar or is_str_init) return true;
     if (il.tok != 0) {
         try p.errTok(.initializer_overrides, l_brace);
@@ -3314,13 +3321,13 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, actual_ty: Typ
 
 /// Returns true if the value is unused.
 fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type, first_tok: TokenIndex) Error!bool {
-    if (ty.isArray()) {
+    if (ty.isArray() or ty.isComplex()) {
         if (il.*.node != .none) return false;
         const start_index = il.*.list.items.len;
         var index = if (start_index != 0) il.*.list.items[start_index - 1].index else start_index;
 
         const arr_ty = ty.*;
-        const elem_count = arr_ty.arrayLen() orelse std.math.maxInt(u64);
+        const elem_count: u64 = arr_ty.expectedInitListSize() orelse std.math.maxInt(u64);
         if (elem_count == 0) {
             try p.errTok(.empty_aggregate_init_braces, first_tok);
             return error.ParsingFailed;
@@ -3497,14 +3504,15 @@ fn isStringInit(p: *Parser, ty: Type) bool {
 
 /// Convert InitList into an AST
 fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
-    if (init_ty.isScalar()) {
+    const is_complex = init_ty.isComplex();
+    if (init_ty.isScalar() and !is_complex) {
         if (il.node == .none) {
             return p.addNode(.{ .tag = .default_init_expr, .ty = init_ty, .data = undefined });
         }
         return il.node;
     } else if (init_ty.is(.variable_len_array)) {
         return error.ParsingFailed; // vla invalid, reported earlier
-    } else if (init_ty.isArray()) {
+    } else if (init_ty.isArray() or is_complex) {
         if (il.node != .none) {
             return il.node;
         }
@@ -3513,7 +3521,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
 
         const elem_ty = init_ty.elemType();
 
-        const max_items = init_ty.arrayLen() orelse std.math.maxInt(usize);
+        const max_items: u64 = init_ty.expectedInitListSize() orelse std.math.maxInt(usize);
         var start: u64 = 0;
         for (il.list.items) |*init| {
             if (init.index > start) {
@@ -4563,6 +4571,7 @@ const CallExpr = union(enum) {
             .standard => true,
             .builtin => |builtin| switch (builtin.tag) {
                 .__builtin_va_start, .__va_start, .va_start => arg_idx != 1,
+                .__builtin_complex => false,
                 else => true,
             },
         };
@@ -4580,16 +4589,46 @@ const CallExpr = union(enum) {
         const builtin_tok = p.nodes.items(.data)[@intFromEnum(self.builtin.node)].decl.name;
         switch (self.builtin.tag) {
             .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            .__builtin_complex => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
             else => {},
         }
     }
 
+    /// Some functions cannot be expressed as standard C prototypes. For example `__builtin_complex` requires
+    /// two arguments of the same real floating point type (e.g. two doubles or two floats). These functions are
+    /// encoded as varargs functions with custom typechecking. Since varargs functions do not have a fixed number
+    /// of arguments, `paramCountOverride` is used to tell us how many arguments we should actually expect to see for
+    /// these custom-typechecked functions.
+    fn paramCountOverride(self: CallExpr) ?u32 {
+        return switch (self) {
+            .standard => null,
+            .builtin => |builtin| switch (builtin.tag) {
+                .__builtin_complex => 2,
+                else => null,
+            },
+        };
+    }
+
+    fn returnType(self: CallExpr, p: *Parser, callable_ty: Type) Type {
+        return switch (self) {
+            .standard => callable_ty.returnType(),
+            .builtin => |builtin| switch (builtin.tag) {
+                .__builtin_complex => {
+                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                    return p.nodes.items(.ty)[@intFromEnum(last_param)].makeComplex();
+                },
+                else => callable_ty.returnType(),
+            },
+        };
+    }
+
     fn finish(self: CallExpr, p: *Parser, ty: Type, list_buf_top: usize, arg_count: u32) Error!Result {
+        const ret_ty = self.returnType(p, ty);
         switch (self) {
             .standard => |func_node| {
                 var call_node: Tree.Node = .{
                     .tag = .call_expr_one,
-                    .ty = ty.returnType(),
+                    .ty = ret_ty,
                     .data = .{ .bin = .{ .lhs = func_node, .rhs = .none } },
                 };
                 const args = p.list_buf.items[list_buf_top..];
@@ -4601,12 +4640,13 @@ const CallExpr = union(enum) {
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
-                return Result{ .node = try p.addNode(call_node), .ty = call_node.ty };
+                return Result{ .node = try p.addNode(call_node), .ty = ret_ty };
             },
             .builtin => |builtin| {
                 const index = @intFromEnum(builtin.node);
                 var call_node = p.nodes.get(index);
                 defer p.nodes.set(index, call_node);
+                call_node.ty = ret_ty;
                 const args = p.list_buf.items[list_buf_top..];
                 switch (arg_count) {
                     0 => {},
@@ -4617,7 +4657,7 @@ const CallExpr = union(enum) {
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
-                return Result{ .node = builtin.node, .ty = call_node.ty.returnType() };
+                return Result{ .node = builtin.node, .ty = ret_ty };
             },
         }
     }
@@ -6530,6 +6570,8 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.expect(p);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+            if (operand.ty.isComplex())
+                try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
@@ -6554,6 +6596,8 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.expect(p);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
+            if (operand.ty.isComplex())
+                try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
@@ -6717,6 +6761,25 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_imag, imag_tok, try p.typeStr(operand.ty));
             }
+            if (operand.ty.isReal()) {
+                switch (p.comp.langopts.emulate) {
+                    .msvc => {}, // Doesn't support `_Complex` or `__imag` in the first place
+                    .gcc => {
+                        if (operand.ty.isInt()) {
+                            operand.val = Value.int(0);
+                        } else if (operand.ty.isFloat()) {
+                            operand.val = Value.float(0);
+                        }
+                    },
+                    .clang => {
+                        if (operand.val.tag == .int) {
+                            operand.val = Value.int(0);
+                        } else {
+                            operand.val.tag = .unavailable;
+                        }
+                    },
+                }
+            }
             // convert _Complex T to T
             operand.ty = operand.ty.makeReal();
             try operand.un(p, .imag_expr);
@@ -6795,6 +6858,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             var operand = lhs;
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
+            if (operand.ty.isComplex())
+                try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
@@ -6811,6 +6876,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             var operand = lhs;
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
+            if (operand.ty.isComplex())
+                try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
             if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
@@ -6968,6 +7035,20 @@ fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     }
 }
 
+fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
+    _ = builtin_tok;
+    _ = first_after;
+    if (idx <= 1 and !arg.ty.isFloat()) {
+        try p.errStr(.not_floating_type, param_tok, try p.typeStr(arg.ty));
+    } else if (idx == 1) {
+        const prev_idx = p.list_buf.items[p.list_buf.items.len - 1];
+        const prev_ty = p.nodes.items(.ty)[@intFromEnum(prev_idx)];
+        if (!prev_ty.eql(arg.ty, p.comp, false)) {
+            try p.errStr(.argument_types_differ, param_tok, try p.typePairStrExtra(prev_ty, " vs ", arg.ty));
+        }
+    }
+}
+
 fn checkVariableBuiltinArgument(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32, tag: BuiltinFunction.Tag) !void {
     switch (tag) {
         .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
@@ -7035,17 +7116,20 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         };
     }
 
+    const actual: u32 = @intCast(arg_count);
     const extra = Diagnostics.Message.Extra{ .arguments = .{
         .expected = @intCast(params.len),
-        .actual = @intCast(arg_count),
+        .actual = actual,
     } };
-    if (ty.is(.func) and params.len != arg_count) {
+    if (call_expr.paramCountOverride()) |expected| {
+        if (expected != actual) {
+            try p.errExtra(.expected_arguments, first_after, .{ .arguments = .{ .expected = expected, .actual = actual } });
+        }
+    } else if (ty.is(.func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments, first_after, extra);
-    }
-    if (ty.is(.old_style_func) and params.len != arg_count) {
+    } else if (ty.is(.old_style_func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments_old, first_after, extra);
-    }
-    if (ty.is(.var_args_func) and arg_count < params.len) {
+    } else if (ty.is(.var_args_func) and arg_count < params.len) {
         try p.errExtra(.expected_at_least_arguments, first_after, extra);
     }
 
