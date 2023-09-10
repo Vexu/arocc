@@ -479,21 +479,21 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8) !void {
 
     if (fast_exit and d.inputs.items.len == 1) {
         d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit) catch |e| switch (e) {
-            error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 d.comp.renderErrors();
                 d.exitWithCleanup(1);
             },
+            else => |er| return er,
         };
         unreachable;
     }
 
     for (d.inputs.items) |source| {
         d.processSource(tc, source, builtin, user_macros, fast_exit) catch |e| switch (e) {
-            error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => {
                 d.comp.renderErrors();
             },
+            else => |er| return er,
         };
     }
     if (d.comp.diag.errors != 0) {
