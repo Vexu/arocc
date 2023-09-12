@@ -28,7 +28,6 @@ data: union {
     none: void,
     int: u64,
     float: f64,
-    array: []Value,
     bytes: ByteRange,
 } = .{ .none = {} },
 
@@ -38,7 +37,6 @@ const Tag = enum {
     /// int is used to store integer, boolean and pointer values
     int,
     float,
-    array,
     bytes,
 };
 
@@ -292,7 +290,6 @@ pub fn isZero(v: Value) bool {
         .nullptr_t => false,
         .int => v.data.int == 0,
         .float => v.data.float == 0,
-        .array => false,
         .bytes => false,
     };
 }
@@ -303,7 +300,6 @@ pub fn getBool(v: Value) bool {
         .nullptr_t => false,
         .int => v.data.int != 0,
         .float => v.data.float != 0,
-        .array => true,
         .bytes => true,
     };
 }
