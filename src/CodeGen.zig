@@ -209,6 +209,7 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
         .instructions = c.builder.instructions,
         .arena = c.builder.arena.state,
         .body = c.builder.body,
+        .strings = c.tree.strings,
     };
     res.dump(c.builder.gpa, name, c.comp.diag.color, std.io.getStdOut().writer()) catch {};
 }

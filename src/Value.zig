@@ -5,13 +5,30 @@ const Type = @import("Type.zig");
 
 const Value = @This();
 
+pub const ByteRange = struct {
+    start: u32,
+    end: u32,
+
+    pub fn len(self: ByteRange) u32 {
+        return self.end - self.start;
+    }
+
+    pub fn trim(self: ByteRange, amount: u32) ByteRange {
+        std.debug.assert(self.start <= self.end - amount);
+        return .{ .start = self.start, .end = self.end - amount };
+    }
+
+    pub fn slice(self: ByteRange, all_bytes: []const u8) []const u8 {
+        return all_bytes[self.start..self.end];
+    }
+};
+
 tag: Tag = .unavailable,
 data: union {
     none: void,
     int: u64,
     float: f64,
-    array: []Value,
-    bytes: []u8,
+    bytes: ByteRange,
 } = .{ .none = {} },
 
 const Tag = enum {
@@ -20,7 +37,6 @@ const Tag = enum {
     /// int is used to store integer, boolean and pointer values
     int,
     float,
-    array,
     bytes,
 };
 
@@ -51,8 +67,8 @@ pub fn float(v: anytype) Value {
     return .{ .tag = .float, .data = .{ .float = v } };
 }
 
-pub fn bytes(v: anytype) Value {
-    return .{ .tag = .bytes, .data = .{ .bytes = v } };
+pub fn bytes(start: u32, end: u32) Value {
+    return .{ .tag = .bytes, .data = .{ .bytes = .{ .start = start, .end = end } } };
 }
 
 pub fn signExtend(v: Value, old_ty: Type, comp: *Compilation) i64 {
@@ -274,7 +290,6 @@ pub fn isZero(v: Value) bool {
         .nullptr_t => false,
         .int => v.data.int == 0,
         .float => v.data.float == 0,
-        .array => false,
         .bytes => false,
     };
 }
@@ -285,7 +300,6 @@ pub fn getBool(v: Value) bool {
         .nullptr_t => false,
         .int => v.data.int != 0,
         .float => v.data.float != 0,
-        .array => true,
         .bytes => true,
     };
 }
@@ -569,7 +583,7 @@ pub fn hash(v: Value) u64 {
     }
 }
 
-pub fn dump(v: Value, ty: Type, comp: *Compilation, w: anytype) !void {
+pub fn dump(v: Value, ty: Type, comp: *Compilation, strings: []const u8, w: anytype) !void {
     switch (v.tag) {
         .unavailable => try w.writeAll("unavailable"),
         .int => if (ty.is(.bool) and comp.langopts.standard.atLeast(.c2x)) {
@@ -579,7 +593,7 @@ pub fn dump(v: Value, ty: Type, comp: *Compilation, w: anytype) !void {
         } else {
             try w.print("{d}", .{v.signExtend(ty, comp)});
         },
-        .bytes => try w.print("\"{s}\"", .{v.data.bytes}),
+        .bytes => try w.print("\"{s}\"", .{v.data.bytes.slice(strings)}),
         // std.fmt does @as instead of @floatCast
         .float => try w.print("{d}", .{@as(f64, @floatCast(v.data.float))}),
         else => try w.print("({s})", .{@tagName(v.tag)}),

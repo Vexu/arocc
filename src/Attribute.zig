@@ -44,7 +44,6 @@ pub const ArgumentType = enum {
     int,
     alignment,
     float,
-    array,
     expression,
     nullptr_t,
 
@@ -55,7 +54,6 @@ pub const ArgumentType = enum {
             .int, .alignment => "an integer constant",
             .nullptr_t => "nullptr",
             .float => "a floating point number",
-            .array => "an array",
             .expression => "an expression",
         };
     }
@@ -80,7 +78,6 @@ pub const ArgumentType = enum {
             .bytes => .string,
             .unavailable => .expression,
             .float => .float,
-            .array => .array,
             .nullptr_t => .nullptr_t,
         };
     }
@@ -258,6 +255,7 @@ fn diagnoseField(
     arguments: *Arguments,
     val: Value,
     node: Tree.Node,
+    strings: []const u8,
 ) ?Diagnostics.Message {
     switch (val.tag) {
         .int => {
@@ -267,12 +265,13 @@ fn diagnoseField(
             }
         },
         .bytes => {
-            const bytes = @as([]const u8, val.data.bytes[0 .. val.data.bytes.len - 1]);
-            if (wanted == []const u8) {
+            const bytes = val.data.bytes.trim(1); // remove null terminator
+            if (wanted == Value.ByteRange) {
                 @field(@field(arguments, decl.name), field.name) = bytes;
                 return null;
             } else if (@typeInfo(wanted) == .Enum and @hasDecl(wanted, "opts") and wanted.opts.enum_kind == .string) {
-                if (std.meta.stringToEnum(wanted, bytes)) |enum_val| {
+                const str = bytes.slice(strings);
+                if (std.meta.stringToEnum(wanted, str)) |enum_val| {
                     @field(@field(arguments, decl.name), field.name) = enum_val;
                     return null;
                 } else {
@@ -297,7 +296,7 @@ fn diagnoseField(
     };
 }
 
-pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node: Tree.Node) ?Diagnostics.Message {
+pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node: Tree.Node, strings: []const u8) ?Diagnostics.Message {
     switch (attr) {
         inline else => |tag| {
             const decl = @typeInfo(attributes).Struct.decls[@intFromEnum(tag)];
@@ -309,7 +308,7 @@ pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node
             const arg_fields = getArguments(@field(attributes, decl.name));
             switch (arg_idx) {
                 inline 0...arg_fields.len - 1 => |arg_i| {
-                    return diagnoseField(decl, arg_fields[arg_i], UnwrapOptional(arg_fields[arg_i].type), arguments, val, node);
+                    return diagnoseField(decl, arg_fields[arg_i], UnwrapOptional(arg_fields[arg_i].type), arguments, val, node, strings);
                 },
                 else => unreachable,
             }
@@ -351,7 +350,7 @@ const attributes = struct {
     pub const alias = struct {
         const gnu = "alias";
         const Args = struct {
-            alias: []const u8,
+            alias: Value.ByteRange,
         };
     };
     pub const aligned = struct {
@@ -382,7 +381,7 @@ const attributes = struct {
         const declspec = "allocate";
 
         const Args = struct {
-            segname: []const u8,
+            segname: Value.ByteRange,
         };
     };
     pub const allocator = struct {
@@ -413,7 +412,7 @@ const attributes = struct {
     pub const code_seg = struct {
         const declspec = "code_seg";
         const Args = struct {
-            segname: []const u8,
+            segname: Value.ByteRange,
         };
     };
     pub const cold = struct {
@@ -443,7 +442,7 @@ const attributes = struct {
         const c2x = "deprecated";
 
         const Args = struct {
-            msg: ?[]const u8 = null,
+            msg: ?Value.ByteRange = null,
             __name_tok: TokenIndex = undefined,
         };
     };
@@ -465,7 +464,7 @@ const attributes = struct {
     pub const @"error" = struct {
         const gnu = "error";
         const Args = struct {
-            msg: []const u8,
+            msg: Value.ByteRange,
             __name_tok: TokenIndex = undefined,
         };
     };
@@ -511,7 +510,7 @@ const attributes = struct {
     pub const ifunc = struct {
         const gnu = "ifunc";
         const Args = struct {
-            resolver: []const u8,
+            resolver: Value.ByteRange,
         };
     };
     pub const interrupt = struct {
@@ -587,8 +586,8 @@ const attributes = struct {
         const gnu = "no_sanitize";
         /// Todo: represent args as union?
         const Args = struct {
-            alignment: []const u8,
-            object_size: ?[]const u8 = null,
+            alignment: Value.ByteRange,
+            object_size: ?Value.ByteRange = null,
         };
     };
     pub const no_sanitize_address = struct {
@@ -709,7 +708,7 @@ const attributes = struct {
     pub const section = struct {
         const gnu = "section";
         const Args = struct {
-            name: []const u8,
+            name: Value.ByteRange,
         };
     };
     pub const selectany = struct {
@@ -752,19 +751,19 @@ const attributes = struct {
     pub const symver = struct {
         const gnu = "symver";
         const Args = struct {
-            version: []const u8, // TODO: validate format "name2@nodename"
+            version: Value.ByteRange, // TODO: validate format "name2@nodename"
         };
     };
     pub const target = struct {
         const gnu = "target";
         const Args = struct {
-            options: []const u8, // TODO: multiple arguments
+            options: Value.ByteRange, // TODO: multiple arguments
         };
     };
     pub const target_clones = struct {
         const gnu = "target_clones";
         const Args = struct {
-            options: []const u8, // TODO: multiple arguments
+            options: Value.ByteRange, // TODO: multiple arguments
         };
     };
     pub const thread = struct {
@@ -791,7 +790,7 @@ const attributes = struct {
     pub const unavailable = struct {
         const gnu = "unavailable";
         const Args = struct {
-            msg: ?[]const u8 = null,
+            msg: ?Value.ByteRange = null,
             __name_tok: TokenIndex = undefined,
         };
     };
@@ -811,7 +810,7 @@ const attributes = struct {
     pub const uuid = struct {
         const declspec = "uuid";
         const Args = struct {
-            uuid: []const u8,
+            uuid: Value.ByteRange,
         };
     };
     pub const vector_size = struct {
@@ -847,7 +846,7 @@ const attributes = struct {
     pub const warning = struct {
         const gnu = "warning";
         const Args = struct {
-            msg: []const u8,
+            msg: Value.ByteRange,
             __name_tok: TokenIndex = undefined,
         };
     };
@@ -857,7 +856,7 @@ const attributes = struct {
     pub const weakref = struct {
         const gnu = "weakref";
         const Args = struct {
-            target: ?[]const u8 = null,
+            target: ?Value.ByteRange = null,
         };
     };
     pub const zero_call_used_regs = struct {
@@ -882,7 +881,7 @@ const attributes = struct {
     };
     pub const asm_label = struct {
         const Args = struct {
-            name: []const u8,
+            name: Value.ByteRange,
         };
     };
     pub const calling_convention = struct {

@@ -49,7 +49,6 @@ pub const Key = union(enum) {
                     .nullptr_t => std.hash.autoHash(&hasher, @as(u64, 0)),
                     .int => std.hash.autoHash(&hasher, val.data.int),
                     .float => std.hash.autoHash(&hasher, @as(u64, @bitCast(val.data.float))),
-                    .array => @panic("TODO"),
                     .bytes => std.hash.autoHashStrat(&hasher, val.data.bytes, .Shallow),
                 }
             },
@@ -77,8 +76,7 @@ pub const Key = union(enum) {
                     .nullptr_t => return true,
                     .int => return a_info.data.int == b_info.data.int,
                     .float => return a_info.data.float == b_info.data.float,
-                    .array => @panic("TODO"),
-                    .bytes => return std.mem.eql(u8, a_info.data.bytes, b_info.data.bytes),
+                    .bytes => return a_info.data.bytes.start == b_info.data.bytes.start and a_info.data.bytes.end == b_info.data.bytes.end,
                 }
             },
             .record => |a_info| {
