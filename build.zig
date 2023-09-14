@@ -143,7 +143,7 @@ pub fn build(b: *Build) !void {
     integration_test_runner.addArg(b.zig_exe);
 
     const record_tests = b.addExecutable(.{
-        .name = "test-runner",
+        .name = "record-runner",
         .root_source_file = .{ .path = "test/record_runner.zig" },
         .optimize = mode,
     });
