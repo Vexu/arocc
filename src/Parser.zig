@@ -7559,12 +7559,12 @@ fn parseNumberEscape(p: *Parser, tok: TokenIndex, base: u8, slice: []const u8, i
     var reported = false;
     while (i.* < slice.len) : (i.* += 1) {
         const val = std.fmt.charToDigit(slice[i.*], base) catch break; // validated by Tokenizer
-        const ov = @mulWithOverflow(char, base);
-        if (ov[1] != 0 and !reported) {
+        const product, const overflowed = @mulWithOverflow(char, base);
+        if (overflowed != 0 and !reported) {
             try p.errExtra(.escape_sequence_overflow, tok, .{ .unsigned = i.* });
             reported = true;
         }
-        char = ov[0] + val;
+        char = product + val;
     }
     i.* -= 1;
     return char;
@@ -7698,12 +7698,12 @@ fn charLiteral(p: *Parser) Error!Result {
             6 => val = 0,
             else => {},
         }
-        const ov = @mulWithOverflow(val, max +% 1);
-        if (ov[1] != 0 and !overflow_reported) {
+        const product, const overflowed = @mulWithOverflow(val, max +% 1);
+        if (overflowed != 0 and !overflow_reported) {
             try p.errExtra(.char_lit_too_wide, p.tok_i, .{ .unsigned = i });
             overflow_reported = true;
         }
-        val = ov[0] + c;
+        val = product + c;
     }
 
     // This is the type the literal will have if we're in a macro; macros always operate on intmax_t/uintmax_t values
@@ -7826,15 +7826,15 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         };
 
         if (val != 0) {
-            const mul_ov = @mulWithOverflow(val, base);
-            if (mul_ov[1] != 0) {
+            const product, const overflowed = @mulWithOverflow(val, base);
+            if (overflowed != 0) {
                 overflow = true;
             }
-            val = mul_ov[0];
+            val = product;
         }
-        const add_ov = @addWithOverflow(val, digit);
-        if (add_ov[1] != 0) overflow = true;
-        val = add_ov[0];
+        const sum, const overflowed = @addWithOverflow(val, digit);
+        if (overflowed != 0) overflow = true;
+        val = sum;
     }
     if (overflow) {
         try p.errTok(.int_literal_too_big, tok_i);
