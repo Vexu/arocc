@@ -342,15 +342,15 @@ const attributes = struct {
                 const opts = struct {
                     const enum_kind = .identifier;
                 };
-            },
-            ref_index: u32,
+            } = undefined,
+            ref_index: u32 = undefined,
             size_index: ?u32 = null,
         };
     };
     pub const alias = struct {
         const gnu = "alias";
         const Args = struct {
-            alias: Value.ByteRange,
+            alias: Value.ByteRange = undefined,
         };
     };
     pub const aligned = struct {
@@ -366,14 +366,14 @@ const attributes = struct {
         const gnu = "alloc_align";
 
         const Args = struct {
-            position: u32,
+            position: u32 = undefined,
         };
     };
     pub const alloc_size = struct {
         const gnu = "alloc_size";
 
         const Args = struct {
-            position_1: u32,
+            position_1: u32 = undefined,
             position_2: ?u32 = null,
         };
     };
@@ -381,7 +381,7 @@ const attributes = struct {
         const declspec = "allocate";
 
         const Args = struct {
-            segname: Value.ByteRange,
+            segname: Value.ByteRange = undefined,
         };
     };
     pub const allocator = struct {
@@ -399,20 +399,20 @@ const attributes = struct {
     pub const assume_aligned = struct {
         const gnu = "assume_aligned";
         const Args = struct {
-            alignment: Alignment,
+            alignment: Alignment = undefined,
             offset: ?u32 = null,
         };
     };
     pub const cleanup = struct {
         const gnu = "cleanup";
         const Args = struct {
-            function: Identifier,
+            function: Identifier = undefined,
         };
     };
     pub const code_seg = struct {
         const declspec = "code_seg";
         const Args = struct {
-            segname: Value.ByteRange,
+            segname: Value.ByteRange = undefined,
         };
     };
     pub const cold = struct {
@@ -433,7 +433,7 @@ const attributes = struct {
     pub const copy = struct {
         const gnu = "copy";
         const Args = struct {
-            function: Identifier,
+            function: Identifier = undefined,
         };
     };
     pub const deprecated = struct {
@@ -464,7 +464,7 @@ const attributes = struct {
     pub const @"error" = struct {
         const gnu = "error";
         const Args = struct {
-            msg: Value.ByteRange,
+            msg: Value.ByteRange = undefined,
             __name_tok: TokenIndex = undefined,
         };
     };
@@ -490,15 +490,15 @@ const attributes = struct {
                 const opts = struct {
                     const enum_kind = .identifier;
                 };
-            },
-            string_index: u32,
-            first_to_check: u32,
+            } = undefined,
+            string_index: u32 = undefined,
+            first_to_check: u32 = undefined,
         };
     };
     pub const format_arg = struct {
         const gnu = "format_arg";
         const Args = struct {
-            string_index: u32,
+            string_index: u32 = undefined,
         };
     };
     pub const gnu_inline = struct {
@@ -510,7 +510,7 @@ const attributes = struct {
     pub const ifunc = struct {
         const gnu = "ifunc";
         const Args = struct {
-            resolver: Value.ByteRange,
+            resolver: Value.ByteRange = undefined,
         };
     };
     pub const interrupt = struct {
@@ -561,7 +561,7 @@ const attributes = struct {
                 const opts = struct {
                     const enum_kind = .identifier;
                 };
-            },
+            } = undefined,
         };
     };
     pub const naked = struct {
@@ -586,7 +586,7 @@ const attributes = struct {
         const gnu = "no_sanitize";
         /// Todo: represent args as union?
         const Args = struct {
-            alignment: Value.ByteRange,
+            alignment: Value.ByteRange = undefined,
             object_size: ?Value.ByteRange = null,
         };
     };
@@ -702,13 +702,13 @@ const attributes = struct {
                 const opts = struct {
                     const enum_kind = .string;
                 };
-            },
+            } = undefined,
         };
     };
     pub const section = struct {
         const gnu = "section";
         const Args = struct {
-            name: Value.ByteRange,
+            name: Value.ByteRange = undefined,
         };
     };
     pub const selectany = struct {
@@ -742,7 +742,7 @@ const attributes = struct {
                 const opts = struct {
                     const enum_kind = .identifier;
                 };
-            },
+            } = undefined,
         };
     };
     pub const stack_protect = struct {
@@ -751,19 +751,19 @@ const attributes = struct {
     pub const symver = struct {
         const gnu = "symver";
         const Args = struct {
-            version: Value.ByteRange, // TODO: validate format "name2@nodename"
+            version: Value.ByteRange = undefined, // TODO: validate format "name2@nodename"
         };
     };
     pub const target = struct {
         const gnu = "target";
         const Args = struct {
-            options: Value.ByteRange, // TODO: multiple arguments
+            options: Value.ByteRange = undefined, // TODO: multiple arguments
         };
     };
     pub const target_clones = struct {
         const gnu = "target_clones";
         const Args = struct {
-            options: Value.ByteRange, // TODO: multiple arguments
+            options: Value.ByteRange = undefined, // TODO: multiple arguments
         };
     };
     pub const thread = struct {
@@ -781,7 +781,7 @@ const attributes = struct {
                 const opts = struct {
                     const enum_kind = .string;
                 };
-            },
+            } = undefined,
         };
     };
     pub const transparent_union = struct {
@@ -810,13 +810,13 @@ const attributes = struct {
     pub const uuid = struct {
         const declspec = "uuid";
         const Args = struct {
-            uuid: Value.ByteRange,
+            uuid: Value.ByteRange = undefined,
         };
     };
     pub const vector_size = struct {
         const gnu = "vector_size";
         const Args = struct {
-            bytes: u32, // TODO: validate "The bytes argument must be a positive power-of-two multiple of the base type size"
+            bytes: u32 = undefined, // TODO: validate "The bytes argument must be a positive power-of-two multiple of the base type size"
         };
     };
     pub const visibility = struct {
@@ -831,13 +831,13 @@ const attributes = struct {
                 const opts = struct {
                     const enum_kind = .string;
                 };
-            },
+            } = undefined,
         };
     };
     pub const warn_if_not_aligned = struct {
         const gnu = "warn_if_not_aligned";
         const Args = struct {
-            alignment: Alignment,
+            alignment: Alignment = undefined,
         };
     };
     pub const warn_unused_result = struct {
@@ -846,7 +846,7 @@ const attributes = struct {
     pub const warning = struct {
         const gnu = "warning";
         const Args = struct {
-            msg: Value.ByteRange,
+            msg: Value.ByteRange = undefined,
             __name_tok: TokenIndex = undefined,
         };
     };
@@ -876,17 +876,17 @@ const attributes = struct {
                 const opts = struct {
                     const enum_kind = .string;
                 };
-            },
+            } = undefined,
         };
     };
     pub const asm_label = struct {
         const Args = struct {
-            name: Value.ByteRange,
+            name: Value.ByteRange = undefined,
         };
     };
     pub const calling_convention = struct {
         const Args = struct {
-            cc: CallingConvention,
+            cc: CallingConvention = undefined,
         };
     };
 };
@@ -922,8 +922,9 @@ pub fn ArgumentsForTag(comptime tag: Tag) type {
 pub fn initArguments(tag: Tag, name_tok: TokenIndex) Arguments {
     switch (tag) {
         inline else => |arg_tag| {
-            var args = @unionInit(Arguments, @tagName(arg_tag), undefined);
-            if (@hasDecl(@field(attributes, @tagName(arg_tag)), "Args") and @hasField(@field(attributes, @tagName(arg_tag)).Args, "__name_tok")) {
+            const has_args = @hasDecl(@field(attributes, @tagName(arg_tag)), "Args");
+            var args = @unionInit(Arguments, @tagName(arg_tag), if (has_args) .{} else {});
+            if (has_args and @hasField(@field(attributes, @tagName(arg_tag)).Args, "__name_tok")) {
                 @field(args, @tagName(arg_tag)).__name_tok = name_tok;
             }
             return args;

@@ -130,6 +130,7 @@ pub fn build(b: *Build) !void {
     const integration_tests = b.addExecutable(.{
         .name = "test-runner",
         .root_source_file = .{ .path = "test/runner.zig" },
+        .optimize = mode,
     });
     integration_tests.addModule("aro", aro_module);
     const test_runner_options = b.addOptions();
@@ -142,8 +143,9 @@ pub fn build(b: *Build) !void {
     integration_test_runner.addArg(b.zig_exe);
 
     const record_tests = b.addExecutable(.{
-        .name = "test-runner",
+        .name = "record-runner",
         .root_source_file = .{ .path = "test/record_runner.zig" },
+        .optimize = mode,
     });
     record_tests.addModule("aro", aro_module);
     const record_tests_runner = b.addRunArtifact(record_tests);
