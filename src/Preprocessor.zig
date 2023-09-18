@@ -283,10 +283,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         }, &.{});
                     },
                     .keyword_if => {
-                        const ov = @addWithOverflow(if_level, 1);
-                        if (ov[1] != 0)
+                        const sum, const overflowed = @addWithOverflow(if_level, 1);
+                        if (overflowed != 0)
                             return pp.fatal(directive, "too many #if nestings", .{});
-                        if_level = ov[0];
+                        if_level = sum;
 
                         if (try pp.expr(&tokenizer)) {
                             if_kind.set(if_level, until_endif);
@@ -302,10 +302,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         }
                     },
                     .keyword_ifdef => {
-                        const ov = @addWithOverflow(if_level, 1);
-                        if (ov[1] != 0)
+                        const sum, const overflowed = @addWithOverflow(if_level, 1);
+                        if (overflowed != 0)
                             return pp.fatal(directive, "too many #if nestings", .{});
-                        if_level = ov[0];
+                        if_level = sum;
 
                         const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
                         try pp.expectNl(&tokenizer);
@@ -323,10 +323,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         }
                     },
                     .keyword_ifndef => {
-                        const ov = @addWithOverflow(if_level, 1);
-                        if (ov[1] != 0)
+                        const sum, const overflowed = @addWithOverflow(if_level, 1);
+                        if (overflowed != 0)
                             return pp.fatal(directive, "too many #if nestings", .{});
-                        if_level = ov[0];
+                        if_level = sum;
 
                         const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
                         try pp.expectNl(&tokenizer);
