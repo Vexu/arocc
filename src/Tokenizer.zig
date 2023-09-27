@@ -3,8 +3,6 @@ const assert = std.debug.assert;
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const LangOpts = @import("LangOpts.zig");
-const CharInfo = @import("CharInfo.zig");
-const unicode = @import("unicode.zig");
 
 const Tokenizer = @This();
 
@@ -820,24 +818,6 @@ pub const Token = struct {
         };
     }
 
-    /// Check if codepoint may appear in specified context
-    /// does not check basic character set chars because the tokenizer handles them separately to keep the common
-    /// case on the fast path
-    pub fn mayAppearInIdent(comp: *const Compilation, codepoint: u21, where: enum { start, inside }) bool {
-        if (codepoint == '$') return comp.langopts.dollars_in_identifiers;
-        if (codepoint <= 0x7F) return false;
-        return switch (where) {
-            .start => if (comp.langopts.standard.atLeast(.c11))
-                CharInfo.isC11IdChar(codepoint) and !CharInfo.isC11DisallowedInitialIdChar(codepoint)
-            else
-                CharInfo.isC99IdChar(codepoint) and !CharInfo.isC99DisallowedInitialIDChar(codepoint),
-            .inside => if (comp.langopts.standard.atLeast(.c11))
-                CharInfo.isC11IdChar(codepoint)
-            else
-                CharInfo.isC99IdChar(codepoint),
-        };
-    }
-
     const all_kws = std.ComptimeStringMap(Id, .{
         .{ "auto", auto: {
             @setEvalBranchQuota(3000);
@@ -1041,18 +1021,10 @@ pub fn next(self: *Tokenizer) Token {
 
     var return_state = state;
     var counter: u32 = 0;
-    var codepoint_len: u3 = undefined;
+    var codepoint_len: u32 = undefined;
     while (self.index < self.buf.len) : (self.index += codepoint_len) {
-        // Source files get checked for valid utf-8 before being tokenized so it is safe to use
-        // these versions.
-        codepoint_len = unicode.utf8ByteSequenceLength_unsafe(self.buf[self.index]);
-        const c: u21 = switch (codepoint_len) {
-            1 => @as(u21, self.buf[self.index]),
-            2 => unicode.utf8Decode2_unsafe(self.buf[self.index..]),
-            3 => unicode.utf8Decode3_unsafe(self.buf[self.index..]),
-            4 => unicode.utf8Decode4_unsafe(self.buf[self.index..]),
-            else => unreachable,
-        };
+        codepoint_len = 1;
+        const c = self.buf[self.index];
         switch (state) {
             .start => switch (c) {
                 '\n' => {
@@ -1140,9 +1112,15 @@ pub fn next(self: *Tokenizer) Token {
                 '#' => state = .hash,
                 '0'...'9' => state = .pp_num,
                 '\t', '\x0B', '\x0C', ' ' => state = .whitespace,
-                else => if (Token.mayAppearInIdent(self.comp, c, .start)) {
+                '$' => if (self.comp.langopts.dollars_in_identifiers) {
                     state = .extended_identifier;
                 } else {
+                    id = .invalid;
+                    self.index += codepoint_len;
+                    break;
+                },
+                0x80...0xFF => state = .extended_identifier,
+                else => {
                     id = .invalid;
                     self.index += codepoint_len;
                     break;
@@ -1314,12 +1292,16 @@ pub fn next(self: *Tokenizer) Token {
             },
             .identifier, .extended_identifier => switch (c) {
                 'a'...'z', 'A'...'Z', '_', '0'...'9' => {},
-                else => {
-                    if (!Token.mayAppearInIdent(self.comp, c, .inside)) {
-                        id = if (state == .identifier) Token.getTokenId(self.comp, self.buf[start..self.index]) else .extended_identifier;
-                        break;
-                    }
+                '$' => if (self.comp.langopts.dollars_in_identifiers) {
                     state = .extended_identifier;
+                } else {
+                    id = if (state == .identifier) Token.getTokenId(self.comp, self.buf[start..self.index]) else .extended_identifier;
+                    break;
+                },
+                0x80...0xFF => state = .extended_identifier,
+                else => {
+                    id = if (state == .identifier) Token.getTokenId(self.comp, self.buf[start..self.index]) else .extended_identifier;
+                    break;
                 },
             },
             .equal => switch (c) {

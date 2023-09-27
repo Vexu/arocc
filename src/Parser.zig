@@ -186,15 +186,18 @@ string_ids: struct {
     ucontext_t: StringId,
 },
 
-fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
-    if (codepoint <= 0x7F) return false;
-    var diagnosed = false;
+/// Checks codepoint for various pedantic warnings
+/// Returns true if diagnostic issued
+fn checkIdentifierCodepointWarnings(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
+    assert(codepoint >= 0x80);
+
+    const err_start = comp.diag.list.items.len;
+
     if (!CharInfo.isC99IdChar(codepoint)) {
         try comp.diag.add(.{
             .tag = .c99_compat,
             .loc = loc,
         }, &.{});
-        diagnosed = true;
     }
     if (CharInfo.isInvisible(codepoint)) {
         try comp.diag.add(.{
@@ -202,7 +205,6 @@ fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Loca
             .loc = loc,
             .extra = .{ .actual_codepoint = codepoint },
         }, &.{});
-        diagnosed = true;
     }
     if (CharInfo.homoglyph(codepoint)) |resembles| {
         try comp.diag.add(.{
@@ -210,31 +212,78 @@ fn checkIdentifierCodepoint(comp: *Compilation, codepoint: u21, loc: Source.Loca
             .loc = loc,
             .extra = .{ .codepoints = .{ .actual = codepoint, .resembles = resembles } },
         }, &.{});
-        diagnosed = true;
     }
-    return diagnosed;
+    return comp.diag.list.items.len != err_start;
+}
+
+/// Issues diagnostics for the current extended identifier token
+/// Return value indicates whether the token should be considered an identifier
+/// true means consider the token to actually be an identifier
+/// false means it is not
+fn validateExtendedIdentifier(p: *Parser) !bool {
+    assert(p.tok_ids[p.tok_i] == .extended_identifier);
+
+    const slice = p.tokSlice(p.tok_i);
+    const view = std.unicode.Utf8View.init(slice) catch {
+        try p.errTok(.invalid_utf8, p.tok_i);
+        return error.FatalError;
+    };
+    var it = view.iterator();
+
+    var valid_identifier = true;
+    var warned = false;
+    var len: usize = 0;
+    var invalid_char: u21 = undefined;
+    var loc = p.pp.tokens.items(.loc)[p.tok_i];
+
+    const standard = p.comp.langopts.standard;
+    while (it.nextCodepoint()) |codepoint| {
+        defer {
+            len += 1;
+            loc.byte_offset += std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
+        }
+        if (codepoint == '$') {
+            warned = true;
+            try p.comp.diag.add(.{
+                .tag = .dollar_in_identifier_extension,
+                .loc = loc,
+            }, &.{});
+        }
+
+        if (codepoint <= 0x7F) continue;
+        if (!valid_identifier) continue;
+
+        const allowed = standard.codepointAllowedInIdentifier(codepoint, len == 0);
+        if (!allowed) {
+            invalid_char = codepoint;
+            valid_identifier = false;
+            continue;
+        }
+
+        if (!warned) {
+            warned = try checkIdentifierCodepointWarnings(p.comp, codepoint, loc);
+        }
+    }
+
+    if (!valid_identifier) {
+        if (len == 1) {
+            try p.errExtra(.unexpected_character, p.tok_i, .{ .actual_codepoint = invalid_char });
+            return false;
+        } else {
+            try p.errExtra(.invalid_identifier_start_char, p.tok_i, .{ .actual_codepoint = invalid_char });
+        }
+    }
+
+    return true;
 }
 
 fn eatIdentifier(p: *Parser) !?TokenIndex {
     switch (p.tok_ids[p.tok_i]) {
         .identifier => {},
         .extended_identifier => {
-            const slice = p.tokSlice(p.tok_i);
-            var it = std.unicode.Utf8View.initUnchecked(slice).iterator();
-            var loc = p.pp.tokens.items(.loc)[p.tok_i];
-
-            if (mem.indexOfScalar(u8, slice, '$')) |i| {
-                loc.byte_offset += @intCast(i);
-                try p.comp.diag.add(.{
-                    .tag = .dollar_in_identifier_extension,
-                    .loc = loc,
-                }, &.{});
-                loc = p.pp.tokens.items(.loc)[p.tok_i];
-            }
-
-            while (it.nextCodepoint()) |c| {
-                if (try checkIdentifierCodepoint(p.comp, c, loc)) break;
-                loc.byte_offset += std.unicode.utf8CodepointSequenceLength(c) catch unreachable;
+            if (!try p.validateExtendedIdentifier()) {
+                p.tok_i += 1;
+                return null;
             }
         },
         else => return null,

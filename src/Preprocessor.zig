@@ -231,14 +231,6 @@ fn findIncludeGuard(pp: *Preprocessor, source: Source) ?[]const u8 {
 }
 
 fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
-    if (pp.comp.invalid_utf8_locs.get(source.id)) |offset| {
-        try pp.comp.diag.add(.{
-            .tag = .invalid_utf8,
-            // Todo: compute line number
-            .loc = .{ .id = source.id, .byte_offset = offset },
-        }, &.{});
-        return error.FatalError;
-    }
     var guard_name = pp.findIncludeGuard(source);
 
     pp.preprocess_count += 1;

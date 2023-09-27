@@ -120,8 +120,6 @@ types: struct {
     int16: Type = .{ .specifier = .invalid },
     int64: Type = .{ .specifier = .invalid },
 } = .{},
-/// Mapping from Source.Id to byte offset of first non-utf8 byte
-invalid_utf8_locs: std.AutoHashMapUnmanaged(Source.Id, u32) = .{},
 string_interner: StringInterner = .{},
 
 pub fn init(gpa: Allocator) Compilation {
@@ -153,7 +151,6 @@ pub fn deinit(comp: *Compilation) void {
     comp.pragma_handlers.deinit();
     comp.generated_buf.deinit();
     comp.builtins.deinit(comp.gpa);
-    comp.invalid_utf8_locs.deinit(comp.gpa);
     comp.string_interner.deinit(comp.gpa);
 }
 
@@ -949,7 +946,7 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
 }
 
 /// Creates a Source from the contents of `reader` and adds it to the Compilation
-/// Performs newline splicing, line-ending normalization to '\n', and UTF-8 validation.
+/// Performs newline splicing and line-ending normalization to '\n'
 /// caller retains ownership of `path`
 /// `expected_size` will be allocated to hold the contents of `reader` and *must* be at least
 /// as large as the entire contents of `reader`.
@@ -1092,9 +1089,6 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
     };
 
     try comp.sources.put(duped_path, source);
-    if (source.offsetOfInvalidUtf8()) |offset| {
-        try comp.invalid_utf8_locs.putNoClobber(comp.gpa, source_id, offset);
-    }
     return source;
 }
 
@@ -1460,32 +1454,26 @@ test "ignore BOM at beginning of file" {
     const BOM = "\xEF\xBB\xBF";
 
     const Test = struct {
-        fn run(buf: []const u8, input_type: enum { valid_utf8, invalid_utf8 }) !void {
+        fn run(buf: []const u8) !void {
             var comp = Compilation.init(std.testing.allocator);
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(buf);
             const source = try comp.addSourceFromReader(buf_reader.reader(), "file.c", @intCast(buf.len));
-            switch (input_type) {
-                .valid_utf8 => {
-                    const expected_output = if (mem.startsWith(u8, buf, BOM)) buf[BOM.len..] else buf;
-                    try std.testing.expectEqualStrings(expected_output, source.buf);
-                    try std.testing.expect(!comp.invalid_utf8_locs.contains(source.id));
-                },
-                .invalid_utf8 => try std.testing.expect(comp.invalid_utf8_locs.contains(source.id)),
-            }
+            const expected_output = if (mem.startsWith(u8, buf, BOM)) buf[BOM.len..] else buf;
+            try std.testing.expectEqualStrings(expected_output, source.buf);
         }
     };
 
-    try Test.run(BOM, .valid_utf8);
-    try Test.run(BOM ++ "x", .valid_utf8);
-    try Test.run("x" ++ BOM, .valid_utf8);
-    try Test.run(BOM ++ " ", .valid_utf8);
-    try Test.run(BOM ++ "\n", .valid_utf8);
-    try Test.run(BOM ++ "\\", .valid_utf8);
+    try Test.run(BOM);
+    try Test.run(BOM ++ "x");
+    try Test.run("x" ++ BOM);
+    try Test.run(BOM ++ " ");
+    try Test.run(BOM ++ "\n");
+    try Test.run(BOM ++ "\\");
 
-    try Test.run(BOM[0..1] ++ "x", .invalid_utf8);
-    try Test.run(BOM[0..2] ++ "x", .invalid_utf8);
-    try Test.run(BOM[1..] ++ "x", .invalid_utf8);
-    try Test.run(BOM[2..] ++ "x", .invalid_utf8);
+    try Test.run(BOM[0..1] ++ "x");
+    try Test.run(BOM[0..2] ++ "x");
+    try Test.run(BOM[1..] ++ "x");
+    try Test.run(BOM[2..] ++ "x");
 }
