@@ -59,7 +59,10 @@ pub fn lineCol(source: Source, loc: Location) LineCol {
     var width: u32 = 0;
 
     while (i < loc.byte_offset) : (col += 1) { // TODO this is still incorrect, but better
-        const len = std.unicode.utf8ByteSequenceLength(source.buf[i]) catch unreachable;
+        const len = std.unicode.utf8ByteSequenceLength(source.buf[i]) catch {
+            i += 1;
+            continue;
+        };
         const cp = std.unicode.utf8Decode(source.buf[i..][0..len]) catch unreachable;
         width += codepointWidth(cp);
         i += len;
