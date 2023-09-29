@@ -177,6 +177,7 @@ pub fn parseArgs(
         off,
         unset,
     } = .unset;
+    var comment_arg: []const u8 = "";
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
@@ -372,6 +373,13 @@ pub fn parseArgs(
                 d.verbose_ir = true;
             } else if (mem.eql(u8, arg, "--verbose-linker-args")) {
                 d.verbose_linker_args = true;
+            } else if (mem.eql(u8, arg, "-C") or mem.eql(u8, arg, "--comments")) {
+                d.comp.langopts.preserve_comments = true;
+                comment_arg = arg;
+            } else if (mem.eql(u8, arg, "-CC") or mem.eql(u8, arg, "--comments-in-macros")) {
+                d.comp.langopts.preserve_comments = true;
+                d.comp.langopts.preserve_comments_in_macros = true;
+                comment_arg = arg;
             } else if (option(arg, "-fuse-ld=")) |linker_name| {
                 d.use_linker = linker_name;
             } else if (mem.eql(u8, arg, "-fuse-ld=")) {
@@ -433,6 +441,9 @@ pub fn parseArgs(
         .off => false,
         .unset => util.fileSupportsColor(std.io.getStdErr()) and !std.process.hasEnvVarConstant("NO_COLOR"),
     };
+    if (d.comp.langopts.preserve_comments and !d.only_preprocess) {
+        return d.fatal("invalid argument '{s}' only allowed with '-E'", .{comment_arg});
+    }
     return false;
 }
 

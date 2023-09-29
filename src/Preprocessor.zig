@@ -1046,9 +1046,14 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
             .hash_hash => {
                 var rhs = tokFromRaw(simple_macro.tokens[i + 1]);
                 i += 1;
-                while (rhs.id == .whitespace) {
-                    rhs = tokFromRaw(simple_macro.tokens[i + 1]);
-                    i += 1;
+                while (true) {
+                    if (rhs.id == .whitespace) {
+                        rhs = tokFromRaw(simple_macro.tokens[i + 1]);
+                        i += 1;
+                    } else if (rhs.id == .comment and !pp.comp.langopts.preserve_comments_in_macros) {
+                        rhs = tokFromRaw(simple_macro.tokens[i + 1]);
+                        i += 1;
+                    } else break;
                 }
                 try pp.pasteTokens(&buf, &.{rhs});
             },
@@ -1287,6 +1292,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             var identifier: ?Token = null;
             for (param_toks) |tok| {
                 if (tok.id == .macro_ws) continue;
+                if (tok.id == .comment) continue;
                 if (!tok.id.isMacroIdentifier()) {
                     invalid = tok;
                     break;
@@ -1345,6 +1351,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             var identifier: ?Token = null;
             for (param_toks) |tok| switch (tok.id) {
                 .macro_ws => continue,
+                .comment => continue,
                 else => {
                     if (identifier) |_| invalid = tok else identifier = tok;
                 },
@@ -1426,6 +1433,10 @@ fn expandFuncMacro(
                 const next = switch (raw_next.id) {
                     .macro_ws => continue,
                     .hash_hash => continue,
+                    .comment => if (!pp.comp.langopts.preserve_comments_in_macros)
+                        continue
+                    else
+                        &[1]Token{tokFromRaw(raw_next)},
                     .macro_param, .macro_param_no_expand => if (args.items[raw_next.end].len > 0)
                         args.items[raw_next.end]
                     else
@@ -1500,6 +1511,7 @@ fn expandFuncMacro(
                         if (string) |_| invalid = tok else string = tok;
                     },
                     .macro_ws => continue,
+                    .comment => continue,
                     else => {
                         invalid = tok;
                         break;
@@ -1955,6 +1967,10 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
             Token.free(tok.expansion_locs, pp.gpa);
             continue;
         }
+        if (tok.id == .comment and !pp.comp.langopts.preserve_comments_in_macros) {
+            Token.free(tok.expansion_locs, pp.gpa);
+            continue;
+        }
         tok.id.simplifyMacroKeywordExtra(true);
         pp.tokens.appendAssumeCapacity(tok.*);
     }
@@ -2003,17 +2019,21 @@ pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
 /// Concat two tokens and add the result to pp.generated
 fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token) Error!void {
     const lhs = while (lhs_toks.popOrNull()) |lhs| {
-        if (lhs.id == .macro_ws)
-            Token.free(lhs.expansion_locs, pp.gpa)
-        else
+        if ((pp.comp.langopts.preserve_comments_in_macros and lhs.id == .comment) or
+            (lhs.id != .macro_ws and lhs.id != .comment))
             break lhs;
+
+        Token.free(lhs.expansion_locs, pp.gpa);
     } else {
         return bufCopyTokens(lhs_toks, rhs_toks, &.{});
     };
 
     var rhs_rest: u32 = 1;
     const rhs = for (rhs_toks) |rhs| {
-        if (rhs.id != .macro_ws) break rhs;
+        if ((pp.comp.langopts.preserve_comments_in_macros and rhs.id == .comment) or
+            (rhs.id != .macro_ws and rhs.id != .comment))
+            break rhs;
+
         rhs_rest += 1;
     } else {
         return lhs_toks.appendAssumeCapacity(lhs);
@@ -2035,9 +2055,15 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
         .index = @intCast(start),
         .source = .generated,
     };
-    const pasted_token = tmp_tokenizer.nextNoWS();
-    const next = tmp_tokenizer.nextNoWS().id;
-    if (next != .nl and next != .eof) {
+    const pasted_token = tmp_tokenizer.nextNoWSComments();
+    const next = tmp_tokenizer.nextNoWSComments();
+    const pasted_id = if (lhs.id == .placemarker and rhs.id == .placemarker)
+        .placemarker
+    else
+        pasted_token.id;
+    try lhs_toks.append(try pp.makeGeneratedToken(start, pasted_id, lhs));
+
+    if (next.id != .nl and next.id != .eof) {
         try pp.comp.diag.add(.{
             .tag = .pasting_formed_invalid,
             .loc = lhs.loc,
@@ -2046,13 +2072,9 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
                 pp.comp.generated_buf.items[start..end],
             ) },
         }, lhs.expansionSlice());
+        try lhs_toks.append(tokFromRaw(next));
     }
 
-    const pasted_id = if (lhs.id == .placemarker and rhs.id == .placemarker)
-        .placemarker
-    else
-        pasted_token.id;
-    try lhs_toks.append(try pp.makeGeneratedToken(start, pasted_id, lhs));
     try bufCopyTokens(lhs_toks, rhs_toks[rhs_rest..], &.{});
 }
 
@@ -2136,7 +2158,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         tok.id.simplifyMacroKeyword();
         switch (tok.id) {
             .hash_hash => {
-                const next = tokenizer.nextNoWS();
+                const next = tokenizer.nextNoWSComments();
                 switch (next.id) {
                     .nl, .eof => {
                         try pp.err(tok, .hash_hash_at_end);
@@ -2152,6 +2174,13 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                 try pp.token_buf.append(next);
             },
             .nl, .eof => break tok.start,
+            .comment => if (pp.comp.langopts.preserve_comments_in_macros) {
+                if (need_ws) {
+                    need_ws = false;
+                    try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });
+                }
+                try pp.token_buf.append(tok);
+            },
             .whitespace => need_ws = true,
             else => {
                 if (tok.id != .whitespace and need_ws) {
@@ -2235,6 +2264,13 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
         switch (tok.id) {
             .nl, .eof => break tok.start,
             .whitespace => need_ws = pp.token_buf.items.len != 0,
+            .comment => if (!pp.comp.langopts.preserve_comments_in_macros) continue else {
+                if (need_ws) {
+                    need_ws = false;
+                    try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });
+                }
+                try pp.token_buf.append(tok);
+            },
             .hash => {
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
@@ -2275,7 +2311,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                     return skipToNl(tokenizer);
                 }
                 const saved_tokenizer = tokenizer.*;
-                const next = tokenizer.nextNoWS();
+                const next = tokenizer.nextNoWSComments();
                 if (next.id == .nl or next.id == .eof) {
                     try pp.err(tok, .hash_hash_at_end);
                     return;

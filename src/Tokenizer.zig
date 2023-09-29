@@ -297,6 +297,9 @@ pub const Token = struct {
         /// completion of the preceding #include
         include_resume,
 
+        /// A comment token if asked to preserve comments.
+        comment,
+
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
@@ -486,6 +489,7 @@ pub const Token = struct {
                 .whitespace,
                 .pp_num,
                 .embed_byte,
+                .comment,
                 => null,
 
                 .zero => "0",
@@ -1621,6 +1625,10 @@ pub fn next(self: *Tokenizer) Token {
             },
             .line_comment => switch (c) {
                 '\n' => {
+                    if (self.comp.langopts.preserve_comments) {
+                        id = .comment;
+                        break;
+                    }
                     self.index -= 1;
                     state = .start;
                 },
@@ -1632,7 +1640,14 @@ pub fn next(self: *Tokenizer) Token {
                 else => {},
             },
             .multi_line_comment_asterisk => switch (c) {
-                '/' => state = .multi_line_comment_done,
+                '/' => {
+                    if (self.comp.langopts.preserve_comments) {
+                        self.index += 1;
+                        id = .comment;
+                        break;
+                    }
+                    state = .multi_line_comment_done;
+                },
                 '\n' => {
                     self.line += 1;
                     state = .multi_line_comment;
@@ -1770,6 +1785,12 @@ pub fn next(self: *Tokenizer) Token {
 }
 
 pub fn nextNoWS(self: *Tokenizer) Token {
+    var tok = self.next();
+    while (tok.id == .whitespace or tok.id == .comment) tok = self.next();
+    return tok;
+}
+
+pub fn nextNoWSComments(self: *Tokenizer) Token {
     var tok = self.next();
     while (tok.id == .whitespace) tok = self.next();
     return tok;
