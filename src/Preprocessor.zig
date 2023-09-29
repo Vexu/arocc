@@ -2470,7 +2470,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
         else => unreachable,
     };
 
-    return (try pp.comp.findInclude(filename, first.source, include_type, which)) orelse
+    return (try pp.comp.findInclude(filename, first, include_type, which)) orelse
         pp.fatal(first, "'{s}' not found", .{filename});
 }
 

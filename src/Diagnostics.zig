@@ -168,6 +168,7 @@ pub const Options = packed struct {
     @"fuse-ld-path": Kind = .default,
     @"language-extension-token": Kind = .default,
     @"complex-component-init": Kind = .default,
+    @"microsoft-include": Kind = .default,
 };
 
 const messages = struct {
@@ -2420,6 +2421,12 @@ const messages = struct {
         const msg = "arguments are of different types ({s})";
         const extra = .str;
         const kind = .@"error";
+    };
+    pub const ms_search_rule = struct {
+        const msg = "#include resolved using non-portable Microsoft search rules as: {s}";
+        const extra = .str;
+        const opt = "microsoft-include";
+        const kind = .warning;
     };
 };
 

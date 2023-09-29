@@ -121,6 +121,7 @@ types: struct {
     int64: Type = .{ .specifier = .invalid },
 } = .{},
 string_interner: StringInterner = .{},
+ms_cwd_source_id: ?Source.Id = null,
 
 pub fn init(gpa: Allocator) Compilation {
     return .{
@@ -1124,6 +1125,7 @@ pub const IncludeDirIterator = struct {
     cwd_source_id: ?Source.Id,
     include_dirs_idx: usize = 0,
     sys_include_dirs_idx: usize = 0,
+    tried_ms_cwd: bool = false,
 
     fn next(self: *IncludeDirIterator) ?[]const u8 {
         if (self.cwd_source_id) |source_id| {
@@ -1138,6 +1140,12 @@ pub const IncludeDirIterator = struct {
         if (self.sys_include_dirs_idx < self.comp.system_include_dirs.items.len) {
             defer self.sys_include_dirs_idx += 1;
             return self.comp.system_include_dirs.items[self.sys_include_dirs_idx];
+        }
+        if (self.comp.ms_cwd_source_id) |source_id| {
+            if (self.tried_ms_cwd) return null;
+            self.tried_ms_cwd = true;
+            const path = self.comp.getSource(source_id).path;
+            return std.fs.path.dirname(path) orelse ".";
         }
         return null;
     }
@@ -1262,7 +1270,7 @@ pub fn findEmbed(
 pub fn findInclude(
     comp: *Compilation,
     filename: []const u8,
-    includer_token_source: Source.Id,
+    includer_token: Token,
     /// angle bracket vs quotes
     include_type: IncludeType,
     /// include vs include_next
@@ -1279,7 +1287,7 @@ pub fn findInclude(
     }
     const cwd_source_id = switch (include_type) {
         .quotes => switch (which) {
-            .first => includer_token_source,
+            .first => includer_token.source,
             .next => null,
         },
         .angle_brackets => null,
@@ -1287,15 +1295,26 @@ pub fn findInclude(
     var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id };
 
     if (which == .next) {
-        it.skipUntilDirMatch(includer_token_source);
+        it.skipUntilDirMatch(includer_token.source);
     }
 
     var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
     while (try it.nextWithFile(filename, stack_fallback.get())) |path| {
         defer stack_fallback.get().free(path);
-        if (comp.addSourceFromPath(path)) |some|
-            return some
-        else |err| switch (err) {
+        if (comp.addSourceFromPath(path)) |some| {
+            if (it.tried_ms_cwd) {
+                try comp.diag.add(.{
+                    .tag = .ms_search_rule,
+                    .extra = .{ .str = some.path },
+                    .loc = .{
+                        .id = includer_token.source,
+                        .byte_offset = includer_token.start,
+                        .line = includer_token.line,
+                    },
+                }, &.{});
+            }
+            return some;
+        } else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             else => {},
         }
