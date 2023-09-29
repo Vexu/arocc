@@ -1021,9 +1021,7 @@ pub fn next(self: *Tokenizer) Token {
 
     var return_state = state;
     var counter: u32 = 0;
-    var codepoint_len: u32 = undefined;
-    while (self.index < self.buf.len) : (self.index += codepoint_len) {
-        codepoint_len = 1;
+    while (self.index < self.buf.len) : (self.index += 1) {
         const c = self.buf[self.index];
         switch (state) {
             .start => switch (c) {
@@ -1116,13 +1114,13 @@ pub fn next(self: *Tokenizer) Token {
                     state = .extended_identifier;
                 } else {
                     id = .invalid;
-                    self.index += codepoint_len;
+                    self.index += 1;
                     break;
                 },
                 0x80...0xFF => state = .extended_identifier,
                 else => {
                     id = .invalid;
-                    self.index += codepoint_len;
+                    self.index += 1;
                     break;
                 },
             },
@@ -1146,7 +1144,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .string_literal;
                 },
                 else => {
-                    codepoint_len = 0;
+                    self.index -= 1;
                     state = .identifier;
                 },
             },
@@ -1160,7 +1158,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .char_literal_start;
                 },
                 else => {
-                    codepoint_len = 0;
+                    self.index -= 1;
                     state = .identifier;
                 },
             },
@@ -1174,7 +1172,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .string_literal;
                 },
                 else => {
-                    codepoint_len = 0;
+                    self.index -= 1;
                     state = .identifier;
                 },
             },
@@ -1188,7 +1186,7 @@ pub fn next(self: *Tokenizer) Token {
                     state = .string_literal;
                 },
                 else => {
-                    codepoint_len = 0;
+                    self.index -= 1;
                     state = .identifier;
                 },
             },
@@ -1269,14 +1267,14 @@ pub fn next(self: *Tokenizer) Token {
                     if (counter == 3) state = return_state;
                 },
                 else => {
-                    codepoint_len = 0;
+                    self.index -= 1;
                     state = return_state;
                 },
             },
             .hex_escape => switch (c) {
                 '0'...'9', 'a'...'f', 'A'...'F' => {},
                 else => {
-                    codepoint_len = 0;
+                    self.index -= 1;
                     state = return_state;
                 },
             },
