@@ -1145,7 +1145,13 @@ pub const IncludeDirIterator = struct {
     /// Returned value must be freed by allocator
     fn nextWithFile(self: *IncludeDirIterator, filename: []const u8, allocator: Allocator) !?[]const u8 {
         while (self.next()) |dir| {
-            return try std.fs.path.join(allocator, &.{ dir, filename });
+            const path = try std.fs.path.join(allocator, &.{ dir, filename });
+            if (self.comp.langopts.ms_extensions) {
+                for (path) |*c| {
+                    if (c.* == '\\') c.* = '/';
+                }
+            }
+            return path;
         }
         return null;
     }
