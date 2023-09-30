@@ -89,6 +89,9 @@ const ExpectedFailure = struct {
 const builtin = @import("builtin");
 
 pub fn main() !void {
+    if (builtin.os.tag == .windows and (builtin.mode == .ReleaseFast or builtin.mode == .ReleaseSmall)) {
+        return; // Building the test runner in release modes crashes the Zig compiler.
+    }
     var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
