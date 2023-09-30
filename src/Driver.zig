@@ -28,6 +28,10 @@ link_objects: std.ArrayListUnmanaged([]const u8) = .{},
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
 temp_file_count: u32 = 0,
+/// If false, do not emit line directives in -E mode
+line_commands: bool = true,
+/// If true, use `#line <num>` instead of `# <num>` for line directives
+use_line_directives: bool = false,
 only_preprocess: bool = false,
 only_syntax: bool = false,
 only_compile: bool = false,
@@ -111,11 +115,15 @@ pub const usage =
     \\  -fsyntax-only           Only run the preprocessor, parser, and semantic analysis stages
     \\  -funsigned-char         "char" is unsigned
     \\  -fno-unsigned-char      "char" is signed
+    \\  -fuse-line-directives   Use `#line <num>` linemarkers in preprocessed output
+    \\  -fno-use-line-directives
+    \\                          Use `# <num>` linemarkers in preprocessed output
     \\  -I <dir>                Add directory to include search path
     \\  -isystem                Add directory to SYSTEM include search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
     \\  -o <file>               Write output to <file>
+    \\  -P, --no-line-commands  Disable linemarker output in -E mode
     \\  -pedantic               Warn on language extensions
     \\  --rtlib=<arg>           Compiler runtime library to use (libgcc or compiler-rt)
     \\  -std=<standard>         Specify language standard
@@ -213,6 +221,12 @@ pub fn parseArgs(
                 d.only_compile = true;
             } else if (mem.eql(u8, arg, "-E")) {
                 d.only_preprocess = true;
+            } else if (mem.eql(u8, arg, "-P") or mem.eql(u8, arg, "--no-line-commands")) {
+                d.line_commands = false;
+            } else if (mem.eql(u8, arg, "-fuse-line-directives")) {
+                d.use_line_directives = true;
+            } else if (mem.eql(u8, arg, "-fno-use-line-directives")) {
+                d.use_line_directives = false;
             } else if (mem.eql(u8, arg, "-fchar8_t")) {
                 d.comp.langopts.has_char8_t_override = true;
             } else if (mem.eql(u8, arg, "-fno-char8_t")) {
@@ -523,7 +537,12 @@ fn processSource(
     }
 
     if (d.verbose_pp) pp.verbose = true;
-    if (d.only_preprocess) pp.preserve_whitespace = true;
+    if (d.only_preprocess) {
+        pp.preserve_whitespace = true;
+        if (d.line_commands) {
+            pp.linemarkers = if (d.use_line_directives) .line_directive else .numeric_directive;
+        }
+    }
     try pp.addBuiltinMacros();
 
     _ = try pp.preprocess(builtin);

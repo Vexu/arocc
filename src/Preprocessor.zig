@@ -89,6 +89,16 @@ top_expansion_buf: ExpandBuf,
 verbose: bool = false,
 preserve_whitespace: bool = false,
 
+/// linemarker tokens. Must only be true in -E mode (parser does not handle linemarkers)
+linemarkers: enum {
+    /// No linemarker tokens. Required setting if parser will run
+    none,
+    /// #line <num> "filename" flags
+    line_directive,
+    /// # <num> "filename" flags
+    numeric_directive,
+} = .none,
+
 pub fn init(comp: *Compilation) Preprocessor {
     const pp = Preprocessor{
         .comp = comp,
