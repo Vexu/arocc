@@ -1244,7 +1244,12 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const ident_str = pp.expandedSlice(identifier.?);
             return switch (builtin) {
                 .macro_param_has_attribute => Attribute.fromString(.gnu, null, ident_str) != null,
-                .macro_param_has_declspec_attribute => Attribute.fromString(.declspec, null, ident_str) != null,
+                .macro_param_has_declspec_attribute => {
+                    return if (pp.comp.langopts.declspec_attrs)
+                        Attribute.fromString(.declspec, null, ident_str) != null
+                    else
+                        false;
+                },
                 .macro_param_has_feature => features.hasFeature(pp.comp, ident_str),
                 .macro_param_has_extension => features.hasExtension(pp.comp, ident_str),
                 .macro_param_has_builtin => pp.comp.hasBuiltin(ident_str),
