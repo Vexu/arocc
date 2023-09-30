@@ -111,6 +111,10 @@ const builtin_macros = struct {
         .id = .macro_param_has_attribute,
         .source = .generated,
     }};
+    const has_declspec_attribute = [1]RawToken{.{
+        .id = .macro_param_has_declspec_attribute,
+        .source = .generated,
+    }};
     const has_warning = [1]RawToken{.{
         .id = .macro_param_has_warning,
         .source = .generated,
@@ -173,6 +177,7 @@ fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: [
 
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_attribute", true, &builtin_macros.has_attribute);
+    try pp.addBuiltinMacro("__has_declspec_attribute", true, &builtin_macros.has_declspec_attribute);
     try pp.addBuiltinMacro("__has_warning", true, &builtin_macros.has_warning);
     try pp.addBuiltinMacro("__has_feature", true, &builtin_macros.has_feature);
     try pp.addBuiltinMacro("__has_extension", true, &builtin_macros.has_extension);
@@ -1212,6 +1217,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
 fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const Token, src_loc: Source.Location) Error!bool {
     switch (builtin) {
         .macro_param_has_attribute,
+        .macro_param_has_declspec_attribute,
         .macro_param_has_feature,
         .macro_param_has_extension,
         .macro_param_has_builtin,
@@ -1238,6 +1244,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const ident_str = pp.expandedSlice(identifier.?);
             return switch (builtin) {
                 .macro_param_has_attribute => Attribute.fromString(.gnu, null, ident_str) != null,
+                .macro_param_has_declspec_attribute => Attribute.fromString(.declspec, null, ident_str) != null,
                 .macro_param_has_feature => features.hasFeature(pp.comp, ident_str),
                 .macro_param_has_extension => features.hasExtension(pp.comp, ident_str),
                 .macro_param_has_builtin => pp.comp.hasBuiltin(ident_str),
@@ -1396,6 +1403,7 @@ fn expandFuncMacro(
                 try buf.append(try pp.makeGeneratedToken(start, .string_literal, tokFromRaw(raw)));
             },
             .macro_param_has_attribute,
+            .macro_param_has_declspec_attribute,
             .macro_param_has_warning,
             .macro_param_has_feature,
             .macro_param_has_extension,
