@@ -89,7 +89,7 @@ top_expansion_buf: ExpandBuf,
 verbose: bool = false,
 preserve_whitespace: bool = false,
 
-/// linemarker tokens. Must only be true in -E mode (parser does not handle linemarkers)
+/// linemarker tokens. Must be .none unless in -E mode (parser does not handle linemarkers)
 linemarkers: enum {
     /// No linemarker tokens. Required setting if parser will run
     none,
@@ -243,6 +243,14 @@ fn findIncludeGuard(pp: *Preprocessor, source: Source) ?[]const u8 {
 }
 
 fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
+    if (pp.linemarkers != .none) {
+        try pp.tokens.append(pp.gpa, .{ .id = .include_start, .loc = .{
+            .id = source.id,
+            .byte_offset = std.math.maxInt(u32),
+            .line = 1,
+        } });
+    }
+
     var guard_name = pp.findIncludeGuard(source);
 
     pp.preprocess_count += 1;
@@ -2355,6 +2363,13 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         else => |e| return e,
     };
     try eof.checkMsEof(new_source, pp.comp);
+    if (pp.linemarkers != .none) {
+        try pp.tokens.append(pp.gpa, .{ .id = .include_resume, .loc = .{
+            .id = first.source,
+            .byte_offset = std.math.maxInt(u32),
+            .line = first.line + 1,
+        } });
+    }
 }
 
 /// tokens that are part of a pragma directive can happen in 3 ways:
@@ -2490,6 +2505,9 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
 /// Pretty print tokens and try to preserve whitespace.
 pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
     var i: u32 = 0;
+    const root_src = pp.comp.getSource(@enumFromInt(2));
+    try w.print("# 1 \"{s}\"\n", .{root_src.path});
+
     while (true) : (i += 1) {
         var cur: Token = pp.tokens.get(i);
         switch (cur.id) {
@@ -2530,6 +2548,14 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                     slice = slice[some + 1 ..];
                 }
                 for (slice) |_| try w.writeByte(' ');
+            },
+            .include_start => {
+                const source = pp.comp.getSource(cur.loc.id);
+                try w.print("# {d} \"{s}\" 1\n", .{ cur.loc.line, source.path });
+            },
+            .include_resume => {
+                const source = pp.comp.getSource(cur.loc.id);
+                try w.print("\n# {d} \"{s}\" 2\n", .{ cur.loc.line, source.path });
             },
             else => {
                 const slice = pp.expandedSlice(cur);
