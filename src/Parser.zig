@@ -7669,6 +7669,9 @@ fn charLiteral(p: *Parser) Error!Result {
     var val: u32 = 0;
     var overflow_reported = false;
     var slice = p.tokSlice(p.tok_i);
+    if (!std.unicode.utf8ValidateSlice(slice)) {
+        return p.todo("Non-UTF-8 char literals");
+    }
     slice = slice[0 .. slice.len - 1];
     var i = mem.indexOf(u8, slice, "\'").? + 1;
     while (i < slice.len) : (i += 1) {
