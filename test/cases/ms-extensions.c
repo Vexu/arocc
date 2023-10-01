@@ -12,3 +12,5 @@
 #ifndef OTHER_INCLUDED
 #error Microsoft search rule should work
 #endif
+
+don't mind me ;)

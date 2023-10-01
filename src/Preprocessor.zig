@@ -206,11 +206,13 @@ pub fn deinit(pp: *Preprocessor) void {
 
 /// Preprocess a source file, returns eof token.
 pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
-    return pp.preprocessExtra(source) catch |er| switch (er) {
+    const eof = pp.preprocessExtra(source) catch |er| switch (er) {
         // This cannot occur in the main file and is handled in `include`.
         error.StopPreprocessing => unreachable,
         else => |e| return e,
     };
+    try eof.checkMsEof(source, pp.comp);
+    return eof;
 }
 
 /// Return the name of the #ifndef guard macro that starts a source, if any.
@@ -2338,10 +2340,11 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         pp.verboseLog(first, "include file {s}", .{new_source.path});
     }
 
-    _ = pp.preprocessExtra(new_source) catch |er| switch (er) {
-        error.StopPreprocessing => {},
+    const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
+        error.StopPreprocessing => return,
         else => |e| return e,
     };
+    try eof.checkMsEof(new_source, pp.comp);
 }
 
 /// tokens that are part of a pragma directive can happen in 3 ways:

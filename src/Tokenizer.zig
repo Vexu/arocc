@@ -1120,6 +1120,14 @@ pub fn next(self: *Tokenizer) Token {
                     self.index += 1;
                     break;
                 },
+                0x1A => if (self.comp.langopts.ms_extensions) {
+                    id = .eof;
+                    break;
+                } else {
+                    id = .invalid;
+                    self.index += 1;
+                    break;
+                },
                 0x80...0xFF => state = .extended_identifier,
                 else => {
                     id = .invalid;
