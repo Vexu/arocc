@@ -26,5 +26,7 @@ int Uǿ1 = 0;
 int Lǿ = 0;
 int Lǿ1 = 0;
 
-#define EXPECTED_ERRORS "extended identifiers c99.c:10:9: error: expected identifier or '('" \
-    "extended identifiers c99.c:16:9: error: expected identifier or '('" \
+#define EXPECTED_ERRORS "extended identifiers c99.c:10:9: error: unexpected character <U+2122>" \
+    "extended identifiers c99.c:10:11: error: expected identifier or '('" \
+    "extended identifiers c99.c:16:9: error: character <U+0661> not allowed at the start of an identifier" \
+

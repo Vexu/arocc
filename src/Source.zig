@@ -59,7 +59,10 @@ pub fn lineCol(source: Source, loc: Location) LineCol {
     var width: u32 = 0;
 
     while (i < loc.byte_offset) : (col += 1) { // TODO this is still incorrect, but better
-        const len = std.unicode.utf8ByteSequenceLength(source.buf[i]) catch unreachable;
+        const len = std.unicode.utf8ByteSequenceLength(source.buf[i]) catch {
+            i += 1;
+            continue;
+        };
         const cp = std.unicode.utf8Decode(source.buf[i..][0..len]) catch unreachable;
         width += codepointWidth(cp);
         i += len;
@@ -106,20 +109,4 @@ fn codepointWidth(cp: u32) u32 {
         => 2,
         else => 1,
     };
-}
-
-/// Returns the first offset, if any, in buf where an invalid utf8 sequence
-/// is found. Code adapted from std.unicode.utf8ValidateSlice
-pub fn offsetOfInvalidUtf8(self: Source) ?u32 {
-    const buf = self.buf;
-    std.debug.assert(buf.len <= std.math.maxInt(u32));
-    var i: u32 = 0;
-    while (i < buf.len) {
-        if (std.unicode.utf8ByteSequenceLength(buf[i])) |cp_len| {
-            if (i + cp_len > buf.len) return i;
-            if (std.meta.isError(std.unicode.utf8Decode(buf[i .. i + cp_len]))) return i;
-            i += cp_len;
-        } else |_| return i;
-    }
-    return null;
 }

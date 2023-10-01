@@ -67,14 +67,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, self_exe_dir: []const
     _ = try pp.preprocess(builtin_macros);
     _ = try pp.preprocess(user_macros);
 
-    const eof = pp.preprocess(file) catch |err| {
-        if (!std.unicode.utf8ValidateSlice(file.buf)) {
-            if (comp.diag.list.items.len > 0 and comp.diag.list.items[comp.diag.list.items.len - 1].tag == .invalid_utf8) {
-                return;
-            }
-        }
-        return err;
-    };
+    const eof = try pp.preprocess(file);
     try pp.tokens.append(allocator, eof);
 
     var tree = try aro.Parser.parse(&pp);
@@ -221,15 +214,6 @@ pub fn main() !void {
         _ = try pp.preprocess(builtin_macros);
         _ = try pp.preprocess(user_macros);
         const eof = pp.preprocess(file) catch |err| {
-            if (!std.unicode.utf8ValidateSlice(file.buf)) {
-                // non-utf8 files are not preprocessed, so we can't use EXPECTED_ERRORS; instead we
-                // check that the most recent error is .invalid_utf8
-                if (comp.diag.list.items.len > 0 and comp.diag.list.items[comp.diag.list.items.len - 1].tag == .invalid_utf8) {
-                    _ = comp.diag.list.pop();
-                    continue;
-                }
-            }
-
             fail_count += 1;
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
@@ -288,7 +272,15 @@ pub fn main() !void {
 
         const expected_types = pp.defines.get("EXPECTED_TYPES");
 
-        var tree = try aro.Parser.parse(&pp);
+        var tree = aro.Parser.parse(&pp) catch |err| switch (err) {
+            error.FatalError => {
+                if (try checkExpectedErrors(&pp, &progress, &buf)) |some| {
+                    if (some) ok_count += 1 else fail_count += 1;
+                }
+                continue;
+            },
+            else => |e| return e,
+        };
         defer tree.deinit();
 
         const ast_path = try std.fs.path.join(gpa, &.{ args[1], "ast", std.fs.path.basename(path) });
