@@ -969,6 +969,8 @@ index: u32 = 0,
 source: Source.Id,
 comp: *const Compilation,
 line: u32 = 1,
+/// Used to parse include strings with Windows style paths.
+path_escapes: bool = false,
 
 pub fn next(self: *Tokenizer) Token {
     var state: enum {
@@ -979,6 +981,7 @@ pub fn next(self: *Tokenizer) Token {
         U,
         L,
         string_literal,
+        path_escape,
         char_literal_start,
         char_literal,
         escape_sequence,
@@ -1117,6 +1120,14 @@ pub fn next(self: *Tokenizer) Token {
                     self.index += 1;
                     break;
                 },
+                0x1A => if (self.comp.langopts.ms_extensions) {
+                    id = .eof;
+                    break;
+                } else {
+                    id = .invalid;
+                    self.index += 1;
+                    break;
+                },
                 0x80...0xFF => state = .extended_identifier,
                 else => {
                     id = .invalid;
@@ -1193,7 +1204,7 @@ pub fn next(self: *Tokenizer) Token {
             .string_literal => switch (c) {
                 '\\' => {
                     return_state = .string_literal;
-                    state = .escape_sequence;
+                    state = if (self.path_escapes) .path_escape else .escape_sequence;
                 },
                 '"' => {
                     self.index += 1;
@@ -1205,6 +1216,9 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 '\r' => unreachable,
                 else => {},
+            },
+            .path_escape => {
+                state = .string_literal;
             },
             .char_literal_start => switch (c) {
                 '\\' => {
@@ -1695,6 +1709,7 @@ pub fn next(self: *Tokenizer) Token {
             .extended_identifier => id = .extended_identifier,
             .period2,
             .string_literal,
+            .path_escape,
             .char_literal_start,
             .char_literal,
             .escape_sequence,

@@ -168,6 +168,8 @@ pub const Options = packed struct {
     @"fuse-ld-path": Kind = .default,
     @"language-extension-token": Kind = .default,
     @"complex-component-init": Kind = .default,
+    @"microsoft-include": Kind = .default,
+    @"microsoft-end-of-file": Kind = .default,
 };
 
 const messages = struct {
@@ -2409,7 +2411,6 @@ const messages = struct {
         const opt = "pedantic";
         const extra = .str;
         const kind = .off;
-        const pedantic = true;
     };
     pub const not_floating_type = struct {
         const msg = "argument type '{s}' is not a real floating point type";
@@ -2420,6 +2421,18 @@ const messages = struct {
         const msg = "arguments are of different types ({s})";
         const extra = .str;
         const kind = .@"error";
+    };
+    pub const ms_search_rule = struct {
+        const msg = "#include resolved using non-portable Microsoft search rules as: {s}";
+        const extra = .str;
+        const opt = "microsoft-include";
+        const kind = .warning;
+    };
+    pub const ctrl_z_eof = struct {
+        const msg = "treating Ctrl-Z as end-of-file is a Microsoft extension";
+        const opt = "microsoft-end-of-file";
+        const kind = .off;
+        const pedantic = true;
     };
 };
 

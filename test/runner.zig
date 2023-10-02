@@ -64,6 +64,10 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, self_exe_dir: []const
     defer pp.deinit();
     try pp.addBuiltinMacros();
 
+    if (comp.langopts.ms_extensions) {
+        comp.ms_cwd_source_id = file.id;
+    }
+
     _ = try pp.preprocess(builtin_macros);
     _ = try pp.preprocess(user_macros);
 
@@ -210,6 +214,10 @@ pub fn main() !void {
         defer pp.deinit();
         if (only_preprocess) pp.preserve_whitespace = true;
         try pp.addBuiltinMacros();
+
+        if (comp.langopts.ms_extensions) {
+            comp.ms_cwd_source_id = file.id;
+        }
 
         _ = try pp.preprocess(builtin_macros);
         _ = try pp.preprocess(user_macros);

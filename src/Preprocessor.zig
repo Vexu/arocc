@@ -206,11 +206,13 @@ pub fn deinit(pp: *Preprocessor) void {
 
 /// Preprocess a source file, returns eof token.
 pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
-    return pp.preprocessExtra(source) catch |er| switch (er) {
+    const eof = pp.preprocessExtra(source) catch |er| switch (er) {
         // This cannot occur in the main file and is handled in `include`.
         error.StopPreprocessing => unreachable,
         else => |e| return e,
     };
+    try eof.checkMsEof(source, pp.comp);
+    return eof;
 }
 
 /// Return the name of the #ifndef guard macro that starts a source, if any.
@@ -1165,7 +1167,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
     }
 
     for (params) |tok| {
-        const str = pp.expandedSliceExtra(tok, .preserve_macro_ws);
+        const str = pp.expandedSliceExtra(tok, .preserve_macro_ws, false);
         try pp.char_buf.appendSlice(str);
     }
 
@@ -1897,7 +1899,12 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     }
 }
 
-fn expandedSliceExtra(pp: *const Preprocessor, tok: Token, macro_ws_handling: enum { single_macro_ws, preserve_macro_ws }) []const u8 {
+fn expandedSliceExtra(
+    pp: *const Preprocessor,
+    tok: Token,
+    macro_ws_handling: enum { single_macro_ws, preserve_macro_ws },
+    path_escapes: bool,
+) []const u8 {
     if (tok.id.lexeme()) |some| {
         if (!tok.id.allowsDigraphs(pp.comp) and !(tok.id == .macro_ws and macro_ws_handling == .preserve_macro_ws)) return some;
     }
@@ -1906,6 +1913,7 @@ fn expandedSliceExtra(pp: *const Preprocessor, tok: Token, macro_ws_handling: en
         .comp = pp.comp,
         .index = tok.loc.byte_offset,
         .source = .generated,
+        .path_escapes = path_escapes,
     };
     if (tok.id == .macro_string) {
         while (true) : (tmp_tokenizer.index += 1) {
@@ -1919,7 +1927,7 @@ fn expandedSliceExtra(pp: *const Preprocessor, tok: Token, macro_ws_handling: en
 
 /// Get expanded token source string.
 pub fn expandedSlice(pp: *Preprocessor, tok: Token) []const u8 {
-    return pp.expandedSliceExtra(tok, .single_macro_ws);
+    return pp.expandedSliceExtra(tok, .single_macro_ws, false);
 }
 
 /// Concat two tokens and add the result to pp.generated
@@ -2254,6 +2262,8 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 
 /// Handle an #embed directive
 fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
+    tokenizer.path_escapes = true;
+    defer tokenizer.path_escapes = false;
     const first = tokenizer.nextNoWS();
     const filename_tok = pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof) catch |er| switch (er) {
         error.InvalidInclude => return,
@@ -2261,7 +2271,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     };
 
     // Check for empty filename.
-    const tok_slice = pp.expandedSlice(filename_tok);
+    const tok_slice = pp.expandedSliceExtra(filename_tok, .single_macro_ws, true);
     if (tok_slice.len < 3) {
         try pp.err(first, .empty_filename);
         return;
@@ -2303,6 +2313,8 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
 
 // Handle a #include directive.
 fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInclude) MacroError!void {
+    tokenizer.path_escapes = true;
+    defer tokenizer.path_escapes = false;
     const first = tokenizer.nextNoWS();
     const new_source = findIncludeSource(pp, tokenizer, first, which) catch |er| switch (er) {
         error.InvalidInclude => return,
@@ -2328,10 +2340,11 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         pp.verboseLog(first, "include file {s}", .{new_source.path});
     }
 
-    _ = pp.preprocessExtra(new_source) catch |er| switch (er) {
-        error.StopPreprocessing => {},
+    const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
+        error.StopPreprocessing => return,
         else => |e| return e,
     };
+    try eof.checkMsEof(new_source, pp.comp);
 }
 
 /// tokens that are part of a pragma directive can happen in 3 ways:
@@ -2446,7 +2459,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
     const filename_tok = try pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof);
 
     // Check for empty filename.
-    const tok_slice = pp.expandedSlice(filename_tok);
+    const tok_slice = pp.expandedSliceExtra(filename_tok, .single_macro_ws, true);
     if (tok_slice.len < 3) {
         try pp.err(first, .empty_filename);
         return error.InvalidInclude;
@@ -2460,7 +2473,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
         else => unreachable,
     };
 
-    return (try pp.comp.findInclude(filename, first.source, include_type, which)) orelse
+    return (try pp.comp.findInclude(filename, first, include_type, which)) orelse
         pp.fatal(first, "'{s}' not found", .{filename});
 }
 
