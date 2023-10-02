@@ -97,6 +97,14 @@ linemarkers: enum {
     line_directive,
     /// # <num> "filename" flags
     numeric_directive,
+
+    fn directiveString(self: @This()) []const u8 {
+        return switch (self) {
+            .none => unreachable,
+            .line_directive => "line",
+            .numeric_directive => "",
+        };
+    }
 } = .none,
 
 pub fn init(comp: *Compilation) Preprocessor {
@@ -2551,11 +2559,11 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
             },
             .include_start => {
                 const source = pp.comp.getSource(cur.loc.id);
-                try w.print("# {d} \"{s}\" 1\n", .{ cur.loc.line, source.path });
+                try w.print("#{s} {d} \"{s}\" 1\n", .{ pp.linemarkers.directiveString(), cur.loc.line, source.path });
             },
             .include_resume => {
                 const source = pp.comp.getSource(cur.loc.id);
-                try w.print("\n# {d} \"{s}\" 2\n", .{ cur.loc.line, source.path });
+                try w.print("\n#{s} {d} \"{s}\" 2\n", .{ pp.linemarkers.directiveString(), cur.loc.line, source.path });
             },
             else => {
                 const slice = pp.expandedSlice(cur);
