@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 
 #define h() 1
 #define g(x) x

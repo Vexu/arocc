@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 //aro-env SOURCE_DATE_EPOCH=0
 
 __DATE__

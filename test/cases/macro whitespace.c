@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 #define FOO 1 /* fjfao */  /* fjfao */ 2
 
 #define BAR + /* fjfao */  /* fjfao */ /

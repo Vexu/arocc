@@ -1,4 +1,4 @@
-//aro-args -E --target=x86_64-linux-gnu -std=c11
+//aro-args -E --target=x86_64-linux-gnu -std=c11 -P
 #include <float.h>
 DBL_DIG
 DBL_EPSILON

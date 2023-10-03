@@ -540,7 +540,7 @@ fn processSource(
     if (d.only_preprocess) {
         pp.preserve_whitespace = true;
         if (d.line_commands) {
-            pp.linemarkers = if (d.use_line_directives) .line_directive else .numeric_directive;
+            pp.linemarkers = if (d.use_line_directives) .line_directives else .numeric_directives;
         }
     }
     try pp.addBuiltinMacros();

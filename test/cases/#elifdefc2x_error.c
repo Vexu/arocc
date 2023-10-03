@@ -1,4 +1,4 @@
-//aro-args -E -std=c2x
+//aro-args -E -std=c2x -P
 #define EXPECTED_ERRORS \
     "#elifdefc2x_error.c:8:9: error: macro name missing" \
     "#elifdefc2x_error.c:17:10: error: macro name missing"

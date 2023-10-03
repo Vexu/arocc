@@ -90,22 +90,24 @@ verbose: bool = false,
 preserve_whitespace: bool = false,
 
 /// linemarker tokens. Must be .none unless in -E mode (parser does not handle linemarkers)
-linemarkers: enum {
+linemarkers: Linemarkers = .none,
+
+pub const Linemarkers = enum {
     /// No linemarker tokens. Required setting if parser will run
     none,
     /// #line <num> "filename" flags
-    line_directive,
+    line_directives,
     /// # <num> "filename" flags
-    numeric_directive,
+    numeric_directives,
 
-    fn directiveString(self: @This()) []const u8 {
+    fn directiveString(self: Linemarkers) []const u8 {
         return switch (self) {
             .none => unreachable,
-            .line_directive => "line",
-            .numeric_directive => "",
+            .line_directives => "line",
+            .numeric_directives => "",
         };
     }
-} = .none,
+};
 
 pub fn init(comp: *Compilation) Preprocessor {
     const pp = Preprocessor{
@@ -2514,7 +2516,9 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
 pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
     var i: u32 = 0;
     const root_src = pp.comp.getSource(@enumFromInt(2));
-    try w.print("# 1 \"{s}\"\n", .{root_src.path});
+    if (pp.linemarkers != .none) {
+        try w.print("#{s} 1 \"{s}\"\n", .{ pp.linemarkers.directiveString(), root_src.path });
+    }
 
     while (true) : (i += 1) {
         var cur: Token = pp.tokens.get(i);
@@ -2589,6 +2593,7 @@ test "Preserve pragma tokens sometimes" {
             defer pp.deinit();
 
             pp.preserve_whitespace = true;
+            assert(pp.linemarkers == .none);
 
             const test_runner_macros = try comp.addSourceFromBuffer("<test_runner>", source_text);
             const eof = try pp.preprocess(test_runner_macros);

@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 
 #define X(a) Foo_ ## a = a,
 enum Foo {

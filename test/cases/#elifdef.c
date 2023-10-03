@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 #ifdef FOO
 long long
 #elifdef FOO
