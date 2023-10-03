@@ -2376,7 +2376,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     if (pp.linemarkers != .none) {
         try pp.tokens.append(pp.gpa, .{ .id = .include_resume, .loc = .{
             .id = first.source,
-            .byte_offset = std.math.maxInt(u32),
+            .byte_offset = first.end,
             .line = first.line + 1,
         } });
     }
@@ -2520,6 +2520,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
         try w.print("#{s} 1 \"{s}\"\n", .{ pp.linemarkers.directiveString(), root_src.path });
     }
 
+    var expected_line: usize = 1;
     while (true) : (i += 1) {
         var cur: Token = pp.tokens.get(i);
         switch (cur.id) {
@@ -2527,7 +2528,10 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                 if (pp.tokens.len > 1 and pp.tokens.items(.id)[i - 1] != .nl) try w.writeByte('\n');
                 break;
             },
-            .nl => try w.writeAll("\n"),
+            .nl => {
+                try w.writeAll("\n");
+                expected_line += 1;
+            },
             .keyword_pragma => {
                 const pragma_name = pp.expandedSlice(pp.tokens.get(i + 1));
                 const end_idx = mem.indexOfScalarPos(Token.Id, pp.tokens.items(.id), i, .nl) orelse i + 1;
@@ -2546,6 +2550,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                     cur = pp.tokens.get(i);
                     if (cur.id == .nl) {
                         try w.writeByte('\n');
+                        expected_line += 1;
                         break;
                     }
                     try w.writeByte(' ');
@@ -2557,19 +2562,31 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                 var slice = pp.expandedSlice(cur);
                 while (mem.indexOfScalar(u8, slice, '\n')) |some| {
                     try w.writeByte('\n');
+                    expected_line += 1;
                     slice = slice[some + 1 ..];
                 }
                 for (slice) |_| try w.writeByte(' ');
             },
             .include_start => {
                 const source = pp.comp.getSource(cur.loc.id);
-                try w.print("#{s} {d} \"{s}\" 1{s}\n", .{ pp.linemarkers.directiveString(), cur.loc.line, source.path, source.kind.preprocessorFlags() });
+
+                try w.print("#{s} {d} \"{s}\" 1{s}\n", .{ pp.linemarkers.directiveString(), 1, source.path, source.kind.preprocessorFlags() });
             },
             .include_resume => {
                 const source = pp.comp.getSource(cur.loc.id);
-                try w.print("\n#{s} {d} \"{s}\" 2{s}\n", .{ pp.linemarkers.directiveString(), cur.loc.line, source.path, source.kind.preprocessorFlags() });
+                const line_col = source.lineCol(cur.loc);
+
+                try w.print("\n#{s} {d} \"{s}\" 2{s}\n", .{ pp.linemarkers.directiveString(), line_col.line_no, source.path, source.kind.preprocessorFlags() });
             },
             else => {
+                if (pp.linemarkers != .none) {
+                    const source = pp.comp.getSource(cur.loc.id);
+                    const line_col = source.lineCol(cur.loc);
+                    if (expected_line != line_col.line_no) {
+                        try w.print("#{s} {d} \"{s}\"{s}\n", .{ pp.linemarkers.directiveString(), line_col.line_no, source.path, source.kind.preprocessorFlags() });
+                        expected_line = line_col.line_no;
+                    }
+                }
                 const slice = pp.expandedSlice(cur);
                 try w.writeAll(slice);
             },
