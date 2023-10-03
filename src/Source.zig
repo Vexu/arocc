@@ -7,6 +7,24 @@ pub const Id = enum(u32) {
     _,
 };
 
+/// Classifies the file for line marker output in -E mode
+pub const Kind = enum {
+    /// regular file
+    user,
+    /// Included from a system include directory
+    system,
+    /// Included from an "implicit extern C" directory
+    extern_c_system,
+
+    pub fn preprocessorFlags(self: Kind) []const u8 {
+        return switch (self) {
+            .user => "",
+            .system => " 3",
+            .extern_c_system => " 3 4",
+        };
+    }
+};
+
 pub const Location = struct {
     id: Id = .unused,
     byte_offset: u32 = 0,
@@ -24,6 +42,7 @@ id: Id,
 /// from the original raw buffer. The same position can appear multiple times if multiple
 /// consecutive splices happened. Guaranteed to be non-decreasing
 splice_locs: []const u32,
+kind: Kind,
 
 /// Todo: binary search instead of scanning entire `splice_locs`.
 pub fn numSplicesBefore(source: Source, byte_offset: u32) u32 {

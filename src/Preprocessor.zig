@@ -2563,11 +2563,11 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
             },
             .include_start => {
                 const source = pp.comp.getSource(cur.loc.id);
-                try w.print("#{s} {d} \"{s}\" 1\n", .{ pp.linemarkers.directiveString(), cur.loc.line, source.path });
+                try w.print("#{s} {d} \"{s}\" 1{s}\n", .{ pp.linemarkers.directiveString(), cur.loc.line, source.path, source.kind.preprocessorFlags() });
             },
             .include_resume => {
                 const source = pp.comp.getSource(cur.loc.id);
-                try w.print("\n#{s} {d} \"{s}\" 2\n", .{ pp.linemarkers.directiveString(), cur.loc.line, source.path });
+                try w.print("\n#{s} {d} \"{s}\" 2{s}\n", .{ pp.linemarkers.directiveString(), cur.loc.line, source.path, source.kind.preprocessorFlags() });
             },
             else => {
                 const slice = pp.expandedSlice(cur);
