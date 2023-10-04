@@ -2542,7 +2542,6 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
     const tok_ids = pp.tokens.items(.id);
 
     var i: u32 = 0;
-    var expected_line: usize = 1;
     var last_nl = true;
     outer: while (true) : (i += 1) {
         var cur: Token = pp.tokens.get(i);
@@ -2573,7 +2572,6 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                             const source = pp.comp.getSource(next.loc.id);
                             const line_col = source.lineCol(next.loc);
                             try pp.printLinemarker(w, line_col.line_no, source, .none);
-                            expected_line = line_col.line_no;
                             last_nl = true;
                         }
                         continue :outer;
@@ -2581,7 +2579,6 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                 }
                 last_nl = true;
                 try w.writeAll("\n");
-                expected_line += 1;
             },
             .keyword_pragma => {
                 const pragma_name = pp.expandedSlice(pp.tokens.get(i + 1));
@@ -2601,7 +2598,6 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                     cur = pp.tokens.get(i);
                     if (cur.id == .nl) {
                         try w.writeByte('\n');
-                        expected_line += 1;
                         last_nl = true;
                         break;
                     }
@@ -2613,8 +2609,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
             .whitespace => {
                 var slice = pp.expandedSlice(cur);
                 while (mem.indexOfScalar(u8, slice, '\n')) |some| {
-                    try w.writeByte('\n');
-                    expected_line += 1;
+                    if (pp.linemarkers != .none) try w.writeByte('\n');
                     slice = slice[some + 1 ..];
                 }
                 for (slice) |_| try w.writeByte(' ');
@@ -2632,18 +2627,9 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                 if (!last_nl) try w.writeAll("\n");
 
                 try pp.printLinemarker(w, line_col.line_no, source, .@"resume");
-                expected_line = line_col.line_no;
                 last_nl = true;
             },
             else => {
-                if (pp.linemarkers != .none and cur.loc.id != .generated) {
-                    const source = pp.comp.getSource(cur.loc.id);
-                    const line_col = source.lineCol(cur.loc);
-                    if (expected_line != line_col.line_no) {
-                        try pp.printLinemarker(w, line_col.line_no, source, .none);
-                        expected_line = line_col.line_no;
-                    }
-                }
                 const slice = pp.expandedSlice(cur);
                 try w.writeAll(slice);
                 last_nl = false;
