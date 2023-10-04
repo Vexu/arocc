@@ -1,7 +1,3 @@
-
-
 FOO
-
-
 BAR
 BAZ
