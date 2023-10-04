@@ -15,14 +15,6 @@ pub const Kind = enum {
     system,
     /// Included from an "implicit extern C" directory
     extern_c_system,
-
-    pub fn preprocessorFlags(self: Kind) []const u8 {
-        return switch (self) {
-            .user => "",
-            .system => " 3",
-            .extern_c_system => " 3 4",
-        };
-    }
 };
 
 pub const Location = struct {

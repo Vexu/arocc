@@ -545,8 +545,12 @@ fn processSource(
     }
     try pp.addBuiltinMacros();
 
+    try pp.addIncludeStart(source);
+    try pp.addIncludeStart(builtin);
     _ = try pp.preprocess(builtin);
+    try pp.addIncludeStart(user_macros);
     _ = try pp.preprocess(user_macros);
+    try pp.addIncludeResume(source.id, 0, 0);
     const eof = try pp.preprocess(source);
     try pp.tokens.append(pp.comp.gpa, eof);
 
