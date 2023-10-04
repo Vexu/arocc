@@ -17,6 +17,7 @@ const NodeList = std.ArrayList(NodeIndex);
 const InitList = @import("InitList.zig");
 const Attribute = @import("Attribute.zig");
 const CharInfo = @import("CharInfo.zig");
+const CharLiteral = @import("CharLiteral.zig");
 const Value = @import("Value.zig");
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
@@ -7634,15 +7635,8 @@ fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8,
 
 fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
-    const allow_multibyte = switch (p.tok_ids[p.tok_i]) {
-        .char_literal => false,
-        .char_literal_utf_8 => false,
-        .char_literal_wide => true,
-        .char_literal_utf_16 => true,
-        .char_literal_utf_32 => true,
-        else => unreachable,
-    };
-    const ty: Type = switch (p.tok_ids[p.tok_i]) {
+    const tok_id = p.tok_ids[p.tok_i];
+    const ty: Type = switch (tok_id) {
         .char_literal => .{ .specifier = .int },
         .char_literal_utf_8 => .{ .specifier = .uchar },
         .char_literal_wide => p.comp.types.wchar,
@@ -7650,117 +7644,83 @@ fn charLiteral(p: *Parser) Error!Result {
         .char_literal_utf_32 => .{ .specifier = .ulong },
         else => unreachable,
     };
-    const max: u32 = switch (p.tok_ids[p.tok_i]) {
-        .char_literal => std.math.maxInt(u8),
+    const max: u32 = switch (tok_id) {
+        .char_literal => std.math.maxInt(u7),
         .char_literal_wide => @intCast(p.comp.types.wchar.maxInt(p.comp)),
-        .char_literal_utf_8 => std.math.maxInt(u8),
+        .char_literal_utf_8 => std.math.maxInt(u7),
         .char_literal_utf_16 => std.math.maxInt(u16),
-        .char_literal_utf_32 => std.math.maxInt(u32),
-        else => unreachable,
-    };
-    var multichar: u8 = switch (p.tok_ids[p.tok_i]) {
-        .char_literal => 0,
-        .char_literal_wide => 4,
-        .char_literal_utf_8 => 2,
-        .char_literal_utf_16 => 2,
-        .char_literal_utf_32 => 2,
+        .char_literal_utf_32 => 0x10FFFF,
         else => unreachable,
     };
 
-    var val: u32 = 0;
-    var overflow_reported = false;
-    var slice = p.tokSlice(p.tok_i);
-    if (!std.unicode.utf8ValidateSlice(slice)) {
-        return p.todo("Non-UTF-8 char literals");
-    }
-    slice = slice[0 .. slice.len - 1];
-    var i = mem.indexOf(u8, slice, "\'").? + 1;
-    while (i < slice.len) : (i += 1) {
-        var c: u32 = slice[i];
-        var multibyte = false;
-        switch (c) {
-            '\\' => {
-                i += 1;
-                switch (slice[i]) {
-                    '\n' => i += 1,
-                    '\r' => i += 2,
-                    '\'', '\"', '\\', '?' => c = slice[i],
-                    'n' => c = '\n',
-                    'r' => c = '\r',
-                    't' => c = '\t',
-                    'a' => c = 0x07,
-                    'b' => c = 0x08,
-                    'e' => {
-                        try p.errExtra(.non_standard_escape_char, p.tok_i, .{ .unsigned = i - 1 });
-                        c = 0x1B;
-                    },
-                    'f' => c = 0x0C,
-                    'v' => c = 0x0B,
-                    'x' => c = try p.parseNumberEscape(p.tok_i, 16, slice, &i),
-                    '0'...'7' => c = try p.parseNumberEscape(p.tok_i, 8, slice, &i),
-                    'u', 'U' => return p.todo("unicode escapes in char literals"),
-                    else => unreachable,
+    var char_literal_parser = CharLiteral.Parser.init(p.tokSlice(p.tok_i));
+
+    const max_chars_expected = 4;
+    var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
+    var chars = std.ArrayList(u32).initCapacity(stack_fallback.get(), max_chars_expected) catch unreachable; // stack allocation already succeeded
+    defer chars.deinit();
+
+    while (try char_literal_parser.next(p)) |item| {
+        switch (item) {
+            .codepoint => |c| try chars.append(c),
+            .improperly_encoded => |s| {
+                const should_error = tok_id != .char_literal;
+                const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
+                try p.err(tag);
+                if (!should_error) {
+                    for (s) |c| {
+                        try chars.append(c);
+                    }
+                } else {
+                    char_literal_parser.errored = true;
                 }
             },
-            // These are safe since the source is checked to be valid utf8.
-            0b1100_0000...0b1101_1111 => {
-                c &= 0b00011111;
-                c <<= 6;
-                c |= slice[i + 1] & 0b00111111;
-                i += 1;
-                multibyte = true;
+            .utf8_text => |view| {
+                var it = view.iterator();
+                while (it.nextCodepoint()) |c| {
+                    if (c > max) {
+                        try p.err(.char_too_large);
+                    }
+                    try chars.append(c);
+                }
             },
-            0b1110_0000...0b1110_1111 => {
-                c &= 0b00001111;
-                c <<= 6;
-                c |= slice[i + 1] & 0b00111111;
-                c <<= 6;
-                c |= slice[i + 2] & 0b00111111;
-                i += 2;
-                multibyte = true;
-            },
-            0b1111_0000...0b1111_0111 => {
-                c &= 0b00000111;
-                c <<= 6;
-                c |= slice[i + 1] & 0b00111111;
-                c <<= 6;
-                c |= slice[i + 2] & 0b00111111;
-                c <<= 6;
-                c |= slice[i + 3] & 0b00111111;
-                i += 3;
-                multibyte = true;
-            },
-            else => {},
         }
-        if (c > max or (multibyte and !allow_multibyte)) try p.err(.char_too_large);
-        switch (multichar) {
-            0, 2, 4 => multichar += 1,
-            1 => {
-                multichar = 99;
-                try p.err(.multichar_literal);
-            },
-            3 => {
-                try p.err(.unicode_multichar_literal);
-                return error.ParsingFailed;
-            },
-            5 => {
-                try p.err(.wide_multichar_literal);
-                val = 0;
-                multichar = 6;
-            },
-            6 => val = 0,
-            else => {},
+    }
+
+    const is_multichar = chars.items.len > 1;
+    if (is_multichar) {
+        if (tok_id == .char_literal and chars.items.len == 4) {
+            try p.err(.four_char_char_literal);
+        } else if (tok_id == .char_literal) {
+            try p.err(.multichar_literal_warning);
+        } else {
+            const kind = switch (tok_id) {
+                .char_literal_wide => "wide",
+                .char_literal_utf_8, .char_literal_utf_16, .char_literal_utf_32 => "Unicode",
+                else => unreachable,
+            };
+            try p.errExtra(.invalid_multichar_literal, p.tok_i, .{ .str = kind });
         }
-        const product, const overflowed = @mulWithOverflow(val, max +% 1);
-        if (overflowed != 0 and !overflow_reported) {
-            try p.errExtra(.char_lit_too_wide, p.tok_i, .{ .unsigned = i });
-            overflow_reported = true;
+    }
+
+    var multichar_overflow = false;
+    var val: u32 = 0;
+    if (tok_id == .char_literal and is_multichar) {
+        for (chars.items) |item| {
+            val, const overflowed = @shlWithOverflow(val, 8);
+            multichar_overflow = multichar_overflow or overflowed != 0;
+            val += @as(u8, @truncate(item));
         }
-        val = product + c;
+    } else if (chars.items.len > 0) {
+        val = chars.items[chars.items.len - 1];
+    }
+
+    if (multichar_overflow) {
+        try p.err(.char_lit_too_wide);
     }
 
     // This is the type the literal will have if we're in a macro; macros always operate on intmax_t/uintmax_t values
-    const macro_ty = if (ty.isUnsignedInt(p.comp) or (p.tok_ids[p.tok_i] == .char_literal and p.comp.getCharSignedness() == .unsigned))
+    const macro_ty = if (ty.isUnsignedInt(p.comp) or (tok_id == .char_literal and p.comp.getCharSignedness() == .unsigned))
         p.comp.types.intmax.makeIntegerUnsigned()
     else
         p.comp.types.intmax;
