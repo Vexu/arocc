@@ -2521,7 +2521,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
     }
 
     var expected_line: usize = 1;
-    while (true) : (i += 1) {
+    outer: while (true) : (i += 1) {
         var cur: Token = pp.tokens.get(i);
         switch (cur.id) {
             .eof => {
@@ -2529,6 +2529,27 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                 break;
             },
             .nl => {
+                var newlines: u32 = 0;
+                for (pp.tokens.items(.id)[i..], i..) |id, j| {
+                    if (id == .nl) {
+                        newlines += 1;
+                    } else if (id == .eof) {
+                        try w.writeByte('\n');
+                        return;
+                    } else if (id != .whitespace) {
+                        if (newlines < 3) break;
+                        i = @intCast(j - 1);
+                        try w.writeAll("\n");
+                        if (pp.linemarkers != .none) {
+                            const next = pp.tokens.get(i);
+                            const source = pp.comp.getSource(next.loc.id);
+                            const line_col = source.lineCol(next.loc);
+                            try w.print("#{s} {d} \"{s}\"{s}\n", .{ pp.linemarkers.directiveString(), line_col.line_no, source.path, source.kind.preprocessorFlags() });
+                            expected_line = line_col.line_no;
+                        }
+                        continue :outer;
+                    }
+                }
                 try w.writeAll("\n");
                 expected_line += 1;
             },
