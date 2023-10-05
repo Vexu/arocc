@@ -2880,6 +2880,7 @@ const MsgWriter = struct {
     fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32, end_with_splice: bool) void {
         const line = maybe_line orelse {
             m.write("\n");
+            m.setColor(.reset);
             return;
         };
         const trailer = if (end_with_splice) "\\ " else "";
