@@ -374,6 +374,10 @@ const messages = struct {
         const kind = .warning;
         const all = true;
     };
+    pub const missing_type_specifier_c2x = struct {
+        const msg = "a type specifier is required for all declarations";
+        const kind = .@"error";
+    };
     pub const multiple_storage_class = struct {
         const msg = "cannot combine with previous '{s}' declaration specifier";
         const extra = .str;
