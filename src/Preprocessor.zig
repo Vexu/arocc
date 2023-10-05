@@ -232,7 +232,7 @@ pub fn addIncludeStart(pp: *Preprocessor, source: Source) !void {
     try pp.tokens.append(pp.gpa, .{ .id = .include_start, .loc = .{
         .id = source.id,
         .byte_offset = std.math.maxInt(u32),
-        .line = 1,
+        .line = 0,
     } });
 }
 
@@ -241,7 +241,7 @@ pub fn addIncludeResume(pp: *Preprocessor, source: Source.Id, offset: u32, line:
     try pp.tokens.append(pp.gpa, .{ .id = .include_resume, .loc = .{
         .id = source,
         .byte_offset = offset,
-        .line = line + 1,
+        .line = line,
     } });
 }
 
@@ -522,7 +522,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         _ = pp.defines.remove(macro_name);
                         try pp.expectNl(&tokenizer);
                     },
-                    .keyword_include => try pp.include(&tokenizer, .first),
+                    .keyword_include => {
+                        try pp.include(&tokenizer, .first);
+                        continue;
+                    },
                     .keyword_include_next => {
                         try pp.comp.diag.add(.{
                             .tag = .include_next,
@@ -539,7 +542,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         }
                     },
                     .keyword_embed => try pp.embed(&tokenizer),
-                    .keyword_pragma => try pp.pragma(&tokenizer, directive, null, &.{}),
+                    .keyword_pragma => {
+                        try pp.pragma(&tokenizer, directive, null, &.{});
+                        continue;
+                    },
                     .keyword_line => {
                         // #line number "file"
                         const digits = tokenizer.nextNoWS();
@@ -579,6 +585,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         try pp.err(tok, .invalid_preprocessing_directive);
                         skipToNl(&tokenizer);
                     },
+                }
+                if (pp.preserve_whitespace) {
+                    tok.id = .nl;
+                    try pp.tokens.append(pp.gpa, tokFromRaw(tok));
                 }
             },
             .whitespace => if (pp.preserve_whitespace) try pp.tokens.append(pp.gpa, tokFromRaw(tok)),
@@ -957,6 +967,12 @@ fn skip(
             line_start = true;
             tokenizer.index += 1;
             tokenizer.line += 1;
+            if (pp.preserve_whitespace) {
+                try pp.tokens.append(pp.gpa, .{ .id = .nl, .loc = .{
+                    .id = tokenizer.source,
+                    .line = tokenizer.line,
+                } });
+            }
         } else {
             line_start = false;
             tokenizer.index += 1;
@@ -1924,7 +1940,10 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     if (pp.preserve_whitespace) {
         try pp.tokens.ensureUnusedCapacity(pp.gpa, pp.add_expansion_nl);
         while (pp.add_expansion_nl > 0) : (pp.add_expansion_nl -= 1) {
-            pp.tokens.appendAssumeCapacity(.{ .id = .nl, .loc = .{ .id = .generated } });
+            pp.tokens.appendAssumeCapacity(.{ .id = .nl, .loc = .{
+                .id = tokenizer.source,
+                .line = tokenizer.line,
+            } });
         }
     }
 }
@@ -2370,13 +2389,32 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         pp.verboseLog(first, "include file {s}", .{new_source.path});
     }
 
+    const tokens_start = pp.tokens.len;
     try pp.addIncludeStart(new_source);
     const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
-        error.StopPreprocessing => return,
+        error.StopPreprocessing => {
+            for (pp.tokens.items(.expansion_locs)[tokens_start..]) |loc| Token.free(loc, pp.gpa);
+            pp.tokens.len = tokens_start;
+            return;
+        },
         else => |e| return e,
     };
     try eof.checkMsEof(new_source, pp.comp);
-    try pp.addIncludeResume(first.source, first.end, first.line);
+    if (pp.preserve_whitespace and pp.tokens.items(.id)[pp.tokens.len - 1] != .nl) {
+        try pp.tokens.append(pp.gpa, .{ .id = .nl, .loc = .{
+            .id = tokenizer.source,
+            .line = tokenizer.line,
+        } });
+    }
+    if (pp.linemarkers == .none) return;
+    var next = first;
+    while (true) {
+        var tmp = tokenizer.*;
+        next = tmp.nextNoWS();
+        if (next.id != .nl) break;
+        tokenizer.* = tmp;
+    }
+    try pp.addIncludeResume(next.source, next.end, next.line);
 }
 
 /// tokens that are part of a pragma directive can happen in 3 ways:
@@ -2518,7 +2556,8 @@ fn printLinemarker(
 ) !void {
     try w.writeByte('#');
     if (pp.linemarkers == .line_directives) try w.writeAll("line");
-    try w.print(" {d} \"{s}\"", .{ line_no, source.path });
+    // line_no is 0 indexed
+    try w.print(" {d} \"{s}\"", .{ line_no + 1, source.path });
     if (pp.linemarkers == .numeric_directives) {
         switch (start_resume) {
             .none => {},
@@ -2587,6 +2626,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
 
                 if (pp.comp.getPragma(pragma_name)) |prag| {
                     if (!prag.shouldPreserveTokens(pp, i + 1)) {
+                        try w.writeByte('\n');
                         i += pragma_len;
                         cur = pp.tokens.get(i);
                         continue;
@@ -2618,7 +2658,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
             .include_start => {
                 const source = pp.comp.getSource(cur.loc.id);
 
-                try pp.printLinemarker(w, 1, source, .start);
+                try pp.printLinemarker(w, 0, source, .start);
                 last_nl = true;
             },
             .include_resume => {
@@ -2685,13 +2725,14 @@ test "Preserve pragma tokens sometimes" {
         \\#pragma once
         \\
     ;
-    try Test.check(omit_once, "int x;\n");
+    // TODO should only be one newline afterwards when emulating clang
+    try Test.check(omit_once, "\nint x;\n\n");
 
     const omit_poison =
         \\#pragma GCC poison foobar
         \\
     ;
-    try Test.check(omit_poison, "");
+    try Test.check(omit_poison, "\n");
 }
 
 test "destringify" {
