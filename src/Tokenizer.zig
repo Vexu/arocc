@@ -1264,10 +1264,7 @@ pub fn next(self: *Tokenizer) Token {
                 '\'', '"', '?', '\\', 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v' => {
                     state = return_state;
                 },
-                '\n' => {
-                    state = return_state;
-                    self.line += 1;
-                },
+                '\r', '\n' => unreachable, // removed by line splicing
                 '0'...'7' => {
                     counter = 1;
                     state = .octal_escape;
