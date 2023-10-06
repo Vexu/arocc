@@ -7653,16 +7653,23 @@ fn charLiteral(p: *Parser) Error!Result {
         else => unreachable,
     };
 
-    var char_literal_parser = CharLiteral.Parser.init(p.tokSlice(p.tok_i));
+    var char_literal_parser = CharLiteral.Parser.init(p.tokSlice(p.tok_i), p.comp.langopts.standard);
 
     const max_chars_expected = 4;
     var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
     var chars = std.ArrayList(u32).initCapacity(stack_fallback.get(), max_chars_expected) catch unreachable; // stack allocation already succeeded
     defer chars.deinit();
 
-    while (try char_literal_parser.next(p)) |item| {
+    while (char_literal_parser.next()) |item| {
         switch (item) {
-            .codepoint => |c| try chars.append(c),
+            .codepoint => |c| {
+                if (c > max) {
+                    try p.errExtra(.escape_sequence_overflow, p.tok_i, .{ .unsigned = 0 });
+                }
+                try chars.append(c);
+            },
+            .value => |c| try chars.append(c),
+
             .improperly_encoded => |s| {
                 const should_error = tok_id != .char_literal;
                 const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
@@ -7685,6 +7692,9 @@ fn charLiteral(p: *Parser) Error!Result {
                 }
             },
         }
+    }
+    for (char_literal_parser.errors.constSlice()) |item| {
+        try p.errExtra(item.tag, p.tok_i, item.extra);
     }
 
     const is_multichar = chars.items.len > 1;
