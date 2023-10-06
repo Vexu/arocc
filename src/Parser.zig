@@ -7660,39 +7660,37 @@ fn charLiteral(p: *Parser) Error!Result {
     var chars = std.ArrayList(u32).initCapacity(stack_fallback.get(), max_chars_expected) catch unreachable; // stack allocation already succeeded
     defer chars.deinit();
 
-    while (char_literal_parser.next()) |item| {
-        switch (item) {
-            .codepoint => |c| {
-                if (c > max) {
-                    try p.errExtra(.escape_sequence_overflow, p.tok_i, .{ .unsigned = 0 });
-                }
-                try chars.append(c);
-            },
-            .value => |c| try chars.append(c),
+    while (char_literal_parser.next()) |item| switch (item) {
+        .codepoint => |c| {
+            if (c > max) {
+                try p.err(.char_too_large);
+            }
+            try chars.append(c);
+        },
+        .value => |c| try chars.append(c),
 
-            .improperly_encoded => |s| {
-                const should_error = tok_id != .char_literal;
-                const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
-                try p.err(tag);
-                if (!should_error) {
-                    for (s) |c| {
-                        try chars.append(c);
-                    }
-                } else {
-                    char_literal_parser.errored = true;
-                }
-            },
-            .utf8_text => |view| {
-                var it = view.iterator();
-                while (it.nextCodepoint()) |c| {
-                    if (c > max) {
-                        try p.err(.char_too_large);
-                    }
+        .improperly_encoded => |s| {
+            const should_error = tok_id != .char_literal;
+            const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
+            try p.err(tag);
+            if (!should_error) {
+                for (s) |c| {
                     try chars.append(c);
                 }
-            },
-        }
-    }
+            } else {
+                char_literal_parser.errored = true;
+            }
+        },
+        .utf8_text => |view| {
+            var it = view.iterator();
+            while (it.nextCodepoint()) |c| {
+                if (c > max) {
+                    try p.err(.char_too_large);
+                }
+                try chars.append(c);
+            }
+        },
+    };
     for (char_literal_parser.errors.constSlice()) |item| {
         try p.errExtra(item.tag, p.tok_i, item.extra);
     }
