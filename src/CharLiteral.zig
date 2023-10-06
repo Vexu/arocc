@@ -29,10 +29,8 @@ pub const Parser = struct {
     codepoint_buf: [4]u8,
 
     pub fn init(literal: []const u8, standard: LangOpts.Standard) Parser {
-        const start = mem.indexOfScalar(u8, literal, '\'').? + 1; // trim leading quote + specifier if any
         return .{
-            .literal = literal[start .. literal.len - 1], // trim trailing quote
-            .i = 0,
+            .literal = literal,
             .standard = standard,
             .codepoint_buf = undefined,
         };

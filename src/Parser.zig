@@ -7653,7 +7653,10 @@ fn charLiteral(p: *Parser) Error!Result {
         else => unreachable,
     };
 
-    var char_literal_parser = CharLiteral.Parser.init(p.tokSlice(p.tok_i), p.comp.langopts.standard);
+    const slice = p.tokSlice(p.tok_i);
+    const start = mem.indexOf(u8, slice, "\'").? + 1;
+
+    var char_literal_parser = CharLiteral.Parser.init(slice[start .. slice.len - 1], p.comp.langopts.standard);
 
     const max_chars_expected = 4;
     var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
