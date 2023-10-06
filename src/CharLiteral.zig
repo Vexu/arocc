@@ -44,6 +44,11 @@ pub const Parser = struct {
         self.errors.append(.{ .tag = tag, .extra = extra }) catch {};
     }
 
+    fn warn(self: *Parser, tag: Diagnostics.Tag, extra: Diagnostics.Message.Extra) void {
+        if (self.errored) return;
+        self.errors.append(.{ .tag = tag, .extra = extra }) catch {};
+    }
+
     pub fn next(self: *Parser) ?Item {
         if (self.i >= self.literal.len) return null;
 
@@ -113,15 +118,21 @@ pub const Parser = struct {
         if (val < 0xA0 and (val != '$' and val != '@' and val != '`')) {
             const is_error = !self.standard.atLeast(.c2x);
             if (val >= 0x20 and val <= 0x7F) {
-                const tag: Diagnostics.Tag = if (is_error) .ucn_basic_char_error else .ucn_basic_char_warning;
-                self.err(tag, .{ .ascii = @intCast(val) });
+                if (is_error) {
+                    self.err(.ucn_basic_char_error, .{ .ascii = @intCast(val) });
+                } else {
+                    self.warn(.ucn_basic_char_warning, .{ .ascii = @intCast(val) });
+                }
             } else {
-                const tag: Diagnostics.Tag = if (is_error) .ucn_control_char_error else .ucn_control_char_warning;
-                self.err(tag, .{ .none = {} });
+                if (is_error) {
+                    self.err(.ucn_control_char_error, .{ .none = {} });
+                } else {
+                    self.warn(.ucn_control_char_warning, .{ .none = {} });
+                }
             }
         }
 
-        self.err(.c89_ucn_in_literal, .{ .none = {} });
+        self.warn(.c89_ucn_in_literal, .{ .none = {} });
 
         return .{ .codepoint = @intCast(val) };
     }
@@ -140,7 +151,7 @@ pub const Parser = struct {
             'a' => return .{ .value = 0x07 },
             'b' => return .{ .value = 0x08 },
             'e' => {
-                self.err(.non_standard_escape_char, .{ .unsigned = self.i });
+                self.warn(.non_standard_escape_char, .{ .unsigned = self.i });
                 return .{ .value = 0x1B };
             },
             'f' => return .{ .value = 0x0C },
