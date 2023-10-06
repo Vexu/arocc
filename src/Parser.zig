@@ -7661,14 +7661,7 @@ fn charLiteral(p: *Parser) Error!Result {
     defer chars.deinit();
 
     while (char_literal_parser.next()) |item| switch (item) {
-        .codepoint => |c| {
-            if (c > max) {
-                try p.err(.char_too_large);
-            }
-            try chars.append(c);
-        },
         .value => |c| try chars.append(c),
-
         .improperly_encoded => |s| {
             const should_error = tok_id != .char_literal;
             const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
@@ -7685,7 +7678,7 @@ fn charLiteral(p: *Parser) Error!Result {
             var it = view.iterator();
             while (it.nextCodepoint()) |c| {
                 if (c > max) {
-                    try p.err(.char_too_large);
+                    char_literal_parser.err(.char_too_large, .{ .none = {} });
                 }
                 try chars.append(c);
             }

@@ -4,8 +4,6 @@ const LangOpts = @import("LangOpts.zig");
 const mem = std.mem;
 
 pub const Item = union(enum) {
-    /// unicode escape
-    codepoint: u21,
     /// hex/octal escape
     value: u32,
     /// Char literal in the source text is not utf8 encoded
@@ -28,6 +26,7 @@ pub const Parser = struct {
     errored: bool = false,
     errors: std.BoundedArray(CharDiagnostic, 4) = .{},
     standard: LangOpts.Standard,
+    codepoint_buf: [4]u8,
 
     pub fn init(literal: []const u8, standard: LangOpts.Standard) Parser {
         const start = mem.indexOfScalar(u8, literal, '\'').? + 1; // trim leading quote + specifier if any
@@ -35,10 +34,11 @@ pub const Parser = struct {
             .literal = literal[start .. literal.len - 1], // trim trailing quote
             .i = 0,
             .standard = standard,
+            .codepoint_buf = undefined,
         };
     }
 
-    fn err(self: *Parser, tag: Diagnostics.Tag, extra: Diagnostics.Message.Extra) void {
+    pub fn err(self: *Parser, tag: Diagnostics.Tag, extra: Diagnostics.Message.Extra) void {
         if (self.errored) return;
         self.errored = true;
         self.errors.append(.{ .tag = tag, .extra = extra }) catch {};
@@ -134,7 +134,10 @@ pub const Parser = struct {
 
         self.warn(.c89_ucn_in_literal, .{ .none = {} });
 
-        return .{ .codepoint = @intCast(val) };
+        const to_write = std.unicode.utf8Encode(@intCast(val), &self.codepoint_buf) catch unreachable; // validated above
+        const view = std.unicode.Utf8View.initUnchecked(self.codepoint_buf[0..to_write]);
+
+        return .{ .utf8_text = view };
     }
 
     fn parseEscapedChar(self: *Parser) Item {
