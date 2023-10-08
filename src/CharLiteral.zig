@@ -165,7 +165,7 @@ pub const Parser = struct {
         }
         self.i += expected_len;
 
-        if (overflowed or val > self.max_codepoint) {
+        if (overflowed) {
             self.err(.escape_sequence_overflow, .{ .unsigned = start });
             return Item.replacement;
         }
@@ -178,6 +178,10 @@ pub const Parser = struct {
         if (val > std.math.maxInt(u21) or !std.unicode.utf8ValidCodepoint(@intCast(val))) {
             self.err(.invalid_universal_character, .{ .unsigned = start });
             return Item.replacement;
+        }
+
+        if (val > self.max_codepoint) {
+            self.err(.char_too_large, .{ .none = {} });
         }
 
         if (val < 0xA0 and (val != '$' and val != '@' and val != '`')) {
