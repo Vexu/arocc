@@ -7636,27 +7636,16 @@ fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8,
 fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
     const tok_id = p.tok_ids[p.tok_i];
-    const ty: Type = switch (tok_id) {
-        .char_literal => .{ .specifier = .int },
-        .char_literal_utf_8 => .{ .specifier = .uchar },
-        .char_literal_wide => p.comp.types.wchar,
-        .char_literal_utf_16 => p.comp.types.uint_least16_t,
-        .char_literal_utf_32 => p.comp.types.uint_least32_t,
-        else => unreachable,
-    };
-    const max: u32 = switch (tok_id) {
-        .char_literal => std.math.maxInt(u7),
-        .char_literal_wide => @intCast(p.comp.types.wchar.maxInt(p.comp)),
-        .char_literal_utf_8 => std.math.maxInt(u7),
-        .char_literal_utf_16 => std.math.maxInt(u16),
-        .char_literal_utf_32 => 0x10FFFF,
-        else => unreachable,
-    };
+    const char_kind = CharLiteral.Kind.classify(tok_id);
 
     const slice = p.tokSlice(p.tok_i);
     const start = mem.indexOf(u8, slice, "\'").? + 1;
 
-    var char_literal_parser = CharLiteral.Parser.init(slice[start .. slice.len - 1], p.comp.langopts.standard);
+    var char_literal_parser = CharLiteral.Parser.init(
+        slice[start .. slice.len - 1],
+        char_kind,
+        p.comp,
+    );
 
     const max_chars_expected = 4;
     var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
@@ -7666,7 +7655,7 @@ fn charLiteral(p: *Parser) Error!Result {
     while (char_literal_parser.next()) |item| switch (item) {
         .value => |c| try chars.append(c),
         .improperly_encoded => |s| {
-            const should_error = tok_id != .char_literal;
+            const should_error = char_kind != .char;
             const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
             try p.err(tag);
             if (!should_error) {
@@ -7680,7 +7669,7 @@ fn charLiteral(p: *Parser) Error!Result {
         .utf8_text => |view| {
             var it = view.iterator();
             while (it.nextCodepoint()) |c| {
-                if (c > max) {
+                if (c > char_literal_parser.max_codepoint) {
                     char_literal_parser.err(.char_too_large, .{ .none = {} });
                 }
                 try chars.append(c);
@@ -7693,14 +7682,14 @@ fn charLiteral(p: *Parser) Error!Result {
 
     const is_multichar = chars.items.len > 1;
     if (is_multichar) {
-        if (tok_id == .char_literal and chars.items.len == 4) {
+        if (char_kind == .char and chars.items.len == 4) {
             try p.err(.four_char_char_literal);
-        } else if (tok_id == .char_literal) {
+        } else if (char_kind == .char) {
             try p.err(.multichar_literal_warning);
         } else {
-            const kind = switch (tok_id) {
-                .char_literal_wide => "wide",
-                .char_literal_utf_8, .char_literal_utf_16, .char_literal_utf_32 => "Unicode",
+            const kind = switch (char_kind) {
+                .wide => "wide",
+                .utf_8, .utf_16, .utf_32 => "Unicode",
                 else => unreachable,
             };
             try p.errExtra(.invalid_multichar_literal, p.tok_i, .{ .str = kind });
@@ -7709,7 +7698,7 @@ fn charLiteral(p: *Parser) Error!Result {
 
     var multichar_overflow = false;
     var val: u32 = 0;
-    if (tok_id == .char_literal and is_multichar) {
+    if (char_kind == .char and is_multichar) {
         for (chars.items) |item| {
             val, const overflowed = @shlWithOverflow(val, 8);
             multichar_overflow = multichar_overflow or overflowed != 0;
@@ -7723,8 +7712,9 @@ fn charLiteral(p: *Parser) Error!Result {
         try p.err(.char_lit_too_wide);
     }
 
+    const ty = char_kind.charLiteralType(p.comp);
     // This is the type the literal will have if we're in a macro; macros always operate on intmax_t/uintmax_t values
-    const macro_ty = if (ty.isUnsignedInt(p.comp) or (tok_id == .char_literal and p.comp.getCharSignedness() == .unsigned))
+    const macro_ty = if (ty.isUnsignedInt(p.comp) or (char_kind == .char and p.comp.getCharSignedness() == .unsigned))
         p.comp.types.intmax.makeIntegerUnsigned()
     else
         p.comp.types.intmax;
