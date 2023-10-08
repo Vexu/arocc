@@ -7676,23 +7676,20 @@ fn charLiteral(p: *Parser) Error!Result {
             }
         },
     };
-    for (char_literal_parser.errors.constSlice()) |item| {
-        try p.errExtra(item.tag, p.tok_i, item.extra);
-    }
 
     const is_multichar = chars.items.len > 1;
     if (is_multichar) {
         if (char_kind == .char and chars.items.len == 4) {
-            try p.err(.four_char_char_literal);
+            char_literal_parser.warn(.four_char_char_literal, .{ .none = {} });
         } else if (char_kind == .char) {
-            try p.err(.multichar_literal_warning);
+            char_literal_parser.warn(.multichar_literal_warning, .{ .none = {} });
         } else {
             const kind = switch (char_kind) {
                 .wide => "wide",
                 .utf_8, .utf_16, .utf_32 => "Unicode",
                 else => unreachable,
             };
-            try p.errExtra(.invalid_multichar_literal, p.tok_i, .{ .str = kind });
+            char_literal_parser.err(.invalid_multichar_literal, .{ .str = kind });
         }
     }
 
@@ -7709,7 +7706,11 @@ fn charLiteral(p: *Parser) Error!Result {
     }
 
     if (multichar_overflow) {
-        try p.err(.char_lit_too_wide);
+        char_literal_parser.err(.char_lit_too_wide, .{ .none = {} });
+    }
+
+    for (char_literal_parser.errors.constSlice()) |item| {
+        try p.errExtra(item.tag, p.tok_i, item.extra);
     }
 
     const ty = char_kind.charLiteralType(p.comp);

@@ -2496,6 +2496,10 @@ const messages = struct {
         const msg = "multi-character character constant";
         const kind = .off;
     };
+    pub const missing_hex_escape = struct {
+        const msg = "\\x used with no following hex digits";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

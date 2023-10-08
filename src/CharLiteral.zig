@@ -107,7 +107,7 @@ pub const Parser = struct {
         self.errors.append(.{ .tag = tag, .extra = extra }) catch {};
     }
 
-    fn warn(self: *Parser, tag: Diagnostics.Tag, extra: Diagnostics.Message.Extra) void {
+    pub fn warn(self: *Parser, tag: Diagnostics.Tag, extra: Diagnostics.Message.Extra) void {
         if (self.errored) return;
         self.errors.append(.{ .tag = tag, .extra = extra }) catch {};
     }
@@ -249,6 +249,10 @@ pub const Parser = struct {
         }
         if (overflowed or val > self.max_int) {
             self.err(.escape_sequence_overflow, .{ .unsigned = 0 });
+        }
+        if (count == 0) {
+            std.debug.assert(base == .hex);
+            self.err(.missing_hex_escape, .{ .none = {} });
         }
         return val;
     }

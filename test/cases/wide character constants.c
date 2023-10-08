@@ -36,6 +36,8 @@ int O = u8'™';
 int P = u8'\u0041';
 int Q = u8'\x41';
 int R = u8'\u0024';
+int S = '\x';
+int T = '\xg';
 
 #define EXPECTED_ERRORS "wide character constants.c:9:27: error: character too large for enclosing character literal type" \
     "wide character constants.c:10:16: error: wide character literals may not contain multiple characters" \
@@ -51,4 +53,5 @@ int R = u8'\u0024';
     "wide character constants.c:33:9: error: Unicode character literals may not contain multiple characters" \
     "wide character constants.c:35:9: error: character too large for enclosing character literal type" \
     "wide character constants.c:36:9: error: character 'A' cannot be specified by a universal character name" \
-
+    "wide character constants.c:39:9: error: \\x used with no following hex digits" \
+    "wide character constants.c:40:9: error: \\x used with no following hex digits" \
