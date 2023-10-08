@@ -65,7 +65,7 @@ pub const Kind = enum {
     fn maxInt(kind: Kind, comp: *const Compilation) u32 {
         return @intCast(switch (kind) {
             .char, .utf_8 => std.math.maxInt(u8),
-            .wide => comp.types.wchar.sizeof(comp).?,
+            .wide => comp.types.wchar.maxInt(comp),
             .utf_16 => std.math.maxInt(u16),
             .utf_32 => std.math.maxInt(u32),
         });
