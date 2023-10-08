@@ -100,6 +100,8 @@ generated_buf: std.ArrayList(u8),
 builtins: Builtins = .{},
 types: struct {
     wchar: Type = undefined,
+    uint_least16_t: Type = undefined,
+    uint_least32_t: Type = undefined,
     ptrdiff: Type = undefined,
     size: Type = undefined,
     va_list: Type = undefined,
@@ -633,9 +635,23 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
         .intptr = intptr,
         .int16 = int16,
         .int64 = int64,
+        .uint_least16_t = comp.intLeastN(16, .unsigned),
+        .uint_least32_t = comp.intLeastN(32, .unsigned),
     };
 
     try comp.generateNsConstantStringType();
+}
+
+/// Smallest integer type with at least N bits
+fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) Type {
+    const candidates = switch (signedness) {
+        .signed => &[_]Type.Specifier{ .schar, .short, .int, .long, .long_long },
+        .unsigned => &[_]Type.Specifier{ .uchar, .ushort, .uint, .ulong, .ulong_long },
+    };
+    for (candidates) |specifier| {
+        const ty: Type = .{ .specifier = specifier };
+        if (ty.sizeof(comp).? * 8 >= bits) return ty;
+    } else unreachable;
 }
 
 fn intSize(comp: *const Compilation, specifier: Type.Specifier) u64 {

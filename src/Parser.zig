@@ -7640,8 +7640,8 @@ fn charLiteral(p: *Parser) Error!Result {
         .char_literal => .{ .specifier = .int },
         .char_literal_utf_8 => .{ .specifier = .uchar },
         .char_literal_wide => p.comp.types.wchar,
-        .char_literal_utf_16 => .{ .specifier = .ushort },
-        .char_literal_utf_32 => .{ .specifier = .ulong },
+        .char_literal_utf_16 => p.comp.types.uint_least16_t,
+        .char_literal_utf_32 => p.comp.types.uint_least32_t,
         else => unreachable,
     };
     const max: u32 = switch (tok_id) {
