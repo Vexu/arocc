@@ -12,8 +12,6 @@ pub const Item = union(enum) {
     improperly_encoded: []const u8,
     /// 1 or more unescaped bytes
     utf8_text: std.unicode.Utf8View,
-
-    const replacement: Item = .{ .value = 0xFFFD };
 };
 
 const CharDiagnostic = struct {
@@ -133,7 +131,7 @@ pub const Parser = struct {
         }
     }
 
-    fn parseUnicodeEscape(self: *Parser) Item {
+    fn parseUnicodeEscape(self: *Parser) ?Item {
         const start = self.i;
 
         std.debug.assert(self.literal[self.i] == '\\');
@@ -144,7 +142,7 @@ pub const Parser = struct {
         self.i += 2;
         if (self.i >= self.literal.len or !std.ascii.isHex(self.literal[self.i])) {
             self.err(.non_hex_ucn, .{ .ascii = @intCast(kind) });
-            return Item.replacement;
+            return null;
         }
         const expected_len: usize = if (kind == 'u') 4 else 8;
         var overflowed = false;
@@ -167,17 +165,17 @@ pub const Parser = struct {
 
         if (overflowed) {
             self.err(.escape_sequence_overflow, .{ .unsigned = start });
-            return Item.replacement;
+            return null;
         }
 
         if (count != expected_len) {
             self.err(.incomplete_universal_character, .{ .none = {} });
-            return Item.replacement;
+            return null;
         }
 
         if (val > std.math.maxInt(u21) or !std.unicode.utf8ValidCodepoint(@intCast(val))) {
             self.err(.invalid_universal_character, .{ .unsigned = start });
-            return Item.replacement;
+            return null;
         }
 
         if (val > self.max_codepoint) {
