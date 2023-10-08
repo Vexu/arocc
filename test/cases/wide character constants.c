@@ -29,6 +29,14 @@ unsigned long J = u'ab';
 unsigned long K = '\777';
 wchar_t L = L'\777';
 
+_Static_assert(sizeof(u8'a') == sizeof(char), "");
+int M = u8'ab';
+int N = u8'\xFF';
+int O = u8'™';
+int P = u8'\u0041';
+int Q = u8'\x41';
+int R = u8'\u0024';
+
 #define EXPECTED_ERRORS "wide character constants.c:9:27: error: character too large for enclosing character literal type" \
     "wide character constants.c:10:16: error: wide character literals may not contain multiple characters" \
     "wide character constants.c:11:16: error: Unicode character literals may not contain multiple characters" \
@@ -40,4 +48,7 @@ wchar_t L = L'\777';
     "wide character constants.c:27:19: error: Unicode character literals may not contain multiple characters" \
     "wide character constants.c:28:19: error: Unicode character literals may not contain multiple characters" \
     "wide character constants.c:29:19: error: escape sequence out of range" \
+    "wide character constants.c:33:9: error: Unicode character literals may not contain multiple characters" \
+    "wide character constants.c:35:9: error: character too large for enclosing character literal type" \
+    "wide character constants.c:36:9: error: character 'A' cannot be specified by a universal character name" \
 
