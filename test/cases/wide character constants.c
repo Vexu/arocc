@@ -44,6 +44,8 @@ _Static_assert('\(' == '(', "");
 _Static_assert('\[' == '[', "");
 _Static_assert('\{' == '{', "");
 _Static_assert('\%' == '%', "");
+int W = '\u';
+int X = '\U';
 
 
 #define EXPECTED_ERRORS "wide character constants.c:9:27: error: character too large for enclosing character literal type" \
@@ -64,4 +66,6 @@ _Static_assert('\%' == '%', "");
     "wide character constants.c:40:9: error: \\x used with no following hex digits" \
     "wide character constants.c:41:9: warning: unknown escape sequence '\\8' [-Wunknown-escape-sequence]" \
     "wide character constants.c:42:9: warning: unknown escape sequence '\\x09' [-Wunknown-escape-sequence]" \
+    "wide character constants.c:47:9: error: \\u used with no following hex digits" \
+    "wide character constants.c:48:9: error: \\U used with no following hex digits" \
 

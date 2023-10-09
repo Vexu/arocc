@@ -2457,10 +2457,6 @@ const messages = struct {
         const msg = "illegal character encoding in character literal";
         const kind = .@"error";
     };
-    pub const non_hex_ucn = struct {
-        const msg = "\\{c} used with no following hex digits";
-        const kind = .@"error";
-    };
     pub const ucn_basic_char_error = struct {
         const msg = "character '{c}' cannot be specified by a universal character name";
         const kind = .@"error";
@@ -2499,8 +2495,9 @@ const messages = struct {
         const kind = .off;
     };
     pub const missing_hex_escape = struct {
-        const msg = "\\x used with no following hex digits";
+        const msg = "\\{c} used with no following hex digits";
         const kind = .@"error";
+        const extra = .ascii;
     };
     pub const unknown_escape_sequence = struct {
         const msg = "unknown escape sequence '\\{s}'";
