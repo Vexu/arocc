@@ -56,6 +56,7 @@ pub const Message = struct {
         },
         actual_codepoint: u21,
         ascii: u7,
+        maybe_unprintable: u8,
         unsigned: u64,
         pow_2_as_string: u8,
         signed: i64,
@@ -173,6 +174,7 @@ pub const Options = packed struct {
     @"microsoft-end-of-file": Kind = .default,
     @"invalid-source-encoding": Kind = .default,
     @"four-char-constants": Kind = .default,
+    @"unknown-escape-sequence": Kind = .default,
 };
 
 const messages = struct {
@@ -2500,6 +2502,12 @@ const messages = struct {
         const msg = "\\x used with no following hex digits";
         const kind = .@"error";
     };
+    pub const unknown_escape_sequence = struct {
+        const msg = "unknown escape sequence '\\{s}'";
+        const kind = .warning;
+        const opt = "unknown-escape-sequence";
+        const extra = .maybe_unprintable;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -2741,6 +2749,16 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
                         @tagName(msg.extra.builtin_with_header.header),
                         @tagName(msg.extra.builtin_with_header.builtin),
                     }),
+                    .maybe_unprintable => {
+                        if (std.ascii.isPrint(msg.extra.maybe_unprintable)) {
+                            const str: [1]u8 = .{msg.extra.maybe_unprintable};
+                            m.print(info.msg, .{&str});
+                        } else {
+                            var buf: [3]u8 = undefined;
+                            _ = std.fmt.bufPrint(&buf, "x{x}", .{std.fmt.fmtSliceHexLower(&.{msg.extra.maybe_unprintable})}) catch unreachable;
+                            m.print(info.msg, .{&buf});
+                        }
+                    },
                     else => @compileError("invalid extra kind " ++ @tagName(info.extra)),
                 }
             } else {

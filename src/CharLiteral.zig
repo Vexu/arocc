@@ -205,11 +205,15 @@ pub const Parser = struct {
 
     fn parseEscapedChar(self: *Parser) Item {
         self.i += 1;
+        const c = self.literal[self.i];
+        defer if (c != 'x' and (c < '0' or c > '7')) {
+            self.i += 1;
+        };
 
-        switch (self.literal[self.i]) {
+        switch (c) {
             '\n' => unreachable, // removed by line splicing
             '\r' => unreachable, // removed by line splicing
-            '\'', '\"', '\\', '?' => |c| return .{ .value = c },
+            '\'', '\"', '\\', '?' => return .{ .value = c },
             'n' => return .{ .value = '\n' },
             'r' => return .{ .value = '\r' },
             't' => return .{ .value = '\t' },
@@ -224,7 +228,10 @@ pub const Parser = struct {
             'x' => return .{ .value = self.parseNumberEscape(.hex) },
             '0'...'7' => return .{ .value = self.parseNumberEscape(.octal) },
             'u', 'U' => unreachable, // handled by parseUnicodeEscape
-            else => unreachable,
+            else => {
+                self.warn(.unknown_escape_sequence, .{ .maybe_unprintable = c });
+                return .{ .value = c };
+            },
         }
     }
 
