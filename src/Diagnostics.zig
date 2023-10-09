@@ -1823,7 +1823,7 @@ const messages = struct {
         const kind = .warning;
     };
     pub const non_standard_escape_char = struct {
-        const msg = "use of non-standard escape character '\\e'";
+        const msg = "use of non-standard escape character";
         const kind = .off;
         const opt = "pedantic";
     };

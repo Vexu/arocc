@@ -40,6 +40,11 @@ int S = '\x';
 int T = '\xg';
 int U = '\8';
 int V = '\	'; // tab character
+_Static_assert('\(' == '(', "");
+_Static_assert('\[' == '[', "");
+_Static_assert('\{' == '{', "");
+_Static_assert('\%' == '%', "");
+
 
 #define EXPECTED_ERRORS "wide character constants.c:9:27: error: character too large for enclosing character literal type" \
     "wide character constants.c:10:16: error: wide character literals may not contain multiple characters" \
@@ -58,4 +63,5 @@ int V = '\	'; // tab character
     "wide character constants.c:39:9: error: \\x used with no following hex digits" \
     "wide character constants.c:40:9: error: \\x used with no following hex digits" \
     "wide character constants.c:41:9: warning: unknown escape sequence '\\8' [-Wunknown-escape-sequence]" \
+    "wide character constants.c:42:9: warning: unknown escape sequence '\\x09' [-Wunknown-escape-sequence]" \
 
