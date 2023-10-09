@@ -10,9 +10,10 @@ const AllocatorError = std.mem.Allocator.Error;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
-/// Returns true if saw -E
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !bool {
+/// Returns only_preprocess and line_markers settings if saw -E
+fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !struct { bool, aro.Preprocessor.Linemarkers } {
     var only_preprocess = false;
+    var line_markers: aro.Preprocessor.Linemarkers = .none;
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
         var test_args = std.ArrayList([]const u8).init(comp.gpa);
         defer test_args.deinit();
@@ -24,6 +25,11 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         defer driver.deinit();
         _ = try driver.parseArgs(std.io.null_writer, macro_buf, test_args.items);
         only_preprocess = driver.only_preprocess;
+        if (only_preprocess) {
+            if (driver.line_commands) {
+                line_markers = if (driver.use_line_directives) .line_directives else .numeric_directives;
+            }
+        }
     }
     if (std.mem.indexOf(u8, file.buf, "//aro-env")) |idx| {
         const buf = file.buf[idx..];
@@ -41,7 +47,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         }
     }
 
-    return only_preprocess;
+    return .{ only_preprocess, line_markers };
 }
 
 fn testOne(allocator: std.mem.Allocator, path: []const u8, self_exe_dir: []const u8) !void {
@@ -204,7 +210,7 @@ pub fn main() !void {
         var macro_buf = std.ArrayList(u8).init(comp.gpa);
         defer macro_buf.deinit();
 
-        const only_preprocess = try addCommandLineArgs(&comp, file, macro_buf.writer());
+        const only_preprocess, const linemarkers = try addCommandLineArgs(&comp, file, macro_buf.writer());
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
         const builtin_macros = try comp.generateBuiltinMacros();
@@ -212,7 +218,10 @@ pub fn main() !void {
         comp.diag.errors = 0;
         var pp = aro.Preprocessor.init(&comp);
         defer pp.deinit();
-        if (only_preprocess) pp.preserve_whitespace = true;
+        if (only_preprocess) {
+            pp.preserve_whitespace = true;
+            pp.linemarkers = linemarkers;
+        }
         try pp.addBuiltinMacros();
 
         if (comp.langopts.ms_extensions) {

@@ -1,4 +1,4 @@
-//aro-args -fms-extensions
+//aro-args -fms-extensions -Wno-microsoft-include
 
 #include "include\other.h"
 

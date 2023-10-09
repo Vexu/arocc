@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -P -E
 
 #define CAT(a, b) a##b
 #define CAT2(a, b) (a##b)

@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 
 #define A(x) x
 #define B(x) A(x)

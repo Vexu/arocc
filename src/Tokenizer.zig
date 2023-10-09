@@ -290,6 +290,13 @@ pub const Token = struct {
         /// See C99 6.10.3.3.2
         placemarker,
 
+        /// Virtual linemarker token output from preprocessor to indicate start of a new include
+        include_start,
+
+        /// Virtual linemarker token output from preprocessor to indicate resuming a file after
+        /// completion of the preceding #include
+        include_resume,
+
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
@@ -458,6 +465,10 @@ pub const Token = struct {
 
         pub fn lexeme(id: Id) ?[]const u8 {
             return switch (id) {
+                .include_start,
+                .include_resume,
+                => unreachable,
+
                 .invalid,
                 .identifier,
                 .extended_identifier,

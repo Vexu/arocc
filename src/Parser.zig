@@ -615,6 +615,7 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
 
 /// root : (decl | assembly ';' | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
+    assert(pp.linemarkers == .none);
     pp.comp.pragmaEvent(.before_parse);
 
     var arena = std.heap.ArenaAllocator.init(pp.comp.gpa);

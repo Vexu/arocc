@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 // example from the C18 standard draft, 6.10.3.5, example 3
 #define x 3
 #define f(a) f(x * (a)) 

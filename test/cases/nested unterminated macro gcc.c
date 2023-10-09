@@ -1,4 +1,4 @@
-//aro-args -E --emulate=gcc
+//aro-args -E -P --emulate=gcc
 #define str(s) # s
 #define xstr(s) str(s)
 #define INCFILE(n) str(strcmp(

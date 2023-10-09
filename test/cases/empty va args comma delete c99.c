@@ -1,4 +1,4 @@
-//aro-args -E -std=c99
+//aro-args -E -std=c99 -P
 
 #define ZERO_ARGS(...) foo(a, ##__VA_ARGS__)
 
