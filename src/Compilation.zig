@@ -1084,10 +1084,8 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
     const splice_locs = try splice_list.toOwnedSlice();
     errdefer comp.gpa.free(splice_locs);
 
-    // Important: do not perform any possibly-failing operations in this function after this realloc.
-    // Otherwise errdefers in callers will possibly free the realloced slice using the original len
-    // instead of the new
     if (i != contents.len) contents = try comp.gpa.realloc(contents, i);
+    errdefer @compileError("errdefers in callers would possibly free the realloced slice using the original len");
 
     var source = Source{
         .id = source_id,
