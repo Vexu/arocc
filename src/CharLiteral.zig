@@ -80,6 +80,19 @@ pub const Kind = enum {
             .utf_32 => comp.types.uint_least32_t,
         };
     }
+
+    /// Return the actual contents of the string literal with leading / trailing quotes and
+    /// specifiers removed
+    pub fn contentSlice(kind: Kind, delimited: []const u8) []const u8 {
+        const end = delimited.len - 1;  // remove trailing quote
+        return switch (kind) {
+            .char => delimited[1..end],
+            .wide => delimited[2..end],
+            .utf_8 => delimited[3..end],
+            .utf_16 => delimited[2..end],
+            .utf_32 => delimited[2..end],
+        };
+    }
 };
 
 pub const Parser = struct {

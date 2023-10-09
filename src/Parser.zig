@@ -7638,11 +7638,10 @@ fn charLiteral(p: *Parser) Error!Result {
     const tok_id = p.tok_ids[p.tok_i];
     const char_kind = CharLiteral.Kind.classify(tok_id);
 
-    const slice = p.tokSlice(p.tok_i);
-    const start = mem.indexOf(u8, slice, "\'").? + 1;
+    const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
 
     var char_literal_parser = CharLiteral.Parser.init(
-        slice[start .. slice.len - 1],
+        slice,
         char_kind,
         p.comp,
     );
