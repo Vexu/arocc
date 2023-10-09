@@ -73,7 +73,7 @@ pub const Kind = enum {
 
     pub fn charLiteralType(kind: Kind, comp: *const Compilation) Type {
         return switch (kind) {
-            .char => .{ .specifier = .int },
+            .char => Type.int,
             .wide => comp.types.wchar,
             .utf_8 => .{ .specifier = .uchar },
             .utf_16 => comp.types.uint_least16_t,
