@@ -7637,81 +7637,86 @@ fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
     const tok_id = p.tok_ids[p.tok_i];
     const char_kind = CharLiteral.Kind.classify(tok_id);
+    var val: u32 = 0;
 
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
 
-    var char_literal_parser = CharLiteral.Parser.init(
-        slice,
-        char_kind,
-        p.comp,
-    );
+    if (slice.len == 1 and std.ascii.isASCII(slice[0])) {
+        // fast path: single unescaped ASCII char
+        val = slice[0];
+    } else {
+        var char_literal_parser = CharLiteral.Parser.init(
+            slice,
+            char_kind,
+            p.comp,
+        );
 
-    const max_chars_expected = 4;
-    var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
-    var chars = std.ArrayList(u32).initCapacity(stack_fallback.get(), max_chars_expected) catch unreachable; // stack allocation already succeeded
-    defer chars.deinit();
+        const max_chars_expected = 4;
+        var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
+        var chars = std.ArrayList(u32).initCapacity(stack_fallback.get(), max_chars_expected) catch unreachable; // stack allocation already succeeded
+        defer chars.deinit();
 
-    while (char_literal_parser.next()) |item| switch (item) {
-        .value => |c| try chars.append(c),
-        .improperly_encoded => |s| {
-            const should_error = char_kind != .char;
-            const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
-            try p.err(tag);
-            if (!should_error) {
-                for (s) |c| {
+        while (char_literal_parser.next()) |item| switch (item) {
+            .value => |c| try chars.append(c),
+            .improperly_encoded => |s| {
+                const should_error = char_kind != .char;
+                const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
+                try p.err(tag);
+                if (!should_error) {
+                    for (s) |c| {
+                        try chars.append(c);
+                    }
+                } else {
+                    char_literal_parser.errored = true;
+                }
+            },
+            .utf8_text => |view| {
+                var it = view.iterator();
+                var max_codepoint: u21 = 0;
+                while (it.nextCodepoint()) |c| {
+                    max_codepoint = @max(max_codepoint, c);
                     try chars.append(c);
                 }
+                if (max_codepoint > char_literal_parser.max_codepoint) {
+                    char_literal_parser.err(.char_too_large, .{ .none = {} });
+                }
+            },
+        };
+
+        const is_multichar = chars.items.len > 1;
+        if (is_multichar) {
+            if (char_kind == .char and chars.items.len == 4) {
+                char_literal_parser.warn(.four_char_char_literal, .{ .none = {} });
+            } else if (char_kind == .char) {
+                char_literal_parser.warn(.multichar_literal_warning, .{ .none = {} });
             } else {
-                char_literal_parser.errored = true;
+                const kind = switch (char_kind) {
+                    .wide => "wide",
+                    .utf_8, .utf_16, .utf_32 => "Unicode",
+                    else => unreachable,
+                };
+                char_literal_parser.err(.invalid_multichar_literal, .{ .str = kind });
             }
-        },
-        .utf8_text => |view| {
-            var it = view.iterator();
-            var max_codepoint: u21 = 0;
-            while (it.nextCodepoint()) |c| {
-                max_codepoint = @max(max_codepoint, c);
-                try chars.append(c);
-            }
-            if (max_codepoint > char_literal_parser.max_codepoint) {
-                char_literal_parser.err(.char_too_large, .{ .none = {} });
-            }
-        },
-    };
-
-    const is_multichar = chars.items.len > 1;
-    if (is_multichar) {
-        if (char_kind == .char and chars.items.len == 4) {
-            char_literal_parser.warn(.four_char_char_literal, .{ .none = {} });
-        } else if (char_kind == .char) {
-            char_literal_parser.warn(.multichar_literal_warning, .{ .none = {} });
-        } else {
-            const kind = switch (char_kind) {
-                .wide => "wide",
-                .utf_8, .utf_16, .utf_32 => "Unicode",
-                else => unreachable,
-            };
-            char_literal_parser.err(.invalid_multichar_literal, .{ .str = kind });
         }
-    }
 
-    var multichar_overflow = false;
-    var val: u32 = 0;
-    if (char_kind == .char and is_multichar) {
-        for (chars.items) |item| {
-            val, const overflowed = @shlWithOverflow(val, 8);
-            multichar_overflow = multichar_overflow or overflowed != 0;
-            val += @as(u8, @truncate(item));
+        var multichar_overflow = false;
+        if (char_kind == .char and is_multichar) {
+            for (chars.items) |item| {
+                val, const overflowed = @shlWithOverflow(val, 8);
+                multichar_overflow = multichar_overflow or overflowed != 0;
+                val += @as(u8, @truncate(item));
+            }
+        } else if (chars.items.len > 0) {
+            val = chars.items[chars.items.len - 1];
         }
-    } else if (chars.items.len > 0) {
-        val = chars.items[chars.items.len - 1];
-    }
 
-    if (multichar_overflow) {
-        char_literal_parser.err(.char_lit_too_wide, .{ .none = {} });
-    }
+        if (multichar_overflow) {
+            char_literal_parser.err(.char_lit_too_wide, .{ .none = {} });
+        }
 
-    for (char_literal_parser.errors.constSlice()) |item| {
-        try p.errExtra(item.tag, p.tok_i, item.extra);
+        for (char_literal_parser.errors.constSlice()) |item| {
+            try p.errExtra(item.tag, p.tok_i, item.extra);
+        }
     }
 
     const ty = char_kind.charLiteralType(p.comp);
