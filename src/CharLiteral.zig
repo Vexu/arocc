@@ -84,7 +84,7 @@ pub const Kind = enum {
     /// Return the actual contents of the string literal with leading / trailing quotes and
     /// specifiers removed
     pub fn contentSlice(kind: Kind, delimited: []const u8) []const u8 {
-        const end = delimited.len - 1;  // remove trailing quote
+        const end = delimited.len - 1; // remove trailing quote
         return switch (kind) {
             .char => delimited[1..end],
             .wide => delimited[2..end],

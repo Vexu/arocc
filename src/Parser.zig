@@ -7645,11 +7645,7 @@ fn charLiteral(p: *Parser) Error!Result {
         // fast path: single unescaped ASCII char
         val = slice[0];
     } else {
-        var char_literal_parser = CharLiteral.Parser.init(
-            slice,
-            char_kind,
-            p.comp,
-        );
+        var char_literal_parser = CharLiteral.Parser.init(slice, char_kind, p.comp);
 
         const max_chars_expected = 4;
         var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
