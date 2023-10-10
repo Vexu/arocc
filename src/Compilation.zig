@@ -1104,7 +1104,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
 /// the allocation, please use `addSourceFromOwnedBuffer`
 pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8) !Source {
     if (comp.sources.get(path)) |some| return some;
-    if (buf.len > std.math.maxInt(u32)) return error.StreamTooLong;
+    if (@as(u64, buf.len) > std.math.maxInt(u32)) return error.StreamTooLong;
 
     const contents = try comp.gpa.dupe(u8, buf);
     errdefer comp.gpa.free(contents);
