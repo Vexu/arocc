@@ -227,6 +227,27 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
     return eof;
 }
 
+/// Tokenize a file without any preprocessing, returns eof token.
+pub fn tokenize(pp: *Preprocessor, source: Source) Error!Token {
+    assert(pp.linemarkers == .none);
+    assert(pp.preserve_whitespace == false);
+    var tokenizer = Tokenizer{
+        .buf = source.buf,
+        .comp = pp.comp,
+        .source = source.id,
+    };
+
+    // Estimate how many new tokens this source will contain.
+    const estimated_token_count = source.buf.len / 8;
+    try pp.tokens.ensureTotalCapacity(pp.gpa, pp.tokens.len + estimated_token_count);
+
+    while (true) {
+        var tok = tokenizer.next();
+        if (tok.id == .eof) return tokFromRaw(tok);
+        try pp.tokens.append(pp.gpa, tokFromRaw(tok));
+    }
+}
+
 pub fn addIncludeStart(pp: *Preprocessor, source: Source) !void {
     if (pp.linemarkers == .none) return;
     try pp.tokens.append(pp.gpa, .{ .id = .include_start, .loc = .{

@@ -1742,10 +1742,10 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
                 try p.errStr(.tentative_array, name, try p.typeStr(init_d.d.ty));
                 break :incomplete;
             } else if (init_d.d.ty.getRecord()) |record| {
-                _ = try p.tentative_defs.getOrPutValue(p.comp.gpa, record.name, init_d.d.name);
+                _ = try p.tentative_defs.getOrPutValue(p.gpa, record.name, init_d.d.name);
                 break :incomplete;
             } else if (init_d.d.ty.get(.@"enum")) |en| {
-                _ = try p.tentative_defs.getOrPutValue(p.comp.gpa, en.data.@"enum".name, init_d.d.name);
+                _ = try p.tentative_defs.getOrPutValue(p.gpa, en.data.@"enum".name, init_d.d.name);
                 break :incomplete;
             }
         }
@@ -2128,7 +2128,7 @@ fn recordSpec(p: *Parser) Error!Type {
             // TODO: msvc considers `#pragma pack` on a per-field basis
             .msvc => p.pragma_pack,
         };
-        record_layout.compute(record_ty, ty, p.pp.comp, pragma_pack_value);
+        record_layout.compute(record_ty, ty, p.comp, pragma_pack_value);
     }
 
     // finish by creating a node
@@ -3405,7 +3405,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type,
         return false;
     } else if (ty.get(.@"struct")) |struct_ty| {
         if (il.*.node != .none) return false;
-        if (actual_ty.eql(ty.*, p.pp.comp, false)) return true;
+        if (actual_ty.eql(ty.*, p.comp, false)) return true;
         const start_index = il.*.list.items.len;
         var index = if (start_index != 0) il.*.list.items[start_index - 1].index + 1 else start_index;
 
@@ -3425,14 +3425,14 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type,
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
         if (il.*.node != .none) return false;
-        if (actual_ty.eql(ty.*, p.pp.comp, false)) return true;
+        if (actual_ty.eql(ty.*, p.comp, false)) return true;
         if (union_ty.data.record.fields.len == 0) {
             try p.errTok(.empty_aggregate_init_braces, first_tok);
             return error.ParsingFailed;
         }
         ty.* = union_ty.data.record.fields[0].ty;
         il.* = try il.*.find(p.gpa, 0);
-        // if (il.*.node == .none and actual_ty.eql(ty, p.pp.comp, false)) return true;
+        // if (il.*.node == .none and actual_ty.eql(ty, p.comp, false)) return true;
         if (try p.findScalarInitializer(il, ty, actual_ty, first_tok)) return true;
         return false;
     }
@@ -3758,7 +3758,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, l_paren: TokenIndex
     const expected_items = 8; // arbitrarily chosen, most assembly will have fewer than 8 inputs/outputs/constraints/names
     const bytes_needed = expected_items * @sizeOf(?TokenIndex) + expected_items * 3 * @sizeOf(NodeIndex);
 
-    var stack_fallback = std.heap.stackFallback(bytes_needed, p.comp.gpa);
+    var stack_fallback = std.heap.stackFallback(bytes_needed, p.gpa);
     const allocator = stack_fallback.get();
 
     // TODO: Consider using a TokenIndex of 0 instead of null if we need to store the names in the tree
@@ -7945,7 +7945,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
     try p.errStr(.pre_c2x_compat, tok_i, "'_BitInt' suffix for literals");
     try p.errTok(.bitint_suffix, tok_i);
 
-    var managed = try big.int.Managed.init(p.comp.gpa);
+    var managed = try big.int.Managed.init(p.gpa);
     defer managed.deinit();
 
     managed.setString(base, buf) catch |e| switch (e) {
