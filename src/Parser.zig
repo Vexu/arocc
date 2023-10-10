@@ -7661,9 +7661,10 @@ fn charLiteral(p: *Parser) Error!Result {
             .utf8_text => |view| {
                 var it = view.iterator();
                 var max_codepoint: u21 = 0;
+                try chars.ensureUnusedCapacity(view.bytes.len);
                 while (it.nextCodepoint()) |c| {
                     max_codepoint = @max(max_codepoint, c);
-                    try chars.append(c);
+                    chars.appendAssumeCapacity(c);
                 }
                 if (max_codepoint > char_kind.maxCodepoint(p.comp)) {
                     char_literal_parser.err(.char_too_large, .{ .none = {} });
