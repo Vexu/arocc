@@ -7655,16 +7655,8 @@ fn charLiteral(p: *Parser) Error!Result {
         while (char_literal_parser.next()) |item| switch (item) {
             .value => |c| try chars.append(c),
             .improperly_encoded => |s| {
-                const should_error = char_kind != .char;
-                const tag: Diagnostics.Tag = if (should_error) .illegal_char_encoding_error else .illegal_char_encoding_warning;
-                try p.err(tag);
-                if (!should_error) {
-                    for (s) |c| {
-                        try chars.append(c);
-                    }
-                } else {
-                    char_literal_parser.errored = true;
-                }
+                try chars.ensureUnusedCapacity(s.len);
+                for (s) |c| chars.appendAssumeCapacity(c);
             },
             .utf8_text => |view| {
                 var it = view.iterator();
@@ -7673,7 +7665,7 @@ fn charLiteral(p: *Parser) Error!Result {
                     max_codepoint = @max(max_codepoint, c);
                     try chars.append(c);
                 }
-                if (max_codepoint > char_literal_parser.max_codepoint) {
+                if (max_codepoint > char_kind.maxCodepoint(p.comp)) {
                     char_literal_parser.err(.char_too_large, .{ .none = {} });
                 }
             },

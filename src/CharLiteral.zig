@@ -51,7 +51,7 @@ pub const Kind = enum {
     /// May be smaller than the largest value that can be represented.
     /// For example u8 char literals may only specify 0-127 via literals or
     /// character escapes, but may specify up to \xFF via hex escapes.
-    fn maxCodepoint(kind: Kind, comp: *const Compilation) u21 {
+    pub fn maxCodepoint(kind: Kind, comp: *const Compilation) u21 {
         return @intCast(switch (kind) {
             .char => std.math.maxInt(u7),
             .wide => @min(0x10FFFF, comp.types.wchar.maxInt(comp)),
@@ -62,7 +62,7 @@ pub const Kind = enum {
     }
 
     /// Largest integer that can be represented by this character kind
-    fn maxInt(kind: Kind, comp: *const Compilation) u32 {
+    pub fn maxInt(kind: Kind, comp: *const Compilation) u32 {
         return @intCast(switch (kind) {
             .char, .utf_8 => std.math.maxInt(u8),
             .wide => comp.types.wchar.maxInt(comp),
@@ -98,8 +98,7 @@ pub const Kind = enum {
 pub const Parser = struct {
     literal: []const u8,
     i: usize = 0,
-    max_codepoint: u21,
-    max_int: u32,
+    kind: Kind,
     /// We only want to issue a max of 1 error per char literal
     errored: bool = false,
     errors: std.BoundedArray(CharDiagnostic, 4) = .{},
@@ -109,8 +108,7 @@ pub const Parser = struct {
         return .{
             .literal = literal,
             .comp = comp,
-            .max_int = kind.maxInt(comp),
-            .max_codepoint = kind.maxCodepoint(comp),
+            .kind = kind,
         };
     }
 
@@ -134,6 +132,11 @@ pub const Parser = struct {
             const unescaped_slice = self.literal[start..self.i];
 
             const view = std.unicode.Utf8View.init(unescaped_slice) catch {
+                if (self.kind != .char) {
+                    self.err(.illegal_char_encoding_error, .{ .none = {} });
+                } else {
+                    self.warn(.illegal_char_encoding_warning, .{ .none = {} });
+                }
                 return .{ .improperly_encoded = self.literal[start..self.i] };
             };
             return .{ .utf8_text = view };
@@ -191,7 +194,7 @@ pub const Parser = struct {
             return null;
         }
 
-        if (val > self.max_codepoint) {
+        if (val > self.kind.maxCodepoint(self.comp)) {
             self.err(.char_too_large, .{ .none = {} });
         }
 
@@ -271,7 +274,7 @@ pub const Parser = struct {
             val += char;
             count += 1;
         }
-        if (overflowed or val > self.max_int) {
+        if (overflowed or val > self.kind.maxInt(self.comp)) {
             self.err(.escape_sequence_overflow, .{ .unsigned = 0 });
         }
         if (count == 0) {
