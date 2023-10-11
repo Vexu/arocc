@@ -46,7 +46,10 @@ _Static_assert('\{' == '{', "");
 _Static_assert('\%' == '%', "");
 int W = '\u';
 int X = '\U';
-
+#pragma GCC diagnostic warning "-Wpedantic"
+int Y = 'abc\E';
+#pragma GCC diagnostic pop
+int Z = 'ABC\D';
 
 #define EXPECTED_ERRORS "wide character constants.c:9:27: error: character too large for enclosing character literal type" \
     "wide character constants.c:10:16: error: wide character literals may not contain multiple characters" \
@@ -64,8 +67,12 @@ int X = '\U';
     "wide character constants.c:36:9: error: character 'A' cannot be specified by a universal character name" \
     "wide character constants.c:39:9: error: \\x used with no following hex digits" \
     "wide character constants.c:40:9: error: \\x used with no following hex digits" \
-    "wide character constants.c:41:9: warning: unknown escape sequence '\\8' [-Wunknown-escape-sequence]" \
-    "wide character constants.c:42:9: warning: unknown escape sequence '\\x09' [-Wunknown-escape-sequence]" \
+    "wide character constants.c:41:10: warning: unknown escape sequence '\\8' [-Wunknown-escape-sequence]" \
+    "wide character constants.c:42:10: warning: unknown escape sequence '\\x09' [-Wunknown-escape-sequence]" \
     "wide character constants.c:47:9: error: \\u used with no following hex digits" \
     "wide character constants.c:48:9: error: \\U used with no following hex digits" \
+    "wide character constants.c:50:13: warning: use of non-standard escape character '\\E' [-Wpedantic]" \
+    "wide character constants.c:50:9: warning: multi-character character constant [-Wfour-char-constants]" \
+    "wide character constants.c:52:13: warning: unknown escape sequence '\\D' [-Wunknown-escape-sequence]" \
+    "wide character constants.c:52:9: warning: multi-character character constant [-Wfour-char-constants]" \
 

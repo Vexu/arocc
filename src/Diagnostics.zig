@@ -54,9 +54,12 @@ pub const Message = struct {
             builtin: BuiltinFunction.Tag,
             header: Header,
         },
+        invalid_escape: struct {
+            offset: u32,
+            char: u8,
+        },
         actual_codepoint: u21,
         ascii: u7,
-        maybe_unprintable: u8,
         unsigned: u64,
         pow_2_as_string: u8,
         signed: i64,
@@ -1823,9 +1826,10 @@ const messages = struct {
         const kind = .warning;
     };
     pub const non_standard_escape_char = struct {
-        const msg = "use of non-standard escape character";
+        const msg = "use of non-standard escape character '\\{s}'";
         const kind = .off;
         const opt = "pedantic";
+        const extra = .invalid_escape;
     };
     pub const invalid_pp_stringify_escape = struct {
         const msg = "invalid string literal, ignoring final '\\'";
@@ -2503,7 +2507,7 @@ const messages = struct {
         const msg = "unknown escape sequence '\\{s}'";
         const kind = .warning;
         const opt = "unknown-escape-sequence";
-        const extra = .maybe_unprintable;
+        const extra = .invalid_escape;
     };
 };
 
@@ -2679,9 +2683,11 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
         switch (msg.tag) {
             .escape_sequence_overflow,
             .invalid_universal_character,
-            .non_standard_escape_char,
             // use msg.extra.unsigned for index into string literal
             => loc.byte_offset += @truncate(msg.extra.unsigned),
+            .non_standard_escape_char,
+            .unknown_escape_sequence,
+            => loc.byte_offset += msg.extra.invalid_escape.offset,
             else => {},
         }
         const source = comp.getSource(loc.id);
@@ -2746,13 +2752,13 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
                         @tagName(msg.extra.builtin_with_header.header),
                         @tagName(msg.extra.builtin_with_header.builtin),
                     }),
-                    .maybe_unprintable => {
-                        if (std.ascii.isPrint(msg.extra.maybe_unprintable)) {
-                            const str: [1]u8 = .{msg.extra.maybe_unprintable};
+                    .invalid_escape => {
+                        if (std.ascii.isPrint(msg.extra.invalid_escape.char)) {
+                            const str: [1]u8 = .{msg.extra.invalid_escape.char};
                             m.print(info.msg, .{&str});
                         } else {
                             var buf: [3]u8 = undefined;
-                            _ = std.fmt.bufPrint(&buf, "x{x}", .{std.fmt.fmtSliceHexLower(&.{msg.extra.maybe_unprintable})}) catch unreachable;
+                            _ = std.fmt.bufPrint(&buf, "x{x}", .{std.fmt.fmtSliceHexLower(&.{msg.extra.invalid_escape.char})}) catch unreachable;
                             m.print(info.msg, .{&buf});
                         }
                     },

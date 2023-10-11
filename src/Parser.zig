@@ -7569,7 +7569,7 @@ fn stringLiteral(p: *Parser) Error!Result {
                         'a' => p.retained_strings.appendAssumeCapacity(0x07),
                         'b' => p.retained_strings.appendAssumeCapacity(0x08),
                         'e' => {
-                            try p.errExtra(.non_standard_escape_char, start, .{ .unsigned = i - 1 });
+                            try p.errExtra(.non_standard_escape_char, start, .{ .invalid_escape = .{ .char = 'e', .offset = @intCast(i) } });
                             p.retained_strings.appendAssumeCapacity(0x1B);
                         },
                         'f' => p.retained_strings.appendAssumeCapacity(0x0C),

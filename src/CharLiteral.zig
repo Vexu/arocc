@@ -236,11 +236,11 @@ pub const Parser = struct {
             'a' => return .{ .value = 0x07 },
             'b' => return .{ .value = 0x08 },
             'e', 'E' => {
-                self.warn(.non_standard_escape_char, .{ .unsigned = self.i });
+                self.warn(.non_standard_escape_char, .{ .invalid_escape = .{ .char = c, .offset = @intCast(self.i) } });
                 return .{ .value = 0x1B };
             },
             '(', '{', '[', '%' => {
-                self.warn(.non_standard_escape_char, .{ .unsigned = self.i });
+                self.warn(.non_standard_escape_char, .{ .invalid_escape = .{ .char = c, .offset = @intCast(self.i) } });
                 return .{ .value = c };
             },
             'f' => return .{ .value = 0x0C },
@@ -249,7 +249,7 @@ pub const Parser = struct {
             '0'...'7' => return .{ .value = self.parseNumberEscape(.octal) },
             'u', 'U' => unreachable, // handled by parseUnicodeEscape
             else => {
-                self.warn(.unknown_escape_sequence, .{ .maybe_unprintable = c });
+                self.warn(.unknown_escape_sequence, .{ .invalid_escape = .{ .char = c, .offset = @intCast(self.i) } });
                 return .{ .value = c };
             },
         }
