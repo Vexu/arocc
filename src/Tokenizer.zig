@@ -995,6 +995,7 @@ pub fn next(self: *Tokenizer) Token {
         path_escape,
         char_literal_start,
         char_literal,
+        char_escape_sequence,
         escape_sequence,
         octal_escape,
         hex_escape,
@@ -1233,10 +1234,8 @@ pub fn next(self: *Tokenizer) Token {
             },
             .char_literal_start => switch (c) {
                 '\\' => {
-                    return_state = .char_literal;
-                    state = .escape_sequence;
+                    state = .char_escape_sequence;
                 },
-
                 '\'', '\n' => {
                     id = .invalid;
                     break;
@@ -1247,8 +1246,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .char_literal => switch (c) {
                 '\\' => {
-                    return_state = .char_literal;
-                    state = .escape_sequence;
+                    state = .char_escape_sequence;
                 },
                 '\'' => {
                     self.index += 1;
@@ -1260,14 +1258,15 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 else => {},
             },
+            .char_escape_sequence => switch (c) {
+                '\r', '\n' => unreachable, // removed by line splicing
+                else => state = .char_literal,
+            },
             .escape_sequence => switch (c) {
                 '\'', '"', '?', '\\', 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v' => {
                     state = return_state;
                 },
-                '\n' => {
-                    state = return_state;
-                    self.line += 1;
-                },
+                '\r', '\n' => unreachable, // removed by line splicing
                 '0'...'7' => {
                     counter = 1;
                     state = .octal_escape;
@@ -1724,6 +1723,7 @@ pub fn next(self: *Tokenizer) Token {
             .char_literal_start,
             .char_literal,
             .escape_sequence,
+            .char_escape_sequence,
             .octal_escape,
             .hex_escape,
             .unicode_escape,

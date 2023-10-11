@@ -23,4 +23,4 @@ _Static_assert(1, "aaァ\e[1;");
     "strings.c:9:20: error: invalid universal character" \
     "strings.c:10:20: error: invalid universal character" \
     "strings.c:11:20: error: invalid universal character" \
-    "strings.c:15:23: warning: use of non-standard escape character '\\e' [-Wpedantic]" \
+    "strings.c:15:24: warning: use of non-standard escape character '\\e' [-Wpedantic]" \
