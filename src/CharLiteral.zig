@@ -19,30 +19,56 @@ const CharDiagnostic = struct {
     extra: Diagnostics.Message.Extra,
 };
 
-pub const Kind = enum {
+pub const StringKind = enum {
     char,
     wide,
     utf_8,
     utf_16,
     utf_32,
 
-    pub fn classify(id: Tokenizer.Token.Id) Kind {
+    pub fn classify(id: Tokenizer.Token.Id) ?StringKind {
         return switch (id) {
-            .char_literal,
-            .string_literal,
-            => .char,
-            .char_literal_utf_8,
-            .string_literal_utf_8,
-            => .utf_8,
-            .char_literal_wide,
-            .string_literal_wide,
-            => .wide,
-            .char_literal_utf_16,
-            .string_literal_utf_16,
-            => .utf_16,
-            .char_literal_utf_32,
-            .string_literal_utf_32,
-            => .utf_32,
+            .string_literal => .char,
+            .string_literal_utf_8 => .utf_8,
+            .string_literal_wide => .wide,
+            .string_literal_utf_16 => .utf_16,
+            .string_literal_utf_32 => .utf_32,
+            else => null,
+        };
+    }
+
+    pub fn concat(self: StringKind, other: StringKind) !StringKind {
+        if (self == other) return self; // can always concat with own kind
+        if (self == .char) return other; // char + X -> X
+        if (other == .char) return self; // X + char -> X
+        return error.CannotConcat;
+    }
+
+    pub fn charKind(self: StringKind) CharKind {
+        return switch (self) {
+            .char => .char,
+            .wide => .wide,
+            .utf_8 => .utf_8,
+            .utf_16 => .utf_16,
+            .utf_32 => .utf_32,
+        };
+    }
+};
+
+pub const CharKind = enum {
+    char,
+    wide,
+    utf_8,
+    utf_16,
+    utf_32,
+
+    pub fn classify(id: Tokenizer.Token.Id) CharKind {
+        return switch (id) {
+            .char_literal => .char,
+            .char_literal_utf_8 => .utf_8,
+            .char_literal_wide => .wide,
+            .char_literal_utf_16 => .utf_16,
+            .char_literal_utf_32 => .utf_32,
             else => unreachable,
         };
     }
@@ -51,7 +77,7 @@ pub const Kind = enum {
     /// May be smaller than the largest value that can be represented.
     /// For example u8 char literals may only specify 0-127 via literals or
     /// character escapes, but may specify up to \xFF via hex escapes.
-    pub fn maxCodepoint(kind: Kind, comp: *const Compilation) u21 {
+    pub fn maxCodepoint(kind: CharKind, comp: *const Compilation) u21 {
         return @intCast(switch (kind) {
             .char => std.math.maxInt(u7),
             .wide => @min(0x10FFFF, comp.types.wchar.maxInt(comp)),
@@ -62,7 +88,7 @@ pub const Kind = enum {
     }
 
     /// Largest integer that can be represented by this character kind
-    pub fn maxInt(kind: Kind, comp: *const Compilation) u32 {
+    pub fn maxInt(kind: CharKind, comp: *const Compilation) u32 {
         return @intCast(switch (kind) {
             .char, .utf_8 => std.math.maxInt(u8),
             .wide => comp.types.wchar.maxInt(comp),
@@ -71,7 +97,7 @@ pub const Kind = enum {
         });
     }
 
-    pub fn charLiteralType(kind: Kind, comp: *const Compilation) Type {
+    pub fn charLiteralType(kind: CharKind, comp: *const Compilation) Type {
         return switch (kind) {
             .char => Type.int,
             .wide => comp.types.wchar,
@@ -83,7 +109,7 @@ pub const Kind = enum {
 
     /// Return the actual contents of the string literal with leading / trailing quotes and
     /// specifiers removed
-    pub fn contentSlice(kind: Kind, delimited: []const u8) []const u8 {
+    pub fn contentSlice(kind: CharKind, delimited: []const u8) []const u8 {
         const end = delimited.len - 1; // remove trailing quote
         return switch (kind) {
             .char => delimited[1..end],
@@ -98,13 +124,13 @@ pub const Kind = enum {
 pub const Parser = struct {
     literal: []const u8,
     i: usize = 0,
-    kind: Kind,
+    kind: CharKind,
     /// We only want to issue a max of 1 error per char literal
     errored: bool = false,
     errors: std.BoundedArray(CharDiagnostic, 4) = .{},
     comp: *const Compilation,
 
-    pub fn init(literal: []const u8, kind: Kind, comp: *const Compilation) Parser {
+    pub fn init(literal: []const u8, kind: CharKind, comp: *const Compilation) Parser {
         return .{
             .literal = literal,
             .comp = comp,

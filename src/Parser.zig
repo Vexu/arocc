@@ -7524,41 +7524,17 @@ fn makePredefinedIdentifier(p: *Parser, start: u32) !Result {
 
 fn stringLiteral(p: *Parser) Error!Result {
     var start = p.tok_i;
-    // use 1 for wchar_t
-    var width: ?u8 = null;
-    var is_u8_literal = false;
-    while (true) {
-        switch (p.tok_ids[p.tok_i]) {
-            .string_literal => {},
-            .string_literal_utf_16 => if (width) |some| {
-                if (some != 16) try p.err(.unsupported_str_cat);
-            } else {
-                width = 16;
-            },
-            .string_literal_utf_8 => {
-                is_u8_literal = true;
-                if (width) |some| {
-                    if (some != 8) try p.err(.unsupported_str_cat);
-                } else {
-                    width = 8;
-                }
-            },
-            .string_literal_utf_32 => if (width) |some| {
-                if (some != 32) try p.err(.unsupported_str_cat);
-            } else {
-                width = 32;
-            },
-            .string_literal_wide => if (width) |some| {
-                if (some != 1) try p.err(.unsupported_str_cat);
-            } else {
-                width = 1;
-            },
-            else => break,
-        }
-        p.tok_i += 1;
+    var string_kind = CharLiteral.StringKind.classify(p.tok_ids[start]).?;
+    p.tok_i += 1;
+    while (true) : (p.tok_i += 1) {
+        const next = CharLiteral.StringKind.classify(p.tok_ids[p.tok_i]) orelse break;
+        string_kind = string_kind.concat(next) catch {
+            try p.err(.unsupported_str_cat);
+            while (p.tok_ids[p.tok_i].isStringLiteral()) : (p.tok_i += 1) {}
+            break;
+        };
     }
-    if (width == null) width = 8;
-    if (width.? != 8) return p.todo("unicode string literals");
+    if (string_kind != .char and string_kind != .utf_8) return p.todo("unicode string literals");
 
     const string_start = p.retained_strings.items.len;
     while (start < p.tok_i) : (start += 1) {
@@ -7600,7 +7576,7 @@ fn stringLiteral(p: *Parser) Error!Result {
     const slice = p.retained_strings.items[string_start..];
 
     const arr_ty = try p.arena.create(Type.Array);
-    const specifier: Type.Specifier = if (is_u8_literal and p.comp.langopts.hasChar8_T()) .uchar else .char;
+    const specifier: Type.Specifier = if (string_kind == .utf_8 and p.comp.langopts.hasChar8_T()) .uchar else .char;
 
     arr_ty.* = .{ .elem = .{ .specifier = specifier }, .len = slice.len };
     var res: Result = .{
@@ -7647,7 +7623,7 @@ fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8,
 fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
     const tok_id = p.tok_ids[p.tok_i];
-    const char_kind = CharLiteral.Kind.classify(tok_id);
+    const char_kind = CharLiteral.CharKind.classify(tok_id);
     var val: u32 = 0;
 
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
