@@ -1038,7 +1038,6 @@ pub fn next(self: *Tokenizer) Token {
     var start = self.index;
     var id: Token.Id = .eof;
 
-    var return_state = state;
     var counter: u32 = 0;
     while (self.index < self.buf.len) : (self.index += 1) {
         const c = self.buf[self.index];
@@ -1219,7 +1218,6 @@ pub fn next(self: *Tokenizer) Token {
             },
             .string_literal => switch (c) {
                 '\\' => {
-                    return_state = .string_literal;
                     state = if (self.path_escapes) .path_escape else .escape_sequence;
                 },
                 '"' => {
@@ -1268,7 +1266,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .escape_sequence => switch (c) {
                 '\'', '"', '?', '\\', 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v' => {
-                    state = return_state;
+                    state = .string_literal;
                 },
                 '\r', '\n' => unreachable, // removed by line splicing
                 '0'...'7' => {
@@ -1292,24 +1290,24 @@ pub fn next(self: *Tokenizer) Token {
             .octal_escape => switch (c) {
                 '0'...'7' => {
                     counter += 1;
-                    if (counter == 3) state = return_state;
+                    if (counter == 3) state = .string_literal;
                 },
                 else => {
                     self.index -= 1;
-                    state = return_state;
+                    state = .string_literal;
                 },
             },
             .hex_escape => switch (c) {
                 '0'...'9', 'a'...'f', 'A'...'F' => {},
                 else => {
                     self.index -= 1;
-                    state = return_state;
+                    state = .string_literal;
                 },
             },
             .unicode_escape => switch (c) {
                 '0'...'9', 'a'...'f', 'A'...'F' => {
                     counter -= 1;
-                    if (counter == 0) state = return_state;
+                    if (counter == 0) state = .string_literal;
                 },
                 else => {
                     id = .invalid;
