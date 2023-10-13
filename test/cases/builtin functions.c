@@ -4,10 +4,8 @@ int foo(void) {
     return strlen(c);
 }
 
-typedef unsigned char c16v __attribute__((vector_size(16)));
-
-c16v bar(c16v x) {
-    return __builtin_altivec_crypto_vsbox(x);
+void bar(int x) {
+    __builtin_ppc_trap(x);
 }
 
 void ns_constant_string(void) {
