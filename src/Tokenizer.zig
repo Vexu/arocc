@@ -1001,9 +1001,6 @@ pub fn next(self: *Tokenizer) Token {
         char_literal,
         char_escape_sequence,
         escape_sequence,
-        octal_escape,
-        hex_escape,
-        unicode_escape,
         identifier,
         extended_identifier,
         equal,
@@ -1038,7 +1035,6 @@ pub fn next(self: *Tokenizer) Token {
     var start = self.index;
     var id: Token.Id = .eof;
 
-    var counter: u32 = 0;
     while (self.index < self.buf.len) : (self.index += 1) {
         const c = self.buf[self.index];
         switch (state) {
@@ -1265,54 +1261,8 @@ pub fn next(self: *Tokenizer) Token {
                 else => state = .char_literal,
             },
             .escape_sequence => switch (c) {
-                '\'', '"', '?', '\\', 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v' => {
-                    state = .string_literal;
-                },
                 '\r', '\n' => unreachable, // removed by line splicing
-                '0'...'7' => {
-                    counter = 1;
-                    state = .octal_escape;
-                },
-                'x' => state = .hex_escape,
-                'u' => {
-                    counter = 4;
-                    state = .unicode_escape;
-                },
-                'U' => {
-                    counter = 8;
-                    state = .unicode_escape;
-                },
-                else => {
-                    id = .invalid;
-                    break;
-                },
-            },
-            .octal_escape => switch (c) {
-                '0'...'7' => {
-                    counter += 1;
-                    if (counter == 3) state = .string_literal;
-                },
-                else => {
-                    self.index -= 1;
-                    state = .string_literal;
-                },
-            },
-            .hex_escape => switch (c) {
-                '0'...'9', 'a'...'f', 'A'...'F' => {},
-                else => {
-                    self.index -= 1;
-                    state = .string_literal;
-                },
-            },
-            .unicode_escape => switch (c) {
-                '0'...'9', 'a'...'f', 'A'...'F' => {
-                    counter -= 1;
-                    if (counter == 0) state = .string_literal;
-                },
-                else => {
-                    id = .invalid;
-                    break;
-                },
+                else => state = .string_literal,
             },
             .identifier, .extended_identifier => switch (c) {
                 'a'...'z', 'A'...'Z', '_', '0'...'9' => {},
@@ -1737,9 +1687,6 @@ pub fn next(self: *Tokenizer) Token {
             .char_literal,
             .escape_sequence,
             .char_escape_sequence,
-            .octal_escape,
-            .hex_escape,
-            .unicode_escape,
             .multi_line_comment,
             .multi_line_comment_asterisk,
             => id = .invalid,
@@ -2112,7 +2059,7 @@ test "extended identifiers" {
     try expectTokens("0x0\u{E0000}", &.{ .pp_num, .extended_identifier });
     try expectTokens("\"\\0\u{E0000}\"", &.{.string_literal});
     try expectTokens("\"\\x\u{E0000}\"", &.{.string_literal});
-    try expectTokens("\"\\u\u{E0000}\"", &.{ .invalid, .extended_identifier, .invalid });
+    try expectTokens("\"\\u\u{E0000}\"", &.{.string_literal});
     try expectTokens("1e\u{E0000}", &.{ .pp_num, .extended_identifier });
     try expectTokens("1e1\u{E0000}", &.{ .pp_num, .extended_identifier });
 }

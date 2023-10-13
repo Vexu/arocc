@@ -7531,93 +7531,102 @@ fn stringLiteral(p: *Parser) Error!Result {
         string_kind = string_kind.concat(next) catch {
             try p.err(.unsupported_str_cat);
             while (p.tok_ids[p.tok_i].isStringLiteral()) : (p.tok_i += 1) {}
-            break;
+            return error.ParsingFailed;
         };
     }
-    if (string_kind != .char and string_kind != .utf_8) return p.todo("unicode string literals");
+    const char_width = string_kind.charUnitSize(p.comp);
 
-    const string_start = p.retained_strings.items.len;
+    const retain_start = mem.alignForward(usize, p.retained_strings.items.len, string_kind.internalStorageAlignment(p.comp));
+    try p.retained_strings.resize(retain_start);
+
     while (start < p.tok_i) : (start += 1) {
-        var slice = p.tokSlice(start);
-        slice = slice[0 .. slice.len - 1];
-        var i = mem.indexOf(u8, slice, "\"").? + 1;
-        try p.retained_strings.ensureUnusedCapacity(slice.len);
-        while (i < slice.len) : (i += 1) {
-            switch (slice[i]) {
-                '\\' => {
-                    i += 1;
-                    switch (slice[i]) {
-                        '\n' => i += 1,
-                        '\r' => i += 2,
-                        '\'', '\"', '\\', '?' => |c| p.retained_strings.appendAssumeCapacity(c),
-                        'n' => p.retained_strings.appendAssumeCapacity('\n'),
-                        'r' => p.retained_strings.appendAssumeCapacity('\r'),
-                        't' => p.retained_strings.appendAssumeCapacity('\t'),
-                        'a' => p.retained_strings.appendAssumeCapacity(0x07),
-                        'b' => p.retained_strings.appendAssumeCapacity(0x08),
-                        'e' => {
-                            try p.errExtra(.non_standard_escape_char, start, .{ .invalid_escape = .{ .char = 'e', .offset = @intCast(i) } });
-                            p.retained_strings.appendAssumeCapacity(0x1B);
-                        },
-                        'f' => p.retained_strings.appendAssumeCapacity(0x0C),
-                        'v' => p.retained_strings.appendAssumeCapacity(0x0B),
-                        'x' => p.retained_strings.appendAssumeCapacity(try p.parseNumberEscape(start, 16, slice, &i)),
-                        '0'...'7' => p.retained_strings.appendAssumeCapacity(try p.parseNumberEscape(start, 8, slice, &i)),
-                        'u' => try p.parseUnicodeEscape(start, 4, slice, &i),
-                        'U' => try p.parseUnicodeEscape(start, 8, slice, &i),
-                        else => unreachable,
-                    }
-                },
-                else => |c| p.retained_strings.appendAssumeCapacity(c),
-            }
+        const this_kind = CharLiteral.StringKind.classify(p.tok_ids[start]).?;
+        const slice = this_kind.contentSlice(p.tokSlice(start));
+        var char_literal_parser = CharLiteral.Parser.init(slice, this_kind.charKind(), 0x10ffff, p.comp);
+
+        try p.retained_strings.ensureUnusedCapacity((slice.len + 1) * char_width); // +1 for null terminator
+        while (char_literal_parser.next()) |item| switch (item) {
+            .value => |v| {
+                switch (char_width) {
+                    1 => p.retained_strings.appendAssumeCapacity(@intCast(v)),
+                    2 => {
+                        const word: u16 = @intCast(v);
+                        p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&word));
+                    },
+                    4 => p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&v)),
+                    else => unreachable,
+                }
+            },
+            .codepoint => |c| {
+                switch (char_width) {
+                    1 => {
+                        var buf: [4]u8 = undefined;
+                        const written = std.unicode.utf8Encode(c, &buf) catch unreachable;
+                        const encoded = buf[0..written];
+                        p.retained_strings.appendSliceAssumeCapacity(encoded);
+                    },
+                    2 => {
+                        var utf16_buf: [2]u16 = undefined;
+                        var utf8_buf: [4]u8 = undefined;
+                        const utf8_written = std.unicode.utf8Encode(c, &utf8_buf) catch unreachable;
+                        const utf16_written = std.unicode.utf8ToUtf16Le(&utf16_buf, utf8_buf[0..utf8_written]) catch unreachable;
+                        const bytes = std.mem.sliceAsBytes(utf16_buf[0..utf16_written]);
+                        p.retained_strings.appendSliceAssumeCapacity(bytes);
+                    },
+                    4 => {
+                        const val: u32 = c;
+                        p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&val));
+                    },
+                    else => unreachable,
+                }
+            },
+            .improperly_encoded => |bytes| p.retained_strings.appendSliceAssumeCapacity(bytes),
+            .utf8_text => |view| {
+                switch (char_width) {
+                    1 => p.retained_strings.appendSliceAssumeCapacity(view.bytes),
+                    2 => {
+                        var capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.retained_strings.unusedCapacitySlice());
+                        const dest_len = if (capacity_slice.len % 2 == 0) capacity_slice.len else capacity_slice.len - 1;
+                        var dest = std.mem.bytesAsSlice(u16, capacity_slice[0..dest_len]);
+                        const words_written = std.unicode.utf8ToUtf16Le(dest, view.bytes) catch unreachable;
+                        p.retained_strings.items.len += words_written * 2;
+                    },
+                    4 => {
+                        var it = view.iterator();
+                        while (it.nextCodepoint()) |codepoint| {
+                            const val: u32 = codepoint;
+                            p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&val));
+                        }
+                    },
+                    else => unreachable,
+                }
+            },
+        };
+        for (char_literal_parser.errors.constSlice()) |item| {
+            try p.errExtra(item.tag, p.tok_i, item.extra);
         }
     }
-    try p.retained_strings.append(0);
-    const slice = p.retained_strings.items[string_start..];
+    p.retained_strings.appendNTimesAssumeCapacity(0, char_width);
+    const slice = p.retained_strings.items[retain_start..];
 
     const arr_ty = try p.arena.create(Type.Array);
-    const specifier: Type.Specifier = if (string_kind == .utf_8 and p.comp.langopts.hasChar8_T()) .uchar else .char;
+    const specifier: Type.Specifier = switch (string_kind) {
+        .char => .char,
+        .utf_8 => if (p.comp.langopts.hasChar8_T()) .uchar else .char,
+        else => string_kind.charKind().charLiteralType(p.comp).specifier,
+    };
 
-    arr_ty.* = .{ .elem = .{ .specifier = specifier }, .len = slice.len };
+    arr_ty.* = .{ .elem = .{ .specifier = specifier }, .len = @divExact(slice.len, char_width) };
     var res: Result = .{
         .ty = .{
             .specifier = .array,
             .data = .{ .array = arr_ty },
         },
-        .val = Value.bytes(@intCast(string_start), @intCast(p.retained_strings.items.len)),
+        .val = Value.bytes(@intCast(retain_start), @intCast(p.retained_strings.items.len)),
     };
     res.node = try p.addNode(.{ .tag = .string_literal_expr, .ty = res.ty, .data = undefined });
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
     return res;
-}
-
-fn parseNumberEscape(p: *Parser, tok: TokenIndex, base: u8, slice: []const u8, i: *usize) !u8 {
-    if (base == 16) i.* += 1; // skip x
-    var char: u8 = 0;
-    var reported = false;
-    while (i.* < slice.len) : (i.* += 1) {
-        const val = std.fmt.charToDigit(slice[i.*], base) catch break; // validated by Tokenizer
-        const product, const overflowed = @mulWithOverflow(char, base);
-        if (overflowed != 0 and !reported) {
-            try p.errExtra(.escape_sequence_overflow, tok, .{ .unsigned = i.* });
-            reported = true;
-        }
-        char = product + val;
-    }
-    i.* -= 1;
-    return char;
-}
-
-fn parseUnicodeEscape(p: *Parser, tok: TokenIndex, count: u8, slice: []const u8, i: *usize) !void {
-    const c = std.fmt.parseInt(u21, slice[i.* + 1 ..][0..count], 16) catch 0x110000; // count validated by tokenizer
-    i.* += count + 1;
-    if (!std.unicode.utf8ValidCodepoint(c) or (c < 0xa0 and c != '$' and c != '@' and c != '`')) {
-        try p.errExtra(.invalid_universal_character, tok, .{ .unsigned = i.* - count - 2 });
-        return;
-    }
-    var buf: [4]u8 = undefined;
-    const to_write = std.unicode.utf8Encode(c, &buf) catch unreachable; // validated above
-    p.retained_strings.appendSliceAssumeCapacity(buf[0..to_write]);
 }
 
 fn charLiteral(p: *Parser) Error!Result {
@@ -7632,7 +7641,8 @@ fn charLiteral(p: *Parser) Error!Result {
         // fast path: single unescaped ASCII char
         val = slice[0];
     } else {
-        var char_literal_parser = CharLiteral.Parser.init(slice, char_kind, p.comp);
+        const max_codepoint = char_kind.maxCodepoint(p.comp);
+        var char_literal_parser = CharLiteral.Parser.init(slice, char_kind, max_codepoint, p.comp);
 
         const max_chars_expected = 4;
         var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
@@ -7640,20 +7650,21 @@ fn charLiteral(p: *Parser) Error!Result {
         defer chars.deinit();
 
         while (char_literal_parser.next()) |item| switch (item) {
-            .value => |c| try chars.append(c),
+            .value => |v| try chars.append(v),
+            .codepoint => |c| try chars.append(c),
             .improperly_encoded => |s| {
                 try chars.ensureUnusedCapacity(s.len);
                 for (s) |c| chars.appendAssumeCapacity(c);
             },
             .utf8_text => |view| {
                 var it = view.iterator();
-                var max_codepoint: u21 = 0;
+                var max_codepoint_seen: u21 = 0;
                 try chars.ensureUnusedCapacity(view.bytes.len);
                 while (it.nextCodepoint()) |c| {
-                    max_codepoint = @max(max_codepoint, c);
+                    max_codepoint_seen = @max(max_codepoint_seen, c);
                     chars.appendAssumeCapacity(c);
                 }
-                if (max_codepoint > char_kind.maxCodepoint(p.comp)) {
+                if (max_codepoint_seen > max_codepoint) {
                     char_literal_parser.err(.char_too_large, .{ .none = {} });
                 }
             },

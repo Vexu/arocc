@@ -6,8 +6,10 @@ const Tokenizer = @import("Tokenizer.zig");
 const mem = std.mem;
 
 pub const Item = union(enum) {
-    /// decoded escape
+    /// decoded hex or character escape
     value: u32,
+    /// validated unicode codepoint
+    codepoint: u21,
     /// Char literal in the source text is not utf8 encoded
     improperly_encoded: []const u8,
     /// 1 or more unescaped bytes
@@ -51,6 +53,37 @@ pub const StringKind = enum {
             .utf_8 => .utf_8,
             .utf_16 => .utf_16,
             .utf_32 => .utf_32,
+        };
+    }
+
+    pub fn contentSlice(kind: StringKind, delimited: []const u8) []const u8 {
+        const end = delimited.len - 1; // remove trailing quote
+        return switch (kind) {
+            .char => delimited[1..end],
+            .wide => delimited[2..end],
+            .utf_8 => delimited[3..end],
+            .utf_16 => delimited[2..end],
+            .utf_32 => delimited[2..end],
+        };
+    }
+
+    pub fn charUnitSize(kind: StringKind, comp: *const Compilation) usize {
+        return switch (kind) {
+            .char => 1,
+            .wide => @intCast(comp.types.wchar.sizeof(comp).?),
+            .utf_8 => 1,
+            .utf_16 => 2,
+            .utf_32 => 4,
+        };
+    }
+
+    /// Required alignment within aro (on compiler host); not on compilation target
+    pub fn internalStorageAlignment(kind: StringKind, comp: *const Compilation) usize {
+        return switch (kind.charUnitSize(comp)) {
+            1 => @alignOf(u8),
+            2 => @alignOf(u16),
+            4 => @alignOf(u32),
+            else => unreachable,
         };
     }
 };
@@ -125,16 +158,18 @@ pub const Parser = struct {
     literal: []const u8,
     i: usize = 0,
     kind: CharKind,
+    max_codepoint: u21,
     /// We only want to issue a max of 1 error per char literal
     errored: bool = false,
     errors: std.BoundedArray(CharDiagnostic, 4) = .{},
     comp: *const Compilation,
 
-    pub fn init(literal: []const u8, kind: CharKind, comp: *const Compilation) Parser {
+    pub fn init(literal: []const u8, kind: CharKind, max_codepoint: u21, comp: *const Compilation) Parser {
         return .{
             .literal = literal,
             .comp = comp,
             .kind = kind,
+            .max_codepoint = max_codepoint,
         };
     }
 
@@ -160,9 +195,9 @@ pub const Parser = struct {
             const view = std.unicode.Utf8View.init(unescaped_slice) catch {
                 if (self.kind != .char) {
                     self.err(.illegal_char_encoding_error, .{ .none = {} });
-                } else {
-                    self.warn(.illegal_char_encoding_warning, .{ .none = {} });
+                    return null;
                 }
+                self.warn(.illegal_char_encoding_warning, .{ .none = {} });
                 return .{ .improperly_encoded = self.literal[start..self.i] };
             };
             return .{ .utf8_text = view };
@@ -220,8 +255,9 @@ pub const Parser = struct {
             return null;
         }
 
-        if (val > self.kind.maxCodepoint(self.comp)) {
+        if (val > self.max_codepoint) {
             self.err(.char_too_large, .{ .none = {} });
+            return null;
         }
 
         if (val < 0xA0 and (val != '$' and val != '@' and val != '`')) {
@@ -242,7 +278,7 @@ pub const Parser = struct {
         }
 
         self.warn(.c89_ucn_in_literal, .{ .none = {} });
-        return .{ .value = val };
+        return .{ .codepoint = @intCast(val) };
     }
 
     fn parseEscapedChar(self: *Parser) Item {
@@ -302,6 +338,7 @@ pub const Parser = struct {
         }
         if (overflowed or val > self.kind.maxInt(self.comp)) {
             self.err(.escape_sequence_overflow, .{ .unsigned = 0 });
+            return 0;
         }
         if (count == 0) {
             std.debug.assert(base == .hex);
