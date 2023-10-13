@@ -6,7 +6,7 @@ for `translate-c` and eventually compiling C files by translating them to Zig fi
 Aro is developed in https://github.com/Vexu/arocc and the Zig dependency is
 updated from there when needed.
 
-Currently most of standard C is supported upto C23 and as are many of the common
+Currently most of standard C is supported up to C23 and as are many of the common
 extensions from GNU, MSVC, and Clang
 
 Basic code generation is supported for x86-64 linux and can produce a valid hello world:
