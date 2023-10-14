@@ -2677,7 +2677,7 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
                     }),
                     .builtin_with_header => m.print(info.msg, .{
                         @tagName(msg.extra.builtin_with_header.header),
-                        @tagName(msg.extra.builtin_with_header.builtin),
+                        BuiltinFunction.nameFromTag(msg.extra.builtin_with_header.builtin).span(),
                     }),
                     else => @compileError("invalid extra kind " ++ @tagName(info.extra)),
                 }
