@@ -125,6 +125,18 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
             std.debug.assert(builder.specifier == .none);
             builder.specifier = Type.Builder.fromType(comp.types.ns_constant_string.ty);
         },
+        .G => {
+            // Todo: id
+            return .{ .specifier = .invalid };
+        },
+        .H => {
+            // Todo: SEL
+            return .{ .specifier = .invalid };
+        },
+        .M => {
+            // Todo: struct objc_super
+            return .{ .specifier = .invalid };
+        },
         .a => {
             std.debug.assert(builder.specifier == .none);
             std.debug.assert(desc.suffix.len == 0);
