@@ -1416,9 +1416,7 @@ pub fn hasBuiltin(comp: *const Compilation, name: []const u8) bool {
         std.mem.eql(u8, name, "__builtin_offsetof") or
         std.mem.eql(u8, name, "__builtin_types_compatible_p")) return true;
 
-    @setEvalBranchQuota(10_000);
-    const tag = std.meta.stringToEnum(BuiltinFunction.Tag, name) orelse return false;
-    const builtin = BuiltinFunction.fromTag(tag);
+    const builtin = BuiltinFunction.fromName(name) orelse return false;
     return comp.hasBuiltinFunction(builtin);
 }
 

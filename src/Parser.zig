@@ -4623,7 +4623,10 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => true,
             .builtin => |builtin| switch (builtin.tag) {
-                .__builtin_va_start, .__va_start, .va_start => arg_idx != 1,
+                BuiltinFunction.tagFromName("__builtin_va_start").?,
+                BuiltinFunction.tagFromName("__va_start").?,
+                BuiltinFunction.tagFromName("va_start").?,
+                => arg_idx != 1,
                 else => true,
             },
         };
@@ -4633,8 +4636,11 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => true,
             .builtin => |builtin| switch (builtin.tag) {
-                .__builtin_va_start, .__va_start, .va_start => arg_idx != 1,
-                .__builtin_complex => false,
+                BuiltinFunction.tagFromName("__builtin_va_start").?,
+                BuiltinFunction.tagFromName("__va_start").?,
+                BuiltinFunction.tagFromName("va_start").?,
+                => arg_idx != 1,
+                BuiltinFunction.tagFromName("__builtin_complex").? => false,
                 else => true,
             },
         };
@@ -4651,8 +4657,11 @@ const CallExpr = union(enum) {
 
         const builtin_tok = p.nodes.items(.data)[@intFromEnum(self.builtin.node)].decl.name;
         switch (self.builtin.tag) {
-            .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
-            .__builtin_complex => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            BuiltinFunction.tagFromName("__builtin_va_start").?,
+            BuiltinFunction.tagFromName("__va_start").?,
+            BuiltinFunction.tagFromName("va_start").?,
+            => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            BuiltinFunction.tagFromName("__builtin_complex").? => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
             else => {},
         }
     }
@@ -4666,7 +4675,7 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => null,
             .builtin => |builtin| switch (builtin.tag) {
-                .__builtin_complex => 2,
+                BuiltinFunction.tagFromName("__builtin_complex").? => 2,
                 else => null,
             },
         };
@@ -4676,7 +4685,7 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => callable_ty.returnType(),
             .builtin => |builtin| switch (builtin.tag) {
-                .__builtin_complex => {
+                BuiltinFunction.tagFromName("__builtin_complex").? => {
                     const last_param = p.list_buf.items[p.list_buf.items.len - 1];
                     return p.nodes.items(.ty)[@intFromEnum(last_param)].makeComplex();
                 },
