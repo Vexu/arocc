@@ -21,6 +21,18 @@ const CharDiagnostic = struct {
     extra: Diagnostics.Message.Extra,
 };
 
+/// This assumes StringKind and CharKind have the same enum tags and C-source prefix
+fn contentSliceInternal(comptime T: type, kind: T, delimited: []const u8) []const u8 {
+    const end = delimited.len - 1; // remove trailing quote
+    return switch (kind) {
+        .char => delimited[1..end],
+        .wide => delimited[2..end],
+        .utf_8 => delimited[3..end],
+        .utf_16 => delimited[2..end],
+        .utf_32 => delimited[2..end],
+    };
+}
+
 pub const StringKind = enum {
     char,
     wide,
@@ -57,14 +69,7 @@ pub const StringKind = enum {
     }
 
     pub fn contentSlice(kind: StringKind, delimited: []const u8) []const u8 {
-        const end = delimited.len - 1; // remove trailing quote
-        return switch (kind) {
-            .char => delimited[1..end],
-            .wide => delimited[2..end],
-            .utf_8 => delimited[3..end],
-            .utf_16 => delimited[2..end],
-            .utf_32 => delimited[2..end],
-        };
+        return contentSliceInternal(StringKind, kind, delimited);
     }
 
     pub fn charUnitSize(kind: StringKind, comp: *const Compilation) Compilation.CharUnitSize {
@@ -144,14 +149,7 @@ pub const CharKind = enum {
     /// Return the actual contents of the string literal with leading / trailing quotes and
     /// specifiers removed
     pub fn contentSlice(kind: CharKind, delimited: []const u8) []const u8 {
-        const end = delimited.len - 1; // remove trailing quote
-        return switch (kind) {
-            .char => delimited[1..end],
-            .wide => delimited[2..end],
-            .utf_8 => delimited[3..end],
-            .utf_16 => delimited[2..end],
-            .utf_32 => delimited[2..end],
-        };
+        return contentSliceInternal(CharKind, kind, delimited);
     }
 };
 
