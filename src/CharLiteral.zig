@@ -67,23 +67,24 @@ pub const StringKind = enum {
         };
     }
 
-    pub fn charUnitSize(kind: StringKind, comp: *const Compilation) usize {
+    pub fn charUnitSize(kind: StringKind, comp: *const Compilation) Compilation.CharUnitSize {
         return switch (kind) {
-            .char => 1,
-            .wide => @intCast(comp.types.wchar.sizeof(comp).?),
-            .utf_8 => 1,
-            .utf_16 => 2,
-            .utf_32 => 4,
+            .char => .@"1",
+            .wide => switch (comp.types.wchar.sizeof(comp).?) {
+                2 => .@"2",
+                4 => .@"4",
+                else => unreachable,
+            },
+            .utf_8 => .@"1",
+            .utf_16 => .@"2",
+            .utf_32 => .@"4",
         };
     }
 
-    /// Required alignment within aro (on compiler host); not on compilation target
+    /// Required alignment within aro (on compiler host) for writing to retained_strings
     pub fn internalStorageAlignment(kind: StringKind, comp: *const Compilation) usize {
         return switch (kind.charUnitSize(comp)) {
-            1 => @alignOf(u8),
-            2 => @alignOf(u16),
-            4 => @alignOf(u32),
-            else => unreachable,
+            inline else => |size| @alignOf(size.Type()),
         };
     }
 };

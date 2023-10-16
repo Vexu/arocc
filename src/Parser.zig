@@ -7544,28 +7544,27 @@ fn stringLiteral(p: *Parser) Error!Result {
         const slice = this_kind.contentSlice(p.tokSlice(start));
         var char_literal_parser = CharLiteral.Parser.init(slice, this_kind.charKind(), 0x10ffff, p.comp);
 
-        try p.retained_strings.ensureUnusedCapacity((slice.len + 1) * char_width); // +1 for null terminator
+        try p.retained_strings.ensureUnusedCapacity((slice.len + 1) * @intFromEnum(char_width)); // +1 for null terminator
         while (char_literal_parser.next()) |item| switch (item) {
             .value => |v| {
                 switch (char_width) {
-                    1 => p.retained_strings.appendAssumeCapacity(@intCast(v)),
-                    2 => {
+                    .@"1" => p.retained_strings.appendAssumeCapacity(@intCast(v)),
+                    .@"2" => {
                         const word: u16 = @intCast(v);
                         p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&word));
                     },
-                    4 => p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&v)),
-                    else => unreachable,
+                    .@"4" => p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&v)),
                 }
             },
             .codepoint => |c| {
                 switch (char_width) {
-                    1 => {
+                    .@"1" => {
                         var buf: [4]u8 = undefined;
                         const written = std.unicode.utf8Encode(c, &buf) catch unreachable;
                         const encoded = buf[0..written];
                         p.retained_strings.appendSliceAssumeCapacity(encoded);
                     },
-                    2 => {
+                    .@"2" => {
                         var utf16_buf: [2]u16 = undefined;
                         var utf8_buf: [4]u8 = undefined;
                         const utf8_written = std.unicode.utf8Encode(c, &utf8_buf) catch unreachable;
@@ -7573,32 +7572,30 @@ fn stringLiteral(p: *Parser) Error!Result {
                         const bytes = std.mem.sliceAsBytes(utf16_buf[0..utf16_written]);
                         p.retained_strings.appendSliceAssumeCapacity(bytes);
                     },
-                    4 => {
+                    .@"4" => {
                         const val: u32 = c;
                         p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&val));
                     },
-                    else => unreachable,
                 }
             },
             .improperly_encoded => |bytes| p.retained_strings.appendSliceAssumeCapacity(bytes),
             .utf8_text => |view| {
                 switch (char_width) {
-                    1 => p.retained_strings.appendSliceAssumeCapacity(view.bytes),
-                    2 => {
+                    .@"1" => p.retained_strings.appendSliceAssumeCapacity(view.bytes),
+                    .@"2" => {
                         var capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.retained_strings.unusedCapacitySlice());
                         const dest_len = if (capacity_slice.len % 2 == 0) capacity_slice.len else capacity_slice.len - 1;
                         var dest = std.mem.bytesAsSlice(u16, capacity_slice[0..dest_len]);
                         const words_written = std.unicode.utf8ToUtf16Le(dest, view.bytes) catch unreachable;
                         p.retained_strings.items.len += words_written * 2;
                     },
-                    4 => {
+                    .@"4" => {
                         var it = view.iterator();
                         while (it.nextCodepoint()) |codepoint| {
                             const val: u32 = codepoint;
                             p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&val));
                         }
                     },
-                    else => unreachable,
                 }
             },
         };
@@ -7606,7 +7603,7 @@ fn stringLiteral(p: *Parser) Error!Result {
             try p.errExtra(item.tag, p.tok_i, item.extra);
         }
     }
-    p.retained_strings.appendNTimesAssumeCapacity(0, char_width);
+    p.retained_strings.appendNTimesAssumeCapacity(0, @intFromEnum(char_width));
     const slice = p.retained_strings.items[retain_start..];
 
     const arr_ty = try p.arena.create(Type.Array);
@@ -7616,7 +7613,7 @@ fn stringLiteral(p: *Parser) Error!Result {
         else => string_kind.charKind().charLiteralType(p.comp).specifier,
     };
 
-    arr_ty.* = .{ .elem = .{ .specifier = specifier }, .len = @divExact(slice.len, char_width) };
+    arr_ty.* = .{ .elem = .{ .specifier = specifier }, .len = @divExact(slice.len, @intFromEnum(char_width)) };
     var res: Result = .{
         .ty = .{
             .specifier = .array,

@@ -1428,6 +1428,20 @@ pub fn hasBuiltinFunction(comp: *const Compilation, builtin: Builtin) bool {
     }
 }
 
+pub const CharUnitSize = enum(usize) {
+    @"1" = 1,
+    @"2" = 2,
+    @"4" = 4,
+
+    pub fn Type(comptime self: CharUnitSize) type {
+        return switch (self) {
+            .@"1" => u8,
+            .@"2" => u16,
+            .@"4" => u32,
+        };
+    }
+};
+
 pub const renderErrors = Diagnostics.render;
 
 test "addSourceFromReader" {
