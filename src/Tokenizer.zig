@@ -1000,7 +1000,7 @@ pub fn next(self: *Tokenizer) Token {
         char_literal_start,
         char_literal,
         char_escape_sequence,
-        escape_sequence,
+        string_escape_sequence,
         identifier,
         extended_identifier,
         equal,
@@ -1214,7 +1214,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .string_literal => switch (c) {
                 '\\' => {
-                    state = if (self.path_escapes) .path_escape else .escape_sequence;
+                    state = if (self.path_escapes) .path_escape else .string_escape_sequence;
                 },
                 '"' => {
                     self.index += 1;
@@ -1260,7 +1260,7 @@ pub fn next(self: *Tokenizer) Token {
                 '\r', '\n' => unreachable, // removed by line splicing
                 else => state = .char_literal,
             },
-            .escape_sequence => switch (c) {
+            .string_escape_sequence => switch (c) {
                 '\r', '\n' => unreachable, // removed by line splicing
                 else => state = .string_literal,
             },
@@ -1685,7 +1685,7 @@ pub fn next(self: *Tokenizer) Token {
             .path_escape,
             .char_literal_start,
             .char_literal,
-            .escape_sequence,
+            .string_escape_sequence,
             .char_escape_sequence,
             .multi_line_comment,
             .multi_line_comment_asterisk,
