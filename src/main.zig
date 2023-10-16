@@ -9,6 +9,8 @@ const Toolchain = @import("Toolchain.zig");
 
 // for Builtins/Builtin.def
 pub const Builtins = @import("Builtins.zig");
+// for Attribute/names.def
+pub const Attribute = @import("Attribute.zig");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 

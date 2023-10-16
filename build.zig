@@ -81,6 +81,7 @@ pub fn build(b: *Build) !void {
     exe.addOptions("system_defaults", system_defaults);
 
     GenerateDef.add(b, "src/Builtins/Builtin.def", exe);
+    GenerateDef.add(b, "src/Attribute/names.def", exe);
 
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
     system_defaults.addOption([]const u8, "linker", default_linker);

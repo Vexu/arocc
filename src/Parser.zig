@@ -901,7 +901,7 @@ fn decl(p: *Parser) Error!bool {
         break :blk DeclSpec{ .ty = try spec.finish(p) };
     };
     if (decl_spec.noreturn) |tok| {
-        const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = {} }, .syntax = .keyword };
+        const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = .{} }, .syntax = .keyword };
         try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = tok });
     }
     var init_d = (try p.initDeclarator(&decl_spec, attr_buf_top)) orelse {
