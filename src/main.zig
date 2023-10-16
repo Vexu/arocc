@@ -7,6 +7,9 @@ const Driver = @import("Driver.zig");
 const target_util = @import("target.zig");
 const Toolchain = @import("Toolchain.zig");
 
+// for Builtins/Builtin.def
+pub const Builtins = @import("Builtins.zig");
+
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub fn main() u8 {

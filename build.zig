@@ -1,5 +1,6 @@
 const std = @import("std");
 const Build = std.Build;
+const GenerateDef = @import("build/GenerateDef.zig");
 
 fn addFuzzStep(b: *Build, target: std.zig.CrossTarget) !void {
     const fuzz_lib = b.addStaticLibrary(.{
@@ -78,6 +79,8 @@ pub fn build(b: *Build) !void {
 
     const system_defaults = b.addOptions();
     exe.addOptions("system_defaults", system_defaults);
+
+    GenerateDef.add(b, "src/Builtins/Builtin.def", exe);
 
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
     system_defaults.addOption([]const u8, "linker", default_linker);

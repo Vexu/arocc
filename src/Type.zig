@@ -9,7 +9,6 @@ const StringInterner = @import("StringInterner.zig");
 const StringId = StringInterner.StringId;
 const target_util = @import("target.zig");
 const LangOpts = @import("LangOpts.zig");
-const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Type = @This();
 

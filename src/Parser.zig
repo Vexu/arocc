@@ -26,7 +26,7 @@ const StringId = @import("StringInterner.zig").StringId;
 const number_affixes = @import("number_affixes.zig");
 const NumberPrefix = number_affixes.Prefix;
 const NumberSuffix = number_affixes.Suffix;
-const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
+const Builtin = @import("Builtins/Builtin.def");
 const target_util = @import("target.zig");
 
 const Parser = @This();
@@ -4607,7 +4607,7 @@ const CallExpr = union(enum) {
     standard: NodeIndex,
     builtin: struct {
         node: NodeIndex,
-        tag: BuiltinFunction.Tag,
+        tag: Builtin.Tag,
     },
 
     fn init(p: *Parser, call_node: NodeIndex, func_node: NodeIndex) CallExpr {
@@ -4624,9 +4624,9 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => true,
             .builtin => |builtin| switch (builtin.tag) {
-                BuiltinFunction.tagFromName("__builtin_va_start").?,
-                BuiltinFunction.tagFromName("__va_start").?,
-                BuiltinFunction.tagFromName("va_start").?,
+                Builtin.tagFromName("__builtin_va_start").?,
+                Builtin.tagFromName("__va_start").?,
+                Builtin.tagFromName("va_start").?,
                 => arg_idx != 1,
                 else => true,
             },
@@ -4637,11 +4637,11 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => true,
             .builtin => |builtin| switch (builtin.tag) {
-                BuiltinFunction.tagFromName("__builtin_va_start").?,
-                BuiltinFunction.tagFromName("__va_start").?,
-                BuiltinFunction.tagFromName("va_start").?,
+                Builtin.tagFromName("__builtin_va_start").?,
+                Builtin.tagFromName("__va_start").?,
+                Builtin.tagFromName("va_start").?,
                 => arg_idx != 1,
-                BuiltinFunction.tagFromName("__builtin_complex").? => false,
+                Builtin.tagFromName("__builtin_complex").? => false,
                 else => true,
             },
         };
@@ -4658,11 +4658,11 @@ const CallExpr = union(enum) {
 
         const builtin_tok = p.nodes.items(.data)[@intFromEnum(self.builtin.node)].decl.name;
         switch (self.builtin.tag) {
-            BuiltinFunction.tagFromName("__builtin_va_start").?,
-            BuiltinFunction.tagFromName("__va_start").?,
-            BuiltinFunction.tagFromName("va_start").?,
+            Builtin.tagFromName("__builtin_va_start").?,
+            Builtin.tagFromName("__va_start").?,
+            Builtin.tagFromName("va_start").?,
             => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
-            BuiltinFunction.tagFromName("__builtin_complex").? => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            Builtin.tagFromName("__builtin_complex").? => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
             else => {},
         }
     }
@@ -4676,7 +4676,7 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => null,
             .builtin => |builtin| switch (builtin.tag) {
-                BuiltinFunction.tagFromName("__builtin_complex").? => 2,
+                Builtin.tagFromName("__builtin_complex").? => 2,
                 else => null,
             },
         };
@@ -4686,7 +4686,7 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => callable_ty.returnType(),
             .builtin => |builtin| switch (builtin.tag) {
-                BuiltinFunction.tagFromName("__builtin_complex").? => {
+                Builtin.tagFromName("__builtin_complex").? => {
                     const last_param = p.list_buf.items[p.list_buf.items.len - 1];
                     return p.nodes.items(.ty)[@intFromEnum(last_param)].makeComplex();
                 },
@@ -7122,7 +7122,7 @@ fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     }
 }
 
-fn checkVariableBuiltinArgument(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32, tag: BuiltinFunction.Tag) !void {
+fn checkVariableBuiltinArgument(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32, tag: Builtin.Tag) !void {
     switch (tag) {
         .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
         else => {},

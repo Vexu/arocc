@@ -6,7 +6,6 @@ const Source = @import("Source.zig");
 const Attribute = @import("Attribute.zig");
 const Value = @import("Value.zig");
 const StringInterner = @import("StringInterner.zig");
-const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Tree = @This();
 
