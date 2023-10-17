@@ -263,10 +263,17 @@ fn diagnoseField(
         .bytes => {
             const bytes = val.data.bytes.trim(1); // remove null terminator
             if (wanted == Value.ByteRange) {
+                std.debug.assert(node.tag == .string_literal_expr);
+                if (!node.ty.elemType().is(.char) and !node.ty.elemType().is(.uchar)) {
+                    return Diagnostics.Message{
+                        .tag = .attribute_requires_string,
+                        .extra = .{ .str = decl.name },
+                    };
+                }
                 @field(@field(arguments, decl.name), field.name) = bytes;
                 return null;
             } else if (@typeInfo(wanted) == .Enum and @hasDecl(wanted, "opts") and wanted.opts.enum_kind == .string) {
-                const str = bytes.slice(strings);
+                const str = bytes.slice(strings, .@"1");
                 if (std.meta.stringToEnum(wanted, str)) |enum_val| {
                     @field(@field(arguments, decl.name), field.name) = enum_val;
                     return null;

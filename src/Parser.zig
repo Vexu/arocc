@@ -495,7 +495,7 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
 
 /// Returned slice is invalidated if additional strings are added to p.retained_strings
 fn retainedString(p: *Parser, range: Value.ByteRange) []const u8 {
-    return range.slice(p.retained_strings.items);
+    return range.slice(p.retained_strings.items, .@"1");
 }
 
 fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Value.ByteRange) Compilation.Error!void {
@@ -1153,17 +1153,13 @@ fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]co
         try buf.appendSlice(")'");
     }
     if (message.node != .none) {
+        assert(p.nodes.items(.tag)[@intFromEnum(message.node)] == .string_literal_expr);
         if (buf.items.len > 0) {
             try buf.append(' ');
         }
-        const data = message.val.data.bytes;
-        try buf.ensureUnusedCapacity(data.len());
-        try Tree.dumpStr(
-            p.retained_strings.items,
-            data,
-            p.nodes.items(.tag)[@intFromEnum(message.node)],
-            buf.writer(),
-        );
+        const byte_range = message.val.data.bytes;
+        try buf.ensureUnusedCapacity(byte_range.len());
+        try byte_range.dumpString(message.ty, p.comp, p.retained_strings.items, buf.writer());
     }
     return try p.comp.diag.arena.allocator().dupe(u8, buf.items);
 }

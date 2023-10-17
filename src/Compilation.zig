@@ -1428,7 +1428,7 @@ pub fn hasBuiltinFunction(comp: *const Compilation, builtin: Builtin) bool {
     }
 }
 
-pub const CharUnitSize = enum(usize) {
+pub const CharUnitSize = enum(u32) {
     @"1" = 1,
     @"2" = 2,
     @"4" = 4,

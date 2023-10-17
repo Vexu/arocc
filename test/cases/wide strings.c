@@ -49,7 +49,12 @@ uint16_t L[] = u"\xFFFFF";
 
 uint8_t M[] = u8"\xFFF";
 
+_Static_assert(1 == 2, u"😬\U0001f62c");
+_Static_assert(1 == 2, U"😬\U0001f62c");
+
 #define EXPECTED_ERRORS "wide strings.c:25:21: error: unsupported string literal concatenation" \
     "wide strings.c:48:26: error: escape sequence out of range" \
     "wide strings.c:50:24: error: escape sequence out of range" \
+    "wide strings.c:52:1: error: static assertion failed \"😬😬\"" \
+    "wide strings.c:53:1: error: static assertion failed \"😬😬\"" \
 

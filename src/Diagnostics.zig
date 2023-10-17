@@ -2510,6 +2510,11 @@ const messages = struct {
         const opt = "unknown-escape-sequence";
         const extra = .invalid_escape;
     };
+    pub const attribute_requires_string = struct {
+        const msg = "attribute '{s}' requires an ordinary string";
+        const kind = .@"error";
+        const extra = .str;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
