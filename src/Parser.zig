@@ -2702,6 +2702,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
             .node = res.node,
         } },
     });
+    try p.value_map.put(node, e.res.val);
     return EnumFieldAndNode{ .field = .{
         .name = interned_name,
         .ty = res.ty,
