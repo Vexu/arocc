@@ -1,5 +1,6 @@
 const std = @import("std");
 const Build = std.Build;
+const GenerateDef = @import("build/GenerateDef.zig");
 
 fn addFuzzStep(b: *Build, target: std.zig.CrossTarget) !void {
     const fuzz_lib = b.addStaticLibrary(.{
@@ -79,6 +80,9 @@ pub fn build(b: *Build) !void {
     const system_defaults = b.addOptions();
     exe.addOptions("system_defaults", system_defaults);
 
+    GenerateDef.add(b, "src/Builtins/Builtin.def", exe, aro_module);
+    GenerateDef.add(b, "src/Attribute/names.def", exe, aro_module);
+
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
     system_defaults.addOption([]const u8, "linker", default_linker);
     system_defaults.addOption(u8, "path_sep", path_sep);
@@ -122,8 +126,9 @@ pub fn build(b: *Build) !void {
     tests_step.dependOn(&exe.step);
 
     var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
-    unit_tests.addModule("zig", zig_module);
-    unit_tests.addOptions("system_defaults", system_defaults);
+    for (exe.modules.keys(), exe.modules.values()) |name, module| {
+        unit_tests.addModule(name, module);
+    }
     const run_test = b.addRunArtifact(unit_tests);
     tests_step.dependOn(&run_test.step);
 

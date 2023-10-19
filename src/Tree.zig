@@ -6,7 +6,6 @@ const Source = @import("Source.zig");
 const Attribute = @import("Attribute.zig");
 const Value = @import("Value.zig");
 const StringInterner = @import("StringInterner.zig");
-const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Tree = @This();
 
@@ -703,12 +702,13 @@ fn dumpAttribute(attr: Attribute, strings: []const u8, writer: anytype) !void {
     switch (attr.tag) {
         inline else => |tag| {
             const args = @field(attr.args, @tagName(tag));
-            if (@TypeOf(args) == void) {
+            const fields = @typeInfo(@TypeOf(args)).Struct.fields;
+            if (fields.len == 0) {
                 try writer.writeByte('\n');
                 return;
             }
             try writer.writeByte(' ');
-            inline for (@typeInfo(@TypeOf(args)).Struct.fields, 0..) |f, i| {
+            inline for (fields, 0..) |f, i| {
                 if (comptime std.mem.eql(u8, f.name, "__name_tok")) continue;
                 if (i != 0) {
                     try writer.writeAll(", ");

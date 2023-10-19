@@ -4,8 +4,9 @@ const Allocator = mem.Allocator;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
 const Attribute = @import("Attribute.zig");
-const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
-const Header = @import("builtins/Properties.zig").Header;
+const Builtins = @import("Builtins.zig");
+const Builtin = Builtins.Builtin;
+const Header = @import("Builtins/Properties.zig").Header;
 const Tree = @import("Tree.zig");
 const util = @import("util.zig");
 const is_windows = @import("builtin").os.tag == .windows;
@@ -51,7 +52,7 @@ pub const Message = struct {
             specifier: enum { @"struct", @"union", @"enum" },
         },
         builtin_with_header: struct {
-            builtin: BuiltinFunction.Tag,
+            builtin: Builtin.Tag,
             header: Header,
         },
         invalid_escape: struct {
@@ -2750,7 +2751,7 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
                     }),
                     .builtin_with_header => m.print(info.msg, .{
                         @tagName(msg.extra.builtin_with_header.header),
-                        BuiltinFunction.nameFromTag(msg.extra.builtin_with_header.builtin).span(),
+                        Builtin.nameFromTag(msg.extra.builtin_with_header.builtin).span(),
                     }),
                     .invalid_escape => {
                         if (std.ascii.isPrint(msg.extra.invalid_escape.char)) {

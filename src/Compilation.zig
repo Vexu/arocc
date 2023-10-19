@@ -4,6 +4,7 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const EpochSeconds = std.time.epoch.EpochSeconds;
 const Builtins = @import("Builtins.zig");
+const Builtin = Builtins.Builtin;
 const Diagnostics = @import("Diagnostics.zig");
 const LangOpts = @import("LangOpts.zig");
 const Source = @import("Source.zig");
@@ -14,7 +15,6 @@ const Pragma = @import("Pragma.zig");
 const StringInterner = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
 const target_util = @import("target.zig");
-const BuiltinFunction = @import("builtins/BuiltinFunction.zig");
 
 const Compilation = @This();
 
@@ -1193,9 +1193,7 @@ pub const IncludeDirIterator = struct {
         while (self.next()) |found| {
             const path = try std.fs.path.join(allocator, &.{ found.path, filename });
             if (self.comp.langopts.ms_extensions) {
-                for (path) |*c| {
-                    if (c.* == '\\') c.* = '/';
-                }
+                std.mem.replaceScalar(u8, path, '\\', '/');
             }
             return .{ .path = path, .kind = found.kind };
         }
@@ -1416,11 +1414,11 @@ pub fn hasBuiltin(comp: *const Compilation, name: []const u8) bool {
         std.mem.eql(u8, name, "__builtin_offsetof") or
         std.mem.eql(u8, name, "__builtin_types_compatible_p")) return true;
 
-    const builtin = BuiltinFunction.fromName(name) orelse return false;
+    const builtin = Builtin.fromName(name) orelse return false;
     return comp.hasBuiltinFunction(builtin);
 }
 
-pub fn hasBuiltinFunction(comp: *const Compilation, builtin: BuiltinFunction) bool {
+pub fn hasBuiltinFunction(comp: *const Compilation, builtin: Builtin) bool {
     if (!target_util.builtinEnabled(comp.target, builtin.properties.target_set)) return false;
 
     switch (builtin.properties.language) {
