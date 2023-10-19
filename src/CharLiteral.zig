@@ -175,7 +175,11 @@ pub const Parser = struct {
     pub fn err(self: *Parser, tag: Diagnostics.Tag, extra: Diagnostics.Message.Extra) void {
         if (self.errored) return;
         self.errored = true;
-        self.errors.append(.{ .tag = tag, .extra = extra }) catch {};
+        const diagnostic = .{ .tag = tag, .extra = extra };
+        self.errors.append(diagnostic) catch {
+            _ = self.errors.pop();
+            self.errors.append(diagnostic) catch unreachable;
+        };
     }
 
     pub fn warn(self: *Parser, tag: Diagnostics.Tag, extra: Diagnostics.Message.Extra) void {
