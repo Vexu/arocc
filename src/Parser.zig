@@ -468,7 +468,7 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
         defer p.strings.items.len = strings_top;
 
         const w = p.strings.writer();
-        const msg_str = p.retainedString(@"error".msg);
+        const msg_str = p.attributeMessageString(@"error".msg);
         try w.print("call to '{s}' declared with attribute error: {s}", .{ p.tokSlice(@"error".__name_tok), msg_str });
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.error_attribute, usage_tok, str);
@@ -478,7 +478,7 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
         defer p.strings.items.len = strings_top;
 
         const w = p.strings.writer();
-        const msg_str = p.retainedString(warning.msg);
+        const msg_str = p.attributeMessageString(warning.msg);
         try w.print("call to '{s}' declared with attribute warning: {s}", .{ p.tokSlice(warning.__name_tok), msg_str });
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.warning_attribute, usage_tok, str);
@@ -493,8 +493,9 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
     }
 }
 
+/// Assumes that the specified range was created by an ordinary or `u8` string literal
 /// Returned slice is invalidated if additional strings are added to p.retained_strings
-fn retainedString(p: *Parser, range: Value.ByteRange) []const u8 {
+fn attributeMessageString(p: *Parser, range: Value.ByteRange) []const u8 {
     return range.slice(p.retained_strings.items, .@"1");
 }
 
@@ -511,7 +512,7 @@ fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Valu
     };
     try w.writeAll(reason);
     if (msg) |m| {
-        const str = p.retainedString(m);
+        const str = p.attributeMessageString(m);
         try w.print(": {s}", .{str});
     }
     const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
