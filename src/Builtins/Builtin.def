@@ -1,5 +1,3 @@
-const aro = @import("root");
-const Properties = aro.Builtins.Properties;
 const TargetSet = Properties.TargetSet;
 
 # TODO this file is generated from LLVM sources and

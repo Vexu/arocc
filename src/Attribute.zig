@@ -673,7 +673,13 @@ pub fn initArguments(tag: Tag, name_tok: TokenIndex) Arguments {
 }
 
 pub fn fromString(kind: Kind, namespace: ?[]const u8, name: []const u8) ?Tag {
-    const attribute_names = @import("Attribute/names.def");
+    const Properties = struct {
+        tag: Tag,
+        gnu: bool = false,
+        declspec: bool = false,
+        c2x: bool = false,
+    };
+    const attribute_names = @import("Attribute/names.def").with(Properties);
 
     const normalized = normalize(name);
     const actual_kind: Kind = if (namespace) |ns| blk: {

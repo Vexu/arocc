@@ -1,5 +1,3 @@
-pub const Attribute = @import("Attribute.zig");
-pub const Builtins = @import("Builtins.zig");
 /// Deprecated
 pub const Codegen = @import("Codegen_legacy.zig");
 pub const CodeGen = @import("CodeGen.zig");

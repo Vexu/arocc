@@ -1,6 +1,3 @@
-const aro = @import("root");
-const Properties = struct { tag: aro.Attribute.Tag, gnu: bool = false, declspec: bool = false, c2x: bool = false };
-
 # multiple
 deprecated
     .tag = .deprecated

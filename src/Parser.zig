@@ -26,7 +26,8 @@ const StringId = @import("StringInterner.zig").StringId;
 const number_affixes = @import("number_affixes.zig");
 const NumberPrefix = number_affixes.Prefix;
 const NumberSuffix = number_affixes.Suffix;
-const Builtin = @import("Builtins/Builtin.def");
+const Builtins = @import("Builtins.zig");
+const Builtin = Builtins.Builtin;
 const target_util = @import("target.zig");
 
 const Parser = @This();

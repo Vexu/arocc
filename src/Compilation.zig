@@ -4,6 +4,7 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const EpochSeconds = std.time.epoch.EpochSeconds;
 const Builtins = @import("Builtins.zig");
+const Builtin = Builtins.Builtin;
 const Diagnostics = @import("Diagnostics.zig");
 const LangOpts = @import("LangOpts.zig");
 const Source = @import("Source.zig");
@@ -14,7 +15,6 @@ const Pragma = @import("Pragma.zig");
 const StringInterner = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
 const target_util = @import("target.zig");
-const Builtin = @import("Builtins/Builtin.def");
 
 const Compilation = @This();
 
