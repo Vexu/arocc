@@ -7604,13 +7604,7 @@ fn stringLiteral(p: *Parser) Error!Result {
     const slice = p.retained_strings.items[retain_start..];
 
     const arr_ty = try p.arena.create(Type.Array);
-    const specifier: Type.Specifier = switch (string_kind) {
-        .char => .char,
-        .utf_8 => if (p.comp.langopts.hasChar8_T()) .uchar else .char,
-        else => string_kind.charKind().charLiteralType(p.comp).specifier,
-    };
-
-    arr_ty.* = .{ .elem = .{ .specifier = specifier }, .len = @divExact(slice.len, @intFromEnum(char_width)) };
+    arr_ty.* = .{ .elem = string_kind.elementType(p.comp), .len = @divExact(slice.len, @intFromEnum(char_width)) };
     var res: Result = .{
         .ty = .{
             .specifier = .array,

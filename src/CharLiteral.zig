@@ -92,6 +92,14 @@ pub const StringKind = enum {
             inline else => |size| @alignOf(size.Type()),
         };
     }
+
+    pub fn elementType(kind: StringKind, comp: *const Compilation) Type {
+        return switch (kind) {
+            .char => .{ .specifier = .char },
+            .utf_8 => if (comp.langopts.hasChar8_T()) .{ .specifier = .uchar } else .{ .specifier = .char },
+            else => kind.charKind().charLiteralType(comp),
+        };
+    }
 };
 
 pub const CharKind = enum {
