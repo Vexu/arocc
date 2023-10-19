@@ -55,13 +55,13 @@ int Z = 'ABC\D';
     "wide character constants.c:10:16: error: wide character literals may not contain multiple characters" \
     "wide character constants.c:11:16: error: Unicode character literals may not contain multiple characters" \
     "wide character constants.c:14:16: warning: multi-character character constant [-Wfour-char-constants]" \
-    "wide character constants.c:20:19: error: escape sequence out of range" \
+    "wide character constants.c:20:21: error: escape sequence out of range" \
     "wide character constants.c:22:19: error: character too large for enclosing character literal type" \
-    "wide character constants.c:25:19: error: invalid universal character" \
+    "wide character constants.c:25:20: error: invalid universal character" \
     "wide character constants.c:26:19: error: character too large for enclosing character literal type" \
     "wide character constants.c:27:19: error: Unicode character literals may not contain multiple characters" \
     "wide character constants.c:28:19: error: Unicode character literals may not contain multiple characters" \
-    "wide character constants.c:29:19: error: escape sequence out of range" \
+    "wide character constants.c:29:20: error: escape sequence out of range" \
     "wide character constants.c:33:9: error: Unicode character literals may not contain multiple characters" \
     "wide character constants.c:35:9: error: character too large for enclosing character literal type" \
     "wide character constants.c:36:9: error: character 'A' cannot be specified by a universal character name" \

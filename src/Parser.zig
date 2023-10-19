@@ -7520,25 +7520,25 @@ fn makePredefinedIdentifier(p: *Parser, start: u32) !Result {
 }
 
 fn stringLiteral(p: *Parser) Error!Result {
-    var start = p.tok_i;
-    var string_kind = CharLiteral.StringKind.classify(p.tok_ids[start]).?;
-    p.tok_i += 1;
-    while (true) : (p.tok_i += 1) {
-        const next = CharLiteral.StringKind.classify(p.tok_ids[p.tok_i]) orelse break;
+    var string_end = p.tok_i;
+    var string_kind: CharLiteral.StringKind = .char;
+    while (CharLiteral.StringKind.classify(p.tok_ids[string_end])) |next| : (string_end += 1) {
         string_kind = string_kind.concat(next) catch {
-            try p.err(.unsupported_str_cat);
+            try p.errTok(.unsupported_str_cat, string_end);
             while (p.tok_ids[p.tok_i].isStringLiteral()) : (p.tok_i += 1) {}
             return error.ParsingFailed;
         };
     }
+    assert(string_end > p.tok_i);
+
     const char_width = string_kind.charUnitSize(p.comp);
 
     const retain_start = mem.alignForward(usize, p.retained_strings.items.len, string_kind.internalStorageAlignment(p.comp));
     try p.retained_strings.resize(retain_start);
 
-    while (start < p.tok_i) : (start += 1) {
-        const this_kind = CharLiteral.StringKind.classify(p.tok_ids[start]).?;
-        const slice = this_kind.contentSlice(p.tokSlice(start));
+    while (p.tok_i < string_end) : (p.tok_i += 1) {
+        const this_kind = CharLiteral.StringKind.classify(p.tok_ids[p.tok_i]).?;
+        const slice = this_kind.contentSlice(p.tokSlice(p.tok_i));
         var char_literal_parser = CharLiteral.Parser.init(slice, this_kind.charKind(), 0x10ffff, p.comp);
 
         try p.retained_strings.ensureUnusedCapacity((slice.len + 1) * @intFromEnum(char_width)); // +1 for null terminator

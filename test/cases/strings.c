@@ -1,5 +1,5 @@
 _Static_assert(1, "foo" "\n" "bar");
-_Static_assert(1, "foo" "\x606262 ");
+_Static_assert(1, "foo" "abc\x606262 ");
 _Static_assert(1, "\000062");
 _Static_assert(1, "\U00110000");
 _Static_assert(1, "\u0062");
@@ -15,12 +15,12 @@ _Static_assert(1, "\u0060");
 _Static_assert(1, "aaァ\e[1;");
 #pragma GCC diagnostic pop
 
-#define EXPECTED_ERRORS "strings.c:2:36: error: escape sequence out of range" \
-    "strings.c:4:31: error: invalid universal character" \
-    "strings.c:5:27: error: character 'b' cannot be specified by a universal character name" \
+#define EXPECTED_ERRORS "strings.c:2:29: error: escape sequence out of range" \
+    "strings.c:4:19: error: invalid universal character" \
+    "strings.c:5:19: error: character 'b' cannot be specified by a universal character name" \
     "strings.c:7:9: warning: multi-character character constant [-Wmultichar]" \
     "strings.c:7:9: warning: character constant too long for its type" \
-    "strings.c:9:27: error: invalid universal character" \
-    "strings.c:10:31: error: invalid universal character" \
-    "strings.c:11:31: error: invalid universal character" \
-    "strings.c:15:4: warning: use of non-standard escape character '\\e' [-Wpedantic]" \
+    "strings.c:9:19: error: invalid universal character" \
+    "strings.c:10:19: error: invalid universal character" \
+    "strings.c:11:19: error: invalid universal character" \
+    "strings.c:15:23: warning: use of non-standard escape character '\\e' [-Wpedantic]" \

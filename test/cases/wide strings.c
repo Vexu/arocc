@@ -55,9 +55,9 @@ _Static_assert(1 == 2, U"😬\U0001f62c");
 char foo[] = "\u0020\u0020\u0020\u0020\xFFFFFFFF";
 
 #define EXPECTED_ERRORS "wide strings.c:25:21: error: unsupported string literal concatenation" \
-    "wide strings.c:48:26: error: escape sequence out of range" \
-    "wide strings.c:50:24: error: escape sequence out of range" \
+    "wide strings.c:48:18: error: escape sequence out of range" \
+    "wide strings.c:50:18: error: escape sequence out of range" \
     "wide strings.c:52:1: error: static assertion failed \"😬😬\"" \
     "wide strings.c:53:1: error: static assertion failed \"😬😬\"" \
-    "wide strings.c:55:50: error: escape sequence out of range" \
+    "wide strings.c:55:39: error: escape sequence out of range" \
 
