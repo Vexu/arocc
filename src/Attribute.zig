@@ -60,7 +60,7 @@ pub const ArgumentType = enum {
 
     fn fromType(comptime T: type) ArgumentType {
         return switch (T) {
-            []const u8 => .string,
+            Value.ByteRange => .string,
             Identifier => .identifier,
             u32 => .int,
             Alignment => .alignment,

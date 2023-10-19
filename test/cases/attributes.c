@@ -107,6 +107,8 @@ typedef struct {
 __attribute__((aligned(32))) char aligned_arr[] = {1, 2, 3};
 _Static_assert(sizeof(aligned_arr) == 3, "");
 
+__attribute__((section(1))) int Z;
+
 __attribute__(()) // test attribute at eof
 
 #define TESTS_SKIPPED 1
@@ -119,4 +121,5 @@ __attribute__(()) // test attribute at eof
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
     "attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement" \
     "attributes.c:76:6: error: cannot call non function type 'int'" \
-    "attributes.c:110:18: error: expected identifier or '('" \
+    "attributes.c:110:24: error: Attribute argument is invalid, expected a string but got an integer constant" \
+    "attributes.c:112:18: error: expected identifier or '('" \
