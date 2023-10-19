@@ -7584,7 +7584,7 @@ fn stringLiteral(p: *Parser) Error!Result {
                         const dest_len = if (capacity_slice.len % 2 == 0) capacity_slice.len else capacity_slice.len - 1;
                         var dest = std.mem.bytesAsSlice(u16, capacity_slice[0..dest_len]);
                         const words_written = std.unicode.utf8ToUtf16Le(dest, view.bytes) catch unreachable;
-                        p.retained_strings.items.len += words_written * 2;
+                        p.retained_strings.resize(p.retained_strings.items.len + words_written * 2) catch unreachable;
                     },
                     .@"4" => {
                         var it = view.iterator();
