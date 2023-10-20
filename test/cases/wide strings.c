@@ -54,6 +54,16 @@ _Static_assert(1 == 2, U"😬\U0001f62c");
 
 char foo[] = "\u0020\u0020\u0020\u0020\xFFFFFFFF";
 
+wchar_t N[] = "word" L"" "a";
+_Static_assert(sizeof(N) == sizeof(wchar_t) * 6);
+uint32_t O[] = "word" U"" "a";
+_Static_assert(sizeof(O) == sizeof(uint32_t) * 6);
+uint16_t P[] = "word" u"" "a";
+_Static_assert(sizeof(P) == sizeof(uint16_t) * 6);
+
+uint32_t Q[] = U"abc\ndef\xFFghi";
+_Static_assert(sizeof(Q) == sizeof(uint32_t) * 12);
+
 #define EXPECTED_ERRORS "wide strings.c:25:21: error: unsupported string literal concatenation" \
     "wide strings.c:48:18: error: escape sequence out of range" \
     "wide strings.c:50:18: error: escape sequence out of range" \
