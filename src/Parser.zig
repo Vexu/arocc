@@ -7466,6 +7466,8 @@ fn primaryExpr(p: *Parser) Error!Result {
         .char_literal_utf_16,
         .char_literal_utf_32,
         .char_literal_wide,
+        .empty_char_literal,
+        .unterminated_char_literal,
         => return p.charLiteral(),
         .zero => {
             p.tok_i += 1;
@@ -7627,7 +7629,18 @@ fn stringLiteral(p: *Parser) Error!Result {
 fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
     const tok_id = p.tok_ids[p.tok_i];
-    const char_kind = TextLiteral.Kind.classify(tok_id, .char_literal).?;
+    const char_kind = TextLiteral.Kind.classify(tok_id, .char_literal) orelse {
+        if (tok_id == .empty_char_literal) {
+            try p.err(.empty_char_literal_error);
+        } else if (tok_id == .unterminated_char_literal) {
+            try p.err(.unterminated_char_literal_error);
+        } else unreachable;
+        return .{
+            .ty = Type.int,
+            .val = Value.int(0),
+            .node = try p.addNode(.{ .tag = .char_literal, .ty = Type.int, .data = undefined }),
+        };
+    };
     var val: u32 = 0;
 
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));

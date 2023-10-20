@@ -2525,6 +2525,24 @@ const messages = struct {
         const msg = "missing terminating '\"' character";
         const kind = .@"error";
     };
+    pub const empty_char_literal_warning = struct {
+        const msg = "empty character constant";
+        const kind = .warning;
+        const opt = "invalid-pp-token";
+    };
+    pub const empty_char_literal_error = struct {
+        const msg = "empty character constant";
+        const kind = .@"error";
+    };
+    pub const unterminated_char_literal_warning = struct {
+        const msg = "missing terminating ' character";
+        const kind = .warning;
+        const opt = "invalid-pp-token";
+    };
+    pub const unterminated_char_literal_error = struct {
+        const msg = "missing terminating ' character";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
