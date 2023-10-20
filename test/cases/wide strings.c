@@ -64,10 +64,16 @@ _Static_assert(sizeof(P) == sizeof(uint16_t) * 6);
 uint32_t Q[] = U"abc\ndef\xFFghi";
 _Static_assert(sizeof(Q) == sizeof(uint32_t) * 12);
 
+uint32_t R[] = U"a" U'b';
+uint32_t S[] = U'a';
+uint32_t T[] = { U'a', U'b'};
+
 #define EXPECTED_ERRORS "wide strings.c:25:21: error: unsupported string literal concatenation" \
     "wide strings.c:48:18: error: escape sequence out of range" \
     "wide strings.c:50:18: error: escape sequence out of range" \
     "wide strings.c:52:1: error: static assertion failed \"😬😬\"" \
     "wide strings.c:53:1: error: static assertion failed \"😬😬\"" \
     "wide strings.c:55:39: error: escape sequence out of range" \
+    "wide strings.c:67:21: error: expected ';', found 'a character literal'" \
+    "wide strings.c:68:16: error: array initializer must be an initializer list or wide string literal" \
 

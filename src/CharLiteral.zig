@@ -21,58 +21,93 @@ const CharDiagnostic = struct {
     extra: Diagnostics.Message.Extra,
 };
 
-/// This assumes StringKind and CharKind have the same enum tags and C-source prefix
-fn contentSliceInternal(comptime T: type, kind: T, delimited: []const u8) []const u8 {
-    const end = delimited.len - 1; // remove trailing quote
-    return switch (kind) {
-        .char => delimited[1..end],
-        .wide => delimited[2..end],
-        .utf_8 => delimited[3..end],
-        .utf_16 => delimited[2..end],
-        .utf_32 => delimited[2..end],
-    };
-}
-
-pub const StringKind = enum {
+pub const Kind = enum {
     char,
     wide,
     utf_8,
     utf_16,
     utf_32,
 
-    pub fn classify(id: Tokenizer.Token.Id) ?StringKind {
-        return switch (id) {
-            .string_literal => .char,
-            .string_literal_utf_8 => .utf_8,
-            .string_literal_wide => .wide,
-            .string_literal_utf_16 => .utf_16,
-            .string_literal_utf_32 => .utf_32,
-            else => null,
+    pub fn classify(id: Tokenizer.Token.Id, context: enum { string_literal, char_literal }) ?Kind {
+        return switch (context) {
+            .string_literal => switch (id) {
+                .string_literal => .char,
+                .string_literal_utf_8 => .utf_8,
+                .string_literal_wide => .wide,
+                .string_literal_utf_16 => .utf_16,
+                .string_literal_utf_32 => .utf_32,
+                else => null,
+            },
+            .char_literal => switch (id) {
+                .char_literal => .char,
+                .char_literal_utf_8 => .utf_8,
+                .char_literal_wide => .wide,
+                .char_literal_utf_16 => .utf_16,
+                .char_literal_utf_32 => .utf_32,
+                else => null,
+            },
         };
     }
 
-    pub fn concat(self: StringKind, other: StringKind) !StringKind {
+    /// Should only be called for string literals. Determines the result kind of two adjacent string
+    /// literals
+    pub fn concat(self: Kind, other: Kind) !Kind {
         if (self == other) return self; // can always concat with own kind
         if (self == .char) return other; // char + X -> X
         if (other == .char) return self; // X + char -> X
         return error.CannotConcat;
     }
 
-    pub fn charKind(self: StringKind) CharKind {
-        return switch (self) {
-            .char => .char,
-            .wide => .wide,
-            .utf_8 => .utf_8,
-            .utf_16 => .utf_16,
-            .utf_32 => .utf_32,
+    /// Largest unicode codepoint that can be represented by this character kind
+    /// May be smaller than the largest value that can be represented.
+    /// For example u8 char literals may only specify 0-127 via literals or
+    /// character escapes, but may specify up to \xFF via hex escapes.
+    pub fn maxCodepoint(kind: Kind, comp: *const Compilation) u21 {
+        return @intCast(switch (kind) {
+            .char => std.math.maxInt(u7),
+            .wide => @min(0x10FFFF, comp.types.wchar.maxInt(comp)),
+            .utf_8 => std.math.maxInt(u7),
+            .utf_16 => std.math.maxInt(u16),
+            .utf_32 => 0x10FFFF,
+        });
+    }
+
+    /// Largest integer that can be represented by this character kind
+    pub fn maxInt(kind: Kind, comp: *const Compilation) u32 {
+        return @intCast(switch (kind) {
+            .char, .utf_8 => std.math.maxInt(u8),
+            .wide => comp.types.wchar.maxInt(comp),
+            .utf_16 => std.math.maxInt(u16),
+            .utf_32 => std.math.maxInt(u32),
+        });
+    }
+
+    /// The C type of a character literal of this kind
+    pub fn charLiteralType(kind: Kind, comp: *const Compilation) Type {
+        return switch (kind) {
+            .char => Type.int,
+            .wide => comp.types.wchar,
+            .utf_8 => .{ .specifier = .uchar },
+            .utf_16 => comp.types.uint_least16_t,
+            .utf_32 => comp.types.uint_least32_t,
         };
     }
 
-    pub fn contentSlice(kind: StringKind, delimited: []const u8) []const u8 {
-        return contentSliceInternal(StringKind, kind, delimited);
+    /// Return the actual contents of the literal with leading / trailing quotes and
+    /// specifiers removed
+    pub fn contentSlice(kind: Kind, delimited: []const u8) []const u8 {
+        const end = delimited.len - 1; // remove trailing quote
+        return switch (kind) {
+            .char => delimited[1..end],
+            .wide => delimited[2..end],
+            .utf_8 => delimited[3..end],
+            .utf_16 => delimited[2..end],
+            .utf_32 => delimited[2..end],
+        };
     }
 
-    pub fn charUnitSize(kind: StringKind, comp: *const Compilation) Compilation.CharUnitSize {
+    /// The size of a character unit for a string literal of this kind
+    pub fn charUnitSize(kind: Kind, comp: *const Compilation) Compilation.CharUnitSize {
         return switch (kind) {
             .char => .@"1",
             .wide => switch (comp.types.wchar.sizeof(comp).?) {
@@ -87,91 +122,33 @@ pub const StringKind = enum {
     }
 
     /// Required alignment within aro (on compiler host) for writing to retained_strings
-    pub fn internalStorageAlignment(kind: StringKind, comp: *const Compilation) usize {
+    pub fn internalStorageAlignment(kind: Kind, comp: *const Compilation) usize {
         return switch (kind.charUnitSize(comp)) {
             inline else => |size| @alignOf(size.Type()),
         };
     }
 
-    pub fn elementType(kind: StringKind, comp: *const Compilation) Type {
+    /// The C type of an element of a string literal of this kind
+    pub fn elementType(kind: Kind, comp: *const Compilation) Type {
         return switch (kind) {
             .char => .{ .specifier = .char },
             .utf_8 => if (comp.langopts.hasChar8_T()) .{ .specifier = .uchar } else .{ .specifier = .char },
-            else => kind.charKind().charLiteralType(comp),
+            else => kind.charLiteralType(comp),
         };
-    }
-};
-
-pub const CharKind = enum {
-    char,
-    wide,
-    utf_8,
-    utf_16,
-    utf_32,
-
-    pub fn classify(id: Tokenizer.Token.Id) CharKind {
-        return switch (id) {
-            .char_literal => .char,
-            .char_literal_utf_8 => .utf_8,
-            .char_literal_wide => .wide,
-            .char_literal_utf_16 => .utf_16,
-            .char_literal_utf_32 => .utf_32,
-            else => unreachable,
-        };
-    }
-
-    /// Largest unicode codepoint that can be represented by this character kind
-    /// May be smaller than the largest value that can be represented.
-    /// For example u8 char literals may only specify 0-127 via literals or
-    /// character escapes, but may specify up to \xFF via hex escapes.
-    pub fn maxCodepoint(kind: CharKind, comp: *const Compilation) u21 {
-        return @intCast(switch (kind) {
-            .char => std.math.maxInt(u7),
-            .wide => @min(0x10FFFF, comp.types.wchar.maxInt(comp)),
-            .utf_8 => std.math.maxInt(u7),
-            .utf_16 => std.math.maxInt(u16),
-            .utf_32 => 0x10FFFF,
-        });
-    }
-
-    /// Largest integer that can be represented by this character kind
-    pub fn maxInt(kind: CharKind, comp: *const Compilation) u32 {
-        return @intCast(switch (kind) {
-            .char, .utf_8 => std.math.maxInt(u8),
-            .wide => comp.types.wchar.maxInt(comp),
-            .utf_16 => std.math.maxInt(u16),
-            .utf_32 => std.math.maxInt(u32),
-        });
-    }
-
-    pub fn charLiteralType(kind: CharKind, comp: *const Compilation) Type {
-        return switch (kind) {
-            .char => Type.int,
-            .wide => comp.types.wchar,
-            .utf_8 => .{ .specifier = .uchar },
-            .utf_16 => comp.types.uint_least16_t,
-            .utf_32 => comp.types.uint_least32_t,
-        };
-    }
-
-    /// Return the actual contents of the string literal with leading / trailing quotes and
-    /// specifiers removed
-    pub fn contentSlice(kind: CharKind, delimited: []const u8) []const u8 {
-        return contentSliceInternal(CharKind, kind, delimited);
     }
 };
 
 pub const Parser = struct {
     literal: []const u8,
     i: usize = 0,
-    kind: CharKind,
+    kind: Kind,
     max_codepoint: u21,
     /// We only want to issue a max of 1 error per char literal
     errored: bool = false,
     errors: std.BoundedArray(CharDiagnostic, 4) = .{},
     comp: *const Compilation,
 
-    pub fn init(literal: []const u8, kind: CharKind, max_codepoint: u21, comp: *const Compilation) Parser {
+    pub fn init(literal: []const u8, kind: Kind, max_codepoint: u21, comp: *const Compilation) Parser {
         return .{
             .literal = literal,
             .comp = comp,

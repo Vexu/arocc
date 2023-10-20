@@ -7521,8 +7521,8 @@ fn makePredefinedIdentifier(p: *Parser, start: u32) !Result {
 
 fn stringLiteral(p: *Parser) Error!Result {
     var string_end = p.tok_i;
-    var string_kind: CharLiteral.StringKind = .char;
-    while (CharLiteral.StringKind.classify(p.tok_ids[string_end])) |next| : (string_end += 1) {
+    var string_kind: CharLiteral.Kind = .char;
+    while (CharLiteral.Kind.classify(p.tok_ids[string_end], .string_literal)) |next| : (string_end += 1) {
         string_kind = string_kind.concat(next) catch {
             try p.errTok(.unsupported_str_cat, string_end);
             while (p.tok_ids[p.tok_i].isStringLiteral()) : (p.tok_i += 1) {}
@@ -7537,9 +7537,9 @@ fn stringLiteral(p: *Parser) Error!Result {
     try p.retained_strings.resize(retain_start);
 
     while (p.tok_i < string_end) : (p.tok_i += 1) {
-        const this_kind = CharLiteral.StringKind.classify(p.tok_ids[p.tok_i]).?;
+        const this_kind = CharLiteral.Kind.classify(p.tok_ids[p.tok_i], .string_literal).?;
         const slice = this_kind.contentSlice(p.tokSlice(p.tok_i));
-        var char_literal_parser = CharLiteral.Parser.init(slice, this_kind.charKind(), 0x10ffff, p.comp);
+        var char_literal_parser = CharLiteral.Parser.init(slice, this_kind, 0x10ffff, p.comp);
 
         try p.retained_strings.ensureUnusedCapacity((slice.len + 1) * @intFromEnum(char_width)); // +1 for null terminator
         while (char_literal_parser.next()) |item| switch (item) {
@@ -7620,7 +7620,7 @@ fn stringLiteral(p: *Parser) Error!Result {
 fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
     const tok_id = p.tok_ids[p.tok_i];
-    const char_kind = CharLiteral.CharKind.classify(tok_id);
+    const char_kind = CharLiteral.Kind.classify(tok_id, .char_literal).?;
     var val: u32 = 0;
 
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
