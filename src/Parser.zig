@@ -1181,6 +1181,7 @@ fn staticAssert(p: *Parser) Error!bool {
             .string_literal_utf_8,
             .string_literal_utf_32,
             .string_literal_wide,
+            .unterminated_string_literal,
             => try p.stringLiteral(),
             else => {
                 try p.err(.expected_str_literal);
@@ -3950,7 +3951,7 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
 fn asmStr(p: *Parser) Error!Result {
     var i = p.tok_i;
     while (true) : (i += 1) switch (p.tok_ids[i]) {
-        .string_literal => {},
+        .string_literal, .unterminated_string_literal => {},
         .string_literal_utf_16, .string_literal_utf_8, .string_literal_utf_32 => {
             try p.errStr(.invalid_asm_str, p.tok_i, "unicode");
             return error.ParsingFailed;
@@ -7458,6 +7459,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         .string_literal_utf_8,
         .string_literal_utf_32,
         .string_literal_wide,
+        .unterminated_string_literal,
         => return p.stringLiteral(),
         .char_literal,
         .char_literal_utf_8,
@@ -7528,6 +7530,11 @@ fn stringLiteral(p: *Parser) Error!Result {
             while (p.tok_ids[p.tok_i].isStringLiteral()) : (p.tok_i += 1) {}
             return error.ParsingFailed;
         };
+        if (string_kind == .unterminated) {
+            try p.errTok(.unterminated_string_literal_error, string_end);
+            p.tok_i = string_end + 1;
+            return error.ParsingFailed;
+        }
     }
     assert(string_end > p.tok_i);
 

@@ -635,6 +635,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                 if (tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSlice(tok)) != null) {
                     try pp.err(tok, .poisoned_identifier);
                 }
+                if (tok.id == .unterminated_string_literal) {
+                    try pp.err(tok, .unterminated_string_literal_warning);
+                }
                 // Add the token to the buffer doing any necessary expansions.
                 start_of_line = false;
                 try pp.expandMacro(&tokenizer, tok);
@@ -2187,6 +2190,9 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                     need_ws = false;
                     try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });
                 }
+                if (tok.id == .unterminated_string_literal) {
+                    try pp.err(tok, .unterminated_string_literal_warning);
+                }
                 try pp.token_buf.append(tok);
             },
         }
@@ -2324,6 +2330,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.token_buf.append(tok);
             },
             else => {
+                if (tok.id == .unterminated_string_literal) {
+                    try pp.err(tok, .unterminated_string_literal_warning);
+                }
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
                     try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });

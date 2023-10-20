@@ -29,6 +29,8 @@ pub const Kind = enum {
     utf_8,
     utf_16,
     utf_32,
+    /// Error kind that halts parsing
+    unterminated,
 
     pub fn classify(id: Tokenizer.Token.Id, context: enum { string_literal, char_literal }) ?Kind {
         return switch (context) {
@@ -38,6 +40,7 @@ pub const Kind = enum {
                 .string_literal_wide => .wide,
                 .string_literal_utf_16 => .utf_16,
                 .string_literal_utf_32 => .utf_32,
+                .unterminated_string_literal => .unterminated,
                 else => null,
             },
             .char_literal => switch (id) {
@@ -54,6 +57,7 @@ pub const Kind = enum {
     /// Should only be called for string literals. Determines the result kind of two adjacent string
     /// literals
     pub fn concat(self: Kind, other: Kind) !Kind {
+        if (self == .unterminated or other == .unterminated) return .unterminated;
         if (self == other) return self; // can always concat with own kind
         if (self == .char) return other; // char + X -> X
         if (other == .char) return self; // X + char -> X
@@ -71,6 +75,7 @@ pub const Kind = enum {
             .utf_8 => std.math.maxInt(u7),
             .utf_16 => std.math.maxInt(u16),
             .utf_32 => 0x10FFFF,
+            .unterminated => unreachable,
         });
     }
 
@@ -81,6 +86,7 @@ pub const Kind = enum {
             .wide => comp.types.wchar.maxInt(comp),
             .utf_16 => std.math.maxInt(u16),
             .utf_32 => std.math.maxInt(u32),
+            .unterminated => unreachable,
         });
     }
 
@@ -92,6 +98,7 @@ pub const Kind = enum {
             .utf_8 => .{ .specifier = .uchar },
             .utf_16 => comp.types.uint_least16_t,
             .utf_32 => comp.types.uint_least32_t,
+            .unterminated => unreachable,
         };
     }
 
@@ -105,6 +112,7 @@ pub const Kind = enum {
             .utf_8 => delimited[3..end],
             .utf_16 => delimited[2..end],
             .utf_32 => delimited[2..end],
+            .unterminated => unreachable,
         };
     }
 
@@ -120,6 +128,7 @@ pub const Kind = enum {
             .utf_8 => .@"1",
             .utf_16 => .@"2",
             .utf_32 => .@"4",
+            .unterminated => unreachable,
         };
     }
 
@@ -133,6 +142,7 @@ pub const Kind = enum {
     /// The C type of an element of a string literal of this kind
     pub fn elementType(kind: Kind, comp: *const Compilation) Type {
         return switch (kind) {
+            .unterminated => unreachable,
             .char => .{ .specifier = .char },
             .utf_8 => if (comp.langopts.hasChar8_T()) .{ .specifier = .uchar } else .{ .specifier = .char },
             else => kind.charLiteralType(comp),
@@ -161,6 +171,7 @@ pub const Parser = struct {
 
     fn prefixLen(self: *const Parser) usize {
         return switch (self.kind) {
+            .unterminated => unreachable,
             .char => 0,
             .utf_8 => 2,
             .wide, .utf_16, .utf_32 => 1,
