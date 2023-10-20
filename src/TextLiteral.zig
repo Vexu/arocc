@@ -1,3 +1,5 @@
+//! Parsing and classification of string and character literals
+
 const std = @import("std");
 const Compilation = @import("Compilation.zig");
 const Type = @import("Type.zig");
