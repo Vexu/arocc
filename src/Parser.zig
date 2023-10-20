@@ -7581,7 +7581,7 @@ fn stringLiteral(p: *Parser) Error!Result {
                     .@"1" => p.retained_strings.appendSliceAssumeCapacity(view.bytes),
                     .@"2" => {
                         var capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.retained_strings.unusedCapacitySlice());
-                        const dest_len = if (capacity_slice.len % 2 == 0) capacity_slice.len else capacity_slice.len - 1;
+                        const dest_len = std.mem.alignBackward(usize, capacity_slice.len, 2);
                         var dest = std.mem.bytesAsSlice(u16, capacity_slice[0..dest_len]);
                         const words_written = std.unicode.utf8ToUtf16Le(dest, view.bytes) catch unreachable;
                         p.retained_strings.resize(p.retained_strings.items.len + words_written * 2) catch unreachable;
