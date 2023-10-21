@@ -656,17 +656,6 @@ pub fn isLvalExtra(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: 
     }
 }
 
-pub fn dumpStr(retained_strings: []const u8, range: Value.ByteRange, tag: Tag, writer: anytype) !void {
-    switch (tag) {
-        .string_literal_expr => {
-            const lit_range = range.trim(1); // remove null-terminator
-            const str = lit_range.slice(retained_strings);
-            try writer.print("\"{}\"", .{std.zig.fmtEscapes(str)});
-        },
-        else => unreachable,
-    }
-}
-
 pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
@@ -716,8 +705,8 @@ fn dumpAttribute(attr: Attribute, strings: []const u8, writer: anytype) !void {
                 try writer.writeAll(f.name);
                 try writer.writeAll(": ");
                 switch (f.type) {
-                    Value.ByteRange => try writer.print("\"{s}\"", .{@field(args, f.name).slice(strings)}),
-                    ?Value.ByteRange => try writer.print("\"{?s}\"", .{if (@field(args, f.name)) |range| range.slice(strings) else null}),
+                    Value.ByteRange => try writer.print("\"{s}\"", .{@field(args, f.name).slice(strings, .@"1")}),
+                    ?Value.ByteRange => try writer.print("\"{?s}\"", .{if (@field(args, f.name)) |range| range.slice(strings, .@"1") else null}),
                     else => switch (@typeInfo(f.type)) {
                         .Enum => try writer.writeAll(@tagName(@field(args, f.name))),
                         else => try writer.print("{any}", .{@field(args, f.name)}),

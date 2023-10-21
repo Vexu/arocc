@@ -238,6 +238,8 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         \\#define __STDC_NO_COMPLEX__ 1
         \\#define __STDC_NO_THREADS__ 1
         \\#define __STDC_NO_VLA__ 1
+        \\#define __STDC_UTF_16__ 1
+        \\#define __STDC_UTF_32__ 1
         \\
     );
     if (comp.langopts.standard.StdCVersionMacro()) |stdc_version| {
@@ -1427,6 +1429,20 @@ pub fn hasBuiltinFunction(comp: *const Compilation, builtin: Builtin) bool {
         .gnu_lang, .all_gnu_languages => return comp.langopts.standard.isGNU(),
     }
 }
+
+pub const CharUnitSize = enum(u32) {
+    @"1" = 1,
+    @"2" = 2,
+    @"4" = 4,
+
+    pub fn Type(comptime self: CharUnitSize) type {
+        return switch (self) {
+            .@"1" => u8,
+            .@"2" => u16,
+            .@"4" => u32,
+        };
+    }
+};
 
 pub const renderErrors = Diagnostics.render;
 

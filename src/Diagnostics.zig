@@ -179,6 +179,7 @@ pub const Options = packed struct {
     @"invalid-source-encoding": Kind = .default,
     @"four-char-constants": Kind = .default,
     @"unknown-escape-sequence": Kind = .default,
+    @"invalid-pp-token": Kind = .default,
 };
 
 const messages = struct {
@@ -2509,6 +2510,42 @@ const messages = struct {
         const kind = .warning;
         const opt = "unknown-escape-sequence";
         const extra = .invalid_escape;
+    };
+    pub const attribute_requires_string = struct {
+        const msg = "attribute '{s}' requires an ordinary string";
+        const kind = .@"error";
+        const extra = .str;
+    };
+    pub const unterminated_string_literal_warning = struct {
+        const msg = "missing terminating '\"' character";
+        const kind = .warning;
+        const opt = "invalid-pp-token";
+    };
+    pub const unterminated_string_literal_error = struct {
+        const msg = "missing terminating '\"' character";
+        const kind = .@"error";
+    };
+    pub const empty_char_literal_warning = struct {
+        const msg = "empty character constant";
+        const kind = .warning;
+        const opt = "invalid-pp-token";
+    };
+    pub const empty_char_literal_error = struct {
+        const msg = "empty character constant";
+        const kind = .@"error";
+    };
+    pub const unterminated_char_literal_warning = struct {
+        const msg = "missing terminating ' character";
+        const kind = .warning;
+        const opt = "invalid-pp-token";
+    };
+    pub const unterminated_char_literal_error = struct {
+        const msg = "missing terminating ' character";
+        const kind = .@"error";
+    };
+    pub const unterminated_comment = struct {
+        const msg = "unterminated comment";
+        const kind = .@"error";
     };
 };
 
