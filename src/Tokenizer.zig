@@ -1704,9 +1704,12 @@ pub fn next(self: *Tokenizer) Token {
             .start, .line_comment => {},
             .u, .u8, .U, .L, .identifier => id = Token.getTokenId(self.comp, self.buf[start..self.index]),
             .extended_identifier => id = .extended_identifier,
-            .period2,
-            .path_escape,
-            => id = .invalid,
+            .path_escape => id = .invalid,
+
+            .period2 => {
+                self.index -= 1;
+                id = .period;
+            },
 
             .multi_line_comment,
             .multi_line_comment_asterisk,
