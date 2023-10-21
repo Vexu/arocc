@@ -266,6 +266,15 @@ pub fn addIncludeResume(pp: *Preprocessor, source: Source.Id, offset: u32, line:
     } });
 }
 
+fn invalidTokenDiagnostic(tok_id: Token.Id) Diagnostics.Tag {
+    return switch (tok_id) {
+        .unterminated_string_literal => .unterminated_string_literal_warning,
+        .empty_char_literal => .empty_char_literal_warning,
+        .unterminated_char_literal => .unterminated_char_literal_warning,
+        else => unreachable,
+    };
+}
+
 /// Return the name of the #ifndef guard macro that starts a source, if any.
 fn findIncludeGuard(pp: *Preprocessor, source: Source) ?[]const u8 {
     var tokenizer = Tokenizer{
@@ -631,19 +640,15 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                 }
                 return tokFromRaw(tok);
             },
+            .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
+                start_of_line = false;
+                try pp.err(tok, invalidTokenDiagnostic(tag));
+                try pp.expandMacro(&tokenizer, tok);
+            },
+            .unterminated_comment => try pp.err(tok, .unterminated_comment),
             else => {
                 if (tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSlice(tok)) != null) {
                     try pp.err(tok, .poisoned_identifier);
-                }
-                switch (tok.id) {
-                    .unterminated_string_literal => try pp.err(tok, .unterminated_string_literal_warning),
-                    .empty_char_literal => try pp.err(tok, .empty_char_literal_warning),
-                    .unterminated_char_literal => try pp.err(tok, .unterminated_char_literal_warning),
-                    .unterminated_comment => {
-                        try pp.err(tok, .unterminated_comment);
-                        continue;
-                    },
-                    else => {},
                 }
                 // Add the token to the buffer doing any necessary expansions.
                 start_of_line = false;
@@ -2186,21 +2191,11 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                 try pp.token_buf.append(tok);
             },
             .whitespace => need_ws = true,
-            .unterminated_string_literal => {
-                try pp.err(tok, .unterminated_string_literal_warning);
+            .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
+                try pp.err(tok, invalidTokenDiagnostic(tag));
                 try pp.token_buf.append(tok);
             },
-            .unterminated_char_literal => {
-                try pp.err(tok, .unterminated_char_literal_warning);
-                try pp.token_buf.append(tok);
-            },
-            .empty_char_literal => {
-                try pp.err(tok, .empty_char_literal_warning);
-                try pp.token_buf.append(tok);
-            },
-            .unterminated_comment => {
-                try pp.err(tok, .unterminated_comment);
-            },
+            .unterminated_comment => try pp.err(tok, .unterminated_comment),
             else => {
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
@@ -2342,21 +2337,11 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 }
                 try pp.token_buf.append(tok);
             },
-            .unterminated_string_literal => {
-                try pp.err(tok, .unterminated_string_literal_warning);
+            .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
+                try pp.err(tok, invalidTokenDiagnostic(tag));
                 try pp.token_buf.append(tok);
             },
-            .unterminated_char_literal => {
-                try pp.err(tok, .unterminated_char_literal_warning);
-                try pp.token_buf.append(tok);
-            },
-            .empty_char_literal => {
-                try pp.err(tok, .empty_char_literal_warning);
-                try pp.token_buf.append(tok);
-            },
-            .unterminated_comment => {
-                try pp.err(tok, .unterminated_comment);
-            },
+            .unterminated_comment => try pp.err(tok, .unterminated_comment),
             else => {
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
