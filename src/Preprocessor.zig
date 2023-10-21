@@ -639,6 +639,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                     .unterminated_string_literal => try pp.err(tok, .unterminated_string_literal_warning),
                     .empty_char_literal => try pp.err(tok, .empty_char_literal_warning),
                     .unterminated_char_literal => try pp.err(tok, .unterminated_char_literal_warning),
+                    .unterminated_comment => {
+                        try pp.err(tok, .unterminated_comment);
+                        continue;
+                    },
                     else => {},
                 }
                 // Add the token to the buffer doing any necessary expansions.
@@ -2200,6 +2204,9 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                 try pp.err(tok, .empty_char_literal_warning);
                 try pp.token_buf.append(tok);
             },
+            .unterminated_comment => {
+                try pp.err(tok, .unterminated_comment);
+            },
             else => {
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
@@ -2352,6 +2359,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
             .empty_char_literal => {
                 try pp.err(tok, .empty_char_literal_warning);
                 try pp.token_buf.append(tok);
+            },
+            .unterminated_comment => {
+                try pp.err(tok, .unterminated_comment);
             },
             else => {
                 if (tok.id != .whitespace and need_ws) {

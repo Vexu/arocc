@@ -2543,6 +2543,10 @@ const messages = struct {
         const msg = "missing terminating ' character";
         const kind = .@"error";
     };
+    pub const unterminated_comment = struct {
+        const msg = "unterminated comment";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
