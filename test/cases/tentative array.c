@@ -2,7 +2,7 @@ int arr[];
 
 _Static_assert(sizeof arr,"");
 
-int arr[3]; // TODO should make the error go away
+int arr[3]; // TODO should make the warning go away
 
 #define SKIPPED_TESTS 1
 
