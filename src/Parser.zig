@@ -6342,7 +6342,14 @@ fn typesCompatible(p: *Parser) Error!Result {
 
     try p.expectClosing(l_paren, .r_paren);
 
-    const compatible = first.compatible(second, p.comp);
+    var first_unqual = first.canonicalize(.standard);
+    first_unqual.qual.@"const" = false;
+    first_unqual.qual.@"volatile" = false;
+    var second_unqual = second.canonicalize(.standard);
+    second_unqual.qual.@"const" = false;
+    second_unqual.qual.@"volatile" = false;
+
+    const compatible = first_unqual.eql(second_unqual, p.comp, true);
 
     var res = Result{
         .val = Value.int(@intFromBool(compatible)),

@@ -66,9 +66,24 @@ typedef MyFloat MyInt;
 typedef int MyOtherInt;
 typedef const int MyOtherInt;
 
-#define TESTS_SKIPPED 1
-// int f(int (*)(), double (*)[3]);
-// int f(int (*)(char *), double (*)[]);
+int f(int (*)(), double (*)[3]);
+int f(int (*)(char *), double (*)[]);
+
+double maximum(int n, int m, double a[n][m]);
+double maximum(int n, int m, double a[*][*]);
+double maximum(int n, int m, double a[ ][*]);
+double maximum(int n, int m, double a[ ][m]);
+
+void f3(double (* restrict a)[5]);
+void f3(double a[restrict][5]);
+void f3(double a[restrict 3][5]);
+void f3(double a[restrict static 3][5]);
+
+int f4(int, ...);
+int f4(int);
+
+int f5(int (*)(), double (*)[3]);
+int f5(int (*)(char), double (*)[]); // not compatible since char undergoes default argument promotion
 
 #define EXPECTED_ERRORS "redefinitions.c:4:5: error: redefinition of 'foo' as different kind of symbol" \
     "redefinitions.c:1:5: note: previous definition is here" \
@@ -105,3 +120,8 @@ typedef const int MyOtherInt;
     "redefinitions.c:62:13: note: previous definition is here" \
     "redefinitions.c:67:19: error: typedef redefinition with different types ('const int' vs 'int')" \
     "redefinitions.c:66:13: note: previous definition is here" \
+    "redefinitions.c:83:5: error: redefinition of 'f4' with a different type" \
+    "redefinitions.c:82:5: note: previous definition is here" \
+    "redefinitions.c:86:5: error: redefinition of 'f5' with a different type" \
+    "redefinitions.c:85:5: note: previous definition is here" \
+
