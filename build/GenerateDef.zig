@@ -126,6 +126,11 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
         value_name = line;
     }
 
+    if (value_name) |name| {
+        const old = try values.fetchPut(name, try properties.toOwnedSlice());
+        if (old != null) return self.step.fail("duplicate value \"{s}\"", .{name});
+    }
+
     {
         var sorted_list = try arena.dupe([]const u8, values.keys());
         defer arena.free(sorted_list);
