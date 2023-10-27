@@ -30,6 +30,10 @@ enum E6: char {
     a = 0u,
 };
 
+enum E e;
+enum E: int;
+void fn(enum E);
+
 #define EXPECTED_ERRORS "enum fixed.c:2:7: warning: enumeration types with a fixed underlying type are a Clang extension [-Wfixed-enum-extension]" \
     "enum fixed.c:4:6: error: enumeration previously declared with fixed underlying type" \
     "enum fixed.c:2:6: note: previous definition is here" \
