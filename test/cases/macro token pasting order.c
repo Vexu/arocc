@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 
 #define CAT(a, ...) a ## __VA_ARGS__
 #define M(val) val

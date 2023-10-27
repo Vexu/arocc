@@ -1,4 +1,4 @@
-//aro-args -E -Wno-integer-overflow
+//aro-args -E -Wno-integer-overflow -P
 
 #if defined FOO & !defined(BAZ)
 void

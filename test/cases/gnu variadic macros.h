@@ -1,4 +1,4 @@
-//aro-args -E -Wpedantic
+//aro-args -E -Wpedantic -P
 #define a(foo, args...) #args, foo __VA_ARGS__ args
 a(1,2,3,4)
 

@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 /* comment **/
 
 int I_exist;

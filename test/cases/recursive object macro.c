@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 
 #define y x
 #define x y

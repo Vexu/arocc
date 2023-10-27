@@ -23,14 +23,13 @@ int bar["foo"];
 int baz[] = 111111E1111111111111;
 int qux[] = baz;
 
-// int g[];
-// extern int h[];
-// void foo(void) {
-//     int i[];
-//     char j[] = "hello";
-// }
+int g[];
+extern int h[];
+void foo(void) {
+    int i[];
+    char j[] = "hello";
+}
 
-#define TESTS_SKIPPED 7
 #define EXPECTED_ERRORS \
     "invalid types.c:1:6: error: cannot combine with previous 'long' specifier" \
     "invalid types.c:2:14: warning: duplicate 'atomic' declaration specifier [-Wduplicate-decl-specifier]" \
@@ -45,6 +44,7 @@ int qux[] = baz;
     "invalid types.c:8:8: note: forward declaration of 'struct Bar'" \
     "invalid types.c:9:6: error: array is too large" \
     "invalid types.c:11:1: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'" \
+    "invalid types.c:14:6: note: previous definition is here" \
     "invalid types.c:16:15: error: expected identifier or '('" \
     "invalid types.c:17:17: error: array has incomplete element type 'struct bar'" \
     "invalid types.c:18:15: error: expected identifier or '('" \
@@ -52,4 +52,7 @@ int qux[] = baz;
     "invalid types.c:22:9: error: size of array has non-integer type 'char [4]'" \
     "invalid types.c:23:13: error: array initializer must be an initializer list or wide string literal" \
     "invalid types.c:24:13: error: array initializer must be an initializer list or wide string literal" \
+    "invalid types.c:26:5: warning: tentative array definition assumed to have one element" \
+    "invalid types.c:28:6: error: redefinition of 'foo'" \
+    "invalid types.c:29:9: error: variable has incomplete type 'int []'" \
 

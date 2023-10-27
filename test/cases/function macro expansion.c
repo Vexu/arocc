@@ -1,4 +1,4 @@
-//aro-args -E -h
+//aro-args -E -P -h
 
 #define HE HI
 #define LLO _THERE

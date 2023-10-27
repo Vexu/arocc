@@ -7,6 +7,16 @@ pub const Id = enum(u32) {
     _,
 };
 
+/// Classifies the file for line marker output in -E mode
+pub const Kind = enum {
+    /// regular file
+    user,
+    /// Included from a system include directory
+    system,
+    /// Included from an "implicit extern C" directory
+    extern_c_system,
+};
+
 pub const Location = struct {
     id: Id = .unused,
     byte_offset: u32 = 0,
@@ -24,6 +34,7 @@ id: Id,
 /// from the original raw buffer. The same position can appear multiple times if multiple
 /// consecutive splices happened. Guaranteed to be non-decreasing
 splice_locs: []const u32,
+kind: Kind,
 
 /// Todo: binary search instead of scanning entire `splice_locs`.
 pub fn numSplicesBefore(source: Source, byte_offset: u32) u32 {
@@ -63,7 +74,10 @@ pub fn lineCol(source: Source, loc: Location) LineCol {
             i += 1;
             continue;
         };
-        const cp = std.unicode.utf8Decode(source.buf[i..][0..len]) catch unreachable;
+        const cp = std.unicode.utf8Decode(source.buf[i..][0..len]) catch {
+            i += 1;
+            continue;
+        };
         width += codepointWidth(cp);
         i += len;
     }

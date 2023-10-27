@@ -1,5 +1,3 @@
-
-
 enum Foo {
 Foo_1 = 1,
 Foo_2 = 2,

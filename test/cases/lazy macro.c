@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 
 #define REC_EMPTY
 #define REC_DEFER(op) op REC_EMPTY

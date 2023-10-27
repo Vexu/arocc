@@ -64,13 +64,13 @@ fn_def: 'fn (a: d[2]const int, b: d[2]const int) void'
     implicit_return: 'void'
 
 enum_decl_two: 'enum E: unsigned int'
-  enum_field_decl: 'int'
+  enum_field_decl: 'int' (value: 2)
    name: A
    value:
     implicit_cast: (int_cast) 'int'
       explicit_cast: (int_cast) 'char' (value: 2)
         int_literal: 'int' (value: 2)
-  enum_field_decl: 'int'
+  enum_field_decl: 'int' (value: 3)
    name: B
    value:
     implicit_cast: (int_cast) 'int'

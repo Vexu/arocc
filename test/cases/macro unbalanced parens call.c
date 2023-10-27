@@ -1,4 +1,4 @@
-//aro-args -E
+//aro-args -E -P
 
 #define FIRST(x) x
 #define SECOND FIRST
