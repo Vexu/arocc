@@ -2365,7 +2365,9 @@ fn enumSpec(p: *Parser) Error!Type {
         // check if this is a reference to a previous type
         const interned_name = try p.comp.intern(p.tokSlice(ident));
         if (try p.syms.findTag(p, interned_name, .keyword_enum, ident, p.tok_ids[p.tok_i])) |prev| {
-            try p.checkEnumFixedTy(fixed_ty, ident, prev);
+            // only check fixed underlying type in forward declarations and not in references.
+            if (p.tok_ids[p.tok_i] == .semicolon)
+                try p.checkEnumFixedTy(fixed_ty, ident, prev);
             return prev.ty;
         } else {
             // this is a forward declaration, create a new enum Type.
