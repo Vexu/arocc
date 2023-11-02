@@ -176,19 +176,21 @@ pub const Encoder = struct {
 
     /// Directly write a number to the code array with big endianness
     pub fn writeIntBig(self: Self, comptime T: type, value: T) void {
-        mem.writeIntBig(
+        mem.writeInt(
             T,
             self.code.addManyAsArrayAssumeCapacity(@divExact(@typeInfo(T).Int.bits, 8)),
             value,
+            .big,
         );
     }
 
     /// Directly write a number to the code array with little endianness
     pub fn writeIntLittle(self: Self, comptime T: type, value: T) void {
-        mem.writeIntLittle(
+        mem.writeInt(
             T,
             self.code.addManyAsArrayAssumeCapacity(@divExact(@typeInfo(T).Int.bits, 8)),
             value,
+            .little,
         );
     }
 
