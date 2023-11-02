@@ -987,7 +987,7 @@ fn decl(p: *Parser) Error!bool {
                     const attr_buf_top_declarator = p.attr_buf.len;
                     defer p.attr_buf.len = attr_buf_top_declarator;
 
-                    var d = (try p.declarator(param_decl_spec.ty, .normal)) orelse {
+                    var d = (try p.declarator(param_decl_spec.ty, .param)) orelse {
                         try p.errTok(.missing_declaration, first_tok);
                         _ = try p.expectToken(.semicolon);
                         continue :param_loop;
