@@ -2953,11 +2953,14 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             return res_ty;
         }
 
-        if (try p.paramDecls()) |params| {
+        if (try p.paramDecls(d)) |params| {
             func_ty.params = params;
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
         } else if (p.tok_ids[p.tok_i] == .r_paren) {
-            specifier = .var_args_func;
+            specifier = if (p.comp.langopts.standard.atLeast(.c2x))
+                .var_args_func
+            else
+                .old_style_func;
         } else if (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) {
             d.old_style_func = p.tok_i;
             const param_buf_top = p.param_buf.items.len;
@@ -3015,7 +3018,7 @@ fn pointer(p: *Parser, base_ty: Type) Error!Type {
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
 /// paramDecl : declSpec (declarator | abstractDeclarator)
-fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
+fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
     // TODO warn about visibility of types declared here
     const param_buf_top = p.param_buf.items.len;
     defer p.param_buf.items.len = param_buf_top;
@@ -3027,9 +3030,26 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
         defer p.attr_buf.len = attr_buf_top;
         const param_decl_spec = if (try p.declSpec()) |some|
             some
-        else if (p.param_buf.items.len == param_buf_top)
-            return null
-        else blk: {
+        else if (p.comp.langopts.standard.atLeast(.c2x) and
+            (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier))
+        {
+            // handle deprecated K&R style parameters
+            const identifier = try p.expectIdentifier();
+            try p.errStr(.unknown_type_name, identifier, p.tokSlice(identifier));
+            if (d.old_style_func == null) d.old_style_func = identifier;
+
+            try p.param_buf.append(.{
+                .name = try p.comp.intern(p.tokSlice(identifier)),
+                .name_tok = identifier,
+                .ty = .{ .specifier = .int },
+            });
+
+            if (p.eatToken(.comma) == null) break;
+            if (p.tok_ids[p.tok_i] == .ellipsis) break;
+            continue;
+        } else if (p.param_buf.items.len == param_buf_top) {
+            return null;
+        } else blk: {
             var spec: Type.Builder = .{};
             break :blk DeclSpec{ .ty = try spec.finish(p) };
         };
@@ -7209,7 +7229,10 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     } else if (ty.is(.func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments, first_after, extra);
     } else if (ty.is(.old_style_func) and params.len != arg_count) {
-        try p.errExtra(.expected_arguments_old, first_after, extra);
+        if (params.len == 0)
+            try p.errTok(.passing_args_to_kr, first_after)
+        else
+            try p.errExtra(.expected_arguments_old, first_after, extra);
     } else if (ty.is(.var_args_func) and arg_count < params.len) {
         try p.errExtra(.expected_at_least_arguments, first_after, extra);
     }
@@ -7340,7 +7363,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     }),
                 };
             }
-            if (p.tok_ids[p.tok_i] == .l_paren) {
+            if (p.tok_ids[p.tok_i] == .l_paren and !p.comp.langopts.standard.atLeast(.c2x)) {
                 // allow implicitly declaring functions before C99 like `puts("foo")`
                 if (mem.startsWith(u8, name, "__builtin_"))
                     try p.errStr(.unknown_builtin, name_tok, name)

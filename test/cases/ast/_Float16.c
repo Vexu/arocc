@@ -45,9 +45,6 @@ fn_def: 'fn (x: int, ...) void'
 
     implicit_return: 'void'
 
-fn_proto: 'fn (...) int'
- name: baz
-
 fn_def: 'fn () void'
  name: quux
  body:
@@ -67,15 +64,6 @@ fn_def: 'fn () void'
       implicit_cast: (lval_to_rval) '_Float16'
         decl_ref_expr: '_Float16' lvalue
          name: f
-
-    call_expr: 'int'
-     lhs:
-      implicit_cast: (function_to_pointer) '*fn (...) int'
-        decl_ref_expr: 'fn (...) int' lvalue
-         name: baz
-     args:
-      int_literal: 'int' (value: 1)
-      float16_literal: '_Float16' (value: 2)
 
     implicit_return: 'void'
 

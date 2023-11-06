@@ -179,6 +179,7 @@ pub const Options = struct {
     @"four-char-constants": Kind = .default,
     @"unknown-escape-sequence": Kind = .default,
     @"invalid-pp-token": Kind = .default,
+    @"deprecated-non-prototype": Kind = .default,
 };
 
 const messages = struct {
@@ -521,10 +522,10 @@ const messages = struct {
         const kind = .@"error";
     };
     pub const implicit_func_decl = struct {
-        const msg = "implicit declaration of function '{s}' is invalid in C99";
+        const msg = "call to undeclared function '{s}'; ISO C99 and later do not support implicit function declarations";
         const extra = .str;
         const opt = "implicit-function-declaration";
-        const kind = .warning;
+        const kind = .@"error";
         const all = true;
     };
     pub const unknown_builtin = struct {
@@ -2545,6 +2546,21 @@ const messages = struct {
     pub const unterminated_comment = struct {
         const msg = "unterminated comment";
         const kind = .@"error";
+    };
+    pub const def_no_proto_deprecated = struct {
+        const msg = "a function definition without a prototype is deprecated in all versions of C and is not supported in C2x";
+        const kind = .warning;
+        const opt = "deprecated-non-prototype";
+    };
+    pub const passing_args_to_kr = struct {
+        const msg = "passing arguments to without a prototype is deprecated in all versions of C and is not supported in C2x";
+        const kind = .warning;
+        const opt = "deprecated-non-prototype";
+    };
+    pub const unknown_type_name = struct {
+        const msg = "unknown type name '{s}'";
+        const kind = .@"error";
+        const extra = .str;
     };
 };
 
