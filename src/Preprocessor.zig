@@ -123,6 +123,10 @@ const builtin_macros = struct {
         .id = .macro_param_has_attribute,
         .source = .generated,
     }};
+    const has_c_attribute = [1]RawToken{.{
+        .id = .macro_param_has_c_attribute,
+        .source = .generated,
+    }};
     const has_declspec_attribute = [1]RawToken{.{
         .id = .macro_param_has_declspec_attribute,
         .source = .generated,
@@ -189,6 +193,7 @@ fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: [
 
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_attribute", true, &builtin_macros.has_attribute);
+    try pp.addBuiltinMacro("__has_c_attribute", true, &builtin_macros.has_c_attribute);
     try pp.addBuiltinMacro("__has_declspec_attribute", true, &builtin_macros.has_declspec_attribute);
     try pp.addBuiltinMacro("__has_warning", true, &builtin_macros.has_warning);
     try pp.addBuiltinMacro("__has_feature", true, &builtin_macros.has_feature);
@@ -1512,6 +1517,53 @@ fn expandFuncMacro(
                 } else try pp.handleBuiltinMacro(raw.id, arg, loc);
                 const start = pp.comp.generated_buf.items.len;
                 try pp.comp.generated_buf.writer().print("{}\n", .{@intFromBool(result)});
+                try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
+            },
+            .macro_param_has_c_attribute => {
+                const arg = expanded_args.items[0];
+                const not_found = "0\n";
+                const result = if (arg.len == 0) blk: {
+                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
+                    try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
+                    break :blk not_found;
+                } else res: {
+                    var invalid: ?Token = null;
+                    var identifier: ?Token = null;
+                    for (arg) |tok| {
+                        if (tok.id == .macro_ws) continue;
+                        if (tok.id == .comment) continue;
+                        if (!tok.id.isMacroIdentifier()) {
+                            invalid = tok;
+                            break;
+                        }
+                        if (identifier) |_| invalid = tok else identifier = tok;
+                    }
+                    if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = loc };
+                    if (invalid) |some| {
+                        try pp.comp.diag.add(
+                            .{ .tag = .feature_check_requires_identifier, .loc = some.loc },
+                            some.expansionSlice(),
+                        );
+                        break :res not_found;
+                    }
+                    if (!pp.comp.langopts.standard.atLeast(.c2x)) break :res not_found;
+
+                    const attrs = std.ComptimeStringMap([]const u8, .{
+                        .{ "deprecated", "201904L\n" },
+                        .{ "fallthrough", "201904L\n" },
+                        .{ "maybe_unused", "201904L\n" },
+                        .{ "nodiscard", "202003L\n" },
+                        .{ "noreturn", "202202L\n" },
+                        .{ "_Noreturn", "202202L\n" },
+                        .{ "unsequenced", "202207L\n" },
+                        .{ "reproducible", "202207L\n" },
+                    });
+
+                    const ident_str = pp.expandedSlice(identifier.?);
+                    break :res attrs.get(ident_str) orelse not_found;
+                };
+                const start = pp.comp.generated_buf.items.len;
+                try pp.comp.generated_buf.appendSlice(result);
                 try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
             },
             .macro_param_pragma_operator => {

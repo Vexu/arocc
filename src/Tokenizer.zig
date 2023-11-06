@@ -121,6 +121,8 @@ pub const Token = struct {
         macro_ws,
         /// Special token for implementing __has_attribute
         macro_param_has_attribute,
+        /// Special token for implementing __has_c_attribute
+        macro_param_has_c_attribute,
         /// Special token for implementing __has_declspec_attribute
         macro_param_has_declspec_attribute,
         /// Special token for implementing __has_warning
@@ -521,6 +523,7 @@ pub const Token = struct {
                 .stringify_param,
                 .stringify_va_args,
                 .macro_param_has_attribute,
+                .macro_param_has_c_attribute,
                 .macro_param_has_declspec_attribute,
                 .macro_param_has_warning,
                 .macro_param_has_feature,
