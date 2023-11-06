@@ -4294,7 +4294,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
 
         var labeled_stmt = Tree.Node{
             .tag = .labeled_stmt,
-            .data = .{ .decl = .{ .name = name_tok, .node = try p.stmt() } },
+            .data = .{ .decl = .{ .name = name_tok, .node = try p.labelableStmt() } },
         };
         labeled_stmt.ty = try Attribute.applyLabelAttributes(p, labeled_stmt.ty, attr_buf_top);
         return try p.addNode(labeled_stmt);
@@ -4341,7 +4341,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             try p.errStr(.case_not_in_switch, case, "case");
         }
 
-        const s = try p.stmt();
+        const s = try p.labelableStmt();
         if (second_item) |some| return try p.addNode(.{
             .tag = .case_range_stmt,
             .data = .{ .if3 = .{ .cond = s, .body = (try p.addList(&.{ first_item.node, some.node })).start } },
@@ -4351,7 +4351,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         });
     } else if (p.eatToken(.keyword_default)) |default| {
         _ = try p.expectToken(.colon);
-        const s = try p.stmt();
+        const s = try p.labelableStmt();
         const node = try p.addNode(.{
             .tag = .default_stmt,
             .data = .{ .un = s },
@@ -4368,6 +4368,14 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         }
         return node;
     } else return null;
+}
+
+fn labelableStmt(p: *Parser) Error!NodeIndex {
+    if (p.tok_ids[p.tok_i] == .r_brace) {
+        try p.err(.label_compound_end);
+        return p.addNode(.{ .tag = .null_stmt, .data = undefined });
+    }
+    return p.stmt();
 }
 
 const StmtExprState = struct {

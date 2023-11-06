@@ -2562,6 +2562,12 @@ const messages = struct {
         const kind = .@"error";
         const extra = .str;
     };
+    pub const label_compound_end = struct {
+        const msg = "label at end of compound statement is a C2x extension";
+        const opt = "c2x-extensions";
+        const kind = .warning;
+        const suppress_version = .c2x;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
