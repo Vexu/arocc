@@ -258,6 +258,21 @@ pub fn systemCompiler(target: std.Target) LangOpts.Compiler {
     return .clang;
 }
 
+pub fn hasFloat128(target: std.Target) bool {
+    if (target.cpu.arch.isWasm()) return true;
+    if (target.isDarwin()) return false;
+    if (target.cpu.arch.isPPC() or target.cpu.arch.isPPC64()) return std.Target.powerpc.featureSetHas(target.cpu.features, .float128);
+    return switch (target.os.tag) {
+        .dragonfly,
+        .haiku,
+        .linux,
+        .openbsd,
+        .solaris,
+        => target.cpu.arch.isX86(),
+        else => false,
+    };
+}
+
 pub fn hasInt128(target: std.Target) bool {
     if (target.cpu.arch == .wasm32) return true;
     if (target.cpu.arch == .x86_64) return true;

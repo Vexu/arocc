@@ -1852,7 +1852,12 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             .keyword_double => try ty.combine(p, .double, p.tok_i),
             .keyword_complex => try ty.combine(p, .complex, p.tok_i),
             .keyword_float80 => try ty.combine(p, .float80, p.tok_i),
-            .keyword_float128 => try ty.combine(p, .float128, p.tok_i),
+            .keyword_float128_1, .keyword_float128_2 => {
+                if (!p.comp.hasFloat128()) {
+                    try p.errStr(.type_not_supported_on_target, p.tok_i, p.tok_ids[p.tok_i].lexeme().?);
+                }
+                try ty.combine(p, .float128, p.tok_i);
+            },
             .keyword_atomic => {
                 const atomic_tok = p.tok_i;
                 p.tok_i += 1;
