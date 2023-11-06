@@ -1607,7 +1607,7 @@ pub const Builder = struct {
                 .void => "void",
                 .auto_type => "__auto_type",
                 .nullptr_t => "nullptr_t",
-                .bool => if (langopts.standard.atLeast(.c2x)) "bool" else "_Bool",
+                .bool => if (langopts.standard.atLeast(.c23)) "bool" else "_Bool",
                 .char => "char",
                 .schar => "signed char",
                 .uchar => "unsigned char",
@@ -1736,8 +1736,8 @@ pub const Builder = struct {
                     ty = typeof;
                 } else {
                     ty.specifier = .int;
-                    if (p.comp.langopts.standard.atLeast(.c2x)) {
-                        try p.err(.missing_type_specifier_c2x);
+                    if (p.comp.langopts.standard.atLeast(.c23)) {
+                        try p.err(.missing_type_specifier_c23);
                     } else {
                         try p.err(.missing_type_specifier);
                     }

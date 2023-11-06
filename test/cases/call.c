@@ -85,4 +85,4 @@ void pass_args_to_no_proto(int a) {
     "call.c:8:20: note: passing argument to parameter here" \
     "call.c:56:16: warning: passing 'unsigned int *' to parameter of incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
     "call.c:52:22: note: passing argument to parameter here" \
-    "call.c:61:19: warning: passing arguments to without a prototype is deprecated in all versions of C and is not supported in C2x [-Wdeprecated-non-prototype]" \
+    "call.c:61:19: warning: passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]" \

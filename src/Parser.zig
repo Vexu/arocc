@@ -1195,7 +1195,7 @@ fn staticAssert(p: *Parser) Error!bool {
     _ = try p.expectToken(.semicolon);
     if (str.node == .none) {
         try p.errTok(.static_assert_missing_message, static_assert);
-        try p.errStr(.pre_c2x_compat, static_assert, "'_Static_assert' with no message");
+        try p.errStr(.pre_c23_compat, static_assert, "'_Static_assert' with no message");
     }
 
     // Array will never be zero; a value of zero for a pointer is a null pointer constant
@@ -1578,7 +1578,7 @@ fn gnuAttributeList(p: *Parser) Error!void {
     }
 }
 
-fn c2xAttributeList(p: *Parser) Error!void {
+fn c23AttributeList(p: *Parser) Error!void {
     while (p.tok_ids[p.tok_i] != .r_bracket) {
         var namespace_tok = try p.expectIdentifier();
         var namespace: ?[]const u8 = null;
@@ -1587,7 +1587,7 @@ fn c2xAttributeList(p: *Parser) Error!void {
         } else {
             p.tok_i -= 1;
         }
-        if (try p.attribute(.c2x, namespace)) |attr| try p.attr_buf.append(p.gpa, attr);
+        if (try p.attribute(.c23, namespace)) |attr| try p.attr_buf.append(p.gpa, attr);
         _ = p.eatToken(.comma);
     }
 }
@@ -1599,15 +1599,15 @@ fn msvcAttributeList(p: *Parser) Error!void {
     }
 }
 
-fn c2xAttribute(p: *Parser) !bool {
-    if (!p.comp.langopts.standard.atLeast(.c2x)) return false;
+fn c23Attribute(p: *Parser) !bool {
+    if (!p.comp.langopts.standard.atLeast(.c23)) return false;
     const bracket1 = p.eatToken(.l_bracket) orelse return false;
     const bracket2 = p.eatToken(.l_bracket) orelse {
         p.tok_i -= 1;
         return false;
     };
 
-    try p.c2xAttributeList();
+    try p.c23AttributeList();
 
     _ = try p.expectClosing(bracket2, .r_bracket);
     _ = try p.expectClosing(bracket1, .r_bracket);
@@ -1647,7 +1647,7 @@ fn attributeSpecifier(p: *Parser) Error!void {
 fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void {
     while (true) {
         if (try p.gnuAttribute()) continue;
-        if (try p.c2xAttribute()) continue;
+        if (try p.c23Attribute()) continue;
         const maybe_declspec_tok = p.tok_i;
         const attr_buf_top = p.attr_buf.len;
         if (try p.msvcAttribute()) {
@@ -2834,7 +2834,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
     if (p.eatToken(.l_bracket)) |l_bracket| {
         if (p.tok_ids[p.tok_i] == .l_bracket) {
             switch (kind) {
-                .normal, .record => if (p.comp.langopts.standard.atLeast(.c2x)) {
+                .normal, .record => if (p.comp.langopts.standard.atLeast(.c23)) {
                     p.tok_i -= 1;
                     return base_type;
                 },
@@ -2966,7 +2966,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             func_ty.params = params;
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
         } else if (p.tok_ids[p.tok_i] == .r_paren) {
-            specifier = if (p.comp.langopts.standard.atLeast(.c2x))
+            specifier = if (p.comp.langopts.standard.atLeast(.c23))
                 .var_args_func
             else
                 .old_style_func;
@@ -3039,7 +3039,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
         defer p.attr_buf.len = attr_buf_top;
         const param_decl_spec = if (try p.declSpec()) |some|
             some
-        else if (p.comp.langopts.standard.atLeast(.c2x) and
+        else if (p.comp.langopts.standard.atLeast(.c23) and
             (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier))
         {
             // handle deprecated K&R style parameters
@@ -7374,7 +7374,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     }),
                 };
             }
-            if (p.tok_ids[p.tok_i] == .l_paren and !p.comp.langopts.standard.atLeast(.c2x)) {
+            if (p.tok_ids[p.tok_i] == .l_paren and !p.comp.langopts.standard.atLeast(.c23)) {
                 // allow implicitly declaring functions before C99 like `puts("foo")`
                 if (mem.startsWith(u8, name, "__builtin_"))
                     try p.errStr(.unknown_builtin, name_tok, name)
@@ -7423,7 +7423,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         },
         .keyword_nullptr => {
             defer p.tok_i += 1;
-            try p.errStr(.pre_c2x_compat, p.tok_i, "'nullptr'");
+            try p.errStr(.pre_c23_compat, p.tok_i, "'nullptr'");
             return Result{
                 .val = .{ .tag = .nullptr_t },
                 .ty = .{ .specifier = .nullptr_t },
@@ -7788,7 +7788,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
                 else => unreachable,
             } };
             const d_val = std.fmt.parseFloat(f64, buf) catch |er| switch (er) {
-                error.InvalidCharacter => return p.todo("c2x digit separators in floats"),
+                error.InvalidCharacter => return p.todo("c23 digit separators in floats"),
                 else => unreachable,
             };
             const tag: Tree.Tag = switch (suffix) {
@@ -7941,7 +7941,7 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
 }
 
 fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) Error!Result {
-    try p.errStr(.pre_c2x_compat, tok_i, "'_BitInt' suffix for literals");
+    try p.errStr(.pre_c23_compat, tok_i, "'_BitInt' suffix for literals");
     try p.errTok(.bitint_suffix, tok_i);
 
     var managed = try big.int.Managed.init(p.gpa);

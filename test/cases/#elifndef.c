@@ -1,4 +1,4 @@
-//aro-args -std=c2x -E -P
+//aro-args -std=c23 -E -P
 #ifdef FOO
 long long
 #elifdef FOO

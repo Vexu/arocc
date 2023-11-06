@@ -1,4 +1,4 @@
-//aro-args -std=c2x
+//aro-args -std=c23
 int foo(a, int b, char c, d)
     int a; short d;
 {

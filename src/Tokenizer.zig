@@ -825,7 +825,7 @@ pub const Token = struct {
         return switch (kw) {
             .keyword_inline => if (standard.isGNU() or standard.atLeast(.c99)) kw else .identifier,
             .keyword_restrict => if (standard.atLeast(.c99)) kw else .identifier,
-            .keyword_typeof => if (standard.isGNU() or standard.atLeast(.c2x)) kw else .identifier,
+            .keyword_typeof => if (standard.isGNU() or standard.atLeast(.c23)) kw else .identifier,
             .keyword_asm => if (standard.isGNU()) kw else .identifier,
             .keyword_declspec => if (comp.langopts.declspec_attrs) kw else .identifier,
 
@@ -841,7 +841,7 @@ pub const Token = struct {
             .keyword_typeof_unqual,
             .keyword_elifdef,
             .keyword_elifndef,
-            => if (standard.atLeast(.c2x)) kw else .identifier,
+            => if (standard.atLeast(.c23)) kw else .identifier,
 
             .keyword_int64,
             .keyword_int64_2,
@@ -1353,7 +1353,7 @@ pub fn next(self: *Tokenizer) Token {
                     break;
                 },
                 ':' => {
-                    if (self.comp.langopts.standard.atLeast(.c2x)) {
+                    if (self.comp.langopts.standard.atLeast(.c23)) {
                         id = .colon_colon;
                         self.index += 1;
                         break;
@@ -1659,7 +1659,7 @@ pub fn next(self: *Tokenizer) Token {
                 '.',
                 => {},
                 'e', 'E', 'p', 'P' => state = .pp_num_exponent,
-                '\'' => if (self.comp.langopts.standard.atLeast(.c2x)) {
+                '\'' => if (self.comp.langopts.standard.atLeast(.c23)) {
                     state = .pp_num_digit_separator;
                 } else {
                     id = .pp_num;
@@ -2109,7 +2109,7 @@ test "C23 keywords" {
         .keyword_c23_thread_local,
         .keyword_nullptr,
         .keyword_typeof_unqual,
-    }, .c2x);
+    }, .c23);
 }
 
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {

@@ -1,4 +1,4 @@
-//aro-args -std=c2x
+//aro-args -std=c23
 const int a;
 typeof(a) b;
 typeof_unqual(a) c;

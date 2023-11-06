@@ -1,4 +1,4 @@
-//aro-args -std=c2x -pedantic -Wundef
+//aro-args -std=c23 -pedantic -Wundef
 #include <stdbool.h>
 static_assert(1 == 1);
 static_assert(alignof(char) == 1);

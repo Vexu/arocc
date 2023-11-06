@@ -1,4 +1,4 @@
-//aro-args --target=x86_64-linux-gnu -std=c2x
+//aro-args --target=x86_64-linux-gnu -std=c23
 
 #include "test_helpers.h"
 

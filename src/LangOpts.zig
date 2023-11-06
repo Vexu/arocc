@@ -44,19 +44,21 @@ pub const Standard = enum {
     default,
     /// ISO C 2017 with GNU extensions
     gnu17,
-    /// Working Draft for ISO C2x
-    c2x,
-    /// Working Draft for ISO C2x with GNU extensions
-    gnu2x,
+    /// Working Draft for ISO C23
+    c23,
+    /// Working Draft for ISO C23 with GNU extensions
+    gnu23,
 
     const NameMap = std.ComptimeStringMap(Standard, .{
         .{ "c89", .c89 },                .{ "c90", .c89 },          .{ "iso9899:1990", .c89 },
         .{ "iso9899:199409", .iso9899 }, .{ "gnu89", .gnu89 },      .{ "gnu90", .gnu89 },
-        .{ "c99", .c99 },                .{ "iso9899:1999", .c99 }, .{ "gnu99", .gnu99 },
-        .{ "c11", .c11 },                .{ "iso9899:2011", .c11 }, .{ "gnu11", .gnu11 },
-        .{ "c17", .c17 },                .{ "iso9899:2017", .c17 }, .{ "c18", .c17 },
-        .{ "iso9899:2018", .c17 },       .{ "gnu17", .gnu17 },      .{ "gnu18", .gnu17 },
-        .{ "c2x", .c2x },                .{ "gnu2x", .gnu2x },
+        .{ "c99", .c99 },                .{ "iso9899:1999", .c99 }, .{ "c9x", .c99 },
+        .{ "iso9899:199x", .c99 },       .{ "gnu99", .gnu99 },      .{ "gnu9x", .gnu99 },
+        .{ "c11", .c11 },                .{ "iso9899:2011", .c11 }, .{ "c1x", .c11 },
+        .{ "iso9899:201x", .c11 },       .{ "gnu11", .gnu11 },      .{ "c17", .c17 },
+        .{ "iso9899:2017", .c17 },       .{ "c18", .c17 },          .{ "iso9899:2018", .c17 },
+        .{ "gnu17", .gnu17 },            .{ "gnu18", .gnu17 },      .{ "c23", .c23 },
+        .{ "gnu23", .gnu23 },            .{ "c2x", .c23 },          .{ "gnu2x", .gnu23 },
     });
 
     pub fn atLeast(self: Standard, other: Standard) bool {
@@ -65,7 +67,7 @@ pub const Standard = enum {
 
     pub fn isGNU(standard: Standard) bool {
         return switch (standard) {
-            .gnu89, .gnu99, .gnu11, .default, .gnu17, .gnu2x => true,
+            .gnu89, .gnu99, .gnu11, .default, .gnu17, .gnu23 => true,
             else => false,
         };
     }
@@ -82,8 +84,7 @@ pub const Standard = enum {
             .c99, .gnu99 => "199901L",
             .c11, .gnu11 => "201112L",
             .default, .c17, .gnu17 => "201710L",
-            // todo: subject to change, verify once c23 finalized
-            .c2x, .gnu2x => "202311L",
+            .c23, .gnu23 => "202311L",
         };
     }
 
@@ -119,7 +120,7 @@ allow_half_args_and_returns: bool = false,
 fp_eval_method: ?FPEvalMethod = null,
 /// If set, use specified signedness for `char` instead of the target's default char signedness
 char_signedness_override: ?std.builtin.Signedness = null,
-/// If set, override the default availability of char8_t (by default, enabled in C2X and later; disabled otherwise)
+/// If set, override the default availability of char8_t (by default, enabled in C23 and later; disabled otherwise)
 has_char8_t_override: ?bool = null,
 
 /// Whether to allow GNU-style inline assembly
@@ -145,7 +146,7 @@ pub fn disableMSExtensions(self: *LangOpts) void {
 }
 
 pub fn hasChar8_T(self: *const LangOpts) bool {
-    return self.has_char8_t_override orelse self.standard.atLeast(.c2x);
+    return self.has_char8_t_override orelse self.standard.atLeast(.c23);
 }
 
 pub fn hasDigraphs(self: *const LangOpts) bool {

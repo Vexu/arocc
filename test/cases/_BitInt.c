@@ -19,7 +19,7 @@ unsigned _BitInt(0) d;
 
 _BitInt(5) g = 2wb;
 unsigned _BitInt(5) h = 3Uwb;
-#pragma GCC diagnostic ignored "-Wc2x-extensions"
+#pragma GCC diagnostic ignored "-Wc23-extensions"
 int x = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFwb;
 int y = 0wb;
 int z = 0uwb;
@@ -28,7 +28,7 @@ int z = 0uwb;
     "_BitInt.c:16:1: error: _BitInt of bit sizes greater than 128 not supported" \
     "_BitInt.c:17:8: error: signed _BitInt must have a bit size of at least 2" \
     "_BitInt.c:18:10: error: unsigned _BitInt must have a bit size of at least 1" \
-    "_BitInt.c:20:16: warning: '_BitInt' suffix for literals is a C2x extension [-Wc2x-extensions]" \
-    "_BitInt.c:21:25: warning: '_BitInt' suffix for literals is a C2x extension [-Wc2x-extensions]" \
+    "_BitInt.c:20:16: warning: '_BitInt' suffix for literals is a C23 extension [-Wc23-extensions]" \
+    "_BitInt.c:21:25: warning: '_BitInt' suffix for literals is a C23 extension [-Wc23-extensions]" \
     "_BitInt.c:23:9: error: _BitInt of bit sizes greater than 128 not supported" \
 

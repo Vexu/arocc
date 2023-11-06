@@ -1,4 +1,4 @@
-//aro-args -std=c2x -Wno-unused-value
+//aro-args -std=c23 -Wno-unused-value
 
 void foo(__attribute__((deprecated)) int arg, int arg2 __attribute__((deprecated))) {
     __attribute__((deprecated)) int foo = 1;

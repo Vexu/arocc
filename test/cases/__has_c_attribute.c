@@ -1,4 +1,4 @@
-//aro-args -std=c2x
+//aro-args -std=c23
 #if defined __has_c_attribute
 #  if __has_c_attribute(fallthrough)
       #error attribute exists

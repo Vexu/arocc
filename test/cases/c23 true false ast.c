@@ -1,4 +1,4 @@
-//aro-args -std=c2x
+//aro-args -std=c23
 bool a = true;
 bool b = false;
 bool c = 0;

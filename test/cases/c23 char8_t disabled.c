@@ -1,4 +1,4 @@
-//aro-args -std=c2x -fno-char8_t
+//aro-args -std=c23 -fno-char8_t
 
 void foo(void) {
     char8_t c = 0;
@@ -14,5 +14,5 @@ const signed char scbuf2[] = { u8"text" };
 const unsigned char ucbuf1[] = u8"text";
 const unsigned char ucbuf2[] = { u8"text" };
 
-#define EXPECTED_ERRORS "c2x char8_t disabled.c:4:5: error: use of undeclared identifier 'char8_t'" \
+#define EXPECTED_ERRORS "c23 char8_t disabled.c:4:5: error: use of undeclared identifier 'char8_t'" \
 
