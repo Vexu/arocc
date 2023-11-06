@@ -751,6 +751,10 @@ fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StringIn
     try comp.generateSuffixMacro(prefix.constSlice(), w, ty);
 }
 
+pub fn hasFloat128(comp: *const Compilation) bool {
+    return target_util.hasFloat128(comp.target);
+}
+
 pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
     return comp.langopts.allow_half_args_and_returns or target_util.hasHalfPrecisionFloatABI(comp.target);
 }
