@@ -828,6 +828,7 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_typeof,
             .keyword_typeof1,
             .keyword_typeof2,
+            .keyword_typeof_unqual,
             .keyword_extension,
             .keyword_bit_int,
             => if (parens == 0) return,
@@ -1332,8 +1333,13 @@ pub const DeclSpec = struct {
 ///   : keyword_typeof '(' typeName ')'
 ///   | keyword_typeof '(' expr ')'
 fn typeof(p: *Parser) Error!?Type {
+    var unqual = false;
     switch (p.tok_ids[p.tok_i]) {
         .keyword_typeof, .keyword_typeof1, .keyword_typeof2 => p.tok_i += 1,
+        .keyword_typeof_unqual => {
+            p.tok_i += 1;
+            unqual = true;
+        },
         else => return null,
     }
     const l_paren = try p.expectToken(.l_paren);
@@ -1342,7 +1348,7 @@ fn typeof(p: *Parser) Error!?Type {
         const typeof_ty = try p.arena.create(Type);
         typeof_ty.* = .{
             .data = ty.data,
-            .qual = ty.qual.inheritFromTypeof(),
+            .qual = if (unqual) .{} else ty.qual.inheritFromTypeof(),
             .specifier = ty.specifier,
         };
 
@@ -1356,7 +1362,10 @@ fn typeof(p: *Parser) Error!?Type {
     try p.expectClosing(l_paren, .r_paren);
     // Special case nullptr_t since it's defined as typeof(nullptr)
     if (typeof_expr.ty.is(.nullptr_t)) {
-        return Type{ .specifier = .nullptr_t, .qual = typeof_expr.ty.qual.inheritFromTypeof() };
+        return Type{
+            .specifier = .nullptr_t,
+            .qual = if (unqual) .{} else typeof_expr.ty.qual.inheritFromTypeof(),
+        };
     }
 
     const inner = try p.arena.create(Type.Expr);
@@ -1364,7 +1373,7 @@ fn typeof(p: *Parser) Error!?Type {
         .node = typeof_expr.node,
         .ty = .{
             .data = typeof_expr.ty.data,
-            .qual = typeof_expr.ty.qual.inheritFromTypeof(),
+            .qual = if (unqual) .{} else typeof_expr.ty.qual.inheritFromTypeof(),
             .specifier = typeof_expr.ty.specifier,
         },
     };
@@ -4571,6 +4580,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_typeof,
             .keyword_typeof1,
             .keyword_typeof2,
+            .keyword_typeof_unqual,
             .keyword_extension,
             => if (parens == 0) return,
             .keyword_pragma => p.skipToPragmaSentinel(),
@@ -7147,13 +7157,6 @@ fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
         if (!prev_ty.eql(arg.ty, p.comp, false)) {
             try p.errStr(.argument_types_differ, param_tok, try p.typePairStrExtra(prev_ty, " vs ", arg.ty));
         }
-    }
-}
-
-fn checkVariableBuiltinArgument(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32, tag: Builtin.Tag) !void {
-    switch (tag) {
-        .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
-        else => {},
     }
 }
 

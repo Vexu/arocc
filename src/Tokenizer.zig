@@ -218,6 +218,7 @@ pub const Token = struct {
         keyword_true,
         keyword_false,
         keyword_nullptr,
+        keyword_typeof_unqual,
 
         // Preprocessor directives
         keyword_include,
@@ -445,6 +446,7 @@ pub const Token = struct {
                 .keyword_true,
                 .keyword_false,
                 .keyword_nullptr,
+                .keyword_typeof_unqual,
                 => return true,
                 else => return false,
             }
@@ -650,6 +652,7 @@ pub const Token = struct {
                 .keyword_true => "true",
                 .keyword_false => "false",
                 .keyword_nullptr => "nullptr",
+                .keyword_typeof_unqual => "typeof_unqual",
                 .keyword_include => "include",
                 .keyword_include_next => "include_next",
                 .keyword_embed => "embed",
@@ -835,6 +838,7 @@ pub const Token = struct {
             .keyword_true,
             .keyword_false,
             .keyword_nullptr,
+            .keyword_typeof_unqual,
             .keyword_elifdef,
             .keyword_elifndef,
             => if (standard.atLeast(.c2x)) kw else .identifier,
@@ -921,6 +925,7 @@ pub const Token = struct {
         .{ "true", .keyword_true },
         .{ "false", .keyword_false },
         .{ "nullptr", .keyword_nullptr },
+        .{ "typeof_unqual", .keyword_typeof_unqual },
 
         // Preprocessor directives
         .{ "include", .keyword_include },
@@ -2094,7 +2099,7 @@ test "digraphs" {
 }
 
 test "C23 keywords" {
-    try expectTokensExtra("true false alignas alignof bool static_assert thread_local nullptr", &.{
+    try expectTokensExtra("true false alignas alignof bool static_assert thread_local nullptr typeof_unqual", &.{
         .keyword_true,
         .keyword_false,
         .keyword_c23_alignas,
@@ -2103,6 +2108,7 @@ test "C23 keywords" {
         .keyword_c23_static_assert,
         .keyword_c23_thread_local,
         .keyword_nullptr,
+        .keyword_typeof_unqual,
     }, .c2x);
 }
 
