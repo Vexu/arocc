@@ -219,32 +219,15 @@ fn generateDateAndTime(w: anytype, timestamp: u47) !void {
     });
 }
 
-/// Generate builtin macros that will be available to each source file.
-pub fn generateBuiltinMacros(comp: *Compilation) !Source {
-    try comp.generateBuiltinTypes();
+/// Which set of system defines to generate via generateBuiltinMacros
+pub const SystemDefinesMode = enum {
+    /// Only define macros required by the C standard (date/time macros and those beginning with `__STDC`)
+    no_system_defines,
+    /// Define the standard set of system macros
+    include_system_defines,
+};
 
-    var buf = std.ArrayList(u8).init(comp.gpa);
-    defer buf.deinit();
-    const w = buf.writer();
-
-    // standard macros
-    try w.writeAll(
-        \\#define __VERSION__ "Aro 
-    ++ @import("lib.zig").version_str ++ "\"\n" ++
-        \\#define __Aro__
-        \\#define __STDC__ 1
-        \\#define __STDC_HOSTED__ 1
-        \\#define __STDC_NO_ATOMICS__ 1
-        \\#define __STDC_NO_COMPLEX__ 1
-        \\#define __STDC_NO_THREADS__ 1
-        \\#define __STDC_NO_VLA__ 1
-        \\#define __STDC_UTF_16__ 1
-        \\#define __STDC_UTF_32__ 1
-        \\
-    );
-    if (comp.langopts.standard.StdCVersionMacro()) |stdc_version| {
-        try w.print("#define __STDC_VERSION__ {s}\n", .{stdc_version});
-    }
+fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     const ptr_width = comp.target.ptrBitWidth();
 
     // os macros
@@ -414,10 +397,6 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         \\
     );
 
-    // timestamps
-    const timestamp = try comp.getTimestamp();
-    try generateDateAndTime(w, timestamp);
-
     // types
     if (comp.getCharSignedness() == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
     try w.writeAll("#define __CHAR_BIT__ 8\n");
@@ -489,6 +468,49 @@ pub fn generateBuiltinMacros(comp: *Compilation) !Source {
         \\#define __DECIMAL_DIG__ __LDBL_DECIMAL_DIG__
         \\
     );
+}
+
+/// Generate builtin macros that will be available to each source file.
+pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) !Source {
+    try comp.generateBuiltinTypes();
+
+    var buf = std.ArrayList(u8).init(comp.gpa);
+    defer buf.deinit();
+
+    if (system_defines_mode == .include_system_defines) {
+        try buf.appendSlice(
+            \\#define __VERSION__ "Aro 
+        ++ @import("lib.zig").version_str ++ "\"\n" ++
+            \\#define __Aro__
+            \\
+        );
+    }
+
+    // standard macros
+    try buf.appendSlice(
+        \\#define __STDC__ 1
+        \\#define __STDC_HOSTED__ 1
+        \\#define __STDC_NO_ATOMICS__ 1
+        \\#define __STDC_NO_COMPLEX__ 1
+        \\#define __STDC_NO_THREADS__ 1
+        \\#define __STDC_NO_VLA__ 1
+        \\#define __STDC_UTF_16__ 1
+        \\#define __STDC_UTF_32__ 1
+        \\
+    );
+    if (comp.langopts.standard.StdCVersionMacro()) |stdc_version| {
+        try buf.appendSlice("#define __STDC_VERSION__ ");
+        try buf.appendSlice(stdc_version);
+        try buf.append('\n');
+    }
+
+    // timestamps
+    const timestamp = try comp.getTimestamp();
+    try generateDateAndTime(buf.writer(), timestamp);
+
+    if (system_defines_mode == .include_system_defines) {
+        try comp.generateSystemDefines(buf.writer());
+    }
 
     return comp.addSourceFromBuffer("<builtin>", buf.items);
 }

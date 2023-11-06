@@ -355,7 +355,7 @@ test Iterator {
 test "All builtins" {
     var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
-    _ = try comp.generateBuiltinMacros();
+    _ = try comp.generateBuiltinMacros(.include_system_defines);
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
@@ -378,7 +378,7 @@ test "Allocation failures" {
         fn testOne(allocator: std.mem.Allocator) !void {
             var comp = Compilation.init(allocator);
             defer comp.deinit();
-            _ = try comp.generateBuiltinMacros();
+            _ = try comp.generateBuiltinMacros(.include_system_defines);
             var arena = std.heap.ArenaAllocator.init(comp.gpa);
             defer arena.deinit();
 
