@@ -11,9 +11,10 @@ const AllocatorError = std.mem.Allocator.Error;
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 /// Returns only_preprocess and line_markers settings if saw -E
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !struct { bool, aro.Preprocessor.Linemarkers } {
+fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !struct { bool, aro.Preprocessor.Linemarkers, aro.Compilation.SystemDefinesMode } {
     var only_preprocess = false;
     var line_markers: aro.Preprocessor.Linemarkers = .none;
+    var system_defines: aro.Compilation.SystemDefinesMode = .include_system_defines;
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
         var test_args = std.ArrayList([]const u8).init(comp.gpa);
         defer test_args.deinit();
@@ -25,6 +26,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         defer driver.deinit();
         _ = try driver.parseArgs(std.io.null_writer, macro_buf, test_args.items);
         only_preprocess = driver.only_preprocess;
+        system_defines = driver.system_defines;
         if (only_preprocess) {
             if (driver.line_commands) {
                 line_markers = if (driver.use_line_directives) .line_directives else .numeric_directives;
@@ -47,7 +49,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         }
     }
 
-    return .{ only_preprocess, line_markers };
+    return .{ only_preprocess, line_markers, system_defines };
 }
 
 fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void {
@@ -61,10 +63,10 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
     defer macro_buf.deinit();
 
-    _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
+    _, _, const system_defines = try addCommandLineArgs(&comp, file, macro_buf.writer());
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
-    const builtin_macros = try comp.generateBuiltinMacros();
+    const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
     var pp = aro.Preprocessor.init(&comp);
     defer pp.deinit();
@@ -209,10 +211,10 @@ pub fn main() !void {
         var macro_buf = std.ArrayList(u8).init(comp.gpa);
         defer macro_buf.deinit();
 
-        const only_preprocess, const linemarkers = try addCommandLineArgs(&comp, file, macro_buf.writer());
+        const only_preprocess, const linemarkers, const system_defines = try addCommandLineArgs(&comp, file, macro_buf.writer());
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
-        const builtin_macros = try comp.generateBuiltinMacros();
+        const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
         comp.diag.errors = 0;
         var pp = aro.Preprocessor.init(&comp);

@@ -27,6 +27,7 @@ inputs: std.ArrayListUnmanaged(Source) = .{},
 link_objects: std.ArrayListUnmanaged([]const u8) = .{},
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
+system_defines: Compilation.SystemDefinesMode = .include_system_defines,
 temp_file_count: u32 = 0,
 /// If false, do not emit line directives in -E mode
 line_commands: bool = true,
@@ -131,6 +132,7 @@ pub const usage =
     \\  --sysroot=<dir>         Use dir as the logical root directory for headers and libraries (not fully implemented)
     \\  --target=<value>        Generate code for the given target
     \\  -U <macro>              Undefine <macro>
+    \\  -undef                  Do not predefine any system-specific macros. Standard predefined macros remain defined.
     \\  -Werror                 Treat all warnings as errors
     \\  -Werror=<warning>       Treat warning as error
     \\  -W<warning>             Enable the specified warning
@@ -218,6 +220,8 @@ pub fn parseArgs(
                     macro = args[i];
                 }
                 try macro_buf.print("#undef {s}\n", .{macro});
+            } else if (mem.eql(u8, arg, "-undef")) {
+                d.system_defines = .no_system_defines;
             } else if (mem.eql(u8, arg, "-c") or mem.eql(u8, arg, "--compile")) {
                 d.only_compile = true;
             } else if (mem.eql(u8, arg, "-E")) {
@@ -497,7 +501,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8) !void {
         error.AroIncludeNotFound => return d.fatal("unable to find Aro builtin headers", .{}),
     };
 
-    const builtin = try d.comp.generateBuiltinMacros();
+    const builtin = try d.comp.generateBuiltinMacros(d.system_defines);
     const user_macros = try d.comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
     const fast_exit = @import("builtin").mode != .Debug;
