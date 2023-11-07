@@ -2596,6 +2596,11 @@ const messages = struct {
         const extra = .str;
         const opt = "unsupported-embed-param";
     };
+    pub const invalid_compound_literal_storage_class = struct {
+        const msg = "compound literal cannot have {s} storage class";
+        const kind = .@"error";
+        const extra = .str;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

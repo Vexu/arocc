@@ -1001,6 +1001,9 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .member_access_expr,
         .member_access_ptr_expr,
         .array_access_expr,
+        .static_compound_literal_expr,
+        .thread_local_compound_literal_expr,
+        .static_thread_local_compound_literal_expr,
         => return c.comp.diag.fatalNoSrc("TODO CodeGen.genLval {}\n", .{c.node_tag[@intFromEnum(node)]}),
         else => unreachable, // Not an lval expression.
     }

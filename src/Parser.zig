@@ -564,6 +564,23 @@ fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
     }
 }
 
+fn nodeIsCompoundLiteral(p: *Parser, node: NodeIndex) bool {
+    var cur = node;
+    const tags = p.nodes.items(.tag);
+    const data = p.nodes.items(.data);
+    while (true) {
+        switch (tags[@intFromEnum(cur)]) {
+            .paren_expr => cur = data[@intFromEnum(cur)].un,
+            .compound_literal_expr,
+            .static_compound_literal_expr,
+            .thread_local_compound_literal_expr,
+            .static_thread_local_compound_literal_expr,
+            => return true,
+            else => return false,
+        }
+    }
+}
+
 fn pragma(p: *Parser) Compilation.Error!bool {
     var found_pragma = false;
     while (p.eatToken(.keyword_pragma)) |_| {
@@ -1385,13 +1402,6 @@ fn typeof(p: *Parser) Error!?Type {
 }
 
 /// declSpec: (storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec)+
-/// storageClassSpec:
-///  : keyword_typedef
-///  | keyword_extern
-///  | keyword_static
-///  | keyword_threadlocal
-///  | keyword_auto
-///  | keyword_register
 /// funcSpec : keyword_inline | keyword_noreturn
 fn declSpec(p: *Parser) Error!?DeclSpec {
     var d: DeclSpec = .{ .ty = .{ .specifier = undefined } };
@@ -1399,7 +1409,44 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
 
     const start = p.tok_i;
     while (true) {
+        if (try p.storageClassSpec(&d)) continue;
         if (try p.typeSpec(&spec)) continue;
+        const id = p.tok_ids[p.tok_i];
+        switch (id) {
+            .keyword_inline, .keyword_inline1, .keyword_inline2 => {
+                if (d.@"inline" != null) {
+                    try p.errStr(.duplicate_decl_spec, p.tok_i, "inline");
+                }
+                d.@"inline" = p.tok_i;
+            },
+            .keyword_noreturn => {
+                if (d.noreturn != null) {
+                    try p.errStr(.duplicate_decl_spec, p.tok_i, "_Noreturn");
+                }
+                d.noreturn = p.tok_i;
+            },
+            else => break,
+        }
+        p.tok_i += 1;
+    }
+
+    if (p.tok_i == start) return null;
+
+    d.ty = try spec.finish(p);
+    d.auto_type = spec.auto_type_tok;
+    return d;
+}
+
+/// storageClassSpec:
+///  : keyword_typedef
+///  | keyword_extern
+///  | keyword_static
+///  | keyword_threadlocal
+///  | keyword_auto
+///  | keyword_register
+fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
+    const start = p.tok_i;
+    while (true) {
         const id = p.tok_ids[p.tok_i];
         switch (id) {
             .keyword_typedef,
@@ -1459,28 +1506,11 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                 }
                 d.constexpr = p.tok_i;
             },
-            .keyword_inline, .keyword_inline1, .keyword_inline2 => {
-                if (d.@"inline" != null) {
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "inline");
-                }
-                d.@"inline" = p.tok_i;
-            },
-            .keyword_noreturn => {
-                if (d.noreturn != null) {
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "_Noreturn");
-                }
-                d.noreturn = p.tok_i;
-            },
             else => break,
         }
         p.tok_i += 1;
     }
-
-    if (p.tok_i == start) return null;
-
-    d.ty = try spec.finish(p);
-    d.auto_type = spec.auto_type_tok;
-    return d;
+    return p.tok_i != start;
 }
 
 const InitDeclarator = struct { d: Declarator, initializer: Result = .{} };
@@ -3528,7 +3558,7 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
     if (!target.isArray()) return false;
 
     const is_str_lit = p.nodeIs(item.node, .string_literal_expr);
-    if (!is_str_lit and !p.nodeIs(item.node, .compound_literal_expr) or !item.ty.isArray()) {
+    if (!is_str_lit and !p.nodeIsCompoundLiteral(item.node) or !item.ty.isArray()) {
         try p.errTok(.array_init_str, tok);
         return true; // do not do further coercion
     }
@@ -6936,14 +6966,45 @@ fn unExpr(p: *Parser) Error!Result {
 }
 
 /// compoundLiteral
-///  : '(' type_name ')' '{' initializer_list '}'
-///  | '(' type_name ')' '{' initializer_list ',' '}'
+///  : '(' storageClassSpec* type_name ')' '{' initializer_list '}'
+///  | '(' storageClassSpec* type_name ')' '{' initializer_list ',' '}'
 fn compoundLiteral(p: *Parser) Error!Result {
     const l_paren = p.eatToken(.l_paren) orelse return Result{};
-    const ty = (try p.typeName()) orelse {
+
+    var d: DeclSpec = .{ .ty = .{ .specifier = undefined } };
+    const any = if (p.comp.langopts.standard.atLeast(.c23))
+        try p.storageClassSpec(&d)
+    else
+        false;
+
+    const tag: Tree.Tag = switch (d.storage_class) {
+        .static => if (d.thread_local != null)
+            .static_thread_local_compound_literal_expr
+        else
+            .static_compound_literal_expr,
+        .register, .none => if (d.thread_local != null)
+            .thread_local_compound_literal_expr
+        else
+            .compound_literal_expr,
+        .auto, .@"extern", .typedef => |tok| blk: {
+            try p.errStr(.invalid_compound_literal_storage_class, tok, @tagName(d.storage_class));
+            d.storage_class = .none;
+            break :blk if (d.thread_local != null)
+                .thread_local_compound_literal_expr
+            else
+                .compound_literal_expr;
+        },
+    };
+
+    var ty = (try p.typeName()) orelse {
         p.tok_i = l_paren;
+        if (any) {
+            try p.err(.expected_type);
+            return error.ParsingFailed;
+        }
         return Result{};
     };
+    if (d.storage_class == .register) ty.qual.register = true;
     try p.expectClosing(l_paren, .r_paren);
 
     if (ty.isFunc()) {
@@ -6955,7 +7016,10 @@ fn compoundLiteral(p: *Parser) Error!Result {
         return error.ParsingFailed;
     }
     var init_list_expr = try p.initializer(ty);
-    try init_list_expr.un(p, .compound_literal_expr);
+    if (d.constexpr) |_| {
+        // TODO error if not constexpr
+    }
+    try init_list_expr.un(p, tag);
     return init_list_expr;
 }
 
