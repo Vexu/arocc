@@ -7684,6 +7684,7 @@ fn charLiteral(p: *Parser) Error!Result {
             .node = try p.addNode(.{ .tag = .char_literal, .ty = Type.int, .data = undefined }),
         };
     };
+    if (char_kind == .utf_8) try p.err(.u8_char_lit);
     var val: u32 = 0;
 
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));

@@ -2568,6 +2568,12 @@ const messages = struct {
         const kind = .warning;
         const suppress_version = .c23;
     };
+    pub const u8_char_lit = struct {
+        const msg = "UTF-8 character literal is a C23 extension";
+        const opt = "c23-extensions";
+        const kind = .warning;
+        const suppress_version = .c23;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
