@@ -707,7 +707,7 @@ pub fn fromString(kind: Kind, namespace: ?[]const u8, name: []const u8) ?Tag {
     return null;
 }
 
-fn normalize(name: []const u8) []const u8 {
+pub fn normalize(name: []const u8) []const u8 {
     if (name.len >= 4 and mem.startsWith(u8, name, "__") and mem.endsWith(u8, name, "__")) {
         return name[2 .. name.len - 2];
     }

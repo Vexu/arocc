@@ -694,6 +694,14 @@ fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
     }, &.{});
 }
 
+fn errStr(pp: *Preprocessor, tok: Token, tag: Diagnostics.Tag, str: []const u8) !void {
+    try pp.comp.diag.add(.{
+        .tag = tag,
+        .loc = tok.loc,
+        .extra = .{ .str = str },
+    }, tok.expansionSlice());
+}
+
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
     const source = pp.comp.getSource(raw.source);
     const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
@@ -834,20 +842,12 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                     const tokens_consumed = try pp.handleKeywordDefined(&tok, items[i + 1 ..], eof);
                     i += tokens_consumed;
                 } else {
-                    try pp.comp.diag.add(.{
-                        .tag = .undefined_macro,
-                        .loc = tok.loc,
-                        .extra = .{ .str = pp.expandedSlice(tok) },
-                    }, tok.expansionSlice());
+                    try pp.errStr(tok, .undefined_macro, pp.expandedSlice(tok));
 
                     if (i + 1 < pp.top_expansion_buf.items.len and
                         pp.top_expansion_buf.items[i + 1].id == .l_paren)
                     {
-                        try pp.comp.diag.add(.{
-                            .tag = .fn_macro_undefined,
-                            .loc = tok.loc,
-                            .extra = .{ .str = pp.expandedSlice(tok) },
-                        }, tok.expansionSlice());
+                        try pp.errStr(tok, .fn_macro_undefined, pp.expandedSlice(tok));
                         return false;
                     }
 
@@ -901,11 +901,7 @@ fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *Token, tokens: []const To
         .l_paren => {},
         else => {
             if (!first.id.isMacroIdentifier()) {
-                try pp.comp.diag.add(.{
-                    .tag = .macro_name_must_be_identifier,
-                    .loc = first.loc,
-                    .extra = .{ .str = pp.expandedSlice(first) },
-                }, first.expansionSlice());
+                try pp.errStr(first, .macro_name_must_be_identifier, pp.expandedSlice(first));
             }
             macro_tok.id = if (pp.defines.contains(pp.expandedSlice(first))) .one else .zero;
             return it.i;
@@ -1346,21 +1342,13 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
         .macro_param_has_warning => {
             const actual_param = pp.pasteStringsUnsafe(param_toks) catch |er| switch (er) {
                 error.ExpectedStringLiteral => {
-                    try pp.comp.diag.add(.{
-                        .tag = .expected_str_literal_in,
-                        .loc = param_toks[0].loc,
-                        .extra = .{ .str = "__has_warning" },
-                    }, param_toks[0].expansionSlice());
+                    try pp.errStr(param_toks[0], .expected_str_literal_in, "__has_warning");
                     return false;
                 },
                 else => |e| return e,
             };
             if (!mem.startsWith(u8, actual_param, "-W")) {
-                try pp.comp.diag.add(.{
-                    .tag = .malformed_warning_check,
-                    .loc = param_toks[0].loc,
-                    .extra = .{ .str = "__has_warning" },
-                }, param_toks[0].expansionSlice());
+                try pp.errStr(param_toks[0], .malformed_warning_check, "__has_warning");
                 return false;
             }
             const warning_name = actual_param[2..];
@@ -1717,11 +1705,7 @@ fn collectMacroFuncArguments(
             .l_paren => break,
             else => {
                 if (is_builtin) {
-                    try pp.comp.diag.add(.{
-                        .tag = .missing_lparen_after_builtin,
-                        .loc = name_tok.loc,
-                        .extra = .{ .str = pp.expandedSlice(name_tok) },
-                    }, tok.expansionSlice());
+                    try pp.errStr(name_tok, .missing_lparen_after_builtin, pp.expandedSlice(name_tok));
                 }
                 // Not a macro function call, go over normal identifier, rewind
                 tokenizer.* = saved_tokenizer;
@@ -2125,14 +2109,11 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
     try lhs_toks.append(try pp.makeGeneratedToken(start, pasted_id, lhs));
 
     if (next.id != .nl and next.id != .eof) {
-        try pp.comp.diag.add(.{
-            .tag = .pasting_formed_invalid,
-            .loc = lhs.loc,
-            .extra = .{ .str = try pp.comp.diag.arena.allocator().dupe(
-                u8,
-                pp.comp.generated_buf.items[start..end],
-            ) },
-        }, lhs.expansionSlice());
+        try pp.errStr(
+            lhs,
+            .pasting_formed_invalid,
+            try pp.comp.diag.arena.allocator().dupe(u8, pp.comp.generated_buf.items[start..end]),
+        );
         try lhs_toks.append(tokFromRaw(next));
     }
 
@@ -2438,9 +2419,11 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 }
 
 /// Handle an #embed directive
+/// embedDirective : ("FILENAME" | <FILENAME>) embedParam*
+/// embedParam : IDENTIFIER (:: IDENTIFIER)? '(' <tokens> ')'
 fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     const first = tokenizer.nextNoWS();
-    const filename_tok = pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof) catch |er| switch (er) {
+    const filename_tok = pp.findIncludeFilenameToken(first, tokenizer, .ignore_trailing_tokens) catch |er| switch (er) {
         error.InvalidInclude => return,
         else => |e| return e,
     };
@@ -2458,10 +2441,131 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         else => unreachable,
     };
 
-    const embed_bytes = (try pp.comp.findEmbed(filename, first.source, include_type)) orelse return pp.fatal(first, "'{s}' not found", .{filename});
+    // Index into `token_buf`
+    const Range = struct {
+        start: u32,
+        end: u32,
+
+        fn expand(opt_range: ?@This(), pp_: *Preprocessor, tokenizer_: *Tokenizer) !void {
+            const range = opt_range orelse return;
+            const slice = pp_.token_buf.items[range.start..range.end];
+            for (slice) |tok| {
+                try pp_.expandMacro(tokenizer_, tok);
+            }
+        }
+    };
+    pp.token_buf.items.len = 0;
+
+    var limit: ?u32 = null;
+    var prefix: ?Range = null;
+    var suffix: ?Range = null;
+    var if_empty: ?Range = null;
+    while (true) {
+        const param_first = tokenizer.nextNoWS();
+        switch (param_first.id) {
+            .nl, .eof => break,
+            .identifier => {},
+            else => {
+                try pp.err(param_first, .malformed_embed_param);
+                continue;
+            },
+        }
+
+        const char_top = pp.char_buf.items.len;
+        defer pp.char_buf.items.len = char_top;
+
+        const maybe_colon = tokenizer.colonColon();
+        const param = switch (maybe_colon.id) {
+            .colon_colon => blk: {
+                // vendor::param
+                const param = tokenizer.nextNoWS();
+                if (param.id != .identifier) {
+                    try pp.err(param, .malformed_embed_param);
+                    continue;
+                }
+                const l_paren = tokenizer.nextNoWS();
+                if (l_paren.id != .l_paren) {
+                    try pp.err(l_paren, .malformed_embed_param);
+                    continue;
+                }
+                try pp.char_buf.appendSlice(Attribute.normalize(pp.tokSlice(param_first)));
+                try pp.char_buf.appendSlice("::");
+                try pp.char_buf.appendSlice(Attribute.normalize(pp.tokSlice(param)));
+                break :blk pp.char_buf.items;
+            },
+            .l_paren => Attribute.normalize(pp.tokSlice(param_first)),
+            else => {
+                try pp.err(maybe_colon, .malformed_embed_param);
+                continue;
+            },
+        };
+
+        const start: u32 = @intCast(pp.token_buf.items.len);
+        while (true) {
+            const next = tokenizer.nextNoWS();
+            if (next.id == .r_paren) break;
+            try pp.token_buf.append(next);
+        }
+        const end: u32 = @intCast(pp.token_buf.items.len);
+
+        if (std.mem.eql(u8, param, "limit")) {
+            if (limit != null) {
+                try pp.errStr(tokFromRaw(param_first), .duplicate_embed_param, "limit");
+                continue;
+            }
+            if (start + 1 != end) {
+                try pp.err(param_first, .malformed_embed_limit);
+                continue;
+            }
+            const limit_tok = pp.token_buf.items[start];
+            if (limit_tok.id != .pp_num) {
+                try pp.err(param_first, .malformed_embed_limit);
+                continue;
+            }
+            limit = std.fmt.parseInt(u32, pp.tokSlice(limit_tok), 10) catch {
+                try pp.err(limit_tok, .malformed_embed_limit);
+                continue;
+            };
+            pp.token_buf.items.len = start;
+        } else if (std.mem.eql(u8, param, "prefix")) {
+            if (prefix != null) {
+                try pp.errStr(tokFromRaw(param_first), .duplicate_embed_param, "prefix");
+                continue;
+            }
+            prefix = .{ .start = start, .end = end };
+        } else if (std.mem.eql(u8, param, "suffix")) {
+            if (suffix != null) {
+                try pp.errStr(tokFromRaw(param_first), .duplicate_embed_param, "suffix");
+                continue;
+            }
+            suffix = .{ .start = start, .end = end };
+        } else if (std.mem.eql(u8, param, "if_empty")) {
+            if (if_empty != null) {
+                try pp.errStr(tokFromRaw(param_first), .duplicate_embed_param, "if_empty");
+                continue;
+            }
+            if_empty = .{ .start = start, .end = end };
+        } else {
+            try pp.errStr(
+                tokFromRaw(param_first),
+                .unsupported_embed_param,
+                try pp.comp.diag.arena.allocator().dupe(u8, param),
+            );
+            pp.token_buf.items.len = start;
+        }
+    }
+
+    const embed_bytes = (try pp.comp.findEmbed(filename, first.source, include_type, limit)) orelse
+        return pp.fatal(first, "'{s}' not found", .{filename});
     defer pp.comp.gpa.free(embed_bytes);
 
-    if (embed_bytes.len == 0) return;
+    try Range.expand(prefix, pp, tokenizer);
+
+    if (embed_bytes.len == 0) {
+        try Range.expand(if_empty, pp, tokenizer);
+        try Range.expand(suffix, pp, tokenizer);
+        return;
+    }
 
     try pp.tokens.ensureUnusedCapacity(pp.comp.gpa, 2 * embed_bytes.len - 1); // N bytes and N-1 commas
 
@@ -2484,6 +2588,8 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         pp.tokens.appendAssumeCapacity(try pp.makeGeneratedToken(start + 1, .embed_byte, filename_tok));
     }
     try pp.comp.generated_buf.append('\n');
+
+    try Range.expand(suffix, pp, tokenizer);
 }
 
 // Handle a #include directive.

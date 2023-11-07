@@ -1769,6 +1769,16 @@ pub fn nextNoWSComments(self: *Tokenizer) Token {
     return tok;
 }
 
+/// Try to tokenize a '::' even if not supported by the current language standard.
+pub fn colonColon(self: *Tokenizer) Token {
+    var tok = self.nextNoWS();
+    if (tok.id == .colon and self.buf[self.index] == ':') {
+        self.index += 1;
+        tok.id = .colon_colon;
+    }
+    return tok;
+}
+
 test "operators" {
     try expectTokens(
         \\ ! != | || |= = ==

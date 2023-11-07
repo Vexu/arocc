@@ -180,6 +180,8 @@ pub const Options = struct {
     @"unknown-escape-sequence": Kind = .default,
     @"invalid-pp-token": Kind = .default,
     @"deprecated-non-prototype": Kind = .default,
+    @"duplicate-embed-param": Kind = .default,
+    @"unsupported-embed-param": Kind = .default,
 };
 
 const messages = struct {
@@ -2573,6 +2575,26 @@ const messages = struct {
         const opt = "c23-extensions";
         const kind = .warning;
         const suppress_version = .c23;
+    };
+    pub const malformed_embed_param = struct {
+        const msg = "unexpected token in embed parameter";
+        const kind = .@"error";
+    };
+    pub const malformed_embed_limit = struct {
+        const msg = "the limit parameter expects one non-negative integer as a parameter";
+        const kind = .@"error";
+    };
+    pub const duplicate_embed_param = struct {
+        const msg = "duplicate embed parameter '{s}'";
+        const kind = .warning;
+        const extra = .str;
+        const opt = "duplicate-embed-param";
+    };
+    pub const unsupported_embed_param = struct {
+        const msg = "unsupported embed parameter '{s}' embed parameter";
+        const kind = .warning;
+        const extra = .str;
+        const opt = "unsupported-embed-param";
     };
 };
 
