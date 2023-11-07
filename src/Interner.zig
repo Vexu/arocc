@@ -2,55 +2,75 @@ const Interner = @This();
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
-const Value = @import("Value.zig");
+const BigIntConst = std.math.big.int.Const;
+const BigIntMutable = std.math.big.int.Mutable;
+const Hash = std.hash.Wyhash;
 
-map: std.ArrayHashMapUnmanaged(Key, void, KeyContext, false) = .{},
+map: std.AutoArrayHashMapUnmanaged(void, void) = .{},
+items: std.MultiArrayList(struct {
+    tag: Tag,
+    data: u32,
+}) = .{},
+extra: std.ArrayListUnmanaged(u32) = .{},
+strings: std.ArrayListUnmanaged(u8),
 
-const KeyContext = struct {
-    pub fn eql(_: @This(), a: Key, b: Key, _: usize) bool {
-        return b.eql(a);
+const KeyAdapter = struct {
+    interner: *const Interner,
+
+    pub fn eql(adapter: KeyAdapter, a: Key, b_void: void, b_map_index: usize) bool {
+        _ = b_void;
+        return adapter.interner.get(@as(Ref, @enumFromInt(b_map_index))).eql(a);
     }
 
-    pub fn hash(_: @This(), a: Key) u32 {
+    pub fn hash(adapter: KeyAdapter, a: Key) u32 {
+        _ = adapter;
         return a.hash();
     }
 };
 
 pub const Key = union(enum) {
-    int: u16,
-    float: u16,
-    ptr,
-    noreturn,
-    void,
-    func,
-    array: struct {
+    int_ty: u16,
+    float_ty: u16,
+    ptr_ty,
+    noreturn_ty,
+    void_ty,
+    func_ty,
+    array_ty: struct {
         len: u64,
         child: Ref,
     },
-    vector: struct {
+    vector_ty: struct {
         len: u32,
         child: Ref,
     },
-    value: Value,
+    /// May not be zero
+    null,
+    int: union(enum) {
+        u64: u64,
+        i64: i64,
+        big_int: BigIntConst,
+    },
+    float: union(enum) {
+        f16: f16,
+        f32: f32,
+        f64: f64,
+        f80: f80,
+        f128: f128,
+    },
+    bytes: []const u8,
     record: struct {
         /// Pointer to user data, value used for hash and equality check.
         user_ptr: *anyopaque,
-        /// TODO make smaller if Value is made smaller
         elements: []const Ref,
     },
 
     pub fn hash(key: Key) u32 {
-        var hasher = std.hash.Wyhash.init(0);
+        var hasher = Hash.init(0);
         switch (key) {
-            .value => |val| {
-                std.hash.autoHash(&hasher, val.tag);
-                switch (val.tag) {
-                    .unavailable => unreachable,
-                    .nullptr_t => std.hash.autoHash(&hasher, @as(u64, 0)),
-                    .int => std.hash.autoHash(&hasher, val.data.int),
-                    .float => std.hash.autoHash(&hasher, @as(u64, @bitCast(val.data.float))),
-                    .bytes => std.hash.autoHashStrat(&hasher, val.data.bytes, .Shallow),
-                }
+            .bytes => |bytes| {
+                const tag = std.meta.activeTag(key);
+                std.hash.autoHash(&hasher, tag);
+                std.hash.autoHash(&hasher, bytes);
             },
             .record => |info| {
                 std.hash.autoHash(&hasher, @intFromPtr(info.user_ptr));
@@ -68,19 +88,12 @@ pub const Key = union(enum) {
         const b_tag: KeyTag = b;
         if (a_tag != b_tag) return false;
         switch (a) {
-            .value => |a_info| {
-                const b_info = b.value;
-                if (a_info.tag != b_info.tag) return false;
-                switch (a_info.tag) {
-                    .unavailable => unreachable,
-                    .nullptr_t => return true,
-                    .int => return a_info.data.int == b_info.data.int,
-                    .float => return a_info.data.float == b_info.data.float,
-                    .bytes => return a_info.data.bytes.start == b_info.data.bytes.start and a_info.data.bytes.end == b_info.data.bytes.end,
-                }
-            },
             .record => |a_info| {
                 return a_info.user_ptr == b.record.user_ptr;
+            },
+            .bytes => |a_bytes| {
+                const b_bytes = b.bytes;
+                return std.mem.eql(u8, a_bytes, b_bytes);
             },
             inline else => |a_info, tag| {
                 const b_info = @field(b, @tagName(tag));
@@ -112,6 +125,15 @@ pub const Key = union(enum) {
             .func => return .func,
             .noreturn => return .noreturn,
             .void => return .void,
+            .int => |int| switch (int) {
+                inline .u64, .i64 => |u| switch (u) {
+                    0 => return .zero,
+                    1 => return .one,
+                    else => {},
+                },
+                .big_int => {},
+            },
+            .null => return .null,
             else => {},
         }
         return null;
@@ -119,33 +141,42 @@ pub const Key = union(enum) {
 };
 
 pub const Ref = enum(u32) {
-    const max = std.math.maxInt(u32);
-
-    ptr = max - 0,
-    noreturn = max - 1,
-    void = max - 2,
-    i1 = max - 3,
-    i8 = max - 4,
-    i16 = max - 5,
-    i32 = max - 6,
-    i64 = max - 7,
-    i128 = max - 8,
-    f16 = max - 9,
-    f32 = max - 10,
-    f64 = max - 11,
-    f80 = max - 12,
-    f128 = max - 13,
-    func = max - 14,
+    ptr,
+    noreturn,
+    void,
+    i1,
+    i8,
+    i16,
+    i32,
+    i64,
+    i128,
+    f16,
+    f32,
+    f64,
+    f80,
+    f128,
+    func,
+    zero,
+    one,
+    null,
     _,
 };
 
-pub fn deinit(ip: *Interner, gpa: Allocator) void {
-    ip.map.deinit(gpa);
+pub const Tag = enum(u8) {
+
+};
+
+pub fn deinit(i: *Interner, gpa: Allocator) void {
+    i.map.deinit(gpa);
+    i.items.deinit(gpa);
+    i.extra.deinit(gpa);
+    i.strings.deinit(gpa);
 }
 
-pub fn put(ip: *Interner, gpa: Allocator, key: Key) !Ref {
+pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
     if (key.toRef()) |some| return some;
-    const gop = try ip.map.getOrPut(gpa, key);
+    const adapter: KeyAdapter = .{ .interner = i };
+    const gop = try i.map.getOrPutAdapted(gpa, key, adapter);
     return @enumFromInt(gop.index);
 }
 
