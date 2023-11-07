@@ -1680,7 +1680,9 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     }
 
     if (p.eatToken(.equal)) |eq| init: {
-        if (decl_spec.storage_class == .typedef or init_d.d.func_declarator != null) {
+        if (decl_spec.storage_class == .typedef or
+            (init_d.d.func_declarator != null and init_d.d.ty.isFunc()))
+        {
             try p.errTok(.illegal_initializer, eq);
         } else if (init_d.d.ty.is(.variable_len_array)) {
             try p.errTok(.vla_init, eq);
@@ -2792,6 +2794,7 @@ fn declarator(
         try res.ty.combine(outer);
         try res.ty.validateCombinedType(p, suffix_start);
         res.old_style_func = d.old_style_func;
+        res.func_declarator = d.func_declarator;
         return res;
     }
 
