@@ -454,7 +454,7 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: f64, int_ty: Ty
     const is_zero = res.val.isZero();
     const non_zero_str: []const u8 = if (is_zero) "non-zero " else "";
     if (int_ty.is(.bool)) {
-        try w.print(" changes {s}value from {d} to {}", .{ non_zero_str, old_value, res.val.getBool() });
+        try w.print(" changes {s}value from {d} to {}", .{ non_zero_str, old_value, res.val.toBool() });
     } else if (int_ty.isUnsignedInt(p.comp)) {
         try w.print(" changes {s}value from {d} to {d}", .{ non_zero_str, old_value, res.val.getInt(u64) });
     } else {
@@ -1235,7 +1235,7 @@ fn staticAssert(p: *Parser) Error!bool {
             try p.errTok(.static_assert_not_constant, res_token);
         }
     } else {
-        if (!res.val.getBool()) {
+        if (!res.val.toBool()) {
             if (try p.staticAssertMessage(res_node, str)) |message| {
                 try p.errStr(.static_assert_failure_message, static_assert, message);
             } else {
@@ -1986,7 +1986,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 if (res.val.tag == .unavailable) {
                     try p.errTok(.expected_integer_constant_expr, bit_int_tok);
                     return error.ParsingFailed;
-                } else if (res.val.compare(.lte, Value.int(0), res.ty, p.comp)) {
+                } else if (res.val.compare(.lte, Value.zero, res.ty, p.comp)) {
                     bits = -1;
                 } else if (res.val.compare(.gt, Value.int(128), res.ty, p.comp)) {
                     bits = 129;
@@ -2261,7 +2261,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
             if (res.val.tag == .unavailable) {
                 try p.errTok(.expected_integer_constant_expr, bits_tok);
                 break :bits;
-            } else if (res.val.compare(.lt, Value.int(0), res.ty, p.comp)) {
+            } else if (res.val.compare(.lt, Value.zero, res.ty, p.comp)) {
                 try p.errExtra(.negative_bitwidth, first_tok, .{
                     .signed = res.val.signExtend(res.ty, p.comp),
                 });
@@ -2606,10 +2606,10 @@ const Enumerator = struct {
         const old_val = e.res.val;
         if (old_val.tag == .unavailable) {
             // First enumerator, set to 0 fits in all types.
-            e.res.val = Value.int(0);
+            e.res.val = Value.zero;
             return;
         }
-        if (try e.res.val.add(e.res.val, Value.int(1), e.res.ty, p)) {
+        if (try e.res.val.add(e.res.val, Value.one, e.res.ty, p)) {
             const byte_size = e.res.ty.sizeof(p.comp).?;
             const bit_size: u8 = @intCast(if (e.res.ty.isUnsignedInt(p.comp)) byte_size * 8 else byte_size * 8 - 1);
             if (e.fixed) {
@@ -2624,7 +2624,7 @@ const Enumerator = struct {
                 break :blk Type{ .specifier = .ulong_long };
             };
             e.res.ty = new_ty;
-            _ = try e.res.val.add(old_val, Value.int(1), e.res.ty, p);
+            _ = try e.res.val.add(old_val, Value.one, e.res.ty, p);
         }
     }
 
@@ -2714,7 +2714,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     var res = e.res;
     res.ty = try Attribute.applyEnumeratorAttributes(p, res.ty, attr_buf_top);
 
-    if (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, Value.int(0), res.ty, p.comp)) {
+    if (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, Value.zero, res.ty, p.comp)) {
         e.num_positive_bits = @max(e.num_positive_bits, res.val.minUnsignedBits(res.ty, p.comp));
     } else {
         e.num_negative_bits = @max(e.num_negative_bits, res.val.minSignedBits(res.ty, p.comp));
@@ -2722,7 +2722,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 
     if (err_start == p.comp.diag.list.items.len) {
         // only do these warnings if we didn't already warn about overflow or non-representable values
-        if (e.res.val.compare(.lt, Value.int(0), e.res.ty, p.comp)) {
+        if (e.res.val.compare(.lt, Value.zero, e.res.ty, p.comp)) {
             const val = e.res.val.getInt(i64);
             if (val < (Type{ .specifier = .int }).minInt(p.comp)) {
                 try p.errExtra(.enumerator_too_small, name_tok, .{
@@ -2964,7 +2964,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             const size_t = p.comp.types.size;
             if (size_val.isZero()) {
                 try p.errTok(.zero_length_array, l_bracket);
-            } else if (size_val.compare(.lt, Value.int(0), size_t, p.comp)) {
+            } else if (size_val.compare(.lt, Value.zero, size_t, p.comp)) {
                 try p.errTok(.negative_array_size, l_bracket);
                 return error.ParsingFailed;
             }
@@ -3257,7 +3257,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 if (index_res.val.tag == .unavailable) {
                     try p.errTok(.expected_integer_constant_expr, expr_tok);
                     return error.ParsingFailed;
-                } else if (index_res.val.compare(.lt, index_res.val.zero(), index_res.ty, p.comp)) {
+                } else if (index_res.val.compare(.lt, Value.zero, index_res.ty, p.comp)) {
                     try p.errExtra(.negative_array_designator, l_bracket + 1, .{
                         .signed = index_res.val.signExtend(index_res.ty, p.comp),
                     });
@@ -4677,7 +4677,7 @@ pub fn macroExpr(p: *Parser) Compilation.Error!bool {
         try p.errTok(.expected_expr, p.tok_i);
         return false;
     }
-    return res.val.getBool();
+    return res.val.toBool();
 }
 
 const CallExpr = union(enum) {
@@ -4899,7 +4899,7 @@ const Result = struct {
 
     fn boolRes(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
         if (lhs.val.tag == .nullptr_t) {
-            lhs.val = Value.int(0);
+            lhs.val = Value.zero;
         }
         if (lhs.ty.specifier != .invalid) {
             lhs.ty = Type.int;
@@ -5176,15 +5176,15 @@ const Result = struct {
                 try p.errStr(.array_address_to_bool, tok, p.tokSlice(tok));
             }
             try res.lvalConversion(p);
-            res.val = Value.int(1);
+            res.val = Value.one;
             res.ty = bool_ty;
             try res.implicitCast(p, .pointer_to_bool);
         } else if (res.ty.isPtr()) {
-            res.val.toBool();
+            res.val.boolCast();
             res.ty = bool_ty;
             try res.implicitCast(p, .pointer_to_bool);
         } else if (res.ty.isInt() and !res.ty.is(.bool)) {
-            res.val.toBool();
+            res.val.boolCast();
             res.ty = bool_ty;
             try res.implicitCast(p, .int_to_bool);
         } else if (res.ty.isFloat()) {
@@ -5278,7 +5278,7 @@ const Result = struct {
 
     fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
         if (res.ty.is(.bool)) {
-            res.val.intToFloat(res.ty, float_ty, p.comp);
+            try res.val.intToFloat(float_ty, p);
             res.ty = float_ty.makeReal();
             try res.implicitCast(p, .bool_to_float);
             if (!float_ty.isReal()) {
@@ -5286,7 +5286,7 @@ const Result = struct {
                 try res.implicitCast(p, .real_to_complex_float);
             }
         } else if (res.ty.isInt()) {
-            res.val.intToFloat(res.ty, float_ty, p.comp);
+            try res.val.intToFloat(float_ty, p);
             const old_real = res.ty.isReal();
             const new_real = float_ty.isReal();
             if (old_real and new_real) {
@@ -5509,7 +5509,7 @@ const Result = struct {
         } else if (res.ty.is(.nullptr_t)) {
             if (to.is(.bool)) {
                 try res.nullCast(p, res.ty);
-                res.val.toBool();
+                res.val.boolCast();
                 res.ty = .{ .specifier = .bool };
                 try res.implicitCast(p, .pointer_to_bool);
                 try res.saveValue(p);
@@ -5656,12 +5656,12 @@ const Result = struct {
             const old_int = res.ty.isInt() or res.ty.isPtr();
             const new_int = to.isInt() or to.isPtr();
             if (to.is(.bool)) {
-                res.val.toBool();
+                res.val.boolCast();
             } else if (old_float and new_int) {
                 // Explicit cast, no conversion warning
                 _ = res.val.floatToInt(res.ty, to, p.comp);
             } else if (new_float and old_int) {
-                res.val.intToFloat(res.ty, to, p.comp);
+                try res.val.intToFloat(to, p);
             } else if (new_float and old_float) {
                 res.val.floatCast(res.ty, to, p.comp);
             } else if (old_int and new_int) {
@@ -6043,7 +6043,7 @@ fn condExpr(p: *Parser) Error!Result {
     // Depending on the value of the condition, avoid evaluating unreachable branches.
     var then_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.tag != .unavailable and !cond.val.getBool()) p.no_eval = true;
+        if (cond.val.tag != .unavailable and !cond.val.toBool()) p.no_eval = true;
         break :blk try p.expr();
     };
     try then_expr.expect(p);
@@ -6065,7 +6065,7 @@ fn condExpr(p: *Parser) Error!Result {
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.tag != .unavailable and cond.val.getBool()) p.no_eval = true;
+        if (cond.val.tag != .unavailable and cond.val.toBool()) p.no_eval = true;
         break :blk try p.condExpr();
     };
     try else_expr.expect(p);
@@ -6073,7 +6073,7 @@ fn condExpr(p: *Parser) Error!Result {
     _ = try then_expr.adjustTypes(colon, &else_expr, p, .conditional);
 
     if (cond.val.tag != .unavailable) {
-        cond.val = if (cond.val.getBool()) then_expr.val else else_expr.val;
+        cond.val = if (cond.val.toBool()) then_expr.val else else_expr.val;
     } else {
         try then_expr.saveValue(p);
         try else_expr.saveValue(p);
@@ -6095,13 +6095,13 @@ fn lorExpr(p: *Parser) Error!Result {
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.pipe_pipe)) |tok| {
-        if (lhs.val.tag != .unavailable and lhs.val.getBool()) p.no_eval = true;
+        if (lhs.val.tag != .unavailable and lhs.val.toBool()) p.no_eval = true;
         var rhs = try p.landExpr();
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
-            const res = @intFromBool(lhs.val.getBool() or rhs.val.getBool());
-            lhs.val = Value.int(res);
+            const res = lhs.val.toBool() or rhs.val.toBool();
+            lhs.val = Value.fromBool(res);
         }
         try lhs.boolRes(p, .bool_or_expr, rhs);
     }
@@ -6116,13 +6116,13 @@ fn landExpr(p: *Parser) Error!Result {
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.ampersand_ampersand)) |tok| {
-        if (lhs.val.tag != .unavailable and !lhs.val.getBool()) p.no_eval = true;
+        if (lhs.val.tag != .unavailable and !lhs.val.toBool()) p.no_eval = true;
         var rhs = try p.orExpr();
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
-            const res = @intFromBool(lhs.val.getBool() and rhs.val.getBool());
-            lhs.val = Value.int(res);
+            const res = lhs.val.toBool() and rhs.val.toBool();
+            lhs.val = Value.fromBool(res);
         }
         try lhs.boolRes(p, .bool_and_expr, rhs);
     }
@@ -6191,7 +6191,7 @@ fn eqExpr(p: *Parser) Error!Result {
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const op: std.math.CompareOperator = if (tag == .equal_expr) .eq else .neq;
             const res = lhs.val.compare(op, rhs.val, lhs.ty, p.comp);
-            lhs.val = Value.int(@intFromBool(res));
+            lhs.val = Value.fromBool(res);
         }
         try lhs.boolRes(p, tag, rhs);
     }
@@ -6220,7 +6220,7 @@ fn compExpr(p: *Parser) Error!Result {
                 else => unreachable,
             };
             const res = lhs.val.compare(op, rhs.val, lhs.ty, p.comp);
-            lhs.val = Value.int(@intFromBool(res));
+            lhs.val = Value.fromBool(res);
         }
         try lhs.boolRes(p, tag, rhs);
     }
@@ -6311,7 +6311,7 @@ fn mulExpr(p: *Parser) Error!Result {
                 if (res.tag == .unavailable) {
                     if (p.in_macro) {
                         // match clang behavior by defining invalid remainder to be zero in macros
-                        res = Value.int(0);
+                        res = Value.zero;
                     } else {
                         try lhs.saveValue(p);
                         try rhs.saveValue(p);
@@ -6430,7 +6430,7 @@ fn typesCompatible(p: *Parser) Error!Result {
     const compatible = first_unqual.eql(second_unqual, p.comp, true);
 
     var res = Result{
-        .val = Value.int(@intFromBool(compatible)),
+        .val = Value.fromBool(compatible),
         .node = try p.addNode(.{ .tag = .builtin_types_compatible_p, .ty = Type.int, .data = .{ .bin = .{
             .lhs = lhs,
             .rhs = rhs,
@@ -6452,17 +6452,17 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
 
     _ = try p.expectToken(.comma);
 
-    var then_expr = if (cond.val.getBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
+    var then_expr = if (cond.val.toBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
     try then_expr.expect(p);
 
     _ = try p.expectToken(.comma);
 
-    var else_expr = if (!cond.val.getBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
+    var else_expr = if (!cond.val.toBool()) try p.assignExpr() else try p.parseNoEval(assignExpr);
     try else_expr.expect(p);
 
     try p.expectClosing(l_paren, .r_paren);
 
-    if (cond.val.getBool()) {
+    if (cond.val.toBool()) {
         cond.val = then_expr.val;
         cond.ty = then_expr.ty;
     } else {
@@ -6713,7 +6713,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             try operand.usualUnaryConversion(p, tok);
             if (operand.val.tag == .int or operand.val.tag == .float) {
-                _ = try operand.val.sub(operand.val.zero(), operand.val, operand.ty, p);
+                _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p);
             } else {
                 operand.val.tag = .unavailable;
             }
@@ -6737,7 +6737,7 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.tag == .int or operand.val.tag == .float) {
-                if (try operand.val.add(operand.val, operand.val.one(), operand.ty, p))
+                if (try operand.val.add(operand.val, Value.one, operand.ty, p))
                     try p.errOverflow(tok, operand);
             } else {
                 operand.val.tag = .unavailable;
@@ -6763,7 +6763,7 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.tag == .int or operand.val.tag == .float) {
-                if (try operand.val.sub(operand.val, operand.val.one(), operand.ty, p))
+                if (try operand.val.sub(operand.val, Value.one, operand.ty, p))
                     try p.errOverflow(tok, operand);
             } else {
                 operand.val.tag = .unavailable;
@@ -6801,13 +6801,13 @@ fn unExpr(p: *Parser) Error!Result {
 
             try operand.usualUnaryConversion(p, tok);
             if (operand.val.tag == .int) {
-                const res = Value.int(@intFromBool(!operand.val.getBool()));
+                const res = Value.fromBool(!operand.val.toBool());
                 operand.val = res;
             } else if (operand.val.tag == .nullptr_t) {
-                operand.val = Value.int(1);
+                operand.val = Value.one;
             } else {
                 if (operand.ty.isDecayed()) {
-                    operand.val = Value.int(0);
+                    operand.val = Value.zero;
                 } else {
                     operand.val.tag = .unavailable;
                 }
@@ -6923,14 +6923,14 @@ fn unExpr(p: *Parser) Error!Result {
                     .msvc => {}, // Doesn't support `_Complex` or `__imag` in the first place
                     .gcc => {
                         if (operand.ty.isInt()) {
-                            operand.val = Value.int(0);
+                            operand.val = Value.zero;
                         } else if (operand.ty.isFloat()) {
                             operand.val = Value.float(0);
                         }
                     },
                     .clang => {
                         if (operand.val.tag == .int) {
-                            operand.val = Value.int(0);
+                            operand.val = Value.zero;
                         } else {
                             operand.val.tag = .unavailable;
                         }
@@ -7355,7 +7355,7 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
         if (index.val.compare(.gte, len, p.comp.types.size, p.comp))
             try p.errExtra(.array_after, tok, .{ .unsigned = index.val.data.int });
     } else {
-        if (index.val.compare(.lt, Value.int(0), index.ty, p.comp)) {
+        if (index.val.compare(.lt, Value.zero, index.ty, p.comp)) {
             try p.errExtra(.array_before, tok, .{
                 .signed = index.val.signExtend(index.ty, p.comp),
             });
@@ -7586,14 +7586,14 @@ fn primaryExpr(p: *Parser) Error!Result {
         => return p.charLiteral(),
         .zero => {
             p.tok_i += 1;
-            var res: Result = .{ .val = Value.int(0), .ty = if (p.in_macro) p.comp.types.intmax else Type.int };
+            var res: Result = .{ .val = Value.zero, .ty = if (p.in_macro) p.comp.types.intmax else Type.int };
             res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
         },
         .one => {
             p.tok_i += 1;
-            var res: Result = .{ .val = Value.int(1), .ty = if (p.in_macro) p.comp.types.intmax else Type.int };
+            var res: Result = .{ .val = Value.one, .ty = if (p.in_macro) p.comp.types.intmax else Type.int };
             res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
@@ -7752,7 +7752,7 @@ fn charLiteral(p: *Parser) Error!Result {
         } else unreachable;
         return .{
             .ty = Type.int,
-            .val = Value.int(0),
+            .val = Value.zero,
             .node = try p.addNode(.{ .tag = .char_literal, .ty = Type.int, .data = undefined }),
         };
     };

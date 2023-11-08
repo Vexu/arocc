@@ -84,40 +84,12 @@ const Tag = enum {
     bytes,
 };
 
+pub const zero = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
+pub const one = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
+
 pub fn ref(v: Value) Interner.Ref {
     std.debug.assert(v.opt_ref != .none);
     return @enumFromInt(@intFromEnum(v.opt_ref));
-}
-
-pub fn zero(v: Value) Value {
-    return switch (v.tag) {
-        .int => int(0),
-        .float => float(0),
-        else => unreachable,
-    };
-}
-
-pub fn one(v: Value) Value {
-    return switch (v.tag) {
-        .int => int(1),
-        .float => float(1),
-        else => unreachable,
-    };
-}
-
-pub fn int(v: anytype) Value {
-    if (@TypeOf(v) == comptime_int or @typeInfo(@TypeOf(v)).Int.signedness == .unsigned)
-        return .{ .tag = .int, .data = .{ .int = v } }
-    else
-        return .{ .tag = .int, .data = .{ .int = @bitCast(@as(i64, v)) } };
-}
-
-pub fn float(v: anytype) Value {
-    return .{ .tag = .float, .data = .{ .float = v } };
-}
-
-pub fn bytes(start: u32, end: u32) Value {
-    return .{ .tag = .bytes, .data = .{ .bytes = .{ .start = start, .end = end } } };
 }
 
 pub fn signExtend(v: Value, old_ty: Type, comp: *Compilation) i64 {
@@ -282,17 +254,35 @@ pub fn floatToInt(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) Flo
 }
 
 /// Converts the stored value from an integer to a float.
-/// `.unavailable` value remains unchanged.
-pub fn intToFloat(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
-    assert(old_ty.isInt());
-    if (v.tag == .unavailable) return;
-    if (!new_ty.isReal() or new_ty.sizeof(comp).? > 8) {
-        v.tag = .unavailable;
-    } else if (old_ty.isUnsignedInt(comp)) {
-        v.* = float(@as(f64, @floatFromInt(v.data.int)));
-    } else {
-        v.* = float(@as(f64, @floatFromInt(@as(i64, @bitCast(v.data.int)))));
-    }
+/// `.none` value remains unchanged.
+pub fn intToFloat(v: *Value, dest_ty: Type, p: *Parser) !void {
+    if (v.opt_ref == .none) return;
+    const bits = dest_ty.bitSizeof(p.comp).?;
+    return switch (p.interner.get(v.ref()).int) {
+        inline .u64, .i64 => |data| {
+            const f: Interner.Key.Float = switch (bits) {
+                16 => .{ .f16 = @floatFromInt(data) },
+                32 => .{ .f32 = @floatFromInt(data) },
+                64 => .{ .f64 = @floatFromInt(data) },
+                80 => .{ .f80 = @floatFromInt(data) },
+                128 => .{ .f128 = @floatFromInt(data) },
+                else => unreachable,
+            };
+            v.* = try p.intern(.{ .float = f });
+        },
+        .big_int => |data| {
+            const big_f = bigIntToFloat(data.limbs, data.positive);
+            const f: Interner.Key.Float = switch (bits) {
+                16 => .{ .f16 = @floatCast(big_f) },
+                32 => .{ .f32 = @floatCast(big_f) },
+                64 => .{ .f64 = @floatCast(big_f) },
+                80 => .{ .f80 = @floatCast(big_f) },
+                128 => .{ .f128 = @floatCast(big_f) },
+                else => unreachable,
+            };
+            v.* = try p.intern(.{ .float = f });
+        },
+    };
 }
 
 /// Truncates or extends bits based on type.
@@ -326,44 +316,59 @@ pub fn floatCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void
     }
 }
 
-/// Truncates data.int to one bit
-pub fn toBool(v: *Value) void {
-    if (v.tag == .unavailable) return;
-    const res = v.getBool();
-    v.* = int(@intFromBool(res));
+pub fn toFloat(v: Value, comptime T: type, p: *Parser) T {
+    return switch (p.interner.get(v.ref())) {
+        .int => |repr| switch (repr) {
+            inline .u64, .i64 => |data| @floatFromInt(data),
+            .big_int => |data| @floatCast(bigIntToFloat(data.limbs, data.positive)),
+        },
+        .float => |repr| switch (repr) {
+            inline else => |data| @floatCast(data),
+        },
+        else => unreachable,
+    };
+}
+
+fn bigIntToFloat(limbs: []const std.math.big.Limb, positive: bool) f128 {
+    if (limbs.len == 0) return 0;
+
+    const base = std.math.maxInt(std.math.big.Limb) + 1;
+    var result: f128 = 0;
+    var i: usize = limbs.len;
+    while (i != 0) {
+        i -= 1;
+        const limb: f128 = @as(f128, @floatFromInt(limbs[i]));
+        result = @mulAdd(f128, base, result, limb);
+    }
+    if (positive) {
+        return result;
+    } else {
+        return -result;
+    }
+}
+
+pub fn toBigInt(val: Value, space: *BigIntSpace, p: *Parser) BigIntConst {
+    return switch (p.interner.get(val.ref()).int) {
+        inline .u64, .i64 => |x| BigIntMutable.init(&space.limbs, x).toConst(),
+        .big_int => |b| b,
+    };
 }
 
 pub fn isZero(v: Value) bool {
-    return switch (v.tag) {
-        .unavailable => false,
-        .nullptr_t => false,
-        .int => v.data.int == 0,
-        .float => v.data.float == 0,
-        .bytes => false,
-    };
+    return v.ref() == .zero;
 }
 
-pub fn getBool(v: Value) bool {
-    return switch (v.tag) {
-        .unavailable => unreachable,
-        .nullptr_t => false,
-        .int => v.data.int != 0,
-        .float => v.data.float != 0,
-        .bytes => true,
-    };
+/// Converts value to zero or one;
+pub fn boolCast(v: *Value) void {
+    v.* = fromBool(v.toBool());
 }
 
-pub fn getInt(v: Value, comptime T: type) T {
-    if (T == u64) return v.data.int;
-    return if (@typeInfo(T).Int.signedness == .unsigned)
-        @truncate(v.data.int)
-    else
-        @truncate(@as(i64, @bitCast(v.data.int)));
+pub fn fromBool(b: bool) Value {
+    return if (b) one else zero;
 }
 
-pub fn getFloat(v: Value, comptime T: type) T {
-    if (T == f64) return v.data.float;
-    return @floatCast(v.data.float);
+pub fn toBool(v: Value) bool {
+    return v.ref() != .zero;
 }
 
 pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, p: *Parser) !bool {
