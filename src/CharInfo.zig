@@ -489,9 +489,7 @@ pub fn homoglyph(codepoint: u21) ?u21 {
 }
 
 pub fn isXidStart(c: u21) bool {
-    if (c < tables.ascii_start.len) {
-        return tables.ascii_start[c];
-    }
+    assert(c > 0x7F);
     const idx = c / 8 / tables.chunk;
     const chunk: usize = if (idx < tables.trie_start.len) tables.trie_start[idx] else 0;
     const offset = chunk * tables.chunk / 2 + c / 8 % tables.chunk;
@@ -499,9 +497,7 @@ pub fn isXidStart(c: u21) bool {
 }
 
 pub fn isXidContinue(c: u21) bool {
-    if (c < tables.ascii_continue.len) {
-        return tables.ascii_continue[c];
-    }
+    assert(c > 0x7F);
     const idx = c / 8 / tables.chunk;
     const chunk: usize = if (idx < tables.trie_continue.len) tables.trie_continue[idx] else 0;
     const offset = chunk * tables.chunk / 2 + c / 8 % tables.chunk;
@@ -510,7 +506,7 @@ pub fn isXidContinue(c: u21) bool {
 
 test "isXidStart / isXidContinue panic check" {
     const std = @import("std");
-    for (0..std.math.maxInt(u21)) |i| {
+    for (0x80..0x110000) |i| {
         const c: u21 = @intCast(i);
         if (std.unicode.utf8ValidCodepoint(c)) {
             _ = isXidStart(c);
@@ -521,10 +517,7 @@ test "isXidStart / isXidContinue panic check" {
 
 test isXidStart {
     const std = @import("std");
-    try std.testing.expect(isXidStart('a'));
-    try std.testing.expect(isXidStart('Z'));
-    try std.testing.expect(!isXidStart('0'));
-    try std.testing.expect(!isXidStart(' '));
+    try std.testing.expect(!isXidStart('᠑'));
     try std.testing.expect(!isXidStart('™'));
     try std.testing.expect(!isXidStart('£'));
     try std.testing.expect(!isXidStart('\u{1f914}')); // 🤔
@@ -532,10 +525,7 @@ test isXidStart {
 
 test isXidContinue {
     const std = @import("std");
-    try std.testing.expect(isXidContinue('a'));
-    try std.testing.expect(isXidContinue('Z'));
-    try std.testing.expect(isXidContinue('0'));
-    try std.testing.expect(!isXidContinue(' '));
+    try std.testing.expect(isXidContinue('᠑'));
     try std.testing.expect(!isXidContinue('™'));
     try std.testing.expect(!isXidContinue('£'));
     try std.testing.expect(!isXidContinue('\u{1f914}')); // 🤔
