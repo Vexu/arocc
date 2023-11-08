@@ -2,6 +2,11 @@ const std = @import("std");
 const assert = std.debug.assert;
 const Compilation = @import("Compilation.zig");
 const Type = @import("Type.zig");
+const Interner = @import("Interner.zig");
+const BigIntSpace = Interner.Tag.Int.BigIntSpace;
+const Parser = @import("Parser.zig");
+const BigIntConst = std.math.big.int.Const;
+const BigIntMutable = std.math.big.int.Mutable;
 
 const Value = @This();
 
@@ -54,6 +59,8 @@ pub const ByteRange = struct {
         }
     }
 };
+
+ref: Interner.Ref = .zero,
 
 tag: Tag = .unavailable,
 data: union {
@@ -347,6 +354,66 @@ pub fn getInt(v: Value, comptime T: type) T {
 pub fn getFloat(v: Value, comptime T: type) T {
     if (T == f64) return v.data.float;
     return @floatCast(v.data.float);
+}
+
+pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, p: *Parser) !bool {
+    const bits = ty.bitSizeof(p.comp).?;
+    if (ty.isFloat()) {
+        const f: Interner.Key.Float = switch (bits) {
+            16 => .{ .f16 = lhs.toFloat(f16, p) + rhs.toFloat(f16, p) },
+            32 => .{ .f32 = lhs.toFloat(f32, p) + rhs.toFloat(f32, p) },
+            64 => .{ .f64 = lhs.toFloat(f64, p) + rhs.toFloat(f64, p) },
+            80 => .{ .f80 = lhs.toFloat(f80, p) + rhs.toFloat(f80, p) },
+            128 => .{ .f128 = lhs.toFloat(f128, p) + rhs.toFloat(f128, p) },
+            else => unreachable,
+        };
+        res.* = .{ .ref = try p.interner.put(p.gpa, .{ .float = f }) };
+        return false;
+    } else {
+        var lhs_space: BigIntSpace = undefined;
+        var rhs_space: BigIntSpace = undefined;
+        const lhs_bigint = lhs.toBigInt(&lhs_space, p);
+        const rhs_bigint = rhs.toBigInt(&rhs_space, p);
+        const limbs = try p.gpa.alloc(
+            std.math.big.Limb,
+            std.math.big.int.calcTwosCompLimbCount(bits),
+        );
+        defer p.gpa.free(limbs);
+        var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+        const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, ty.signedness(p.comp), bits);
+        res.* = .{ .ref = try p.interner.put(p.gpa, .{ .int = .{ .big_int = result_bigint.toConst() } }) };
+        return overflowed;
+    }
+}
+
+pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, p: *Parser) !bool {
+    const bits = ty.bitSizeof(p.comp).?;
+    if (ty.isFloat()) {
+        const f: Interner.Key.Float = switch (bits) {
+            16 => .{ .f16 = lhs.toFloat(f16, p) - rhs.toFloat(f16, p) },
+            32 => .{ .f32 = lhs.toFloat(f32, p) - rhs.toFloat(f32, p) },
+            64 => .{ .f64 = lhs.toFloat(f64, p) - rhs.toFloat(f64, p) },
+            80 => .{ .f80 = lhs.toFloat(f80, p) - rhs.toFloat(f80, p) },
+            128 => .{ .f128 = lhs.toFloat(f128, p) - rhs.toFloat(f128, p) },
+            else => unreachable,
+        };
+        res.* = .{ .ref = try p.interner.put(p.gpa, .{ .float = f }) };
+        return false;
+    } else {
+        var lhs_space: BigIntSpace = undefined;
+        var rhs_space: BigIntSpace = undefined;
+        const lhs_bigint = lhs.toBigInt(&lhs_space, p);
+        const rhs_bigint = rhs.toBigInt(&rhs_space, p);
+        const limbs = try p.gpa.alloc(
+            std.math.big.Limb,
+            std.math.big.int.calcTwosCompLimbCount(bits),
+        );
+        defer p.gpa.free(limbs);
+        var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+        const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, ty.signedness(p.comp), bits);
+        res.* = .{ .ref = try p.interner.put(p.gpa, .{ .int = .{ .big_int = result_bigint.toConst() } }) };
+        return overflowed;
+    }
 }
 
 const bin_overflow = struct {
