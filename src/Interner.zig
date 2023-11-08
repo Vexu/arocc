@@ -45,6 +45,11 @@ pub const Key = union(enum) {
         len: u32,
         child: Ref,
     },
+    record_ty: struct {
+        /// Pointer to user data, value used for hash and equality check.
+        user_ptr: *anyopaque,
+        elements: []const Ref,
+    },
     /// May not be zero
     null,
     int: union(enum) {
@@ -54,11 +59,6 @@ pub const Key = union(enum) {
     },
     float: Float,
     bytes: []const u8,
-    record: struct {
-        /// Pointer to user data, value used for hash and equality check.
-        user_ptr: *anyopaque,
-        elements: []const Ref,
-    },
 
     pub const Float = union(enum) {
         f16: f16,
@@ -76,7 +76,7 @@ pub const Key = union(enum) {
             .bytes => |bytes| {
                 hasher.update(bytes);
             },
-            .record => |info| {
+            .record_ty => |info| {
                 std.hash.autoHash(&hasher, @intFromPtr(info.user_ptr));
             },
             .float => @panic("TODO"),
@@ -94,8 +94,8 @@ pub const Key = union(enum) {
         const b_tag: KeyTag = b;
         if (a_tag != b_tag) return false;
         switch (a) {
-            .record => |a_info| {
-                return a_info.user_ptr == b.record.user_ptr;
+            .record_ty => |a_info| {
+                return a_info.user_ptr == b.record_ty.user_ptr;
             },
             .bytes => |a_bytes| {
                 const b_bytes = b.bytes;
@@ -198,7 +198,7 @@ pub const Tag = enum(u8) {
     /// `data` is `Bytes`
     bytes,
     /// `data` is `Record`
-    record,
+    record_ty,
 
     pub const Array = struct {
         len0: u32,
@@ -454,19 +454,19 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
                 }),
             });
         },
-        .record => |record| {
-            const split_ptr = PackedU64.init(@intFromPtr(record.user_ptr));
+        .record_ty => |record_ty| {
+            const split_ptr = PackedU64.init(@intFromPtr(record_ty.user_ptr));
             try i.extra.ensureUnusedCapacity(gpa, @typeInfo(Tag.Record).Struct.fields.len +
-                record.elements.len);
+                record_ty.elements.len);
             i.items.appendAssumeCapacity(.{
-                .tag = .record,
+                .tag = .record_ty,
                 .data = i.addExtraAssumeCapacity(Tag.Record{
                     .ptr0 = split_ptr.a,
                     .ptr1 = split_ptr.b,
-                    .elements_len = @intCast(record.elements.len),
+                    .elements_len = @intCast(record_ty.elements.len),
                 }),
             });
-            i.extra.appendSliceAssumeCapacity(@ptrCast(record.elements));
+            i.extra.appendSliceAssumeCapacity(@ptrCast(record_ty.elements));
         },
         .ptr_ty,
         .noreturn_ty,
@@ -578,9 +578,9 @@ pub fn get(i: *const Interner, ref: Ref) Key {
             const bytes = i.extraData(Tag.Bytes, data);
             return .{ .bytes = i.strings.items[bytes.strings_index..][0..bytes.len] };
         },
-        .record => {
+        .record_ty => {
             const extra = i.extraDataTrail(Tag.Record, data);
-            return .{ .record = .{
+            return .{ .record_ty = .{
                 .user_ptr = extra.data.getPtr(),
                 .elements = @ptrCast(i.extra.items[extra.end..][0..extra.data.elements_len]),
             } };

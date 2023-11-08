@@ -354,11 +354,7 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
 }
 
 fn errOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
-    if (res.ty.isUnsignedInt(p.comp)) {
-        try p.errExtra(.overflow_unsigned, op_tok, .{ .unsigned = res.val.data.int });
-    } else {
-        try p.errExtra(.overflow_signed, op_tok, .{ .signed = res.val.signExtend(res.ty, p.comp) });
-    }
+    try p.errStr(.overflow, op_tok, try p.valStr(res.val));
 }
 
 fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
@@ -408,6 +404,20 @@ pub fn err(p: *Parser, tag: Diagnostics.Tag) Compilation.Error!void {
 pub fn todo(p: *Parser, msg: []const u8) Error {
     try p.errStr(.todo, p.tok_i, msg);
     return error.ParsingFailed;
+}
+
+pub fn valStr(p: *Parser, val: Value) ![]const u8 {
+    switch (val.ref()) {
+        .zero => return "0",
+        .one => return "1",
+        .null => return "nullptr_t",
+        else => {},
+    }
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    try val.print(p.ctx(), p.strings.writer());
+    return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
 pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
@@ -1563,7 +1573,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
                 const arg_start = p.tok_i;
                 var first_expr = try p.assignExpr();
                 try first_expr.expect(p);
-                if (p.diagnose(attr, &arguments, arg_idx, first_expr)) |msg| {
+                if (try p.diagnose(attr, &arguments, arg_idx, first_expr)) |msg| {
                     try p.errExtra(msg.tag, arg_start, msg.extra);
                     p.skipTo(.r_paren);
                     return error.ParsingFailed;
@@ -1576,7 +1586,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
                 const arg_start = p.tok_i;
                 var arg_expr = try p.assignExpr();
                 try arg_expr.expect(p);
-                if (p.diagnose(attr, &arguments, arg_idx, arg_expr)) |msg| {
+                if (try p.diagnose(attr, &arguments, arg_idx, arg_expr)) |msg| {
                     try p.errExtra(msg.tag, arg_start, msg.extra);
                     p.skipTo(.r_paren);
                     return error.ParsingFailed;
@@ -1592,9 +1602,9 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
     return TentativeAttribute{ .attr = .{ .tag = attr, .args = arguments, .syntax = kind.toSyntax() }, .tok = name_tok };
 }
 
-fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result) ?Diagnostics.Message {
+fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result) !?Diagnostics.Message {
     if (Attribute.wantsAlignment(attr, arg_idx)) {
-        return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res.val, res.ty, p);
+        return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res.val, p);
     }
     const node = p.nodes.get(@intFromEnum(res.node));
     return Attribute.diagnose(attr, arguments, arg_idx, res.val, node, p.retained_strings.items);
@@ -1902,7 +1912,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     const res = try p.integerConstExpr(.no_const_decl_folding);
                     if (!res.val.isZero()) {
                         var args = Attribute.initArguments(.aligned, align_tok);
-                        if (p.diagnose(.aligned, &args, 0, res)) |msg| {
+                        if (try p.diagnose(.aligned, &args, 0, res)) |msg| {
                             try p.errExtra(msg.tag, arg_start, msg.extra);
                             p.skipTo(.r_paren);
                             return error.ParsingFailed;
@@ -2260,9 +2270,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 try p.errTok(.expected_integer_constant_expr, bits_tok);
                 break :bits;
             } else if (res.val.compare(.lt, Value.zero, p.ctx())) {
-                try p.errExtra(.negative_bitwidth, first_tok, .{
-                    .signed = res.val.signExtend(res.ty, p.comp),
-                });
+                try p.errStr(.negative_bitwidth, first_tok, try p.valStr(res.val));
                 break :bits;
             }
 
@@ -3255,15 +3263,13 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     try p.errTok(.expected_integer_constant_expr, expr_tok);
                     return error.ParsingFailed;
                 } else if (index_res.val.compare(.lt, Value.zero, p.ctx())) {
-                    try p.errExtra(.negative_array_designator, l_bracket + 1, .{
-                        .signed = index_res.val.signExtend(index_res.ty, p.comp),
-                    });
+                    try p.errStr(.negative_array_designator, l_bracket + 1, try p.valStr(index_res.val));
                     return error.ParsingFailed;
                 }
 
                 const max_len = cur_ty.arrayLen() orelse std.math.maxInt(usize);
                 if (index_res.val.data.int >= max_len) {
-                    try p.errExtra(.oob_array_designator, l_bracket + 1, .{ .unsigned = index_res.val.data.int });
+                    try p.errStr(.oob_array_designator, l_bracket + 1, try p.valStr(index_res.val));
                     return error.ParsingFailed;
                 }
                 const checked = index_res.val.getInt(u64);
@@ -4363,15 +4369,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             const prev = (try some.add(first, last, case + 1)) orelse break :check;
 
             // TODO check which value was already handled
-            if (some.ty.isUnsignedInt(p.comp)) {
-                try p.errExtra(.duplicate_switch_case_unsigned, case + 1, .{
-                    .unsigned = first.data.int,
-                });
-            } else {
-                try p.errExtra(.duplicate_switch_case_signed, case + 1, .{
-                    .signed = first.signExtend(some.ty, p.comp),
-                });
-            }
+            try p.errStr(.duplicate_switch_case, case + 1, try p.valStr(first));
             try p.errTok(.previous_case, prev.tok);
         } else {
             try p.errStr(.case_not_in_switch, case, "case");
@@ -7351,14 +7349,12 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 
     if (index.ty.isUnsignedInt(p.comp)) {
         if (index.val.compare(.gte, len, p.ctx()))
-            try p.errExtra(.array_after, tok, .{ .unsigned = index.val.data.int });
+            try p.errStr(.array_after, tok, try p.valStr(index.val));
     } else {
         if (index.val.compare(.lt, Value.zero, p.ctx())) {
-            try p.errExtra(.array_before, tok, .{
-                .signed = index.val.signExtend(index.ty, p.comp),
-            });
+            try p.errStr(.array_before, tok, try p.valStr(index.val));
         } else if (index.val.compare(.gte, len, p.ctx())) {
-            try p.errExtra(.array_after, tok, .{ .unsigned = index.val.data.int });
+            try p.errStr(.array_after, tok, try p.valStr(index.val));
         }
     }
 }

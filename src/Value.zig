@@ -676,19 +676,17 @@ pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, ctx: Contex
     return lhs_bigint.order(rhs_bigint).compare(op);
 }
 
-pub fn dump(v: Value, ty: Type, comp: *Compilation, strings: []const u8, w: anytype) !void {
-    switch (v.tag) {
-        .unavailable => try w.writeAll("unavailable"),
-        .int => if (ty.is(.bool) and comp.langopts.standard.atLeast(.c23)) {
-            try w.print("{s}", .{if (v.isZero()) "false" else "true"});
-        } else if (ty.isUnsignedInt(comp)) {
-            try w.print("{d}", .{v.data.int});
-        } else {
-            try w.print("{d}", .{v.signExtend(ty, comp)});
+pub fn print(v: Value, ctx: Context, w: anytype) @TypeOf(w).Error!void {
+    const key = ctx.interner.get(v.ref());
+    switch (key) {
+        .null => return w.writeAll("nullptr_t"),
+        .int => |repr| switch (repr) {
+            inline else => |x| return w.print("{d}", .{x}),
         },
-        .bytes => try v.data.bytes.dumpString(ty, comp, strings, w),
-        // std.fmt does @as instead of @floatCast
-        .float => try w.print("{d}", .{@as(f64, @floatCast(v.data.float))}),
-        else => try w.print("({s})", .{@tagName(v.tag)}),
+        .float => |repr| switch (repr) {
+            inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
+        },
+        .bytes => |b| return std.zig.fmt.stringEscape(b, "", .{}, w),
+        else => unreachable, // not a value
     }
 }

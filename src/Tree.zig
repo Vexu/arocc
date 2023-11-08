@@ -118,6 +118,10 @@ pub fn deinit(tree: *Tree) void {
     tree.interner.deinit(tree.comp.gpa);
 }
 
+pub fn ctx(tree: *const Tree) Value.Context {
+    return .{ .comp = tree.comp, .interner = &tree.interner };
+}
+
 pub const GNUAssemblyQualifiers = struct {
     @"volatile": bool = false,
     @"inline": bool = false,
@@ -162,7 +166,7 @@ pub const Node = struct {
         int: u64,
         return_zero: bool,
 
-        pub fn forDecl(data: Data, tree: Tree) struct {
+        pub fn forDecl(data: Data, tree: *const Tree) struct {
             decls: []const NodeIndex,
             cond: NodeIndex,
             incr: NodeIndex,
@@ -179,7 +183,7 @@ pub const Node = struct {
             };
         }
 
-        pub fn forStmt(data: Data, tree: Tree) struct {
+        pub fn forStmt(data: Data, tree: *const Tree) struct {
             init: NodeIndex,
             cond: NodeIndex,
             incr: NodeIndex,
@@ -667,7 +671,7 @@ pub fn isLvalExtra(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: 
     }
 }
 
-pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
+pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
     var tmp_tokenizer = Tokenizer{
@@ -680,7 +684,7 @@ pub fn tokSlice(tree: Tree, tok_i: TokenIndex) []const u8 {
     return tmp_tokenizer.buf[tok.start..tok.end];
 }
 
-pub fn dump(tree: Tree, color: bool, writer: anytype) @TypeOf(writer).Error!void {
+pub fn dump(tree: *const Tree, color: bool, writer: anytype) @TypeOf(writer).Error!void {
     const mapper = tree.comp.string_interner.getFastTypeMapper(tree.comp.gpa) catch tree.comp.string_interner.getSlowTypeMapper();
     defer mapper.deinit(tree.comp.gpa);
 
@@ -730,7 +734,7 @@ fn dumpAttribute(attr: Attribute, strings: []const u8, writer: anytype) !void {
     }
 }
 
-fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.TypeMapper, color: bool, w: anytype) @TypeOf(w).Error!void {
+fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringInterner.TypeMapper, color: bool, w: anytype) @TypeOf(w).Error!void {
     const delta = 2;
     const half = delta / 2;
     const util = @import("util.zig");
@@ -769,7 +773,7 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
     if (tree.value_map.get(node)) |val| {
         if (color) util.setColor(LITERAL, w);
         try w.writeAll(" (value: ");
-        try val.dump(ty, tree.comp, tree.strings, w);
+        try val.print(tree.ctx(), w);
         try w.writeByte(')');
     }
     if (tag == .implicit_return and data.return_zero) {
