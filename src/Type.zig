@@ -621,17 +621,21 @@ pub fn isConst(ty: Type) bool {
 }
 
 pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
+    return ty.signedness(comp) == .unsigned;
+}
+
+pub fn signedness(ty: Type, comp: *const Compilation) std.builtin.Signedness {
     return switch (ty.specifier) {
         // zig fmt: off
-        .char, .complex_char => return comp.getCharSignedness() == .unsigned,
+        .char, .complex_char => return comp.getCharSignedness(),
         .uchar, .ushort, .uint, .ulong, .ulong_long, .bool, .complex_uchar, .complex_ushort,
-        .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => true,
+        .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => .unsigned,
         // zig fmt: on
-        .bit_int, .complex_bit_int => return ty.data.int.signedness == .unsigned,
-        .typeof_type => ty.data.sub_type.isUnsignedInt(comp),
-        .typeof_expr => ty.data.expr.ty.isUnsignedInt(comp),
-        .attributed => ty.data.attributed.base.isUnsignedInt(comp),
-        else => false,
+        .bit_int, .complex_bit_int => ty.data.int.signedness,
+        .typeof_type => ty.data.sub_type.signedness(comp),
+        .typeof_expr => ty.data.expr.ty.signedness(comp),
+        .attributed => ty.data.attributed.base.signedness(comp),
+        else => .signed,
     };
 }
 

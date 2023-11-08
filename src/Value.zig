@@ -60,7 +60,12 @@ pub const ByteRange = struct {
     }
 };
 
-ref: Interner.Ref = .zero,
+pub const OptRef = enum(u32) {
+    none = std.math.maxInt(u32),
+    _,
+};
+
+opt_ref: OptRef = .none,
 
 tag: Tag = .unavailable,
 data: union {
@@ -78,6 +83,11 @@ const Tag = enum {
     float,
     bytes,
 };
+
+pub fn ref(v: Value) Interner.Ref {
+    std.debug.assert(v.opt_ref != .none);
+    return @enumFromInt(@intFromEnum(v.opt_ref));
+}
 
 pub fn zero(v: Value) Value {
     return switch (v.tag) {
@@ -367,21 +377,23 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, p: *Parser) !bool {
             128 => .{ .f128 = lhs.toFloat(f128, p) + rhs.toFloat(f128, p) },
             else => unreachable,
         };
-        res.* = .{ .ref = try p.interner.put(p.gpa, .{ .float = f }) };
+        res.* = try p.intern(.{ .float = f });
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
         var rhs_space: BigIntSpace = undefined;
         const lhs_bigint = lhs.toBigInt(&lhs_space, p);
         const rhs_bigint = rhs.toBigInt(&rhs_space, p);
+
         const limbs = try p.gpa.alloc(
             std.math.big.Limb,
             std.math.big.int.calcTwosCompLimbCount(bits),
         );
         defer p.gpa.free(limbs);
         var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+
         const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, ty.signedness(p.comp), bits);
-        res.* = .{ .ref = try p.interner.put(p.gpa, .{ .int = .{ .big_int = result_bigint.toConst() } }) };
+        res.* = try p.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
         return overflowed;
     }
 }
@@ -397,234 +409,193 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, p: *Parser) !bool {
             128 => .{ .f128 = lhs.toFloat(f128, p) - rhs.toFloat(f128, p) },
             else => unreachable,
         };
-        res.* = .{ .ref = try p.interner.put(p.gpa, .{ .float = f }) };
+        res.* = try p.intern(.{ .float = f });
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
         var rhs_space: BigIntSpace = undefined;
         const lhs_bigint = lhs.toBigInt(&lhs_space, p);
         const rhs_bigint = rhs.toBigInt(&rhs_space, p);
+
         const limbs = try p.gpa.alloc(
             std.math.big.Limb,
             std.math.big.int.calcTwosCompLimbCount(bits),
         );
         defer p.gpa.free(limbs);
         var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+
         const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, ty.signedness(p.comp), bits);
-        res.* = .{ .ref = try p.interner.put(p.gpa, .{ .int = .{ .big_int = result_bigint.toConst() } }) };
+        res.* = try p.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
         return overflowed;
     }
 }
 
-const bin_overflow = struct {
-    inline fn addInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
-        const a_val = a.getInt(T);
-        const b_val = b.getInt(T);
-        const sum, const overflowed = @addWithOverflow(a_val, b_val);
-        out.* = int(sum);
-        return overflowed != 0;
-    }
-    inline fn addFloat(comptime T: type, aa: Value, bb: Value) Value {
-        const a_val = aa.getFloat(T);
-        const b_val = bb.getFloat(T);
-        return float(a_val + b_val);
-    }
+pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, p: *Parser) !bool {
+    const bits = ty.bitSizeof(p.comp).?;
+    if (ty.isFloat()) {
+        const f: Interner.Key.Float = switch (bits) {
+            16 => .{ .f16 = lhs.toFloat(f16, p) * rhs.toFloat(f16, p) },
+            32 => .{ .f32 = lhs.toFloat(f32, p) * rhs.toFloat(f32, p) },
+            64 => .{ .f64 = lhs.toFloat(f64, p) * rhs.toFloat(f64, p) },
+            80 => .{ .f80 = lhs.toFloat(f80, p) * rhs.toFloat(f80, p) },
+            128 => .{ .f128 = lhs.toFloat(f128, p) * rhs.toFloat(f128, p) },
+            else => unreachable,
+        };
+        res.* = try p.intern(.{ .float = f });
+        return false;
+    } else {
+        var lhs_space: BigIntSpace = undefined;
+        var rhs_space: BigIntSpace = undefined;
+        const lhs_bigint = lhs.toBigInt(&lhs_space, p);
+        const rhs_bigint = rhs.toBigInt(&rhs_space, p);
 
-    inline fn subInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
-        const a_val = a.getInt(T);
-        const b_val = b.getInt(T);
-        const difference, const overflowed = @subWithOverflow(a_val, b_val);
-        out.* = int(difference);
-        return overflowed != 0;
-    }
-    inline fn subFloat(comptime T: type, aa: Value, bb: Value) Value {
-        const a_val = aa.getFloat(T);
-        const b_val = bb.getFloat(T);
-        return float(a_val - b_val);
-    }
+        const limbs = try p.gpa.alloc(
+            std.math.big.Limb,
+            lhs_bigint.limbs.len + rhs_bigint.limbs.len,
+        );
+        defer p.gpa.free(limbs);
+        var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-    inline fn mulInt(comptime T: type, out: *Value, a: Value, b: Value) bool {
-        const a_val = a.getInt(T);
-        const b_val = b.getInt(T);
-        const product, const overflowed = @mulWithOverflow(a_val, b_val);
-        out.* = int(product);
-        return overflowed != 0;
-    }
-    inline fn mulFloat(comptime T: type, aa: Value, bb: Value) Value {
-        const a_val = aa.getFloat(T);
-        const b_val = bb.getFloat(T);
-        return float(a_val * b_val);
-    }
+        var limbs_buffer = try p.gpa.alloc(
+            std.math.big.Limb,
+            std.math.big.int.calcMulLimbsBufferLen(lhs_bigint.limbs.len, rhs_bigint.limbs.len, 1),
+        );
+        defer p.gpa.free(limbs_buffer);
 
-    const FT = fn (*Value, Value, Value, Type, *Compilation) bool;
-    fn getOp(comptime intFunc: anytype, comptime floatFunc: anytype) FT {
-        return struct {
-            fn op(res: *Value, a: Value, b: Value, ty: Type, comp: *Compilation) bool {
-                const size = ty.sizeof(comp).?;
-                if (@TypeOf(floatFunc) != @TypeOf(null) and ty.isFloat()) {
-                    res.* = switch (size) {
-                        4 => floatFunc(f32, a, b),
-                        8 => floatFunc(f64, a, b),
-                        else => unreachable,
-                    };
-                    return false;
-                }
+        result_bigint.mul(lhs_bigint, rhs_bigint, limbs_buffer, p.gpa);
 
-                if (ty.isUnsignedInt(comp)) switch (size) {
-                    1 => return intFunc(u8, res, a, b),
-                    2 => return intFunc(u16, res, a, b),
-                    4 => return intFunc(u32, res, a, b),
-                    8 => return intFunc(u64, res, a, b),
-                    else => unreachable,
-                } else switch (size) {
-                    1 => return intFunc(u8, res, a, b),
-                    2 => return intFunc(u16, res, a, b),
-                    4 => return intFunc(i32, res, a, b),
-                    8 => return intFunc(i64, res, a, b),
-                    else => unreachable,
-                }
-            }
-        }.op;
-    }
-};
-
-pub const add = bin_overflow.getOp(bin_overflow.addInt, bin_overflow.addFloat);
-pub const sub = bin_overflow.getOp(bin_overflow.subInt, bin_overflow.subFloat);
-pub const mul = bin_overflow.getOp(bin_overflow.mulInt, bin_overflow.mulFloat);
-
-const bin_ops = struct {
-    inline fn divInt(comptime T: type, aa: Value, bb: Value) Value {
-        const a_val = aa.getInt(T);
-        const b_val = bb.getInt(T);
-        return int(@divTrunc(a_val, b_val));
-    }
-    inline fn divFloat(comptime T: type, aa: Value, bb: Value) Value {
-        const a_val = aa.getFloat(T);
-        const b_val = bb.getFloat(T);
-        return float(a_val / b_val);
-    }
-
-    inline fn remInt(comptime T: type, a: Value, b: Value) Value {
-        const a_val = a.getInt(T);
-        const b_val = b.getInt(T);
-
-        if (@typeInfo(T).Int.signedness == .signed) {
-            if (a_val == std.math.minInt(T) and b_val == -1) {
-                return Value{ .tag = .unavailable, .data = .{ .none = {} } };
-            } else {
-                if (b_val > 0) return int(@rem(a_val, b_val));
-                return int(a_val - @divTrunc(a_val, b_val) * b_val);
-            }
-        } else {
-            return int(a_val % b_val);
+        const signedness = ty.signedness(p.comp);
+        const overflowed = !result_bigint.toConst().fitsInTwosComp(signedness, bits);
+        if (overflowed) {
+            result_bigint.truncate(result_bigint.toConst(), signedness, bits);
         }
+        res.* = try p.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+        return overflowed;
     }
-
-    inline fn orInt(comptime T: type, a: Value, b: Value) Value {
-        const a_val = a.getInt(T);
-        const b_val = b.getInt(T);
-        return int(a_val | b_val);
-    }
-    inline fn xorInt(comptime T: type, a: Value, b: Value) Value {
-        const a_val = a.getInt(T);
-        const b_val = b.getInt(T);
-        return int(a_val ^ b_val);
-    }
-    inline fn andInt(comptime T: type, a: Value, b: Value) Value {
-        const a_val = a.getInt(T);
-        const b_val = b.getInt(T);
-        return int(a_val & b_val);
-    }
-
-    inline fn shl(comptime T: type, a: Value, b: Value) Value {
-        const ShiftT = std.math.Log2Int(T);
-        const info = @typeInfo(T).Int;
-        const UT = std.meta.Int(.unsigned, info.bits);
-        const b_val = b.getInt(T);
-
-        if (b_val > std.math.maxInt(ShiftT)) {
-            return if (info.signedness == .unsigned)
-                int(@as(UT, std.math.maxInt(UT)))
-            else
-                int(@as(T, std.math.minInt(T)));
-        }
-        const amt: ShiftT = @truncate(@as(UT, @bitCast(b_val)));
-        const a_val = a.getInt(T);
-        return int(a_val << amt);
-    }
-    inline fn shr(comptime T: type, a: Value, b: Value) Value {
-        const ShiftT = std.math.Log2Int(T);
-        const UT = std.meta.Int(.unsigned, @typeInfo(T).Int.bits);
-
-        const b_val = b.getInt(T);
-        if (b_val > std.math.maxInt(ShiftT)) return Value.int(0);
-
-        const amt: ShiftT = @truncate(@as(UT, @intCast(b_val)));
-        const a_val = a.getInt(T);
-        return int(a_val >> amt);
-    }
-
-    const FT = fn (Value, Value, Type, *Compilation) Value;
-    fn getOp(comptime intFunc: anytype, comptime floatFunc: anytype) FT {
-        return struct {
-            fn op(a: Value, b: Value, ty: Type, comp: *Compilation) Value {
-                const size = ty.sizeof(comp).?;
-                if (@TypeOf(floatFunc) != @TypeOf(null) and ty.isFloat()) {
-                    switch (size) {
-                        4 => return floatFunc(f32, a, b),
-                        8 => return floatFunc(f64, a, b),
-                        else => unreachable,
-                    }
-                }
-
-                if (ty.isUnsignedInt(comp)) switch (size) {
-                    1 => unreachable, // promoted to int
-                    2 => unreachable, // promoted to int
-                    4 => return intFunc(u32, a, b),
-                    8 => return intFunc(u64, a, b),
-                    else => unreachable,
-                } else switch (size) {
-                    1 => unreachable, // promoted to int
-                    2 => unreachable, // promoted to int
-                    4 => return intFunc(i32, a, b),
-                    8 => return intFunc(i64, a, b),
-                    else => unreachable,
-                }
-            }
-        }.op;
-    }
-};
+}
 
 /// caller guarantees rhs != 0
-pub const div = bin_ops.getOp(bin_ops.divInt, bin_ops.divFloat);
+pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, p: *Parser) !bool {
+    const bits = ty.bitSizeof(p.comp).?;
+    if (ty.isFloat()) {
+        const f: Interner.Key.Float = switch (bits) {
+            16 => .{ .f16 = lhs.toFloat(f16, p) / rhs.toFloat(f16, p) },
+            32 => .{ .f32 = lhs.toFloat(f32, p) / rhs.toFloat(f32, p) },
+            64 => .{ .f64 = lhs.toFloat(f64, p) / rhs.toFloat(f64, p) },
+            80 => .{ .f80 = lhs.toFloat(f80, p) / rhs.toFloat(f80, p) },
+            128 => .{ .f128 = lhs.toFloat(f128, p) / rhs.toFloat(f128, p) },
+            else => unreachable,
+        };
+        res.* = try p.intern(.{ .float = f });
+        return false;
+    } else {
+        var lhs_space: BigIntSpace = undefined;
+        var rhs_space: BigIntSpace = undefined;
+        const lhs_bigint = lhs.toBigInt(&lhs_space, p);
+        const rhs_bigint = rhs.toBigInt(&rhs_space, p);
+
+        const limbs = try p.gpa.alloc(
+            std.math.big.Limb,
+            lhs_bigint.limbs.len + rhs_bigint.limbs.len,
+        );
+        defer p.gpa.free(limbs);
+        var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+
+        const limbs_q = try p.gpa.alloc(
+            std.math.big.Limb,
+            lhs_bigint.limbs.len,
+        );
+        defer p.gpa.free(limbs_q);
+        var result_q = BigIntMutable{ .limbs = limbs_q, .positive = undefined, .len = undefined };
+
+        const limbs_r = try p.gpa.alloc(
+            std.math.big.Limb,
+            rhs_bigint.limbs.len,
+        );
+        defer p.gpa.free(limbs_r);
+        var result_r = BigIntMutable{ .limbs = limbs_r, .positive = undefined, .len = undefined };
+
+        const limbs_buffer = try p.gpa.alloc(
+            std.math.big.Limb,
+            std.math.big.int.calcDivLimbsBufferLen(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
+        );
+        defer p.gpa.free(limbs_buffer);
+
+        result_q.divTrunc(&result_r, lhs_bigint, rhs_bigint, limbs_buffer);
+
+        res.* = try p.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+        return !result_q.toConst().fitsInTwosComp(ty.signedness(p.comp), bits);
+    }
+}
+
 /// caller guarantees rhs != 0
 /// caller guarantees lhs != std.math.minInt(T) OR rhs != -1
-pub const rem = bin_ops.getOp(bin_ops.remInt, null);
 
-pub const bitOr = bin_ops.getOp(bin_ops.orInt, null);
-pub const bitXor = bin_ops.getOp(bin_ops.xorInt, null);
-pub const bitAnd = bin_ops.getOp(bin_ops.andInt, null);
+pub fn bitOr(lhs: Value, rhs: Value, p: *Parser) !Value {
+    var lhs_space: BigIntSpace = undefined;
+    var rhs_space: BigIntSpace = undefined;
+    const lhs_bigint = lhs.toBigInt(&lhs_space, p);
+    const rhs_bigint = rhs.toBigInt(&rhs_space, p);
 
-pub const shl = bin_ops.getOp(bin_ops.shl, null);
-pub const shr = bin_ops.getOp(bin_ops.shr, null);
+    const limbs = try p.gpa.alloc(
+        std.math.big.Limb,
+        @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
+    );
+    defer p.gpa.free(limbs);
+    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-pub fn bitNot(v: Value, ty: Type, comp: *Compilation) Value {
-    const size = ty.sizeof(comp).?;
-    var out: Value = undefined;
-    if (ty.isUnsignedInt(comp)) switch (size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => out = int(~v.getInt(u32)),
-        8 => out = int(~v.getInt(u64)),
-        else => unreachable,
-    } else switch (size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => out = int(~v.getInt(i32)),
-        8 => out = int(~v.getInt(i64)),
-        else => unreachable,
-    }
-    return out;
+    result_bigint.bitOr(lhs_bigint, rhs_bigint);
+    return p.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+}
+
+pub fn bitXor(lhs: Value, rhs: Value, p: *Parser) !Value {
+    var lhs_space: BigIntSpace = undefined;
+    var rhs_space: BigIntSpace = undefined;
+    const lhs_bigint = lhs.toBigInt(&lhs_space, p);
+    const rhs_bigint = rhs.toBigInt(&rhs_space, p);
+
+    const limbs = try p.gpa.alloc(
+        std.math.big.Limb,
+        @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
+    );
+    defer p.gpa.free(limbs);
+    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+
+    result_bigint.bitXor(lhs_bigint, rhs_bigint);
+    return p.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+}
+
+pub fn bitAnd(lhs: Value, rhs: Value, p: *Parser) !Value {
+    var lhs_space: BigIntSpace = undefined;
+    var rhs_space: BigIntSpace = undefined;
+    const lhs_bigint = lhs.toBigInt(&lhs_space, p);
+    const rhs_bigint = rhs.toBigInt(&rhs_space, p);
+
+    const limbs = try p.gpa.alloc(
+        std.math.big.Limb,
+        @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
+    );
+    defer p.gpa.free(limbs);
+    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+
+    result_bigint.bitAnd(lhs_bigint, rhs_bigint);
+    return p.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+}
+
+pub fn bitNot(val: Value, ty: Type, p: *Parser) !Value {
+    const bits = ty.bitSizeof(p.comp).?;
+    var val_space: Value.BigIntSpace = undefined;
+    const val_bigint = val.toBigInt(&val_space, p);
+
+    const limbs = try p.gpa.alloc(
+        std.math.big.Limb,
+        std.math.big.int.calcTwosCompLimbCount(bits),
+    );
+    defer p.gpa.free(limbs);
+    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+
+    result_bigint.bitNotWrap(val_bigint, ty.signedness(p.comp), bits);
+    return p.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
 pub fn compare(a: Value, op: std.math.CompareOperator, b: Value, ty: Type, comp: *const Compilation) bool {

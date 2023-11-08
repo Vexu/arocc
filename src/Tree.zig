@@ -6,6 +6,7 @@ const Source = @import("Source.zig");
 const Attribute = @import("Attribute.zig");
 const Value = @import("Value.zig");
 const StringInterner = @import("StringInterner.zig");
+const Interner = @import("Interner.zig");
 
 const Tree = @This();
 
@@ -105,16 +106,16 @@ tokens: Token.List.Slice,
 nodes: Node.List.Slice,
 data: []const NodeIndex,
 root_decls: []const NodeIndex,
-strings: []const u8,
 value_map: ValueMap,
+interner: Interner,
 
 pub fn deinit(tree: *Tree) void {
     tree.comp.gpa.free(tree.root_decls);
     tree.comp.gpa.free(tree.data);
-    tree.comp.gpa.free(tree.strings);
     tree.nodes.deinit(tree.comp.gpa);
     tree.arena.deinit();
     tree.value_map.deinit();
+    tree.interner.deinit(tree.comp.gpa);
 }
 
 pub const GNUAssemblyQualifiers = struct {
