@@ -586,6 +586,20 @@ fn nodeIsCompoundLiteral(p: *Parser, node: NodeIndex) bool {
     }
 }
 
+fn tmpTree(p: *Parser) Tree {
+    return .{
+        .nodes = p.nodes.slice(),
+        .data = p.data.items,
+        .value_map = p.value_map,
+        .comp = p.comp,
+        .interner = p.interner,
+        .arena = undefined,
+        .generated = undefined,
+        .tokens = undefined,
+        .root_decls = undefined,
+    };
+}
+
 fn pragma(p: *Parser) Compilation.Error!bool {
     var found_pragma = false;
     while (p.eatToken(.keyword_pragma)) |_| {
@@ -3607,7 +3621,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     try item.lvalConversion(p);
     if (target.is(.auto_type)) {
         if (p.getNode(node, .member_access_expr) orelse p.getNode(node, .member_access_ptr_expr)) |member_node| {
-            if (Tree.isBitfield(p.nodes.slice(), member_node)) try p.errTok(.auto_type_from_bitfield, tok);
+            if (p.tmpTree().isBitfield(member_node)) try p.errTok(.auto_type_from_bitfield, tok);
         }
         return;
     }
@@ -5153,7 +5167,7 @@ const Result = struct {
             res.val.tag = .unavailable;
             res.ty.decayArray();
             try res.implicitCast(p, .array_to_pointer);
-        } else if (!p.in_macro and Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, res.node)) {
+        } else if (!p.in_macro and p.tmpTree().isLval(res.node)) {
             res.ty.qual = .{};
             try res.implicitCast(p, .lval_to_rval);
         }
@@ -5381,8 +5395,7 @@ const Result = struct {
             return res.floatCast(p, .{ .specifier = .float });
         }
         if (res.ty.isInt()) {
-            const slice = p.nodes.slice();
-            if (Tree.bitfieldWidth(slice, res.node, true)) |width| {
+            if (p.tmpTree().bitfieldWidth(res.node, true)) |width| {
                 if (res.ty.bitfieldPromotion(p.comp, width)) |promotion_ty| {
                     return res.intCast(p, promotion_ty, tok);
                 }
@@ -5931,7 +5944,7 @@ fn assignExpr(p: *Parser) Error!Result {
     try rhs.lvalConversion(p);
 
     var is_const: bool = undefined;
-    if (!Tree.isLvalExtra(p.nodes.slice(), p.data.items, p.value_map, lhs.node, &is_const) or is_const) {
+    if (!p.tmpTree().isLvalExtra(lhs.node, &is_const) or is_const) {
         try p.errTok(.not_assignable, tok);
         return error.ParsingFailed;
     }
@@ -6637,11 +6650,13 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
 
-            const slice = p.nodes.slice();
-            if (p.getNode(operand.node, .member_access_expr) orelse p.getNode(operand.node, .member_access_ptr_expr)) |member_node| {
-                if (Tree.isBitfield(slice, member_node)) try p.errTok(.addr_of_bitfield, tok);
+            const tree = p.tmpTree();
+            if (p.getNode(operand.node, .member_access_expr) orelse
+                p.getNode(operand.node, .member_access_ptr_expr)) |member_node|
+            {
+                if (tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
             }
-            if (!Tree.isLval(slice, p.data.items, p.value_map, operand.node)) {
+            if (!tree.isLval(operand.node)) {
                 try p.errTok(.addr_of_rvalue, tok);
             }
             if (operand.ty.qual.register) try p.errTok(.addr_of_register, tok);
@@ -6716,7 +6731,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (operand.ty.isComplex())
                 try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
+            if (!p.tmpTree().isLval(operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
@@ -6742,7 +6757,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (operand.ty.isComplex())
                 try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
+            if (!p.tmpTree().isLval(operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
@@ -7032,7 +7047,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (operand.ty.isComplex())
                 try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
+            if (!p.tmpTree().isLval(operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
@@ -7050,7 +7065,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (operand.ty.isComplex())
                 try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!Tree.isLval(p.nodes.slice(), p.data.items, p.value_map, operand.node) or operand.ty.isConst()) {
+            if (!p.tmpTree().isLval(operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }

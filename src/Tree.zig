@@ -573,18 +573,18 @@ pub const Tag = enum(u8) {
     }
 };
 
-pub fn isBitfield(nodes: Node.List.Slice, node: NodeIndex) bool {
-    return bitfieldWidth(nodes, node, false) != null;
+pub fn isBitfield(tree: *const Tree, node: NodeIndex) bool {
+    return tree.bitfieldWidth(node, false) != null;
 }
 
 /// Returns null if node is not a bitfield. If inspect_lval is true, this function will
 /// recurse into implicit lval_to_rval casts (useful for arithmetic conversions)
-pub fn bitfieldWidth(nodes: Node.List.Slice, node: NodeIndex, inspect_lval: bool) ?u32 {
+pub fn bitfieldWidth(tree: *const Tree, node: NodeIndex, inspect_lval: bool) ?u32 {
     if (node == .none) return null;
-    switch (nodes.items(.tag)[@intFromEnum(node)]) {
+    switch (tree.nodes.items(.tag)[@intFromEnum(node)]) {
         .member_access_expr, .member_access_ptr_expr => {
-            const member = nodes.items(.data)[@intFromEnum(node)].member;
-            var ty = nodes.items(.ty)[@intFromEnum(member.lhs)];
+            const member = tree.nodes.items(.data)[@intFromEnum(node)].member;
+            var ty = tree.nodes.items(.ty)[@intFromEnum(member.lhs)];
             if (ty.isPtr()) ty = ty.elemType();
             const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return null;
             const field = record_ty.data.record.fields[member.index];
@@ -593,9 +593,9 @@ pub fn bitfieldWidth(nodes: Node.List.Slice, node: NodeIndex, inspect_lval: bool
         .implicit_cast => {
             if (!inspect_lval) return null;
 
-            const data = nodes.items(.data)[@intFromEnum(node)];
+            const data = tree.nodes.items(.data)[@intFromEnum(node)];
             return switch (data.cast.kind) {
-                .lval_to_rval => bitfieldWidth(nodes, data.cast.operand, false),
+                .lval_to_rval => tree.bitfieldWidth(data.cast.operand, false),
                 else => null,
             };
         },
@@ -603,63 +603,63 @@ pub fn bitfieldWidth(nodes: Node.List.Slice, node: NodeIndex, inspect_lval: bool
     }
 }
 
-pub fn isLval(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: ValueMap, node: NodeIndex) bool {
+pub fn isLval(tree: *const Tree, node: NodeIndex) bool {
     var is_const: bool = undefined;
-    return isLvalExtra(nodes, extra, value_map, node, &is_const);
+    return tree.isLvalExtra(node, &is_const);
 }
 
-pub fn isLvalExtra(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: ValueMap, node: NodeIndex, is_const: *bool) bool {
+pub fn isLvalExtra(tree: *const Tree, node: NodeIndex, is_const: *bool) bool {
     is_const.* = false;
-    switch (nodes.items(.tag)[@intFromEnum(node)]) {
+    switch (tree.nodes.items(.tag)[@intFromEnum(node)]) {
         .compound_literal_expr,
         .static_compound_literal_expr,
         .thread_local_compound_literal_expr,
         .static_thread_local_compound_literal_expr,
         => {
-            is_const.* = nodes.items(.ty)[@intFromEnum(node)].isConst();
+            is_const.* = tree.nodes.items(.ty)[@intFromEnum(node)].isConst();
             return true;
         },
         .string_literal_expr => return true,
         .member_access_ptr_expr => {
-            const lhs_expr = nodes.items(.data)[@intFromEnum(node)].member.lhs;
-            const ptr_ty = nodes.items(.ty)[@intFromEnum(lhs_expr)];
+            const lhs_expr = tree.nodes.items(.data)[@intFromEnum(node)].member.lhs;
+            const ptr_ty = tree.nodes.items(.ty)[@intFromEnum(lhs_expr)];
             if (ptr_ty.isPtr()) is_const.* = ptr_ty.elemType().isConst();
             return true;
         },
         .array_access_expr => {
-            const lhs_expr = nodes.items(.data)[@intFromEnum(node)].bin.lhs;
+            const lhs_expr = tree.nodes.items(.data)[@intFromEnum(node)].bin.lhs;
             if (lhs_expr != .none) {
-                const array_ty = nodes.items(.ty)[@intFromEnum(lhs_expr)];
+                const array_ty = tree.nodes.items(.ty)[@intFromEnum(lhs_expr)];
                 if (array_ty.isPtr() or array_ty.isArray()) is_const.* = array_ty.elemType().isConst();
             }
             return true;
         },
         .decl_ref_expr => {
-            const decl_ty = nodes.items(.ty)[@intFromEnum(node)];
+            const decl_ty = tree.nodes.items(.ty)[@intFromEnum(node)];
             is_const.* = decl_ty.isConst();
             return true;
         },
         .deref_expr => {
-            const data = nodes.items(.data)[@intFromEnum(node)];
-            const operand_ty = nodes.items(.ty)[@intFromEnum(data.un)];
+            const data = tree.nodes.items(.data)[@intFromEnum(node)];
+            const operand_ty = tree.nodes.items(.ty)[@intFromEnum(data.un)];
             if (operand_ty.isFunc()) return false;
             if (operand_ty.isPtr() or operand_ty.isArray()) is_const.* = operand_ty.elemType().isConst();
             return true;
         },
         .member_access_expr => {
-            const data = nodes.items(.data)[@intFromEnum(node)];
-            return isLvalExtra(nodes, extra, value_map, data.member.lhs, is_const);
+            const data = tree.nodes.items(.data)[@intFromEnum(node)];
+            return tree.isLvalExtra(data.member.lhs, is_const);
         },
         .paren_expr => {
-            const data = nodes.items(.data)[@intFromEnum(node)];
-            return isLvalExtra(nodes, extra, value_map, data.un, is_const);
+            const data = tree.nodes.items(.data)[@intFromEnum(node)];
+            return tree.isLvalExtra(data.un, is_const);
         },
         .builtin_choose_expr => {
-            const data = nodes.items(.data)[@intFromEnum(node)];
+            const data = tree.nodes.items(.data)[@intFromEnum(node)];
 
-            if (value_map.get(data.if3.cond)) |val| {
-                const offset = @intFromBool(val.isZero());
-                return isLvalExtra(nodes, extra, value_map, extra[data.if3.body + offset], is_const);
+            if (tree.value_map.get(data.if3.cond)) |val| {
+                const offset = @intFromBool(val.isZero(tree.ctx()));
+                return tree.isLvalExtra(tree.data[data.if3.body + offset], is_const);
             }
             return false;
         },
@@ -690,15 +690,15 @@ pub fn dump(tree: *const Tree, color: bool, writer: anytype) @TypeOf(writer).Err
     }
 }
 
-fn dumpFieldAttributes(attributes: []const Attribute, level: u32, strings: []const u8, writer: anytype) !void {
+fn dumpFieldAttributes(tree: *const Tree, attributes: []const Attribute, level: u32, writer: anytype) !void {
     for (attributes) |attr| {
         try writer.writeByteNTimes(' ', level);
         try writer.print("field attr: {s}", .{@tagName(attr.tag)});
-        try dumpAttribute(attr, strings, writer);
+        try tree.dumpAttribute(attr, writer);
     }
 }
 
-fn dumpAttribute(attr: Attribute, strings: []const u8, writer: anytype) !void {
+fn dumpAttribute(tree: *const Tree, attr: Attribute, writer: anytype) !void {
     switch (attr.tag) {
         inline else => |tag| {
             const args = @field(attr.args, @tagName(tag));
@@ -758,11 +758,11 @@ fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringIntern
     try ty.dump(mapper, tree.comp.langopts, w);
     try w.writeByte('\'');
 
-    if (isLval(tree.nodes, tree.data, tree.value_map, node)) {
+    if (tree.isLval(node)) {
         if (color) util.setColor(ATTRIBUTE, w);
         try w.writeAll(" lvalue");
     }
-    if (isBitfield(tree.nodes, node)) {
+    if (tree.isBitfield(node)) {
         if (color) util.setColor(ATTRIBUTE, w);
         try w.writeAll(" bitfield");
     }
@@ -786,7 +786,7 @@ fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringIntern
         for (ty.data.attributed.attributes) |attr| {
             try w.writeByteNTimes(' ', level + half);
             try w.print("attr: {s}", .{@tagName(attr.tag)});
-            try dumpAttribute(attr, tree.strings, w);
+            try tree.dumpAttribute(attr, w);
         }
         if (color) util.setColor(.reset, w);
     }
@@ -898,7 +898,7 @@ fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringIntern
                     if (field_attributes[i].len == 0) continue;
 
                     if (color) util.setColor(ATTRIBUTE, w);
-                    try dumpFieldAttributes(field_attributes[i], level + delta + half, tree.strings, w);
+                    try tree.dumpFieldAttributes(field_attributes[i], level + delta + half, w);
                     if (color) util.setColor(.reset, w);
                 }
             }
@@ -917,7 +917,7 @@ fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringIntern
                 try tree.dumpNode(data.bin.lhs, level + delta, mapper, color, w);
                 if (field_attributes[0].len > 0) {
                     if (color) util.setColor(ATTRIBUTE, w);
-                    try dumpFieldAttributes(field_attributes[0], level + delta + half, tree.strings, w);
+                    try tree.dumpFieldAttributes(field_attributes[0], level + delta + half, w);
                     if (color) util.setColor(.reset, w);
                 }
             }
@@ -925,7 +925,7 @@ fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringIntern
                 try tree.dumpNode(data.bin.rhs, level + delta, mapper, color, w);
                 if (field_attributes[1].len > 0) {
                     if (color) util.setColor(ATTRIBUTE, w);
-                    try dumpFieldAttributes(field_attributes[1], level + delta + half, tree.strings, w);
+                    try tree.dumpFieldAttributes(field_attributes[1], level + delta + half, w);
                     if (color) util.setColor(.reset, w);
                 }
             }
