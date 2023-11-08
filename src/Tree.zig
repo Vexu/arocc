@@ -500,12 +500,8 @@ pub const Tag = enum(u8) {
     int_literal,
     /// Same as int_literal, but originates from a char literal
     char_literal,
-    /// _Float16 literal
-    float16_literal,
-    /// f32 literal
+    /// a floating point literal
     float_literal,
-    /// f64 literal
-    double_literal,
     /// wraps a float or double literal: un
     imaginary_literal,
     /// tree.str[index..][0..len]
@@ -1253,9 +1249,7 @@ fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringIntern
         .nullptr_literal,
         .int_literal,
         .char_literal,
-        .float16_literal,
         .float_literal,
-        .double_literal,
         .string_literal_expr,
         => {},
         .member_access_expr, .member_access_ptr_expr => {

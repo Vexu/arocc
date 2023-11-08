@@ -7818,48 +7818,49 @@ fn charLiteral(p: *Parser) Error!Result {
 }
 
 fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
-    switch (suffix) {
-        .L => return p.todo("long double literals"),
-        .IL => {
-            try p.err(.gnu_imaginary_constant);
-            return p.todo("long double imaginary literals");
-        },
-        .None, .I, .F, .IF, .F16 => {
-            const ty = Type{ .specifier = switch (suffix) {
-                .None, .I => .double,
-                .F, .IF => .float,
-                .F16 => .float16,
-                else => unreachable,
-            } };
-            const d_val = std.fmt.parseFloat(f64, buf) catch |er| switch (er) {
-                error.InvalidCharacter => return p.todo("c23 digit separators in floats"),
-                else => unreachable,
-            };
-            const tag: Tree.Tag = switch (suffix) {
-                .None, .I => .double_literal,
-                .F, .IF => .float_literal,
-                .F16 => .float16_literal,
-                else => unreachable,
-            };
-            var res = Result{
-                .ty = ty,
-                .node = try p.addNode(.{ .tag = tag, .ty = ty, .data = undefined }),
-                .val = Value.float(d_val),
-            };
-            if (suffix.isImaginary()) {
-                try p.err(.gnu_imaginary_constant);
-                res.ty = .{ .specifier = switch (suffix) {
-                    .I => .complex_double,
-                    .IF => .complex_float,
-                    else => unreachable,
-                } };
-                res.val.tag = .unavailable;
-                try res.un(p, .imaginary_literal);
-            }
-            return res;
-        },
+    const ty = Type{ .specifier = switch (suffix) {
+        .None, .I => .double,
+        .F, .IF => .float,
+        .F16 => .float16,
+        .L, .IL => .long_double,
         else => unreachable,
+    } };
+    const val = try p.ctx().intern(key: {
+        try p.strings.ensureUnusedCapacity(buf.len);
+
+        const strings_top = p.strings.items.len;
+        defer p.strings.items.len = strings_top;
+        for (buf) |c| {
+            if (c != '_') p.strings.appendAssumeCapacity(c);
+        }
+
+        const float = std.fmt.parseFloat(f128, p.strings.items[strings_top..]) catch unreachable;
+        const bits = ty.bitSizeof(p.comp).?;
+        break :key switch (bits) {
+            16 => .{ .float = .{ .f16 = @floatCast(float) } },
+            32 => .{ .float = .{ .f32 = @floatCast(float) } },
+            64 => .{ .float = .{ .f64 = @floatCast(float) } },
+            80 => .{ .float = .{ .f80 = @floatCast(float) } },
+            128 => .{ .float = .{ .f128 = @floatCast(float) } },
+            else => unreachable,
+        };
+    });
+    var res = Result{
+        .ty = ty,
+        .node = try p.addNode(.{ .tag = .float_literal, .ty = ty, .data = undefined }),
+        .val = val,
+    };
+    if (suffix.isImaginary()) {
+        try p.err(.gnu_imaginary_constant);
+        res.ty = .{ .specifier = switch (suffix) {
+            .I => .complex_double,
+            .IF => .complex_float,
+            else => unreachable,
+        } };
+        res.val = .{}; // TODO add complex values
+        try res.un(p, .imaginary_literal);
     }
+    return res;
 }
 
 fn getIntegerPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIndex) ![]const u8 {
