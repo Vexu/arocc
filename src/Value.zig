@@ -99,6 +99,15 @@ const Tag = enum {
 pub const zero = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
 pub const one = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
 
+pub fn int(i: anytype, ctx: Context) !Value {
+    const info = @typeInfo(@TypeOf(i));
+    if (info == .ComptimeInt or info.Int.signedness == .unsigned) {
+        return ctx.intern(.{ .int = .{ .u64 = i } });
+    } else {
+        return ctx.intern(.{ .int = .{ .i64 = i } });
+    }
+}
+
 pub fn ref(v: Value) Interner.Ref {
     std.debug.assert(v.opt_ref != .none);
     return @enumFromInt(@intFromEnum(v.opt_ref));
