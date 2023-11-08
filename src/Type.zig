@@ -104,22 +104,20 @@ pub const Func = struct {
         name_tok: TokenIndex,
     };
 
-    fn eql(a: *const Func, b: *const Func, a_var_args: bool, b_var_args: bool, comp: *const Compilation) bool {
+    fn eql(a: *const Func, b: *const Func, a_spec: Specifier, b_spec: Specifier, comp: *const Compilation) bool {
         // return type cannot have qualifiers
         if (!a.return_type.eql(b.return_type, comp, false)) return false;
 
         if (a.params.len != b.params.len) {
-            const a_no_proto = a_var_args and a.params.len == 0 and !comp.langopts.standard.atLeast(.c2x);
-            const b_no_proto = b_var_args and b.params.len == 0 and !comp.langopts.standard.atLeast(.c2x);
-            if (a_no_proto or b_no_proto) {
-                const maybe_has_params = if (a_no_proto) b else a;
+            if (a_spec == .old_style_func or b_spec == .old_style_func) {
+                const maybe_has_params = if (a_spec == .old_style_func) b else a;
                 for (maybe_has_params.params) |param| {
                     if (param.ty.undergoesDefaultArgPromotion(comp)) return false;
                 }
                 return true;
             }
         }
-        if (a_var_args != b_var_args) return false;
+        if ((a_spec == .func) != (b_spec == .func)) return false;
         // TODO validate this
         for (a.params, b.params) |param, b_qual| {
             var a_unqual = param.ty;
@@ -1271,7 +1269,7 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
         .func,
         .var_args_func,
         .old_style_func,
-        => if (!a.data.func.eql(b.data.func, a.specifier == .var_args_func, b.specifier == .var_args_func, comp)) return false,
+        => if (!a.data.func.eql(b.data.func, a.specifier, b.specifier, comp)) return false,
 
         .array,
         .static_array,
@@ -1609,7 +1607,7 @@ pub const Builder = struct {
                 .void => "void",
                 .auto_type => "__auto_type",
                 .nullptr_t => "nullptr_t",
-                .bool => if (langopts.standard.atLeast(.c2x)) "bool" else "_Bool",
+                .bool => if (langopts.standard.atLeast(.c23)) "bool" else "_Bool",
                 .char => "char",
                 .schar => "signed char",
                 .uchar => "unsigned char",
@@ -1738,8 +1736,8 @@ pub const Builder = struct {
                     ty = typeof;
                 } else {
                     ty.specifier = .int;
-                    if (p.comp.langopts.standard.atLeast(.c2x)) {
-                        try p.err(.missing_type_specifier_c2x);
+                    if (p.comp.langopts.standard.atLeast(.c23)) {
+                        try p.err(.missing_type_specifier_c23);
                     } else {
                         try p.err(.missing_type_specifier);
                     }
@@ -2606,7 +2604,10 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
             try ty.data.sub_type.dump(mapper, langopts, w);
         },
         .func, .var_args_func, .old_style_func => {
-            try w.writeAll("fn (");
+            if (ty.specifier == .old_style_func)
+                try w.writeAll("kr (")
+            else
+                try w.writeAll("fn (");
             for (ty.data.func.params, 0..) |param, i| {
                 if (i != 0) try w.writeAll(", ");
                 if (param.name != .empty) try w.print("{s}: ", .{mapper.lookup(param.name)});

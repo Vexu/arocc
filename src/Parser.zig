@@ -564,6 +564,23 @@ fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
     }
 }
 
+fn nodeIsCompoundLiteral(p: *Parser, node: NodeIndex) bool {
+    var cur = node;
+    const tags = p.nodes.items(.tag);
+    const data = p.nodes.items(.data);
+    while (true) {
+        switch (tags[@intFromEnum(cur)]) {
+            .paren_expr => cur = data[@intFromEnum(cur)].un,
+            .compound_literal_expr,
+            .static_compound_literal_expr,
+            .thread_local_compound_literal_expr,
+            .static_thread_local_compound_literal_expr,
+            => return true,
+            else => return false,
+        }
+    }
+}
+
 fn pragma(p: *Parser) Compilation.Error!bool {
     var found_pragma = false;
     while (p.eatToken(.keyword_pragma)) |_| {
@@ -828,6 +845,7 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_typeof,
             .keyword_typeof1,
             .keyword_typeof2,
+            .keyword_typeof_unqual,
             .keyword_extension,
             .keyword_bit_int,
             => if (parens == 0) return,
@@ -1194,7 +1212,7 @@ fn staticAssert(p: *Parser) Error!bool {
     _ = try p.expectToken(.semicolon);
     if (str.node == .none) {
         try p.errTok(.static_assert_missing_message, static_assert);
-        try p.errStr(.pre_c2x_compat, static_assert, "'_Static_assert' with no message");
+        try p.errStr(.pre_c23_compat, static_assert, "'_Static_assert' with no message");
     }
 
     // Array will never be zero; a value of zero for a pointer is a null pointer constant
@@ -1332,8 +1350,13 @@ pub const DeclSpec = struct {
 ///   : keyword_typeof '(' typeName ')'
 ///   | keyword_typeof '(' expr ')'
 fn typeof(p: *Parser) Error!?Type {
+    var unqual = false;
     switch (p.tok_ids[p.tok_i]) {
         .keyword_typeof, .keyword_typeof1, .keyword_typeof2 => p.tok_i += 1,
+        .keyword_typeof_unqual => {
+            p.tok_i += 1;
+            unqual = true;
+        },
         else => return null,
     }
     const l_paren = try p.expectToken(.l_paren);
@@ -1342,7 +1365,7 @@ fn typeof(p: *Parser) Error!?Type {
         const typeof_ty = try p.arena.create(Type);
         typeof_ty.* = .{
             .data = ty.data,
-            .qual = ty.qual.inheritFromTypeof(),
+            .qual = if (unqual) .{} else ty.qual.inheritFromTypeof(),
             .specifier = ty.specifier,
         };
 
@@ -1356,7 +1379,10 @@ fn typeof(p: *Parser) Error!?Type {
     try p.expectClosing(l_paren, .r_paren);
     // Special case nullptr_t since it's defined as typeof(nullptr)
     if (typeof_expr.ty.is(.nullptr_t)) {
-        return Type{ .specifier = .nullptr_t, .qual = typeof_expr.ty.qual.inheritFromTypeof() };
+        return Type{
+            .specifier = .nullptr_t,
+            .qual = if (unqual) .{} else typeof_expr.ty.qual.inheritFromTypeof(),
+        };
     }
 
     const inner = try p.arena.create(Type.Expr);
@@ -1364,7 +1390,7 @@ fn typeof(p: *Parser) Error!?Type {
         .node = typeof_expr.node,
         .ty = .{
             .data = typeof_expr.ty.data,
-            .qual = typeof_expr.ty.qual.inheritFromTypeof(),
+            .qual = if (unqual) .{} else typeof_expr.ty.qual.inheritFromTypeof(),
             .specifier = typeof_expr.ty.specifier,
         },
     };
@@ -1376,13 +1402,6 @@ fn typeof(p: *Parser) Error!?Type {
 }
 
 /// declSpec: (storageClassSpec | typeSpec | typeQual | funcSpec | alignSpec)+
-/// storageClassSpec:
-///  : keyword_typedef
-///  | keyword_extern
-///  | keyword_static
-///  | keyword_threadlocal
-///  | keyword_auto
-///  | keyword_register
 /// funcSpec : keyword_inline | keyword_noreturn
 fn declSpec(p: *Parser) Error!?DeclSpec {
     var d: DeclSpec = .{ .ty = .{ .specifier = undefined } };
@@ -1390,7 +1409,44 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
 
     const start = p.tok_i;
     while (true) {
+        if (try p.storageClassSpec(&d)) continue;
         if (try p.typeSpec(&spec)) continue;
+        const id = p.tok_ids[p.tok_i];
+        switch (id) {
+            .keyword_inline, .keyword_inline1, .keyword_inline2 => {
+                if (d.@"inline" != null) {
+                    try p.errStr(.duplicate_decl_spec, p.tok_i, "inline");
+                }
+                d.@"inline" = p.tok_i;
+            },
+            .keyword_noreturn => {
+                if (d.noreturn != null) {
+                    try p.errStr(.duplicate_decl_spec, p.tok_i, "_Noreturn");
+                }
+                d.noreturn = p.tok_i;
+            },
+            else => break,
+        }
+        p.tok_i += 1;
+    }
+
+    if (p.tok_i == start) return null;
+
+    d.ty = try spec.finish(p);
+    d.auto_type = spec.auto_type_tok;
+    return d;
+}
+
+/// storageClassSpec:
+///  : keyword_typedef
+///  | keyword_extern
+///  | keyword_static
+///  | keyword_threadlocal
+///  | keyword_auto
+///  | keyword_register
+fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
+    const start = p.tok_i;
+    while (true) {
         const id = p.tok_ids[p.tok_i];
         switch (id) {
             .keyword_typedef,
@@ -1450,28 +1506,11 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                 }
                 d.constexpr = p.tok_i;
             },
-            .keyword_inline, .keyword_inline1, .keyword_inline2 => {
-                if (d.@"inline" != null) {
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "inline");
-                }
-                d.@"inline" = p.tok_i;
-            },
-            .keyword_noreturn => {
-                if (d.noreturn != null) {
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "_Noreturn");
-                }
-                d.noreturn = p.tok_i;
-            },
             else => break,
         }
         p.tok_i += 1;
     }
-
-    if (p.tok_i == start) return null;
-
-    d.ty = try spec.finish(p);
-    d.auto_type = spec.auto_type_tok;
-    return d;
+    return p.tok_i != start;
 }
 
 const InitDeclarator = struct { d: Declarator, initializer: Result = .{} };
@@ -1569,7 +1608,7 @@ fn gnuAttributeList(p: *Parser) Error!void {
     }
 }
 
-fn c2xAttributeList(p: *Parser) Error!void {
+fn c23AttributeList(p: *Parser) Error!void {
     while (p.tok_ids[p.tok_i] != .r_bracket) {
         var namespace_tok = try p.expectIdentifier();
         var namespace: ?[]const u8 = null;
@@ -1578,7 +1617,7 @@ fn c2xAttributeList(p: *Parser) Error!void {
         } else {
             p.tok_i -= 1;
         }
-        if (try p.attribute(.c2x, namespace)) |attr| try p.attr_buf.append(p.gpa, attr);
+        if (try p.attribute(.c23, namespace)) |attr| try p.attr_buf.append(p.gpa, attr);
         _ = p.eatToken(.comma);
     }
 }
@@ -1590,15 +1629,15 @@ fn msvcAttributeList(p: *Parser) Error!void {
     }
 }
 
-fn c2xAttribute(p: *Parser) !bool {
-    if (!p.comp.langopts.standard.atLeast(.c2x)) return false;
+fn c23Attribute(p: *Parser) !bool {
+    if (!p.comp.langopts.standard.atLeast(.c23)) return false;
     const bracket1 = p.eatToken(.l_bracket) orelse return false;
     const bracket2 = p.eatToken(.l_bracket) orelse {
         p.tok_i -= 1;
         return false;
     };
 
-    try p.c2xAttributeList();
+    try p.c23AttributeList();
 
     _ = try p.expectClosing(bracket2, .r_bracket);
     _ = try p.expectClosing(bracket1, .r_bracket);
@@ -1638,7 +1677,7 @@ fn attributeSpecifier(p: *Parser) Error!void {
 fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void {
     while (true) {
         if (try p.gnuAttribute()) continue;
-        if (try p.c2xAttribute()) continue;
+        if (try p.c23Attribute()) continue;
         const maybe_declspec_tok = p.tok_i;
         const attr_buf_top = p.attr_buf.len;
         if (try p.msvcAttribute()) {
@@ -2828,7 +2867,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
     if (p.eatToken(.l_bracket)) |l_bracket| {
         if (p.tok_ids[p.tok_i] == .l_bracket) {
             switch (kind) {
-                .normal, .record => if (p.comp.langopts.standard.atLeast(.c2x)) {
+                .normal, .record => if (p.comp.langopts.standard.atLeast(.c23)) {
                     p.tok_i -= 1;
                     return base_type;
                 },
@@ -2956,11 +2995,14 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             return res_ty;
         }
 
-        if (try p.paramDecls()) |params| {
+        if (try p.paramDecls(d)) |params| {
             func_ty.params = params;
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
         } else if (p.tok_ids[p.tok_i] == .r_paren) {
-            specifier = .var_args_func;
+            specifier = if (p.comp.langopts.standard.atLeast(.c23))
+                .var_args_func
+            else
+                .old_style_func;
         } else if (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) {
             d.old_style_func = p.tok_i;
             const param_buf_top = p.param_buf.items.len;
@@ -3018,7 +3060,7 @@ fn pointer(p: *Parser, base_ty: Type) Error!Type {
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
 /// paramDecl : declSpec (declarator | abstractDeclarator)
-fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
+fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
     // TODO warn about visibility of types declared here
     const param_buf_top = p.param_buf.items.len;
     defer p.param_buf.items.len = param_buf_top;
@@ -3030,9 +3072,26 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
         defer p.attr_buf.len = attr_buf_top;
         const param_decl_spec = if (try p.declSpec()) |some|
             some
-        else if (p.param_buf.items.len == param_buf_top)
-            return null
-        else blk: {
+        else if (p.comp.langopts.standard.atLeast(.c23) and
+            (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier))
+        {
+            // handle deprecated K&R style parameters
+            const identifier = try p.expectIdentifier();
+            try p.errStr(.unknown_type_name, identifier, p.tokSlice(identifier));
+            if (d.old_style_func == null) d.old_style_func = identifier;
+
+            try p.param_buf.append(.{
+                .name = try p.comp.intern(p.tokSlice(identifier)),
+                .name_tok = identifier,
+                .ty = .{ .specifier = .int },
+            });
+
+            if (p.eatToken(.comma) == null) break;
+            if (p.tok_ids[p.tok_i] == .ellipsis) break;
+            continue;
+        } else if (p.param_buf.items.len == param_buf_top) {
+            return null;
+        } else blk: {
             var spec: Type.Builder = .{};
             break :blk DeclSpec{ .ty = try spec.finish(p) };
         };
@@ -3502,7 +3561,7 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
     if (!target.isArray()) return false;
 
     const is_str_lit = p.nodeIs(item.node, .string_literal_expr);
-    if (!is_str_lit and !p.nodeIs(item.node, .compound_literal_expr) or !item.ty.isArray()) {
+    if (!is_str_lit and !p.nodeIsCompoundLiteral(item.node) or !item.ty.isArray()) {
         try p.errTok(.array_init_str, tok);
         return true; // do not do further coercion
     }
@@ -4268,7 +4327,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
 
         var labeled_stmt = Tree.Node{
             .tag = .labeled_stmt,
-            .data = .{ .decl = .{ .name = name_tok, .node = try p.stmt() } },
+            .data = .{ .decl = .{ .name = name_tok, .node = try p.labelableStmt() } },
         };
         labeled_stmt.ty = try Attribute.applyLabelAttributes(p, labeled_stmt.ty, attr_buf_top);
         return try p.addNode(labeled_stmt);
@@ -4315,7 +4374,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             try p.errStr(.case_not_in_switch, case, "case");
         }
 
-        const s = try p.stmt();
+        const s = try p.labelableStmt();
         if (second_item) |some| return try p.addNode(.{
             .tag = .case_range_stmt,
             .data = .{ .if3 = .{ .cond = s, .body = (try p.addList(&.{ first_item.node, some.node })).start } },
@@ -4325,7 +4384,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         });
     } else if (p.eatToken(.keyword_default)) |default| {
         _ = try p.expectToken(.colon);
-        const s = try p.stmt();
+        const s = try p.labelableStmt();
         const node = try p.addNode(.{
             .tag = .default_stmt,
             .data = .{ .un = s },
@@ -4342,6 +4401,14 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         }
         return node;
     } else return null;
+}
+
+fn labelableStmt(p: *Parser) Error!NodeIndex {
+    if (p.tok_ids[p.tok_i] == .r_brace) {
+        try p.err(.label_compound_end);
+        return p.addNode(.{ .tag = .null_stmt, .data = undefined });
+    }
+    return p.stmt();
 }
 
 const StmtExprState = struct {
@@ -4554,6 +4621,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_typeof,
             .keyword_typeof1,
             .keyword_typeof2,
+            .keyword_typeof_unqual,
             .keyword_extension,
             => if (parens == 0) return,
             .keyword_pragma => p.skipToPragmaSentinel(),
@@ -6901,14 +6969,45 @@ fn unExpr(p: *Parser) Error!Result {
 }
 
 /// compoundLiteral
-///  : '(' type_name ')' '{' initializer_list '}'
-///  | '(' type_name ')' '{' initializer_list ',' '}'
+///  : '(' storageClassSpec* type_name ')' '{' initializer_list '}'
+///  | '(' storageClassSpec* type_name ')' '{' initializer_list ',' '}'
 fn compoundLiteral(p: *Parser) Error!Result {
     const l_paren = p.eatToken(.l_paren) orelse return Result{};
-    const ty = (try p.typeName()) orelse {
+
+    var d: DeclSpec = .{ .ty = .{ .specifier = undefined } };
+    const any = if (p.comp.langopts.standard.atLeast(.c23))
+        try p.storageClassSpec(&d)
+    else
+        false;
+
+    const tag: Tree.Tag = switch (d.storage_class) {
+        .static => if (d.thread_local != null)
+            .static_thread_local_compound_literal_expr
+        else
+            .static_compound_literal_expr,
+        .register, .none => if (d.thread_local != null)
+            .thread_local_compound_literal_expr
+        else
+            .compound_literal_expr,
+        .auto, .@"extern", .typedef => |tok| blk: {
+            try p.errStr(.invalid_compound_literal_storage_class, tok, @tagName(d.storage_class));
+            d.storage_class = .none;
+            break :blk if (d.thread_local != null)
+                .thread_local_compound_literal_expr
+            else
+                .compound_literal_expr;
+        },
+    };
+
+    var ty = (try p.typeName()) orelse {
         p.tok_i = l_paren;
+        if (any) {
+            try p.err(.expected_type);
+            return error.ParsingFailed;
+        }
         return Result{};
     };
+    if (d.storage_class == .register) ty.qual.register = true;
     try p.expectClosing(l_paren, .r_paren);
 
     if (ty.isFunc()) {
@@ -6920,7 +7019,10 @@ fn compoundLiteral(p: *Parser) Error!Result {
         return error.ParsingFailed;
     }
     var init_list_expr = try p.initializer(ty);
-    try init_list_expr.un(p, .compound_literal_expr);
+    if (d.constexpr) |_| {
+        // TODO error if not constexpr
+    }
+    try init_list_expr.un(p, tag);
     return init_list_expr;
 }
 
@@ -7133,13 +7235,6 @@ fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     }
 }
 
-fn checkVariableBuiltinArgument(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32, tag: Builtin.Tag) !void {
-    switch (tag) {
-        .__builtin_va_start, .__va_start, .va_start => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
-        else => {},
-    }
-}
-
 fn callExpr(p: *Parser, lhs: Result) Error!Result {
     const l_paren = p.tok_i;
     p.tok_i += 1;
@@ -7212,7 +7307,10 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     } else if (ty.is(.func) and params.len != arg_count) {
         try p.errExtra(.expected_arguments, first_after, extra);
     } else if (ty.is(.old_style_func) and params.len != arg_count) {
-        try p.errExtra(.expected_arguments_old, first_after, extra);
+        if (params.len == 0)
+            try p.errTok(.passing_args_to_kr, first_after)
+        else
+            try p.errExtra(.expected_arguments_old, first_after, extra);
     } else if (ty.is(.var_args_func) and arg_count < params.len) {
         try p.errExtra(.expected_at_least_arguments, first_after, extra);
     }
@@ -7343,7 +7441,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     }),
                 };
             }
-            if (p.tok_ids[p.tok_i] == .l_paren) {
+            if (p.tok_ids[p.tok_i] == .l_paren and !p.comp.langopts.standard.atLeast(.c23)) {
                 // allow implicitly declaring functions before C99 like `puts("foo")`
                 if (mem.startsWith(u8, name, "__builtin_"))
                     try p.errStr(.unknown_builtin, name_tok, name)
@@ -7392,7 +7490,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         },
         .keyword_nullptr => {
             defer p.tok_i += 1;
-            try p.errStr(.pre_c2x_compat, p.tok_i, "'nullptr'");
+            try p.errStr(.pre_c23_compat, p.tok_i, "'nullptr'");
             return Result{
                 .val = .{ .tag = .nullptr_t },
                 .ty = .{ .specifier = .nullptr_t },
@@ -7653,6 +7751,7 @@ fn charLiteral(p: *Parser) Error!Result {
             .node = try p.addNode(.{ .tag = .char_literal, .ty = Type.int, .data = undefined }),
         };
     };
+    if (char_kind == .utf_8) try p.err(.u8_char_lit);
     var val: u32 = 0;
 
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
@@ -7757,7 +7856,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
                 else => unreachable,
             } };
             const d_val = std.fmt.parseFloat(f64, buf) catch |er| switch (er) {
-                error.InvalidCharacter => return p.todo("c2x digit separators in floats"),
+                error.InvalidCharacter => return p.todo("c23 digit separators in floats"),
                 else => unreachable,
             };
             const tag: Tree.Tag = switch (suffix) {
@@ -7910,7 +8009,7 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
 }
 
 fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) Error!Result {
-    try p.errStr(.pre_c2x_compat, tok_i, "'_BitInt' suffix for literals");
+    try p.errStr(.pre_c23_compat, tok_i, "'_BitInt' suffix for literals");
     try p.errTok(.bitint_suffix, tok_i);
 
     var managed = try big.int.Managed.init(p.gpa);

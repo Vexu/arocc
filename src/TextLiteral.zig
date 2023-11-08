@@ -270,7 +270,7 @@ pub const Parser = struct {
         }
 
         if (val < 0xA0 and (val != '$' and val != '@' and val != '`')) {
-            const is_error = !self.comp.langopts.standard.atLeast(.c2x);
+            const is_error = !self.comp.langopts.standard.atLeast(.c23);
             if (val >= 0x20 and val <= 0x7F) {
                 if (is_error) {
                     self.err(.ucn_basic_char_error, .{ .ascii = @intCast(val) });

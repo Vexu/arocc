@@ -1,18 +1,18 @@
 # multiple
 deprecated
     .tag = .deprecated
-    .c2x = true
+    .c23 = true
     .gnu = true
     .declspec = true
 
 fallthrough
     .tag = .fallthrough
-    .c2x = true
+    .c23 = true
     .gnu = true
 
 noreturn
     .tag = .@"noreturn"
-    .c2x = true
+    .c23 = true
     .gnu = true
     .declspec = true
 
@@ -26,22 +26,22 @@ noinline
     .gnu = true
     .declspec = true
 
-# c2x only
+# c23 only
 nodiscard
     .tag = .nodiscard
-    .c2x = true
+    .c23 = true
 
 reproducible
     .tag = .reproducible
-    .c2x = true
+    .c23 = true
 
 unsequenced
     .tag = .unsequenced
-    .c2x = true
+    .c23 = true
 
 maybe_unused
     .tag = .unused
-    .c2x = true
+    .c23 = true
 
 # gnu only
 access

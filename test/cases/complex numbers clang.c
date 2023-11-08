@@ -1,4 +1,4 @@
-//aro-args -std=c2x --emulate=clang -pedantic
+//aro-args -std=c23 --emulate=clang -pedantic
 
 void foo(int x, float y) {
     _Static_assert(__imag(42) == 0);

@@ -10,12 +10,10 @@ void bar(int x, ...) {
     va_start(va, x);
     va_end(va);
 }
-int baz();
 
 void quux(void) {
     _Float16 f = 1.0f16;
     bar(1, f);  // _Float16 does not promote to double when used as vararg
-    baz(1, 2.0F16);  // _Float16 does not promote to double when used as untyped arg
 }
 
 void conversions(void) {
@@ -25,3 +23,5 @@ void conversions(void) {
     d = d + f16;
     (void)(f16 + fp16);  // _Float16 + __fp16 promotes both to float
 }
+
+#define TESTS_SKIPPED 1

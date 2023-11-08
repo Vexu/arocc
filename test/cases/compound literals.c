@@ -1,3 +1,4 @@
+//aro-args -std=c23
 struct A {
     int x;
 };
@@ -25,5 +26,14 @@ void bar(void) {
     const char *str3 = (const char []){"string 3"};
 }
 
-#define EXPECTED_ERRORS "compound literals.c:20:32: warning: array index 10 is past the end of the array [-Warray-bounds]" \
+void baz() {
+    &(register int){0};
+    &(static thread_local int){0};
+    &(extern int){0};
+} 
 
+#define EXPECTED_ERRORS \
+    "compound literals.c:21:32: warning: array index 10 is past the end of the array [-Warray-bounds]" \
+    "compound literals.c:30:5: error: address of register variable requested" \
+    "compound literals.c:31:5: warning: expression result unused [-Wunused-value]" \
+    "compound literals.c:32:7: error: compound literal cannot have extern storage class" \

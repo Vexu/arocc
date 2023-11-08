@@ -18,20 +18,20 @@ syntax: Syntax,
 args: Arguments,
 
 pub const Syntax = enum {
-    c2x,
+    c23,
     declspec,
     gnu,
     keyword,
 };
 
 pub const Kind = enum {
-    c2x,
+    c23,
     declspec,
     gnu,
 
     pub fn toSyntax(kind: Kind) Syntax {
         return switch (kind) {
-            .c2x => .c2x,
+            .c23 => .c23,
             .declspec => .declspec,
             .gnu => .gnu,
         };
@@ -684,7 +684,7 @@ pub fn fromString(kind: Kind, namespace: ?[]const u8, name: []const u8) ?Tag {
         tag: Tag,
         gnu: bool = false,
         declspec: bool = false,
-        c2x: bool = false,
+        c23: bool = false,
     };
     const attribute_names = @import("Attribute/names.def").with(Properties);
 
@@ -707,7 +707,7 @@ pub fn fromString(kind: Kind, namespace: ?[]const u8, name: []const u8) ?Tag {
     return null;
 }
 
-fn normalize(name: []const u8) []const u8 {
+pub fn normalize(name: []const u8) []const u8 {
     if (name.len >= 4 and mem.startsWith(u8, name, "__") and mem.endsWith(u8, name, "__")) {
         return name[2 .. name.len - 2];
     }

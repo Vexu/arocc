@@ -1,4 +1,4 @@
-//aro-args -std=c2x
+//aro-args -std=c23
 
 #include <stdint.h>
 #include "test_helpers.h"

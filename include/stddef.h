@@ -19,7 +19,7 @@ typedef struct {
 
 #if __STDC_VERSION__ >= 202311L
 #  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wpre-c2x-compat"
+#  pragma GCC diagnostic ignored "-Wpre-c23-compat"
    typedef typeof(nullptr) nullptr_t;
 #  pragma GCC diagnostic pop
 

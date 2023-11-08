@@ -121,6 +121,8 @@ pub const Token = struct {
         macro_ws,
         /// Special token for implementing __has_attribute
         macro_param_has_attribute,
+        /// Special token for implementing __has_c_attribute
+        macro_param_has_c_attribute,
         /// Special token for implementing __has_declspec_attribute
         macro_param_has_declspec_attribute,
         /// Special token for implementing __has_warning
@@ -216,6 +218,7 @@ pub const Token = struct {
         keyword_true,
         keyword_false,
         keyword_nullptr,
+        keyword_typeof_unqual,
 
         // Preprocessor directives
         keyword_include,
@@ -235,6 +238,7 @@ pub const Token = struct {
         keyword_pragma,
         keyword_line,
         keyword_va_args,
+        keyword_va_opt,
 
         // gcc keywords
         keyword_const1,
@@ -335,6 +339,7 @@ pub const Token = struct {
                 .keyword_pragma,
                 .keyword_line,
                 .keyword_va_args,
+                .keyword_va_opt,
                 .macro_func,
                 .macro_function,
                 .macro_pretty_func,
@@ -443,6 +448,7 @@ pub const Token = struct {
                 .keyword_true,
                 .keyword_false,
                 .keyword_nullptr,
+                .keyword_typeof_unqual,
                 => return true,
                 else => return false,
             }
@@ -469,6 +475,7 @@ pub const Token = struct {
                 .keyword_pragma,
                 .keyword_line,
                 .keyword_va_args,
+                .keyword_va_opt,
                 => id.* = .identifier,
                 .keyword_defined => if (defined_to_identifier) {
                     id.* = .identifier;
@@ -521,6 +528,7 @@ pub const Token = struct {
                 .stringify_param,
                 .stringify_va_args,
                 .macro_param_has_attribute,
+                .macro_param_has_c_attribute,
                 .macro_param_has_declspec_attribute,
                 .macro_param_has_warning,
                 .macro_param_has_feature,
@@ -647,6 +655,7 @@ pub const Token = struct {
                 .keyword_true => "true",
                 .keyword_false => "false",
                 .keyword_nullptr => "nullptr",
+                .keyword_typeof_unqual => "typeof_unqual",
                 .keyword_include => "include",
                 .keyword_include_next => "include_next",
                 .keyword_embed => "embed",
@@ -664,6 +673,7 @@ pub const Token = struct {
                 .keyword_pragma => "pragma",
                 .keyword_line => "line",
                 .keyword_va_args => "__VA_ARGS__",
+                .keyword_va_opt => "__VA_OPT__",
                 .keyword_const1 => "__const",
                 .keyword_const2 => "__const__",
                 .keyword_inline1 => "__inline",
@@ -819,7 +829,7 @@ pub const Token = struct {
         return switch (kw) {
             .keyword_inline => if (standard.isGNU() or standard.atLeast(.c99)) kw else .identifier,
             .keyword_restrict => if (standard.atLeast(.c99)) kw else .identifier,
-            .keyword_typeof => if (standard.isGNU() or standard.atLeast(.c2x)) kw else .identifier,
+            .keyword_typeof => if (standard.isGNU() or standard.atLeast(.c23)) kw else .identifier,
             .keyword_asm => if (standard.isGNU()) kw else .identifier,
             .keyword_declspec => if (comp.langopts.declspec_attrs) kw else .identifier,
 
@@ -832,9 +842,10 @@ pub const Token = struct {
             .keyword_true,
             .keyword_false,
             .keyword_nullptr,
+            .keyword_typeof_unqual,
             .keyword_elifdef,
             .keyword_elifndef,
-            => if (standard.atLeast(.c2x)) kw else .identifier,
+            => if (standard.atLeast(.c23)) kw else .identifier,
 
             .keyword_int64,
             .keyword_int64_2,
@@ -918,6 +929,7 @@ pub const Token = struct {
         .{ "true", .keyword_true },
         .{ "false", .keyword_false },
         .{ "nullptr", .keyword_nullptr },
+        .{ "typeof_unqual", .keyword_typeof_unqual },
 
         // Preprocessor directives
         .{ "include", .keyword_include },
@@ -937,6 +949,7 @@ pub const Token = struct {
         .{ "pragma", .keyword_pragma },
         .{ "line", .keyword_line },
         .{ "__VA_ARGS__", .keyword_va_args },
+        .{ "__VA_OPT__", .keyword_va_opt },
         .{ "__func__", .macro_func },
         .{ "__FUNCTION__", .macro_function },
         .{ "__PRETTY_FUNCTION__", .macro_pretty_func },
@@ -1345,7 +1358,7 @@ pub fn next(self: *Tokenizer) Token {
                     break;
                 },
                 ':' => {
-                    if (self.comp.langopts.standard.atLeast(.c2x)) {
+                    if (self.comp.langopts.standard.atLeast(.c23)) {
                         id = .colon_colon;
                         self.index += 1;
                         break;
@@ -1651,7 +1664,7 @@ pub fn next(self: *Tokenizer) Token {
                 '.',
                 => {},
                 'e', 'E', 'p', 'P' => state = .pp_num_exponent,
-                '\'' => if (self.comp.langopts.standard.atLeast(.c2x)) {
+                '\'' => if (self.comp.langopts.standard.atLeast(.c23)) {
                     state = .pp_num_digit_separator;
                 } else {
                     id = .pp_num;
@@ -1758,6 +1771,16 @@ pub fn nextNoWS(self: *Tokenizer) Token {
 pub fn nextNoWSComments(self: *Tokenizer) Token {
     var tok = self.next();
     while (tok.id == .whitespace) tok = self.next();
+    return tok;
+}
+
+/// Try to tokenize a '::' even if not supported by the current language standard.
+pub fn colonColon(self: *Tokenizer) Token {
+    var tok = self.nextNoWS();
+    if (tok.id == .colon and self.buf[self.index] == ':') {
+        self.index += 1;
+        tok.id = .colon_colon;
+    }
     return tok;
 }
 
@@ -2091,7 +2114,7 @@ test "digraphs" {
 }
 
 test "C23 keywords" {
-    try expectTokensExtra("true false alignas alignof bool static_assert thread_local nullptr", &.{
+    try expectTokensExtra("true false alignas alignof bool static_assert thread_local nullptr typeof_unqual", &.{
         .keyword_true,
         .keyword_false,
         .keyword_c23_alignas,
@@ -2100,7 +2123,8 @@ test "C23 keywords" {
         .keyword_c23_static_assert,
         .keyword_c23_thread_local,
         .keyword_nullptr,
-    }, .c2x);
+        .keyword_typeof_unqual,
+    }, .c23);
 }
 
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {

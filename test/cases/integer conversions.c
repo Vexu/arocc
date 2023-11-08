@@ -1,4 +1,4 @@
-//aro-args --target=x86_64-linux-gnu -Wno-c2x-extensions
+//aro-args --target=x86_64-linux-gnu -Wno-c23-extensions
 #include "include/test_helpers.h"
 
 void foo(void) {

@@ -1,4 +1,4 @@
-//aro-args -std=c2x
+//aro-args -std=c23
 #include <stddef.h>
 // Comments below from N3047 working draft — August 4, 2022 § 7.21.2
 // Because it is considered to be a scalar type, nullptr_t may appear in any context where (void*)0 would be valid,

@@ -540,6 +540,12 @@ pub const Tag = enum(u8) {
     union_init_expr,
     /// (ty){ un }
     compound_literal_expr,
+    /// (static ty){ un }
+    static_compound_literal_expr,
+    /// (thread_local ty){ un }
+    thread_local_compound_literal_expr,
+    /// (static thread_local ty){ un }
+    static_thread_local_compound_literal_expr,
 
     /// Inserted at the end of a function body if no return stmt is found.
     /// ty is the functions return type
@@ -604,7 +610,11 @@ pub fn isLval(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: Value
 pub fn isLvalExtra(nodes: Node.List.Slice, extra: []const NodeIndex, value_map: ValueMap, node: NodeIndex, is_const: *bool) bool {
     is_const.* = false;
     switch (nodes.items(.tag)[@intFromEnum(node)]) {
-        .compound_literal_expr => {
+        .compound_literal_expr,
+        .static_compound_literal_expr,
+        .thread_local_compound_literal_expr,
+        .static_thread_local_compound_literal_expr,
+        => {
             is_const.* = nodes.items(.ty)[@intFromEnum(node)].isConst();
             return true;
         },
@@ -929,7 +939,11 @@ fn dumpNode(tree: Tree, node: NodeIndex, level: u32, mapper: StringInterner.Type
                 try tree.dumpNode(data.union_init.node, level + delta, mapper, color, w);
             }
         },
-        .compound_literal_expr => {
+        .compound_literal_expr,
+        .static_compound_literal_expr,
+        .thread_local_compound_literal_expr,
+        .static_thread_local_compound_literal_expr,
+        => {
             try tree.dumpNode(data.un, level + half, mapper, color, w);
         },
         .labeled_stmt => {
