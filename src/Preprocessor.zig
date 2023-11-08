@@ -1438,6 +1438,9 @@ fn expandFuncMacro(
                 const raw_next = func_macro.tokens[tok_i + 1];
                 tok_i += 1;
 
+                var va_opt_buf = ExpandBuf.init(pp.gpa);
+                defer va_opt_buf.deinit();
+
                 const next = switch (raw_next.id) {
                     .macro_ws => continue,
                     .hash_hash => continue,
@@ -1450,6 +1453,11 @@ fn expandFuncMacro(
                     else
                         &[1]Token{tokFromRaw(.{ .id = .placemarker, .source = .generated })},
                     .keyword_va_args => variable_arguments.items,
+                    .keyword_va_opt => blk: {
+                        try pp.expandVaOpt(&va_opt_buf, raw_next, variable_arguments.items.len != 0);
+                        if (va_opt_buf.items.len == 0) break;
+                        break :blk va_opt_buf.items;
+                    },
                     else => &[1]Token{tokFromRaw(raw_next)},
                 };
 
@@ -1472,6 +1480,9 @@ fn expandFuncMacro(
             .keyword_va_args => {
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
                 try bufCopyTokens(&buf, expanded_variable_arguments.items, &.{raw_loc});
+            },
+            .keyword_va_opt => {
+                try pp.expandVaOpt(&buf, raw, variable_arguments.items.len != 0);
             },
             .stringify_param, .stringify_va_args => {
                 const arg = if (raw.id == .stringify_va_args)
@@ -1626,6 +1637,28 @@ fn expandFuncMacro(
     removePlacemarkers(&buf);
 
     return buf;
+}
+
+fn expandVaOpt(
+    pp: *Preprocessor,
+    buf: *ExpandBuf,
+    raw: RawToken,
+    should_expand: bool,
+) !void {
+    if (!should_expand) return;
+
+    const source = pp.comp.getSource(raw.source);
+    var tokenizer: Tokenizer = .{
+        .buf = source.buf,
+        .index = raw.start,
+        .source = raw.source,
+        .comp = pp.comp,
+        .line = raw.line,
+    };
+    while (tokenizer.index < raw.end) {
+        const tok = tokenizer.next();
+        try buf.append(tokFromRaw(tok));
+    }
 }
 
 fn shouldExpand(tok: Token, macro: *Macro) bool {
@@ -2382,6 +2415,33 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 }
                 if (var_args and tok.id == .keyword_va_args) {
                     // do nothing
+                } else if (var_args and tok.id == .keyword_va_opt) {
+                    const opt_l_paren = tokenizer.next();
+                    if (opt_l_paren.id != .l_paren) {
+                        try pp.err(opt_l_paren, .va_opt_lparen);
+                        return skipToNl(tokenizer);
+                    }
+                    tok.start = opt_l_paren.end;
+
+                    var parens: u32 = 0;
+                    while (true) {
+                        const opt_tok = tokenizer.next();
+                        switch (opt_tok.id) {
+                            .l_paren => parens += 1,
+                            .r_paren => if (parens == 0) {
+                                break;
+                            } else {
+                                parens -= 1;
+                            },
+                            .nl, .eof => {
+                                try pp.err(opt_tok, .va_opt_rparen);
+                                try pp.err(opt_l_paren, .to_match_paren);
+                                return skipToNl(tokenizer);
+                            },
+                            .whitespace => {},
+                            else => tok.end = opt_tok.end,
+                        }
+                    }
                 } else if (tok.id.isMacroIdentifier()) {
                     tok.id.simplifyMacroKeyword();
                     const s = pp.tokSlice(tok);
@@ -3027,7 +3087,7 @@ test "Include guards" {
 
         fn skippable(tok_id: RawToken.Id) bool {
             return switch (tok_id) {
-                .keyword_defined, .keyword_va_args, .keyword_endif => true,
+                .keyword_defined, .keyword_va_args, .keyword_va_opt, .keyword_endif => true,
                 else => false,
             };
         }

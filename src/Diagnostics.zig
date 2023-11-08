@@ -2601,6 +2601,14 @@ const messages = struct {
         const kind = .@"error";
         const extra = .str;
     };
+    pub const va_opt_lparen = struct {
+        const msg = "missing '(' following __VA_OPT__";
+        const kind = .@"error";
+    };
+    pub const va_opt_rparen = struct {
+        const msg = "unterminated __VA_OPT__ argument list";
+        const kind = .@"error";
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

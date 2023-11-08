@@ -238,6 +238,7 @@ pub const Token = struct {
         keyword_pragma,
         keyword_line,
         keyword_va_args,
+        keyword_va_opt,
 
         // gcc keywords
         keyword_const1,
@@ -338,6 +339,7 @@ pub const Token = struct {
                 .keyword_pragma,
                 .keyword_line,
                 .keyword_va_args,
+                .keyword_va_opt,
                 .macro_func,
                 .macro_function,
                 .macro_pretty_func,
@@ -473,6 +475,7 @@ pub const Token = struct {
                 .keyword_pragma,
                 .keyword_line,
                 .keyword_va_args,
+                .keyword_va_opt,
                 => id.* = .identifier,
                 .keyword_defined => if (defined_to_identifier) {
                     id.* = .identifier;
@@ -670,6 +673,7 @@ pub const Token = struct {
                 .keyword_pragma => "pragma",
                 .keyword_line => "line",
                 .keyword_va_args => "__VA_ARGS__",
+                .keyword_va_opt => "__VA_OPT__",
                 .keyword_const1 => "__const",
                 .keyword_const2 => "__const__",
                 .keyword_inline1 => "__inline",
@@ -945,6 +949,7 @@ pub const Token = struct {
         .{ "pragma", .keyword_pragma },
         .{ "line", .keyword_line },
         .{ "__VA_ARGS__", .keyword_va_args },
+        .{ "__VA_OPT__", .keyword_va_opt },
         .{ "__func__", .macro_func },
         .{ "__FUNCTION__", .macro_function },
         .{ "__PRETTY_FUNCTION__", .macro_pretty_func },
