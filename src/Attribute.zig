@@ -216,7 +216,7 @@ pub fn wantsAlignment(attr: Tag, idx: usize) bool {
     }
 }
 
-pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, ty: Type, comp: *Compilation) ?Diagnostics.Message {
+pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, ty: Type, p: *Parser) ?Diagnostics.Message {
     switch (attr) {
         inline else => |tag| {
             const arg_fields = std.meta.fields(@field(attributes, @tagName(tag)));
@@ -227,7 +227,7 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Va
                     if (UnwrapOptional(arg_fields[arg_i].type) != Alignment) unreachable;
 
                     if (val.tag != .int) return Diagnostics.Message{ .tag = .alignas_unavailable };
-                    if (val.compare(.lt, Value.int(0), ty, comp)) {
+                    if (val.compare(.lt, Value.int(0), p)) {
                         return Diagnostics.Message{ .tag = .negative_alignment, .extra = .{ .signed = val.signExtend(ty, comp) } };
                     }
                     const requested = std.math.cast(u29, val.data.int) orelse {

@@ -658,6 +658,22 @@ pub fn hash(v: Value) u64 {
     }
 }
 
+pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, p: *Parser) bool {
+    const lhs_key = p.interner.get(lhs.ref());
+    const rhs_key = p.interner.get(rhs.ref());
+    if (lhs_key == .float or rhs_key == .float) {
+        const lhs_f128 = lhs.toFloat(f128, p);
+        const rhs_f128 = rhs.toFloat(f128, p);
+        return std.math.compare(lhs_f128, op, rhs_f128);
+    }
+
+    var lhs_bigint_space: BigIntSpace = undefined;
+    var rhs_bigint_space: BigIntSpace = undefined;
+    const lhs_bigint = lhs.toBigInt(&lhs_bigint_space, p);
+    const rhs_bigint = rhs.toBigInt(&rhs_bigint_space, p);
+    return lhs_bigint.order(rhs_bigint).compare(op);
+}
+
 pub fn dump(v: Value, ty: Type, comp: *Compilation, strings: []const u8, w: anytype) !void {
     switch (v.tag) {
         .unavailable => try w.writeAll("unavailable"),
