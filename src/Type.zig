@@ -629,7 +629,10 @@ pub fn signedness(ty: Type, comp: *const Compilation) std.builtin.Signedness {
         // zig fmt: off
         .char, .complex_char => return comp.getCharSignedness(),
         .uchar, .ushort, .uint, .ulong, .ulong_long, .bool, .complex_uchar, .complex_ushort,
-        .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => .unsigned,
+        .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128,
+        .pointer, .decayed_array, .decayed_static_array, .decayed_incomplete_array,
+        .decayed_variable_len_array, .decayed_unspecified_variable_len_array,
+        .decayed_typeof_type, .decayed_typeof_expr => .unsigned,
         // zig fmt: on
         .bit_int, .complex_bit_int => ty.data.int.signedness,
         .typeof_type => ty.data.sub_type.signedness(comp),

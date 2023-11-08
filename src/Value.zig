@@ -207,61 +207,58 @@ pub const FloatToIntChangeKind = enum {
     value_changed,
 };
 
-fn floatToIntExtra(comptime FloatTy: type, int_ty_signedness: std.builtin.Signedness, int_ty_size: u16, v: *Value) FloatToIntChangeKind {
-    const float_val = v.getFloat(FloatTy);
-    const was_zero = float_val == 0;
-    const had_fraction = std.math.modf(float_val).fpart != 0;
-
-    switch (int_ty_signedness) {
-        inline else => |signedness| switch (int_ty_size) {
-            inline 1, 2, 4, 8 => |bytecount| {
-                const IntTy = std.meta.Int(signedness, bytecount * 8);
-
-                const intVal = std.math.lossyCast(IntTy, float_val);
-                v.* = int(intVal);
-                if (!was_zero and v.isZero()) return .nonzero_to_zero;
-                if (float_val <= std.math.minInt(IntTy) or float_val >= std.math.maxInt(IntTy)) return .out_of_range;
-                if (had_fraction) return .value_changed;
-                return .none;
-            },
-            else => unreachable,
-        },
-    }
-}
-
 /// Converts the stored value from a float to an integer.
-/// `.unavailable` value remains unchanged.
-pub fn floatToInt(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) FloatToIntChangeKind {
-    assert(old_ty.isFloat());
-    if (v.tag == .unavailable) return .none;
-    if (new_ty.is(.bool)) {
-        const was_zero = v.isZero();
-        const was_one = v.getFloat(f64) == 1.0;
-        v.toBool();
+/// `.none` value remains unchanged.
+pub fn floatToInt(v: *Value, dest_ty: Type, ctx: Context) !FloatToIntChangeKind {
+    if (v.opt_ref == .none) return .none;
+
+    const float_val = v.toFloat(f128, ctx);
+    const was_zero = float_val == 0;
+
+    if (dest_ty.is(.bool)) {
+        const was_one = float_val == 1.0;
+        v.* = fromBool(!was_zero);
         if (was_zero or was_one) return .none;
         return .value_changed;
-    } else if (new_ty.isUnsignedInt(comp) and v.data.float < 0) {
-        v.* = int(0);
+    } else if (dest_ty.isUnsignedInt(ctx.comp) and v.compare(.lt, zero, ctx)) {
+        v.* = zero;
         return .out_of_range;
-    } else if (!std.math.isFinite(v.data.float)) {
-        v.tag = .unavailable;
-        return .overflow;
     }
-    const old_size = old_ty.sizeof(comp).?;
-    const new_size: u16 = @intCast(new_ty.sizeof(comp).?);
-    if (new_ty.isUnsignedInt(comp)) switch (old_size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => return floatToIntExtra(f32, .unsigned, new_size, v),
-        8 => return floatToIntExtra(f64, .unsigned, new_size, v),
-        else => unreachable,
-    } else switch (old_size) {
-        1 => unreachable, // promoted to int
-        2 => unreachable, // promoted to int
-        4 => return floatToIntExtra(f32, .signed, new_size, v),
-        8 => return floatToIntExtra(f64, .signed, new_size, v),
-        else => unreachable,
+
+    const had_fraction = @rem(float_val, 1) != 0;
+    const is_negative = std.math.signbit(float_val);
+    const floored = @floor(@abs(float_val));
+
+    var rational = try std.math.big.Rational.init(ctx.comp.gpa);
+    defer rational.q.deinit();
+    rational.setFloat(f128, floored) catch |err| switch (err) {
+        error.NonFiniteFloat => {
+            v.* = .{};
+            return .overflow;
+        },
+        error.OutOfMemory => return error.OutOfMemory,
+    };
+
+    // The float is reduced in rational.setFloat, so we assert that denominator is equal to one
+    const big_one = std.math.big.int.Const{ .limbs = &.{1}, .positive = true };
+    assert(rational.q.toConst().eqlAbs(big_one));
+
+    if (is_negative) {
+        rational.negate();
     }
+
+    const signedness = dest_ty.signedness(ctx.comp);
+    const bits = dest_ty.bitSizeof(ctx.comp).?;
+
+    // rational.p.truncate(rational.p.toConst(), signedness: Signedness, bit_count: usize)
+    const fits = rational.p.fitsInTwosComp(signedness, bits);
+    try rational.p.truncate(&rational.p, signedness, bits);
+    v.* = try ctx.intern(.{ .int = .{ .big_int = rational.p.toConst() } });
+
+    if (!was_zero and v.isZero()) return .nonzero_to_zero;
+    if (!fits) return .out_of_range;
+    if (had_fraction) return .value_changed;
+    return .none;
 }
 
 /// Converts the stored value from an integer to a float.
@@ -297,34 +294,38 @@ pub fn intToFloat(v: *Value, dest_ty: Type, ctx: Context) !void {
 }
 
 /// Truncates or extends bits based on type.
-/// old_ty is only used for size.
-pub fn intCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
-    // assert(old_ty.isInt() and new_ty.isInt());
-    if (v.tag == .unavailable) return;
-    if (new_ty.is(.bool)) return v.toBool();
-    if (!old_ty.isUnsignedInt(comp)) {
-        const size = new_ty.sizeof(comp).?;
-        switch (size) {
-            1 => v.* = int(@as(u8, @truncate(@as(u64, @bitCast(v.signExtend(old_ty, comp)))))),
-            2 => v.* = int(@as(u16, @truncate(@as(u64, @bitCast(v.signExtend(old_ty, comp)))))),
-            4 => v.* = int(@as(u32, @truncate(@as(u64, @bitCast(v.signExtend(old_ty, comp)))))),
-            8 => return,
-            else => unreachable,
-        }
-    }
+/// `.none` value remains unchanged.
+pub fn intCast(v: *Value, dest_ty: Type, ctx: Context) !void {
+    if (v.opt_ref == .none) return;
+    const bits = dest_ty.bitSizeof(ctx.comp).?;
+    var space: BigIntSpace = undefined;
+    const big = v.toBigInt(&space, ctx);
+
+    const limbs = try ctx.comp.gpa.alloc(
+        std.math.big.Limb,
+        std.math.big.int.calcTwosCompLimbCount(bits),
+    );
+    defer ctx.comp.gpa.free(limbs);
+    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+    result_bigint.truncate(big, dest_ty.signedness(ctx.comp), bits);
+
+    v.* = try ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
 /// Converts the stored value from an integer to a float.
-/// `.unavailable` value remains unchanged.
-pub fn floatCast(v: *Value, old_ty: Type, new_ty: Type, comp: *Compilation) void {
-    assert(old_ty.isFloat() and new_ty.isFloat());
-    if (v.tag == .unavailable) return;
-    const size = new_ty.sizeof(comp).?;
-    if (!new_ty.isReal() or size > 8) {
-        v.tag = .unavailable;
-    } else if (size == 32) {
-        v.* = float(@as(f32, @floatCast(v.data.float)));
-    }
+/// `.none` value remains unchanged.
+pub fn floatCast(v: *Value, dest_ty: Type, ctx: Context) !void {
+    if (v.opt_ref == .none) return;
+    const bits = dest_ty.bitSizeof(ctx.comp).?;
+    const f: Interner.Key.Float = switch (bits) {
+        16 => .{ .f16 = v.toFloat(f16, ctx) },
+        32 => .{ .f32 = v.toFloat(f32, ctx) },
+        64 => .{ .f64 = v.toFloat(f64, ctx) },
+        80 => .{ .f80 = v.toFloat(f80, ctx) },
+        128 => .{ .f128 = v.toFloat(f128, ctx) },
+        else => unreachable,
+    };
+    v.* = try ctx.intern(.{ .float = f });
 }
 
 pub fn toFloat(v: Value, comptime T: type, ctx: Context) T {
@@ -379,6 +380,7 @@ pub fn fromBool(b: bool) Value {
 }
 
 pub fn toBool(v: Value) bool {
+    // TODO this doesn't work for floats
     return v.ref() != .zero;
 }
 

@@ -2519,7 +2519,7 @@ fn enumSpec(p: *Parser) Error!Type {
             else
                 continue;
 
-            vals[i].intCast(field.ty, dest_ty, p.comp);
+            try vals[i].intCast(dest_ty, p.ctx());
             types[i] = dest_ty;
             p.nodes.items(.ty)[@intFromEnum(field_nodes[i])] = dest_ty;
             field.ty = dest_ty;
@@ -5180,7 +5180,7 @@ const Result = struct {
             try res.implicitCast(p, .int_to_bool);
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
-            const value_change_kind = res.val.floatToInt(res.ty, bool_ty, p.comp);
+            const value_change_kind = try res.val.floatToInt(bool_ty, p.ctx());
             try res.floatToIntWarning(p, bool_ty, old_value, value_change_kind, tok);
             if (!res.ty.isReal()) {
                 res.ty = res.ty.makeReal();
@@ -5209,7 +5209,7 @@ const Result = struct {
             }
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
-            const value_change_kind = res.val.floatToInt(res.ty, int_ty, p.comp);
+            const value_change_kind = try res.val.floatToInt(int_ty, p.ctx());
             try res.floatToIntWarning(p, int_ty, old_value, value_change_kind, tok);
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();
@@ -5231,7 +5231,7 @@ const Result = struct {
                 try res.implicitCast(p, .complex_float_to_complex_int);
             }
         } else if (!res.ty.eql(int_ty, p.comp, true)) {
-            res.val.intCast(res.ty, int_ty, p.comp);
+            try res.val.intCast(int_ty, p.ctx());
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();
             if (old_real and new_real) {
@@ -5298,7 +5298,7 @@ const Result = struct {
                 try res.implicitCast(p, .complex_int_to_complex_float);
             }
         } else if (!res.ty.eql(float_ty, p.comp, true)) {
-            res.val.floatCast(res.ty, float_ty, p.comp);
+            try res.val.floatCast(float_ty, p.ctx());
             const old_real = res.ty.isReal();
             const new_real = float_ty.isReal();
             if (old_real and new_real) {
@@ -5331,7 +5331,7 @@ const Result = struct {
             res.ty = ptr_ty;
             try res.implicitCast(p, .bool_to_pointer);
         } else if (res.ty.isInt()) {
-            res.val.intCast(res.ty, ptr_ty, p.comp);
+            try res.val.intCast(ptr_ty, p.ctx());
             res.ty = ptr_ty;
             try res.implicitCast(p, .int_to_pointer);
         }
@@ -5650,17 +5650,17 @@ const Result = struct {
                 res.val.boolCast();
             } else if (old_float and new_int) {
                 // Explicit cast, no conversion warning
-                _ = res.val.floatToInt(res.ty, to, p.comp);
+                _ = try res.val.floatToInt(to, p.ctx());
             } else if (new_float and old_int) {
                 try res.val.intToFloat(to, p.ctx());
             } else if (new_float and old_float) {
-                res.val.floatCast(res.ty, to, p.comp);
+                try res.val.floatCast(to, p.ctx());
             } else if (old_int and new_int) {
                 if (to.hasIncompleteSize()) {
                     try p.errStr(.cast_to_incomplete_type, tok, try p.typeStr(to));
                     return error.ParsingFailed;
                 }
-                res.val.intCast(res.ty, to, p.comp);
+                try res.val.intCast(to, p.ctx());
             }
         } else if (to.get(.@"union")) |union_ty| {
             if (union_ty.data.record.hasFieldOfType(res.ty, p.comp)) {
