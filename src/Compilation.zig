@@ -23,7 +23,7 @@ pub const Error = error{
     FatalError,
 } || Allocator.Error;
 
-pub const bit_int_max_bits = 128;
+pub const bit_int_max_bits = std.math.maxInt(u16);
 const path_buf_stack_limit = 1024;
 
 /// Environment variables used during compilation / linking.

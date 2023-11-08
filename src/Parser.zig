@@ -7933,9 +7933,10 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         if (overflowed != 0) overflow = true;
         val = sum;
     }
+    var res: Result = .{ .val = try Value.int(val, p.ctx()) };
     if (overflow) {
         try p.errTok(.int_literal_too_big, tok_i);
-        var res: Result = .{ .ty = .{ .specifier = .ulong_long }, .val = Value.int(val) };
+        res.ty = .{ .specifier = .ulong_long };
         res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
         if (!p.in_macro) try p.value_map.put(res.node, res.val);
         return res;
@@ -7945,25 +7946,28 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
             try p.errTok(.implicitly_unsigned_literal, tok_i);
         }
     }
-    return if (base == 10)
-        switch (suffix) {
-            .None, .I => p.castInt(val, &.{ .int, .long, .long_long }),
-            .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-            .L, .IL => p.castInt(val, &.{ .long, .long_long }),
-            .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
-            .LL, .ILL => p.castInt(val, &.{.long_long}),
-            .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
-            else => unreachable,
-        }
-    else switch (suffix) {
-        .None, .I => p.castInt(val, &.{ .int, .uint, .long, .ulong, .long_long, .ulong_long }),
-        .U, .IU => p.castInt(val, &.{ .uint, .ulong, .ulong_long }),
-        .L, .IL => p.castInt(val, &.{ .long, .ulong, .long_long, .ulong_long }),
-        .UL, .IUL => p.castInt(val, &.{ .ulong, .ulong_long }),
-        .LL, .ILL => p.castInt(val, &.{ .long_long, .ulong_long }),
-        .ULL, .IULL => p.castInt(val, &.{.ulong_long}),
-        else => unreachable,
-    };
+
+    const signed_specs = .{ .int, .long, .long_long };
+    const unsigned_specs = .{ .uint, .ulong, .ulong_long };
+    const signed_oct_hex_specs = .{ .int, .uint, .long, .ulong, .long_long, .ulong_long };
+    const specs: []const Type.Specifier = if (suffix.signedness() == .unsigned)
+        &unsigned_specs
+    else if (base == 10)
+        &signed_specs
+    else
+        &signed_oct_hex_specs;
+
+    for (specs) |spec| {
+        res.ty = Type{ .specifier = spec };
+        const max_int = res.ty.maxInt(p.comp);
+        if (val <= max_int) break;
+    } else {
+        res.ty = .{ .specifier = .ulong_long };
+    }
+
+    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+    if (!p.in_macro) try p.value_map.put(res.node, res.val);
+    return res;
 }
 
 fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) !Result {
@@ -8016,25 +8020,18 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
             try p.errStr(.bit_int_too_big, tok_i, specifier.str(p.comp.langopts).?);
             return error.ParsingFailed;
         }
-        if (bits_needed > 64) {
-            return p.todo("_BitInt constants > 64 bits");
-        }
         break :blk @intCast(bits_needed);
     };
 
-    const val = c.to(u64) catch |e| switch (e) {
-        error.NegativeIntoUnsigned => unreachable, // unary minus parsed elsewhere; we only see positive integers
-        error.TargetTooSmall => unreachable, // Validated above but Todo: handle larger _BitInt
-    };
-
+    const val = try p.ctx().intern(.{ .int = .{ .big_int = c } });
     var res: Result = .{
-        .val = Value.int(val),
+        .val = val,
         .ty = .{
             .specifier = .bit_int,
             .data = .{ .int = .{ .bits = bits_needed, .signedness = suffix.signedness() } },
         },
     };
-    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
+    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
     return res;
 }
@@ -8133,37 +8130,6 @@ fn ppNum(p: *Parser) Error!Result {
     } else {
         try p.value_map.put(res.node, res.val);
     }
-    return res;
-}
-
-fn castInt(p: *Parser, val: u64, specs: []const Type.Specifier) Error!Result {
-    var res: Result = .{ .val = Value.int(val) };
-    for (specs) |spec| {
-        const ty = Type{ .specifier = spec };
-        const unsigned = ty.isUnsignedInt(p.comp);
-        const size = ty.sizeof(p.comp).?;
-        res.ty = ty;
-
-        if (unsigned) {
-            switch (size) {
-                2 => if (val <= std.math.maxInt(u16)) break,
-                4 => if (val <= std.math.maxInt(u32)) break,
-                8 => if (val <= std.math.maxInt(u64)) break,
-                else => unreachable,
-            }
-        } else {
-            switch (size) {
-                2 => if (val <= std.math.maxInt(i16)) break,
-                4 => if (val <= std.math.maxInt(i32)) break,
-                8 => if (val <= std.math.maxInt(i64)) break,
-                else => unreachable,
-            }
-        }
-    } else {
-        res.ty = .{ .specifier = .ulong_long };
-    }
-    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = .{ .int = val } });
-    if (!p.in_macro) try p.value_map.put(res.node, res.val);
     return res;
 }
 
