@@ -163,7 +163,151 @@ pub const Ref = enum(u32) {
 };
 
 pub const Tag = enum(u8) {
+    /// `data` is `u16`
+    int_ty,
+    /// `data` is `u16`
+    float_ty,
+    /// `data` is index to `Array`
+    array_ty,
+    /// `data` is index to `Vector`
+    vector_ty,
+    /// `data` is `u32`
+    int_u32,
+    /// `data` is `i32`
+    int_i32,
+    /// `data` is `Int`
+    int_positive,
+    /// `data` is `Int`
+    int_negative,
+    /// `data` is `f16`
+    f16,
+    /// `data` is `f32`
+    f32,
+    /// `data` is `F64`
+    f64,
+    /// `data` is `F80`
+    f80,
+    /// `data` is `F128`
+    f128,
+    /// `data` is `Bytes`
+    bytes,
+    /// `data` is `Record`
+    record,
 
+    pub const Array = struct {
+        len0: u32,
+        len1: u32,
+        child: Ref,
+
+        pub fn getLength(a: Array) u64 {
+            return (PackedU64{
+                .a = a.len0,
+                .b = a.len1,
+            }).get();
+        }
+    };
+
+    pub const Vector = struct {
+        len: u32,
+        child: Ref,
+    };
+
+    pub const Int = struct {
+        limbs_len: u32,
+        // trailing:
+        // [limbs_len]struct { limb_hi: u32, limb_lo: u32}
+    };
+
+    pub const F64 = struct {
+        piece0: u32,
+        piece1: u32,
+
+        pub fn get(self: F64) f64 {
+            const int_bits = @as(u64, self.piece0) | (@as(u64, self.piece1) << 32);
+            return @bitCast(int_bits);
+        }
+
+        fn pack(val: f64) F64 {
+            const bits = @as(u64, @bitCast(val));
+            return .{
+                .piece0 = @as(u32, @truncate(bits)),
+                .piece1 = @as(u32, @truncate(bits >> 32)),
+            };
+        }
+    };
+
+    pub const F80 = struct {
+        piece0: u32,
+        piece1: u32,
+        piece2: u32, // u16 part, top bits
+
+        pub fn get(self: F128) f80 {
+            const int_bits = @as(u80, self.piece0) |
+                (@as(u80, self.piece1) << 32) |
+                (@as(u80, self.piece2) << 64);
+            return @bitCast(int_bits);
+        }
+
+        fn pack(val: f80) F128 {
+            const bits = @as(u80, @bitCast(val));
+            return .{
+                .piece0 = @as(u32, @truncate(bits)),
+                .piece1 = @as(u32, @truncate(bits >> 32)),
+                .piece2 = @as(u16, @truncate(bits >> 64)),
+            };
+        }
+    };
+
+    pub const F128 = struct {
+        piece0: u32,
+        piece1: u32,
+        piece2: u32,
+        piece3: u32,
+
+        pub fn get(self: F128) f128 {
+            const int_bits = @as(u128, self.piece0) |
+                (@as(u128, self.piece1) << 32) |
+                (@as(u128, self.piece2) << 64) |
+                (@as(u128, self.piece3) << 96);
+            return @bitCast(int_bits);
+        }
+
+        fn pack(val: f128) F128 {
+            const bits = @as(u128, @bitCast(val));
+            return .{
+                .piece0 = @as(u32, @truncate(bits)),
+                .piece1 = @as(u32, @truncate(bits >> 32)),
+                .piece2 = @as(u32, @truncate(bits >> 64)),
+                .piece3 = @as(u32, @truncate(bits >> 96)),
+            };
+        }
+    };
+
+    pub const Bytes = struct {
+        bytes_index: u32,
+        bytes_len: u32,
+    };
+
+    pub const Record = struct {
+        ptr_hi: u32,
+        ptr_lo: u32,
+        elements_len: u32,
+        // trailing
+        // [elements_len]Ref
+    };
+};
+
+pub const PackedU64 = packed struct(u64) {
+    a: u32,
+    b: u32,
+
+    pub fn get(x: PackedU64) u64 {
+        return @bitCast(x);
+    }
+
+    pub fn init(x: u64) PackedU64 {
+        return @bitCast(x);
+    }
 };
 
 pub fn deinit(i: *Interner, gpa: Allocator) void {
