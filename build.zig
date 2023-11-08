@@ -68,6 +68,12 @@ pub fn build(b: *Build) !void {
         }},
     });
 
+    b.installDirectory(.{
+        .source_dir = .{ .path = "include" },
+        .install_dir = .prefix,
+        .install_subdir = "include",
+    });
+
     const exe = b.addExecutable(.{
         .name = "arocc",
         .root_source_file = .{ .path = "src/main.zig" },
