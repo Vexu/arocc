@@ -90,12 +90,16 @@ pub const Standard = enum {
 
     pub fn codepointAllowedInIdentifier(standard: Standard, codepoint: u21, is_start: bool) bool {
         if (is_start) {
-            return if (standard.atLeast(.c11))
+            return if (standard.atLeast(.c23))
+                CharInfo.isXidStart(codepoint)
+            else if (standard.atLeast(.c11))
                 CharInfo.isC11IdChar(codepoint) and !CharInfo.isC11DisallowedInitialIdChar(codepoint)
             else
                 CharInfo.isC99IdChar(codepoint) and !CharInfo.isC99DisallowedInitialIDChar(codepoint);
         } else {
-            return if (standard.atLeast(.c11))
+            return if (standard.atLeast(.c23))
+                CharInfo.isXidContinue(codepoint)
+            else if (standard.atLeast(.c11))
                 CharInfo.isC11IdChar(codepoint)
             else
                 CharInfo.isC99IdChar(codepoint);

@@ -2,8 +2,10 @@
 //! various C standards. All classification routines *do not* consider
 //! characters from the basic character set; it is assumed those will be
 //! checked separately
+//! isXidStart and isXidContinue are adapted from https://github.com/dtolnay/unicode-ident
 
 const assert = @import("std").debug.assert;
+const tables = @import("unicode/identifier_tables.zig");
 
 /// C11 Standard Annex D
 pub fn isC11IdChar(codepoint: u21) bool {
@@ -484,4 +486,47 @@ pub fn homoglyph(codepoint: u21) ?u21 {
         0xff5e => '~', // FULLWIDTH TILDE
         else => null,
     };
+}
+
+pub fn isXidStart(c: u21) bool {
+    assert(c > 0x7F);
+    const idx = c / 8 / tables.chunk;
+    const chunk: usize = if (idx < tables.trie_start.len) tables.trie_start[idx] else 0;
+    const offset = chunk * tables.chunk / 2 + c / 8 % tables.chunk;
+    return (tables.leaf[offset] >> (@as(u3, @intCast(c % 8)))) & 1 != 0;
+}
+
+pub fn isXidContinue(c: u21) bool {
+    assert(c > 0x7F);
+    const idx = c / 8 / tables.chunk;
+    const chunk: usize = if (idx < tables.trie_continue.len) tables.trie_continue[idx] else 0;
+    const offset = chunk * tables.chunk / 2 + c / 8 % tables.chunk;
+    return (tables.leaf[offset] >> (@as(u3, @intCast(c % 8)))) & 1 != 0;
+}
+
+test "isXidStart / isXidContinue panic check" {
+    const std = @import("std");
+    for (0x80..0x110000) |i| {
+        const c: u21 = @intCast(i);
+        if (std.unicode.utf8ValidCodepoint(c)) {
+            _ = isXidStart(c);
+            _ = isXidContinue(c);
+        }
+    }
+}
+
+test isXidStart {
+    const std = @import("std");
+    try std.testing.expect(!isXidStart('᠑'));
+    try std.testing.expect(!isXidStart('™'));
+    try std.testing.expect(!isXidStart('£'));
+    try std.testing.expect(!isXidStart('\u{1f914}')); // 🤔
+}
+
+test isXidContinue {
+    const std = @import("std");
+    try std.testing.expect(isXidContinue('᠑'));
+    try std.testing.expect(!isXidContinue('™'));
+    try std.testing.expect(!isXidContinue('£'));
+    try std.testing.expect(!isXidContinue('\u{1f914}')); // 🤔
 }
