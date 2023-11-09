@@ -141,7 +141,7 @@ pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChang
     const floored = @floor(@abs(float_val));
 
     var rational = try std.math.big.Rational.init(comp.gpa);
-    defer rational.q.deinit();
+    defer rational.deinit();
     rational.setFloat(f128, floored) catch |err| switch (err) {
         error.NonFiniteFloat => {
             v.* = .{};
@@ -163,8 +163,8 @@ pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChang
 
     // rational.p.truncate(rational.p.toConst(), signedness: Signedness, bit_count: usize)
     const fits = rational.p.fitsInTwosComp(signedness, bits);
-    try rational.p.truncate(&rational.p, signedness, bits);
     v.* = try intern(comp, .{ .int = .{ .big_int = rational.p.toConst() } });
+    try rational.p.truncate(&rational.p, signedness, bits);
 
     if (!was_zero and v.isZero(comp)) return .nonzero_to_zero;
     if (!fits) return .out_of_range;
@@ -688,6 +688,8 @@ pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w
             inline else => |x| return w.print("{d}", .{x}),
         },
         .float => |repr| switch (repr) {
+            .f16 => |x| return w.print("{d}", .{@round(@as(f64, @floatCast(x)) * 1000) / 1000}),
+            .f32 => |x| return w.print("{d}", .{@round(@as(f64, @floatCast(x)) * 1000000) / 1000000}),
             inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
         .bytes => |b| return printString(b, ty, comp, w),
