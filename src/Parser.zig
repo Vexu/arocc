@@ -404,6 +404,16 @@ pub fn todo(p: *Parser, msg: []const u8) Error {
     return error.ParsingFailed;
 }
 
+pub fn removeNull(p: *Parser, str: Value) !Value {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+    {
+        const bytes = p.comp.interner.get(str.ref()).bytes;
+        try p.strings.appendSlice(bytes[0 .. bytes.len - 1]);
+    }
+    return Value.intern(p.comp, .{ .bytes = p.strings.items[strings_top..] });
+}
+
 pub fn valStr(p: *Parser, val: Value) ![]const u8 {
     switch (val.opt_ref) {
         .none => return "(none)",
@@ -3985,10 +3995,7 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
     switch (kind) {
         .decl_label => {
             const asm_str = try p.asmStr();
-
-            // remove null-terminator
-            const bytes = p.comp.interner.get(asm_str.val.ref()).bytes;
-            const str = try Value.intern(p.comp, .{ .bytes = bytes[0 .. bytes.len - 1] });
+            const str = try p.removeNull(asm_str.val);
 
             const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str } }, .syntax = .keyword };
             try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
