@@ -1984,14 +1984,14 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 const res = try p.integerConstExpr(.gnu_folding_extension);
                 try p.expectClosing(l_paren, .r_paren);
 
-                var bits: u16 = undefined;
+                var bits: u64 = undefined;
                 if (res.val.opt_ref == .none) {
                     try p.errTok(.expected_integer_constant_expr, bit_int_tok);
                     return error.ParsingFailed;
                 } else if (res.val.compare(.lte, Value.zero, p.comp)) {
                     bits = 0;
                 } else {
-                    bits = res.val.toInt(u16, p.comp) orelse std.math.maxInt(u16);
+                    bits = res.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
                 }
 
                 try ty.combine(p, .{ .bit_int = bits }, bit_int_tok);
