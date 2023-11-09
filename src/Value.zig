@@ -51,7 +51,7 @@ pub fn minUnsignedBits(v: Value, comp: *const Compilation) usize {
 
 test "minUnsignedBits" {
     const Test = struct {
-        fn checkIntBits(comp: *const Compilation, v: u64, expected: usize) !void {
+        fn checkIntBits(comp: *Compilation, v: u64, expected: usize) !void {
             const val = try intern(comp, .{ .int = .{ .u64 = v } });
             try std.testing.expectEqual(expected, val.minUnsignedBits(comp));
         }
@@ -61,19 +61,17 @@ test "minUnsignedBits" {
     defer comp.deinit();
     comp.target = (try std.zig.CrossTarget.parse(.{ .arch_os_abi = "x86_64-linux-gnu" })).toTarget();
 
-    try Test.checkIntBits(comp, .int, 0, 0);
-    try Test.checkIntBits(comp, .int, 1, 1);
-    try Test.checkIntBits(comp, .int, 2, 2);
-    try Test.checkIntBits(comp, .int, std.math.maxInt(i8), 7);
-    try Test.checkIntBits(comp, .int, std.math.maxInt(u8), 8);
-    try Test.checkIntBits(comp, .int, std.math.maxInt(i16), 15);
-    try Test.checkIntBits(comp, .int, std.math.maxInt(u16), 16);
-    try Test.checkIntBits(comp, .int, std.math.maxInt(i32), 31);
-    try Test.checkIntBits(comp, .uint, std.math.maxInt(u32), 32);
-    try Test.checkIntBits(comp, .long, std.math.maxInt(i64), 63);
-    try Test.checkIntBits(comp, .ulong, std.math.maxInt(u64), 64);
-    try Test.checkIntBits(comp, .long_long, std.math.maxInt(i64), 63);
-    try Test.checkIntBits(comp, .ulong_long, std.math.maxInt(u64), 64);
+    try Test.checkIntBits(&comp, 0, 0);
+    try Test.checkIntBits(&comp, 1, 1);
+    try Test.checkIntBits(&comp, 2, 2);
+    try Test.checkIntBits(&comp, std.math.maxInt(i8), 7);
+    try Test.checkIntBits(&comp, std.math.maxInt(u8), 8);
+    try Test.checkIntBits(&comp, std.math.maxInt(i16), 15);
+    try Test.checkIntBits(&comp, std.math.maxInt(u16), 16);
+    try Test.checkIntBits(&comp, std.math.maxInt(i32), 31);
+    try Test.checkIntBits(&comp, std.math.maxInt(u32), 32);
+    try Test.checkIntBits(&comp, std.math.maxInt(i64), 63);
+    try Test.checkIntBits(&comp, std.math.maxInt(u64), 64);
 }
 
 /// Minimum number of bits needed to represent `v` in 2's complement notation
@@ -87,7 +85,7 @@ pub fn minSignedBits(v: Value, comp: *const Compilation) usize {
 
 test "minSignedBits" {
     const Test = struct {
-        fn checkIntBits(comp: *const Compilation, v: i64, expected: usize) !void {
+        fn checkIntBits(comp: *Compilation, v: i64, expected: usize) !void {
             const val = try intern(comp, .{ .int = .{ .i64 = v } });
             try std.testing.expectEqual(expected, val.minSignedBits(comp));
         }
@@ -97,14 +95,14 @@ test "minSignedBits" {
     defer comp.deinit();
     comp.target = (try std.zig.CrossTarget.parse(.{ .arch_os_abi = "x86_64-linux-gnu" })).toTarget();
 
-    try Test.checkIntBits(comp, -1, 1);
-    try Test.checkIntBits(comp, -2, 2);
-    try Test.checkIntBits(comp, -10, 5);
-    try Test.checkIntBits(comp, -101, 8);
-    try Test.checkIntBits(comp, std.math.minInt(i8), 8);
-    try Test.checkIntBits(comp, std.math.minInt(i16), 16);
-    try Test.checkIntBits(comp, std.math.minInt(i32), 32);
-    try Test.checkIntBits(comp, std.math.minInt(i64), 64);
+    try Test.checkIntBits(&comp, -1, 1);
+    try Test.checkIntBits(&comp, -2, 2);
+    try Test.checkIntBits(&comp, -10, 5);
+    try Test.checkIntBits(&comp, -101, 8);
+    try Test.checkIntBits(&comp, std.math.minInt(i8), 8);
+    try Test.checkIntBits(&comp, std.math.minInt(i16), 16);
+    try Test.checkIntBits(&comp, std.math.minInt(i32), 32);
+    try Test.checkIntBits(&comp, std.math.minInt(i64), 64);
 }
 
 pub const FloatToIntChangeKind = enum {
