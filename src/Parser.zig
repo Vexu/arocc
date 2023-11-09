@@ -467,7 +467,7 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: 
     try w.writeAll(type_pair_str);
 
     try w.writeAll(" changes ");
-    if (!res.val.isZero(p.comp)) try w.writeAll("non-zero ");
+    if (res.val.isZero(p.comp)) try w.writeAll("non-zero ");
     try w.writeAll("value from ");
     try old_value.print(&p.comp.interner, w);
     try w.writeAll(" to ");
@@ -482,8 +482,10 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
         defer p.strings.items.len = strings_top;
 
         const w = p.strings.writer();
-        try w.print("call to '{s}' declared with attribute error: ", .{p.tokSlice(@"error".__name_tok)});
-        try @"error".msg.print(&p.comp.interner, w);
+        const msg_str = p.comp.interner.get(@"error".msg.ref()).bytes;
+        try w.print("call to '{s}' declared with attribute error: {}", .{
+            p.tokSlice(@"error".__name_tok), std.zig.fmtEscapes(msg_str),
+        });
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.error_attribute, usage_tok, str);
     }
@@ -492,8 +494,10 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
         defer p.strings.items.len = strings_top;
 
         const w = p.strings.writer();
-        try w.print("call to '{s}' declared with attribute warning: ", .{p.tokSlice(warning.__name_tok)});
-        try warning.msg.print(&p.comp.interner, w);
+        const msg_str = p.comp.interner.get(warning.msg.ref()).bytes;
+        try w.print("call to '{s}' declared with attribute warning: {}", .{
+            p.tokSlice(warning.__name_tok), std.zig.fmtEscapes(msg_str),
+        });
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.warning_attribute, usage_tok, str);
     }
@@ -520,8 +524,8 @@ fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Valu
     };
     try w.writeAll(reason);
     if (msg) |m| {
-        try w.writeAll(": ");
-        try m.print(&p.comp.interner, w);
+        const str = p.comp.interner.get(m.ref()).bytes;
+        try w.print(": {}", .{std.zig.fmtEscapes(str)});
     }
     const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     return p.errStr(tag, tok_i, str);
