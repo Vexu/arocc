@@ -52,7 +52,7 @@ fn_def: 'fn () void'
     var: '_Float16'
      name: f
      init:
-      float16_literal: '_Float16' (value: 1)
+      float_literal: '_Float16' (value: 1)
 
     call_expr: 'void'
      lhs:
@@ -74,12 +74,12 @@ fn_def: 'fn () void'
     var: 'double'
      name: d
      init:
-      double_literal: 'double' (value: 1)
+      float_literal: 'double' (value: 1)
 
     var: '_Float16'
      name: f16
      init:
-      float16_literal: '_Float16' (value: 2)
+      float_literal: '_Float16' (value: 2)
 
     var: '__fp16'
      name: fp16

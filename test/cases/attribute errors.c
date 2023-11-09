@@ -51,4 +51,4 @@ int big __attribute__((vector_size(4294967296)));
     "attribute errors.c:24:49: error: 'deprecated' attribute takes at most 1 argument(s)" \
     "attribute errors.c:28:24: warning: attribute 'cold' ignored on fields [-Wignored-attributes]" \
     "attribute errors.c:31:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]" \
-    "attribute errors.c:32:34: error: attribute value '4294967296' out of range" \
+    "attribute errors.c:32:36: error: attribute value '4294967296' out of range" \
