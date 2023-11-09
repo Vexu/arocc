@@ -197,6 +197,31 @@ pub const Ref = enum(u32) {
     _,
 };
 
+pub const OptRef = enum(u32) {
+    const max = std.math.maxInt(u32);
+
+    none = max - 0,
+    ptr = max - 1,
+    noreturn = max - 2,
+    void = max - 3,
+    i1 = max - 4,
+    i8 = max - 5,
+    i16 = max - 6,
+    i32 = max - 7,
+    i64 = max - 8,
+    i128 = max - 9,
+    f16 = max - 10,
+    f32 = max - 11,
+    f64 = max - 12,
+    f80 = max - 13,
+    f128 = max - 14,
+    func = max - 15,
+    zero = max - 16,
+    one = max - 17,
+    null = max - 18,
+    _,
+};
+
 pub const Tag = enum(u8) {
     /// `data` is `u16`
     int_ty,

@@ -23,16 +23,11 @@ pub const Context = struct {
     }
 };
 
-pub const OptRef = enum(u32) {
-    none = std.math.maxInt(u32),
-    _,
-};
+opt_ref: Interner.OptRef = .none,
 
-opt_ref: OptRef = .none,
-
-pub const zero = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
-pub const one = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.one)) };
-pub const @"null" = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.null)) };
+pub const zero = Value{ .opt_ref = .zero };
+pub const one = Value{ .opt_ref = .one };
+pub const @"null" = Value{ .opt_ref = .null };
 
 pub fn int(i: anytype, ctx: Context) !Value {
     const info = @typeInfo(@TypeOf(i));

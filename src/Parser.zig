@@ -406,7 +406,8 @@ pub fn todo(p: *Parser, msg: []const u8) Error {
 }
 
 pub fn valStr(p: *Parser, val: Value) ![]const u8 {
-    switch (val.ref()) {
+    switch (val.opt_ref) {
+        .none => return "(none)",
         .zero => return "0",
         .one => return "1",
         .null => return "nullptr_t",
@@ -4895,7 +4896,7 @@ const Result = struct {
     }
 
     fn boolRes(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
-        if (lhs.val.is(.null, p.ctx())) {
+        if (lhs.val.opt_ref == .null) {
             lhs.val = Value.zero;
         }
         if (lhs.ty.specifier != .invalid) {
@@ -6795,7 +6796,7 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.usualUnaryConversion(p, tok);
             if (operand.val.is(.int, p.ctx())) {
                 operand.val.boolCast(p.ctx());
-            } else if (operand.val.is(.null, p.ctx())) {
+            } else if (operand.val.opt_ref == .null) {
                 operand.val = Value.one;
             } else {
                 if (operand.ty.isDecayed()) {
