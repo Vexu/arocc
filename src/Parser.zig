@@ -6795,7 +6795,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             try operand.usualUnaryConversion(p, tok);
             if (operand.val.is(.int, p.comp)) {
-                operand.val.boolCast(p.comp);
+                operand.val = Value.fromBool(!operand.val.toBool(p.comp));
             } else if (operand.val.opt_ref == .null) {
                 operand.val = Value.one;
             } else {
