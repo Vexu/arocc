@@ -5484,7 +5484,7 @@ const Result = struct {
     /// Saves value and replaces it with `.unavailable`.
     fn saveValue(res: *Result, p: *Parser) !void {
         assert(!p.in_macro);
-        if (res.val.opt_ref == .none or res.val.ref() == .null) return;
+        if (res.val.opt_ref == .none or res.val.opt_ref == .null) return;
         if (!p.in_macro) try p.value_map.put(res.node, res.val);
         res.val = .{};
     }
@@ -7715,6 +7715,7 @@ fn stringLiteral(p: *Parser) Error!Result {
     p.strings.appendNTimesAssumeCapacity(0, @intFromEnum(char_width));
     const slice = p.strings.items[strings_top..];
 
+    // TODO this won't do anything if there is a cache hit
     const interned_align = mem.alignForward(
         usize,
         p.comp.interner.strings.items.len,
@@ -7881,6 +7882,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
         res.ty = .{ .specifier = switch (suffix) {
             .I => .complex_double,
             .IF => .complex_float,
+            .IL => .complex_long_double,
             else => unreachable,
         } };
         res.val = .{}; // TODO add complex values
@@ -7983,8 +7985,19 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
     else
         &signed_oct_hex_specs;
 
+    const suffix_ty: Type = .{ .specifier = switch (suffix) {
+        .None, .I => .int,
+        .U, .IU => .uint,
+        .UL, .IUL => .ulong,
+        .ULL, .IULL => .ulong_long,
+        .L, .IL => .long,
+        .LL, .ILL => .long_long,
+        else => unreachable,
+    } };
+
     for (specs) |spec| {
         res.ty = Type{ .specifier = spec };
+        if (res.ty.compareIntegerRanks(suffix_ty, p.comp).compare(.lt)) continue;
         const max_int = res.ty.maxInt(p.comp);
         if (val <= max_int) break;
     } else {
@@ -8049,9 +8062,8 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         break :blk @intCast(bits_needed);
     };
 
-    const val = try Value.intern(p.comp, .{ .int = .{ .big_int = c } });
     var res: Result = .{
-        .val = val,
+        .val = try Value.intern(p.comp, .{ .int = .{ .big_int = c } }),
         .ty = .{
             .specifier = .bit_int,
             .data = .{ .int = .{ .bits = bits_needed, .signedness = suffix.signedness() } },
@@ -8153,7 +8165,8 @@ fn ppNum(p: *Parser) Error!Result {
             return error.ParsingFailed;
         }
         res.ty = if (res.ty.isUnsignedInt(p.comp)) p.comp.types.intmax.makeIntegerUnsigned() else p.comp.types.intmax;
-    } else {
+    } else if (res.val.opt_ref != .none) {
+        // TODO add complex values
         try p.value_map.put(res.node, res.val);
     }
     return res;

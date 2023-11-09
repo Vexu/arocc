@@ -227,7 +227,8 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
 /// `.none` value remains unchanged.
 pub fn floatCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
-    const bits = dest_ty.bitSizeof(comp).?;
+    // TODO complex values
+    const bits = dest_ty.makeReal().bitSizeof(comp).?;
     const f: Interner.Key.Float = switch (bits) {
         16 => .{ .f16 = v.toFloat(f16, comp) },
         32 => .{ .f32 = v.toFloat(f32, comp) },
