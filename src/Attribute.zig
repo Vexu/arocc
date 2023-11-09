@@ -229,7 +229,13 @@ fn diagnoseField(
     node: Tree.Node,
     p: *Parser,
 ) !?Diagnostics.Message {
-    if (val.opt_ref == .none) return invalidArgMsg(Wanted, .expression);
+    if (val.opt_ref == .none) {
+        if (Wanted == Identifier and node.tag == .decl_ref_expr) {
+            @field(@field(arguments, decl.name), field.name) = Identifier{ .tok = node.data.decl_ref };
+            return null;
+        }
+        return invalidArgMsg(Wanted, .expression);
+    }
     const key = p.comp.interner.get(val.ref());
     switch (key) {
         .int => {
@@ -267,12 +273,7 @@ fn diagnoseField(
                 }
             }
         },
-        else => {
-            if (Wanted == Identifier and node.tag == .decl_ref_expr) {
-                @field(@field(arguments, decl.name), field.name) = Identifier{ .tok = node.data.decl_ref };
-                return null;
-            }
-        },
+        else => {},
     }
     return invalidArgMsg(Wanted, switch (key) {
         .int => .int,
