@@ -871,8 +871,9 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .tok_i = @intCast(start),
         .arena = pp.arena.allocator(),
         .in_macro = true,
+        .strings = std.ArrayList(u8).init(pp.comp.gpa),
+
         .data = undefined,
-        .strings = undefined,
         .value_map = undefined,
         .labels = undefined,
         .decl_buf = undefined,
@@ -884,6 +885,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .field_attr_buf = undefined,
         .string_ids = undefined,
     };
+    defer parser.strings.deinit();
     return parser.macroExpr();
 }
 
