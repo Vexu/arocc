@@ -202,11 +202,11 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Va
                 inline 0...arg_fields.len - 1 => |arg_i| {
                     if (UnwrapOptional(arg_fields[arg_i].type) != Alignment) unreachable;
 
-                    if (!val.is(.int, p.ctx())) return Diagnostics.Message{ .tag = .alignas_unavailable };
-                    if (val.compare(.lt, Value.zero, p.ctx())) {
+                    if (!val.is(.int, p.comp)) return Diagnostics.Message{ .tag = .alignas_unavailable };
+                    if (val.compare(.lt, Value.zero, p.comp)) {
                         return Diagnostics.Message{ .tag = .negative_alignment, .extra = .{ .str = try p.valStr(val) } };
                     }
-                    const requested = val.toInt(u29, p.ctx()) orelse {
+                    const requested = val.toInt(u29, p.comp) orelse {
                         return Diagnostics.Message{ .tag = .maximum_alignment, .extra = .{ .str = try p.valStr(val) } };
                     };
                     if (!std.mem.isValidAlign(requested)) return Diagnostics.Message{ .tag = .non_pow2_align };
@@ -230,11 +230,11 @@ fn diagnoseField(
     p: *Parser,
 ) !?Diagnostics.Message {
     if (val.opt_ref == .none) return invalidArgMsg(Wanted, .expression);
-    const key = p.interner.get(val.ref());
+    const key = p.comp.interner.get(val.ref());
     switch (key) {
         .int => {
             if (@typeInfo(Wanted) == .Int) {
-                @field(@field(arguments, decl.name), field.name) = val.toInt(Wanted, p.ctx()) orelse return .{
+                @field(@field(arguments, decl.name), field.name) = val.toInt(Wanted, p.comp) orelse return .{
                     .tag = .attribute_int_out_of_range,
                     .extra = .{ .str = try p.valStr(val) },
                 };
@@ -251,7 +251,7 @@ fn diagnoseField(
                         .extra = .{ .str = decl.name },
                     };
                 }
-                const without_null = try p.ctx().intern(.{ .bytes = str });
+                const without_null = try Value.intern(p.comp, .{ .bytes = str });
                 @field(@field(arguments, decl.name), field.name) = without_null;
                 return null;
             } else if (@typeInfo(Wanted) == .Enum and @hasDecl(Wanted, "opts") and Wanted.opts.enum_kind == .string) {

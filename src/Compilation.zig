@@ -15,6 +15,7 @@ const Pragma = @import("Pragma.zig");
 const StringInterner = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
 const target_util = @import("target.zig");
+const Interner = @import("Interner.zig");
 
 const Compilation = @This();
 
@@ -123,6 +124,7 @@ types: struct {
     int64: Type = .{ .specifier = .invalid },
 } = .{},
 string_interner: StringInterner = .{},
+interner: Interner = .{},
 ms_cwd_source_id: ?Source.Id = null,
 
 pub fn init(gpa: Allocator) Compilation {
@@ -155,6 +157,7 @@ pub fn deinit(comp: *Compilation) void {
     comp.generated_buf.deinit();
     comp.builtins.deinit(comp.gpa);
     comp.string_interner.deinit(comp.gpa);
+    comp.interner.deinit(comp.gpa);
 }
 
 pub fn intern(comp: *Compilation, str: []const u8) !StringInterner.StringId {

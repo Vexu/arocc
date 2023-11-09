@@ -29,7 +29,6 @@ const NumberSuffix = number_affixes.Suffix;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const target_util = @import("target.zig");
-const Interner = @import("Interner.zig");
 
 const Parser = @This();
 
@@ -37,7 +36,7 @@ const Switch = struct {
     default: ?TokenIndex = null,
     ranges: std.ArrayList(Range),
     ty: Type,
-    ctx: Value.Context,
+    comp: *Compilation,
 
     const Range = struct {
         first: Value,
@@ -47,7 +46,7 @@ const Switch = struct {
 
     fn add(self: *Switch, first: Value, last: Value, tok: TokenIndex) !?Range {
         for (self.ranges.items) |range| {
-            if (last.compare(.gte, range.first, self.ctx) and first.compare(.lte, range.last, self.ctx)) {
+            if (last.compare(.gte, range.first, self.comp) and first.compare(.lte, range.last, self.comp)) {
                 return range; // They overlap.
             }
         }
@@ -98,7 +97,6 @@ arena: Allocator,
 nodes: Tree.Node.List = .{},
 data: NodeList,
 value_map: Tree.ValueMap,
-interner: Interner = .{},
 
 // buffers used during compilation
 syms: SymbolStack = .{},
@@ -416,7 +414,7 @@ pub fn valStr(p: *Parser, val: Value) ![]const u8 {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
-    try val.print(p.ctx(), p.strings.writer());
+    try val.print(p.comp, p.strings.writer());
     return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
@@ -458,11 +456,11 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: 
     try w.writeAll(type_pair_str);
 
     try w.writeAll(" changes ");
-    if (!res.val.isZero(p.ctx())) try w.writeAll("non-zero ");
+    if (!res.val.isZero(p.comp)) try w.writeAll("non-zero ");
     try w.writeAll("value from ");
-    try old_value.print(p.ctx(), w);
+    try old_value.print(p.comp, w);
     try w.writeAll(" to ");
-    try res.val.print(p.ctx(), w);
+    try res.val.print(p.comp, w);
 
     return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -474,7 +472,7 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
 
         const w = p.strings.writer();
         try w.print("call to '{s}' declared with attribute error: ", .{p.tokSlice(@"error".__name_tok)});
-        try @"error".msg.print(p.ctx(), w);
+        try @"error".msg.print(p.comp, w);
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.error_attribute, usage_tok, str);
     }
@@ -484,7 +482,7 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
 
         const w = p.strings.writer();
         try w.print("call to '{s}' declared with attribute warning: ", .{p.tokSlice(warning.__name_tok)});
-        try warning.msg.print(p.ctx(), w);
+        try warning.msg.print(p.comp, w);
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.warning_attribute, usage_tok, str);
     }
@@ -512,7 +510,7 @@ fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Valu
     try w.writeAll(reason);
     if (msg) |m| {
         try w.writeAll(": ");
-        try m.print(p.ctx(), w);
+        try m.print(p.comp, w);
     }
     const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     return p.errStr(tag, tok_i, str);
@@ -586,7 +584,6 @@ fn tmpTree(p: *Parser) Tree {
         .data = p.data.items,
         .value_map = p.value_map,
         .comp = p.comp,
-        .interner = p.interner,
         .arena = undefined,
         .generated = undefined,
         .tokens = undefined,
@@ -646,14 +643,6 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
     assert(errors_added == 2 * p.tentative_defs.count()); // Each tentative def should add an error + note
 }
 
-pub fn ctx(p: *Parser) Value.Context {
-    return .{
-        .comp = p.comp,
-        .interner = &p.interner,
-        .mutable = if (std.debug.runtime_safety) true else {},
-    };
-}
-
 /// root : (decl | assembly ';' | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     assert(pp.linemarkers == .none);
@@ -689,7 +678,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     errdefer {
         p.nodes.deinit(pp.comp.gpa);
         p.value_map.deinit();
-        p.interner.deinit(pp.comp.gpa);
     }
     defer {
         p.data.deinit();
@@ -797,7 +785,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .data = data,
         .root_decls = root_decls,
         .value_map = p.value_map,
-        .interner = p.interner,
     };
 }
 
@@ -1194,9 +1181,9 @@ fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]co
         if (buf.items.len > 0) {
             try buf.append(' ');
         }
-        const bytes = p.interner.get(message.val.ref()).bytes;
+        const bytes = p.comp.interner.get(message.val.ref()).bytes;
         try buf.ensureUnusedCapacity(bytes.len);
-        try Value.printString(bytes, message.ty.elemType(), p.ctx(), buf.writer());
+        try Value.printString(bytes, message.ty.elemType(), p.comp, buf.writer());
     }
     return try p.comp.diag.arena.allocator().dupe(u8, buf.items);
 }
@@ -1234,7 +1221,7 @@ fn staticAssert(p: *Parser) Error!bool {
     }
 
     // Array will never be zero; a value of zero for a pointer is a null pointer constant
-    if ((res.ty.isArray() or res.ty.isPtr()) and !res.val.isZero(p.ctx())) {
+    if ((res.ty.isArray() or res.ty.isPtr()) and !res.val.isZero(p.comp)) {
         const err_start = p.comp.diag.list.items.len;
         try p.errTok(.const_decl_folded, res_token);
         if (res.ty.isPtr() and err_start != p.comp.diag.list.items.len) {
@@ -1248,7 +1235,7 @@ fn staticAssert(p: *Parser) Error!bool {
             try p.errTok(.static_assert_not_constant, res_token);
         }
     } else {
-        if (!res.val.toBool(p.ctx())) {
+        if (!res.val.toBool(p.comp)) {
             if (try p.staticAssertMessage(res_node, str)) |message| {
                 try p.errStr(.static_assert_failure_message, static_assert, message);
             } else {
@@ -1915,7 +1902,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 } else {
                     const arg_start = p.tok_i;
                     const res = try p.integerConstExpr(.no_const_decl_folding);
-                    if (!res.val.isZero(p.ctx())) {
+                    if (!res.val.isZero(p.comp)) {
                         var args = Attribute.initArguments(.aligned, align_tok);
                         if (try p.diagnose(.aligned, &args, 0, res)) |msg| {
                             try p.errExtra(msg.tag, arg_start, msg.extra);
@@ -1999,10 +1986,10 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 if (res.val.opt_ref == .none) {
                     try p.errTok(.expected_integer_constant_expr, bit_int_tok);
                     return error.ParsingFailed;
-                } else if (res.val.compare(.lte, Value.zero, p.ctx())) {
+                } else if (res.val.compare(.lte, Value.zero, p.comp)) {
                     bits = 0;
                 } else {
-                    bits = res.val.toInt(u16, p.ctx()) orelse std.math.maxInt(u16);
+                    bits = res.val.toInt(u16, p.comp) orelse std.math.maxInt(u16);
                 }
 
                 try ty.combine(p, .{ .bit_int = bits }, bit_int_tok);
@@ -2272,14 +2259,14 @@ fn recordDeclarator(p: *Parser) Error!bool {
             if (res.val.opt_ref == .none) {
                 try p.errTok(.expected_integer_constant_expr, bits_tok);
                 break :bits;
-            } else if (res.val.compare(.lt, Value.zero, p.ctx())) {
+            } else if (res.val.compare(.lt, Value.zero, p.comp)) {
                 try p.errStr(.negative_bitwidth, first_tok, try p.valStr(res.val));
                 break :bits;
             }
 
             // incomplete size error is reported later
             const bit_size = ty.bitSizeof(p.comp) orelse break :bits;
-            const bits_unchecked = res.val.toInt(u32, p.ctx()) orelse std.math.maxInt(u32);
+            const bits_unchecked = res.val.toInt(u32, p.comp) orelse std.math.maxInt(u32);
             if (bits_unchecked > bit_size) {
                 try p.errTok(.bitfield_too_big, name_tok);
                 break :bits;
@@ -2525,7 +2512,7 @@ fn enumSpec(p: *Parser) Error!Type {
             else
                 continue;
 
-            try vals[i].intCast(dest_ty, p.ctx());
+            try vals[i].intCast(dest_ty, p.comp);
             types[i] = dest_ty;
             p.nodes.items(.ty)[@intFromEnum(field_nodes[i])] = dest_ty;
             field.ty = dest_ty;
@@ -2616,7 +2603,7 @@ const Enumerator = struct {
             e.res.val = Value.zero;
             return;
         }
-        if (try e.res.val.add(e.res.val, Value.one, e.res.ty, p.ctx())) {
+        if (try e.res.val.add(e.res.val, Value.one, e.res.ty, p.comp)) {
             const byte_size = e.res.ty.sizeof(p.comp).?;
             const bit_size: u8 = @intCast(if (e.res.ty.isUnsignedInt(p.comp)) byte_size * 8 else byte_size * 8 - 1);
             if (e.fixed) {
@@ -2631,7 +2618,7 @@ const Enumerator = struct {
                 break :blk Type{ .specifier = .ulong_long };
             };
             e.res.ty = new_ty;
-            _ = try e.res.val.add(old_val, Value.one, e.res.ty, p.ctx());
+            _ = try e.res.val.add(old_val, Value.one, e.res.ty, p.comp);
         }
     }
 
@@ -2721,24 +2708,24 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     var res = e.res;
     res.ty = try Attribute.applyEnumeratorAttributes(p, res.ty, attr_buf_top);
 
-    if (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, Value.zero, p.ctx())) {
-        e.num_positive_bits = @max(e.num_positive_bits, res.val.minUnsignedBits(p.ctx()));
+    if (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, Value.zero, p.comp)) {
+        e.num_positive_bits = @max(e.num_positive_bits, res.val.minUnsignedBits(p.comp));
     } else {
-        e.num_negative_bits = @max(e.num_negative_bits, res.val.minSignedBits(p.ctx()));
+        e.num_negative_bits = @max(e.num_negative_bits, res.val.minSignedBits(p.comp));
     }
 
     if (err_start == p.comp.diag.list.items.len) {
         // only do these warnings if we didn't already warn about overflow or non-representable values
-        if (e.res.val.compare(.lt, Value.zero, p.ctx())) {
+        if (e.res.val.compare(.lt, Value.zero, p.comp)) {
             const min_int = (Type{ .specifier = .int }).minInt(p.comp);
-            const min_val = try Value.int(min_int, p.ctx());
-            if (e.res.val.compare(.lt, min_val, p.ctx())) {
+            const min_val = try Value.int(min_int, p.comp);
+            if (e.res.val.compare(.lt, min_val, p.comp)) {
                 try p.errStr(.enumerator_too_small, name_tok, try p.valStr(e.res.val));
             }
         } else {
             const max_int = (Type{ .specifier = .int }).maxInt(p.comp);
-            const max_val = try Value.int(max_int, p.ctx());
-            if (e.res.val.compare(.gt, max_val, p.ctx())) {
+            const max_val = try Value.int(max_int, p.comp);
+            if (e.res.val.compare(.gt, max_val, p.comp)) {
                 try p.errStr(.enumerator_too_large, name_tok, try p.valStr(e.res.val));
             }
         }
@@ -2966,15 +2953,15 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             }
         } else {
             var size_val = size.val;
-            if (size_val.isZero(p.ctx())) {
+            if (size_val.isZero(p.comp)) {
                 try p.errTok(.zero_length_array, l_bracket);
-            } else if (size_val.compare(.lt, Value.zero, p.ctx())) {
+            } else if (size_val.compare(.lt, Value.zero, p.comp)) {
                 try p.errTok(.negative_array_size, l_bracket);
                 return error.ParsingFailed;
             }
             const arr_ty = try p.arena.create(Type.Array);
             arr_ty.elem = .{ .specifier = .void };
-            arr_ty.len = size_val.toInt(u64, p.ctx()) orelse std.math.maxInt(u64);
+            arr_ty.len = size_val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
             if (arr_ty.len > max_elems) {
                 try p.errTok(.array_too_large, l_bracket);
                 arr_ty.len = max_elems;
@@ -3260,13 +3247,13 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 if (index_res.val.opt_ref == .none) {
                     try p.errTok(.expected_integer_constant_expr, expr_tok);
                     return error.ParsingFailed;
-                } else if (index_res.val.compare(.lt, Value.zero, p.ctx())) {
+                } else if (index_res.val.compare(.lt, Value.zero, p.comp)) {
                     try p.errStr(.negative_array_designator, l_bracket + 1, try p.valStr(index_res.val));
                     return error.ParsingFailed;
                 }
 
                 const max_len = cur_ty.arrayLen() orelse std.math.maxInt(usize);
-                const index_int = index_res.val.toInt(u64, p.ctx()) orelse std.math.maxInt(u64);
+                const index_int = index_res.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
                 if (index_int >= max_len) {
                     try p.errStr(.oob_array_designator, l_bracket + 1, try p.valStr(index_res.val));
                     return error.ParsingFailed;
@@ -3944,7 +3931,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, l_paren: TokenIndex
 
 fn checkAsmStr(p: *Parser, asm_str: Value, tok: TokenIndex) !void {
     if (!p.comp.langopts.gnu_asm) {
-        const str = p.interner.get(asm_str.ref()).bytes;
+        const str = p.comp.interner.get(asm_str.ref()).bytes;
         if (str.len > 1) {
             // Empty string (just a NUL byte) is ok because it does not emit any assembly
             try p.errTok(.gnu_asm_disabled, tok);
@@ -3998,8 +3985,8 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
             const asm_str = try p.asmStr();
 
             // remove null-terminator
-            const bytes = p.interner.get(asm_str.val.ref()).bytes;
-            const str = try p.ctx().intern(.{ .bytes = bytes[0 .. bytes.len - 1] });
+            const bytes = p.comp.interner.get(asm_str.val.ref()).bytes;
+            const str = try Value.intern(p.comp, .{ .bytes = bytes[0 .. bytes.len - 1] });
 
             const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str } }, .syntax = .keyword };
             try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
@@ -4101,7 +4088,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
         var @"switch" = Switch{
             .ranges = std.ArrayList(Switch.Range).init(p.gpa),
             .ty = cond.ty,
-            .ctx = p.ctx(),
+            .comp = p.comp,
         };
         p.@"switch" = &@"switch";
         defer {
@@ -4247,7 +4234,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
                     try p.errStr(.incompatible_arg, expr_tok, try p.typePairStrExtra(e.ty, " to parameter of incompatible type ", result_ty));
                     return error.ParsingFailed;
                 }
-                if (e.val.isZero(p.ctx())) {
+                if (e.val.isZero(p.comp)) {
                     try e.nullCast(p, result_ty);
                 } else {
                     try p.errStr(.implicit_int_to_ptr, expr_tok, try p.typePairStrExtra(e.ty, " to ", result_ty));
@@ -4362,7 +4349,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             } else if (last.opt_ref == .none) {
                 try p.errTok(.case_val_unavailable, ellipsis + 1);
                 break :check;
-            } else if (last.compare(.lt, first, p.ctx())) {
+            } else if (last.compare(.lt, first, p.comp)) {
                 try p.errTok(.empty_case_range, case + 1);
                 break :check;
             }
@@ -4675,7 +4662,7 @@ pub fn macroExpr(p: *Parser) Compilation.Error!bool {
         try p.errTok(.expected_expr, p.tok_i);
         return false;
     }
-    return res.val.toBool(p.ctx());
+    return res.val.toBool(p.comp);
 }
 
 const CallExpr = union(enum) {
@@ -5062,7 +5049,7 @@ const Result = struct {
                     if (other_res.ty.isPtr()) {
                         try nullptr_res.nullCast(p, other_res.ty);
                         return other_res.shouldEval(nullptr_res, p);
-                    } else if (other_res.val.isZero(p.ctx())) {
+                    } else if (other_res.val.isZero(p.comp)) {
                         other_res.val = Value.null;
                         try other_res.nullCast(p, nullptr_res.ty);
                         return other_res.shouldEval(nullptr_res, p);
@@ -5073,7 +5060,7 @@ const Result = struct {
                 if (!a_scalar or !b_scalar or (a_float and b_ptr) or (b_float and a_ptr))
                     return a.invalidBinTy(tok, b, p);
 
-                if ((a_int or b_int) and !(a.val.isZero(p.ctx()) or b.val.isZero(p.ctx()))) {
+                if ((a_int or b_int) and !(a.val.isZero(p.comp) or b.val.isZero(p.comp))) {
                     try p.errStr(.comparison_ptr_int, tok, try p.typePairStr(a.ty, b.ty));
                 } else if (a_ptr and b_ptr) {
                     if (!a.ty.isVoidStar() and !b.ty.isVoidStar() and !a.ty.eql(b.ty, p.comp, false))
@@ -5096,7 +5083,7 @@ const Result = struct {
                 }
                 if (a_nullptr and b_nullptr) return true;
                 if ((a_ptr and b_int) or (a_int and b_ptr)) {
-                    if (a.val.isZero(p.ctx()) or b.val.isZero(p.ctx())) {
+                    if (a.val.isZero(p.comp) or b.val.isZero(p.comp)) {
                         try a.nullCast(p, b.ty);
                         try b.nullCast(p, a.ty);
                         return true;
@@ -5168,7 +5155,7 @@ const Result = struct {
 
     fn boolCast(res: *Result, p: *Parser, bool_ty: Type, tok: TokenIndex) Error!void {
         if (res.ty.isArray()) {
-            if (res.val.is(.bytes, p.ctx())) {
+            if (res.val.is(.bytes, p.comp)) {
                 try p.errStr(.string_literal_to_bool, tok, try p.typePairStrExtra(res.ty, " to ", bool_ty));
             } else {
                 try p.errStr(.array_address_to_bool, tok, p.tokSlice(tok));
@@ -5178,16 +5165,16 @@ const Result = struct {
             res.ty = bool_ty;
             try res.implicitCast(p, .pointer_to_bool);
         } else if (res.ty.isPtr()) {
-            res.val.boolCast(p.ctx());
+            res.val.boolCast(p.comp);
             res.ty = bool_ty;
             try res.implicitCast(p, .pointer_to_bool);
         } else if (res.ty.isInt() and !res.ty.is(.bool)) {
-            res.val.boolCast(p.ctx());
+            res.val.boolCast(p.comp);
             res.ty = bool_ty;
             try res.implicitCast(p, .int_to_bool);
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
-            const value_change_kind = try res.val.floatToInt(bool_ty, p.ctx());
+            const value_change_kind = try res.val.floatToInt(bool_ty, p.comp);
             try res.floatToIntWarning(p, bool_ty, old_value, value_change_kind, tok);
             if (!res.ty.isReal()) {
                 res.ty = res.ty.makeReal();
@@ -5216,7 +5203,7 @@ const Result = struct {
             }
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
-            const value_change_kind = try res.val.floatToInt(int_ty, p.ctx());
+            const value_change_kind = try res.val.floatToInt(int_ty, p.comp);
             try res.floatToIntWarning(p, int_ty, old_value, value_change_kind, tok);
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();
@@ -5238,7 +5225,7 @@ const Result = struct {
                 try res.implicitCast(p, .complex_float_to_complex_int);
             }
         } else if (!res.ty.eql(int_ty, p.comp, true)) {
-            try res.val.intCast(int_ty, p.ctx());
+            try res.val.intCast(int_ty, p.comp);
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();
             if (old_real and new_real) {
@@ -5276,7 +5263,7 @@ const Result = struct {
 
     fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
         if (res.ty.is(.bool)) {
-            try res.val.intToFloat(float_ty, p.ctx());
+            try res.val.intToFloat(float_ty, p.comp);
             res.ty = float_ty.makeReal();
             try res.implicitCast(p, .bool_to_float);
             if (!float_ty.isReal()) {
@@ -5284,7 +5271,7 @@ const Result = struct {
                 try res.implicitCast(p, .real_to_complex_float);
             }
         } else if (res.ty.isInt()) {
-            try res.val.intToFloat(float_ty, p.ctx());
+            try res.val.intToFloat(float_ty, p.comp);
             const old_real = res.ty.isReal();
             const new_real = float_ty.isReal();
             if (old_real and new_real) {
@@ -5305,7 +5292,7 @@ const Result = struct {
                 try res.implicitCast(p, .complex_int_to_complex_float);
             }
         } else if (!res.ty.eql(float_ty, p.comp, true)) {
-            try res.val.floatCast(float_ty, p.ctx());
+            try res.val.floatCast(float_ty, p.comp);
             const old_real = res.ty.isReal();
             const new_real = float_ty.isReal();
             if (old_real and new_real) {
@@ -5338,7 +5325,7 @@ const Result = struct {
             res.ty = ptr_ty;
             try res.implicitCast(p, .bool_to_pointer);
         } else if (res.ty.isInt()) {
-            try res.val.intCast(ptr_ty, p.ctx());
+            try res.val.intCast(ptr_ty, p.comp);
             res.ty = ptr_ty;
             try res.implicitCast(p, .int_to_pointer);
         }
@@ -5358,7 +5345,7 @@ const Result = struct {
     }
 
     fn nullCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
-        if (!res.ty.is(.nullptr_t) and !res.val.isZero(p.ctx())) return;
+        if (!res.ty.is(.nullptr_t) and !res.val.isZero(p.comp)) return;
         res.ty = ptr_ty;
         try res.implicitCast(p, .null_to_pointer);
     }
@@ -5506,7 +5493,7 @@ const Result = struct {
         } else if (res.ty.is(.nullptr_t)) {
             if (to.is(.bool)) {
                 try res.nullCast(p, res.ty);
-                res.val.boolCast(p.ctx());
+                res.val.boolCast(p.comp);
                 res.ty = .{ .specifier = .bool };
                 try res.implicitCast(p, .pointer_to_bool);
                 try res.saveValue(p);
@@ -5517,7 +5504,7 @@ const Result = struct {
                 return error.ParsingFailed;
             }
             cast_kind = .no_op;
-        } else if (res.val.isZero(p.ctx()) and to.isPtr()) {
+        } else if (res.val.isZero(p.comp) and to.isPtr()) {
             cast_kind = .null_to_pointer;
         } else if (to.isScalar()) cast: {
             const old_float = res.ty.isFloat();
@@ -5653,20 +5640,20 @@ const Result = struct {
             const old_int = res.ty.isInt() or res.ty.isPtr();
             const new_int = to.isInt() or to.isPtr();
             if (to.is(.bool)) {
-                res.val.boolCast(p.ctx());
+                res.val.boolCast(p.comp);
             } else if (old_float and new_int) {
                 // Explicit cast, no conversion warning
-                _ = try res.val.floatToInt(to, p.ctx());
+                _ = try res.val.floatToInt(to, p.comp);
             } else if (new_float and old_int) {
-                try res.val.intToFloat(to, p.ctx());
+                try res.val.intToFloat(to, p.comp);
             } else if (new_float and old_float) {
-                try res.val.floatCast(to, p.ctx());
+                try res.val.floatCast(to, p.comp);
             } else if (old_int and new_int) {
                 if (to.hasIncompleteSize()) {
                     try p.errStr(.cast_to_incomplete_type, tok, try p.typeStr(to));
                     return error.ParsingFailed;
                 }
-                try res.val.intCast(to, p.ctx());
+                try res.val.intCast(to, p.comp);
             }
         } else if (to.get(.@"union")) |union_ty| {
             if (union_ty.data.record.hasFieldOfType(res.ty, p.comp)) {
@@ -5702,10 +5689,10 @@ const Result = struct {
     }
 
     fn intFitsInType(res: Result, p: *Parser, ty: Type) !bool {
-        const max_int = try Value.int(ty.maxInt(p.comp), p.ctx());
-        const min_int = try Value.int(ty.minInt(p.comp), p.ctx());
-        return res.val.compare(.lte, max_int, p.ctx()) and
-            (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, min_int, p.ctx()));
+        const max_int = try Value.int(ty.maxInt(p.comp), p.comp);
+        const min_int = try Value.int(ty.minInt(p.comp), p.comp);
+        return res.val.compare(.lte, max_int, p.comp) and
+            (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, min_int, p.comp));
     }
 
     const CoerceContext = union(enum) {
@@ -5775,7 +5762,7 @@ const Result = struct {
                 return;
             }
         } else if (unqual_ty.isPtr()) {
-            if (res.ty.is(.nullptr_t) or res.val.isZero(p.ctx())) {
+            if (res.ty.is(.nullptr_t) or res.val.isZero(p.comp)) {
                 try res.nullCast(p, dest_ty);
                 return;
             } else if (res.ty.isInt() and res.ty.isReal()) {
@@ -5950,7 +5937,7 @@ fn assignExpr(p: *Parser) Error!Result {
         .div_assign_expr,
         .mod_assign_expr,
         => {
-            if (rhs.val.isZero(p.ctx()) and lhs.ty.isInt() and rhs.ty.isInt()) {
+            if (rhs.val.isZero(p.comp) and lhs.ty.isInt() and rhs.ty.isInt()) {
                 switch (tag) {
                     .div_assign_expr => try p.errStr(.division_by_zero, div.?, "division"),
                     .mod_assign_expr => try p.errStr(.division_by_zero, mod.?, "remainder"),
@@ -6040,7 +6027,7 @@ fn condExpr(p: *Parser) Error!Result {
     // Depending on the value of the condition, avoid evaluating unreachable branches.
     var then_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.opt_ref != .none and !cond.val.toBool(p.ctx())) p.no_eval = true;
+        if (cond.val.opt_ref != .none and !cond.val.toBool(p.comp)) p.no_eval = true;
         break :blk try p.expr();
     };
     try then_expr.expect(p);
@@ -6062,7 +6049,7 @@ fn condExpr(p: *Parser) Error!Result {
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.opt_ref != .none and cond.val.toBool(p.ctx())) p.no_eval = true;
+        if (cond.val.opt_ref != .none and cond.val.toBool(p.comp)) p.no_eval = true;
         break :blk try p.condExpr();
     };
     try else_expr.expect(p);
@@ -6070,7 +6057,7 @@ fn condExpr(p: *Parser) Error!Result {
     _ = try then_expr.adjustTypes(colon, &else_expr, p, .conditional);
 
     if (cond.val.opt_ref != .none) {
-        cond.val = if (cond.val.toBool(p.ctx())) then_expr.val else else_expr.val;
+        cond.val = if (cond.val.toBool(p.comp)) then_expr.val else else_expr.val;
     } else {
         try then_expr.saveValue(p);
         try else_expr.saveValue(p);
@@ -6092,12 +6079,12 @@ fn lorExpr(p: *Parser) Error!Result {
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.pipe_pipe)) |tok| {
-        if (lhs.val.opt_ref != .none and lhs.val.toBool(p.ctx())) p.no_eval = true;
+        if (lhs.val.opt_ref != .none and lhs.val.toBool(p.comp)) p.no_eval = true;
         var rhs = try p.landExpr();
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
-            const res = lhs.val.toBool(p.ctx()) or rhs.val.toBool(p.ctx());
+            const res = lhs.val.toBool(p.comp) or rhs.val.toBool(p.comp);
             lhs.val = Value.fromBool(res);
         }
         try lhs.boolRes(p, .bool_or_expr, rhs);
@@ -6113,12 +6100,12 @@ fn landExpr(p: *Parser) Error!Result {
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.ampersand_ampersand)) |tok| {
-        if (lhs.val.opt_ref != .none and !lhs.val.toBool(p.ctx())) p.no_eval = true;
+        if (lhs.val.opt_ref != .none and !lhs.val.toBool(p.comp)) p.no_eval = true;
         var rhs = try p.orExpr();
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
-            const res = lhs.val.toBool(p.ctx()) and rhs.val.toBool(p.ctx());
+            const res = lhs.val.toBool(p.comp) and rhs.val.toBool(p.comp);
             lhs.val = Value.fromBool(res);
         }
         try lhs.boolRes(p, .bool_and_expr, rhs);
@@ -6135,7 +6122,7 @@ fn orExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
-            lhs.val = try lhs.val.bitOr(rhs.val, p.ctx());
+            lhs.val = try lhs.val.bitOr(rhs.val, p.comp);
         }
         try lhs.bin(p, .bit_or_expr, rhs);
     }
@@ -6151,7 +6138,7 @@ fn xorExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
-            lhs.val = try lhs.val.bitXor(rhs.val, p.ctx());
+            lhs.val = try lhs.val.bitXor(rhs.val, p.comp);
         }
         try lhs.bin(p, .bit_xor_expr, rhs);
     }
@@ -6167,7 +6154,7 @@ fn andExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
-            lhs.val = try lhs.val.bitAnd(rhs.val, p.ctx());
+            lhs.val = try lhs.val.bitAnd(rhs.val, p.comp);
         }
         try lhs.bin(p, .bit_and_expr, rhs);
     }
@@ -6187,7 +6174,7 @@ fn eqExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const op: std.math.CompareOperator = if (tag == .equal_expr) .eq else .neq;
-            const res = lhs.val.compare(op, rhs.val, p.ctx());
+            const res = lhs.val.compare(op, rhs.val, p.comp);
             lhs.val = Value.fromBool(res);
         }
         try lhs.boolRes(p, tag, rhs);
@@ -6216,7 +6203,7 @@ fn compExpr(p: *Parser) Error!Result {
                 .greater_than_equal_expr => .gte,
                 else => unreachable,
             };
-            const res = lhs.val.compare(op, rhs.val, p.ctx());
+            const res = lhs.val.compare(op, rhs.val, p.comp);
             lhs.val = Value.fromBool(res);
         }
         try lhs.boolRes(p, tag, rhs);
@@ -6237,9 +6224,9 @@ fn shiftExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(shr.?, &rhs, p, .integer)) {
             if (shl != null) {
-                if (try lhs.val.shl(lhs.val, rhs.val, lhs.ty, p.ctx())) try p.errOverflow(shl.?, lhs);
+                if (try lhs.val.shl(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(shl.?, lhs);
             } else {
-                lhs.val = try lhs.val.shr(rhs.val, lhs.ty, p.ctx());
+                lhs.val = try lhs.val.shr(rhs.val, lhs.ty, p.comp);
             }
         }
         try lhs.bin(p, tag, rhs);
@@ -6261,9 +6248,9 @@ fn addExpr(p: *Parser) Error!Result {
         const lhs_ty = lhs.ty;
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
-                if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.ctx())) try p.errOverflow(plus.?, lhs);
+                if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(plus.?, lhs);
             } else {
-                if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.ctx())) try p.errOverflow(minus.?, lhs);
+                if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(minus.?, lhs);
             }
         }
         if (lhs.ty.specifier != .invalid and lhs_ty.isPtr() and !lhs_ty.isVoidStar() and lhs_ty.elemType().hasIncompleteSize()) {
@@ -6287,7 +6274,7 @@ fn mulExpr(p: *Parser) Error!Result {
         var rhs = try p.castExpr();
         try rhs.expect(p);
 
-        if (rhs.val.isZero(p.ctx()) and mul == null and !p.no_eval and lhs.ty.isInt() and rhs.ty.isInt()) {
+        if (rhs.val.isZero(p.comp) and mul == null and !p.no_eval and lhs.ty.isInt() and rhs.ty.isInt()) {
             const err_tag: Diagnostics.Tag = if (p.in_macro) .division_by_zero_macro else .division_by_zero;
             lhs.val = .{};
             if (div != null) {
@@ -6300,11 +6287,11 @@ fn mulExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(percent.?, &rhs, p, if (tag == .mod_expr) .integer else .arithmetic)) {
             if (mul != null) {
-                if (try lhs.val.mul(lhs.val, rhs.val, lhs.ty, p.ctx())) try p.errOverflow(mul.?, lhs);
+                if (try lhs.val.mul(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(mul.?, lhs);
             } else if (div != null) {
-                if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.ctx())) try p.errOverflow(mul.?, lhs);
+                if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(mul.?, lhs);
             } else {
-                var res = try Value.rem(lhs.val, rhs.val, lhs.ty, p.ctx());
+                var res = try Value.rem(lhs.val, rhs.val, lhs.ty, p.comp);
                 if (res.opt_ref == .none) {
                     if (p.in_macro) {
                         // match clang behavior by defining invalid remainder to be zero in macros
@@ -6449,17 +6436,17 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
 
     _ = try p.expectToken(.comma);
 
-    var then_expr = if (cond.val.toBool(p.ctx())) try p.assignExpr() else try p.parseNoEval(assignExpr);
+    var then_expr = if (cond.val.toBool(p.comp)) try p.assignExpr() else try p.parseNoEval(assignExpr);
     try then_expr.expect(p);
 
     _ = try p.expectToken(.comma);
 
-    var else_expr = if (!cond.val.toBool(p.ctx())) try p.assignExpr() else try p.parseNoEval(assignExpr);
+    var else_expr = if (!cond.val.toBool(p.comp)) try p.assignExpr() else try p.parseNoEval(assignExpr);
     try else_expr.expect(p);
 
     try p.expectClosing(l_paren, .r_paren);
 
-    if (cond.val.toBool(p.ctx())) {
+    if (cond.val.toBool(p.comp)) {
         cond.val = then_expr.val;
         cond.ty = then_expr.ty;
     } else {
@@ -6596,7 +6583,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
         },
         else => break,
     };
-    const val = try Value.int(if (want_bits) total_offset else total_offset / 8, p.ctx());
+    const val = try Value.int(if (want_bits) total_offset else total_offset / 8, p.comp);
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
@@ -6706,8 +6693,8 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             try operand.usualUnaryConversion(p, tok);
-            if (operand.val.is(.int, p.ctx())) {
-                _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p.ctx());
+            if (operand.val.is(.int, p.comp)) {
+                _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p.comp);
             } else {
                 operand.val = .{};
             }
@@ -6730,8 +6717,8 @@ fn unExpr(p: *Parser) Error!Result {
             }
             try operand.usualUnaryConversion(p, tok);
 
-            if (operand.val.is(.int, p.ctx()) or operand.val.is(.int, p.ctx())) {
-                if (try operand.val.add(operand.val, Value.one, operand.ty, p.ctx()))
+            if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
+                if (try operand.val.add(operand.val, Value.one, operand.ty, p.comp))
                     try p.errOverflow(tok, operand);
             } else {
                 operand.val = .{};
@@ -6756,8 +6743,8 @@ fn unExpr(p: *Parser) Error!Result {
             }
             try operand.usualUnaryConversion(p, tok);
 
-            if (operand.val.is(.int, p.ctx()) or operand.val.is(.int, p.ctx())) {
-                if (try operand.val.sub(operand.val, Value.one, operand.ty, p.ctx()))
+            if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
+                if (try operand.val.sub(operand.val, Value.one, operand.ty, p.comp))
                     try p.errOverflow(tok, operand);
             } else {
                 operand.val = .{};
@@ -6774,8 +6761,8 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.lvalConversion(p);
             try operand.usualUnaryConversion(p, tok);
             if (operand.ty.isInt()) {
-                if (operand.val.is(.int, p.ctx())) {
-                    operand.val = try operand.val.bitNot(operand.ty, p.ctx());
+                if (operand.val.is(.int, p.comp)) {
+                    operand.val = try operand.val.bitNot(operand.ty, p.comp);
                 }
             } else {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
@@ -6794,8 +6781,8 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             try operand.usualUnaryConversion(p, tok);
-            if (operand.val.is(.int, p.ctx())) {
-                operand.val.boolCast(p.ctx());
+            if (operand.val.is(.int, p.comp)) {
+                operand.val.boolCast(p.comp);
             } else if (operand.val.opt_ref == .null) {
                 operand.val = Value.one;
             } else {
@@ -6839,7 +6826,7 @@ fn unExpr(p: *Parser) Error!Result {
                 if (size == 0) {
                     try p.errTok(.sizeof_returns_zero, tok);
                 }
-                res.val = try Value.int(size, p.ctx());
+                res.val = try Value.int(size, p.comp);
                 res.ty = p.comp.types.size;
             } else {
                 res.val = .{};
@@ -6882,7 +6869,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.pointer_arith_void, tok, "alignof");
             }
             if (res.ty.alignable()) {
-                res.val = try Value.int(res.ty.alignof(p.comp), p.ctx());
+                res.val = try Value.int(res.ty.alignof(p.comp), p.comp);
                 res.ty = p.comp.types.size;
             } else {
                 try p.errStr(.invalid_alignof, expected_paren, try p.typeStr(res.ty));
@@ -6916,7 +6903,7 @@ fn unExpr(p: *Parser) Error!Result {
                     .msvc => {}, // Doesn't support `_Complex` or `__imag` in the first place
                     .gcc => operand.val = Value.zero,
                     .clang => {
-                        if (operand.val.is(.int, p.ctx())) {
+                        if (operand.val.is(.int, p.comp)) {
                             operand.val = Value.zero;
                         } else {
                             operand.val = .{};
@@ -7326,7 +7313,7 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
             if (lhs.is(.@"struct")) {
                 const record = lhs.getRecord().?;
                 if (data.member.index + 1 == record.fields.len) {
-                    if (!index.val.isZero(p.ctx())) {
+                    if (!index.val.isZero(p.comp)) {
                         try p.errStr(.old_style_flexible_struct, tok, try p.valStr(index.val));
                     }
                     return;
@@ -7334,13 +7321,13 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
             }
         }
     }
-    const index_int = index.val.toInt(u64, p.ctx()) orelse std.math.maxInt(u64);
+    const index_int = index.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
     if (index.ty.isUnsignedInt(p.comp)) {
         if (index_int >= array_len) {
             try p.errStr(.array_after, tok, try p.valStr(index.val));
         }
     } else {
-        if (index.val.compare(.lt, Value.zero, p.ctx())) {
+        if (index.val.compare(.lt, Value.zero, p.comp)) {
             try p.errStr(.array_before, tok, try p.valStr(index.val));
         } else if (index_int >= array_len) {
             try p.errStr(.array_after, tok, try p.valStr(index.val));
@@ -7386,7 +7373,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                         }),
                     };
                 }
-                if (sym.val.is(.int, p.ctx())) {
+                if (sym.val.is(.int, p.comp)) {
                     switch (p.const_decl_folding) {
                         .gnu_folding_extension => try p.errTok(.const_decl_folded, name_tok),
                         .gnu_vla_folding_extension => try p.errTok(.const_decl_folded_vla, name_tok),
@@ -7596,7 +7583,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                 byte *= 10;
                 byte += c - '0';
             }
-            var res: Result = .{ .val = try Value.int(byte, p.ctx()) };
+            var res: Result = .{ .val = try Value.int(byte, p.comp) };
             res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
             try p.value_map.put(res.node, res.val);
             return res;
@@ -7614,7 +7601,7 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
     const ty: Type = .{ .specifier = .array, .data = .{ .array = arr_ty } };
 
     const slice = p.strings.items[strings_top..];
-    const val = try p.ctx().intern(.{ .bytes = slice });
+    const val = try Value.intern(p.comp, .{ .bytes = slice });
 
     const str_lit = try p.addNode(.{ .tag = .string_literal_expr, .ty = ty, .data = undefined });
     if (!p.in_macro) try p.value_map.put(str_lit, val);
@@ -7715,10 +7702,14 @@ fn stringLiteral(p: *Parser) Error!Result {
     p.strings.appendNTimesAssumeCapacity(0, @intFromEnum(char_width));
     const slice = p.strings.items[strings_top..];
 
-    const interned_align = mem.alignForward(usize, p.interner.strings.items.len, string_kind.internalStorageAlignment(p.comp));
-    try p.interner.strings.resize(p.gpa, interned_align);
+    const interned_align = mem.alignForward(
+        usize,
+        p.comp.interner.strings.items.len,
+        string_kind.internalStorageAlignment(p.comp),
+    );
+    try p.comp.interner.strings.resize(p.gpa, interned_align);
 
-    const val = try p.ctx().intern(.{ .bytes = slice });
+    const val = try Value.intern(p.comp, .{ .bytes = slice });
 
     const arr_ty = try p.arena.create(Type.Array);
     arr_ty.* = .{ .elem = string_kind.elementType(p.comp), .len = @divExact(slice.len, @intFromEnum(char_width)) };
@@ -7832,7 +7823,7 @@ fn charLiteral(p: *Parser) Error!Result {
 
     var res = Result{
         .ty = if (p.in_macro) macro_ty else ty,
-        .val = try Value.int(val, p.ctx()),
+        .val = try Value.int(val, p.comp),
         .node = try p.addNode(.{ .tag = .char_literal, .ty = ty, .data = undefined }),
     };
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
@@ -7847,7 +7838,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
         .L, .IL => .long_double,
         else => unreachable,
     } };
-    const val = try p.ctx().intern(key: {
+    const val = try Value.intern(p.comp, key: {
         try p.strings.ensureUnusedCapacity(buf.len);
 
         const strings_top = p.strings.items.len;
@@ -7955,7 +7946,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         if (overflowed != 0) overflow = true;
         val = sum;
     }
-    var res: Result = .{ .val = try Value.int(val, p.ctx()) };
+    var res: Result = .{ .val = try Value.int(val, p.comp) };
     if (overflow) {
         try p.errTok(.int_literal_too_big, tok_i);
         res.ty = .{ .specifier = .ulong_long };
@@ -8045,7 +8036,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         break :blk @intCast(bits_needed);
     };
 
-    const val = try p.ctx().intern(.{ .int = .{ .big_int = c } });
+    const val = try Value.intern(p.comp, .{ .int = .{ .big_int = c } });
     var res: Result = .{
         .val = val,
         .ty = .{

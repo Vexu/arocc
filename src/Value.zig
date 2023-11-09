@@ -10,31 +10,23 @@ const target_util = @import("target.zig");
 
 const Value = @This();
 
-pub const Context = struct {
-    interner: *const Interner,
-    comp: *const Compilation,
-    mutable: if (std.debug.runtime_safety) bool else void =
-        if (std.debug.runtime_safety) false else {},
-
-    pub fn intern(ctx: Context, k: Interner.Key) !Value {
-        if (std.debug.runtime_safety) assert(ctx.mutable);
-        const r = try @constCast(ctx.interner).put(ctx.comp.gpa, k);
-        return .{ .opt_ref = @enumFromInt(@intFromEnum(r)) };
-    }
-};
-
 opt_ref: Interner.OptRef = .none,
 
 pub const zero = Value{ .opt_ref = .zero };
 pub const one = Value{ .opt_ref = .one };
 pub const @"null" = Value{ .opt_ref = .null };
 
-pub fn int(i: anytype, ctx: Context) !Value {
+pub fn intern(comp: *Compilation, k: Interner.Key) !Value {
+    const r = try comp.interner.put(comp.gpa, k);
+    return .{ .opt_ref = @enumFromInt(@intFromEnum(r)) };
+}
+
+pub fn int(i: anytype, comp: *Compilation) !Value {
     const info = @typeInfo(@TypeOf(i));
     if (info == .ComptimeInt or info.Int.signedness == .unsigned) {
-        return ctx.intern(.{ .int = .{ .u64 = i } });
+        return intern(comp, .{ .int = .{ .u64 = i } });
     } else {
-        return ctx.intern(.{ .int = .{ .i64 = i } });
+        return intern(comp, .{ .int = .{ .i64 = i } });
     }
 }
 
@@ -43,90 +35,76 @@ pub fn ref(v: Value) Interner.Ref {
     return @enumFromInt(@intFromEnum(v.opt_ref));
 }
 
-pub fn is(v: Value, tag: std.meta.Tag(Interner.Key), ctx: Context) bool {
+pub fn is(v: Value, tag: std.meta.Tag(Interner.Key), comp: *const Compilation) bool {
     if (v.opt_ref == .none) return false;
-    return ctx.interner.get(v.ref()) == tag;
+    return comp.interner.get(v.ref()) == tag;
 }
 
 /// Number of bits needed to hold `v`.
 /// Asserts that `v` is not negative
-pub fn minUnsignedBits(v: Value, ctx: Context) usize {
+pub fn minUnsignedBits(v: Value, comp: *const Compilation) usize {
     var space: BigIntSpace = undefined;
-    const big = v.toBigInt(&space, ctx);
+    const big = v.toBigInt(&space, comp);
     assert(big.positive);
     return big.bitCountAbs();
 }
 
 test "minUnsignedBits" {
     const Test = struct {
-        fn checkIntBits(ctx: Context, v: u64, expected: usize) !void {
-            const val = try ctx.intern(.{ .int = .{ .u64 = v } });
-            try std.testing.expectEqual(expected, val.minUnsignedBits(ctx));
+        fn checkIntBits(comp: *const Compilation, v: u64, expected: usize) !void {
+            const val = try intern(comp, .{ .int = .{ .u64 = v } });
+            try std.testing.expectEqual(expected, val.minUnsignedBits(comp));
         }
     };
 
     var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
     comp.target = (try std.zig.CrossTarget.parse(.{ .arch_os_abi = "x86_64-linux-gnu" })).toTarget();
-    var interner: Interner = .{};
-    defer interner.deinit(comp.gpa);
-    var ctx: Context = .{
-        .comp = &comp,
-        .interner = &interner,
-        .mutable = if (std.debug.runtime_safety) true else {},
-    };
 
-    try Test.checkIntBits(ctx, .int, 0, 0);
-    try Test.checkIntBits(ctx, .int, 1, 1);
-    try Test.checkIntBits(ctx, .int, 2, 2);
-    try Test.checkIntBits(ctx, .int, std.math.maxInt(i8), 7);
-    try Test.checkIntBits(ctx, .int, std.math.maxInt(u8), 8);
-    try Test.checkIntBits(ctx, .int, std.math.maxInt(i16), 15);
-    try Test.checkIntBits(ctx, .int, std.math.maxInt(u16), 16);
-    try Test.checkIntBits(ctx, .int, std.math.maxInt(i32), 31);
-    try Test.checkIntBits(ctx, .uint, std.math.maxInt(u32), 32);
-    try Test.checkIntBits(ctx, .long, std.math.maxInt(i64), 63);
-    try Test.checkIntBits(ctx, .ulong, std.math.maxInt(u64), 64);
-    try Test.checkIntBits(ctx, .long_long, std.math.maxInt(i64), 63);
-    try Test.checkIntBits(ctx, .ulong_long, std.math.maxInt(u64), 64);
+    try Test.checkIntBits(comp, .int, 0, 0);
+    try Test.checkIntBits(comp, .int, 1, 1);
+    try Test.checkIntBits(comp, .int, 2, 2);
+    try Test.checkIntBits(comp, .int, std.math.maxInt(i8), 7);
+    try Test.checkIntBits(comp, .int, std.math.maxInt(u8), 8);
+    try Test.checkIntBits(comp, .int, std.math.maxInt(i16), 15);
+    try Test.checkIntBits(comp, .int, std.math.maxInt(u16), 16);
+    try Test.checkIntBits(comp, .int, std.math.maxInt(i32), 31);
+    try Test.checkIntBits(comp, .uint, std.math.maxInt(u32), 32);
+    try Test.checkIntBits(comp, .long, std.math.maxInt(i64), 63);
+    try Test.checkIntBits(comp, .ulong, std.math.maxInt(u64), 64);
+    try Test.checkIntBits(comp, .long_long, std.math.maxInt(i64), 63);
+    try Test.checkIntBits(comp, .ulong_long, std.math.maxInt(u64), 64);
 }
 
 /// Minimum number of bits needed to represent `v` in 2's complement notation
 /// Asserts that `v` is negative.
-pub fn minSignedBits(v: Value, ctx: Context) usize {
+pub fn minSignedBits(v: Value, comp: *const Compilation) usize {
     var space: BigIntSpace = undefined;
-    const big = v.toBigInt(&space, ctx);
+    const big = v.toBigInt(&space, comp);
     assert(!big.positive);
     return big.bitCountTwosComp();
 }
 
 test "minSignedBits" {
     const Test = struct {
-        fn checkIntBits(ctx: Context, v: i64, expected: usize) !void {
-            const val = try ctx.intern(.{ .int = .{ .i64 = v } });
-            try std.testing.expectEqual(expected, val.minSignedBits(ctx));
+        fn checkIntBits(comp: *const Compilation, v: i64, expected: usize) !void {
+            const val = try intern(comp, .{ .int = .{ .i64 = v } });
+            try std.testing.expectEqual(expected, val.minSignedBits(comp));
         }
     };
 
     var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
     comp.target = (try std.zig.CrossTarget.parse(.{ .arch_os_abi = "x86_64-linux-gnu" })).toTarget();
-    var interner: Interner = .{};
-    defer interner.deinit(comp.gpa);
-    var ctx: Context = .{
-        .comp = &comp,
-        .interner = &interner,
-        .mutable = if (std.debug.runtime_safety) true else {},
-    };
 
-    try Test.checkIntBits(ctx, -1, 1);
-    try Test.checkIntBits(ctx, -2, 2);
-    try Test.checkIntBits(ctx, -10, 5);
-    try Test.checkIntBits(ctx, -101, 8);
-    try Test.checkIntBits(ctx, std.math.minInt(i8), 8);
-    try Test.checkIntBits(ctx, std.math.minInt(i16), 16);
-    try Test.checkIntBits(ctx, std.math.minInt(i32), 32);
-    try Test.checkIntBits(ctx, std.math.minInt(i64), 64);
+    try Test.checkIntBits(comp, -1, 1);
+    try Test.checkIntBits(comp, -2, 2);
+    try Test.checkIntBits(comp, -10, 5);
+    try Test.checkIntBits(comp, -101, 8);
+    try Test.checkIntBits(comp, std.math.minInt(i8), 8);
+    try Test.checkIntBits(comp, std.math.minInt(i16), 16);
+    try Test.checkIntBits(comp, std.math.minInt(i32), 32);
+    try Test.checkIntBits(comp, std.math.minInt(i64), 64);
 }
 
 pub const FloatToIntChangeKind = enum {
@@ -144,10 +122,10 @@ pub const FloatToIntChangeKind = enum {
 
 /// Converts the stored value from a float to an integer.
 /// `.none` value remains unchanged.
-pub fn floatToInt(v: *Value, dest_ty: Type, ctx: Context) !FloatToIntChangeKind {
+pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChangeKind {
     if (v.opt_ref == .none) return .none;
 
-    const float_val = v.toFloat(f128, ctx);
+    const float_val = v.toFloat(f128, comp);
     const was_zero = float_val == 0;
 
     if (dest_ty.is(.bool)) {
@@ -155,7 +133,7 @@ pub fn floatToInt(v: *Value, dest_ty: Type, ctx: Context) !FloatToIntChangeKind 
         v.* = fromBool(!was_zero);
         if (was_zero or was_one) return .none;
         return .value_changed;
-    } else if (dest_ty.isUnsignedInt(ctx.comp) and v.compare(.lt, zero, ctx)) {
+    } else if (dest_ty.isUnsignedInt(comp) and v.compare(.lt, zero, comp)) {
         v.* = zero;
         return .out_of_range;
     }
@@ -164,7 +142,7 @@ pub fn floatToInt(v: *Value, dest_ty: Type, ctx: Context) !FloatToIntChangeKind 
     const is_negative = std.math.signbit(float_val);
     const floored = @floor(@abs(float_val));
 
-    var rational = try std.math.big.Rational.init(ctx.comp.gpa);
+    var rational = try std.math.big.Rational.init(comp.gpa);
     defer rational.q.deinit();
     rational.setFloat(f128, floored) catch |err| switch (err) {
         error.NonFiniteFloat => {
@@ -182,15 +160,15 @@ pub fn floatToInt(v: *Value, dest_ty: Type, ctx: Context) !FloatToIntChangeKind 
         rational.negate();
     }
 
-    const signedness = dest_ty.signedness(ctx.comp);
-    const bits = dest_ty.bitSizeof(ctx.comp).?;
+    const signedness = dest_ty.signedness(comp);
+    const bits = dest_ty.bitSizeof(comp).?;
 
     // rational.p.truncate(rational.p.toConst(), signedness: Signedness, bit_count: usize)
     const fits = rational.p.fitsInTwosComp(signedness, bits);
     try rational.p.truncate(&rational.p, signedness, bits);
-    v.* = try ctx.intern(.{ .int = .{ .big_int = rational.p.toConst() } });
+    v.* = try intern(comp, .{ .int = .{ .big_int = rational.p.toConst() } });
 
-    if (!was_zero and v.isZero(ctx)) return .nonzero_to_zero;
+    if (!was_zero and v.isZero(comp)) return .nonzero_to_zero;
     if (!fits) return .out_of_range;
     if (had_fraction) return .value_changed;
     return .none;
@@ -198,10 +176,10 @@ pub fn floatToInt(v: *Value, dest_ty: Type, ctx: Context) !FloatToIntChangeKind 
 
 /// Converts the stored value from an integer to a float.
 /// `.none` value remains unchanged.
-pub fn intToFloat(v: *Value, dest_ty: Type, ctx: Context) !void {
+pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
-    const bits = dest_ty.bitSizeof(ctx.comp).?;
-    return switch (ctx.interner.get(v.ref()).int) {
+    const bits = dest_ty.bitSizeof(comp).?;
+    return switch (comp.interner.get(v.ref()).int) {
         inline .u64, .i64 => |data| {
             const f: Interner.Key.Float = switch (bits) {
                 16 => .{ .f16 = @floatFromInt(data) },
@@ -211,7 +189,7 @@ pub fn intToFloat(v: *Value, dest_ty: Type, ctx: Context) !void {
                 128 => .{ .f128 = @floatFromInt(data) },
                 else => unreachable,
             };
-            v.* = try ctx.intern(.{ .float = f });
+            v.* = try intern(comp, .{ .float = f });
         },
         .big_int => |data| {
             const big_f = bigIntToFloat(data.limbs, data.positive);
@@ -223,48 +201,48 @@ pub fn intToFloat(v: *Value, dest_ty: Type, ctx: Context) !void {
                 128 => .{ .f128 = @floatCast(big_f) },
                 else => unreachable,
             };
-            v.* = try ctx.intern(.{ .float = f });
+            v.* = try intern(comp, .{ .float = f });
         },
     };
 }
 
 /// Truncates or extends bits based on type.
 /// `.none` value remains unchanged.
-pub fn intCast(v: *Value, dest_ty: Type, ctx: Context) !void {
+pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
-    const bits = dest_ty.bitSizeof(ctx.comp).?;
+    const bits = dest_ty.bitSizeof(comp).?;
     var space: BigIntSpace = undefined;
-    const big = v.toBigInt(&space, ctx);
+    const big = v.toBigInt(&space, comp);
 
-    const limbs = try ctx.comp.gpa.alloc(
+    const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         std.math.big.int.calcTwosCompLimbCount(bits),
     );
-    defer ctx.comp.gpa.free(limbs);
+    defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
-    result_bigint.truncate(big, dest_ty.signedness(ctx.comp), bits);
+    result_bigint.truncate(big, dest_ty.signedness(comp), bits);
 
-    v.* = try ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+    v.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
 /// Converts the stored value from an integer to a float.
 /// `.none` value remains unchanged.
-pub fn floatCast(v: *Value, dest_ty: Type, ctx: Context) !void {
+pub fn floatCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
-    const bits = dest_ty.bitSizeof(ctx.comp).?;
+    const bits = dest_ty.bitSizeof(comp).?;
     const f: Interner.Key.Float = switch (bits) {
-        16 => .{ .f16 = v.toFloat(f16, ctx) },
-        32 => .{ .f32 = v.toFloat(f32, ctx) },
-        64 => .{ .f64 = v.toFloat(f64, ctx) },
-        80 => .{ .f80 = v.toFloat(f80, ctx) },
-        128 => .{ .f128 = v.toFloat(f128, ctx) },
+        16 => .{ .f16 = v.toFloat(f16, comp) },
+        32 => .{ .f32 = v.toFloat(f32, comp) },
+        64 => .{ .f64 = v.toFloat(f64, comp) },
+        80 => .{ .f80 = v.toFloat(f80, comp) },
+        128 => .{ .f128 = v.toFloat(f128, comp) },
         else => unreachable,
     };
-    v.* = try ctx.intern(.{ .float = f });
+    v.* = try intern(comp, .{ .float = f });
 }
 
-pub fn toFloat(v: Value, comptime T: type, ctx: Context) T {
-    return switch (ctx.interner.get(v.ref())) {
+pub fn toFloat(v: Value, comptime T: type, comp: *const Compilation) T {
+    return switch (comp.interner.get(v.ref())) {
         .int => |repr| switch (repr) {
             inline .u64, .i64 => |data| @floatFromInt(data),
             .big_int => |data| @floatCast(bigIntToFloat(data.limbs, data.positive)),
@@ -294,22 +272,22 @@ fn bigIntToFloat(limbs: []const std.math.big.Limb, positive: bool) f128 {
     }
 }
 
-pub fn toBigInt(val: Value, space: *BigIntSpace, ctx: Context) BigIntConst {
-    return switch (ctx.interner.get(val.ref()).int) {
+pub fn toBigInt(val: Value, space: *BigIntSpace, comp: *const Compilation) BigIntConst {
+    return switch (comp.interner.get(val.ref()).int) {
         inline .u64, .i64 => |x| BigIntMutable.init(&space.limbs, x).toConst(),
         .big_int => |b| b,
     };
 }
 
-pub fn isZero(v: Value, ctx: Context) bool {
+pub fn isZero(v: Value, comp: *const Compilation) bool {
     if (v.opt_ref == .none) return false;
     switch (v.ref()) {
         .zero => return true,
         .one => return false,
-        .null => return target_util.nullRepr(ctx.comp.target) == 0,
+        .null => return target_util.nullRepr(comp.target) == 0,
         else => {},
     }
-    const key = ctx.interner.get(v.ref());
+    const key = comp.interner.get(v.ref());
     switch (key) {
         .float => |repr| switch (repr) {
             inline else => |data| return data == 0,
@@ -325,201 +303,201 @@ pub fn isZero(v: Value, ctx: Context) bool {
 
 /// Converts value to zero or one;
 /// `.none` value remains unchanged.
-pub fn boolCast(v: *Value, ctx: Context) void {
+pub fn boolCast(v: *Value, comp: *const Compilation) void {
     if (v.opt_ref == .none) return;
-    v.* = fromBool(v.toBool(ctx));
+    v.* = fromBool(v.toBool(comp));
 }
 
 pub fn fromBool(b: bool) Value {
     return if (b) one else zero;
 }
 
-pub fn toBool(v: Value, ctx: Context) bool {
-    return !v.isZero(ctx);
+pub fn toBool(v: Value, comp: *const Compilation) bool {
+    return !v.isZero(comp);
 }
 
-pub fn toInt(v: Value, comptime T: type, ctx: Context) ?T {
+pub fn toInt(v: Value, comptime T: type, comp: *const Compilation) ?T {
     if (v.opt_ref == .none) return null;
-    if (ctx.interner.get(v.ref()) != .int) return null;
+    if (comp.interner.get(v.ref()) != .int) return null;
     var space: BigIntSpace = undefined;
-    const big_int = v.toBigInt(&space, ctx);
+    const big_int = v.toBigInt(&space, comp);
     return big_int.to(T) catch null;
 }
 
-pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, ctx: Context) !bool {
-    const bits = ty.bitSizeof(ctx.comp).?;
+pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
+    const bits = ty.bitSizeof(comp).?;
     if (ty.isFloat()) {
         const f: Interner.Key.Float = switch (bits) {
-            16 => .{ .f16 = lhs.toFloat(f16, ctx) + rhs.toFloat(f16, ctx) },
-            32 => .{ .f32 = lhs.toFloat(f32, ctx) + rhs.toFloat(f32, ctx) },
-            64 => .{ .f64 = lhs.toFloat(f64, ctx) + rhs.toFloat(f64, ctx) },
-            80 => .{ .f80 = lhs.toFloat(f80, ctx) + rhs.toFloat(f80, ctx) },
-            128 => .{ .f128 = lhs.toFloat(f128, ctx) + rhs.toFloat(f128, ctx) },
+            16 => .{ .f16 = lhs.toFloat(f16, comp) + rhs.toFloat(f16, comp) },
+            32 => .{ .f32 = lhs.toFloat(f32, comp) + rhs.toFloat(f32, comp) },
+            64 => .{ .f64 = lhs.toFloat(f64, comp) + rhs.toFloat(f64, comp) },
+            80 => .{ .f80 = lhs.toFloat(f80, comp) + rhs.toFloat(f80, comp) },
+            128 => .{ .f128 = lhs.toFloat(f128, comp) + rhs.toFloat(f128, comp) },
             else => unreachable,
         };
-        res.* = try ctx.intern(.{ .float = f });
+        res.* = try intern(comp, .{ .float = f });
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
         var rhs_space: BigIntSpace = undefined;
-        const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-        const rhs_bigint = rhs.toBigInt(&rhs_space, ctx);
+        const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+        const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-        const limbs = try ctx.comp.gpa.alloc(
+        const limbs = try comp.gpa.alloc(
             std.math.big.Limb,
             std.math.big.int.calcTwosCompLimbCount(bits),
         );
-        defer ctx.comp.gpa.free(limbs);
+        defer comp.gpa.free(limbs);
         var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-        const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, ty.signedness(ctx.comp), bits);
-        res.* = try ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+        const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
+        res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
         return overflowed;
     }
 }
 
-pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, ctx: Context) !bool {
-    const bits = ty.bitSizeof(ctx.comp).?;
+pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
+    const bits = ty.bitSizeof(comp).?;
     if (ty.isFloat()) {
         const f: Interner.Key.Float = switch (bits) {
-            16 => .{ .f16 = lhs.toFloat(f16, ctx) - rhs.toFloat(f16, ctx) },
-            32 => .{ .f32 = lhs.toFloat(f32, ctx) - rhs.toFloat(f32, ctx) },
-            64 => .{ .f64 = lhs.toFloat(f64, ctx) - rhs.toFloat(f64, ctx) },
-            80 => .{ .f80 = lhs.toFloat(f80, ctx) - rhs.toFloat(f80, ctx) },
-            128 => .{ .f128 = lhs.toFloat(f128, ctx) - rhs.toFloat(f128, ctx) },
+            16 => .{ .f16 = lhs.toFloat(f16, comp) - rhs.toFloat(f16, comp) },
+            32 => .{ .f32 = lhs.toFloat(f32, comp) - rhs.toFloat(f32, comp) },
+            64 => .{ .f64 = lhs.toFloat(f64, comp) - rhs.toFloat(f64, comp) },
+            80 => .{ .f80 = lhs.toFloat(f80, comp) - rhs.toFloat(f80, comp) },
+            128 => .{ .f128 = lhs.toFloat(f128, comp) - rhs.toFloat(f128, comp) },
             else => unreachable,
         };
-        res.* = try ctx.intern(.{ .float = f });
+        res.* = try intern(comp, .{ .float = f });
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
         var rhs_space: BigIntSpace = undefined;
-        const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-        const rhs_bigint = rhs.toBigInt(&rhs_space, ctx);
+        const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+        const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-        const limbs = try ctx.comp.gpa.alloc(
+        const limbs = try comp.gpa.alloc(
             std.math.big.Limb,
             std.math.big.int.calcTwosCompLimbCount(bits),
         );
-        defer ctx.comp.gpa.free(limbs);
+        defer comp.gpa.free(limbs);
         var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-        const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, ty.signedness(ctx.comp), bits);
-        res.* = try ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+        const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
+        res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
         return overflowed;
     }
 }
 
-pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, ctx: Context) !bool {
-    const bits = ty.bitSizeof(ctx.comp).?;
+pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
+    const bits = ty.bitSizeof(comp).?;
     if (ty.isFloat()) {
         const f: Interner.Key.Float = switch (bits) {
-            16 => .{ .f16 = lhs.toFloat(f16, ctx) * rhs.toFloat(f16, ctx) },
-            32 => .{ .f32 = lhs.toFloat(f32, ctx) * rhs.toFloat(f32, ctx) },
-            64 => .{ .f64 = lhs.toFloat(f64, ctx) * rhs.toFloat(f64, ctx) },
-            80 => .{ .f80 = lhs.toFloat(f80, ctx) * rhs.toFloat(f80, ctx) },
-            128 => .{ .f128 = lhs.toFloat(f128, ctx) * rhs.toFloat(f128, ctx) },
+            16 => .{ .f16 = lhs.toFloat(f16, comp) * rhs.toFloat(f16, comp) },
+            32 => .{ .f32 = lhs.toFloat(f32, comp) * rhs.toFloat(f32, comp) },
+            64 => .{ .f64 = lhs.toFloat(f64, comp) * rhs.toFloat(f64, comp) },
+            80 => .{ .f80 = lhs.toFloat(f80, comp) * rhs.toFloat(f80, comp) },
+            128 => .{ .f128 = lhs.toFloat(f128, comp) * rhs.toFloat(f128, comp) },
             else => unreachable,
         };
-        res.* = try ctx.intern(.{ .float = f });
+        res.* = try intern(comp, .{ .float = f });
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
         var rhs_space: BigIntSpace = undefined;
-        const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-        const rhs_bigint = rhs.toBigInt(&rhs_space, ctx);
+        const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+        const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-        const limbs = try ctx.comp.gpa.alloc(
+        const limbs = try comp.gpa.alloc(
             std.math.big.Limb,
             lhs_bigint.limbs.len + rhs_bigint.limbs.len,
         );
-        defer ctx.comp.gpa.free(limbs);
+        defer comp.gpa.free(limbs);
         var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-        var limbs_buffer = try ctx.comp.gpa.alloc(
+        var limbs_buffer = try comp.gpa.alloc(
             std.math.big.Limb,
             std.math.big.int.calcMulLimbsBufferLen(lhs_bigint.limbs.len, rhs_bigint.limbs.len, 1),
         );
-        defer ctx.comp.gpa.free(limbs_buffer);
+        defer comp.gpa.free(limbs_buffer);
 
-        result_bigint.mul(lhs_bigint, rhs_bigint, limbs_buffer, ctx.comp.gpa);
+        result_bigint.mul(lhs_bigint, rhs_bigint, limbs_buffer, comp.gpa);
 
-        const signedness = ty.signedness(ctx.comp);
+        const signedness = ty.signedness(comp);
         const overflowed = !result_bigint.toConst().fitsInTwosComp(signedness, bits);
         if (overflowed) {
             result_bigint.truncate(result_bigint.toConst(), signedness, bits);
         }
-        res.* = try ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+        res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
         return overflowed;
     }
 }
 
 /// caller guarantees rhs != 0
-pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, ctx: Context) !bool {
-    const bits = ty.bitSizeof(ctx.comp).?;
+pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
+    const bits = ty.bitSizeof(comp).?;
     if (ty.isFloat()) {
         const f: Interner.Key.Float = switch (bits) {
-            16 => .{ .f16 = lhs.toFloat(f16, ctx) / rhs.toFloat(f16, ctx) },
-            32 => .{ .f32 = lhs.toFloat(f32, ctx) / rhs.toFloat(f32, ctx) },
-            64 => .{ .f64 = lhs.toFloat(f64, ctx) / rhs.toFloat(f64, ctx) },
-            80 => .{ .f80 = lhs.toFloat(f80, ctx) / rhs.toFloat(f80, ctx) },
-            128 => .{ .f128 = lhs.toFloat(f128, ctx) / rhs.toFloat(f128, ctx) },
+            16 => .{ .f16 = lhs.toFloat(f16, comp) / rhs.toFloat(f16, comp) },
+            32 => .{ .f32 = lhs.toFloat(f32, comp) / rhs.toFloat(f32, comp) },
+            64 => .{ .f64 = lhs.toFloat(f64, comp) / rhs.toFloat(f64, comp) },
+            80 => .{ .f80 = lhs.toFloat(f80, comp) / rhs.toFloat(f80, comp) },
+            128 => .{ .f128 = lhs.toFloat(f128, comp) / rhs.toFloat(f128, comp) },
             else => unreachable,
         };
-        res.* = try ctx.intern(.{ .float = f });
+        res.* = try intern(comp, .{ .float = f });
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
         var rhs_space: BigIntSpace = undefined;
-        const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-        const rhs_bigint = rhs.toBigInt(&rhs_space, ctx);
+        const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+        const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-        const limbs = try ctx.comp.gpa.alloc(
+        const limbs = try comp.gpa.alloc(
             std.math.big.Limb,
             lhs_bigint.limbs.len + rhs_bigint.limbs.len,
         );
-        defer ctx.comp.gpa.free(limbs);
+        defer comp.gpa.free(limbs);
         var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-        const limbs_q = try ctx.comp.gpa.alloc(
+        const limbs_q = try comp.gpa.alloc(
             std.math.big.Limb,
             lhs_bigint.limbs.len,
         );
-        defer ctx.comp.gpa.free(limbs_q);
+        defer comp.gpa.free(limbs_q);
         var result_q = BigIntMutable{ .limbs = limbs_q, .positive = undefined, .len = undefined };
 
-        const limbs_r = try ctx.comp.gpa.alloc(
+        const limbs_r = try comp.gpa.alloc(
             std.math.big.Limb,
             rhs_bigint.limbs.len,
         );
-        defer ctx.comp.gpa.free(limbs_r);
+        defer comp.gpa.free(limbs_r);
         var result_r = BigIntMutable{ .limbs = limbs_r, .positive = undefined, .len = undefined };
 
-        const limbs_buffer = try ctx.comp.gpa.alloc(
+        const limbs_buffer = try comp.gpa.alloc(
             std.math.big.Limb,
             std.math.big.int.calcDivLimbsBufferLen(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
         );
-        defer ctx.comp.gpa.free(limbs_buffer);
+        defer comp.gpa.free(limbs_buffer);
 
         result_q.divTrunc(&result_r, lhs_bigint, rhs_bigint, limbs_buffer);
 
-        res.* = try ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
-        return !result_q.toConst().fitsInTwosComp(ty.signedness(ctx.comp), bits);
+        res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
+        return !result_q.toConst().fitsInTwosComp(ty.signedness(comp), bits);
     }
 }
 
 /// caller guarantees rhs != 0
 /// caller guarantees lhs != std.math.minInt(T) OR rhs != -1
-pub fn rem(lhs: Value, rhs: Value, ty: Type, ctx: Context) !Value {
+pub fn rem(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
-    const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-    const rhs_bigint = rhs.toBigInt(&rhs_space, ctx);
+    const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+    const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-    const signedness = ty.signedness(ctx.comp);
+    const signedness = ty.signedness(comp);
     if (signedness == .signed) {
         var spaces: [3]BigIntSpace = undefined;
-        const min_val = BigIntMutable.init(&spaces[0].limbs, ty.minInt(ctx.comp)).toConst();
+        const min_val = BigIntMutable.init(&spaces[0].limbs, ty.minInt(comp)).toConst();
         const negative = BigIntMutable.init(&spaces[1].limbs, -1).toConst();
         const big_one = BigIntMutable.init(&spaces[2].limbs, 1).toConst();
         if (lhs_bigint.eql(min_val) and rhs_bigint.eql(negative)) {
@@ -527,140 +505,140 @@ pub fn rem(lhs: Value, rhs: Value, ty: Type, ctx: Context) !Value {
         } else if (rhs_bigint.order(big_one).compare(.lt)) {
             // lhs - @divTrunc(lhs, rhs) * rhs
             var tmp: Value = undefined;
-            _ = try tmp.div(lhs, rhs, ty, ctx);
-            _ = try tmp.mul(tmp, rhs, ty, ctx);
-            _ = try tmp.sub(lhs, tmp, ty, ctx);
+            _ = try tmp.div(lhs, rhs, ty, comp);
+            _ = try tmp.mul(tmp, rhs, ty, comp);
+            _ = try tmp.sub(lhs, tmp, ty, comp);
             return tmp;
         }
     }
 
-    const limbs_q = try ctx.comp.gpa.alloc(
+    const limbs_q = try comp.gpa.alloc(
         std.math.big.Limb,
         lhs_bigint.limbs.len,
     );
-    defer ctx.comp.gpa.free(limbs_q);
+    defer comp.gpa.free(limbs_q);
     var result_q = BigIntMutable{ .limbs = limbs_q, .positive = undefined, .len = undefined };
 
-    const limbs_r = try ctx.comp.gpa.alloc(
+    const limbs_r = try comp.gpa.alloc(
         std.math.big.Limb,
         rhs_bigint.limbs.len,
     );
-    defer ctx.comp.gpa.free(limbs_r);
+    defer comp.gpa.free(limbs_r);
     var result_r = BigIntMutable{ .limbs = limbs_r, .positive = undefined, .len = undefined };
 
-    const limbs_buffer = try ctx.comp.gpa.alloc(
+    const limbs_buffer = try comp.gpa.alloc(
         std.math.big.Limb,
         std.math.big.int.calcDivLimbsBufferLen(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
     );
-    defer ctx.comp.gpa.free(limbs_buffer);
+    defer comp.gpa.free(limbs_buffer);
 
     result_q.divTrunc(&result_r, lhs_bigint, rhs_bigint, limbs_buffer);
-    return ctx.intern(.{ .int = .{ .big_int = result_r.toConst() } });
+    return intern(comp, .{ .int = .{ .big_int = result_r.toConst() } });
 }
 
-pub fn bitOr(lhs: Value, rhs: Value, ctx: Context) !Value {
+pub fn bitOr(lhs: Value, rhs: Value, comp: *Compilation) !Value {
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
-    const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-    const rhs_bigint = rhs.toBigInt(&rhs_space, ctx);
+    const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+    const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-    const limbs = try ctx.comp.gpa.alloc(
+    const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
     );
-    defer ctx.comp.gpa.free(limbs);
+    defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.bitOr(lhs_bigint, rhs_bigint);
-    return ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+    return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn bitXor(lhs: Value, rhs: Value, ctx: Context) !Value {
+pub fn bitXor(lhs: Value, rhs: Value, comp: *Compilation) !Value {
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
-    const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-    const rhs_bigint = rhs.toBigInt(&rhs_space, ctx);
+    const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+    const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-    const limbs = try ctx.comp.gpa.alloc(
+    const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
     );
-    defer ctx.comp.gpa.free(limbs);
+    defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.bitXor(lhs_bigint, rhs_bigint);
-    return ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+    return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn bitAnd(lhs: Value, rhs: Value, ctx: Context) !Value {
+pub fn bitAnd(lhs: Value, rhs: Value, comp: *Compilation) !Value {
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
-    const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-    const rhs_bigint = rhs.toBigInt(&rhs_space, ctx);
+    const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+    const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-    const limbs = try ctx.comp.gpa.alloc(
+    const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
     );
-    defer ctx.comp.gpa.free(limbs);
+    defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.bitAnd(lhs_bigint, rhs_bigint);
-    return ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+    return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn bitNot(val: Value, ty: Type, ctx: Context) !Value {
-    const bits = ty.bitSizeof(ctx.comp).?;
+pub fn bitNot(val: Value, ty: Type, comp: *Compilation) !Value {
+    const bits = ty.bitSizeof(comp).?;
     var val_space: Value.BigIntSpace = undefined;
-    const val_bigint = val.toBigInt(&val_space, ctx);
+    const val_bigint = val.toBigInt(&val_space, comp);
 
-    const limbs = try ctx.comp.gpa.alloc(
+    const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         std.math.big.int.calcTwosCompLimbCount(bits),
     );
-    defer ctx.comp.gpa.free(limbs);
+    defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-    result_bigint.bitNotWrap(val_bigint, ty.signedness(ctx.comp), bits);
-    return ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+    result_bigint.bitNotWrap(val_bigint, ty.signedness(comp), bits);
+    return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn shl(res: *Value, lhs: Value, rhs: Value, ty: Type, ctx: Context) !bool {
+pub fn shl(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
     var lhs_space: Value.BigIntSpace = undefined;
-    const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-    const shift = rhs.toInt(usize, ctx) orelse std.math.maxInt(usize);
+    const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+    const shift = rhs.toInt(usize, comp) orelse std.math.maxInt(usize);
 
-    const bits = ty.bitSizeof(ctx.comp).?;
+    const bits = ty.bitSizeof(comp).?;
     if (shift > bits) {
         if (lhs_bigint.positive) {
-            res.* = try ctx.intern(.{ .int = .{ .u64 = ty.maxInt(ctx.comp) } });
+            res.* = try intern(comp, .{ .int = .{ .u64 = ty.maxInt(comp) } });
         } else {
-            res.* = try ctx.intern(.{ .int = .{ .i64 = ty.minInt(ctx.comp) } });
+            res.* = try intern(comp, .{ .int = .{ .i64 = ty.minInt(comp) } });
         }
         return true;
     }
 
-    const limbs = try ctx.comp.gpa.alloc(
+    const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         lhs_bigint.limbs.len + (shift / (@sizeOf(std.math.big.Limb) * 8)) + 1,
     );
-    defer ctx.comp.gpa.free(limbs);
+    defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.shiftLeft(lhs_bigint, shift);
-    const signedness = ty.signedness(ctx.comp);
+    const signedness = ty.signedness(comp);
     const overflowed = !result_bigint.toConst().fitsInTwosComp(signedness, bits);
     if (overflowed) {
         result_bigint.truncate(result_bigint.toConst(), signedness, bits);
     }
-    res.* = try ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+    res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
     return overflowed;
 }
 
-pub fn shr(lhs: Value, rhs: Value, ty: Type, ctx: Context) !Value {
+pub fn shr(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
     var lhs_space: Value.BigIntSpace = undefined;
-    const lhs_bigint = lhs.toBigInt(&lhs_space, ctx);
-    const shift = rhs.toInt(usize, ctx) orelse return zero;
+    const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
+    const shift = rhs.toInt(usize, comp) orelse return zero;
 
     const result_limbs = lhs_bigint.limbs.len -| (shift / (@sizeOf(std.math.big.Limb) * 8));
     if (result_limbs == 0) {
@@ -669,46 +647,46 @@ pub fn shr(lhs: Value, rhs: Value, ty: Type, ctx: Context) !Value {
         if (lhs_bigint.positive) {
             return zero;
         } else {
-            return ctx.intern(.{ .int = .{ .i64 = -1 } });
+            return intern(comp, .{ .int = .{ .i64 = -1 } });
         }
     }
 
-    const bits = ty.bitSizeof(ctx.comp).?;
-    const limbs = try ctx.comp.gpa.alloc(
+    const bits = ty.bitSizeof(comp).?;
+    const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         std.math.big.int.calcTwosCompLimbCount(bits),
     );
-    defer ctx.comp.gpa.free(limbs);
+    defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.shiftRight(lhs_bigint, shift);
-    return ctx.intern(.{ .int = .{ .big_int = result_bigint.toConst() } });
+    return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, ctx: Context) bool {
+pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) bool {
     if (op == .eq) {
         return lhs.opt_ref == rhs.opt_ref;
     } else if (lhs.opt_ref == rhs.opt_ref) {
         return std.math.Order.eq.compare(op);
     }
 
-    const lhs_key = ctx.interner.get(lhs.ref());
-    const rhs_key = ctx.interner.get(rhs.ref());
+    const lhs_key = comp.interner.get(lhs.ref());
+    const rhs_key = comp.interner.get(rhs.ref());
     if (lhs_key == .float or rhs_key == .float) {
-        const lhs_f128 = lhs.toFloat(f128, ctx);
-        const rhs_f128 = rhs.toFloat(f128, ctx);
+        const lhs_f128 = lhs.toFloat(f128, comp);
+        const rhs_f128 = rhs.toFloat(f128, comp);
         return std.math.compare(lhs_f128, op, rhs_f128);
     }
 
     var lhs_bigint_space: BigIntSpace = undefined;
     var rhs_bigint_space: BigIntSpace = undefined;
-    const lhs_bigint = lhs.toBigInt(&lhs_bigint_space, ctx);
-    const rhs_bigint = rhs.toBigInt(&rhs_bigint_space, ctx);
+    const lhs_bigint = lhs.toBigInt(&lhs_bigint_space, comp);
+    const rhs_bigint = rhs.toBigInt(&rhs_bigint_space, comp);
     return lhs_bigint.order(rhs_bigint).compare(op);
 }
 
-pub fn print(v: Value, ctx: Context, w: anytype) @TypeOf(w).Error!void {
-    const key = ctx.interner.get(v.ref());
+pub fn print(v: Value, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+    const key = comp.interner.get(v.ref());
     switch (key) {
         .null => return w.writeAll("nullptr_t"),
         .int => |repr| switch (repr) {
@@ -717,13 +695,13 @@ pub fn print(v: Value, ctx: Context, w: anytype) @TypeOf(w).Error!void {
         .float => |repr| switch (repr) {
             inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| return printString(b, .{ .specifier = .char }, ctx, w),
+        .bytes => |b| return printString(b, .{ .specifier = .char }, comp, w),
         else => unreachable, // not a value
     }
 }
 
-pub fn printString(bytes: []const u8, elem_ty: Type, ctx: Context, w: anytype) @TypeOf(w).Error!void {
-    const size: Compilation.CharUnitSize = @enumFromInt(elem_ty.sizeof(ctx.comp).?);
+pub fn printString(bytes: []const u8, elem_ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+    const size: Compilation.CharUnitSize = @enumFromInt(elem_ty.sizeof(comp).?);
     const without_null = bytes[0 .. bytes.len - @intFromEnum(size)];
     switch (size) {
         inline .@"1", .@"2" => |sz| {

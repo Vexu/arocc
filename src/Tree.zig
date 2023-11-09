@@ -107,7 +107,6 @@ nodes: Node.List.Slice,
 data: []const NodeIndex,
 root_decls: []const NodeIndex,
 value_map: ValueMap,
-interner: Interner,
 
 pub fn deinit(tree: *Tree) void {
     tree.comp.gpa.free(tree.root_decls);
@@ -115,11 +114,6 @@ pub fn deinit(tree: *Tree) void {
     tree.nodes.deinit(tree.comp.gpa);
     tree.arena.deinit();
     tree.value_map.deinit();
-    tree.interner.deinit(tree.comp.gpa);
-}
-
-pub fn ctx(tree: *const Tree) Value.Context {
-    return .{ .comp = tree.comp, .interner = &tree.interner };
 }
 
 pub const GNUAssemblyQualifiers = struct {
@@ -658,7 +652,7 @@ pub fn isLvalExtra(tree: *const Tree, node: NodeIndex, is_const: *bool) bool {
             const data = tree.nodes.items(.data)[@intFromEnum(node)];
 
             if (tree.value_map.get(data.if3.cond)) |val| {
-                const offset = @intFromBool(val.isZero(tree.ctx()));
+                const offset = @intFromBool(val.isZero(tree.comp));
                 return tree.isLvalExtra(tree.data[data.if3.body + offset], is_const);
             }
             return false;
@@ -769,7 +763,7 @@ fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringIntern
     if (tree.value_map.get(node)) |val| {
         if (color) util.setColor(LITERAL, w);
         try w.writeAll(" (value: ");
-        try val.print(tree.ctx(), w);
+        try val.print(tree.comp, w);
         try w.writeByte(')');
     }
     if (tag == .implicit_return and data.return_zero) {

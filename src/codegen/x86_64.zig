@@ -122,7 +122,7 @@ fn setReg(func: *Fn, val: Value, reg: Register) !void {
 
 fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
     if (func.c.tree.value_map.get(node)) |some| {
-        if (some.toInt(i64, func.c.tree.ctx())) |int|
+        if (some.toInt(i64, func.c.tree.comp)) |int|
             return Value{ .immediate = int };
     }
 
@@ -177,7 +177,7 @@ fn genNode(func: *Fn, node: NodeIndex) Codegen.Error!Value {
         .int_literal => return Value{ .immediate = @bitCast(data.int) },
         .string_literal_expr => {
             const str_val = func.c.tree.value_map.get(node).?;
-            const str_bytes = func.c.tree.interner.get(str_val.ref()).bytes;
+            const str_bytes = func.c.tree.comp.interner.get(str_val.ref()).bytes;
             const section = try func.c.obj.getSection(.strings);
             const start = section.items.len;
             try section.appendSlice(str_bytes);
