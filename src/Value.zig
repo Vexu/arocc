@@ -31,7 +31,7 @@ pub const OptRef = enum(u32) {
 opt_ref: OptRef = .none,
 
 pub const zero = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
-pub const one = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
+pub const one = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.one)) };
 pub const @"null" = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.null)) };
 
 pub fn int(i: anytype, ctx: Context) !Value {
@@ -307,6 +307,7 @@ pub fn toBigInt(val: Value, space: *BigIntSpace, ctx: Context) BigIntConst {
 }
 
 pub fn isZero(v: Value, ctx: Context) bool {
+    if (v.opt_ref == .none) return false;
     switch (v.ref()) {
         .zero => return true,
         .one => return false,
@@ -328,7 +329,9 @@ pub fn isZero(v: Value, ctx: Context) bool {
 }
 
 /// Converts value to zero or one;
+/// `.none` value remains unchanged.
 pub fn boolCast(v: *Value, ctx: Context) void {
+    if (v.opt_ref == .none) return;
     v.* = fromBool(v.toBool(ctx));
 }
 
@@ -661,14 +664,14 @@ pub fn print(v: Value, ctx: Context, w: anytype) @TypeOf(w).Error!void {
         .float => |repr| switch (repr) {
             inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| return printString(b, .{ .specifier = .int }, ctx, w),
+        .bytes => |b| return printString(b, .{ .specifier = .char }, ctx, w),
         else => unreachable, // not a value
     }
 }
 
-pub fn printString(bytes: []const u8, ty: Type, ctx: Context, w: anytype) @TypeOf(w).Error!void {
-    const size: Compilation.CharUnitSize = @enumFromInt(ty.elemType().sizeof(ctx.comp).?);
-    const without_null = bytes[0..bytes.len - @intFromEnum(size)];
+pub fn printString(bytes: []const u8, elem_ty: Type, ctx: Context, w: anytype) @TypeOf(w).Error!void {
+    const size: Compilation.CharUnitSize = @enumFromInt(elem_ty.sizeof(ctx.comp).?);
+    const without_null = bytes[0 .. bytes.len - @intFromEnum(size)];
     switch (size) {
         inline .@"1", .@"2" => |sz| {
             const data_slice: []const sz.Type() = @alignCast(std.mem.bytesAsSlice(sz.Type(), without_null));

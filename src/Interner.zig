@@ -56,6 +56,13 @@ pub const Key = union(enum) {
         u64: u64,
         i64: i64,
         big_int: BigIntConst,
+
+        pub fn toBigInt(repr: @This(), space: *Tag.Int.BigIntSpace) BigIntConst {
+            return switch (repr) {
+                .big_int => |x| x,
+                inline .u64, .i64 => |x| BigIntMutable.init(&space.limbs, x).toConst(),
+            };
+        }
     },
     float: Float,
     bytes: []const u8,
@@ -79,8 +86,18 @@ pub const Key = union(enum) {
             .record_ty => |info| {
                 std.hash.autoHash(&hasher, @intFromPtr(info.user_ptr));
             },
-            .float => @panic("TODO"),
-            .int => @panic("TODO"),
+            .float => |repr| switch (repr) {
+                inline else => |data| std.hash.autoHash(
+                    &hasher,
+                    @as(std.meta.Int(.unsigned, @bitSizeOf(@TypeOf(data))), @bitCast(data)),
+                ),
+            },
+            .int => |repr| {
+                var space: Tag.Int.BigIntSpace = undefined;
+                const big = repr.toBigInt(&space);
+                std.hash.autoHash(&hasher, big.positive);
+                for (big.limbs) |limb| std.hash.autoHash(&hasher, limb);
+            },
             inline else => |info| {
                 std.hash.autoHash(&hasher, info);
             },
@@ -100,6 +117,14 @@ pub const Key = union(enum) {
             .bytes => |a_bytes| {
                 const b_bytes = b.bytes;
                 return std.mem.eql(u8, a_bytes, b_bytes);
+            },
+            .int => |a_repr| {
+                var a_space: Tag.Int.BigIntSpace = undefined;
+                const a_big = a_repr.toBigInt(&a_space);
+                var b_space: Tag.Int.BigIntSpace = undefined;
+                const b_big = b.int.toBigInt(&b_space);
+
+                return a_big.eql(b_big);
             },
             inline else => |a_info, tag| {
                 const b_info = @field(b, @tagName(tag));
@@ -147,24 +172,27 @@ pub const Key = union(enum) {
 };
 
 pub const Ref = enum(u32) {
-    ptr,
-    noreturn,
-    void,
-    i1,
-    i8,
-    i16,
-    i32,
-    i64,
-    i128,
-    f16,
-    f32,
-    f64,
-    f80,
-    f128,
-    func,
-    zero,
-    one,
-    null,
+    const max = std.math.maxInt(u32);
+
+    ptr = max - 1,
+    noreturn = max - 2,
+    void = max - 3,
+    i1 = max - 4,
+    i8 = max - 5,
+    i16 = max - 6,
+    i32 = max - 7,
+    i64 = max - 8,
+    i128 = max - 9,
+    f16 = max - 10,
+    f32 = max - 11,
+    f64 = max - 12,
+    f80 = max - 13,
+    f128 = max - 14,
+    func = max - 15,
+    zero = max - 16,
+    one = max - 17,
+    null = max - 18,
+
     _,
 };
 
@@ -341,6 +369,7 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
     if (key.toRef()) |some| return some;
     const adapter: KeyAdapter = .{ .interner = i };
     const gop = try i.map.getOrPutAdapted(gpa, key, adapter);
+    if (gop.found_existing) return @enumFromInt(gop.index);
     try i.items.ensureUnusedCapacity(gpa, 1);
 
     switch (key) {

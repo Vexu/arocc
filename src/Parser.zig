@@ -1195,7 +1195,7 @@ fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]co
         }
         const bytes = p.interner.get(message.val.ref()).bytes;
         try buf.ensureUnusedCapacity(bytes.len);
-        try Value.printString(bytes, message.ty, p.ctx(), buf.writer());
+        try Value.printString(bytes, message.ty.elemType(), p.ctx(), buf.writer());
     }
     return try p.comp.diag.arena.allocator().dupe(u8, buf.items);
 }
