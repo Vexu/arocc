@@ -14,6 +14,12 @@ float m = 12E-2f;
 float n = 0x12P+2;
 float o = 0x12p-2;
 _Static_assert(0xE+0xC == 0xE + 0xC, "");
+double p = 0x1.ep-1;
+double q = 0x1.eP-1;
+double r = 0x1.Ep-1;
+double s = 0x1.EP-1;
+double t = 1.ep-1;
+double u = 1.pp-1;
 
 #define EXPECTED_ERRORS "numbers.c:1:9: error: invalid suffix 'b' on integer constant" \
     "numbers.c:2:9: error: invalid suffix 'x' on integer constant" \
@@ -25,4 +31,6 @@ _Static_assert(0xE+0xC == 0xE + 0xC, "");
     "numbers.c:10:12: error: exponent has no digits" \
     "numbers.c:11:9: error: invalid suffix 'LLuf' on integer constant" \
     "numbers.c:16:16: error: invalid suffix '+0xC' on integer constant" \
+    "numbers.c:21:12: error: exponent has no digits" \
+    "numbers.c:22:12: error: invalid suffix 'pp-1' on floating constant" \
 
