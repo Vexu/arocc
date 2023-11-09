@@ -131,6 +131,23 @@ void quux(void) {
     long *y = &x;
     unsigned int *z = &x;
 }
+struct S2 {
+    char bytes[32];
+};
+union U {
+    char bytes[32];
+};
+union U2 {
+    int a;
+    char bytes[32];
+};
+
+void array_members(void) {
+    struct S2 s = (struct S2){"ABC"};
+    union U u = (union U){"ABC"};
+    union U2 u2 = (union U2){"ABC"};
+    char b[32] = (char[32]){"ABC"};
+}
 
 #define TESTS_SKIPPED 3
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
@@ -184,4 +201,5 @@ void quux(void) {
     "initializers.c:129:17: error: initializing 'void *' from incompatible type 'struct Foo'" \
     "initializers.c:131:15: warning: incompatible pointer types initializing 'long *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
     "initializers.c:132:23: warning: incompatible pointer types initializing 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "initializers.c:148:30: warning: implicit pointer to integer conversion from 'char *' to 'int' [-Wint-conversion]" \
 
