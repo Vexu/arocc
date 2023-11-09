@@ -45,6 +45,7 @@ symbols: std.ArrayListUnmanaged(Symbol) = .{},
 ret_nodes: std.ArrayListUnmanaged(Ir.Inst.Phi.Input) = .{},
 phi_nodes: std.ArrayListUnmanaged(Ir.Inst.Phi.Input) = .{},
 record_elem_buf: std.ArrayListUnmanaged(Interner.Ref) = .{},
+record_cache: std.AutoHashMapUnmanaged(*Type.Record, Interner.Ref) = .{},
 cond_dummy_ty: ?Interner.Ref = null,
 bool_invert: bool = false,
 bool_end_label: Ir.Ref = .none,
@@ -57,6 +58,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
     var c = CodeGen{
         .builder = .{
             .gpa = comp.gpa,
+            .interner = &comp.interner,
             .arena = std.heap.ArenaAllocator.init(comp.gpa),
         },
         .tree = tree,
@@ -69,6 +71,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
     defer c.ret_nodes.deinit(c.comp.gpa);
     defer c.phi_nodes.deinit(c.comp.gpa);
     defer c.record_elem_buf.deinit(c.comp.gpa);
+    defer c.record_cache.deinit(c.comp.gpa);
     defer c.builder.deinit();
 
     const node_tags = tree.nodes.items(.tag);
@@ -124,13 +127,8 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
         .void => return .void,
         .bool => return .i1,
         .@"struct" => {
-            key = .{
-                .record = .{
-                    .user_ptr = ty.data.record,
-                    .elements = undefined, // Not needed for hash lookup.
-                },
-            };
-            if (c.builder.pool.has(key)) |some| return some;
+            if (c.record_cache.get(ty.data.record)) |some| return some;
+
             const elem_buf_top = c.record_elem_buf.items.len;
             defer c.record_elem_buf.items.len = elem_buf_top;
 
@@ -143,8 +141,9 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
                 try c.record_elem_buf.append(c.builder.gpa, field_ref);
             }
 
-            key.record.elements = try c.builder.arena.allocator().dupe(Interner.Ref, c.record_elem_buf.items[elem_buf_top..]);
-            return c.builder.pool.put(c.builder.gpa, key);
+            return c.builder.interner.put(c.builder.gpa, .{
+                .record_ty = c.record_elem_buf.items[elem_buf_top..],
+            });
         },
         .@"union" => {
             return c.comp.diag.fatalNoSrc("TODO lower union types", .{});
@@ -156,20 +155,20 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
     if (!ty.isReal()) return c.comp.diag.fatalNoSrc("TODO lower complex types", .{});
     if (ty.isInt()) {
         const bits = ty.bitSizeof(c.comp).?;
-        key = .{ .int = @intCast(bits) };
+        key = .{ .int_ty = @intCast(bits) };
     } else if (ty.isFloat()) {
         const bits = ty.bitSizeof(c.comp).?;
-        key = .{ .float = @intCast(bits) };
+        key = .{ .float_ty = @intCast(bits) };
     } else if (ty.isArray()) {
         const elem = try c.genType(ty.elemType());
-        key = .{ .array = .{ .child = elem, .len = ty.arrayLen().? } };
+        key = .{ .array_ty = .{ .child = elem, .len = ty.arrayLen().? } };
     } else if (ty.specifier == .vector) {
         const elem = try c.genType(ty.elemType());
-        key = .{ .vector = .{ .child = elem, .len = @intCast(ty.data.array.len) } };
+        key = .{ .vector_ty = .{ .child = elem, .len = @intCast(ty.data.array.len) } };
     } else if (ty.is(.nullptr_t)) {
         return c.comp.diag.fatalNoSrc("TODO lower nullptr_t", .{});
     }
-    return c.builder.pool.put(c.builder.gpa, key);
+    return c.builder.interner.put(c.builder.gpa, key);
 }
 
 fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
@@ -207,11 +206,10 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
     }
 
     var res = Ir{
-        .pool = c.builder.pool,
+        .interner = c.builder.interner,
         .instructions = c.builder.instructions,
         .arena = c.builder.arena.state,
         .body = c.builder.body,
-        .strings = c.tree.strings,
     };
     res.dump(c.builder.gpa, name, c.comp.diag.color, std.io.getStdOut().writer()) catch {};
 }
@@ -239,7 +237,7 @@ fn addBranch(c: *CodeGen, cond: Ir.Ref, true_label: Ir.Ref, false_label: Ir.Ref)
 }
 
 fn addBoolPhi(c: *CodeGen, value: bool) !void {
-    const val = try c.builder.addConstant(Value.int(@intFromBool(value)), .i1);
+    const val = try c.builder.addConstant(try Value.int(@intFromBool(value), c.comp), .i1);
     try c.phi_nodes.append(c.comp.gpa, .{ .label = c.builder.current_label, .value = val });
 }
 
@@ -260,7 +258,6 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .int_literal,
         .char_literal,
         .float_literal,
-        .double_literal,
         .imaginary_literal,
         .string_literal_expr,
         .alignof_expr,
@@ -392,7 +389,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const label = try c.builder.makeLabel("case");
             try c.builder.startBlock(label);
             try c.wip_switch.cases.append(c.builder.gpa, .{
-                .val = try c.builder.pool.put(c.builder.gpa, .{ .value = val }),
+                .val = val.ref(),
                 .label = label,
             });
             try c.genStmt(data.bin.rhs);
@@ -454,7 +451,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const old_continue_label = c.continue_label;
             defer c.continue_label = old_continue_label;
 
-            const for_decl = data.forDecl(c.tree);
+            const for_decl = data.forDecl(&c.tree);
             for (for_decl.decls) |decl| try c.genStmt(decl);
 
             const then_label = try c.builder.makeLabel("for.then");
@@ -502,7 +499,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const old_continue_label = c.continue_label;
             defer c.continue_label = old_continue_label;
 
-            const for_stmt = data.forStmt(c.tree);
+            const for_stmt = data.forStmt(&c.tree);
             if (for_stmt.init != .none) _ = try c.genExpr(for_stmt.init);
 
             const then_label = try c.builder.makeLabel("for.then");
@@ -537,7 +534,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .implicit_return => {
             if (data.return_zero) {
-                const operand = try c.builder.addConstant(Value.int(0), try c.genType(ty));
+                const operand = try c.builder.addConstant(Value.zero, try c.genType(ty));
                 try c.ret_nodes.append(c.comp.gpa, .{ .value = operand, .label = c.builder.current_label });
             }
             // No need to emit a jump since implicit_return is always the last instruction.
@@ -636,7 +633,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .plus_expr => return c.genExpr(data.un),
         .negate_expr => {
-            const zero = try c.builder.addConstant(Value.int(0), try c.genType(ty));
+            const zero = try c.builder.addConstant(Value.zero, try c.genType(ty));
             const operand = try c.genExpr(data.un);
             return c.addBin(.sub, zero, operand, ty);
         },
@@ -645,14 +642,14 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             return c.addUn(.bit_not, operand, ty);
         },
         .bool_not_expr => {
-            const zero = try c.builder.addConstant(Value.int(0), try c.genType(ty));
+            const zero = try c.builder.addConstant(Value.zero, try c.genType(ty));
             const operand = try c.genExpr(data.un);
             return c.addBin(.cmp_ne, zero, operand, ty);
         },
         .pre_inc_expr => {
             const operand = try c.genLval(data.un);
             const val = try c.addUn(.load, operand, ty);
-            const one = try c.builder.addConstant(Value.int(1), try c.genType(ty));
+            const one = try c.builder.addConstant(Value.one, try c.genType(ty));
             const plus_one = try c.addBin(.add, val, one, ty);
             try c.builder.addStore(operand, plus_one);
             return plus_one;
@@ -660,7 +657,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .pre_dec_expr => {
             const operand = try c.genLval(data.un);
             const val = try c.addUn(.load, operand, ty);
-            const one = try c.builder.addConstant(Value.int(1), try c.genType(ty));
+            const one = try c.builder.addConstant(Value.one, try c.genType(ty));
             const plus_one = try c.addBin(.sub, val, one, ty);
             try c.builder.addStore(operand, plus_one);
             return plus_one;
@@ -668,7 +665,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .post_inc_expr => {
             const operand = try c.genLval(data.un);
             const val = try c.addUn(.load, operand, ty);
-            const one = try c.builder.addConstant(Value.int(1), try c.genType(ty));
+            const one = try c.builder.addConstant(Value.one, try c.genType(ty));
             const plus_one = try c.addBin(.add, val, one, ty);
             try c.builder.addStore(operand, plus_one);
             return val;
@@ -676,7 +673,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .post_dec_expr => {
             const operand = try c.genLval(data.un);
             const val = try c.addUn(.load, operand, ty);
-            const one = try c.builder.addConstant(Value.int(1), try c.genType(ty));
+            const one = try c.builder.addConstant(Value.one, try c.genType(ty));
             const plus_one = try c.addBin(.sub, val, one, ty);
             try c.builder.addStore(operand, plus_one);
             return val;
@@ -718,7 +715,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             },
             .pointer_to_bool, .int_to_bool, .float_to_bool => {
                 const lhs = try c.genExpr(data.cast.operand);
-                const rhs = try c.builder.addConstant(Value.int(0), try c.genType(c.node_ty[@intFromEnum(node)]));
+                const rhs = try c.builder.addConstant(Value.zero, try c.genType(c.node_ty[@intFromEnum(node)]));
                 return c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
             },
             .bitcast,
@@ -744,7 +741,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .binary_cond_expr => {
             if (c.tree.value_map.get(data.if3.cond)) |cond| {
-                if (cond.getBool()) {
+                if (cond.toBool(c.comp)) {
                     c.cond_dummy_ref = try c.genExpr(data.if3.cond);
                     return c.genExpr(c.tree.data[data.if3.body]); // then
                 } else {
@@ -787,7 +784,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .cond_dummy_expr => return c.cond_dummy_ref,
         .cond_expr => {
             if (c.tree.value_map.get(data.if3.cond)) |cond| {
-                if (cond.getBool()) {
+                if (cond.toBool(c.comp)) {
                     return c.genExpr(c.tree.data[data.if3.body]); // then
                 } else {
                     return c.genExpr(c.tree.data[data.if3.body + 1]); // else
@@ -827,9 +824,8 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .bool_or_expr => {
             if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
-                const cond = lhs.getBool();
-                if (!cond) {
-                    return c.builder.addConstant(Value.int(1), try c.genType(ty));
+                if (!lhs.toBool(c.comp)) {
+                    return c.builder.addConstant(Value.one, try c.genType(ty));
                 }
                 return c.genExpr(data.bin.rhs);
             }
@@ -856,9 +852,8 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .bool_and_expr => {
             if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
-                const cond = lhs.getBool();
-                if (!cond) {
-                    return c.builder.addConstant(Value.int(0), try c.genType(ty));
+                if (!lhs.toBool(c.comp)) {
+                    return c.builder.addConstant(Value.zero, try c.genType(ty));
                 }
                 return c.genExpr(data.bin.rhs);
             }
@@ -885,7 +880,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .builtin_choose_expr => {
             const cond = c.tree.value_map.get(data.if3.cond).?;
-            if (cond.getBool()) {
+            if (cond.toBool(c.comp)) {
                 return c.genExpr(c.tree.data[data.if3.body]);
             } else {
                 return c.genExpr(c.tree.data[data.if3.body + 1]);
@@ -958,7 +953,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
 
 fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     std.debug.assert(node != .none);
-    assert(Tree.isLval(c.tree.nodes, c.tree.data, c.tree.value_map, node));
+    assert(c.tree.isLval(node));
     const data = c.node_data[@intFromEnum(node)];
     switch (c.node_tag[@intFromEnum(node)]) {
         .string_literal_expr => {
@@ -993,7 +988,7 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .builtin_choose_expr => {
             const cond = c.tree.value_map.get(data.if3.cond).?;
-            if (cond.getBool()) {
+            if (cond.toBool(c.comp)) {
                 return c.genLval(c.tree.data[data.if3.body]);
             } else {
                 return c.genLval(c.tree.data[data.if3.body + 1]);
@@ -1023,8 +1018,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
     switch (c.node_tag[@intFromEnum(node)]) {
         .bool_or_expr => {
             if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
-                const cond = lhs.getBool();
-                if (cond) {
+                if (lhs.toBool(c.comp)) {
                     if (true_label == c.bool_end_label) {
                         return c.addBoolPhi(!c.bool_invert);
                     }
@@ -1037,13 +1031,12 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
             try c.genBoolExpr(data.bin.lhs, true_label, new_false_label);
             try c.builder.startBlock(new_false_label);
 
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(1), ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.one, ty);
             return c.genBoolExpr(data.bin.rhs, true_label, false_label);
         },
         .bool_and_expr => {
             if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
-                const cond = lhs.getBool();
-                if (!cond) {
+                if (!lhs.toBool(c.comp)) {
                     if (false_label == c.bool_end_label) {
                         return c.addBoolPhi(c.bool_invert);
                     }
@@ -1056,14 +1049,14 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
             try c.genBoolExpr(data.bin.lhs, new_true_label, false_label);
             try c.builder.startBlock(new_true_label);
 
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(1), ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.one, ty);
             return c.genBoolExpr(data.bin.rhs, true_label, false_label);
         },
         .bool_not_expr => {
             c.bool_invert = !c.bool_invert;
             defer c.bool_invert = !c.bool_invert;
 
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(0), ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.zero, ty);
             return c.genBoolExpr(data.un, false_label, true_label);
         },
         .equal_expr => {
@@ -1106,7 +1099,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
         },
         .binary_cond_expr => {
             if (c.tree.value_map.get(data.if3.cond)) |cond| {
-                if (cond.getBool()) {
+                if (cond.toBool(c.comp)) {
                     return c.genBoolExpr(c.tree.data[data.if3.body], true_label, false_label); // then
                 } else {
                     return c.genBoolExpr(c.tree.data[data.if3.body + 1], true_label, false_label); // else
@@ -1117,12 +1110,12 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
             try c.genBoolExpr(data.if3.cond, true_label, new_false_label);
 
             try c.builder.startBlock(new_false_label);
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(1), ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.one, ty);
             return c.genBoolExpr(c.tree.data[data.if3.body + 1], true_label, false_label); // else
         },
         .cond_expr => {
             if (c.tree.value_map.get(data.if3.cond)) |cond| {
-                if (cond.getBool()) {
+                if (cond.toBool(c.comp)) {
                     return c.genBoolExpr(c.tree.data[data.if3.body], true_label, false_label); // then
                 } else {
                     return c.genBoolExpr(c.tree.data[data.if3.body + 1], true_label, false_label); // else
@@ -1136,14 +1129,14 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
             try c.builder.startBlock(new_true_label);
             try c.genBoolExpr(c.tree.data[data.if3.body], true_label, false_label); // then
             try c.builder.startBlock(new_false_label);
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.int(1), ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.one, ty);
             return c.genBoolExpr(c.tree.data[data.if3.body + 1], true_label, false_label); // else
         },
         else => {},
     }
 
     if (c.tree.value_map.get(node)) |value| {
-        if (value.getBool()) {
+        if (value.toBool(c.comp)) {
             if (true_label == c.bool_end_label) {
                 return c.addBoolPhi(!c.bool_invert);
             }
@@ -1158,7 +1151,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
 
     // Assume int operand.
     const lhs = try c.genExpr(node);
-    const rhs = try c.builder.addConstant(Value.int(0), try c.genType(c.node_ty[@intFromEnum(node)]));
+    const rhs = try c.builder.addConstant(Value.zero, try c.genType(c.node_ty[@intFromEnum(node)]));
     const cmp = try c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
     if (c.cond_dummy_ty != null) c.cond_dummy_ref = cmp;
     try c.addBranch(cmp, true_label, false_label);
@@ -1258,7 +1251,7 @@ fn genPtrArithmetic(c: *CodeGen, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, t
         return c.builder.addInst(.add, .{ .bin = .{ .lhs = ptr, .rhs = offset } }, try c.genType(ty));
     }
 
-    const size_inst = try c.builder.addConstant(Value.int(size), try c.genType(offset_ty));
+    const size_inst = try c.builder.addConstant(try Value.int(size, c.comp), try c.genType(offset_ty));
     const offset_inst = try c.addBin(.mul, offset, size_inst, offset_ty);
     return c.addBin(.add, ptr, offset_inst, offset_ty);
 }

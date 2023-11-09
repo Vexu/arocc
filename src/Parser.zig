@@ -415,7 +415,7 @@ pub fn valStr(p: *Parser, val: Value) ![]const u8 {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
-    try val.print(p.comp, p.strings.writer());
+    try val.print(&p.comp.interner, p.strings.writer());
     return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
@@ -459,9 +459,9 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: 
     try w.writeAll(" changes ");
     if (!res.val.isZero(p.comp)) try w.writeAll("non-zero ");
     try w.writeAll("value from ");
-    try old_value.print(p.comp, w);
+    try old_value.print(&p.comp.interner, w);
     try w.writeAll(" to ");
-    try res.val.print(p.comp, w);
+    try res.val.print(&p.comp.interner, w);
 
     return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -473,7 +473,7 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
 
         const w = p.strings.writer();
         try w.print("call to '{s}' declared with attribute error: ", .{p.tokSlice(@"error".__name_tok)});
-        try @"error".msg.print(p.comp, w);
+        try @"error".msg.print(&p.comp.interner, w);
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.error_attribute, usage_tok, str);
     }
@@ -483,7 +483,7 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
 
         const w = p.strings.writer();
         try w.print("call to '{s}' declared with attribute warning: ", .{p.tokSlice(warning.__name_tok)});
-        try warning.msg.print(p.comp, w);
+        try warning.msg.print(&p.comp.interner, w);
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.warning_attribute, usage_tok, str);
     }
@@ -511,7 +511,7 @@ fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Valu
     try w.writeAll(reason);
     if (msg) |m| {
         try w.writeAll(": ");
-        try m.print(p.comp, w);
+        try m.print(&p.comp.interner, w);
     }
     const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     return p.errStr(tag, tok_i, str);
@@ -1184,7 +1184,8 @@ fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]co
         }
         const bytes = p.comp.interner.get(message.val.ref()).bytes;
         try buf.ensureUnusedCapacity(bytes.len);
-        try Value.printString(bytes, message.ty.elemType(), p.comp, buf.writer());
+        const size: Compilation.CharUnitSize = @enumFromInt(message.ty.elemType().sizeof(p.comp).?);
+        try Value.printString(bytes, size, buf.writer());
     }
     return try p.comp.diag.arena.allocator().dupe(u8, buf.items);
 }
