@@ -157,13 +157,18 @@ pub const Key = union(enum) {
             .func_ty => return .func,
             .noreturn_ty => return .noreturn,
             .void_ty => return .void,
-            .int => |repr| switch (repr) {
-                inline .u64, .i64 => |u| switch (u) {
-                    0 => return .zero,
-                    1 => return .one,
-                    else => {},
+            .int => |repr| {
+                var space: Tag.Int.BigIntSpace = undefined;
+                const big = repr.toBigInt(&space);
+                if (big.eqlZero()) return .zero;
+                const big_one = BigIntConst{ .limbs = &.{1}, .positive = true };
+                if (big.eql(big_one)) return .one;
+            },
+            .float => |repr| switch (repr) {
+                inline else => |data| {
+                    if (std.math.isPositiveZero(data)) return .zero;
+                    if (data == 1) return .one;
                 },
-                .big_int => |data| if (data.eqlZero()) return .zero,
             },
             .null => return .null,
             else => {},
@@ -193,7 +198,6 @@ pub const Ref = enum(u32) {
     zero = max - 16,
     one = max - 17,
     null = max - 18,
-
     _,
 };
 
@@ -424,39 +428,38 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
         },
         .int => |repr| int: {
             var space: Tag.Int.BigIntSpace = undefined;
-            const big = switch (repr) {
+            const big = repr.toBigInt(&space);
+            switch (repr) {
                 .u64 => |data| if (std.math.cast(u32, data)) |small| {
                     i.items.appendAssumeCapacity(.{
                         .tag = .u32,
                         .data = small,
                     });
                     break :int;
-                } else BigIntMutable.init(&space.limbs, data).toConst(),
+                },
                 .i64 => |data| if (std.math.cast(i32, data)) |small| {
                     i.items.appendAssumeCapacity(.{
                         .tag = .i32,
                         .data = @bitCast(small),
                     });
                     break :int;
-                } else BigIntMutable.init(&space.limbs, data).toConst(),
-                .big_int => |data| big: {
-                    if (data.bitCountAbs() <= 32) {
-                        if (data.positive) {
-                            i.items.appendAssumeCapacity(.{
-                                .tag = .u32,
-                                .data = data.to(u32) catch unreachable,
-                            });
-                        } else {
-                            i.items.appendAssumeCapacity(.{
-                                .tag = .i32,
-                                .data = @bitCast(data.to(i32) catch unreachable),
-                            });
-                        }
+                },
+                .big_int => |data| {
+                    if (data.fitsInTwosComp(.unsigned, 32)) {
+                        i.items.appendAssumeCapacity(.{
+                            .tag = .u32,
+                            .data = data.to(u32) catch unreachable,
+                        });
+                        break :int;
+                    } else if (data.fitsInTwosComp(.signed, 32)) {
+                        i.items.appendAssumeCapacity(.{
+                            .tag = .i32,
+                            .data = @bitCast(data.to(i32) catch unreachable),
+                        });
                         break :int;
                     }
-                    break :big data;
                 },
-            };
+            }
             const limbs_index: u32 = @intCast(i.limbs.items.len);
             try i.limbs.appendSlice(gpa, big.limbs);
             i.items.appendAssumeCapacity(.{
