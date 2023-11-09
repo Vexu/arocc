@@ -450,13 +450,6 @@ pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
         const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-        const limbs = try comp.gpa.alloc(
-            std.math.big.Limb,
-            lhs_bigint.limbs.len + rhs_bigint.limbs.len,
-        );
-        defer comp.gpa.free(limbs);
-        var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
-
         const limbs_q = try comp.gpa.alloc(
             std.math.big.Limb,
             lhs_bigint.limbs.len,
@@ -479,7 +472,7 @@ pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 
         result_q.divTrunc(&result_r, lhs_bigint, rhs_bigint, limbs_buffer);
 
-        res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
+        res.* = try intern(comp, .{ .int = .{ .big_int = result_q.toConst() } });
         return !result_q.toConst().fitsInTwosComp(ty.signedness(comp), bits);
     }
 }
