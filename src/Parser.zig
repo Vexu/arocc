@@ -3356,8 +3356,8 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
 
             excess: {
                 if (index_hint) |*hint| {
-                    if (try p.findScalarInitializerAt(&cur_il, &cur_ty, res.ty, first_tok, hint)) break :excess;
-                } else if (try p.findScalarInitializer(&cur_il, &cur_ty, res.ty, first_tok)) break :excess;
+                    if (try p.findScalarInitializerAt(&cur_il, &cur_ty, &res, first_tok, hint)) break :excess;
+                } else if (try p.findScalarInitializer(&cur_il, &cur_ty, &res, first_tok)) break :excess;
 
                 if (designation) break :excess;
                 if (!warned_excess) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
@@ -3407,7 +3407,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
 }
 
 /// Returns true if the value is unused.
-fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type, first_tok: TokenIndex, start_index: *u64) Error!bool {
+fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, res: *Result, first_tok: TokenIndex, start_index: *u64) Error!bool {
     if (ty.isArray()) {
         if (il.*.node != .none) return false;
         start_index.* += 1;
@@ -3423,7 +3423,7 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, actual_ty: Typ
         if (start_index.* < elem_count) {
             ty.* = elem_ty;
             il.* = try arr_il.find(p.gpa, start_index.*);
-            _ = try p.findScalarInitializer(il, ty, actual_ty, first_tok);
+            _ = try p.findScalarInitializer(il, ty, res, first_tok);
             return true;
         }
         return false;
@@ -3441,7 +3441,7 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, actual_ty: Typ
             const field = fields[@intCast(start_index.*)];
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, start_index.*);
-            _ = try p.findScalarInitializer(il, ty, actual_ty, first_tok);
+            _ = try p.findScalarInitializer(il, ty, res, first_tok);
             return true;
         }
         return false;
@@ -3452,7 +3452,8 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, actual_ty: Typ
 }
 
 /// Returns true if the value is unused.
-fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type, first_tok: TokenIndex) Error!bool {
+fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, res: *Result, first_tok: TokenIndex) Error!bool {
+    const actual_ty = res.ty;
     if (ty.isArray() or ty.isComplex()) {
         if (il.*.node != .none) return false;
         const start_index = il.*.list.items.len;
@@ -3470,7 +3471,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type,
             ty.* = elem_ty;
             il.* = try arr_il.find(p.gpa, index);
             if (il.*.node == .none and actual_ty.eql(elem_ty, p.comp, false)) return true;
-            if (try p.findScalarInitializer(il, ty, actual_ty, first_tok)) return true;
+            if (try p.findScalarInitializer(il, ty, res, first_tok)) return true;
         }
         return false;
     } else if (ty.get(.@"struct")) |struct_ty| {
@@ -3490,7 +3491,8 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type,
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, index);
             if (il.*.node == .none and actual_ty.eql(field.ty, p.comp, false)) return true;
-            if (try p.findScalarInitializer(il, ty, actual_ty, first_tok)) return true;
+            if (il.*.node == .none and try p.coerceArrayInit(res, first_tok, ty.*)) return true;
+            if (try p.findScalarInitializer(il, ty, res, first_tok)) return true;
         }
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
@@ -3503,7 +3505,8 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, actual_ty: Type,
         ty.* = union_ty.data.record.fields[0].ty;
         il.* = try il.*.find(p.gpa, 0);
         // if (il.*.node == .none and actual_ty.eql(ty, p.comp, false)) return true;
-        if (try p.findScalarInitializer(il, ty, actual_ty, first_tok)) return true;
+        if (try p.coerceArrayInit(res, first_tok, ty.*)) return true;
+        if (try p.findScalarInitializer(il, ty, res, first_tok)) return true;
         return false;
     }
     return il.*.node == .none;
