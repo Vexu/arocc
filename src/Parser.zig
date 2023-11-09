@@ -22,7 +22,8 @@ const Value = @import("Value.zig");
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
 const record_layout = @import("record_layout.zig");
-const StringId = @import("StringInterner.zig").StringId;
+const StrInt = @import("StringInterner.zig");
+const StringId = StrInt.StringId;
 const number_affixes = @import("number_affixes.zig");
 const NumberPrefix = number_affixes.Prefix;
 const NumberSuffix = number_affixes.Suffix;
@@ -667,12 +668,12 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .record_buf = std.ArrayList(Type.Record.Field).init(pp.comp.gpa),
         .field_attr_buf = std.ArrayList([]const Attribute).init(pp.comp.gpa),
         .string_ids = .{
-            .declspec_id = try pp.comp.intern("__declspec"),
-            .main_id = try pp.comp.intern("main"),
-            .file = try pp.comp.intern("FILE"),
-            .jmp_buf = try pp.comp.intern("jmp_buf"),
-            .sigjmp_buf = try pp.comp.intern("sigjmp_buf"),
-            .ucontext_t = try pp.comp.intern("ucontext_t"),
+            .declspec_id = try StrInt.intern(pp.comp, "__declspec"),
+            .main_id = try StrInt.intern(pp.comp, "main"),
+            .file = try StrInt.intern(pp.comp, "FILE"),
+            .jmp_buf = try StrInt.intern(pp.comp, "jmp_buf"),
+            .sigjmp_buf = try StrInt.intern(pp.comp, "sigjmp_buf"),
+            .ucontext_t = try StrInt.intern(pp.comp, "ucontext_t"),
         },
     };
     errdefer {
@@ -702,24 +703,24 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
     {
         if (p.comp.langopts.hasChar8_T()) {
-            try p.syms.defineTypedef(&p, try p.comp.intern("char8_t"), .{ .specifier = .uchar }, 0, .none);
+            try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "char8_t"), .{ .specifier = .uchar }, 0, .none);
         }
-        try p.syms.defineTypedef(&p, try p.comp.intern("__int128_t"), .{ .specifier = .int128 }, 0, .none);
-        try p.syms.defineTypedef(&p, try p.comp.intern("__uint128_t"), .{ .specifier = .uint128 }, 0, .none);
+        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__int128_t"), .{ .specifier = .int128 }, 0, .none);
+        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__uint128_t"), .{ .specifier = .uint128 }, 0, .none);
 
         const elem_ty = try p.arena.create(Type);
         elem_ty.* = .{ .specifier = .char };
-        try p.syms.defineTypedef(&p, try p.comp.intern("__builtin_ms_va_list"), .{
+        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__builtin_ms_va_list"), .{
             .specifier = .pointer,
             .data = .{ .sub_type = elem_ty },
         }, 0, .none);
 
         const ty = &pp.comp.types.va_list;
-        try p.syms.defineTypedef(&p, try p.comp.intern("__builtin_va_list"), ty.*, 0, .none);
+        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__builtin_va_list"), ty.*, 0, .none);
 
         if (ty.isArray()) ty.decayArray();
 
-        try p.syms.defineTypedef(&p, try p.comp.intern("__NSConstantString"), pp.comp.types.ns_constant_string.ty, 0, .none);
+        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__NSConstantString"), pp.comp.types.ns_constant_string.ty, 0, .none);
     }
 
     while (p.eatToken(.eof) == null) {
@@ -973,7 +974,7 @@ fn decl(p: *Parser) Error!bool {
         if (p.func.ty != null) try p.err(.func_not_in_root);
 
         const node = try p.addNode(undefined); // reserve space
-        const interned_declarator_name = try p.comp.intern(p.tokSlice(init_d.d.name));
+        const interned_declarator_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
         try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.ty, init_d.d.name, node, .{}, false);
 
         const func = p.func;
@@ -1036,7 +1037,7 @@ fn decl(p: *Parser) Error!bool {
                     // find and correct parameter types
                     // TODO check for missing declarations and redefinitions
                     const name_str = p.tokSlice(d.name);
-                    const interned_name = try p.comp.intern(name_str);
+                    const interned_name = try StrInt.intern(p.comp, name_str);
                     for (init_d.d.ty.params()) |*param| {
                         if (param.name == interned_name) {
                             param.ty = d.ty;
@@ -1119,7 +1120,7 @@ fn decl(p: *Parser) Error!bool {
         } });
         try p.decl_buf.append(node);
 
-        const interned_name = try p.comp.intern(p.tokSlice(init_d.d.name));
+        const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
         if (decl_spec.storage_class == .typedef) {
             try p.syms.defineTypedef(p, interned_name, init_d.d.ty, init_d.d.name, node);
             p.typedefDefined(interned_name, init_d.d.ty);
@@ -1743,7 +1744,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         try p.syms.pushScope(p);
         defer p.syms.popScope();
 
-        const interned_name = try p.comp.intern(p.tokSlice(init_d.d.name));
+        const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
         try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, .none);
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr;
@@ -1955,7 +1956,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 continue;
             },
             .identifier, .extended_identifier => {
-                var interned_name = try p.comp.intern(p.tokSlice(p.tok_i));
+                var interned_name = try StrInt.intern(p.comp, p.tokSlice(p.tok_i));
                 var declspec_found = false;
 
                 if (interned_name == p.string_ids.declspec_id) {
@@ -1969,7 +1970,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 }
                 if (ty.typedef != null) break;
                 if (declspec_found) {
-                    interned_name = try p.comp.intern(p.tokSlice(p.tok_i));
+                    interned_name = try StrInt.intern(p.comp, p.tokSlice(p.tok_i));
                 }
                 const typedef = (try p.syms.findTypedef(p, interned_name, p.tok_i, ty.specifier != .none)) orelse break;
                 if (!ty.combineTypedef(p, typedef.ty, typedef.tok)) break;
@@ -2018,7 +2019,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) !StringId {
         "(anonymous {s} at {s}:{d}:{d})",
         .{ kind_str, source.path, line_col.line_no, line_col.col },
     );
-    return p.comp.intern(str);
+    return StrInt.intern(p.comp, str);
 }
 
 /// recordSpec
@@ -2040,7 +2041,7 @@ fn recordSpec(p: *Parser) Error!Type {
             return error.ParsingFailed;
         };
         // check if this is a reference to a previous type
-        const interned_name = try p.comp.intern(p.tokSlice(ident));
+        const interned_name = try StrInt.intern(p.comp, p.tokSlice(ident));
         if (try p.syms.findTag(p, interned_name, p.tok_ids[kind_tok], ident, p.tok_ids[p.tok_i])) |prev| {
             return prev.ty;
         } else {
@@ -2073,7 +2074,7 @@ fn recordSpec(p: *Parser) Error!Type {
     var defined = false;
     const record_ty: *Type.Record = if (maybe_ident) |ident| record_ty: {
         const ident_str = p.tokSlice(ident);
-        const interned_name = try p.comp.intern(ident_str);
+        const interned_name = try StrInt.intern(p.comp, ident_str);
         if (try p.syms.defineTag(p, interned_name, p.tok_ids[kind_tok], ident)) |prev| {
             if (!prev.ty.hasIncompleteSize()) {
                 // if the record isn't incomplete, this is a redefinition
@@ -2315,7 +2316,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
             }
             try p.err(.missing_declaration);
         } else {
-            const interned_name = if (name_tok != 0) try p.comp.intern(p.tokSlice(name_tok)) else try p.getAnonymousName(first_tok);
+            const interned_name = if (name_tok != 0) try StrInt.intern(p.comp, p.tokSlice(name_tok)) else try p.getAnonymousName(first_tok);
             try p.record_buf.append(.{
                 .name = interned_name,
                 .ty = ty,
@@ -2406,7 +2407,7 @@ fn enumSpec(p: *Parser) Error!Type {
             return error.ParsingFailed;
         };
         // check if this is a reference to a previous type
-        const interned_name = try p.comp.intern(p.tokSlice(ident));
+        const interned_name = try StrInt.intern(p.comp, p.tokSlice(ident));
         if (try p.syms.findTag(p, interned_name, .keyword_enum, ident, p.tok_ids[p.tok_i])) |prev| {
             // only check fixed underlying type in forward declarations and not in references.
             if (p.tok_ids[p.tok_i] == .semicolon)
@@ -2442,7 +2443,7 @@ fn enumSpec(p: *Parser) Error!Type {
     var defined = false;
     const enum_ty: *Type.Enum = if (maybe_ident) |ident| enum_ty: {
         const ident_str = p.tokSlice(ident);
-        const interned_name = try p.comp.intern(ident_str);
+        const interned_name = try StrInt.intern(p.comp, ident_str);
         if (try p.syms.defineTag(p, interned_name, .keyword_enum, ident)) |prev| {
             const enum_ty = prev.ty.get(.@"enum").?.data.@"enum";
             if (!enum_ty.isIncomplete() and !enum_ty.fixed) {
@@ -2731,7 +2732,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         }
     }
 
-    const interned_name = try p.comp.intern(p.tokSlice(name_tok));
+    const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
     try p.syms.defineEnumeration(p, interned_name, res.ty, name_tok, e.res.val);
     const node = try p.addNode(.{
         .tag = .enum_field_decl,
@@ -3010,7 +3011,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             specifier = .old_style_func;
             while (true) {
                 const name_tok = try p.expectIdentifier();
-                const interned_name = try p.comp.intern(p.tokSlice(name_tok));
+                const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
                 try p.syms.defineParam(p, interned_name, undefined, name_tok);
                 try p.param_buf.append(.{
                     .name = interned_name,
@@ -3076,7 +3077,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
             if (d.old_style_func == null) d.old_style_func = identifier;
 
             try p.param_buf.append(.{
-                .name = try p.comp.intern(p.tokSlice(identifier)),
+                .name = try StrInt.intern(p.comp, p.tokSlice(identifier)),
                 .name_tok = identifier,
                 .ty = .{ .specifier = .int },
             });
@@ -3101,7 +3102,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
             name_tok = some.name;
             param_ty = some.ty;
             if (some.name != 0) {
-                const interned_name = try p.comp.intern(p.tokSlice(name_tok));
+                const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
                 try p.syms.defineParam(p, interned_name, param_ty, name_tok);
             }
         }
@@ -3134,7 +3135,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
 
         try param_decl_spec.validateParam(p, &param_ty);
         try p.param_buf.append(.{
-            .name = if (name_tok == 0) .empty else try p.comp.intern(p.tokSlice(name_tok)),
+            .name = if (name_tok == 0) .empty else try StrInt.intern(p.comp, p.tokSlice(name_tok)),
             .name_tok = if (name_tok == 0) first_tok else name_tok,
             .ty = param_ty,
         });
@@ -3266,7 +3267,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             } else if (p.eatToken(.period)) |period| {
                 const field_tok = try p.expectIdentifier();
                 const field_str = p.tokSlice(field_tok);
-                const field_name = try p.comp.intern(field_str);
+                const field_name = try StrInt.intern(p.comp, field_str);
                 cur_ty = cur_ty.canonicalize(.standard);
                 if (!cur_ty.isRecord()) {
                     try p.errStr(.invalid_field_designator, period, try p.typeStr(cur_ty));
@@ -4477,7 +4478,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
             var return_zero = false;
             if (last_noreturn == .no and !ret_ty.is(.void) and !ret_ty.isFunc() and !ret_ty.isArray()) {
                 const func_name = p.tokSlice(p.func.name);
-                const interned_name = try p.comp.intern(func_name);
+                const interned_name = try StrInt.intern(p.comp, func_name);
                 if (interned_name == p.string_ids.main_id and ret_ty.is(.int)) {
                     return_zero = true;
                 } else {
@@ -6535,7 +6536,7 @@ fn builtinOffsetof(p: *Parser, want_bits: bool) Error!Result {
 fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Result {
     errdefer p.skipTo(.r_paren);
     const base_field_name_tok = try p.expectIdentifier();
-    const base_field_name = try p.comp.intern(p.tokSlice(base_field_name_tok));
+    const base_field_name = try StrInt.intern(p.comp, p.tokSlice(base_field_name_tok));
     try p.validateFieldAccess(base_ty, base_ty, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
 
@@ -6548,7 +6549,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
         .period => {
             p.tok_i += 1;
             const field_name_tok = try p.expectIdentifier();
-            const field_name = try p.comp.intern(p.tokSlice(field_name_tok));
+            const field_name = try StrInt.intern(p.comp, p.tokSlice(field_name_tok));
 
             if (!lhs.ty.isRecord()) {
                 try p.errStr(.offsetof_ty, field_name_tok, try p.typeStr(lhs.ty));
@@ -7128,7 +7129,7 @@ fn fieldAccess(
     if (is_arrow and !is_ptr) try p.errStr(.member_expr_not_ptr, field_name_tok, try p.typeStr(expr_ty));
     if (!is_arrow and is_ptr) try p.errStr(.member_expr_ptr, field_name_tok, try p.typeStr(expr_ty));
 
-    const field_name = try p.comp.intern(p.tokSlice(field_name_tok));
+    const field_name = try StrInt.intern(p.comp, p.tokSlice(field_name_tok));
     try p.validateFieldAccess(record_ty, expr_ty, field_name_tok, field_name);
     var discard: u64 = 0;
     return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, &discard);
@@ -7195,7 +7196,7 @@ fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     }
     const last_param_name = func_params[func_params.len - 1].name;
     const decl_ref = p.getNode(arg.node, .decl_ref_expr);
-    if (decl_ref == null or last_param_name != try p.comp.intern(p.tokSlice(p.nodes.items(.data)[@intFromEnum(decl_ref.?)].decl_ref))) {
+    if (decl_ref == null or last_param_name != try StrInt.intern(p.comp, p.tokSlice(p.nodes.items(.data)[@intFromEnum(decl_ref.?)].decl_ref))) {
         try p.errTok(.va_start_not_last_param, param_tok);
     }
 }
@@ -7359,7 +7360,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         .identifier, .extended_identifier => {
             const name_tok = p.expectIdentifier() catch unreachable;
             const name = p.tokSlice(name_tok);
-            const interned_name = try p.comp.intern(name);
+            const interned_name = try StrInt.intern(p.comp, name);
             if (p.syms.findSymbol(interned_name)) |sym| {
                 try p.checkDeprecatedUnavailable(sym.ty, name_tok, sym.tok);
                 if (sym.kind == .constexpr) {

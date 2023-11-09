@@ -1,5 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
+const Compilation = @import("Compilation.zig");
 
 const StringInterner = @This();
 
@@ -50,7 +51,11 @@ pub fn deinit(self: *StringInterner, allocator: mem.Allocator) void {
     self.string_table.deinit(allocator);
 }
 
-pub fn intern(self: *StringInterner, allocator: mem.Allocator, str: []const u8) !StringId {
+pub fn intern(comp: *Compilation, str: []const u8) !StringId {
+    return comp.string_interner.internExtra(comp.gpa, str);
+}
+
+pub fn internExtra(self: *StringInterner, allocator: mem.Allocator, str: []const u8) !StringId {
     if (str.len == 0) return .empty;
 
     const gop = try self.string_table.getOrPut(allocator, str);

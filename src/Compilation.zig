@@ -12,7 +12,7 @@ const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const Type = @import("Type.zig");
 const Pragma = @import("Pragma.zig");
-const StringInterner = @import("StringInterner.zig");
+const StrInt = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
 const target_util = @import("target.zig");
 const Interner = @import("Interner.zig");
@@ -123,7 +123,7 @@ types: struct {
     int16: Type = .{ .specifier = .invalid },
     int64: Type = .{ .specifier = .invalid },
 } = .{},
-string_interner: StringInterner = .{},
+string_interner: StrInt = .{},
 interner: Interner = .{},
 ms_cwd_source_id: ?Source.Id = null,
 
@@ -158,10 +158,6 @@ pub fn deinit(comp: *Compilation) void {
     comp.builtins.deinit(comp.gpa);
     comp.string_interner.deinit(comp.gpa);
     comp.interner.deinit(comp.gpa);
-}
-
-pub fn intern(comp: *Compilation, str: []const u8) !StringInterner.StringId {
-    return comp.string_interner.intern(comp.gpa, str);
 }
 
 pub fn getSourceEpoch(self: *const Compilation, max: i64) !?i64 {
@@ -576,7 +572,7 @@ fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target_util.FP
     try w.print("#define {s}MIN__ {s}{s}\n", .{ prefix_slice, min, ext });
 }
 
-fn generateTypeMacro(w: anytype, mapper: StringInterner.TypeMapper, name: []const u8, ty: Type, langopts: LangOpts) !void {
+fn generateTypeMacro(w: anytype, mapper: StrInt.TypeMapper, name: []const u8, ty: Type, langopts: LangOpts) !void {
     try w.print("#define {s} ", .{name});
     try ty.print(mapper, langopts, w);
     try w.writeByte('\n');
@@ -664,7 +660,7 @@ fn intSize(comp: *const Compilation, specifier: Type.Specifier) u64 {
     return ty.sizeof(comp).?;
 }
 
-fn generateExactWidthTypes(comp: *const Compilation, w: anytype, mapper: StringInterner.TypeMapper) !void {
+fn generateExactWidthTypes(comp: *const Compilation, w: anytype, mapper: StrInt.TypeMapper) !void {
     try comp.generateExactWidthType(w, mapper, .schar);
 
     if (comp.intSize(.short) > comp.intSize(.char)) {
@@ -729,7 +725,7 @@ fn generateSuffixMacro(comp: *const Compilation, prefix: []const u8, w: anytype,
 ///     Name macro (e.g. #define __UINT32_TYPE__ unsigned int)
 ///     Format strings (e.g. #define __UINT32_FMTu__ "u")
 ///     Suffix macro (e.g. #define __UINT32_C_SUFFIX__ U)
-fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StringInterner.TypeMapper, specifier: Type.Specifier) !void {
+fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StrInt.TypeMapper, specifier: Type.Specifier) !void {
     var ty = Type{ .specifier = specifier };
     const width = 8 * ty.sizeof(comp).?;
     const unsigned = ty.isUnsignedInt(comp);
@@ -760,7 +756,7 @@ pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
 
 fn generateNsConstantStringType(comp: *Compilation) !void {
     comp.types.ns_constant_string.record = .{
-        .name = try comp.intern("__NSConstantString_tag"),
+        .name = try StrInt.intern(comp, "__NSConstantString_tag"),
         .fields = &comp.types.ns_constant_string.fields,
         .field_attributes = null,
         .type_layout = undefined,
@@ -768,10 +764,10 @@ fn generateNsConstantStringType(comp: *Compilation) !void {
     const const_int_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = &comp.types.ns_constant_string.int_ty } };
     const const_char_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = &comp.types.ns_constant_string.char_ty } };
 
-    comp.types.ns_constant_string.fields[0] = .{ .name = try comp.intern("isa"), .ty = const_int_ptr };
-    comp.types.ns_constant_string.fields[1] = .{ .name = try comp.intern("flags"), .ty = .{ .specifier = .int } };
-    comp.types.ns_constant_string.fields[2] = .{ .name = try comp.intern("str"), .ty = const_char_ptr };
-    comp.types.ns_constant_string.fields[3] = .{ .name = try comp.intern("length"), .ty = .{ .specifier = .long } };
+    comp.types.ns_constant_string.fields[0] = .{ .name = try StrInt.intern(comp, "isa"), .ty = const_int_ptr };
+    comp.types.ns_constant_string.fields[1] = .{ .name = try StrInt.intern(comp, "flags"), .ty = .{ .specifier = .int } };
+    comp.types.ns_constant_string.fields[2] = .{ .name = try StrInt.intern(comp, "str"), .ty = const_char_ptr };
+    comp.types.ns_constant_string.fields[3] = .{ .name = try StrInt.intern(comp, "length"), .ty = .{ .specifier = .long } };
     comp.types.ns_constant_string.ty = .{ .specifier = .@"struct", .data = .{ .record = &comp.types.ns_constant_string.record } };
     record_layout.compute(&comp.types.ns_constant_string.record, comp.types.ns_constant_string.ty, comp, null);
 }
@@ -807,7 +803,7 @@ fn generateVaListType(comp: *Compilation) !Type {
         .aarch64_va_list => {
             const record_ty = try arena.create(Type.Record);
             record_ty.* = .{
-                .name = try comp.intern("__va_list_tag"),
+                .name = try StrInt.intern(comp, "__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 5),
                 .field_attributes = null,
                 .type_layout = undefined, // computed below
@@ -815,18 +811,18 @@ fn generateVaListType(comp: *Compilation) !Type {
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
             const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
-            record_ty.fields[0] = .{ .name = try comp.intern("__stack"), .ty = void_ptr };
-            record_ty.fields[1] = .{ .name = try comp.intern("__gr_top"), .ty = void_ptr };
-            record_ty.fields[2] = .{ .name = try comp.intern("__vr_top"), .ty = void_ptr };
-            record_ty.fields[3] = .{ .name = try comp.intern("__gr_offs"), .ty = .{ .specifier = .int } };
-            record_ty.fields[4] = .{ .name = try comp.intern("__vr_offs"), .ty = .{ .specifier = .int } };
+            record_ty.fields[0] = .{ .name = try StrInt.intern(comp, "__stack"), .ty = void_ptr };
+            record_ty.fields[1] = .{ .name = try StrInt.intern(comp, "__gr_top"), .ty = void_ptr };
+            record_ty.fields[2] = .{ .name = try StrInt.intern(comp, "__vr_top"), .ty = void_ptr };
+            record_ty.fields[3] = .{ .name = try StrInt.intern(comp, "__gr_offs"), .ty = .{ .specifier = .int } };
+            record_ty.fields[4] = .{ .name = try StrInt.intern(comp, "__vr_offs"), .ty = .{ .specifier = .int } };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
             record_layout.compute(record_ty, ty, comp, null);
         },
         .x86_64_va_list => {
             const record_ty = try arena.create(Type.Record);
             record_ty.* = .{
-                .name = try comp.intern("__va_list_tag"),
+                .name = try StrInt.intern(comp, "__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 4),
                 .field_attributes = null,
                 .type_layout = undefined, // computed below
@@ -834,10 +830,10 @@ fn generateVaListType(comp: *Compilation) !Type {
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
             const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
-            record_ty.fields[0] = .{ .name = try comp.intern("gp_offset"), .ty = .{ .specifier = .uint } };
-            record_ty.fields[1] = .{ .name = try comp.intern("fp_offset"), .ty = .{ .specifier = .uint } };
-            record_ty.fields[2] = .{ .name = try comp.intern("overflow_arg_area"), .ty = void_ptr };
-            record_ty.fields[3] = .{ .name = try comp.intern("reg_save_area"), .ty = void_ptr };
+            record_ty.fields[0] = .{ .name = try StrInt.intern(comp, "gp_offset"), .ty = .{ .specifier = .uint } };
+            record_ty.fields[1] = .{ .name = try StrInt.intern(comp, "fp_offset"), .ty = .{ .specifier = .uint } };
+            record_ty.fields[2] = .{ .name = try StrInt.intern(comp, "overflow_arg_area"), .ty = void_ptr };
+            record_ty.fields[3] = .{ .name = try StrInt.intern(comp, "reg_save_area"), .ty = void_ptr };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
             record_layout.compute(record_ty, ty, comp, null);
         },
