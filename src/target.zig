@@ -809,3 +809,8 @@ test "target size/align tests" {
     try std.testing.expectEqual(@as(u64, 1), ct.alignof(&comp));
     try std.testing.expectEqual(true, ignoreNonZeroSizedBitfieldTypeAlignment(comp.target));
 }
+
+/// The canonical integer representation of nullptr_t.
+pub fn nullRepr(_: std.Target) u64 {
+    return 0;
+}

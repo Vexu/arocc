@@ -6,6 +6,7 @@ const Interner = @import("Interner.zig");
 const BigIntSpace = Interner.Tag.Int.BigIntSpace;
 const BigIntConst = std.math.big.int.Const;
 const BigIntMutable = std.math.big.int.Mutable;
+const target_util = @import("target.zig");
 
 const Value = @This();
 
@@ -98,6 +99,7 @@ const Tag = enum {
 
 pub const zero = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
 pub const one = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
+pub const @"null" = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.null)) };
 
 pub fn int(i: anytype, ctx: Context) !Value {
     const info = @typeInfo(@TypeOf(i));
@@ -255,7 +257,7 @@ pub fn floatToInt(v: *Value, dest_ty: Type, ctx: Context) !FloatToIntChangeKind 
     try rational.p.truncate(&rational.p, signedness, bits);
     v.* = try ctx.intern(.{ .int = .{ .big_int = rational.p.toConst() } });
 
-    if (!was_zero and v.isZero()) return .nonzero_to_zero;
+    if (!was_zero and v.isZero(ctx)) return .nonzero_to_zero;
     if (!fits) return .out_of_range;
     if (had_fraction) return .value_changed;
     return .none;
@@ -366,22 +368,38 @@ pub fn toBigInt(val: Value, space: *BigIntSpace, ctx: Context) BigIntConst {
     };
 }
 
-pub fn isZero(v: Value) bool {
-    return v.ref() == .zero;
+pub fn isZero(v: Value, ctx: Context) bool {
+    switch (v.ref()) {
+        .zero => return true,
+        .one => return false,
+        .null => return target_util.nullRepr(ctx.comp.target) == 0,
+        else => {},
+    }
+    const key = ctx.interner.get(v.ref());
+    switch (key) {
+        .float => |repr| switch (repr) {
+            inline else => |data| return data == 0,
+        },
+        .int => |repr| switch (repr) {
+            inline .i64, .u64 => |data| return data == 0,
+            .big_int => |data| return data.eqlZero(),
+        },
+        .bytes => return false,
+        else => unreachable,
+    }
 }
 
 /// Converts value to zero or one;
-pub fn boolCast(v: *Value) void {
-    v.* = fromBool(v.toBool());
+pub fn boolCast(v: *Value, ctx: Context) void {
+    v.* = fromBool(v.toBool(ctx));
 }
 
 pub fn fromBool(b: bool) Value {
     return if (b) one else zero;
 }
 
-pub fn toBool(v: Value) bool {
-    // TODO this doesn't work for floats
-    return v.ref() != .zero;
+pub fn toBool(v: Value, ctx: Context) bool {
+    return !v.isZero(ctx);
 }
 
 pub fn toInt(v: Value, comptime T: type, ctx: Context) ?T {
