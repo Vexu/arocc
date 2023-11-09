@@ -900,7 +900,7 @@ pub fn bitfieldPromotion(ty: Type, comp: *Compilation, width: u32) ?Type {
 
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
-        .void, .incomplete_array, .invalid => true,
+        .void, .incomplete_array => true,
         .@"enum" => ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed,
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
@@ -1789,17 +1789,17 @@ pub const Builder = struct {
                 if (unsigned) {
                     if (bits < 1) {
                         try p.errStr(.unsigned_bit_int_too_small, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
-                        return error.ParsingFailed;
+                        return Type.invalid;
                     }
                 } else {
                     if (bits < 2) {
                         try p.errStr(.signed_bit_int_too_small, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
-                        return error.ParsingFailed;
+                        return Type.invalid;
                     }
                 }
                 if (bits > Compilation.bit_int_max_bits) {
                     try p.errStr(.bit_int_too_big, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
-                    return error.ParsingFailed;
+                    return Type.invalid;
                 }
                 ty.specifier = if (b.complex_tok != null) .complex_bit_int else .bit_int;
                 ty.data = .{ .int = .{
