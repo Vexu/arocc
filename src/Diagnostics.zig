@@ -2598,6 +2598,11 @@ const messages = struct {
         const msg = "unterminated __VA_OPT__ argument list";
         const kind = .@"error";
     };
+    pub const attribute_int_out_of_range = struct {
+        const msg = "attribute value '{s}' out of range";
+        const kind = .@"error";
+        const extra = .str;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},

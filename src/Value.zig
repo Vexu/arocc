@@ -23,79 +23,12 @@ pub const Context = struct {
     }
 };
 
-pub const ByteRange = struct {
-    start: u32,
-    end: u32,
-
-    pub fn len(self: ByteRange) u32 {
-        return self.end - self.start;
-    }
-
-    pub fn trim(self: ByteRange, amount: u32) ByteRange {
-        std.debug.assert(self.start <= self.end - amount);
-        return .{ .start = self.start, .end = self.end - amount };
-    }
-
-    pub fn slice(self: ByteRange, all_bytes: []const u8, comptime size: Compilation.CharUnitSize) []const size.Type() {
-        switch (size) {
-            inline else => |sz| {
-                const aligned: []align(@alignOf(sz.Type())) const u8 = @alignCast(all_bytes[self.start..self.end]);
-                return std.mem.bytesAsSlice(sz.Type(), aligned);
-            },
-        }
-    }
-
-    pub fn dumpString(range: ByteRange, ty: Type, comp: *const Compilation, strings: []const u8, w: anytype) !void {
-        const size: Compilation.CharUnitSize = @enumFromInt(ty.elemType().sizeof(comp).?);
-        const without_null = range.trim(@intFromEnum(size));
-        switch (size) {
-            inline .@"1", .@"2" => |sz| {
-                const data_slice = without_null.slice(strings, sz);
-                const formatter = if (sz == .@"1") std.zig.fmtEscapes(data_slice) else std.unicode.fmtUtf16le(data_slice);
-                try w.print("\"{}\"", .{formatter});
-            },
-            .@"4" => {
-                try w.writeByte('"');
-                const data_slice = without_null.slice(strings, .@"4");
-                var buf: [4]u8 = undefined;
-                for (data_slice) |item| {
-                    if (item <= std.math.maxInt(u21) and std.unicode.utf8ValidCodepoint(@intCast(item))) {
-                        const codepoint: u21 = @intCast(item);
-                        const written = std.unicode.utf8Encode(codepoint, &buf) catch unreachable;
-                        try w.print("{s}", .{buf[0..written]});
-                    } else {
-                        try w.print("\\x{x}", .{item});
-                    }
-                }
-                try w.writeByte('"');
-            },
-        }
-    }
-};
-
 pub const OptRef = enum(u32) {
     none = std.math.maxInt(u32),
     _,
 };
 
 opt_ref: OptRef = .none,
-
-tag: Tag = .unavailable,
-data: union {
-    none: void,
-    int: u64,
-    float: f64,
-    bytes: ByteRange,
-} = .{ .none = {} },
-
-const Tag = enum {
-    unavailable,
-    nullptr_t,
-    /// int is used to store integer, boolean and pointer values
-    int,
-    float,
-    bytes,
-};
 
 pub const zero = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
 pub const one = Value{ .opt_ref = @enumFromInt(@intFromEnum(Interner.Ref.zero)) };
@@ -113,6 +46,11 @@ pub fn int(i: anytype, ctx: Context) !Value {
 pub fn ref(v: Value) Interner.Ref {
     std.debug.assert(v.opt_ref != .none);
     return @enumFromInt(@intFromEnum(v.opt_ref));
+}
+
+pub fn is(v: Value, tag: std.meta.Tag(Interner.Key), ctx: Context) bool {
+    if (v.opt_ref == .none) return false;
+    return ctx.interner.get(v.ref()) == tag;
 }
 
 /// Number of bits needed to hold `v`.
@@ -723,7 +661,34 @@ pub fn print(v: Value, ctx: Context, w: anytype) @TypeOf(w).Error!void {
         .float => |repr| switch (repr) {
             inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| return std.zig.fmt.stringEscape(b, "", .{}, w),
+        .bytes => |b| return printString(b, .{ .specifier = .int }, ctx, w),
         else => unreachable, // not a value
+    }
+}
+
+pub fn printString(bytes: []const u8, ty: Type, ctx: Context, w: anytype) @TypeOf(w).Error!void {
+    const size: Compilation.CharUnitSize = @enumFromInt(ty.elemType().sizeof(ctx.comp).?);
+    const without_null = bytes[0..bytes.len - @intFromEnum(size)];
+    switch (size) {
+        inline .@"1", .@"2" => |sz| {
+            const data_slice: []const sz.Type() = @alignCast(std.mem.bytesAsSlice(sz.Type(), without_null));
+            const formatter = if (sz == .@"1") std.zig.fmtEscapes(data_slice) else std.unicode.fmtUtf16le(data_slice);
+            try w.print("\"{}\"", .{formatter});
+        },
+        .@"4" => {
+            try w.writeByte('"');
+            const data_slice = std.mem.bytesAsSlice(u32, without_null);
+            var buf: [4]u8 = undefined;
+            for (data_slice) |item| {
+                if (item <= std.math.maxInt(u21) and std.unicode.utf8ValidCodepoint(@intCast(item))) {
+                    const codepoint: u21 = @intCast(item);
+                    const written = std.unicode.utf8Encode(codepoint, &buf) catch unreachable;
+                    try w.print("{s}", .{buf[0..written]});
+                } else {
+                    try w.print("\\x{x}", .{item});
+                }
+            }
+            try w.writeByte('"');
+        },
     }
 }

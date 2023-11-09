@@ -132,7 +132,7 @@ pub const Kind = enum {
         };
     }
 
-    /// Required alignment within aro (on compiler host) for writing to retained_strings
+    /// Required alignment within aro (on compiler host) for writing to Interner.strings.
     pub fn internalStorageAlignment(kind: Kind, comp: *const Compilation) usize {
         return switch (kind.charUnitSize(comp)) {
             inline else => |size| @alignOf(size.Type()),

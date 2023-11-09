@@ -97,7 +97,6 @@ tok_i: TokenIndex = 0,
 arena: Allocator,
 nodes: Tree.Node.List = .{},
 data: NodeList,
-retained_strings: std.ArrayList(u8),
 value_map: Tree.ValueMap,
 interner: Interner = .{},
 
@@ -473,8 +472,8 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
         defer p.strings.items.len = strings_top;
 
         const w = p.strings.writer();
-        const msg_str = p.attributeMessageString(@"error".msg);
-        try w.print("call to '{s}' declared with attribute error: {s}", .{ p.tokSlice(@"error".__name_tok), msg_str });
+        try w.print("call to '{s}' declared with attribute error: ", .{p.tokSlice(@"error".__name_tok)});
+        try @"error".msg.print(p.ctx(), w);
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.error_attribute, usage_tok, str);
     }
@@ -483,8 +482,8 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
         defer p.strings.items.len = strings_top;
 
         const w = p.strings.writer();
-        const msg_str = p.attributeMessageString(warning.msg);
-        try w.print("call to '{s}' declared with attribute warning: {s}", .{ p.tokSlice(warning.__name_tok), msg_str });
+        try w.print("call to '{s}' declared with attribute warning: ", .{p.tokSlice(warning.__name_tok)});
+        try warning.msg.print(p.ctx(), w);
         const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
         try p.errStr(.warning_attribute, usage_tok, str);
     }
@@ -498,13 +497,7 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: Type, usage_tok: TokenIndex, decl_
     }
 }
 
-/// Assumes that the specified range was created by an ordinary or `u8` string literal
-/// Returned slice is invalidated if additional strings are added to p.retained_strings
-fn attributeMessageString(p: *Parser, range: Value.ByteRange) []const u8 {
-    return range.slice(p.retained_strings.items, .@"1");
-}
-
-fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Value.ByteRange) Compilation.Error!void {
+fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Value) Compilation.Error!void {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
@@ -517,8 +510,8 @@ fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Valu
     };
     try w.writeAll(reason);
     if (msg) |m| {
-        const str = p.attributeMessageString(m);
-        try w.print(": {s}", .{str});
+        try w.writeAll(": ");
+        try m.print(p.ctx(), w);
     }
     const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     return p.errStr(tag, tok_i, str);
@@ -674,7 +667,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .arena = arena.allocator(),
         .tok_ids = pp.tokens.items(.id),
         .strings = std.ArrayList(u8).init(pp.comp.gpa),
-        .retained_strings = std.ArrayList(u8).init(pp.comp.gpa),
         .value_map = Tree.ValueMap.init(pp.comp.gpa),
         .data = NodeList.init(pp.comp.gpa),
         .labels = std.ArrayList(Label).init(pp.comp.gpa),
@@ -695,7 +687,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     };
     errdefer {
         p.nodes.deinit(pp.comp.gpa);
-        p.retained_strings.deinit();
         p.value_map.deinit();
         p.interner.deinit(pp.comp.gpa);
     }
@@ -1202,9 +1193,9 @@ fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]co
         if (buf.items.len > 0) {
             try buf.append(' ');
         }
-        const byte_range = message.val.data.bytes;
-        try buf.ensureUnusedCapacity(byte_range.len());
-        try byte_range.dumpString(message.ty, p.comp, p.retained_strings.items, buf.writer());
+        const bytes = p.interner.get(message.val.ref()).bytes;
+        try buf.ensureUnusedCapacity(bytes.len);
+        try Value.printString(bytes, message.ty, p.ctx(), buf.writer());
     }
     return try p.comp.diag.arena.allocator().dupe(u8, buf.items);
 }
@@ -1251,7 +1242,7 @@ fn staticAssert(p: *Parser) Error!bool {
         }
     }
     try res.boolCast(p, .{ .specifier = .bool }, res_token);
-    if (res.val.tag == .unavailable) {
+    if (res.val.opt_ref == .none) {
         if (res.ty.specifier != .invalid) {
             try p.errTok(.static_assert_not_constant, res_token);
         }
@@ -1620,7 +1611,7 @@ fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, ar
         return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res.val, p);
     }
     const node = p.nodes.get(@intFromEnum(res.node));
-    return Attribute.diagnose(attr, arguments, arg_idx, res.val, node, p.retained_strings.items);
+    return Attribute.diagnose(attr, arguments, arg_idx, res.val, node, p);
 }
 
 /// attributeList : (attribute (',' attribute)*)?
@@ -2277,7 +2268,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 break :bits;
             }
 
-            if (res.val.tag == .unavailable) {
+            if (res.val.opt_ref == .none) {
                 try p.errTok(.expected_integer_constant_expr, bits_tok);
                 break :bits;
             } else if (res.val.compare(.lt, Value.zero, p.ctx())) {
@@ -2610,10 +2601,7 @@ const Enumerator = struct {
 
     fn init(fixed_ty: ?Type) Enumerator {
         return .{
-            .res = .{
-                .ty = fixed_ty orelse .{ .specifier = .int },
-                .val = .{ .tag = .unavailable },
-            },
+            .res = .{ .ty = fixed_ty orelse .{ .specifier = .int } },
             .fixed = fixed_ty != null,
         };
     }
@@ -2622,7 +2610,7 @@ const Enumerator = struct {
     fn incr(e: *Enumerator, p: *Parser, tok: TokenIndex) !void {
         e.res.node = .none;
         const old_val = e.res.val;
-        if (old_val.tag == .unavailable) {
+        if (old_val.opt_ref == .none) {
             // First enumerator, set to 0 fits in all types.
             e.res.val = Value.zero;
             return;
@@ -2719,7 +2707,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     const err_start = p.comp.diag.list.items.len;
     if (p.eatToken(.equal)) |_| {
         const specified = try p.integerConstExpr(.gnu_folding_extension);
-        if (specified.val.tag == .unavailable) {
+        if (specified.val.opt_ref == .none) {
             try p.errTok(.enum_val_unavailable, name_tok + 2);
             try e.incr(p, name_tok);
         } else {
@@ -2950,7 +2938,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
             return error.ParsingFailed;
         }
-        if (size.val.tag == .unavailable) {
+        if (size.val.opt_ref == .none) {
             if (size.node != .none) {
                 try p.errTok(.vla, size_tok);
                 if (p.func.ty == null and kind != .param and p.record.kind == .invalid) {
@@ -3268,7 +3256,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 const index_res = try p.integerConstExpr(.gnu_folding_extension);
                 try p.expectClosing(l_bracket, .r_bracket);
 
-                if (index_res.val.tag == .unavailable) {
+                if (index_res.val.opt_ref == .none) {
                     try p.errTok(.expected_integer_constant_expr, expr_tok);
                     return error.ParsingFailed;
                 } else if (index_res.val.compare(.lt, Value.zero, p.ctx())) {
@@ -3955,8 +3943,8 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, l_paren: TokenIndex
 
 fn checkAsmStr(p: *Parser, asm_str: Value, tok: TokenIndex) !void {
     if (!p.comp.langopts.gnu_asm) {
-        const str = asm_str.data.bytes;
-        if (str.len() > 1) {
+        const str = p.interner.get(asm_str.ref()).bytes;
+        if (str.len > 1) {
             // Empty string (just a NUL byte) is ok because it does not emit any assembly
             try p.errTok(.gnu_asm_disabled, tok);
         }
@@ -4007,7 +3995,11 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
     switch (kind) {
         .decl_label => {
             const asm_str = try p.asmStr();
-            const str = asm_str.val.data.bytes.trim(1); // remove null-terminator
+
+            // remove null-terminator
+            const bytes = p.interner.get(asm_str.val.ref()).bytes;
+            const str = try p.ctx().intern(.{ .bytes = bytes[0 .. bytes.len - 1] });
+
             const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str } }, .syntax = .keyword };
             try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = asm_tok });
         },
@@ -4363,10 +4355,10 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
 
             const first = first_item.val;
             const last = if (second_item) |second| second.val else first;
-            if (first.tag == .unavailable) {
+            if (first.opt_ref == .none) {
                 try p.errTok(.case_val_unavailable, case + 1);
                 break :check;
-            } else if (last.tag == .unavailable) {
+            } else if (last.opt_ref == .none) {
                 try p.errTok(.case_val_unavailable, ellipsis + 1);
                 break :check;
             } else if (last.compare(.lt, first, p.ctx())) {
@@ -4678,7 +4670,7 @@ pub fn macroExpr(p: *Parser) Compilation.Error!bool {
         error.FatalError => return error.FatalError,
         error.ParsingFailed => return false,
     };
-    if (res.val.tag == .unavailable) {
+    if (res.val.opt_ref == .none) {
         try p.errTok(.expected_expr, p.tok_i);
         return false;
     }
@@ -4825,7 +4817,7 @@ const Result = struct {
 
     fn expect(res: Result, p: *Parser) Error!void {
         if (p.in_macro) {
-            if (res.val.tag == .unavailable) {
+            if (res.val.opt_ref == .none) {
                 try p.errTok(.expected_expr, p.tok_i);
                 return error.ParsingFailed;
             }
@@ -4838,7 +4830,7 @@ const Result = struct {
     }
 
     fn empty(res: Result, p: *Parser) bool {
-        if (p.in_macro) return res.val.tag == .unavailable;
+        if (p.in_macro) return res.val.opt_ref == .none;
         return res.node == .none;
     }
 
@@ -4903,7 +4895,7 @@ const Result = struct {
     }
 
     fn boolRes(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
-        if (lhs.val.tag == .nullptr_t) {
+        if (lhs.val.is(.null, p.ctx())) {
             lhs.val = Value.zero;
         }
         if (lhs.ty.specifier != .invalid) {
@@ -5070,7 +5062,7 @@ const Result = struct {
                         try nullptr_res.nullCast(p, other_res.ty);
                         return other_res.shouldEval(nullptr_res, p);
                     } else if (other_res.val.isZero(p.ctx())) {
-                        other_res.val = .{ .tag = .nullptr_t };
+                        other_res.val = Value.null;
                         try other_res.nullCast(p, nullptr_res.ty);
                         return other_res.shouldEval(nullptr_res, p);
                     }
@@ -5164,7 +5156,7 @@ const Result = struct {
             res.ty.data = .{ .sub_type = elem_ty };
             try res.implicitCast(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
-            res.val.tag = .unavailable;
+            res.val = .{};
             res.ty.decayArray();
             try res.implicitCast(p, .array_to_pointer);
         } else if (!p.in_macro and p.tmpTree().isLval(res.node)) {
@@ -5175,7 +5167,7 @@ const Result = struct {
 
     fn boolCast(res: *Result, p: *Parser, bool_ty: Type, tok: TokenIndex) Error!void {
         if (res.ty.isArray()) {
-            if (res.val.tag == .bytes) {
+            if (res.val.is(.bytes, p.ctx())) {
                 try p.errStr(.string_literal_to_bool, tok, try p.typePairStrExtra(res.ty, " to ", bool_ty));
             } else {
                 try p.errStr(.array_address_to_bool, tok, p.tokSlice(tok));
@@ -5472,15 +5464,15 @@ const Result = struct {
 
     fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!bool {
         try p.errStr(.invalid_bin_types, tok, try p.typePairStr(a.ty, b.ty));
-        a.val.tag = .unavailable;
-        b.val.tag = .unavailable;
+        a.val = .{};
+        b.val = .{};
         a.ty = Type.invalid;
         return false;
     }
 
     fn shouldEval(a: *Result, b: *Result, p: *Parser) Error!bool {
         if (p.no_eval) return false;
-        if (a.val.tag != .unavailable and b.val.tag != .unavailable)
+        if (a.val.opt_ref != .none and b.val.opt_ref != .none)
             return true;
 
         try a.saveValue(p);
@@ -5491,9 +5483,9 @@ const Result = struct {
     /// Saves value and replaces it with `.unavailable`.
     fn saveValue(res: *Result, p: *Parser) !void {
         assert(!p.in_macro);
-        if (res.val.tag == .unavailable or res.val.tag == .nullptr_t) return;
+        if (res.val.opt_ref == .none or res.val.ref() == .null) return;
         if (!p.in_macro) try p.value_map.put(res.node, res.val);
-        res.val.tag = .unavailable;
+        res.val = .{};
     }
 
     fn castType(res: *Result, p: *Parser, to: Type, tok: TokenIndex) !void {
@@ -5502,7 +5494,7 @@ const Result = struct {
         if (to.is(.void)) {
             // everything can cast to void
             cast_kind = .to_void;
-            res.val.tag = .unavailable;
+            res.val = .{};
         } else if (to.is(.nullptr_t)) {
             if (res.ty.is(.nullptr_t)) {
                 cast_kind = .no_op;
@@ -5655,7 +5647,7 @@ const Result = struct {
                     cast_kind = .complex_float_cast;
                 }
             }
-            if (res.val.tag == .unavailable) break :cast;
+            if (res.val.opt_ref == .none) break :cast;
 
             const old_int = res.ty.isInt() or res.ty.isPtr();
             const new_int = to.isInt() or to.isPtr();
@@ -6020,7 +6012,7 @@ fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
     const res = try p.condExpr();
     try res.expect(p);
 
-    if (res.ty.specifier == .invalid or res.val.tag == .unavailable) return res;
+    if (res.ty.specifier == .invalid or res.val.opt_ref == .none) return res;
 
     // saveValue sets val to unavailable
     var copy = res;
@@ -6047,7 +6039,7 @@ fn condExpr(p: *Parser) Error!Result {
     // Depending on the value of the condition, avoid evaluating unreachable branches.
     var then_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.tag != .unavailable and !cond.val.toBool(p.ctx())) p.no_eval = true;
+        if (cond.val.opt_ref != .none and !cond.val.toBool(p.ctx())) p.no_eval = true;
         break :blk try p.expr();
     };
     try then_expr.expect(p);
@@ -6069,14 +6061,14 @@ fn condExpr(p: *Parser) Error!Result {
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.tag != .unavailable and cond.val.toBool(p.ctx())) p.no_eval = true;
+        if (cond.val.opt_ref != .none and cond.val.toBool(p.ctx())) p.no_eval = true;
         break :blk try p.condExpr();
     };
     try else_expr.expect(p);
 
     _ = try then_expr.adjustTypes(colon, &else_expr, p, .conditional);
 
-    if (cond.val.tag != .unavailable) {
+    if (cond.val.opt_ref != .none) {
         cond.val = if (cond.val.toBool(p.ctx())) then_expr.val else else_expr.val;
     } else {
         try then_expr.saveValue(p);
@@ -6099,7 +6091,7 @@ fn lorExpr(p: *Parser) Error!Result {
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.pipe_pipe)) |tok| {
-        if (lhs.val.tag != .unavailable and lhs.val.toBool(p.ctx())) p.no_eval = true;
+        if (lhs.val.opt_ref != .none and lhs.val.toBool(p.ctx())) p.no_eval = true;
         var rhs = try p.landExpr();
         try rhs.expect(p);
 
@@ -6120,7 +6112,7 @@ fn landExpr(p: *Parser) Error!Result {
     defer p.no_eval = saved_eval;
 
     while (p.eatToken(.ampersand_ampersand)) |tok| {
-        if (lhs.val.tag != .unavailable and !lhs.val.toBool(p.ctx())) p.no_eval = true;
+        if (lhs.val.opt_ref != .none and !lhs.val.toBool(p.ctx())) p.no_eval = true;
         var rhs = try p.orExpr();
         try rhs.expect(p);
 
@@ -6296,7 +6288,7 @@ fn mulExpr(p: *Parser) Error!Result {
 
         if (rhs.val.isZero(p.ctx()) and mul == null and !p.no_eval and lhs.ty.isInt() and rhs.ty.isInt()) {
             const err_tag: Diagnostics.Tag = if (p.in_macro) .division_by_zero_macro else .division_by_zero;
-            lhs.val.tag = .unavailable;
+            lhs.val = .{};
             if (div != null) {
                 try p.errStr(err_tag, div.?, "division");
             } else {
@@ -6312,7 +6304,7 @@ fn mulExpr(p: *Parser) Error!Result {
                 if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.ctx())) try p.errOverflow(mul.?, lhs);
             } else {
                 var res = Value.rem(lhs.val, rhs.val, lhs.ty, p.comp);
-                if (res.tag == .unavailable) {
+                if (res.opt_ref == .none) {
                     if (p.in_macro) {
                         // match clang behavior by defining invalid remainder to be zero in macros
                         res = Value.zero;
@@ -6449,7 +6441,7 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
     const cond_tok = p.tok_i;
     var cond = try p.integerConstExpr(.no_const_decl_folding);
-    if (cond.val.tag == .unavailable) {
+    if (cond.val.opt_ref == .none) {
         try p.errTok(.builtin_choose_cond, cond_tok);
         return error.ParsingFailed;
     }
@@ -6713,10 +6705,10 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             try operand.usualUnaryConversion(p, tok);
-            if (operand.val.tag == .int or operand.val.tag == .float) {
+            if (operand.val.is(.int, p.ctx())) {
                 _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p.ctx());
             } else {
-                operand.val.tag = .unavailable;
+                operand.val = .{};
             }
             try operand.un(p, .negate_expr);
             return operand;
@@ -6737,11 +6729,11 @@ fn unExpr(p: *Parser) Error!Result {
             }
             try operand.usualUnaryConversion(p, tok);
 
-            if (operand.val.tag == .int or operand.val.tag == .float) {
+            if (operand.val.is(.int, p.ctx()) or operand.val.is(.int, p.ctx())) {
                 if (try operand.val.add(operand.val, Value.one, operand.ty, p.ctx()))
                     try p.errOverflow(tok, operand);
             } else {
-                operand.val.tag = .unavailable;
+                operand.val = .{};
             }
 
             try operand.un(p, .pre_inc_expr);
@@ -6763,11 +6755,11 @@ fn unExpr(p: *Parser) Error!Result {
             }
             try operand.usualUnaryConversion(p, tok);
 
-            if (operand.val.tag == .int or operand.val.tag == .float) {
+            if (operand.val.is(.int, p.ctx()) or operand.val.is(.int, p.ctx())) {
                 if (try operand.val.sub(operand.val, Value.one, operand.ty, p.ctx()))
                     try p.errOverflow(tok, operand);
             } else {
-                operand.val.tag = .unavailable;
+                operand.val = .{};
             }
 
             try operand.un(p, .pre_dec_expr);
@@ -6781,12 +6773,12 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.lvalConversion(p);
             try operand.usualUnaryConversion(p, tok);
             if (operand.ty.isInt()) {
-                if (operand.val.tag == .int) {
+                if (operand.val.is(.int, p.ctx())) {
                     operand.val = try operand.val.bitNot(operand.ty, p.ctx());
                 }
             } else {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
-                operand.val.tag = .unavailable;
+                operand.val = .{};
             }
             try operand.un(p, .bit_not_expr);
             return operand;
@@ -6801,15 +6793,15 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             try operand.usualUnaryConversion(p, tok);
-            if (operand.val.tag == .int) {
+            if (operand.val.is(.int, p.ctx())) {
                 operand.val.boolCast(p.ctx());
-            } else if (operand.val.tag == .nullptr_t) {
+            } else if (operand.val.is(.null, p.ctx())) {
                 operand.val = Value.one;
             } else {
                 if (operand.ty.isDecayed()) {
                     operand.val = Value.zero;
                 } else {
-                    operand.val.tag = .unavailable;
+                    operand.val = .{};
                 }
             }
             operand.ty = .{ .specifier = .int };
@@ -6849,7 +6841,7 @@ fn unExpr(p: *Parser) Error!Result {
                 res.val = try Value.int(size, p.ctx());
                 res.ty = p.comp.types.size;
             } else {
-                res.val.tag = .unavailable;
+                res.val = .{};
                 if (res.ty.hasIncompleteSize()) {
                     try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.ty));
                     res.ty = Type.invalid;
@@ -6923,10 +6915,10 @@ fn unExpr(p: *Parser) Error!Result {
                     .msvc => {}, // Doesn't support `_Complex` or `__imag` in the first place
                     .gcc => operand.val = Value.zero,
                     .clang => {
-                        if (operand.val.tag == .int) {
+                        if (operand.val.is(.int, p.ctx())) {
                             operand.val = Value.zero;
                         } else {
-                            operand.val.tag = .unavailable;
+                            operand.val = .{};
                         }
                     },
                 }
@@ -7318,7 +7310,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !void {
-    if (index.val.tag == .unavailable) return;
+    if (index.val.opt_ref == .none) return;
 
     const array_len = array.ty.arrayLen() orelse return;
     if (array_len == 0) return;
@@ -7393,7 +7385,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                         }),
                     };
                 }
-                if (sym.val.tag == .int) {
+                if (sym.val.is(.int, p.ctx())) {
                     switch (p.const_decl_folding) {
                         .gnu_folding_extension => try p.errTok(.const_decl_folded, name_tok),
                         .gnu_vla_folding_extension => try p.errTok(.const_decl_folded_vla, name_tok),
@@ -7482,7 +7474,7 @@ fn primaryExpr(p: *Parser) Error!Result {
             defer p.tok_i += 1;
             try p.errStr(.pre_c23_compat, p.tok_i, "'nullptr'");
             return Result{
-                .val = .{ .tag = .nullptr_t },
+                .val = Value.null,
                 .ty = .{ .specifier = .nullptr_t },
                 .node = try p.addNode(.{
                     .tag = .nullptr_literal,
@@ -7499,16 +7491,20 @@ fn primaryExpr(p: *Parser) Error!Result {
                 ty = some.ty;
                 tok = p.nodes.items(.data)[@intFromEnum(some.node)].decl.name;
             } else if (p.func.ty) |_| {
-                const start: u32 = @intCast(p.retained_strings.items.len);
-                try p.retained_strings.appendSlice(p.tokSlice(p.func.name));
-                try p.retained_strings.append(0);
-                const predef = try p.makePredefinedIdentifier(start);
+                const strings_top = p.strings.items.len;
+                defer p.strings.items.len = strings_top;
+
+                try p.strings.appendSlice(p.tokSlice(p.func.name));
+                try p.strings.append(0);
+                const predef = try p.makePredefinedIdentifier(strings_top);
                 ty = predef.ty;
                 p.func.ident = predef;
             } else {
-                const start: u32 = @intCast(p.retained_strings.items.len);
-                try p.retained_strings.append(0);
-                const predef = try p.makePredefinedIdentifier(start);
+                const strings_top = p.strings.items.len;
+                defer p.strings.items.len = strings_top;
+
+                try p.strings.append(0);
+                const predef = try p.makePredefinedIdentifier(strings_top);
                 ty = predef.ty;
                 p.func.ident = predef;
                 try p.decl_buf.append(predef.node);
@@ -7529,17 +7525,21 @@ fn primaryExpr(p: *Parser) Error!Result {
             if (p.func.pretty_ident) |some| {
                 ty = some.ty;
             } else if (p.func.ty) |func_ty| {
+                const strings_top = p.strings.items.len;
+                defer p.strings.items.len = strings_top;
+
                 const mapper = p.comp.string_interner.getSlowTypeMapper();
-                const start: u32 = @intCast(p.retained_strings.items.len);
-                try Type.printNamed(func_ty, p.tokSlice(p.func.name), mapper, p.comp.langopts, p.retained_strings.writer());
-                try p.retained_strings.append(0);
-                const predef = try p.makePredefinedIdentifier(start);
+                try Type.printNamed(func_ty, p.tokSlice(p.func.name), mapper, p.comp.langopts, p.strings.writer());
+                try p.strings.append(0);
+                const predef = try p.makePredefinedIdentifier(strings_top);
                 ty = predef.ty;
                 p.func.pretty_ident = predef;
             } else {
-                const start: u32 = @intCast(p.retained_strings.items.len);
-                try p.retained_strings.appendSlice("top level\x00");
-                const predef = try p.makePredefinedIdentifier(start);
+                const strings_top = p.strings.items.len;
+                defer p.strings.items.len = strings_top;
+
+                try p.strings.appendSlice("top level\x00");
+                const predef = try p.makePredefinedIdentifier(strings_top);
                 ty = predef.ty;
                 p.func.pretty_ident = predef;
                 try p.decl_buf.append(predef.node);
@@ -7605,14 +7605,16 @@ fn primaryExpr(p: *Parser) Error!Result {
     }
 }
 
-fn makePredefinedIdentifier(p: *Parser, start: u32) !Result {
-    const end: u32 = @intCast(p.retained_strings.items.len);
+fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
+    const end: u32 = @intCast(p.strings.items.len);
     const elem_ty = .{ .specifier = .char, .qual = .{ .@"const" = true } };
     const arr_ty = try p.arena.create(Type.Array);
-    arr_ty.* = .{ .elem = elem_ty, .len = end - start };
+    arr_ty.* = .{ .elem = elem_ty, .len = end - strings_top };
     const ty: Type = .{ .specifier = .array, .data = .{ .array = arr_ty } };
 
-    const val = Value.bytes(start, end);
+    const slice = p.strings.items[strings_top..];
+    const val = try p.ctx().intern(.{ .bytes = slice });
+
     const str_lit = try p.addNode(.{ .tag = .string_literal_expr, .ty = ty, .data = undefined });
     if (!p.in_macro) try p.value_map.put(str_lit, val);
 
@@ -7642,24 +7644,24 @@ fn stringLiteral(p: *Parser) Error!Result {
 
     const char_width = string_kind.charUnitSize(p.comp);
 
-    const retain_start = mem.alignForward(usize, p.retained_strings.items.len, string_kind.internalStorageAlignment(p.comp));
-    try p.retained_strings.resize(retain_start);
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
 
     while (p.tok_i < string_end) : (p.tok_i += 1) {
         const this_kind = TextLiteral.Kind.classify(p.tok_ids[p.tok_i], .string_literal).?;
         const slice = this_kind.contentSlice(p.tokSlice(p.tok_i));
         var char_literal_parser = TextLiteral.Parser.init(slice, this_kind, 0x10ffff, p.comp);
 
-        try p.retained_strings.ensureUnusedCapacity((slice.len + 1) * @intFromEnum(char_width)); // +1 for null terminator
+        try p.strings.ensureUnusedCapacity((slice.len + 1) * @intFromEnum(char_width)); // +1 for null terminator
         while (char_literal_parser.next()) |item| switch (item) {
             .value => |v| {
                 switch (char_width) {
-                    .@"1" => p.retained_strings.appendAssumeCapacity(@intCast(v)),
+                    .@"1" => p.strings.appendAssumeCapacity(@intCast(v)),
                     .@"2" => {
                         const word: u16 = @intCast(v);
-                        p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&word));
+                        p.strings.appendSliceAssumeCapacity(mem.asBytes(&word));
                     },
-                    .@"4" => p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&v)),
+                    .@"4" => p.strings.appendSliceAssumeCapacity(mem.asBytes(&v)),
                 }
             },
             .codepoint => |c| {
@@ -7668,7 +7670,7 @@ fn stringLiteral(p: *Parser) Error!Result {
                         var buf: [4]u8 = undefined;
                         const written = std.unicode.utf8Encode(c, &buf) catch unreachable;
                         const encoded = buf[0..written];
-                        p.retained_strings.appendSliceAssumeCapacity(encoded);
+                        p.strings.appendSliceAssumeCapacity(encoded);
                     },
                     .@"2" => {
                         var utf16_buf: [2]u16 = undefined;
@@ -7676,30 +7678,30 @@ fn stringLiteral(p: *Parser) Error!Result {
                         const utf8_written = std.unicode.utf8Encode(c, &utf8_buf) catch unreachable;
                         const utf16_written = std.unicode.utf8ToUtf16Le(&utf16_buf, utf8_buf[0..utf8_written]) catch unreachable;
                         const bytes = std.mem.sliceAsBytes(utf16_buf[0..utf16_written]);
-                        p.retained_strings.appendSliceAssumeCapacity(bytes);
+                        p.strings.appendSliceAssumeCapacity(bytes);
                     },
                     .@"4" => {
                         const val: u32 = c;
-                        p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&val));
+                        p.strings.appendSliceAssumeCapacity(mem.asBytes(&val));
                     },
                 }
             },
-            .improperly_encoded => |bytes| p.retained_strings.appendSliceAssumeCapacity(bytes),
+            .improperly_encoded => |bytes| p.strings.appendSliceAssumeCapacity(bytes),
             .utf8_text => |view| {
                 switch (char_width) {
-                    .@"1" => p.retained_strings.appendSliceAssumeCapacity(view.bytes),
+                    .@"1" => p.strings.appendSliceAssumeCapacity(view.bytes),
                     .@"2" => {
-                        var capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.retained_strings.unusedCapacitySlice());
+                        var capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.strings.unusedCapacitySlice());
                         const dest_len = std.mem.alignBackward(usize, capacity_slice.len, 2);
                         var dest = std.mem.bytesAsSlice(u16, capacity_slice[0..dest_len]);
                         const words_written = std.unicode.utf8ToUtf16Le(dest, view.bytes) catch unreachable;
-                        p.retained_strings.resize(p.retained_strings.items.len + words_written * 2) catch unreachable;
+                        p.strings.resize(p.strings.items.len + words_written * 2) catch unreachable;
                     },
                     .@"4" => {
                         var it = view.iterator();
                         while (it.nextCodepoint()) |codepoint| {
                             const val: u32 = codepoint;
-                            p.retained_strings.appendSliceAssumeCapacity(mem.asBytes(&val));
+                            p.strings.appendSliceAssumeCapacity(mem.asBytes(&val));
                         }
                     },
                 }
@@ -7709,8 +7711,13 @@ fn stringLiteral(p: *Parser) Error!Result {
             try p.errExtra(item.tag, p.tok_i, item.extra);
         }
     }
-    p.retained_strings.appendNTimesAssumeCapacity(0, @intFromEnum(char_width));
-    const slice = p.retained_strings.items[retain_start..];
+    p.strings.appendNTimesAssumeCapacity(0, @intFromEnum(char_width));
+    const slice = p.strings.items[strings_top..];
+
+    const interned_align = mem.alignForward(usize, p.interner.strings.items.len, string_kind.internalStorageAlignment(p.comp));
+    try p.interner.strings.resize(p.gpa, interned_align);
+
+    const val = try p.ctx().intern(.{ .bytes = slice });
 
     const arr_ty = try p.arena.create(Type.Array);
     arr_ty.* = .{ .elem = string_kind.elementType(p.comp), .len = @divExact(slice.len, @intFromEnum(char_width)) };
@@ -7719,7 +7726,7 @@ fn stringLiteral(p: *Parser) Error!Result {
             .specifier = .array,
             .data = .{ .array = arr_ty },
         },
-        .val = Value.bytes(@intCast(retain_start), @intCast(p.retained_strings.items.len)),
+        .val = val,
     };
     res.node = try p.addNode(.{ .tag = .string_literal_expr, .ty = res.ty, .data = undefined });
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
@@ -7997,7 +8004,7 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
     if (suffix.isImaginary()) {
         try p.errTok(.gnu_imaginary_constant, tok_i);
         res.ty = res.ty.makeComplex();
-        res.val.tag = .unavailable;
+        res.val = .{};
         try res.un(p, .imaginary_literal);
     }
     return res;
