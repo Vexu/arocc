@@ -763,7 +763,7 @@ fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringIntern
     if (tree.value_map.get(node)) |val| {
         if (color) util.setColor(LITERAL, w);
         try w.writeAll(" (value: ");
-        try val.print(&tree.comp.interner, w);
+        try val.print(ty, tree.comp, w);
         try w.writeByte(')');
     }
     if (tag == .implicit_return and data.return_zero) {

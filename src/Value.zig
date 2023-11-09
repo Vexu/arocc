@@ -677,8 +677,11 @@ pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *cons
     return lhs_bigint.order(rhs_bigint).compare(op);
 }
 
-pub fn print(v: Value, interner: *const Interner, w: anytype) @TypeOf(w).Error!void {
-    const key = interner.get(v.ref());
+pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+    if (ty.is(.bool)) {
+        return w.writeAll(if (v.isZero(comp)) "false" else "true");
+    }
+    const key = comp.interner.get(v.ref());
     switch (key) {
         .null => return w.writeAll("nullptr_t"),
         .int => |repr| switch (repr) {
@@ -687,12 +690,13 @@ pub fn print(v: Value, interner: *const Interner, w: anytype) @TypeOf(w).Error!v
         .float => |repr| switch (repr) {
             inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| return printString(b, .@"1", w),
+        .bytes => |b| return printString(b, ty, comp, w),
         else => unreachable, // not a value
     }
 }
 
-pub fn printString(bytes: []const u8, size: Compilation.CharUnitSize, w: anytype) @TypeOf(w).Error!void {
+pub fn printString(bytes: []const u8, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+    const size: Compilation.CharUnitSize = @enumFromInt(ty.elemType().sizeof(comp).?);
     const without_null = bytes[0 .. bytes.len - @intFromEnum(size)];
     switch (size) {
         inline .@"1", .@"2" => |sz| {

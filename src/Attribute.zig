@@ -192,7 +192,7 @@ pub fn wantsAlignment(attr: Tag, idx: usize) bool {
     }
 }
 
-pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, p: *Parser) !?Diagnostics.Message {
+pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Parser.Result, p: *Parser) !?Diagnostics.Message {
     switch (attr) {
         inline else => |tag| {
             const arg_fields = std.meta.fields(@field(attributes, @tagName(tag)));
@@ -202,12 +202,12 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Va
                 inline 0...arg_fields.len - 1 => |arg_i| {
                     if (UnwrapOptional(arg_fields[arg_i].type) != Alignment) unreachable;
 
-                    if (!val.is(.int, p.comp)) return Diagnostics.Message{ .tag = .alignas_unavailable };
-                    if (val.compare(.lt, Value.zero, p.comp)) {
-                        return Diagnostics.Message{ .tag = .negative_alignment, .extra = .{ .str = try p.valStr(val) } };
+                    if (!res.val.is(.int, p.comp)) return Diagnostics.Message{ .tag = .alignas_unavailable };
+                    if (res.val.compare(.lt, Value.zero, p.comp)) {
+                        return Diagnostics.Message{ .tag = .negative_alignment, .extra = .{ .str = try res.str(p) } };
                     }
-                    const requested = val.toInt(u29, p.comp) orelse {
-                        return Diagnostics.Message{ .tag = .maximum_alignment, .extra = .{ .str = try p.valStr(val) } };
+                    const requested = res.val.toInt(u29, p.comp) orelse {
+                        return Diagnostics.Message{ .tag = .maximum_alignment, .extra = .{ .str = try res.str(p) } };
                     };
                     if (!std.mem.isValidAlign(requested)) return Diagnostics.Message{ .tag = .non_pow2_align };
 
@@ -225,24 +225,24 @@ fn diagnoseField(
     comptime field: ZigType.StructField,
     comptime Wanted: type,
     arguments: *Arguments,
-    val: Value,
+    res: Parser.Result,
     node: Tree.Node,
     p: *Parser,
 ) !?Diagnostics.Message {
-    if (val.opt_ref == .none) {
+    if (res.val.opt_ref == .none) {
         if (Wanted == Identifier and node.tag == .decl_ref_expr) {
             @field(@field(arguments, decl.name), field.name) = Identifier{ .tok = node.data.decl_ref };
             return null;
         }
         return invalidArgMsg(Wanted, .expression);
     }
-    const key = p.comp.interner.get(val.ref());
+    const key = p.comp.interner.get(res.val.ref());
     switch (key) {
         .int => {
             if (@typeInfo(Wanted) == .Int) {
-                @field(@field(arguments, decl.name), field.name) = val.toInt(Wanted, p.comp) orelse return .{
+                @field(@field(arguments, decl.name), field.name) = res.val.toInt(Wanted, p.comp) orelse return .{
                     .tag = .attribute_int_out_of_range,
-                    .extra = .{ .str = try p.valStr(val) },
+                    .extra = .{ .str = try res.str(p) },
                 };
                 return null;
             }
@@ -256,7 +256,7 @@ fn diagnoseField(
                         .extra = .{ .str = decl.name },
                     };
                 }
-                @field(@field(arguments, decl.name), field.name) = try p.removeNull(val);
+                @field(@field(arguments, decl.name), field.name) = try p.removeNull(res.val);
                 return null;
             } else if (@typeInfo(Wanted) == .Enum and @hasDecl(Wanted, "opts") and Wanted.opts.enum_kind == .string) {
                 const str = bytes[0 .. bytes.len - 1];
@@ -300,7 +300,7 @@ fn invalidArgMsg(comptime Expected: type, actual: ArgumentType) Diagnostics.Mess
     };
 }
 
-pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node: Tree.Node, p: *Parser) !?Diagnostics.Message {
+pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Parser.Result, node: Tree.Node, p: *Parser) !?Diagnostics.Message {
     switch (attr) {
         inline else => |tag| {
             const decl = @typeInfo(attributes).Struct.decls[@intFromEnum(tag)];
@@ -312,7 +312,7 @@ pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, val: Value, node
             const arg_fields = std.meta.fields(@field(attributes, decl.name));
             switch (arg_idx) {
                 inline 0...arg_fields.len - 1 => |arg_i| {
-                    return diagnoseField(decl, arg_fields[arg_i], UnwrapOptional(arg_fields[arg_i].type), arguments, val, node, p);
+                    return diagnoseField(decl, arg_fields[arg_i], UnwrapOptional(arg_fields[arg_i].type), arguments, res, node, p);
                 },
                 else => unreachable,
             }

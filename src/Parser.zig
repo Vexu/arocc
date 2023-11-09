@@ -352,7 +352,7 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
 }
 
 fn errOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
-    try p.errStr(.overflow, op_tok, try p.valStr(res.val));
+    try p.errStr(.overflow, op_tok, try res.str(p));
 }
 
 fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
@@ -414,21 +414,6 @@ pub fn removeNull(p: *Parser, str: Value) !Value {
     return Value.intern(p.comp, .{ .bytes = p.strings.items[strings_top..] });
 }
 
-pub fn valStr(p: *Parser, val: Value) ![]const u8 {
-    switch (val.opt_ref) {
-        .none => return "(none)",
-        .zero => return "0",
-        .one => return "1",
-        .null => return "nullptr_t",
-        else => {},
-    }
-    const strings_top = p.strings.items.len;
-    defer p.strings.items.len = strings_top;
-
-    try val.print(&p.comp.interner, p.strings.writer());
-    return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
-}
-
 pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
     if (Type.Builder.fromType(ty).str(p.comp.langopts)) |str| return str;
     const strings_top = p.strings.items.len;
@@ -469,9 +454,9 @@ pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: 
     try w.writeAll(" changes ");
     if (res.val.isZero(p.comp)) try w.writeAll("non-zero ");
     try w.writeAll("value from ");
-    try old_value.print(&p.comp.interner, w);
+    try old_value.print(res.ty, p.comp, w);
     try w.writeAll(" to ");
-    try res.val.print(&p.comp.interner, w);
+    try res.val.print(int_ty, p.comp, w);
 
     return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -1198,8 +1183,7 @@ fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]co
         }
         const bytes = p.comp.interner.get(message.val.ref()).bytes;
         try buf.ensureUnusedCapacity(bytes.len);
-        const size: Compilation.CharUnitSize = @enumFromInt(message.ty.elemType().sizeof(p.comp).?);
-        try Value.printString(bytes, size, buf.writer());
+        try Value.printString(bytes, message.ty, p.comp, buf.writer());
     }
     return try p.comp.diag.arena.allocator().dupe(u8, buf.items);
 }
@@ -1612,10 +1596,10 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
 
 fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result) !?Diagnostics.Message {
     if (Attribute.wantsAlignment(attr, arg_idx)) {
-        return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res.val, p);
+        return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res, p);
     }
     const node = p.nodes.get(@intFromEnum(res.node));
-    return Attribute.diagnose(attr, arguments, arg_idx, res.val, node, p);
+    return Attribute.diagnose(attr, arguments, arg_idx, res, node, p);
 }
 
 /// attributeList : (attribute (',' attribute)*)?
@@ -2276,7 +2260,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 try p.errTok(.expected_integer_constant_expr, bits_tok);
                 break :bits;
             } else if (res.val.compare(.lt, Value.zero, p.comp)) {
-                try p.errStr(.negative_bitwidth, first_tok, try p.valStr(res.val));
+                try p.errStr(.negative_bitwidth, first_tok, try res.str(p));
                 break :bits;
             }
 
@@ -2736,13 +2720,13 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
             const min_int = (Type{ .specifier = .int }).minInt(p.comp);
             const min_val = try Value.int(min_int, p.comp);
             if (e.res.val.compare(.lt, min_val, p.comp)) {
-                try p.errStr(.enumerator_too_small, name_tok, try p.valStr(e.res.val));
+                try p.errStr(.enumerator_too_small, name_tok, try e.res.str(p));
             }
         } else {
             const max_int = (Type{ .specifier = .int }).maxInt(p.comp);
             const max_val = try Value.int(max_int, p.comp);
             if (e.res.val.compare(.gt, max_val, p.comp)) {
-                try p.errStr(.enumerator_too_large, name_tok, try p.valStr(e.res.val));
+                try p.errStr(.enumerator_too_large, name_tok, try e.res.str(p));
             }
         }
     }
@@ -3264,14 +3248,14 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                     try p.errTok(.expected_integer_constant_expr, expr_tok);
                     return error.ParsingFailed;
                 } else if (index_res.val.compare(.lt, Value.zero, p.comp)) {
-                    try p.errStr(.negative_array_designator, l_bracket + 1, try p.valStr(index_res.val));
+                    try p.errStr(.negative_array_designator, l_bracket + 1, try index_res.str(p));
                     return error.ParsingFailed;
                 }
 
                 const max_len = cur_ty.arrayLen() orelse std.math.maxInt(usize);
                 const index_int = index_res.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
                 if (index_int >= max_len) {
-                    try p.errStr(.oob_array_designator, l_bracket + 1, try p.valStr(index_res.val));
+                    try p.errStr(.oob_array_designator, l_bracket + 1, try index_res.str(p));
                     return error.ParsingFailed;
                 }
                 cur_index_hint = cur_index_hint orelse index_int;
@@ -4371,7 +4355,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
             const prev = (try some.add(first, last, case + 1)) orelse break :check;
 
             // TODO check which value was already handled
-            try p.errStr(.duplicate_switch_case, case + 1, try p.valStr(first));
+            try p.errStr(.duplicate_switch_case, case + 1, try first_item.str(p));
             try p.errTok(.previous_case, prev.tok);
         } else {
             try p.errStr(.case_not_in_switch, case, "case");
@@ -4811,10 +4795,23 @@ const CallExpr = union(enum) {
     }
 };
 
-const Result = struct {
+pub const Result = struct {
     node: NodeIndex = .none,
     ty: Type = .{ .specifier = .int },
     val: Value = .{},
+
+    pub fn str(res: Result, p: *Parser) ![]const u8 {
+        switch (res.val.opt_ref) {
+            .none => return "(none)",
+            .null => return "nullptr_t",
+            else => {},
+        }
+        const strings_top = p.strings.items.len;
+        defer p.strings.items.len = strings_top;
+
+        try res.val.print(res.ty, p.comp, p.strings.writer());
+        return try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    }
 
     fn expect(res: Result, p: *Parser) Error!void {
         if (p.in_macro) {
@@ -7327,7 +7324,7 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
                 const record = lhs.getRecord().?;
                 if (data.member.index + 1 == record.fields.len) {
                     if (!index.val.isZero(p.comp)) {
-                        try p.errStr(.old_style_flexible_struct, tok, try p.valStr(index.val));
+                        try p.errStr(.old_style_flexible_struct, tok, try index.str(p));
                     }
                     return;
                 }
@@ -7337,13 +7334,13 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
     const index_int = index.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
     if (index.ty.isUnsignedInt(p.comp)) {
         if (index_int >= array_len) {
-            try p.errStr(.array_after, tok, try p.valStr(index.val));
+            try p.errStr(.array_after, tok, try index.str(p));
         }
     } else {
         if (index.val.compare(.lt, Value.zero, p.comp)) {
-            try p.errStr(.array_before, tok, try p.valStr(index.val));
+            try p.errStr(.array_before, tok, try index.str(p));
         } else if (index_int >= array_len) {
-            try p.errStr(.array_after, tok, try p.valStr(index.val));
+            try p.errStr(.array_after, tok, try index.str(p));
         }
     }
 }
