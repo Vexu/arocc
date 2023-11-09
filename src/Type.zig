@@ -963,6 +963,7 @@ pub fn hasField(ty: Type, name: StringId) bool {
     return false;
 }
 
+// TODO handle bitints
 pub fn minInt(ty: Type, comp: *const Compilation) i64 {
     std.debug.assert(ty.isInt());
     if (ty.isUnsignedInt(comp)) return 0;
@@ -975,6 +976,7 @@ pub fn minInt(ty: Type, comp: *const Compilation) i64 {
     };
 }
 
+// TODO handle bitints
 pub fn maxInt(ty: Type, comp: *const Compilation) u64 {
     std.debug.assert(ty.isInt());
     return switch (ty.sizeof(comp).?) {

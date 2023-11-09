@@ -6236,9 +6236,9 @@ fn shiftExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(shr.?, &rhs, p, .integer)) {
             if (shl != null) {
-                lhs.val = lhs.val.shl(rhs.val, lhs.ty, p.comp);
+                if (try lhs.val.shl(lhs.val, rhs.val, lhs.ty, p.ctx())) try p.errOverflow(shl.?, lhs);
             } else {
-                lhs.val = lhs.val.shr(rhs.val, lhs.ty, p.comp);
+                lhs.val = try lhs.val.shr(rhs.val, lhs.ty, p.ctx());
             }
         }
         try lhs.bin(p, tag, rhs);
@@ -6303,7 +6303,7 @@ fn mulExpr(p: *Parser) Error!Result {
             } else if (div != null) {
                 if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.ctx())) try p.errOverflow(mul.?, lhs);
             } else {
-                var res = Value.rem(lhs.val, rhs.val, lhs.ty, p.comp);
+                var res = try Value.rem(lhs.val, rhs.val, lhs.ty, p.ctx());
                 if (res.opt_ref == .none) {
                     if (p.in_macro) {
                         // match clang behavior by defining invalid remainder to be zero in macros
