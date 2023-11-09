@@ -691,6 +691,12 @@ pub fn shr(lhs: Value, rhs: Value, ty: Type, ctx: Context) !Value {
 }
 
 pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, ctx: Context) bool {
+    if (op == .eq) {
+        return lhs.opt_ref == rhs.opt_ref;
+    } else if (lhs.opt_ref == rhs.opt_ref) {
+        return std.math.Order.eq.compare(op);
+    }
+
     const lhs_key = ctx.interner.get(lhs.ref());
     const rhs_key = ctx.interner.get(rhs.ref());
     if (lhs_key == .float or rhs_key == .float) {
