@@ -6,8 +6,8 @@ fn_def: 'fn () void'
      name: cd
      init:
       array_init_expr_two: '_Complex double'
-        double_literal: 'double' (value: 1)
-        double_literal: 'double' (value: 2)
+        float_literal: 'double' (value: 1)
+        float_literal: 'double' (value: 2)
 
     var: '_Complex float'
      name: cf
@@ -31,8 +31,8 @@ fn_def: 'fn () void'
       builtin_call_expr: '_Complex double'
        name: __builtin_complex
        args:
-        double_literal: 'double' (value: 1)
-        double_literal: 'double' (value: 2)
+        float_literal: 'double' (value: 1)
+        float_literal: 'double' (value: 2)
 
     assign_expr: '_Complex float'
      lhs:
@@ -67,9 +67,9 @@ fn_def: 'fn () void'
         compound_literal_expr: '_Complex float' lvalue
          array_init_expr_two: '_Complex float'
            implicit_cast: (float_cast) 'float'
-             double_literal: 'double' (value: 1)
+             float_literal: 'double' (value: 1)
            implicit_cast: (float_cast) 'float'
-             double_literal: 'double' (value: 2)
+             float_literal: 'double' (value: 2)
 
     implicit_return: 'void'
 

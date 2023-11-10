@@ -8,8 +8,7 @@ const Value = @import("Value.zig");
 
 const Ir = @This();
 
-pool: Interner,
-strings: []const u8,
+interner: *Interner,
 // decls: std.StringArrayHashMapUnmanaged(Decl),
 
 // pub const Decl = struct {
@@ -25,14 +24,13 @@ pub const Builder = struct {
     body: std.ArrayListUnmanaged(Ref) = .{},
     alloc_count: u32 = 0,
     arg_count: u32 = 0,
-    pool: Interner = .{},
+    interner: *Interner,
     current_label: Ref = undefined,
 
     pub fn deinit(b: *Builder) void {
         b.arena.deinit();
         b.instructions.deinit(b.gpa);
         b.body.deinit(b.gpa);
-        b.pool.deinit(b.gpa);
         b.* = undefined;
     }
 
@@ -118,13 +116,11 @@ pub const Builder = struct {
 
     pub fn addConstant(b: *Builder, val: Value, ty: Interner.Ref) Allocator.Error!Ref {
         const ref: Ref = @enumFromInt(b.instructions.len);
-        const key: Interner.Key = .{
-            .value = val,
-        };
-        const val_ref = try b.pool.put(b.gpa, key);
-        try b.instructions.append(b.gpa, .{ .tag = .constant, .data = .{
-            .constant = val_ref,
-        }, .ty = ty });
+        try b.instructions.append(b.gpa, .{
+            .tag = .constant,
+            .data = .{ .constant = val.ref() },
+            .ty = ty,
+        });
         return ref;
     }
 
@@ -517,45 +513,49 @@ pub fn dump(ir: Ir, gpa: Allocator, name: []const u8, color: bool, w: anytype) !
 }
 
 fn writeType(ir: Ir, ty_ref: Interner.Ref, color: bool, w: anytype) !void {
-    const ty = ir.pool.get(ty_ref);
+    const ty = ir.interner.get(ty_ref);
     if (color) util.setColor(TYPE, w);
     switch (ty) {
-        .value => unreachable,
-        .ptr, .noreturn, .void, .func => try w.writeAll(@tagName(ty)),
-        .int => |bits| try w.print("i{d}", .{bits}),
-        .float => |bits| try w.print("f{d}", .{bits}),
-        .array => |info| {
+        .ptr_ty, .noreturn_ty, .void_ty, .func_ty => try w.writeAll(@tagName(ty)),
+        .int_ty => |bits| try w.print("i{d}", .{bits}),
+        .float_ty => |bits| try w.print("f{d}", .{bits}),
+        .array_ty => |info| {
             try w.print("[{d} * ", .{info.len});
             try ir.writeType(info.child, false, w);
             try w.writeByte(']');
         },
-        .vector => |info| {
+        .vector_ty => |info| {
             try w.print("<{d} * ", .{info.len});
             try ir.writeType(info.child, false, w);
             try w.writeByte('>');
         },
-        .record => |info| {
+        .record_ty => |elems| {
             // TODO collect into buffer and only print once
             try w.writeAll("{ ");
-            for (info.elements, 0..) |elem, i| {
+            for (elems, 0..) |elem, i| {
                 if (i != 0) try w.writeAll(", ");
                 try ir.writeType(elem, color, w);
             }
             try w.writeAll(" }");
         },
+        else => unreachable, // not a type
     }
 }
 
 fn writeValue(ir: Ir, val_ref: Interner.Ref, color: bool, w: anytype) !void {
-    const v = ir.pool.get(val_ref).value;
+    const v: Value = .{ .opt_ref = @enumFromInt(@intFromEnum(val_ref)) };
     if (color) util.setColor(LITERAL, w);
-    switch (v.tag) {
-        .unavailable => try w.writeAll(" unavailable"),
-        .int => try w.print("{d}", .{v.data.int}),
-        .bytes => try w.print("\"{s}\"", .{v.data.bytes.slice(ir.strings, .@"1")}),
-        // std.fmt does @as instead of @floatCast
-        .float => try w.print("{d}", .{@as(f64, @floatCast(v.data.float))}),
-        else => try w.print("({s})", .{@tagName(v.tag)}),
+    const key = ir.interner.get(v.ref());
+    switch (key) {
+        .null => return w.writeAll("nullptr_t"),
+        .int => |repr| switch (repr) {
+            inline else => |x| return w.print("{d}", .{x}),
+        },
+        .float => |repr| switch (repr) {
+            inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
+        },
+        .bytes => |b| return std.zig.fmt.stringEscape(b, "", .{}, w),
+        else => unreachable, // not a value
     }
 }
 

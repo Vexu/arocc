@@ -21,7 +21,7 @@ fn_def: 'fn () void'
     var: 'double'
      name: d
      init:
-      double_literal: 'double' (value: 2)
+      float_literal: 'double' (value: 2)
 
     assign_expr: 'double'
      lhs:

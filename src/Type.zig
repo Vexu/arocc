@@ -420,7 +420,7 @@ data: union {
     attributed: *Attributed,
     none: void,
     int: struct {
-        bits: u8,
+        bits: u16,
         signedness: std.builtin.Signedness,
     },
 } = .{ .none = {} },
@@ -621,17 +621,21 @@ pub fn isConst(ty: Type) bool {
 }
 
 pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
+    return ty.signedness(comp) == .unsigned;
+}
+
+pub fn signedness(ty: Type, comp: *const Compilation) std.builtin.Signedness {
     return switch (ty.specifier) {
         // zig fmt: off
-        .char, .complex_char => return comp.getCharSignedness() == .unsigned,
+        .char, .complex_char => return comp.getCharSignedness(),
         .uchar, .ushort, .uint, .ulong, .ulong_long, .bool, .complex_uchar, .complex_ushort,
-        .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => true,
+        .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => .unsigned,
         // zig fmt: on
-        .bit_int, .complex_bit_int => return ty.data.int.signedness == .unsigned,
-        .typeof_type => ty.data.sub_type.isUnsignedInt(comp),
-        .typeof_expr => ty.data.expr.ty.isUnsignedInt(comp),
-        .attributed => ty.data.attributed.base.isUnsignedInt(comp),
-        else => false,
+        .bit_int, .complex_bit_int => ty.data.int.signedness,
+        .typeof_type => ty.data.sub_type.signedness(comp),
+        .typeof_expr => ty.data.expr.ty.signedness(comp),
+        .attributed => ty.data.attributed.base.signedness(comp),
+        else => .signed,
     };
 }
 
@@ -758,7 +762,7 @@ pub fn getRecord(ty: Type) ?*const Type.Record {
     };
 }
 
-fn compareIntegerRanks(a: Type, b: Type, comp: *const Compilation) std.math.Order {
+pub fn compareIntegerRanks(a: Type, b: Type, comp: *const Compilation) std.math.Order {
     std.debug.assert(a.isInt() and b.isInt());
     if (a.eql(b, comp, false)) return .eq;
 
@@ -896,7 +900,7 @@ pub fn bitfieldPromotion(ty: Type, comp: *Compilation, width: u32) ?Type {
 
 pub fn hasIncompleteSize(ty: Type) bool {
     return switch (ty.specifier) {
-        .void, .incomplete_array, .invalid => true,
+        .void, .incomplete_array => true,
         .@"enum" => ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed,
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
@@ -956,6 +960,7 @@ pub fn hasField(ty: Type, name: StringId) bool {
     return false;
 }
 
+// TODO handle bitints
 pub fn minInt(ty: Type, comp: *const Compilation) i64 {
     std.debug.assert(ty.isInt());
     if (ty.isUnsignedInt(comp)) return 0;
@@ -968,6 +973,7 @@ pub fn minInt(ty: Type, comp: *const Compilation) i64 {
     };
 }
 
+// TODO handle bitints
 pub fn maxInt(ty: Type, comp: *const Compilation) u64 {
     std.debug.assert(ty.isInt());
     return switch (ty.sizeof(comp).?) {
@@ -1555,12 +1561,12 @@ pub const Builder = struct {
         complex_int128,
         complex_sint128,
         complex_uint128,
-        bit_int: i16,
-        sbit_int: i16,
-        ubit_int: i16,
-        complex_bit_int: i16,
-        complex_sbit_int: i16,
-        complex_ubit_int: i16,
+        bit_int: u64,
+        sbit_int: u64,
+        ubit_int: u64,
+        complex_bit_int: u64,
+        complex_sbit_int: u64,
+        complex_ubit_int: u64,
 
         fp16,
         float16,
@@ -1783,17 +1789,17 @@ pub const Builder = struct {
                 if (unsigned) {
                     if (bits < 1) {
                         try p.errStr(.unsigned_bit_int_too_small, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
-                        return error.ParsingFailed;
+                        return Type.invalid;
                     }
                 } else {
                     if (bits < 2) {
                         try p.errStr(.signed_bit_int_too_small, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
-                        return error.ParsingFailed;
+                        return Type.invalid;
                     }
                 }
                 if (bits > Compilation.bit_int_max_bits) {
                     try p.errStr(.bit_int_too_big, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
-                    return error.ParsingFailed;
+                    return Type.invalid;
                 }
                 ty.specifier = if (b.complex_tok != null) .complex_bit_int else .bit_int;
                 ty.data = .{ .int = .{

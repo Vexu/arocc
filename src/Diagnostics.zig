@@ -607,14 +607,9 @@ const messages = struct {
         const extra = .str;
         const kind = .@"error";
     };
-    pub const duplicate_switch_case_signed = struct {
-        const msg = "duplicate case value '{d}'";
-        const extra = .signed;
-        const kind = .@"error";
-    };
-    pub const duplicate_switch_case_unsigned = struct {
-        const msg = "duplicate case value '{d}'";
-        const extra = .unsigned;
+    pub const duplicate_switch_case = struct {
+        const msg = "duplicate case value '{s}'";
+        const extra = .str;
         const kind = .@"error";
     };
     pub const multiple_default = struct {
@@ -696,15 +691,9 @@ const messages = struct {
         const opt = "unknown-warning-option";
         const kind = .warning;
     };
-    pub const overflow_signed = struct {
-        const msg = "overflow in expression; result is '{d}'";
-        const extra = .signed;
-        const opt = "integer-overflow";
-        const kind = .warning;
-    };
-    pub const overflow_unsigned = struct {
-        const msg = overflow_signed.msg;
-        const extra = .unsigned;
+    pub const overflow = struct {
+        const msg = "overflow in expression; result is '{s}'";
+        const extra = .str;
         const opt = "integer-overflow";
         const kind = .warning;
     };
@@ -975,14 +964,14 @@ const messages = struct {
         const kind = .@"error";
     };
     pub const array_after = struct {
-        const msg = "array index {d} is past the end of the array";
-        const extra = .unsigned;
+        const msg = "array index {s} is past the end of the array";
+        const extra = .str;
         const opt = "array-bounds";
         const kind = .warning;
     };
     pub const array_before = struct {
-        const msg = "array index {d} is before the beginning of the array";
-        const extra = .signed;
+        const msg = "array index {s} is before the beginning of the array";
+        const extra = .str;
         const opt = "array-bounds";
         const kind = .warning;
     };
@@ -1107,13 +1096,13 @@ const messages = struct {
         const kind = .@"error";
     };
     pub const maximum_alignment = struct {
-        const msg = "requested alignment of {d} is too large";
-        const extra = .unsigned;
+        const msg = "requested alignment of {s} is too large";
+        const extra = .str;
         const kind = .@"error";
     };
     pub const negative_alignment = struct {
-        const msg = "requested negative alignment of {d} is invalid";
-        const extra = .signed;
+        const msg = "requested negative alignment of {s} is invalid";
+        const extra = .str;
         const kind = .@"error";
     };
     pub const align_ignored = struct {
@@ -1287,13 +1276,13 @@ const messages = struct {
         const kind = .@"error";
     };
     pub const negative_array_designator = struct {
-        const msg = "array designator value {d} is negative";
-        const extra = .signed;
+        const msg = "array designator value {s} is negative";
+        const extra = .str;
         const kind = .@"error";
     };
     pub const oob_array_designator = struct {
-        const msg = "array designator index {d} exceeds array bounds";
-        const extra = .unsigned;
+        const msg = "array designator index {s} exceeds array bounds";
+        const extra = .str;
         const kind = .@"error";
     };
     pub const invalid_field_designator = struct {
@@ -1463,8 +1452,8 @@ const messages = struct {
         const kind = .@"error";
     };
     pub const negative_bitwidth = struct {
-        const msg = "bit-field has negative width ({d})";
-        const extra = .signed;
+        const msg = "bit-field has negative width ({s})";
+        const extra = .str;
         const kind = .@"error";
     };
     pub const zero_width_named_field = struct {
@@ -1976,14 +1965,14 @@ const messages = struct {
         const kind = .@"error";
     };
     pub const enumerator_too_small = struct {
-        const msg = "ISO C restricts enumerator values to range of 'int' ({d} is too small)";
-        const extra = .signed;
+        const msg = "ISO C restricts enumerator values to range of 'int' ({s} is too small)";
+        const extra = .str;
         const kind = .off;
         const opt = "pedantic";
     };
     pub const enumerator_too_large = struct {
-        const msg = "ISO C restricts enumerator values to range of 'int' ({d} is too large)";
-        const extra = .unsigned;
+        const msg = "ISO C restricts enumerator values to range of 'int' ({s} is too large)";
+        const extra = .str;
         const kind = .off;
         const opt = "pedantic";
     };
@@ -2153,8 +2142,8 @@ const messages = struct {
         const opt = "zero-length-array";
     };
     pub const old_style_flexible_struct = struct {
-        const msg = "array index {d} is past the end of the array";
-        const extra = .unsigned;
+        const msg = "array index {s} is past the end of the array";
+        const extra = .str;
         const kind = .off;
         const pedantic = true;
         const opt = "old-style-flexible-struct";
@@ -2609,6 +2598,11 @@ const messages = struct {
         const msg = "unterminated __VA_OPT__ argument list";
         const kind = .@"error";
     };
+    pub const attribute_int_out_of_range = struct {
+        const msg = "attribute value '{s}' out of range";
+        const kind = .@"error";
+        const extra = .str;
+    };
 };
 
 list: std.ArrayListUnmanaged(Message) = .{},
@@ -2839,7 +2833,6 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
                         128 => "340282366920938463463374607431768211456",
                         else => unreachable,
                     }}),
-                    .signed => m.print(info.msg, .{msg.extra.signed}),
                     .attr_enum => m.print(info.msg, .{
                         @tagName(msg.extra.attr_enum.tag),
                         Attribute.Formatting.choices(msg.extra.attr_enum.tag),
