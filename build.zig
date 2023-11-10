@@ -89,6 +89,11 @@ pub fn build(b: *Build) !void {
         .name = "Attribute/names.def",
         .aro_module = aro_module,
     });
+    GenerateDef.add(b, .{
+        .name = "Diagnostics/messages.def",
+        .aro_module = aro_module,
+        .kind = .named,
+    });
 
     b.installDirectory(.{
         .source_dir = .{ .path = "include" },

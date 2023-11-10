@@ -241,7 +241,7 @@ fn validateExtendedIdentifier(p: *Parser) !bool {
         }
         if (codepoint == '$') {
             warned = true;
-            try p.comp.diag.add(.{
+            if (p.comp.langopts.dollars_in_identifiers) try p.comp.diag.add(.{
                 .tag = .dollar_in_identifier_extension,
                 .loc = loc,
             }, &.{});
