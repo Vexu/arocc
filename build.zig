@@ -2,6 +2,12 @@ const std = @import("std");
 const Build = std.Build;
 const GenerateDef = @import("build/GenerateDef.zig");
 
+const aro_version = std.SemanticVersion{
+    .major = 0,
+    .minor = 0,
+    .patch = 0,
+};
+
 fn addFuzzStep(b: *Build, target: std.zig.CrossTarget) !void {
     const fuzz_lib = b.addStaticLibrary(.{
         .name = "fuzz-lib",
@@ -68,6 +74,60 @@ pub fn build(b: *Build) !void {
     system_defaults.addOption([]const u8, "rtlib", default_rtlib);
     system_defaults.addOption([]const u8, "unwindlib", default_unwindlib);
 
+    const aro_options = b.addOptions();
+    aro_options.addOption(bool, "enable_tracy", tracy != null);
+    aro_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
+    aro_options.addOption(bool, "enable_tracy_allocation", tracy_allocation);
+
+    const version_str = v: {
+        const version_string = b.fmt("{d}.{d}.{d}", .{ aro_version.major, aro_version.minor, aro_version.patch });
+
+        var code: u8 = undefined;
+        const git_describe_untrimmed = b.runAllowFail(&[_][]const u8{
+            "git", "-C", b.build_root.path orelse ".", "describe", "--match", "*.*.*", "--tags",
+        }, &code, .Ignore) catch version_string;
+        const git_describe = std.mem.trim(u8, git_describe_untrimmed, " \n\r");
+
+        switch (std.mem.count(u8, git_describe, "-")) {
+            0 => {
+                // Tagged release version (e.g. 0.10.0).
+                if (!std.mem.eql(u8, git_describe, version_string)) {
+                    std.debug.print("Aro version '{s}' does not match Git tag '{s}'\n", .{ version_string, git_describe });
+                    std.process.exit(1);
+                }
+                break :v version_string;
+            },
+            2 => {
+                // Untagged development build (e.g. 0.10.0-dev.2025+ecf0050a9).
+                var it = std.mem.splitScalar(u8, git_describe, '-');
+                const tagged_ancestor = it.first();
+                const commit_height = it.next().?;
+                const commit_id = it.next().?;
+
+                const ancestor_ver = try std.SemanticVersion.parse(tagged_ancestor);
+                if (!aro_version.order(ancestor_ver).compare(.gte)) {
+                    std.debug.print("Aro version '{}' must be greater than tagged ancestor '{}'\n", .{ aro_version, ancestor_ver });
+                    std.process.exit(1);
+                }
+
+                // Check that the commit hash is prefixed with a 'g' (a Git convention).
+                if (commit_id.len < 1 or commit_id[0] != 'g') {
+                    std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
+                    break :v version_string;
+                }
+
+                // The version is reformatted in accordance with the https://semver.org specification.
+                break :v b.fmt("{s}-dev.{s}+{s}", .{ version_string, commit_height, commit_id[1..] });
+            },
+            else => {
+                std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
+                break :v version_string;
+            },
+        }
+    };
+    aro_options.addOption([]const u8, "version_str", version_str);
+    const aro_options_module = aro_options.createModule();
+
     const zig_module = b.createModule(.{
         .source_file = .{ .path = "deps/zig/lib.zig" },
     });
@@ -78,6 +138,10 @@ pub fn build(b: *Build) !void {
                 .name = "zig",
                 .module = zig_module,
             },
+            .{
+                .name = "build_options",
+                .module = aro_options_module,
+            },
         },
     });
     const aro_module = b.addModule("aro", .{
@@ -86,6 +150,10 @@ pub fn build(b: *Build) !void {
             .{
                 .name = "system_defaults",
                 .module = system_defaults.createModule(),
+            },
+            .{
+                .name = "build_options",
+                .module = aro_options_module,
             },
             .{
                 .name = "backend",
@@ -110,14 +178,8 @@ pub fn build(b: *Build) !void {
         .target = target,
     });
     exe.addModule("aro", aro_module);
-    exe.addOptions("system_defaults", system_defaults);
 
     // tracy integration
-    const exe_options = b.addOptions();
-    exe.addOptions("build_options", exe_options);
-    exe_options.addOption(bool, "enable_tracy", tracy != null);
-    exe_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
-    exe_options.addOption(bool, "enable_tracy_allocation", tracy_allocation);
     if (tracy) |tracy_path| {
         const client_cpp = std.fs.path.join(
             b.allocator,
@@ -140,7 +202,6 @@ pub fn build(b: *Build) !void {
             exe.linkSystemLibrary("ws2_32");
         }
     }
-    exe.addModule("zig", zig_module);
     if (link_libc) {
         exe.linkLibC();
     }
