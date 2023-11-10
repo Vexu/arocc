@@ -1,6 +1,6 @@
 const std = @import("std");
 const DiagnosticTag = @import("Diagnostics.zig").Tag;
-const CharInfo = @import("CharInfo.zig");
+const char_info = @import("char_info.zig");
 
 const LangOpts = @This();
 
@@ -91,18 +91,18 @@ pub const Standard = enum {
     pub fn codepointAllowedInIdentifier(standard: Standard, codepoint: u21, is_start: bool) bool {
         if (is_start) {
             return if (standard.atLeast(.c23))
-                CharInfo.isXidStart(codepoint)
+                char_info.isXidStart(codepoint)
             else if (standard.atLeast(.c11))
-                CharInfo.isC11IdChar(codepoint) and !CharInfo.isC11DisallowedInitialIdChar(codepoint)
+                char_info.isC11IdChar(codepoint) and !char_info.isC11DisallowedInitialIdChar(codepoint)
             else
-                CharInfo.isC99IdChar(codepoint) and !CharInfo.isC99DisallowedInitialIDChar(codepoint);
+                char_info.isC99IdChar(codepoint) and !char_info.isC99DisallowedInitialIDChar(codepoint);
         } else {
             return if (standard.atLeast(.c23))
-                CharInfo.isXidContinue(codepoint)
+                char_info.isXidContinue(codepoint)
             else if (standard.atLeast(.c11))
-                CharInfo.isC11IdChar(codepoint)
+                char_info.isC11IdChar(codepoint)
             else
-                CharInfo.isC99IdChar(codepoint);
+                char_info.isC99IdChar(codepoint);
         }
     }
 };

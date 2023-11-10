@@ -1,7 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Compilation = @import("Compilation.zig");
-const Elf = @import("object/Elf.zig");
+const Elf = @import("Object/Elf.zig");
 
 const Object = @This();
 

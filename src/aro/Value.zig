@@ -1,11 +1,12 @@
 const std = @import("std");
 const assert = std.debug.assert;
-const Compilation = @import("Compilation.zig");
-const Type = @import("Type.zig");
-const Interner = @import("Interner.zig");
-const BigIntSpace = Interner.Tag.Int.BigIntSpace;
 const BigIntConst = std.math.big.int.Const;
 const BigIntMutable = std.math.big.int.Mutable;
+const backend = @import("backend");
+const Interner = backend.Interner;
+const BigIntSpace = Interner.Tag.Int.BigIntSpace;
+const Compilation = @import("Compilation.zig");
+const Type = @import("Type.zig");
 const target_util = @import("target.zig");
 
 const Value = @This();

@@ -2,16 +2,17 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
+const backend = @import("backend");
+const Ir = backend.Ir;
+const Object = backend.Object;
+const util = backend.util;
 const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
-const Ir = @import("Ir.zig");
 const LangOpts = @import("LangOpts.zig");
-const Object = @import("Object.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
 const Toolchain = @import("Toolchain.zig");
-const util = @import("util.zig");
 const target_util = @import("target.zig");
 
 const Driver = @This();
@@ -191,7 +192,7 @@ pub fn parseArgs(
                 };
                 return true;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
-                std_out.writeAll(@import("lib.zig").version_str ++ "\n") catch |er| {
+                std_out.writeAll(@import("backend").version_str ++ "\n") catch |er| {
                     return d.fatal("unable to print version: {s}", .{util.errorDescription(er)});
                 };
                 return true;

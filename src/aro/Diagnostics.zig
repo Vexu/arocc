@@ -1,6 +1,7 @@
 const std = @import("std");
-const mem = std.mem;
 const Allocator = mem.Allocator;
+const mem = std.mem;
+const util = @import("backend").util;
 const Source = @import("Source.zig");
 const Compilation = @import("Compilation.zig");
 const Attribute = @import("Attribute.zig");
@@ -8,7 +9,6 @@ const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Header = @import("Builtins/Properties.zig").Header;
 const Tree = @import("Tree.zig");
-const util = @import("util.zig");
 const is_windows = @import("builtin").os.tag == .windows;
 const LangOpts = @import("LangOpts.zig");
 

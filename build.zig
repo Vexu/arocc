@@ -9,7 +9,7 @@ fn addFuzzStep(b: *Build, target: std.zig.CrossTarget) !void {
         .optimize = .Debug,
         .root_source_file = .{ .path = "test/fuzz/fuzz_lib.zig" },
     });
-    fuzz_lib.addAnonymousModule("aro", .{ .source_file = .{ .path = "src/lib.zig" } });
+    fuzz_lib.addModule("aro", b.modules.get("aro").?);
     fuzz_lib.want_lto = true;
     fuzz_lib.bundle_compiler_rt = true;
 
@@ -71,16 +71,25 @@ pub fn build(b: *Build) !void {
     const zig_module = b.createModule(.{
         .source_file = .{ .path = "deps/zig/lib.zig" },
     });
-    const aro_module = b.addModule("aro", .{
-        .source_file = .{ .path = "src/lib.zig" },
+    const aro_backend = b.addModule("aro_backend", .{
+        .source_file = .{ .path = "src/backend.zig" },
         .dependencies = &.{
             .{
                 .name = "zig",
                 .module = zig_module,
             },
+        },
+    });
+    const aro_module = b.addModule("aro", .{
+        .source_file = .{ .path = "src/aro.zig" },
+        .dependencies = &.{
             .{
                 .name = "system_defaults",
                 .module = system_defaults.createModule(),
+            },
+            .{
+                .name = "backend",
+                .module = aro_backend,
             },
             GenerateDef.create(b, .{ .name = "Builtins/Builtin.def" }),
             GenerateDef.create(b, .{ .name = "Attribute/names.def" }),
@@ -139,7 +148,7 @@ pub fn build(b: *Build) !void {
 
     const tests_step = b.step("test", "Run all tests");
 
-    var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/lib.zig" } });
+    var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/aro.zig" } });
     for (aro_module.dependencies.keys(), aro_module.dependencies.values()) |name, module| {
         unit_tests.addModule(name, module);
     }

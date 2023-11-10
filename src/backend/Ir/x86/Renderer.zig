@@ -1,6 +1,6 @@
 const std = @import("std");
-const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const Interner = @import("../../Interner.zig");
 const Ir = @import("../../Ir.zig");
 const BaseRenderer = Ir.Renderer;

@@ -1,9 +1,8 @@
 const std = @import("std");
-const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const Interner = @import("Interner.zig");
 const Object = @import("Object.zig");
-const Value = @import("Value.zig");
 
 const Ir = @This();
 
@@ -144,11 +143,11 @@ pub const Builder = struct {
         _ = try b.addInst(.store, .{ .bin = .{ .lhs = ptr, .rhs = val } }, .void);
     }
 
-    pub fn addConstant(b: *Builder, val: Value, ty: Interner.Ref) Allocator.Error!Ref {
+    pub fn addConstant(b: *Builder, val: Interner.Ref, ty: Interner.Ref) Allocator.Error!Ref {
         const ref: Ref = @enumFromInt(b.instructions.len);
         try b.instructions.append(b.gpa, .{
             .tag = .constant,
-            .data = .{ .constant = val.ref() },
+            .data = .{ .constant = val },
             .ty = ty,
         });
         return ref;
@@ -623,10 +622,9 @@ fn writeType(ir: Ir, ty_ref: Interner.Ref, color: bool, w: anytype) !void {
     }
 }
 
-fn writeValue(ir: Ir, val_ref: Interner.Ref, color: bool, w: anytype) !void {
-    const v: Value = .{ .opt_ref = @enumFromInt(@intFromEnum(val_ref)) };
+fn writeValue(ir: Ir, val: Interner.Ref, color: bool, w: anytype) !void {
     if (color) util.setColor(LITERAL, w);
-    const key = ir.interner.get(v.ref());
+    const key = ir.interner.get(val);
     switch (key) {
         .null => return w.writeAll("nullptr_t"),
         .int => |repr| switch (repr) {
