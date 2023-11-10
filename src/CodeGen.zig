@@ -54,7 +54,7 @@ continue_label: Ir.Ref = undefined,
 break_label: Ir.Ref = undefined,
 return_label: Ir.Ref = undefined,
 
-pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
+pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!Ir {
     var c = CodeGen{
         .builder = .{
             .gpa = comp.gpa,
@@ -118,6 +118,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
             else => unreachable,
         }
     }
+    return c.builder.finish();
 }
 
 fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
@@ -205,13 +206,7 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
         _ = try c.builder.addInst(.ret, .{ .un = phi }, .noreturn);
     }
 
-    var res = Ir{
-        .interner = c.builder.interner,
-        .instructions = c.builder.instructions,
-        .arena = c.builder.arena.state,
-        .body = c.builder.body,
-    };
-    res.dump(c.builder.gpa, name, c.comp.diag.color, std.io.getStdOut().writer()) catch {};
+    try c.builder.finishFn(name);
 }
 
 fn addUn(c: *CodeGen, tag: Ir.Inst.Tag, operand: Ir.Ref, ty: Type) !Ir.Ref {

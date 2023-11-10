@@ -621,8 +621,15 @@ fn processSource(
         );
     }
 
+    var ir = try CodeGen.generateTree(d.comp, tree);
+    defer ir.deinit(d.comp.gpa);
+
     if (d.verbose_ir) {
-        try @import("CodeGen.zig").generateTree(d.comp, tree);
+        const stdout = std.io.getStdOut();
+        var buf_writer = std.io.bufferedWriter(stdout.writer());
+        const color = d.comp.diag.color and util.fileSupportsColor(stdout);
+        ir.dump(d.comp.gpa, color, buf_writer.writer()) catch {};
+        buf_writer.flush() catch {};
     }
 
     const obj = try Object.create(d.comp);
