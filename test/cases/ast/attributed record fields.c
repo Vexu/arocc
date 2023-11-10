@@ -57,8 +57,8 @@ struct_decl: 'struct S9'
   record_field_decl: 'long'
    name: l
    field attr: packed
-   field attr: aligned alignment: Attribute.Alignment{ .node = Tree.NodeIndex.none, .requested = 16 }
-   field attr: warn_if_not_aligned alignment: Attribute.Alignment{ .node = Tree.NodeIndex.none, .requested = 16 }
+   field attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.NodeIndex.none, .requested = 16 }
+   field attr: warn_if_not_aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.NodeIndex.none, .requested = 16 }
 
 union_decl: 'union U1'
   record_field_decl: 'long'
@@ -66,7 +66,7 @@ union_decl: 'union U1'
 
   record_field_decl: 'int'
    name: y
-   field attr: aligned alignment: Attribute.Alignment{ .node = Tree.NodeIndex.none, .requested = 32 }
+   field attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.NodeIndex.none, .requested = 32 }
 
   record_field_decl: 'unsigned int'
    name: z

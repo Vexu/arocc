@@ -1,4 +1,5 @@
 const std = @import("std");
+const Interner = @import("backend").Interner;
 const Type = @import("Type.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Compilation = @import("Compilation.zig");
@@ -6,7 +7,6 @@ const Source = @import("Source.zig");
 const Attribute = @import("Attribute.zig");
 const Value = @import("Value.zig");
 const StringInterner = @import("StringInterner.zig");
-const Interner = @import("Interner.zig");
 
 const Tree = @This();
 
@@ -727,7 +727,7 @@ fn dumpAttribute(tree: *const Tree, attr: Attribute, writer: anytype) !void {
 fn dumpNode(tree: *const Tree, node: NodeIndex, level: u32, mapper: StringInterner.TypeMapper, color: bool, w: anytype) @TypeOf(w).Error!void {
     const delta = 2;
     const half = delta / 2;
-    const util = @import("util.zig");
+    const util = @import("backend").util;
     const TYPE = util.Color.purple;
     const TAG = util.Color.cyan;
     const IMPLICIT = util.Color.blue;

@@ -2,14 +2,17 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
-const Codegen = @import("Codegen_legacy.zig");
+const backend = @import("backend");
+const Ir = backend.Ir;
+const Object = backend.Object;
+const util = backend.util;
+const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
 const Toolchain = @import("Toolchain.zig");
-const util = @import("util.zig");
 const target_util = @import("target.zig");
 
 const Driver = @This();
@@ -189,7 +192,7 @@ pub fn parseArgs(
                 };
                 return true;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
-                std_out.writeAll(@import("lib.zig").version_str ++ "\n") catch |er| {
+                std_out.writeAll(@import("backend").version_str ++ "\n") catch |er| {
                     return d.fatal("unable to print version: {s}", .{util.errorDescription(er)});
                 };
                 return true;
@@ -620,12 +623,29 @@ fn processSource(
         );
     }
 
+    var ir = try CodeGen.generateTree(d.comp, tree);
+    defer ir.deinit(d.comp.gpa);
+
     if (d.verbose_ir) {
-        try @import("CodeGen.zig").generateTree(d.comp, tree);
+        const stdout = std.io.getStdOut();
+        var buf_writer = std.io.bufferedWriter(stdout.writer());
+        const color = d.comp.diag.color and util.fileSupportsColor(stdout);
+        ir.dump(d.comp.gpa, color, buf_writer.writer()) catch {};
+        buf_writer.flush() catch {};
     }
 
-    const obj = try Codegen.generateTree(d.comp, tree);
-    defer obj.deinit();
+    var renderer = try Ir.Renderer.init(d.comp.gpa, d.comp.target, &ir);
+    defer renderer.deinit();
+
+    renderer.render() catch |e| switch (e) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.LowerFail => {
+            return d.fatal(
+                "unable to render Ir to machine code: {s}",
+                .{renderer.errors.values()[0]},
+            );
+        },
+    };
 
     // If it's used, name_buf will either hold a filename or `/tmp/<12 random bytes with base-64 encoding>.<extension>`
     // both of which should fit into MAX_NAME_BYTES for all systems
@@ -660,7 +680,7 @@ fn processSource(
         return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
     defer out_file.close();
 
-    obj.finish(out_file) catch |er|
+    renderer.obj.finish(out_file) catch |er|
         return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
 
     if (d.only_compile) {

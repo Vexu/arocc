@@ -16,8 +16,8 @@ const Diagnostics = @import("Diagnostics.zig");
 const NodeList = std.ArrayList(NodeIndex);
 const InitList = @import("InitList.zig");
 const Attribute = @import("Attribute.zig");
-const CharInfo = @import("CharInfo.zig");
-const TextLiteral = @import("TextLiteral.zig");
+const char_info = @import("char_info.zig");
+const text_literal = @import("text_literal.zig");
 const Value = @import("Value.zig");
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
@@ -190,20 +190,20 @@ fn checkIdentifierCodepointWarnings(comp: *Compilation, codepoint: u21, loc: Sou
 
     const err_start = comp.diag.list.items.len;
 
-    if (!CharInfo.isC99IdChar(codepoint)) {
+    if (!char_info.isC99IdChar(codepoint)) {
         try comp.diag.add(.{
             .tag = .c99_compat,
             .loc = loc,
         }, &.{});
     }
-    if (CharInfo.isInvisible(codepoint)) {
+    if (char_info.isInvisible(codepoint)) {
         try comp.diag.add(.{
             .tag = .unicode_zero_width,
             .loc = loc,
             .extra = .{ .actual_codepoint = codepoint },
         }, &.{});
     }
-    if (CharInfo.homoglyph(codepoint)) |resembles| {
+    if (char_info.homoglyph(codepoint)) |resembles| {
         try comp.diag.add(.{
             .tag = .unicode_homoglyph,
             .loc = loc,
@@ -7633,8 +7633,8 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
 
 fn stringLiteral(p: *Parser) Error!Result {
     var string_end = p.tok_i;
-    var string_kind: TextLiteral.Kind = .char;
-    while (TextLiteral.Kind.classify(p.tok_ids[string_end], .string_literal)) |next| : (string_end += 1) {
+    var string_kind: text_literal.Kind = .char;
+    while (text_literal.Kind.classify(p.tok_ids[string_end], .string_literal)) |next| : (string_end += 1) {
         string_kind = string_kind.concat(next) catch {
             try p.errTok(.unsupported_str_cat, string_end);
             while (p.tok_ids[p.tok_i].isStringLiteral()) : (p.tok_i += 1) {}
@@ -7654,9 +7654,9 @@ fn stringLiteral(p: *Parser) Error!Result {
     defer p.strings.items.len = strings_top;
 
     while (p.tok_i < string_end) : (p.tok_i += 1) {
-        const this_kind = TextLiteral.Kind.classify(p.tok_ids[p.tok_i], .string_literal).?;
+        const this_kind = text_literal.Kind.classify(p.tok_ids[p.tok_i], .string_literal).?;
         const slice = this_kind.contentSlice(p.tokSlice(p.tok_i));
-        var char_literal_parser = TextLiteral.Parser.init(slice, this_kind, 0x10ffff, p.comp);
+        var char_literal_parser = text_literal.Parser.init(slice, this_kind, 0x10ffff, p.comp);
 
         try p.strings.ensureUnusedCapacity((slice.len + 1) * @intFromEnum(char_width)); // +1 for null terminator
         while (char_literal_parser.next()) |item| switch (item) {
@@ -7747,7 +7747,7 @@ fn stringLiteral(p: *Parser) Error!Result {
 fn charLiteral(p: *Parser) Error!Result {
     defer p.tok_i += 1;
     const tok_id = p.tok_ids[p.tok_i];
-    const char_kind = TextLiteral.Kind.classify(tok_id, .char_literal) orelse {
+    const char_kind = text_literal.Kind.classify(tok_id, .char_literal) orelse {
         if (tok_id == .empty_char_literal) {
             try p.err(.empty_char_literal_error);
         } else if (tok_id == .unterminated_char_literal) {
@@ -7769,7 +7769,7 @@ fn charLiteral(p: *Parser) Error!Result {
         val = slice[0];
     } else {
         const max_codepoint = char_kind.maxCodepoint(p.comp);
-        var char_literal_parser = TextLiteral.Parser.init(slice, char_kind, max_codepoint, p.comp);
+        var char_literal_parser = text_literal.Parser.init(slice, char_kind, max_codepoint, p.comp);
 
         const max_chars_expected = 4;
         var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);

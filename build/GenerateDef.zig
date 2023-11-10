@@ -15,7 +15,7 @@ pub const base_id: Step.Id = .custom;
 
 pub const Options = struct {
     name: []const u8,
-    src_prefix: []const u8 = "src",
+    src_prefix: []const u8 = "src/aro",
     kind: Kind = .dafsa,
 
     pub const Kind = enum { dafsa, named };

@@ -1,8 +1,9 @@
 const std = @import("std");
-const assert = std.debug.assert;
-const mem = std.mem;
 const Allocator = mem.Allocator;
+const assert = std.debug.assert;
 const EpochSeconds = std.time.epoch.EpochSeconds;
+const mem = std.mem;
+const Interner = @import("backend").Interner;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Diagnostics = @import("Diagnostics.zig");
@@ -15,7 +16,6 @@ const Pragma = @import("Pragma.zig");
 const StrInt = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
 const target_util = @import("target.zig");
-const Interner = @import("Interner.zig");
 
 const Compilation = @This();
 
@@ -479,7 +479,7 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
     if (system_defines_mode == .include_system_defines) {
         try buf.appendSlice(
             \\#define __VERSION__ "Aro 
-        ++ @import("lib.zig").version_str ++ "\"\n" ++
+        ++ @import("backend").version_str ++ "\"\n" ++
             \\#define __Aro__
             \\
         );

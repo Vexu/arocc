@@ -5,7 +5,7 @@
 //! isXidStart and isXidContinue are adapted from https://github.com/dtolnay/unicode-ident
 
 const assert = @import("std").debug.assert;
-const tables = @import("unicode/identifier_tables.zig");
+const tables = @import("char_info/identifier_tables.zig");
 
 /// C11 Standard Annex D
 pub fn isC11IdChar(codepoint: u21) bool {

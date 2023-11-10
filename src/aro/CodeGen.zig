@@ -1,11 +1,12 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
+const backend = @import("backend");
+const Interner = backend.Interner;
+const Ir = backend.Ir;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Compilation = @import("Compilation.zig");
-const Interner = @import("Interner.zig");
-const Ir = @import("Ir.zig");
 const Builder = Ir.Builder;
 const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
@@ -54,7 +55,7 @@ continue_label: Ir.Ref = undefined,
 break_label: Ir.Ref = undefined,
 return_label: Ir.Ref = undefined,
 
-pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
+pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!Ir {
     var c = CodeGen{
         .builder = .{
             .gpa = comp.gpa,
@@ -118,6 +119,7 @@ pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!void {
             else => unreachable,
         }
     }
+    return c.builder.finish();
 }
 
 fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
@@ -205,13 +207,7 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
         _ = try c.builder.addInst(.ret, .{ .un = phi }, .noreturn);
     }
 
-    var res = Ir{
-        .interner = c.builder.interner,
-        .instructions = c.builder.instructions,
-        .arena = c.builder.arena.state,
-        .body = c.builder.body,
-    };
-    res.dump(c.builder.gpa, name, c.comp.diag.color, std.io.getStdOut().writer()) catch {};
+    try c.builder.finishFn(name);
 }
 
 fn addUn(c: *CodeGen, tag: Ir.Inst.Tag, operand: Ir.Ref, ty: Type) !Ir.Ref {
@@ -237,7 +233,7 @@ fn addBranch(c: *CodeGen, cond: Ir.Ref, true_label: Ir.Ref, false_label: Ir.Ref)
 }
 
 fn addBoolPhi(c: *CodeGen, value: bool) !void {
-    const val = try c.builder.addConstant(try Value.int(@intFromBool(value), c.comp), .i1);
+    const val = try c.builder.addConstant((try Value.int(@intFromBool(value), c.comp)).ref(), .i1);
     try c.phi_nodes.append(c.comp.gpa, .{ .label = c.builder.current_label, .value = val });
 }
 
@@ -249,7 +245,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     std.debug.assert(node != .none);
     const ty = c.node_ty[@intFromEnum(node)];
     if (c.tree.value_map.get(node)) |val| {
-        return c.builder.addConstant(val, try c.genType(ty));
+        return c.builder.addConstant(val.ref(), try c.genType(ty));
     }
     const data = c.node_data[@intFromEnum(node)];
     switch (c.node_tag[@intFromEnum(node)]) {
@@ -534,7 +530,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .implicit_return => {
             if (data.return_zero) {
-                const operand = try c.builder.addConstant(Value.zero, try c.genType(ty));
+                const operand = try c.builder.addConstant(.zero, try c.genType(ty));
                 try c.ret_nodes.append(c.comp.gpa, .{ .value = operand, .label = c.builder.current_label });
             }
             // No need to emit a jump since implicit_return is always the last instruction.
@@ -633,7 +629,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .plus_expr => return c.genExpr(data.un),
         .negate_expr => {
-            const zero = try c.builder.addConstant(Value.zero, try c.genType(ty));
+            const zero = try c.builder.addConstant(.zero, try c.genType(ty));
             const operand = try c.genExpr(data.un);
             return c.addBin(.sub, zero, operand, ty);
         },
@@ -642,14 +638,14 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             return c.addUn(.bit_not, operand, ty);
         },
         .bool_not_expr => {
-            const zero = try c.builder.addConstant(Value.zero, try c.genType(ty));
+            const zero = try c.builder.addConstant(.zero, try c.genType(ty));
             const operand = try c.genExpr(data.un);
             return c.addBin(.cmp_ne, zero, operand, ty);
         },
         .pre_inc_expr => {
             const operand = try c.genLval(data.un);
             const val = try c.addUn(.load, operand, ty);
-            const one = try c.builder.addConstant(Value.one, try c.genType(ty));
+            const one = try c.builder.addConstant(.one, try c.genType(ty));
             const plus_one = try c.addBin(.add, val, one, ty);
             try c.builder.addStore(operand, plus_one);
             return plus_one;
@@ -657,7 +653,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .pre_dec_expr => {
             const operand = try c.genLval(data.un);
             const val = try c.addUn(.load, operand, ty);
-            const one = try c.builder.addConstant(Value.one, try c.genType(ty));
+            const one = try c.builder.addConstant(.one, try c.genType(ty));
             const plus_one = try c.addBin(.sub, val, one, ty);
             try c.builder.addStore(operand, plus_one);
             return plus_one;
@@ -665,7 +661,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .post_inc_expr => {
             const operand = try c.genLval(data.un);
             const val = try c.addUn(.load, operand, ty);
-            const one = try c.builder.addConstant(Value.one, try c.genType(ty));
+            const one = try c.builder.addConstant(.one, try c.genType(ty));
             const plus_one = try c.addBin(.add, val, one, ty);
             try c.builder.addStore(operand, plus_one);
             return val;
@@ -673,7 +669,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .post_dec_expr => {
             const operand = try c.genLval(data.un);
             const val = try c.addUn(.load, operand, ty);
-            const one = try c.builder.addConstant(Value.one, try c.genType(ty));
+            const one = try c.builder.addConstant(.one, try c.genType(ty));
             const plus_one = try c.addBin(.sub, val, one, ty);
             try c.builder.addStore(operand, plus_one);
             return val;
@@ -715,7 +711,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             },
             .pointer_to_bool, .int_to_bool, .float_to_bool => {
                 const lhs = try c.genExpr(data.cast.operand);
-                const rhs = try c.builder.addConstant(Value.zero, try c.genType(c.node_ty[@intFromEnum(node)]));
+                const rhs = try c.builder.addConstant(.zero, try c.genType(c.node_ty[@intFromEnum(node)]));
                 return c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
             },
             .bitcast,
@@ -825,7 +821,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .bool_or_expr => {
             if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
                 if (!lhs.toBool(c.comp)) {
-                    return c.builder.addConstant(Value.one, try c.genType(ty));
+                    return c.builder.addConstant(.one, try c.genType(ty));
                 }
                 return c.genExpr(data.bin.rhs);
             }
@@ -853,7 +849,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .bool_and_expr => {
             if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
                 if (!lhs.toBool(c.comp)) {
-                    return c.builder.addConstant(Value.zero, try c.genType(ty));
+                    return c.builder.addConstant(.zero, try c.genType(ty));
                 }
                 return c.genExpr(data.bin.rhs);
             }
@@ -958,7 +954,7 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     switch (c.node_tag[@intFromEnum(node)]) {
         .string_literal_expr => {
             const val = c.tree.value_map.get(node).?;
-            return c.builder.addConstant(val, .ptr);
+            return c.builder.addConstant(val.ref(), .ptr);
         },
         .paren_expr => return c.genLval(data.un),
         .decl_ref_expr => {
@@ -1031,7 +1027,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
             try c.genBoolExpr(data.bin.lhs, true_label, new_false_label);
             try c.builder.startBlock(new_false_label);
 
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.one, ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(.one, ty);
             return c.genBoolExpr(data.bin.rhs, true_label, false_label);
         },
         .bool_and_expr => {
@@ -1049,14 +1045,14 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
             try c.genBoolExpr(data.bin.lhs, new_true_label, false_label);
             try c.builder.startBlock(new_true_label);
 
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.one, ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(.one, ty);
             return c.genBoolExpr(data.bin.rhs, true_label, false_label);
         },
         .bool_not_expr => {
             c.bool_invert = !c.bool_invert;
             defer c.bool_invert = !c.bool_invert;
 
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.zero, ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(.zero, ty);
             return c.genBoolExpr(data.un, false_label, true_label);
         },
         .equal_expr => {
@@ -1110,7 +1106,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
             try c.genBoolExpr(data.if3.cond, true_label, new_false_label);
 
             try c.builder.startBlock(new_false_label);
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.one, ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(.one, ty);
             return c.genBoolExpr(c.tree.data[data.if3.body + 1], true_label, false_label); // else
         },
         .cond_expr => {
@@ -1129,7 +1125,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
             try c.builder.startBlock(new_true_label);
             try c.genBoolExpr(c.tree.data[data.if3.body], true_label, false_label); // then
             try c.builder.startBlock(new_false_label);
-            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(Value.one, ty);
+            if (c.cond_dummy_ty) |ty| c.cond_dummy_ref = try c.builder.addConstant(.one, ty);
             return c.genBoolExpr(c.tree.data[data.if3.body + 1], true_label, false_label); // else
         },
         else => {},
@@ -1151,7 +1147,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
 
     // Assume int operand.
     const lhs = try c.genExpr(node);
-    const rhs = try c.builder.addConstant(Value.zero, try c.genType(c.node_ty[@intFromEnum(node)]));
+    const rhs = try c.builder.addConstant(.zero, try c.genType(c.node_ty[@intFromEnum(node)]));
     const cmp = try c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
     if (c.cond_dummy_ty != null) c.cond_dummy_ref = cmp;
     try c.addBranch(cmp, true_label, false_label);
@@ -1251,7 +1247,7 @@ fn genPtrArithmetic(c: *CodeGen, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, t
         return c.builder.addInst(.add, .{ .bin = .{ .lhs = ptr, .rhs = offset } }, try c.genType(ty));
     }
 
-    const size_inst = try c.builder.addConstant(try Value.int(size, c.comp), try c.genType(offset_ty));
+    const size_inst = try c.builder.addConstant((try Value.int(size, c.comp)).ref(), try c.genType(offset_ty));
     const offset_inst = try c.addBin(.mul, offset, size_inst, offset_ty);
     return c.addBin(.add, ptr, offset_inst, offset_ty);
 }
@@ -1269,7 +1265,7 @@ fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: Type, initializer: NodeInde
         => return c.comp.diag.fatalNoSrc("TODO CodeGen.genInitializer {}\n", .{c.node_tag[@intFromEnum(initializer)]}),
         .string_literal_expr => {
             const val = c.tree.value_map.get(initializer).?;
-            const str_ptr = try c.builder.addConstant(val, .ptr);
+            const str_ptr = try c.builder.addConstant(val.ref(), .ptr);
             if (dest_ty.isArray()) {
                 return c.comp.diag.fatalNoSrc("TODO memcpy\n", .{});
             } else {
