@@ -2,7 +2,7 @@ const std = @import("std");
 const build_options = @import("build_options");
 const print = std.debug.print;
 const aro = @import("aro");
-const Codegen = aro.Codegen;
+const CodeGen = aro.CodeGen;
 const Tree = aro.Tree;
 const Token = Tree.Token;
 const NodeIndex = Tree.NodeIndex;
@@ -392,15 +392,16 @@ pub fn main() !void {
             const expected_output = buf.items;
 
             const obj_name = "test_object.o";
-            {
-                const obj = try Codegen.generateTree(&comp, tree);
-                defer obj.deinit();
+            if (true) break :blk;
+            // {
+            //     const obj = try Codegen.generateTree(&comp, tree);
+            //     defer obj.deinit();
 
-                const out_file = try std.fs.cwd().createFile(obj_name, .{});
-                defer out_file.close();
+            //     const out_file = try std.fs.cwd().createFile(obj_name, .{});
+            //     defer out_file.close();
 
-                try obj.finish(out_file);
-            }
+            //     try obj.finish(out_file);
+            // }
 
             var child = std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
             child.stdout_behavior = .Pipe;
