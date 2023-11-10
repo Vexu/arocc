@@ -1,5 +1,3 @@
-/// Deprecated
-pub const Codegen = @import("Codegen_legacy.zig");
 pub const CodeGen = @import("CodeGen.zig");
 pub const Compilation = @import("Compilation.zig");
 pub const Diagnostics = @import("Diagnostics.zig");

@@ -2,9 +2,10 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
-const Codegen = @import("Codegen_legacy.zig");
+const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
+const Object = @import("Object.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
@@ -624,7 +625,7 @@ fn processSource(
         try @import("CodeGen.zig").generateTree(d.comp, tree);
     }
 
-    const obj = try Codegen.generateTree(d.comp, tree);
+    const obj = try Object.create(d.comp);
     defer obj.deinit();
 
     // If it's used, name_buf will either hold a filename or `/tmp/<12 random bytes with base-64 encoding>.<extension>`
