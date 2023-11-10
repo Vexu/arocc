@@ -11,6 +11,7 @@ pub const Parser = @import("Parser.zig");
 pub const Preprocessor = @import("Preprocessor.zig");
 pub const Source = @import("Source.zig");
 pub const Tokenizer = @import("Tokenizer.zig");
+pub const Toolchain = @import("Toolchain.zig");
 pub const Tree = @import("Tree.zig");
 pub const Type = @import("Type.zig");
 pub const TypeMapper = @import("StringInterner.zig").TypeMapper;
@@ -25,3 +26,18 @@ pub const CallingConvention = enum {
     thiscall,
     vectorcall,
 };
+
+test {
+    _ = @import("Builtins.zig");
+    _ = @import("CharInfo.zig");
+    _ = @import("Compilation.zig");
+    _ = @import("Driver/Distro.zig");
+    _ = @import("Driver/Filesystem.zig");
+    _ = @import("Driver/GCCVersion.zig");
+    _ = @import("InitList.zig");
+    _ = @import("Preprocessor.zig");
+    _ = @import("target.zig");
+    _ = @import("Tokenizer.zig");
+    _ = @import("toolchains/Linux.zig");
+    _ = @import("Value.zig");
+}

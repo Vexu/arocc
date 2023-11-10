@@ -56,17 +56,33 @@ pub fn build(b: *Build) !void {
     const tracy = b.option([]const u8, "tracy", "Enable Tracy integration. Supply path to Tracy source");
     const tracy_callstack = b.option(bool, "tracy-callstack", "Include callstack information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
     const tracy_allocation = b.option(bool, "tracy-allocation", "Include allocation information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
+    const skip_record_tests = b.option(bool, "skip-record-tests", "Skip record layout tests") orelse false;
+    const skip_integration_tests = b.option(bool, "skip-integration-tests", "Skip integration tests") orelse false;
+
+    const system_defaults = b.addOptions();
+    system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
+    system_defaults.addOption([]const u8, "linker", default_linker);
+    system_defaults.addOption(u8, "path_sep", path_sep);
+    system_defaults.addOption([]const u8, "sysroot", default_sysroot);
+    system_defaults.addOption([]const u8, "gcc_install_prefix", gcc_install_prefix);
+    system_defaults.addOption([]const u8, "rtlib", default_rtlib);
+    system_defaults.addOption([]const u8, "unwindlib", default_unwindlib);
 
     const zig_module = b.createModule(.{
         .source_file = .{ .path = "deps/zig/lib.zig" },
     });
     const aro_module = b.addModule("aro", .{
         .source_file = .{ .path = "src/lib.zig" },
-        .dependencies = &.{.{
+        .dependencies = &.{ .{
             .name = "zig",
             .module = zig_module,
-        }},
+        }, .{
+            .name = "system_defaults",
+            .module = system_defaults.createModule(),
+        } },
     });
+    GenerateDef.add(b, "src/Builtins/Builtin.def", aro_module);
+    GenerateDef.add(b, "src/Attribute/names.def", aro_module);
 
     b.installDirectory(.{
         .source_dir = .{ .path = "include" },
@@ -80,23 +96,12 @@ pub fn build(b: *Build) !void {
         .optimize = mode,
         .target = target,
     });
-    const exe_options = b.addOptions();
-    exe.addOptions("build_options", exe_options);
-
-    const system_defaults = b.addOptions();
+    exe.addModule("aro", aro_module);
     exe.addOptions("system_defaults", system_defaults);
 
-    GenerateDef.add(b, "src/Builtins/Builtin.def", exe, aro_module);
-    GenerateDef.add(b, "src/Attribute/names.def", exe, aro_module);
-
-    system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
-    system_defaults.addOption([]const u8, "linker", default_linker);
-    system_defaults.addOption(u8, "path_sep", path_sep);
-    system_defaults.addOption([]const u8, "sysroot", default_sysroot);
-    system_defaults.addOption([]const u8, "gcc_install_prefix", gcc_install_prefix);
-    system_defaults.addOption([]const u8, "rtlib", default_rtlib);
-    system_defaults.addOption([]const u8, "unwindlib", default_unwindlib);
-
+    // tracy integration
+    const exe_options = b.addOptions();
+    exe.addOptions("build_options", exe_options);
     exe_options.addOption(bool, "enable_tracy", tracy != null);
     exe_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
     exe_options.addOption(bool, "enable_tracy_allocation", tracy_allocation);
@@ -129,10 +134,9 @@ pub fn build(b: *Build) !void {
     b.installArtifact(exe);
 
     const tests_step = b.step("test", "Run all tests");
-    tests_step.dependOn(&exe.step);
 
-    var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
-    for (exe.modules.keys(), exe.modules.values()) |name, module| {
+    var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/lib.zig" } });
+    for (aro_module.dependencies.keys(), aro_module.dependencies.values()) |name, module| {
         unit_tests.addModule(name, module);
     }
     const run_test = b.addRunArtifact(unit_tests);
@@ -146,7 +150,6 @@ pub fn build(b: *Build) !void {
     integration_tests.addModule("aro", aro_module);
     const test_runner_options = b.addOptions();
     integration_tests.addOptions("build_options", test_runner_options);
-    integration_tests.addOptions("system_defaults", system_defaults);
     test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
 
     const integration_test_runner = b.addRunArtifact(integration_tests);
@@ -162,8 +165,8 @@ pub fn build(b: *Build) !void {
     const record_tests_runner = b.addRunArtifact(record_tests);
     record_tests_runner.addArg(b.pathFromRoot("test/records"));
 
-    tests_step.dependOn(&integration_test_runner.step);
-    tests_step.dependOn(&record_tests_runner.step);
+    if (!skip_integration_tests) tests_step.dependOn(&integration_test_runner.step);
+    if (!skip_record_tests) tests_step.dependOn(&record_tests_runner.step);
 
     try addFuzzStep(b, target);
 }

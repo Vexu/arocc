@@ -13,7 +13,6 @@ pub const base_id: Step.Id = .custom;
 pub fn add(
     owner: *std.Build,
     path: []const u8,
-    compile_step: *Step.Compile,
     aro_module: *std.Build.Module,
 ) void {
     const self = owner.allocator.create(GenerateDef) catch @panic("OOM");
@@ -34,8 +33,6 @@ pub fn add(
         .source_file = .{ .generated = &self.generated_file },
     });
     const relative_path = path[4..]; // remove "src/"
-    compile_step.addModule(relative_path, module);
-    compile_step.step.dependOn(&self.step);
     aro_module.dependencies.put(relative_path, module) catch @panic("OOM");
 }
 
