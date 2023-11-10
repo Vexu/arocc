@@ -62,6 +62,7 @@ pub const Message = struct {
         offset: u64,
         pow_2_as_string: u8,
         signed: i64,
+        normalized: []const u8,
         none: void,
     };
 };
@@ -207,6 +208,7 @@ pub const Options = struct {
     @"duplicate-embed-param": Kind = .default,
     @"unsupported-embed-param": Kind = .default,
     @"unused-result": Kind = .default,
+    normalized: Kind = .default,
 };
 
 const Diagnostics = @This();
@@ -468,6 +470,41 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
                 const str = std.fmt.bufPrint(&buf, "x{x}", .{std.fmt.fmtSliceHexLower(&.{msg.extra.invalid_escape.char})}) catch unreachable;
                 printRt(m, prop.msg, .{"{s}"}, .{str});
             }
+        },
+        .normalized => {
+            const f = struct {
+                pub fn f(
+                    bytes: []const u8,
+                    comptime _: []const u8,
+                    _: std.fmt.FormatOptions,
+                    writer: anytype,
+                ) !void {
+                    var it: std.unicode.Utf8Iterator = .{
+                        .bytes = bytes,
+                        .i = 0,
+                    };
+                    while (it.nextCodepoint()) |codepoint| {
+                        if (codepoint < 0x7F) {
+                            try writer.writeByte(@intCast(codepoint));
+                        } else if (codepoint < 0xFFFF) {
+                            try writer.writeAll("\\u");
+                            try std.fmt.formatInt(codepoint, 16, .upper, .{
+                                .fill = '0',
+                                .width = 4,
+                            }, writer);
+                        } else {
+                            try writer.writeAll("\\U");
+                            try std.fmt.formatInt(codepoint, 16, .upper, .{
+                                .fill = '0',
+                                .width = 8,
+                            }, writer);
+                        }
+                    }
+                }
+            }.f;
+            printRt(m, prop.msg, .{"{s}"}, .{
+                std.fmt.Formatter(f){ .data = msg.extra.normalized },
+            });
         },
         .none, .offset => m.write(prop.msg),
     }
