@@ -81,8 +81,14 @@ pub fn build(b: *Build) !void {
             .module = system_defaults.createModule(),
         } },
     });
-    GenerateDef.add(b, "src/Builtins/Builtin.def", aro_module);
-    GenerateDef.add(b, "src/Attribute/names.def", aro_module);
+    GenerateDef.add(b, .{
+        .name = "Builtins/Builtin.def",
+        .aro_module = aro_module,
+    });
+    GenerateDef.add(b, .{
+        .name = "Attribute/names.def",
+        .aro_module = aro_module,
+    });
 
     b.installDirectory(.{
         .source_dir = .{ .path = "include" },
