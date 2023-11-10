@@ -1,9 +1,8 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
-const Compilation = @import("Compilation.zig");
 const Interner = @import("Interner.zig");
-const StringId = @import("StringInterner.zig").StringId;
+const Object = @import("Object.zig");
 const Value = @import("Value.zig");
 
 const Ir = @This();
@@ -172,6 +171,49 @@ pub const Builder = struct {
             .@"else" = @"else",
         };
         return b.addInst(.select, .{ .branch = branch }, ty);
+    }
+};
+
+pub const Renderer = struct {
+    gpa: Allocator,
+    obj: *Object,
+    ir: *const Ir,
+    errors: std.StringArrayHashMapUnmanaged([]const u8) = .{},
+
+    pub const Error = Allocator.Error || error{LowerFail};
+
+    pub fn init(gpa: Allocator, target: std.Target, ir: *const Ir) !Renderer {
+        const obj = try Object.create(gpa, target);
+        errdefer obj.deinit();
+        return .{
+            .gpa = gpa,
+            .obj = obj,
+            .ir = ir,
+        };
+    }
+
+    pub fn deinit(r: *Renderer) void {
+        for (r.errors.values()) |msg| r.gpa.free(msg);
+        r.errors.deinit(r.gpa);
+        r.obj.deinit();
+    }
+
+    pub fn render(r: *Renderer) !void {
+        switch (r.obj.target.cpu.arch) {
+            .x86, .x86_64 => return @import("Ir/x86/Renderer.zig").render(r),
+            else => unreachable,
+        }
+    }
+
+    pub fn fail(
+        r: *Renderer,
+        name: []const u8,
+        comptime format: []const u8,
+        args: anytype,
+    ) Error {
+        try r.errors.ensureUnusedCapacity(r.gpa, 1);
+        r.errors.putAssumeCapacity(name, try std.fmt.allocPrint(r.gpa, format, args));
+        return error.LowerFail;
     }
 };
 

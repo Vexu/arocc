@@ -4,6 +4,7 @@ const Allocator = mem.Allocator;
 const process = std.process;
 const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
+const Ir = @import("Ir.zig");
 const LangOpts = @import("LangOpts.zig");
 const Object = @import("Object.zig");
 const Preprocessor = @import("Preprocessor.zig");
@@ -632,8 +633,18 @@ fn processSource(
         buf_writer.flush() catch {};
     }
 
-    const obj = try Object.create(d.comp);
-    defer obj.deinit();
+    var renderer = try Ir.Renderer.init(d.comp.gpa, d.comp.target, &ir);
+    defer renderer.deinit();
+
+    renderer.render() catch |e| switch (e) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.LowerFail => {
+            return d.fatal(
+                "unable to render Ir to machine code: {s}",
+                .{renderer.errors.values()[0]},
+            );
+        },
+    };
 
     // If it's used, name_buf will either hold a filename or `/tmp/<12 random bytes with base-64 encoding>.<extension>`
     // both of which should fit into MAX_NAME_BYTES for all systems
@@ -668,7 +679,7 @@ fn processSource(
         return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
     defer out_file.close();
 
-    obj.finish(out_file) catch |er|
+    renderer.obj.finish(out_file) catch |er|
         return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
 
     if (d.only_compile) {
