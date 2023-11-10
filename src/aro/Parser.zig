@@ -233,6 +233,8 @@ fn validateExtendedIdentifier(p: *Parser) !bool {
     var invalid_char: u21 = undefined;
     var loc = p.pp.tokens.items(.loc)[p.tok_i];
 
+    var normalized = true;
+    var last_canonical_class: char_info.CanonicalCombiningClass = .not_reordered;
     const standard = p.comp.langopts.standard;
     while (it.nextCodepoint()) |codepoint| {
         defer {
@@ -260,6 +262,22 @@ fn validateExtendedIdentifier(p: *Parser) !bool {
         if (!warned) {
             warned = try checkIdentifierCodepointWarnings(p.comp, codepoint, loc);
         }
+
+        // Check NFC normalization.
+        if (!normalized) continue;
+        const canonical_class = char_info.getCanonicalClass(codepoint);
+        if (@intFromEnum(last_canonical_class) > @intFromEnum(canonical_class) and
+            canonical_class != .not_reordered)
+        {
+            normalized = false;
+            try p.errStr(.identifier_not_normalized, p.tok_i, slice);
+            continue;
+        }
+        if (char_info.isNormalized(codepoint) != .yes) {
+            normalized = false;
+            try p.errExtra(.identifier_not_normalized, p.tok_i, .{ .normalized = slice });
+        }
+        last_canonical_class = canonical_class;
     }
 
     if (!valid_identifier) {

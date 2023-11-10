@@ -2421,3 +2421,9 @@ attribute_int_out_of_range
     .msg = "attribute value '{s}' out of range"
     .kind = .@"error"
     .extra = .str
+
+identifier_not_normalized
+    .msg = "'{s}' is not in NFC"
+    .kind = .warning
+    .extra = .normalized
+    .opt = W("normalized")
