@@ -159,7 +159,7 @@ pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChang
     }
 
     const signedness = dest_ty.signedness(comp);
-    const bits = dest_ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
 
     // rational.p.truncate(rational.p.toConst(), signedness: Signedness, bit_count: usize)
     const fits = rational.p.fitsInTwosComp(signedness, bits);
@@ -208,7 +208,7 @@ pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
 /// `.none` value remains unchanged.
 pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
-    const bits = dest_ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
     var space: BigIntSpace = undefined;
     const big = v.toBigInt(&space, comp);
 
@@ -324,7 +324,7 @@ pub fn toInt(v: Value, comptime T: type, comp: *const Compilation) ?T {
 }
 
 pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
-    const bits = ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(ty.bitSizeof(comp).?);
     if (ty.isFloat()) {
         const f: Interner.Key.Float = switch (bits) {
             16 => .{ .f16 = lhs.toFloat(f16, comp) + rhs.toFloat(f16, comp) },
@@ -356,7 +356,7 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 }
 
 pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
-    const bits = ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(ty.bitSizeof(comp).?);
     if (ty.isFloat()) {
         const f: Interner.Key.Float = switch (bits) {
             16 => .{ .f16 = lhs.toFloat(f16, comp) - rhs.toFloat(f16, comp) },
@@ -388,7 +388,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 }
 
 pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
-    const bits = ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(ty.bitSizeof(comp).?);
     if (ty.isFloat()) {
         const f: Interner.Key.Float = switch (bits) {
             16 => .{ .f16 = lhs.toFloat(f16, comp) * rhs.toFloat(f16, comp) },
@@ -433,7 +433,7 @@ pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 
 /// caller guarantees rhs != 0
 pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
-    const bits = ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(ty.bitSizeof(comp).?);
     if (ty.isFloat()) {
         const f: Interner.Key.Float = switch (bits) {
             16 => .{ .f16 = lhs.toFloat(f16, comp) / rhs.toFloat(f16, comp) },
@@ -580,7 +580,7 @@ pub fn bitAnd(lhs: Value, rhs: Value, comp: *Compilation) !Value {
 }
 
 pub fn bitNot(val: Value, ty: Type, comp: *Compilation) !Value {
-    const bits = ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(ty.bitSizeof(comp).?);
     var val_space: Value.BigIntSpace = undefined;
     const val_bigint = val.toBigInt(&val_space, comp);
 
@@ -600,7 +600,7 @@ pub fn shl(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
     const shift = rhs.toInt(usize, comp) orelse std.math.maxInt(usize);
 
-    const bits = ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(ty.bitSizeof(comp).?);
     if (shift > bits) {
         if (lhs_bigint.positive) {
             res.* = try intern(comp, .{ .int = .{ .u64 = ty.maxInt(comp) } });
@@ -643,7 +643,7 @@ pub fn shr(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
         }
     }
 
-    const bits = ty.bitSizeof(comp).?;
+    const bits: usize = @intCast(ty.bitSizeof(comp).?);
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         std.math.big.int.calcTwosCompLimbCount(bits),
