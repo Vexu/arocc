@@ -73,26 +73,19 @@ pub fn build(b: *Build) !void {
     });
     const aro_module = b.addModule("aro", .{
         .source_file = .{ .path = "src/lib.zig" },
-        .dependencies = &.{ .{
-            .name = "zig",
-            .module = zig_module,
-        }, .{
-            .name = "system_defaults",
-            .module = system_defaults.createModule(),
-        } },
-    });
-    GenerateDef.add(b, .{
-        .name = "Builtins/Builtin.def",
-        .aro_module = aro_module,
-    });
-    GenerateDef.add(b, .{
-        .name = "Attribute/names.def",
-        .aro_module = aro_module,
-    });
-    GenerateDef.add(b, .{
-        .name = "Diagnostics/messages.def",
-        .aro_module = aro_module,
-        .kind = .named,
+        .dependencies = &.{
+            .{
+                .name = "zig",
+                .module = zig_module,
+            },
+            .{
+                .name = "system_defaults",
+                .module = system_defaults.createModule(),
+            },
+            GenerateDef.create(b, .{ .name = "Builtins/Builtin.def" }),
+            GenerateDef.create(b, .{ .name = "Attribute/names.def" }),
+            GenerateDef.create(b, .{ .name = "Diagnostics/messages.def", .kind = .named }),
+        },
     });
 
     b.installDirectory(.{

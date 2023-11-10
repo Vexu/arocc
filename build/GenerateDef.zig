@@ -1,11 +1,13 @@
 const std = @import("std");
-const GenerateDef = @This();
 const Step = std.Build.Step;
 const Allocator = std.mem.Allocator;
 const GeneratedFile = std.Build.GeneratedFile;
 
+const GenerateDef = @This();
+
 step: Step,
 path: []const u8,
+name: []const u8,
 kind: Options.Kind,
 generated_file: GeneratedFile,
 
@@ -13,14 +15,13 @@ pub const base_id: Step.Id = .custom;
 
 pub const Options = struct {
     name: []const u8,
-    aro_module: *std.Build.Module,
     src_prefix: []const u8 = "src",
     kind: Kind = .dafsa,
 
     pub const Kind = enum { dafsa, named };
 };
 
-pub fn add(owner: *std.Build, options: Options) void {
+pub fn create(owner: *std.Build, options: Options) std.Build.ModuleDependency {
     const self = owner.allocator.create(GenerateDef) catch @panic("OOM");
     const path = owner.pathJoin(&.{ options.src_prefix, options.name });
 
@@ -33,14 +34,17 @@ pub fn add(owner: *std.Build, options: Options) void {
             .makeFn = make,
         }),
         .path = path,
+        .name = options.name,
         .kind = options.kind,
         .generated_file = .{ .step = &self.step },
     };
-
-    const module = owner.createModule(.{
+    const module = self.step.owner.createModule(.{
         .source_file = .{ .generated = &self.generated_file },
     });
-    options.aro_module.dependencies.put(options.name, module) catch @panic("OOM");
+    return .{
+        .module = module,
+        .name = self.name,
+    };
 }
 
 fn make(step: *Step, prog_node: *std.Progress.Node) !void {
