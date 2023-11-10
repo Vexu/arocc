@@ -2,10 +2,11 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
-const Compilation = @import("Compilation.zig");
-const Driver = @import("Driver.zig");
-const target_util = @import("target.zig");
-const Toolchain = @import("Toolchain.zig");
+const aro = @import("aro");
+const Compilation = aro.Compilation;
+const Driver = aro.Driver;
+const target_util = aro.target_util;
+const Toolchain = aro.Toolchain;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -89,25 +90,4 @@ pub fn main() u8 {
     };
     if (fast_exit) std.process.exit(@intFromBool(comp.diag.errors != 0));
     return @intFromBool(comp.diag.errors != 0);
-}
-
-test {
-    _ = @import("Builtins.zig");
-    _ = @import("Codegen_legacy.zig");
-    _ = @import("Compilation.zig");
-    _ = @import("Diagnostics.zig");
-    _ = @import("Driver/Distro.zig");
-    _ = @import("Driver/Filesystem.zig");
-    _ = @import("InitList.zig");
-    _ = @import("LangOpts.zig");
-    _ = @import("Parser.zig");
-    _ = @import("Pragma.zig");
-    _ = @import("Preprocessor.zig");
-    _ = @import("Source.zig");
-    _ = @import("Tokenizer.zig");
-    _ = @import("Driver/GCCVersion.zig");
-    _ = @import("toolchains/Linux.zig");
-    _ = @import("Tree.zig");
-    _ = @import("Type.zig");
-    _ = @import("target.zig");
 }
