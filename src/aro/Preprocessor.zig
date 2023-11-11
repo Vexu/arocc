@@ -14,7 +14,7 @@ const Attribute = @import("Attribute.zig");
 const features = @import("features.zig");
 
 const Preprocessor = @This();
-const DefineMap = std.StringHashMap(Macro);
+const DefineMap = std.StringHashMapUnmanaged(Macro);
 const RawTokenList = std.ArrayList(RawToken);
 const max_include_depth = 200;
 
@@ -40,9 +40,9 @@ const Macro = struct {
     is_builtin: bool = false,
 
     /// Location of macro in the source
-    /// `byte_offset` and `line` are used to define the range of tokens included
-    /// in the macro.
     loc: Source.Location,
+    start: u32,
+    end: u32,
 
     fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
         if (a.tokens.len != b.tokens.len) return false;
@@ -66,7 +66,7 @@ const Macro = struct {
 comp: *Compilation,
 gpa: mem.Allocator,
 arena: std.heap.ArenaAllocator,
-defines: DefineMap,
+defines: DefineMap = .{},
 tokens: Token.List = .{},
 token_buf: RawTokenList,
 char_buf: std.ArrayList(u8),
@@ -106,7 +106,6 @@ pub fn init(comp: *Compilation) Preprocessor {
         .comp = comp,
         .gpa = comp.gpa,
         .arena = std.heap.ArenaAllocator.init(comp.gpa),
-        .defines = DefineMap.init(comp.gpa),
         .token_buf = RawTokenList.init(comp.gpa),
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .poisoned_identifiers = std.StringHashMap(void).init(comp.gpa),
@@ -181,12 +180,14 @@ const builtin_macros = struct {
 };
 
 fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: []const RawToken) !void {
-    try pp.defines.putNoClobber(name, .{
+    try pp.defines.putNoClobber(pp.gpa, name, .{
         .params = &builtin_macros.args,
         .tokens = tokens,
         .var_args = false,
         .is_func = is_func,
         .loc = .{ .id = .generated },
+        .start = 0,
+        .end = 0,
         .is_builtin = true,
     });
 }
@@ -210,7 +211,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
 }
 
 pub fn deinit(pp: *Preprocessor) void {
-    pp.defines.deinit();
+    pp.defines.deinit(pp.gpa);
     for (pp.tokens.items(.expansion_locs)) |loc| Token.free(loc, pp.gpa);
     pp.tokens.deinit(pp.gpa);
     pp.arena.deinit();
@@ -1663,15 +1664,14 @@ fn expandVaOpt(
 }
 
 fn shouldExpand(tok: Token, macro: *Macro) bool {
-    // macro.loc.line contains the macros end index
     if (tok.loc.id == macro.loc.id and
-        tok.loc.byte_offset >= macro.loc.byte_offset and
-        tok.loc.byte_offset <= macro.loc.line)
+        tok.loc.byte_offset >= macro.start and
+        tok.loc.byte_offset <= macro.end)
         return false;
     for (tok.expansionSlice()) |loc| {
         if (loc.id == macro.loc.id and
-            loc.byte_offset >= macro.loc.byte_offset and
-            loc.byte_offset <= macro.loc.line)
+            loc.byte_offset >= macro.start and
+            loc.byte_offset <= macro.end)
             return false;
     }
     if (tok.flags.expansion_disabled) return false;
@@ -2169,14 +2169,21 @@ fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: Tok
 /// Defines a new macro and warns if it is a duplicate
 fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
     const name_str = pp.tokSlice(name_tok);
-    const gop = try pp.defines.getOrPut(name_str);
+    const gop = try pp.defines.getOrPut(pp.gpa, name_str);
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
+        const tag: Diagnostics.Tag = if (gop.value_ptr.is_builtin) .builtin_macro_redefined else .macro_redefined;
+        const start = pp.comp.diag.list.items.len;
         try pp.comp.diag.add(.{
-            .tag = if (gop.value_ptr.is_builtin) .builtin_macro_redefined else .macro_redefined,
+            .tag = tag,
             .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line },
             .extra = .{ .str = name_str },
         }, &.{});
-        // TODO add a previous definition note
+        if (!gop.value_ptr.is_builtin and pp.comp.diag.list.items.len != start) {
+            try pp.comp.diag.add(.{
+                .tag = .previous_definition,
+                .loc = gop.value_ptr.loc,
+            }, &.{});
+        }
     }
     if (pp.verbose) {
         pp.verboseLog(name_tok, "macro {s} defined", .{name_str});
@@ -2209,10 +2216,12 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     var first = tokenizer.next();
     switch (first.id) {
         .nl, .eof => return pp.defineMacro(macro_name, .{
-            .params = undefined,
-            .tokens = undefined,
+            .params = &.{},
+            .tokens = &.{},
             .var_args = false,
-            .loc = undefined,
+            .loc = tokFromRaw(macro_name).loc,
+            .start = 0,
+            .end = 0,
             .is_func = false,
         }),
         .whitespace => first = tokenizer.next(),
@@ -2276,11 +2285,9 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
 
     const list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
     try pp.defineMacro(macro_name, .{
-        .loc = .{
-            .id = macro_name.source,
-            .byte_offset = first.start,
-            .line = end_index,
-        },
+        .loc = tokFromRaw(macro_name).loc,
+        .start = first.start,
+        .end = end_index,
         .tokens = list,
         .params = undefined,
         .is_func = false,
@@ -2471,11 +2478,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
         .params = param_list,
         .var_args = var_args or gnu_var_args.len != 0,
         .tokens = token_list,
-        .loc = .{
-            .id = macro_name.source,
-            .byte_offset = start_index,
-            .line = end_index,
-        },
+        .loc = tokFromRaw(macro_name).loc,
+        .start = start_index,
+        .end = end_index,
     });
 }
 
