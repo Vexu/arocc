@@ -5,6 +5,7 @@ const target_util = @import("../target.zig");
 const system_defaults = @import("system_defaults");
 const GCCVersion = @import("GCCVersion.zig");
 const Multilib = @import("Multilib.zig");
+
 const GCCDetector = @This();
 
 is_valid: bool = false,

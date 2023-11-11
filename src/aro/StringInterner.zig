@@ -2,8 +2,6 @@ const std = @import("std");
 const mem = std.mem;
 const Compilation = @import("Compilation.zig");
 
-const StringInterner = @This();
-
 const StringToIdMap = std.StringHashMapUnmanaged(StringId);
 
 pub const StringId = enum(u32) {
@@ -43,6 +41,8 @@ pub const TypeMapper = struct {
         }
     }
 };
+
+const StringInterner = @This();
 
 string_table: StringToIdMap = .{},
 next_id: StringId = @enumFromInt(@intFromEnum(StringId.empty) + 1),

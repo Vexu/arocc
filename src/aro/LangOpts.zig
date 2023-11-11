@@ -2,8 +2,6 @@ const std = @import("std");
 const DiagnosticTag = @import("Diagnostics.zig").Tag;
 const char_info = @import("char_info.zig");
 
-const LangOpts = @This();
-
 pub const Compiler = enum {
     clang,
     gcc,
@@ -106,6 +104,8 @@ pub const Standard = enum {
         }
     }
 };
+
+const LangOpts = @This();
 
 emulate: Compiler = .clang,
 standard: Standard = .default,

@@ -385,6 +385,7 @@ test Linux {
     comp.environment = .{
         .path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
     };
+    defer comp.environment = .{};
 
     const raw_triple = "x86_64-linux-gnu";
     const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = raw_triple }) catch unreachable;

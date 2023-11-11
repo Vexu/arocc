@@ -1,5 +1,4 @@
 const std = @import("std");
-const Source = @This();
 
 pub const Id = enum(u32) {
     unused = 0,
@@ -26,6 +25,8 @@ pub const Location = struct {
         return a.id == b.id and a.byte_offset == b.byte_offset and a.line == b.line;
     }
 };
+
+const Source = @This();
 
 path: []const u8,
 buf: []const u8,

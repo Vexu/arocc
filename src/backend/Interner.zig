@@ -1,4 +1,3 @@
-const Interner = @This();
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
@@ -6,6 +5,8 @@ const BigIntConst = std.math.big.int.Const;
 const BigIntMutable = std.math.big.int.Mutable;
 const Hash = std.hash.Wyhash;
 const Limb = std.math.big.Limb;
+
+const Interner = @This();
 
 map: std.AutoArrayHashMapUnmanaged(void, void) = .{},
 items: std.MultiArrayList(struct {

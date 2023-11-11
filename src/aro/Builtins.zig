@@ -10,14 +10,14 @@ const Parser = @import("Parser.zig");
 const Properties = @import("Builtins/Properties.zig");
 pub const Builtin = @import("Builtins/Builtin.def").with(Properties);
 
-const Builtins = @This();
-
 const Expanded = struct {
     ty: Type,
     builtin: Builtin,
 };
 
 const NameToTypeMap = std.StringHashMapUnmanaged(Type);
+
+const Builtins = @This();
 
 _name_to_type_map: NameToTypeMap = .{},
 

@@ -4,9 +4,9 @@ const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
 const TokenIndex = @import("Tree.zig").TokenIndex;
 
-const Pragma = @This();
-
 pub const Error = Compilation.Error || error{ UnknownPragma, StopPreprocessing };
+
+const Pragma = @This();
 
 /// Called during Preprocessor.init
 beforePreprocess: ?*const fn (*Pragma, *Compilation) void = null,

@@ -3,8 +3,6 @@ const Allocator = std.mem.Allocator;
 const Target = std.Target;
 const Object = @import("../Object.zig");
 
-const Elf = @This();
-
 const Section = struct {
     data: std.ArrayList(u8),
     relocations: std.ArrayListUnmanaged(Relocation) = .{},
@@ -34,6 +32,8 @@ const symtab_index = 2;
 const strtab_default = "\x00.strtab\x00.symtab\x00";
 const strtab_name = 1;
 const symtab_name = "\x00.strtab\x00".len;
+
+const Elf = @This();
 
 obj: Object,
 /// The keys are owned by the Codegen.tree

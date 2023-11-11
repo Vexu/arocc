@@ -6,16 +6,12 @@ const backend = @import("backend");
 const Ir = backend.Ir;
 const Object = backend.Object;
 const util = backend.util;
-const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
-const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
 const Toolchain = @import("Toolchain.zig");
 const target_util = @import("target.zig");
-
-const Driver = @This();
 
 pub const Linker = enum {
     ld,
@@ -24,6 +20,8 @@ pub const Linker = enum {
     lld,
     mold,
 };
+
+const Driver = @This();
 
 comp: *Compilation,
 inputs: std.ArrayListUnmanaged(Source) = .{},
@@ -297,7 +295,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.include_dirs.append(path);
+                try d.comp.include_dirs.append(d.comp.gpa, path);
             } else if (mem.startsWith(u8, arg, "-fsyntax-only")) {
                 d.only_syntax = true;
             } else if (mem.startsWith(u8, arg, "-fno-syntax-only")) {
@@ -314,7 +312,7 @@ pub fn parseArgs(
                 }
                 const duped = try d.comp.gpa.dupe(u8, path);
                 errdefer d.comp.gpa.free(duped);
-                try d.comp.system_include_dirs.append(duped);
+                try d.comp.system_include_dirs.append(d.comp.gpa, duped);
             } else if (option(arg, "--emulate=")) |compiler_str| {
                 const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
                     try d.comp.diag.add(.{ .tag = .cli_invalid_emulate, .extra = .{ .str = arg } }, &.{});
@@ -480,7 +478,9 @@ pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{FatalErr
     return d.comp.diag.fatalNoSrc(fmt, args);
 }
 
-pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8) !void {
+/// The entry point of the Aro compiler.
+/// **MAY call `exit` if `fast_exit` is set.**
+pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool) !void {
     var macro_buf = std.ArrayList(u8).init(d.comp.gpa);
     defer macro_buf.deinit();
 
@@ -506,8 +506,6 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8) !void {
 
     const builtin = try d.comp.generateBuiltinMacros(d.system_defines);
     const user_macros = try d.comp.addSourceFromBuffer("<command line>", macro_buf.items);
-
-    const fast_exit = @import("builtin").mode != .Debug;
 
     if (fast_exit and d.inputs.items.len == 1) {
         d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit) catch |e| switch (e) {
@@ -547,7 +545,7 @@ fn processSource(
     comptime fast_exit: bool,
 ) !void {
     d.comp.generated_buf.items.len = 0;
-    var pp = Preprocessor.init(d.comp);
+    var pp = try Preprocessor.initDefault(d.comp);
     defer pp.deinit();
 
     if (d.comp.langopts.ms_extensions) {
@@ -561,16 +559,8 @@ fn processSource(
             pp.linemarkers = if (d.use_line_directives) .line_directives else .numeric_directives;
         }
     }
-    try pp.addBuiltinMacros();
 
-    try pp.addIncludeStart(source);
-    try pp.addIncludeStart(builtin);
-    _ = try pp.preprocess(builtin);
-    try pp.addIncludeStart(user_macros);
-    _ = try pp.preprocess(user_macros);
-    try pp.addIncludeResume(source.id, 0, 0);
-    const eof = try pp.preprocess(source);
-    try pp.tokens.append(pp.comp.gpa, eof);
+    try pp.preprocessSources(&.{ source, builtin, user_macros });
 
     if (d.only_preprocess) {
         d.comp.renderErrors();
@@ -592,7 +582,7 @@ fn processSource(
         return;
     }
 
-    var tree = try Parser.parse(&pp);
+    var tree = try pp.parse();
     defer tree.deinit();
 
     if (d.verbose_ast) {
@@ -623,7 +613,7 @@ fn processSource(
         );
     }
 
-    var ir = try CodeGen.generateTree(d.comp, tree);
+    var ir = try tree.genIr();
     defer ir.deinit(d.comp.gpa);
 
     if (d.verbose_ir) {
@@ -634,18 +624,19 @@ fn processSource(
         buf_writer.flush() catch {};
     }
 
-    var renderer = try Ir.Renderer.init(d.comp.gpa, d.comp.target, &ir);
-    defer renderer.deinit();
+    var render_errors: Ir.Renderer.ErrorList = .{};
+    defer render_errors.deinit(d.comp.gpa);
 
-    renderer.render() catch |e| switch (e) {
+    var obj = ir.render(d.comp.gpa, d.comp.target, &render_errors) catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
         error.LowerFail => {
             return d.fatal(
                 "unable to render Ir to machine code: {s}",
-                .{renderer.errors.values()[0]},
+                .{render_errors.values()[0]},
             );
         },
     };
+    defer obj.deinit();
 
     // If it's used, name_buf will either hold a filename or `/tmp/<12 random bytes with base-64 encoding>.<extension>`
     // both of which should fit into MAX_NAME_BYTES for all systems
@@ -680,7 +671,7 @@ fn processSource(
         return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
     defer out_file.close();
 
-    renderer.obj.finish(out_file) catch |er|
+    obj.finish(out_file) catch |er|
         return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
 
     if (d.only_compile) {
@@ -704,6 +695,8 @@ fn dumpLinkerArgs(items: []const []const u8) !void {
     try stdout.writeByte('\n');
 }
 
+/// The entry point of the Aro compiler.
+/// **MAY call `exit` if `fast_exit` is set.**
 pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) !void {
     try tc.discover();
 
@@ -731,8 +724,16 @@ pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) !void 
         return d.fatal("unable to spawn linker: {s}", .{util.errorDescription(er)});
     };
     switch (term) {
-        .Exited => |code| if (code != 0) d.exitWithCleanup(code),
-        else => std.process.abort(),
+        .Exited => |code| if (code != 0) {
+            const e = d.fatal("linker exited with an error code", .{});
+            if (fast_exit) d.exitWithCleanup(code);
+            return e;
+        },
+        else => {
+            const e = d.fatal("linker crashed", .{});
+            if (fast_exit) d.exitWithCleanup(1);
+            return e;
+        },
     }
     if (fast_exit) d.exitWithCleanup(0);
 }

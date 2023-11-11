@@ -15,8 +15,6 @@ const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
 
-const CodeGen = @This();
-
 const WipSwitch = struct {
     cases: Cases = .{},
     default: ?Ir.Ref = null,
@@ -34,6 +32,8 @@ const Symbol = struct {
 };
 
 const Error = Compilation.Error;
+
+const CodeGen = @This();
 
 tree: Tree,
 comp: *Compilation,
@@ -55,30 +55,31 @@ continue_label: Ir.Ref = undefined,
 break_label: Ir.Ref = undefined,
 return_label: Ir.Ref = undefined,
 
-pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!Ir {
+pub fn genIr(tree: Tree) Compilation.Error!Ir {
+    const gpa = tree.comp.gpa;
     var c = CodeGen{
         .builder = .{
-            .gpa = comp.gpa,
-            .interner = &comp.interner,
-            .arena = std.heap.ArenaAllocator.init(comp.gpa),
+            .gpa = tree.comp.gpa,
+            .interner = &tree.comp.interner,
+            .arena = std.heap.ArenaAllocator.init(gpa),
         },
         .tree = tree,
-        .comp = comp,
+        .comp = tree.comp,
         .node_tag = tree.nodes.items(.tag),
         .node_data = tree.nodes.items(.data),
         .node_ty = tree.nodes.items(.ty),
     };
-    defer c.symbols.deinit(c.comp.gpa);
-    defer c.ret_nodes.deinit(c.comp.gpa);
-    defer c.phi_nodes.deinit(c.comp.gpa);
-    defer c.record_elem_buf.deinit(c.comp.gpa);
-    defer c.record_cache.deinit(c.comp.gpa);
+    defer c.symbols.deinit(gpa);
+    defer c.ret_nodes.deinit(gpa);
+    defer c.phi_nodes.deinit(gpa);
+    defer c.record_elem_buf.deinit(gpa);
+    defer c.record_cache.deinit(gpa);
     defer c.builder.deinit();
 
     const node_tags = tree.nodes.items(.tag);
     for (tree.root_decls) |decl| {
         c.builder.arena.deinit();
-        c.builder.arena = std.heap.ArenaAllocator.init(comp.gpa);
+        c.builder.arena = std.heap.ArenaAllocator.init(gpa);
 
         switch (node_tags[@intFromEnum(decl)]) {
             .static_assert,

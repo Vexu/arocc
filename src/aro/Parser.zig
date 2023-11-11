@@ -31,8 +31,6 @@ const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const target_util = @import("target.zig");
 
-const Parser = @This();
-
 const Switch = struct {
     default: ?TokenIndex = null,
     ranges: std.ArrayList(Range),
@@ -85,6 +83,8 @@ const ConstDeclFoldingMode = enum {
     /// folding const decls is prohibited; return an unavailable value
     no_const_decl_folding,
 };
+
+const Parser = @This();
 
 // values from preprocessor
 pp: *Preprocessor,

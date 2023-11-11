@@ -9,8 +9,6 @@ const Linux = @import("toolchains/Linux.zig");
 const Multilib = @import("Driver/Multilib.zig");
 const Filesystem = @import("Driver/Filesystem.zig").Filesystem;
 
-const Toolchain = @This();
-
 pub const PathList = std.ArrayListUnmanaged([]const u8);
 
 pub const RuntimeLibKind = enum {
@@ -48,6 +46,8 @@ const Inner = union(enum) {
         }
     }
 };
+
+const Toolchain = @This();
 
 filesystem: Filesystem = .{ .real = {} },
 driver: *Driver,

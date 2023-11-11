@@ -12,8 +12,6 @@ const Tree = @import("Tree.zig");
 const is_windows = @import("builtin").os.tag == .windows;
 const LangOpts = @import("LangOpts.zig");
 
-const Diagnostics = @This();
-
 pub const Message = struct {
     tag: Tag,
     kind: Kind = undefined,
@@ -210,6 +208,8 @@ pub const Options = struct {
     @"unsupported-embed-param": Kind = .default,
     @"unused-result": Kind = .default,
 };
+
+const Diagnostics = @This();
 
 list: std.ArrayListUnmanaged(Message) = .{},
 arena: std.heap.ArenaAllocator,

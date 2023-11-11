@@ -13,7 +13,6 @@ const Token = @import("Tree.zig").Token;
 const Attribute = @import("Attribute.zig");
 const features = @import("features.zig");
 
-const Preprocessor = @This();
 const DefineMap = std.StringHashMapUnmanaged(Macro);
 const RawTokenList = std.ArrayList(RawToken);
 const max_include_depth = 200;
@@ -63,6 +62,8 @@ const Macro = struct {
     }
 };
 
+const Preprocessor = @This();
+
 comp: *Compilation,
 gpa: mem.Allocator,
 arena: std.heap.ArenaAllocator,
@@ -92,6 +93,8 @@ preserve_whitespace: bool = false,
 /// linemarker tokens. Must be .none unless in -E mode (parser does not handle linemarkers)
 linemarkers: Linemarkers = .none,
 
+pub const parse = Parser.parse;
+
 pub const Linemarkers = enum {
     /// No linemarker tokens. Required setting if parser will run
     none,
@@ -112,6 +115,14 @@ pub fn init(comp: *Compilation) Preprocessor {
         .top_expansion_buf = ExpandBuf.init(comp.gpa),
     };
     comp.pragmaEvent(.before_preprocess);
+    return pp;
+}
+
+/// Initialize Preprocessor with builtin macros.
+pub fn initDefault(comp: *Compilation) !Preprocessor {
+    var pp = init(comp);
+    errdefer pp.deinit();
+    try pp.addBuiltinMacros();
     return pp;
 }
 
@@ -220,6 +231,20 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.poisoned_identifiers.deinit();
     pp.include_guards.deinit(pp.gpa);
     pp.top_expansion_buf.deinit();
+}
+
+/// Preprocess a compilation unit of sources into a parsable list of tokens.
+pub fn preprocessSources(pp: *Preprocessor, sources: []const Source) Error!void {
+    assert(sources.len > 1);
+    const first = sources[0];
+    try pp.addIncludeStart(first);
+    for (sources[0..]) |header| {
+        try pp.addIncludeStart(header);
+        _ = try pp.preprocess(header);
+    }
+    try pp.addIncludeResume(first.id, 0, 0);
+    const eof = try pp.preprocess(first);
+    try pp.tokens.append(pp.comp.gpa, eof);
 }
 
 /// Preprocess a source file, returns eof token.
@@ -1079,21 +1104,24 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
             .macro_file => {
                 const start = pp.comp.generated_buf.items.len;
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                try pp.comp.generated_buf.writer().print("\"{s}\"\n", .{source.path});
+                const w = pp.comp.generated_buf.writer(pp.gpa);
+                try w.print("\"{s}\"\n", .{source.path});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
             },
             .macro_line => {
                 const start = pp.comp.generated_buf.items.len;
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                try pp.comp.generated_buf.writer().print("{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
+                const w = pp.comp.generated_buf.writer(pp.gpa);
+                try w.print("{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
             .macro_counter => {
                 defer pp.counter += 1;
                 const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.writer().print("{d}\n", .{pp.counter});
+                const w = pp.comp.generated_buf.writer(pp.gpa);
+                try w.print("{d}\n", .{pp.counter});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
@@ -1141,7 +1169,7 @@ fn pragmaOperator(pp: *Preprocessor, arg_tok: Token, operator_loc: Source.Locati
     pp.char_buf.appendAssumeCapacity('\n');
 
     const start = pp.comp.generated_buf.items.len;
-    try pp.comp.generated_buf.appendSlice(pp.char_buf.items);
+    try pp.comp.generated_buf.appendSlice(pp.gpa, pp.char_buf.items);
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.generated_buf.items,
         .comp = pp.comp,
@@ -1496,7 +1524,7 @@ fn expandFuncMacro(
                 try pp.stringify(arg);
 
                 const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.appendSlice(pp.char_buf.items);
+                try pp.comp.generated_buf.appendSlice(pp.gpa, pp.char_buf.items);
 
                 try buf.append(try pp.makeGeneratedToken(start, .string_literal, tokFromRaw(raw)));
             },
@@ -1517,7 +1545,8 @@ fn expandFuncMacro(
                     break :blk false;
                 } else try pp.handleBuiltinMacro(raw.id, arg, loc);
                 const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.writer().print("{}\n", .{@intFromBool(result)});
+                const w = pp.comp.generated_buf.writer(pp.gpa);
+                try w.print("{}\n", .{@intFromBool(result)});
                 try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
             },
             .macro_param_has_c_attribute => {
@@ -1564,7 +1593,7 @@ fn expandFuncMacro(
                     break :res attrs.get(ident_str) orelse not_found;
                 };
                 const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.appendSlice(result);
+                try pp.comp.generated_buf.appendSlice(pp.gpa, result);
                 try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
             },
             .macro_param_pragma_operator => {
@@ -2121,7 +2150,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
 
     const start = pp.comp.generated_buf.items.len;
     const end = start + pp.expandedSlice(lhs).len + pp.expandedSlice(rhs).len;
-    try pp.comp.generated_buf.ensureTotalCapacity(end + 1); // +1 for a newline
+    try pp.comp.generated_buf.ensureTotalCapacity(pp.gpa, end + 1); // +1 for a newline
     // We cannot use the same slices here since they might be invalidated by `ensureCapacity`
     pp.comp.generated_buf.appendSliceAssumeCapacity(pp.expandedSlice(lhs));
     pp.comp.generated_buf.appendSliceAssumeCapacity(pp.expandedSlice(rhs));
@@ -2638,7 +2667,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     // TODO: We currently only support systems with CHAR_BIT == 8
     // If the target's CHAR_BIT is not 8, we need to write out correctly-sized embed_bytes
     // and correctly account for the target's endianness
-    const writer = pp.comp.generated_buf.writer();
+    const writer = pp.comp.generated_buf.writer(pp.gpa);
 
     {
         const byte = embed_bytes[0];
@@ -2653,7 +2682,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         pp.tokens.appendAssumeCapacity(.{ .id = .comma, .loc = .{ .id = .generated, .byte_offset = @intCast(start) } });
         pp.tokens.appendAssumeCapacity(try pp.makeGeneratedToken(start + 1, .embed_byte, filename_tok));
     }
-    try pp.comp.generated_buf.append('\n');
+    try pp.comp.generated_buf.append(pp.gpa, '\n');
 
     try Range.expand(suffix, pp, tokenizer);
 }
