@@ -122,8 +122,6 @@ pub const Filesystem = union(enum) {
             base: []const u8,
             i: usize = 0,
 
-            const Self = @This();
-
             fn next(self: *@This()) !?std.fs.IterableDir.Entry {
                 while (self.i < self.entries.len) {
                     const entry = self.entries[self.i];

@@ -10,8 +10,6 @@ const StringId = StringInterner.StringId;
 const target_util = @import("target.zig");
 const LangOpts = @import("LangOpts.zig");
 
-const Type = @This();
-
 pub const Qualifiers = packed struct {
     @"const": bool = false,
     atomic: bool = false,
@@ -408,6 +406,8 @@ pub const Specifier = enum {
     /// C23 nullptr_t
     nullptr_t,
 };
+
+const Type = @This();
 
 /// All fields of Type except data may be mutated
 data: union {

@@ -34,7 +34,7 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
     var idx = start_idx + 1;
     const l_paren = p.pp.tokens.get(idx);
     if (l_paren.id != .l_paren) {
-        return p.comp.diag.add(.{
+        return p.comp.addDiagnostic(.{
             .tag = .pragma_pack_lparen,
             .loc = l_paren.loc,
         }, l_paren.expansionSlice());

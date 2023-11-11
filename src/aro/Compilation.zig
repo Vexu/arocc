@@ -17,8 +17,6 @@ const StrInt = @import("StringInterner.zig");
 const record_layout = @import("record_layout.zig");
 const target_util = @import("target.zig");
 
-const Compilation = @This();
-
 pub const Error = error{
     /// A fatal error has ocurred and compilation has stopped.
     FatalError,
@@ -59,12 +57,12 @@ pub const Environment = struct {
 
     /// Load all of the environment variables using the std.process API. Do not use if using Aro as a shared library on Linux without libc
     /// See https://github.com/ziglang/zig/issues/4524
-    /// Assumes that `self` has been default-initialized
-    pub fn loadAll(self: *Environment, allocator: std.mem.Allocator) !void {
-        errdefer self.deinit(allocator);
+    pub fn loadAll(allocator: std.mem.Allocator) !Environment {
+        var env: Environment = .{};
+        errdefer env.deinit(allocator);
 
-        inline for (@typeInfo(@TypeOf(self.*)).Struct.fields) |field| {
-            std.debug.assert(@field(self, field.name) == null);
+        inline for (@typeInfo(@TypeOf(env)).Struct.fields) |field| {
+            std.debug.assert(@field(env, field.name) == null);
 
             var env_var_buf: [field.name.len]u8 = undefined;
             const env_var_name = std.ascii.upperString(&env_var_buf, field.name);
@@ -73,8 +71,9 @@ pub const Environment = struct {
                 error.EnvironmentVariableNotFound => null,
                 error.InvalidUtf8 => null,
             };
-            @field(self, field.name) = val;
+            @field(env, field.name) = val;
         }
+        return env;
     }
 
     /// Use this only if environment slices were allocated with `allocator` (such as via `loadAll`)
@@ -88,16 +87,19 @@ pub const Environment = struct {
     }
 };
 
+const Compilation = @This();
+
 gpa: Allocator,
+diagnostics: Diagnostics,
+
 environment: Environment = .{},
-sources: std.StringArrayHashMap(Source),
-diag: Diagnostics,
-include_dirs: std.ArrayList([]const u8),
-system_include_dirs: std.ArrayList([]const u8),
+sources: std.StringArrayHashMapUnmanaged(Source) = .{},
+include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
+system_include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
 target: std.Target = @import("builtin").target,
-pragma_handlers: std.StringArrayHashMap(*Pragma),
+pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .{},
 langopts: LangOpts = .{},
-generated_buf: std.ArrayList(u8),
+generated_buf: std.ArrayListUnmanaged(u8) = .{},
 builtins: Builtins = .{},
 types: struct {
     wchar: Type = undefined,
@@ -130,13 +132,22 @@ ms_cwd_source_id: ?Source.Id = null,
 pub fn init(gpa: Allocator) Compilation {
     return .{
         .gpa = gpa,
-        .sources = std.StringArrayHashMap(Source).init(gpa),
-        .diag = Diagnostics.init(gpa),
-        .include_dirs = std.ArrayList([]const u8).init(gpa),
-        .system_include_dirs = std.ArrayList([]const u8).init(gpa),
-        .pragma_handlers = std.StringArrayHashMap(*Pragma).init(gpa),
-        .generated_buf = std.ArrayList(u8).init(gpa),
+        .diagnostics = Diagnostics.init(gpa),
     };
+}
+
+/// Initialize Compilation with default environment,
+/// pragma handlers and emulation mode set to target.
+pub fn initDefault(gpa: Allocator) !Compilation {
+    var comp: Compilation = .{
+        .gpa = gpa,
+        .environment = try Environment.loadAll(gpa),
+        .diagnostics = Diagnostics.init(gpa),
+    };
+    errdefer comp.deinit();
+    try comp.addDefaultPragmaHandlers();
+    comp.langopts.setEmulatedCompiler(target_util.systemCompiler(comp.target));
+    return comp;
 }
 
 pub fn deinit(comp: *Compilation) void {
@@ -148,16 +159,17 @@ pub fn deinit(comp: *Compilation) void {
         comp.gpa.free(source.buf);
         comp.gpa.free(source.splice_locs);
     }
-    comp.sources.deinit();
-    comp.diag.deinit();
-    comp.include_dirs.deinit();
+    comp.sources.deinit(comp.gpa);
+    comp.diagnostics.deinit();
+    comp.include_dirs.deinit(comp.gpa);
     for (comp.system_include_dirs.items) |path| comp.gpa.free(path);
-    comp.system_include_dirs.deinit();
-    comp.pragma_handlers.deinit();
-    comp.generated_buf.deinit();
+    comp.system_include_dirs.deinit(comp.gpa);
+    comp.pragma_handlers.deinit(comp.gpa);
+    comp.generated_buf.deinit(comp.gpa);
     comp.builtins.deinit(comp.gpa);
     comp.string_interner.deinit(comp.gpa);
     comp.interner.deinit(comp.gpa);
+    comp.environment.deinit(comp.gpa);
 }
 
 pub fn getSourceEpoch(self: *const Compilation, max: i64) !?i64 {
@@ -172,7 +184,7 @@ const max_timestamp = 253402300799;
 
 fn getTimestamp(comp: *Compilation) !u47 {
     const provided: ?i64 = comp.getSourceEpoch(max_timestamp) catch blk: {
-        try comp.diag.add(.{
+        try comp.addDiagnostic(.{
             .tag = .invalid_source_epoch,
             .loc = .{ .id = .unused, .byte_offset = 0, .line = 0 },
         }, &.{});
@@ -820,7 +832,7 @@ fn generateVaListType(comp: *Compilation) !Type {
     };
 
     // TODO this might be bad?
-    const arena = comp.diag.arena.allocator();
+    const arena = comp.diagnostics.arena.allocator();
 
     var ty: Type = undefined;
     switch (kind) {
@@ -957,7 +969,7 @@ pub fn defineSystemIncludes(comp: *Compilation, aro_dir: []const u8) !void {
         base_dir.access("include/stddef.h", .{}) catch continue;
         const path = try std.fs.path.join(comp.gpa, &.{ dirname, "include" });
         errdefer comp.gpa.free(path);
-        try comp.system_include_dirs.append(path);
+        try comp.system_include_dirs.append(comp.gpa, path);
         break;
     } else return error.AroIncludeNotFound;
 
@@ -971,12 +983,12 @@ pub fn defineSystemIncludes(comp: *Compilation, aro_dir: []const u8) !void {
         if (!std.meta.isError(std.fs.accessAbsolute(multiarch_path, .{}))) {
             const duped = try comp.gpa.dupe(u8, multiarch_path);
             errdefer comp.gpa.free(duped);
-            try comp.system_include_dirs.append(duped);
+            try comp.system_include_dirs.append(comp.gpa, duped);
         }
     }
     const usr_include = try comp.gpa.dupe(u8, "/usr/include");
     errdefer comp.gpa.free(usr_include);
-    try comp.system_include_dirs.append(usr_include);
+    try comp.system_include_dirs.append(comp.gpa, usr_include);
 }
 
 pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
@@ -1005,7 +1017,7 @@ pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8
 /// To add the contents of an arbitrary reader as a Source, see addSourceFromReader
 /// To add a file's contents given its path, see addSourceFromPath
 pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8, kind: Source.Kind) !Source {
-    try comp.sources.ensureUnusedCapacity(1);
+    try comp.sources.ensureUnusedCapacity(comp.gpa, 1);
 
     var contents = buf;
     const duped_path = try comp.gpa.dupe(u8, path);
@@ -1047,7 +1059,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                         i = backslash_loc;
                         try splice_list.append(i);
                         if (state == .trailing_ws) {
-                            try comp.diag.add(.{
+                            try comp.addDiagnostic(.{
                                 .tag = .backslash_newline_escape,
                                 .loc = .{ .id = source_id, .byte_offset = i, .line = line },
                             }, &.{});
@@ -1071,7 +1083,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                             try splice_list.append(i);
                         }
                         if (state == .trailing_ws) {
-                            try comp.diag.add(.{
+                            try comp.addDiagnostic(.{
                                 .tag = .backslash_newline_escape,
                                 .loc = .{ .id = source_id, .byte_offset = i, .line = line },
                             }, &.{});
@@ -1377,7 +1389,7 @@ pub fn findInclude(
         defer stack_fallback.get().free(found.path);
         if (comp.addSourceFromPathExtra(found.path, found.kind)) |some| {
             if (it.tried_ms_cwd) {
-                try comp.diag.add(.{
+                try comp.addDiagnostic(.{
                     .tag = .ms_search_rule,
                     .extra = .{ .str = some.path },
                     .loc = .{
@@ -1397,7 +1409,7 @@ pub fn findInclude(
 }
 
 pub fn addPragmaHandler(comp: *Compilation, name: []const u8, handler: *Pragma) Allocator.Error!void {
-    try comp.pragma_handlers.putNoClobber(name, handler);
+    try comp.pragma_handlers.putNoClobber(comp.gpa, name, handler);
 }
 
 pub fn addDefaultPragmaHandlers(comp: *Compilation) Allocator.Error!void {
@@ -1480,6 +1492,7 @@ pub const CharUnitSize = enum(u32) {
 };
 
 pub const renderErrors = Diagnostics.render;
+pub const addDiagnostic = Diagnostics.add;
 
 test "addSourceFromReader" {
     const Test = struct {
@@ -1491,7 +1504,7 @@ test "addSourceFromReader" {
             const source = try comp.addSourceFromReader(buf_reader.reader(), "path", .user);
 
             try std.testing.expectEqualStrings(expected, source.buf);
-            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diag.list.items.len)));
+            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diagnostics.list.items.len)));
             try std.testing.expectEqualSlices(u32, splices, source.splice_locs);
         }
 

@@ -164,12 +164,12 @@ pub fn main() !void {
     const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });
     defer gpa.free(cases_include_dir);
 
-    try initial_comp.include_dirs.append(cases_include_dir);
+    try initial_comp.include_dirs.append(gpa, cases_include_dir);
 
     const cases_next_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include", "next" });
     defer gpa.free(cases_next_include_dir);
 
-    try initial_comp.include_dirs.append(cases_next_include_dir);
+    try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
 
     try initial_comp.addDefaultPragmaHandlers();
     try initial_comp.defineSystemIncludes(test_dir);
@@ -189,9 +189,10 @@ pub fn main() !void {
         var comp = initial_comp;
         defer {
             // preserve some values
-            comp.include_dirs = @TypeOf(comp.include_dirs).init(gpa);
-            comp.system_include_dirs = @TypeOf(comp.system_include_dirs).init(gpa);
-            comp.pragma_handlers = @TypeOf(comp.pragma_handlers).init(gpa);
+            comp.include_dirs = .{};
+            comp.system_include_dirs = .{};
+            comp.pragma_handlers = .{};
+            comp.environment = .{};
             // reset everything else
             comp.deinit();
         }
@@ -216,7 +217,7 @@ pub fn main() !void {
 
         const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
-        comp.diag.errors = 0;
+        comp.diagnostics.errors = 0;
         var pp = aro.Preprocessor.init(&comp);
         defer pp.deinit();
         if (only_preprocess) {
@@ -258,7 +259,7 @@ pub fn main() !void {
                 }
             } else {
                 comp.renderErrors();
-                if (comp.diag.errors != 0) {
+                if (comp.diagnostics.errors != 0) {
                     fail_count += 1;
                     continue;
                 }
@@ -372,7 +373,7 @@ pub fn main() !void {
         comp.renderErrors();
 
         if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
-            if (comp.diag.errors != 0) break :blk;
+            if (comp.diagnostics.errors != 0) break :blk;
 
             if (macro.is_func) {
                 fail_count += 1;
@@ -441,7 +442,7 @@ pub fn main() !void {
             continue;
         }
 
-        if (comp.diag.errors != 0) fail_count += 1 else ok_count += 1;
+        if (comp.diagnostics.errors != 0) fail_count += 1 else ok_count += 1;
     }
 
     root_node.end();
@@ -459,7 +460,7 @@ pub fn main() !void {
 fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std.ArrayList(u8)) !?bool {
     const macro = pp.defines.get("EXPECTED_ERRORS") orelse return null;
 
-    const expected_count = pp.comp.diag.list.items.len;
+    const expected_count = pp.comp.diagnostics.list.items.len;
     var m = MsgWriter.init(pp.comp.gpa);
     defer m.deinit();
     aro.Diagnostics.renderMessages(pp.comp, &m);

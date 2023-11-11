@@ -1,11 +1,10 @@
 const std = @import("std");
-const mem = std.mem;
 const Allocator = mem.Allocator;
+const mem = std.mem;
 const process = std.process;
 const aro = @import("aro");
 const Compilation = aro.Compilation;
 const Driver = aro.Driver;
-const target_util = aro.target_util;
 const Toolchain = aro.Toolchain;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
@@ -27,37 +26,25 @@ pub fn main() u8 {
 
     const args = process.argsAlloc(arena) catch {
         std.debug.print("out of memory\n", .{});
-        if (fast_exit) std.process.exit(1);
+        if (fast_exit) process.exit(1);
         return 1;
     };
 
     const aro_name = std.fs.selfExePathAlloc(gpa) catch {
         std.debug.print("unable to find Aro executable path\n", .{});
-        if (fast_exit) std.process.exit(1);
+        if (fast_exit) process.exit(1);
         return 1;
     };
     defer gpa.free(aro_name);
 
-    var comp = Compilation.init(gpa);
+    var comp = Compilation.initDefault(gpa) catch |er| switch (er) {
+        error.OutOfMemory => {
+            std.debug.print("out of memory\n", .{});
+            if (fast_exit) process.exit(1);
+            return 1;
+        },
+    };
     defer comp.deinit();
-
-    comp.environment.loadAll(gpa) catch |er| switch (er) {
-        error.OutOfMemory => {
-            std.debug.print("out of memory\n", .{});
-            if (fast_exit) std.process.exit(1);
-            return 1;
-        },
-    };
-    defer comp.environment.deinit(gpa);
-
-    comp.addDefaultPragmaHandlers() catch |er| switch (er) {
-        error.OutOfMemory => {
-            std.debug.print("out of memory\n", .{});
-            if (fast_exit) std.process.exit(1);
-            return 1;
-        },
-    };
-    comp.langopts.setEmulatedCompiler(target_util.systemCompiler(comp.target));
 
     var driver: Driver = .{ .comp = &comp, .aro_name = aro_name };
     defer driver.deinit();
@@ -65,29 +52,29 @@ pub fn main() u8 {
     var toolchain: Toolchain = .{ .driver = &driver, .arena = arena };
     defer toolchain.deinit();
 
-    driver.main(&toolchain, args) catch |er| switch (er) {
+    driver.main(&toolchain, args, fast_exit) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
-            if (fast_exit) std.process.exit(1);
+            if (fast_exit) process.exit(1);
             return 1;
         },
         error.StreamTooLong => {
             std.debug.print("maximum file size exceeded\n", .{});
-            if (fast_exit) std.process.exit(1);
+            if (fast_exit) process.exit(1);
             return 1;
         },
         error.FatalError => {
             comp.renderErrors();
-            if (fast_exit) std.process.exit(1);
+            if (fast_exit) process.exit(1);
             return 1;
         },
         error.TooManyMultilibs => {
             std.debug.print("found more than one multilib with the same priority\n", .{});
-            if (fast_exit) std.process.exit(1);
+            if (fast_exit) process.exit(1);
             return 1;
         },
         else => |err| return err,
     };
-    if (fast_exit) std.process.exit(@intFromBool(comp.diag.errors != 0));
-    return @intFromBool(comp.diag.errors != 0);
+    if (fast_exit) process.exit(@intFromBool(comp.diagnostics.errors != 0));
+    return @intFromBool(comp.diagnostics.errors != 0);
 }

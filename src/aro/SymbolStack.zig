@@ -11,8 +11,6 @@ const Parser = @import("Parser.zig");
 const Value = @import("Value.zig");
 const StringId = @import("StringInterner.zig").StringId;
 
-const SymbolStack = @This();
-
 pub const Symbol = struct {
     name: StringId,
     ty: Type,
@@ -32,6 +30,8 @@ pub const Kind = enum {
     enumeration,
     constexpr,
 };
+
+const SymbolStack = @This();
 
 syms: std.MultiArrayList(Symbol) = .{},
 scopes: std.ArrayListUnmanaged(u32) = .{},

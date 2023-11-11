@@ -2,13 +2,12 @@ const std = @import("std");
 const Interner = @import("backend").Interner;
 const Type = @import("Type.zig");
 const Tokenizer = @import("Tokenizer.zig");
+const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const Attribute = @import("Attribute.zig");
 const Value = @import("Value.zig");
 const StringInterner = @import("StringInterner.zig");
-
-const Tree = @This();
 
 pub const Token = struct {
     id: Id,
@@ -80,7 +79,7 @@ pub const Token = struct {
     pub fn checkMsEof(tok: Token, source: Source, comp: *Compilation) !void {
         std.debug.assert(tok.id == .eof);
         if (source.buf.len > tok.loc.byte_offset and source.buf[tok.loc.byte_offset] == 0x1A) {
-            try comp.diag.add(.{
+            try comp.addDiagnostic(.{
                 .tag = .ctrl_z_eof,
                 .loc = .{
                     .id = source.id,
@@ -99,6 +98,8 @@ pub const TokenIndex = u32;
 pub const NodeIndex = enum(u32) { none, _ };
 pub const ValueMap = std.AutoHashMap(NodeIndex, Value);
 
+const Tree = @This();
+
 comp: *Compilation,
 arena: std.heap.ArenaAllocator,
 generated: []const u8,
@@ -107,6 +108,8 @@ nodes: Node.List.Slice,
 data: []const NodeIndex,
 root_decls: []const NodeIndex,
 value_map: ValueMap,
+
+pub const genIr = CodeGen.genIr;
 
 pub fn deinit(tree: *Tree) void {
     tree.comp.gpa.free(tree.root_decls);

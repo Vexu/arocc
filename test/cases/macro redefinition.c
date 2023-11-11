@@ -13,5 +13,8 @@
 #define QUX 1
 
 #define EXPECTED_ERRORS "macro redefinition.c:2:9: warning: 'FOO' macro redefined [-Wmacro-redefined]" \
+    "macro redefinition.c:1:9: note: previous definition is here" \
     "macro redefinition.c:3:9: warning: 'FOO' macro redefined [-Wmacro-redefined]" \
+    "macro redefinition.c:2:9: note: previous definition is here" \
     "macro redefinition.c:10:9: warning: 'BAZ' macro redefined [-Wmacro-redefined]" \
+    "macro redefinition.c:9:9: note: previous definition is here" \

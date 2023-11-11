@@ -4,8 +4,6 @@ const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 const LangOpts = @import("LangOpts.zig");
 
-const Tokenizer = @This();
-
 pub const Token = struct {
     id: Id,
     source: Source.Id,
@@ -1016,6 +1014,8 @@ pub const Token = struct {
         .{ "__builtin_types_compatible_p", .builtin_types_compatible_p },
     });
 };
+
+const Tokenizer = @This();
 
 buf: []const u8,
 index: u32 = 0,

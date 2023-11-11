@@ -12,8 +12,6 @@ const Diagnostics = @import("Diagnostics.zig");
 const NodeList = std.ArrayList(NodeIndex);
 const Parser = @import("Parser.zig");
 
-const InitList = @This();
-
 const Item = struct {
     list: InitList = .{},
     index: u64,
@@ -22,6 +20,8 @@ const Item = struct {
         return std.math.order(a.index, b.index);
     }
 };
+
+const InitList = @This();
 
 list: std.ArrayListUnmanaged(Item) = .{},
 node: NodeIndex = .none,

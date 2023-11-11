@@ -24,12 +24,13 @@ pub const Decl = struct {
 pub const Builder = struct {
     gpa: Allocator,
     arena: std.heap.ArenaAllocator,
+    interner: *Interner,
+
     decls: std.StringArrayHashMapUnmanaged(Decl) = .{},
     instructions: std.MultiArrayList(Ir.Inst) = .{},
     body: std.ArrayListUnmanaged(Ref) = .{},
     alloc_count: u32 = 0,
     arg_count: u32 = 0,
-    interner: *Interner,
     current_label: Ref = undefined,
 
     pub fn deinit(b: *Builder) void {
@@ -177,24 +178,15 @@ pub const Renderer = struct {
     gpa: Allocator,
     obj: *Object,
     ir: *const Ir,
-    errors: std.StringArrayHashMapUnmanaged([]const u8) = .{},
+    errors: ErrorList = .{},
+
+    pub const ErrorList = std.StringArrayHashMapUnmanaged([]const u8);
 
     pub const Error = Allocator.Error || error{LowerFail};
-
-    pub fn init(gpa: Allocator, target: std.Target, ir: *const Ir) !Renderer {
-        const obj = try Object.create(gpa, target);
-        errdefer obj.deinit();
-        return .{
-            .gpa = gpa,
-            .obj = obj,
-            .ir = ir,
-        };
-    }
 
     pub fn deinit(r: *Renderer) void {
         for (r.errors.values()) |msg| r.gpa.free(msg);
         r.errors.deinit(r.gpa);
-        r.obj.deinit();
     }
 
     pub fn render(r: *Renderer) !void {
@@ -215,6 +207,28 @@ pub const Renderer = struct {
         return error.LowerFail;
     }
 };
+
+pub fn render(
+    ir: *const Ir,
+    gpa: Allocator,
+    target: std.Target,
+    errors: ?*Renderer.ErrorList,
+) !*Object {
+    const obj = try Object.create(gpa, target);
+    errdefer obj.deinit();
+
+    var renderer: Renderer = .{
+        .gpa = gpa,
+        .obj = obj,
+        .ir = ir,
+    };
+    defer renderer.deinit();
+
+    if (errors) |some| some.* = renderer.errors.move();
+
+    try renderer.render();
+    return obj;
+}
 
 pub const Ref = enum(u32) { none = std.math.maxInt(u32), _ };
 

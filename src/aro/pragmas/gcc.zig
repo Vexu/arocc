@@ -38,18 +38,18 @@ const Directive = enum {
 
 fn beforePreprocess(pragma: *Pragma, comp: *Compilation) void {
     var self = @fieldParentPtr(GCC, "pragma", pragma);
-    self.original_options = comp.diag.options;
+    self.original_options = comp.diagnostics.options;
 }
 
 fn beforeParse(pragma: *Pragma, comp: *Compilation) void {
     var self = @fieldParentPtr(GCC, "pragma", pragma);
-    comp.diag.options = self.original_options;
+    comp.diagnostics.options = self.original_options;
     self.options_stack.items.len = 0;
 }
 
 fn afterParse(pragma: *Pragma, comp: *Compilation) void {
     var self = @fieldParentPtr(GCC, "pragma", pragma);
-    comp.diag.options = self.original_options;
+    comp.diagnostics.options = self.original_options;
     self.options_stack.items.len = 0;
 }
 
@@ -76,7 +76,7 @@ fn diagnosticHandler(self: *GCC, pp: *Preprocessor, start_idx: TokenIndex) Pragm
         .ignored, .warning, .@"error", .fatal => {
             const str = Pragma.pasteTokens(pp, start_idx + 1) catch |err| switch (err) {
                 error.ExpectedStringLiteral => {
-                    return pp.comp.diag.add(.{
+                    return pp.comp.addDiagnostic(.{
                         .tag = .pragma_requires_string_literal,
                         .loc = diagnostic_tok.loc,
                         .extra = .{ .str = "GCC diagnostic" },
@@ -86,24 +86,24 @@ fn diagnosticHandler(self: *GCC, pp: *Preprocessor, start_idx: TokenIndex) Pragm
             };
             if (!mem.startsWith(u8, str, "-W")) {
                 const next = pp.tokens.get(start_idx + 1);
-                return pp.comp.diag.add(.{
+                return pp.comp.addDiagnostic(.{
                     .tag = .malformed_warning_check,
                     .loc = next.loc,
                     .extra = .{ .str = "GCC diagnostic" },
                 }, next.expansionSlice());
             }
-            const new_kind = switch (diagnostic) {
-                .ignored => Diagnostics.Kind.off,
-                .warning => Diagnostics.Kind.warning,
-                .@"error" => Diagnostics.Kind.@"error",
-                .fatal => Diagnostics.Kind.@"fatal error",
+            const new_kind: Diagnostics.Kind = switch (diagnostic) {
+                .ignored => .off,
+                .warning => .warning,
+                .@"error" => .@"error",
+                .fatal => .@"fatal error",
                 else => unreachable,
             };
 
-            try pp.comp.diag.set(str[2..], new_kind);
+            try pp.comp.diagnostics.set(str[2..], new_kind);
         },
-        .push => try self.options_stack.append(pp.comp.gpa, pp.comp.diag.options),
-        .pop => pp.comp.diag.options = self.options_stack.popOrNull() orelse self.original_options,
+        .push => try self.options_stack.append(pp.comp.gpa, pp.comp.diagnostics.options),
+        .pop => pp.comp.diagnostics.options = self.options_stack.popOrNull() orelse self.original_options,
     }
 }
 
@@ -113,7 +113,7 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
     if (directive_tok.id == .nl) return;
 
     const gcc_pragma = std.meta.stringToEnum(Directive, pp.expandedSlice(directive_tok)) orelse
-        return pp.comp.diag.add(.{
+        return pp.comp.addDiagnostic(.{
         .tag = .unknown_gcc_pragma,
         .loc = directive_tok.loc,
     }, directive_tok.expansionSlice());
@@ -122,7 +122,7 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
         .warning, .@"error" => {
             const text = Pragma.pasteTokens(pp, start_idx + 2) catch |err| switch (err) {
                 error.ExpectedStringLiteral => {
-                    return pp.comp.diag.add(.{
+                    return pp.comp.addDiagnostic(.{
                         .tag = .pragma_requires_string_literal,
                         .loc = directive_tok.loc,
                         .extra = .{ .str = @tagName(gcc_pragma) },
@@ -130,9 +130,9 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
                 },
                 else => |e| return e,
             };
-            const extra = Diagnostics.Message.Extra{ .str = try pp.comp.diag.arena.allocator().dupe(u8, text) };
+            const extra = Diagnostics.Message.Extra{ .str = try pp.comp.diagnostics.arena.allocator().dupe(u8, text) };
             const diagnostic_tag: Diagnostics.Tag = if (gcc_pragma == .warning) .pragma_warning_message else .pragma_error_message;
-            return pp.comp.diag.add(
+            return pp.comp.addDiagnostic(
                 .{ .tag = diagnostic_tag, .loc = directive_tok.loc, .extra = extra },
                 directive_tok.expansionSlice(),
             );
@@ -140,7 +140,7 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
         .diagnostic => return self.diagnosticHandler(pp, start_idx + 2) catch |err| switch (err) {
             error.UnknownPragma => {
                 const tok = pp.tokens.get(start_idx + 2);
-                return pp.comp.diag.add(.{
+                return pp.comp.addDiagnostic(.{
                     .tag = .unknown_gcc_pragma_directive,
                     .loc = tok.loc,
                 }, tok.expansionSlice());
@@ -154,14 +154,14 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
                 if (tok.id == .nl) break;
 
                 if (!tok.id.isMacroIdentifier()) {
-                    return pp.comp.diag.add(.{
+                    return pp.comp.addDiagnostic(.{
                         .tag = .pragma_poison_identifier,
                         .loc = tok.loc,
                     }, tok.expansionSlice());
                 }
                 const str = pp.expandedSlice(tok);
                 if (pp.defines.get(str) != null) {
-                    try pp.comp.diag.add(.{
+                    try pp.comp.addDiagnostic(.{
                         .tag = .pragma_poison_macro,
                         .loc = tok.loc,
                     }, tok.expansionSlice());

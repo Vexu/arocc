@@ -42,7 +42,7 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
     const name_tok = pp.tokens.get(start_idx);
     const next = pp.tokens.get(start_idx + 1);
     if (next.id != .nl) {
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .extra_tokens_directive_end,
             .loc = name_tok.loc,
         }, next.expansionSlice());

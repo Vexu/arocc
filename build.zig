@@ -176,6 +176,7 @@ pub fn build(b: *Build) !void {
         .root_source_file = .{ .path = "src/main.zig" },
         .optimize = mode,
         .target = target,
+        .single_threaded = true,
     });
     exe.addModule("aro", aro_module);
 

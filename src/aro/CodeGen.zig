@@ -15,8 +15,6 @@ const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
 
-const CodeGen = @This();
-
 const WipSwitch = struct {
     cases: Cases = .{},
     default: ?Ir.Ref = null,
@@ -34,6 +32,8 @@ const Symbol = struct {
 };
 
 const Error = Compilation.Error;
+
+const CodeGen = @This();
 
 tree: Tree,
 comp: *Compilation,
@@ -55,30 +55,31 @@ continue_label: Ir.Ref = undefined,
 break_label: Ir.Ref = undefined,
 return_label: Ir.Ref = undefined,
 
-pub fn generateTree(comp: *Compilation, tree: Tree) Compilation.Error!Ir {
+pub fn genIr(tree: Tree) Compilation.Error!Ir {
+    const gpa = tree.comp.gpa;
     var c = CodeGen{
         .builder = .{
-            .gpa = comp.gpa,
-            .interner = &comp.interner,
-            .arena = std.heap.ArenaAllocator.init(comp.gpa),
+            .gpa = tree.comp.gpa,
+            .interner = &tree.comp.interner,
+            .arena = std.heap.ArenaAllocator.init(gpa),
         },
         .tree = tree,
-        .comp = comp,
+        .comp = tree.comp,
         .node_tag = tree.nodes.items(.tag),
         .node_data = tree.nodes.items(.data),
         .node_ty = tree.nodes.items(.ty),
     };
-    defer c.symbols.deinit(c.comp.gpa);
-    defer c.ret_nodes.deinit(c.comp.gpa);
-    defer c.phi_nodes.deinit(c.comp.gpa);
-    defer c.record_elem_buf.deinit(c.comp.gpa);
-    defer c.record_cache.deinit(c.comp.gpa);
+    defer c.symbols.deinit(gpa);
+    defer c.ret_nodes.deinit(gpa);
+    defer c.phi_nodes.deinit(gpa);
+    defer c.record_elem_buf.deinit(gpa);
+    defer c.record_cache.deinit(gpa);
     defer c.builder.deinit();
 
     const node_tags = tree.nodes.items(.tag);
     for (tree.root_decls) |decl| {
         c.builder.arena.deinit();
-        c.builder.arena = std.heap.ArenaAllocator.init(comp.gpa);
+        c.builder.arena = std.heap.ArenaAllocator.init(gpa);
 
         switch (node_tags[@intFromEnum(decl)]) {
             .static_assert,
@@ -136,7 +137,7 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
 
             for (ty.data.record.fields) |field| {
                 if (!field.isRegularField()) {
-                    return c.comp.diag.fatalNoSrc("TODO lower struct bitfields", .{});
+                    return c.comp.diagnostics.fatalNoSrc("TODO lower struct bitfields", .{});
                 }
                 // TODO handle padding bits
                 const field_ref = try c.genType(field.ty);
@@ -148,13 +149,13 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
             });
         },
         .@"union" => {
-            return c.comp.diag.fatalNoSrc("TODO lower union types", .{});
+            return c.comp.diagnostics.fatalNoSrc("TODO lower union types", .{});
         },
         else => {},
     }
     if (ty.isPtr()) return .ptr;
     if (ty.isFunc()) return .func;
-    if (!ty.isReal()) return c.comp.diag.fatalNoSrc("TODO lower complex types", .{});
+    if (!ty.isReal()) return c.comp.diagnostics.fatalNoSrc("TODO lower complex types", .{});
     if (ty.isInt()) {
         const bits = ty.bitSizeof(c.comp).?;
         key = .{ .int_ty = @intCast(bits) };
@@ -168,7 +169,7 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
         const elem = try c.genType(ty.elemType());
         key = .{ .vector_ty = .{ .child = elem, .len = @intCast(ty.data.array.len) } };
     } else if (ty.is(.nullptr_t)) {
-        return c.comp.diag.fatalNoSrc("TODO lower nullptr_t", .{});
+        return c.comp.diagnostics.fatalNoSrc("TODO lower nullptr_t", .{});
     }
     return c.builder.interner.put(c.builder.gpa, key);
 }
@@ -539,7 +540,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .goto_stmt,
         .computed_goto_stmt,
         .nullptr_literal,
-        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genStmt {}\n", .{c.node_tag[@intFromEnum(node)]}),
+        => return c.comp.diagnostics.fatalNoSrc("TODO CodeGen.genStmt {}\n", .{c.node_tag[@intFromEnum(node)]}),
         .comma_expr => {
             _ = try c.genExpr(data.bin.lhs);
             return c.genExpr(data.bin.rhs);
@@ -733,7 +734,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             .null_to_pointer,
             .union_cast,
             .vector_splat,
-            => return c.comp.diag.fatalNoSrc("TODO CodeGen gen CastKind {}\n", .{data.cast.kind}),
+            => return c.comp.diagnostics.fatalNoSrc("TODO CodeGen gen CastKind {}\n", .{data.cast.kind}),
         },
         .binary_cond_expr => {
             if (c.tree.value_map.get(data.if3.cond)) |cond| {
@@ -941,7 +942,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .real_expr,
         .sizeof_expr,
         .special_builtin_call_one,
-        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genExpr {}\n", .{c.node_tag[@intFromEnum(node)]}),
+        => return c.comp.diagnostics.fatalNoSrc("TODO CodeGen.genExpr {}\n", .{c.node_tag[@intFromEnum(node)]}),
         else => unreachable, // Not an expression.
     }
     return .none;
@@ -996,7 +997,7 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         .static_compound_literal_expr,
         .thread_local_compound_literal_expr,
         .static_thread_local_compound_literal_expr,
-        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genLval {}\n", .{c.node_tag[@intFromEnum(node)]}),
+        => return c.comp.diagnostics.fatalNoSrc("TODO CodeGen.genLval {}\n", .{c.node_tag[@intFromEnum(node)]}),
         else => unreachable, // Not an lval expression.
     }
 }
@@ -1156,7 +1157,7 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
 fn genBuiltinCall(c: *CodeGen, builtin: Builtin, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
     _ = arg_nodes;
     _ = ty;
-    return c.comp.diag.fatalNoSrc("TODO CodeGen.genBuiltinCall {s}\n", .{Builtin.nameFromTag(builtin.tag).span()});
+    return c.comp.diagnostics.fatalNoSrc("TODO CodeGen.genBuiltinCall {s}\n", .{Builtin.nameFromTag(builtin.tag).span()});
 }
 
 fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
@@ -1262,12 +1263,12 @@ fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: Type, initializer: NodeInde
         .union_init_expr,
         .array_filler_expr,
         .default_init_expr,
-        => return c.comp.diag.fatalNoSrc("TODO CodeGen.genInitializer {}\n", .{c.node_tag[@intFromEnum(initializer)]}),
+        => return c.comp.diagnostics.fatalNoSrc("TODO CodeGen.genInitializer {}\n", .{c.node_tag[@intFromEnum(initializer)]}),
         .string_literal_expr => {
             const val = c.tree.value_map.get(initializer).?;
             const str_ptr = try c.builder.addConstant(val.ref(), .ptr);
             if (dest_ty.isArray()) {
-                return c.comp.diag.fatalNoSrc("TODO memcpy\n", .{});
+                return c.comp.diagnostics.fatalNoSrc("TODO memcpy\n", .{});
             } else {
                 try c.builder.addStore(ptr, str_ptr);
             }
@@ -1281,5 +1282,5 @@ fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: Type, initializer: NodeInde
 
 fn genVar(c: *CodeGen, decl: NodeIndex) Error!void {
     _ = decl;
-    return c.comp.diag.fatalNoSrc("TODO CodeGen.genVar\n", .{});
+    return c.comp.diagnostics.fatalNoSrc("TODO CodeGen.genVar\n", .{});
 }
