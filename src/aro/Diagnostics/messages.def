@@ -277,6 +277,7 @@ spec_from_typedef
 param_before_var_args
     .msg = "ISO C requires a named parameter before '...'"
     .kind = .@"error"
+    .suppress_version = .c23
 
 void_only_param
     .msg = "'void' must be the only parameter if specified"
