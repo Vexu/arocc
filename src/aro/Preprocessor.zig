@@ -238,7 +238,7 @@ pub fn preprocessSources(pp: *Preprocessor, sources: []const Source) Error!void 
     assert(sources.len > 1);
     const first = sources[0];
     try pp.addIncludeStart(first);
-    for (sources[0..]) |header| {
+    for (sources[1..]) |header| {
         try pp.addIncludeStart(header);
         _ = try pp.preprocess(header);
     }
@@ -1558,23 +1558,52 @@ fn expandFuncMacro(
                     break :blk not_found;
                 } else res: {
                     var invalid: ?Token = null;
-                    var identifier: ?Token = null;
+                    var vendor_ident: ?Token = null;
+                    var colon_colon: ?Token = null;
+                    var attr_ident: ?Token = null;
                     for (arg) |tok| {
                         if (tok.id == .macro_ws) continue;
                         if (tok.id == .comment) continue;
+                        if (tok.id == .colon_colon) {
+                            if (colon_colon != null or attr_ident == null) {
+                                invalid = tok;
+                                break;
+                            }
+                            vendor_ident = attr_ident;
+                            attr_ident = null;
+                            colon_colon = tok;
+                            continue;
+                        }
                         if (!tok.id.isMacroIdentifier()) {
                             invalid = tok;
                             break;
                         }
-                        if (identifier) |_| invalid = tok else identifier = tok;
+                        if (attr_ident) |_| {
+                            invalid = tok;
+                            break;
+                        } else attr_ident = tok;
                     }
-                    if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = loc };
+                    if (vendor_ident != null and attr_ident == null) {
+                        invalid = vendor_ident;
+                    } else if (attr_ident == null and invalid == null) {
+                        invalid = .{ .id = .eof, .loc = loc };
+                    }
                     if (invalid) |some| {
                         try pp.comp.addDiagnostic(
                             .{ .tag = .feature_check_requires_identifier, .loc = some.loc },
                             some.expansionSlice(),
                         );
                         break :res not_found;
+                    }
+                    if (vendor_ident) |some| {
+                        const vendor_str = pp.expandedSlice(some);
+                        const attr_str = pp.expandedSlice(attr_ident.?);
+                        const exists = Attribute.fromString(.gnu, vendor_str, attr_str) != null;
+
+                        const start = pp.comp.generated_buf.items.len;
+                        try pp.comp.generated_buf.appendSlice(pp.gpa, if (exists) "1\n" else "0\n");
+                        try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
+                        continue;
                     }
                     if (!pp.comp.langopts.standard.atLeast(.c23)) break :res not_found;
 
@@ -1589,8 +1618,8 @@ fn expandFuncMacro(
                         .{ "reproducible", "202207L\n" },
                     });
 
-                    const ident_str = pp.expandedSlice(identifier.?);
-                    break :res attrs.get(ident_str) orelse not_found;
+                    const attr_str = Attribute.normalize(pp.expandedSlice(attr_ident.?));
+                    break :res attrs.get(attr_str) orelse not_found;
                 };
                 const start = pp.comp.generated_buf.items.len;
                 try pp.comp.generated_buf.appendSlice(pp.gpa, result);
