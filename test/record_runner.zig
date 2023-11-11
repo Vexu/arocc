@@ -303,13 +303,13 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
 
     const expected = compErr.get(buf[0..buf_strm.pos]) orelse ExpectedFailure{};
 
-    if (comp.diag.list.items.len == 0 and expected.any()) {
+    if (comp.diagnostics.list.items.len == 0 and expected.any()) {
         stats.progress.log("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
     } else {
         var m = aro.Diagnostics.defaultMsgWriter(&comp);
         defer m.deinit();
         var actual = ExpectedFailure{};
-        for (comp.diag.list.items) |msg| {
+        for (comp.diagnostics.list.items) |msg| {
             switch (msg.kind) {
                 .@"fatal error", .@"error" => {},
                 else => continue,
@@ -332,7 +332,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
         }
         if (!expected.eql(actual)) {
             m.print("\nexp:{any}\nact:{any}\n", .{ expected, actual });
-            for (comp.diag.list.items) |msg| {
+            for (comp.diagnostics.list.items) |msg| {
                 aro.Diagnostics.renderMessage(&comp, &m, msg);
             }
             stats.recordResult(.fail);

@@ -720,7 +720,7 @@ fn ignoredAttrErr(p: *Parser, tok: TokenIndex, attr: Attribute.Tag, context: []c
     defer p.strings.items.len = strings_top;
 
     try p.strings.writer().print("attribute '{s}' ignored on {s}", .{ @tagName(attr), context });
-    const str = try p.comp.diag.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    const str = try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     try p.errStr(.ignored_attribute, tok, str);
 }
 
@@ -1030,7 +1030,11 @@ fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type)
         const field_size = field.ty.bitSizeof(p.comp).?;
         if (field_size == first_field_size) continue;
         const mapper = p.comp.string_interner.getSlowTypeMapper();
-        const str = try std.fmt.allocPrint(p.comp.diag.arena.allocator(), "'{s}' ({d}", .{ mapper.lookup(field.name), field_size });
+        const str = try std.fmt.allocPrint(
+            p.comp.diagnostics.arena.allocator(),
+            "'{s}' ({d}",
+            .{ mapper.lookup(field.name), field_size },
+        );
         try p.errStr(.transparent_union_size, field.name_tok, str);
         return p.errExtra(.transparent_union_size_note, fields[0].name_tok, .{ .unsigned = first_field_size });
     }

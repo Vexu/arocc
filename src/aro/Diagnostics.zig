@@ -226,14 +226,14 @@ pub fn warningExists(name: []const u8) bool {
     return false;
 }
 
-pub fn set(diag: *Diagnostics, name: []const u8, to: Kind) !void {
+pub fn set(d: *Diagnostics, name: []const u8, to: Kind) !void {
     inline for (std.meta.fields(Options)) |f| {
         if (mem.eql(u8, f.name, name)) {
-            @field(diag.options, f.name) = to;
+            @field(d.options, f.name) = to;
             return;
         }
     }
-    try diag.add(.{
+    try d.addExtra(.{}, .{
         .tag = .unknown_warning,
         .extra = .{ .str = name },
     }, &.{});
@@ -245,46 +245,55 @@ pub fn init(gpa: Allocator) Diagnostics {
     };
 }
 
-pub fn deinit(diag: *Diagnostics) void {
-    diag.list.deinit(diag.arena.allocator());
-    diag.arena.deinit();
+pub fn deinit(d: *Diagnostics) void {
+    d.list.deinit(d.arena.allocator());
+    d.arena.deinit();
 }
 
-pub fn add(diag: *Diagnostics, msg: Message, expansion_locs: []const Source.Location) Compilation.Error!void {
-    const kind = diag.tagKind(msg.tag);
+pub fn add(comp: *Compilation, msg: Message, expansion_locs: []const Source.Location) Compilation.Error!void {
+    return comp.diagnostics.addExtra(comp.langopts, msg, expansion_locs);
+}
+
+pub fn addExtra(
+    d: *Diagnostics,
+    langopts: LangOpts,
+    msg: Message,
+    expansion_locs: []const Source.Location,
+) Compilation.Error!void {
+    const kind = d.tagKind(msg.tag, langopts);
     if (kind == .off) return;
     var copy = msg;
     copy.kind = kind;
 
     if (expansion_locs.len != 0) copy.loc = expansion_locs[expansion_locs.len - 1];
-    try diag.list.append(diag.arena.allocator(), copy);
+    try d.list.append(d.arena.allocator(), copy);
     if (expansion_locs.len != 0) {
         // Add macro backtrace notes in reverse order omitting from the middle if needed.
         var i = expansion_locs.len - 1;
-        const half = diag.macro_backtrace_limit / 2;
-        const limit = if (i < diag.macro_backtrace_limit) 0 else i - half;
-        try diag.list.ensureUnusedCapacity(
-            diag.arena.allocator(),
-            if (limit == 0) expansion_locs.len else diag.macro_backtrace_limit + 1,
+        const half = d.macro_backtrace_limit / 2;
+        const limit = if (i < d.macro_backtrace_limit) 0 else i - half;
+        try d.list.ensureUnusedCapacity(
+            d.arena.allocator(),
+            if (limit == 0) expansion_locs.len else d.macro_backtrace_limit + 1,
         );
         while (i > limit) {
             i -= 1;
-            diag.list.appendAssumeCapacity(.{
+            d.list.appendAssumeCapacity(.{
                 .tag = .expanded_from_here,
                 .kind = .note,
                 .loc = expansion_locs[i],
             });
         }
         if (limit != 0) {
-            diag.list.appendAssumeCapacity(.{
+            d.list.appendAssumeCapacity(.{
                 .tag = .skipping_macro_backtrace,
                 .kind = .note,
-                .extra = .{ .unsigned = expansion_locs.len - diag.macro_backtrace_limit },
+                .extra = .{ .unsigned = expansion_locs.len - d.macro_backtrace_limit },
             });
             i = half - 1;
             while (i > 0) {
                 i -= 1;
-                diag.list.appendAssumeCapacity(.{
+                d.list.appendAssumeCapacity(.{
                     .tag = .expanded_from_here,
                     .kind = .note,
                     .loc = expansion_locs[i],
@@ -292,18 +301,18 @@ pub fn add(diag: *Diagnostics, msg: Message, expansion_locs: []const Source.Loca
             }
         }
 
-        diag.list.appendAssumeCapacity(.{
+        d.list.appendAssumeCapacity(.{
             .tag = .expanded_from_here,
             .kind = .note,
             .loc = msg.loc,
         });
     }
-    if (kind == .@"fatal error" or (kind == .@"error" and diag.fatal_errors))
+    if (kind == .@"fatal error" or (kind == .@"error" and d.fatal_errors))
         return error.FatalError;
 }
 
 pub fn fatal(
-    diag: *Diagnostics,
+    d: *Diagnostics,
     path: []const u8,
     line: []const u8,
     line_no: u32,
@@ -311,7 +320,7 @@ pub fn fatal(
     comptime fmt: []const u8,
     args: anytype,
 ) Compilation.Error {
-    var m = MsgWriter.init(diag.color);
+    var m = MsgWriter.init(d.color);
     defer m.deinit();
 
     m.location(path, line_no, col);
@@ -319,12 +328,12 @@ pub fn fatal(
     m.print(fmt, args);
     m.end(line, col, false);
 
-    diag.errors += 1;
+    d.errors += 1;
     return error.FatalError;
 }
 
-pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) error{FatalError} {
-    if (!diag.color) {
+pub fn fatalNoSrc(d: *Diagnostics, comptime fmt: []const u8, args: anytype) error{FatalError} {
+    if (!d.color) {
         std.debug.print("fatal error: " ++ fmt ++ "\n", args);
     } else {
         const std_err = std.io.getStdErr().writer();
@@ -334,24 +343,24 @@ pub fn fatalNoSrc(diag: *Diagnostics, comptime fmt: []const u8, args: anytype) e
         std_err.print(fmt ++ "\n", args) catch {};
         util.setColor(.reset, std_err);
     }
-    diag.errors += 1;
+    d.errors += 1;
     return error.FatalError;
 }
 
 pub fn render(comp: *Compilation) void {
-    if (comp.diag.list.items.len == 0) return;
+    if (comp.diagnostics.list.items.len == 0) return;
     var m = defaultMsgWriter(comp);
     defer m.deinit();
     renderMessages(comp, &m);
 }
 pub fn defaultMsgWriter(comp: *const Compilation) MsgWriter {
-    return MsgWriter.init(comp.diag.color);
+    return MsgWriter.init(comp.diagnostics.color);
 }
 
 pub fn renderMessages(comp: *Compilation, m: anytype) void {
     var errors: u32 = 0;
     var warnings: u32 = 0;
-    for (comp.diag.list.items) |msg| {
+    for (comp.diagnostics.list.items) |msg| {
         switch (msg.kind) {
             .@"fatal error", .@"error" => errors += 1,
             .warning => warnings += 1,
@@ -371,8 +380,8 @@ pub fn renderMessages(comp: *Compilation, m: anytype) void {
         m.print("{d} error{s} generated.\n", .{ errors, e_s });
     }
 
-    comp.diag.list.items.len = 0;
-    comp.diag.errors += errors;
+    comp.diagnostics.list.items.len = 0;
+    comp.diagnostics.errors += errors;
 }
 
 pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
@@ -489,29 +498,26 @@ fn optName(offset: u16) []const u8 {
     return std.meta.fieldNames(Options)[offset / @sizeOf(Kind)];
 }
 
-fn tagKind(diag: *Diagnostics, tag: Tag) Kind {
-    // XXX: horrible hack, do not do this
-    const comp = @fieldParentPtr(Compilation, "diag", diag);
-
+fn tagKind(d: *Diagnostics, tag: Tag, langopts: LangOpts) Kind {
     const prop = tag.property();
-    var kind = prop.getKind(&diag.options);
+    var kind = prop.getKind(&d.options);
 
     if (prop.all) {
-        if (diag.options.all != .default) kind = diag.options.all;
+        if (d.options.all != .default) kind = d.options.all;
     }
     if (prop.w_extra) {
-        if (diag.options.extra != .default) kind = diag.options.extra;
+        if (d.options.extra != .default) kind = d.options.extra;
     }
     if (prop.pedantic) {
-        if (diag.options.pedantic != .default) kind = diag.options.pedantic;
+        if (d.options.pedantic != .default) kind = d.options.pedantic;
     }
-    if (prop.suppress_version) |some| if (comp.langopts.standard.atLeast(some)) return .off;
-    if (prop.suppress_unless_version) |some| if (!comp.langopts.standard.atLeast(some)) return .off;
-    if (prop.suppress_gnu and comp.langopts.standard.isExplicitGNU()) return .off;
-    if (prop.suppress_gcc and comp.langopts.emulate == .gcc) return .off;
-    if (prop.suppress_clang and comp.langopts.emulate == .clang) return .off;
-    if (prop.suppress_msvc and comp.langopts.emulate == .msvc) return .off;
-    if (kind == .@"error" and diag.fatal_errors) kind = .@"fatal error";
+    if (prop.suppress_version) |some| if (langopts.standard.atLeast(some)) return .off;
+    if (prop.suppress_unless_version) |some| if (!langopts.standard.atLeast(some)) return .off;
+    if (prop.suppress_gnu and langopts.standard.isExplicitGNU()) return .off;
+    if (prop.suppress_gcc and langopts.emulate == .gcc) return .off;
+    if (prop.suppress_clang and langopts.emulate == .clang) return .off;
+    if (prop.suppress_msvc and langopts.emulate == .msvc) return .off;
+    if (kind == .@"error" and d.fatal_errors) kind = .@"fatal error";
     return kind;
 }
 

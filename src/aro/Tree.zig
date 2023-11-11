@@ -79,7 +79,7 @@ pub const Token = struct {
     pub fn checkMsEof(tok: Token, source: Source, comp: *Compilation) !void {
         std.debug.assert(tok.id == .eof);
         if (source.buf.len > tok.loc.byte_offset and source.buf[tok.loc.byte_offset] == 0x1A) {
-            try comp.diag.add(.{
+            try comp.addDiagnostic(.{
                 .tag = .ctrl_z_eof,
                 .loc = .{
                     .id = source.id,

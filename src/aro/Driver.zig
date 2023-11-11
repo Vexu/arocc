@@ -260,7 +260,7 @@ pub fn parseArgs(
                 };
 
                 if (limit == 0) limit = std.math.maxInt(u32);
-                d.comp.diag.macro_backtrace_limit = limit;
+                d.comp.diagnostics.macro_backtrace_limit = limit;
             } else if (mem.eql(u8, arg, "-fnative-half-type")) {
                 d.comp.langopts.use_native_half_type = true;
             } else if (mem.eql(u8, arg, "-fnative-half-arguments-and-returns")) {
@@ -315,14 +315,14 @@ pub fn parseArgs(
                 try d.comp.system_include_dirs.append(d.comp.gpa, duped);
             } else if (option(arg, "--emulate=")) |compiler_str| {
                 const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
-                    try d.comp.diag.add(.{ .tag = .cli_invalid_emulate, .extra = .{ .str = arg } }, &.{});
+                    try d.comp.addDiagnostic(.{ .tag = .cli_invalid_emulate, .extra = .{ .str = arg } }, &.{});
                     continue;
                 };
                 d.comp.langopts.setEmulatedCompiler(compiler);
             } else if (option(arg, "-ffp-eval-method=")) |fp_method_str| {
                 const fp_eval_method = std.meta.stringToEnum(LangOpts.FPEvalMethod, fp_method_str) orelse .indeterminate;
                 if (fp_eval_method == .indeterminate) {
-                    try d.comp.diag.add(.{ .tag = .cli_invalid_fp_eval_method, .extra = .{ .str = fp_method_str } }, &.{});
+                    try d.comp.addDiagnostic(.{ .tag = .cli_invalid_fp_eval_method, .extra = .{ .str = fp_method_str } }, &.{});
                     continue;
                 }
                 d.comp.langopts.setFpEvalMethod(fp_eval_method);
@@ -340,31 +340,31 @@ pub fn parseArgs(
             } else if (option(arg, "--sysroot=")) |sysroot| {
                 d.sysroot = sysroot;
             } else if (mem.eql(u8, arg, "-pedantic")) {
-                d.comp.diag.options.pedantic = .warning;
+                d.comp.diagnostics.options.pedantic = .warning;
             } else if (option(arg, "--rtlib=")) |rtlib| {
                 if (mem.eql(u8, rtlib, "compiler-rt") or mem.eql(u8, rtlib, "libgcc") or mem.eql(u8, rtlib, "platform")) {
                     d.rtlib = rtlib;
                 } else {
-                    try d.comp.diag.add(.{ .tag = .invalid_rtlib, .extra = .{ .str = rtlib } }, &.{});
+                    try d.comp.addDiagnostic(.{ .tag = .invalid_rtlib, .extra = .{ .str = rtlib } }, &.{});
                 }
             } else if (option(arg, "-Werror=")) |err_name| {
-                try d.comp.diag.set(err_name, .@"error");
+                try d.comp.diagnostics.set(err_name, .@"error");
             } else if (mem.eql(u8, arg, "-Wno-fatal-errors")) {
-                d.comp.diag.fatal_errors = false;
+                d.comp.diagnostics.fatal_errors = false;
             } else if (option(arg, "-Wno-")) |err_name| {
-                try d.comp.diag.set(err_name, .off);
+                try d.comp.diagnostics.set(err_name, .off);
             } else if (mem.eql(u8, arg, "-Wfatal-errors")) {
-                d.comp.diag.fatal_errors = true;
+                d.comp.diagnostics.fatal_errors = true;
             } else if (option(arg, "-W")) |err_name| {
-                try d.comp.diag.set(err_name, .warning);
+                try d.comp.diagnostics.set(err_name, .warning);
             } else if (option(arg, "-std=")) |standard| {
                 d.comp.langopts.setStandard(standard) catch
-                    try d.comp.diag.add(.{ .tag = .cli_invalid_standard, .extra = .{ .str = arg } }, &.{});
+                    try d.comp.addDiagnostic(.{ .tag = .cli_invalid_standard, .extra = .{ .str = arg } }, &.{});
             } else if (mem.eql(u8, arg, "-S") or mem.eql(u8, arg, "--assemble")) {
                 d.only_preprocess_and_compile = true;
             } else if (option(arg, "--target=")) |triple| {
                 const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = triple }) catch {
-                    try d.comp.diag.add(.{ .tag = .cli_invalid_target, .extra = .{ .str = arg } }, &.{});
+                    try d.comp.addDiagnostic(.{ .tag = .cli_invalid_target, .extra = .{ .str = arg } }, &.{});
                     continue;
                 };
                 d.comp.target = cross.toTarget(); // TODO deprecated
@@ -427,10 +427,10 @@ pub fn parseArgs(
                         break;
                     }
                 } else {
-                    try d.comp.diag.add(.{ .tag = .invalid_unwindlib, .extra = .{ .str = unwindlib } }, &.{});
+                    try d.comp.addDiagnostic(.{ .tag = .invalid_unwindlib, .extra = .{ .str = unwindlib } }, &.{});
                 }
             } else {
-                try d.comp.diag.add(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
+                try d.comp.addDiagnostic(.{ .tag = .cli_unknown_arg, .extra = .{ .str = arg } }, &.{});
             }
         } else if (std.mem.endsWith(u8, arg, ".o") or std.mem.endsWith(u8, arg, ".obj")) {
             try d.link_objects.append(d.comp.gpa, arg);
@@ -441,7 +441,7 @@ pub fn parseArgs(
             try d.inputs.append(d.comp.gpa, source);
         }
     }
-    d.comp.diag.color = switch (color_setting) {
+    d.comp.diagnostics.color = switch (color_setting) {
         .on => true,
         .off => false,
         .unset => util.fileSupportsColor(std.io.getStdErr()) and !std.process.hasEnvVarConstant("NO_COLOR"),
@@ -470,12 +470,12 @@ fn addSource(d: *Driver, path: []const u8) !Source {
 }
 
 pub fn err(d: *Driver, msg: []const u8) !void {
-    try d.comp.diag.add(.{ .tag = .cli_error, .extra = .{ .str = msg } }, &.{});
+    try d.comp.addDiagnostic(.{ .tag = .cli_error, .extra = .{ .str = msg } }, &.{});
 }
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{FatalError} {
     d.comp.renderErrors();
-    return d.comp.diag.fatalNoSrc(fmt, args);
+    return d.comp.diagnostics.fatalNoSrc(fmt, args);
 }
 
 /// The entry point of the Aro compiler.
@@ -496,7 +496,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     }
 
     if (!linking) for (d.link_objects.items) |obj| {
-        try d.comp.diag.add(.{ .tag = .cli_unused_link_object, .extra = .{ .str = obj } }, &.{});
+        try d.comp.addDiagnostic(.{ .tag = .cli_unused_link_object, .extra = .{ .str = obj } }, &.{});
     };
 
     d.comp.defineSystemIncludes(d.aro_name) catch |er| switch (er) {
@@ -526,7 +526,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
             else => |er| return er,
         };
     }
-    if (d.comp.diag.errors != 0) {
+    if (d.comp.diagnostics.errors != 0) {
         if (fast_exit) d.exitWithCleanup(1);
         return;
     }
@@ -588,15 +588,15 @@ fn processSource(
     if (d.verbose_ast) {
         const stdout = std.io.getStdOut();
         var buf_writer = std.io.bufferedWriter(stdout.writer());
-        const color = d.comp.diag.color and util.fileSupportsColor(stdout);
+        const color = d.comp.diagnostics.color and util.fileSupportsColor(stdout);
         tree.dump(color, buf_writer.writer()) catch {};
         buf_writer.flush() catch {};
     }
 
-    const prev_errors = d.comp.diag.errors;
+    const prev_errors = d.comp.diagnostics.errors;
     d.comp.renderErrors();
 
-    if (d.comp.diag.errors != prev_errors) {
+    if (d.comp.diagnostics.errors != prev_errors) {
         if (fast_exit) d.exitWithCleanup(1);
         return; // do not compile if there were errors
     }
@@ -619,7 +619,7 @@ fn processSource(
     if (d.verbose_ir) {
         const stdout = std.io.getStdOut();
         var buf_writer = std.io.bufferedWriter(stdout.writer());
-        const color = d.comp.diag.color and util.fileSupportsColor(stdout);
+        const color = d.comp.diagnostics.color and util.fileSupportsColor(stdout);
         ir.dump(d.comp.gpa, color, buf_writer.writer()) catch {};
         buf_writer.flush() catch {};
     }

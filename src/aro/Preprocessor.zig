@@ -364,9 +364,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         }
                         try pp.stringify(pp.top_expansion_buf.items);
                         const slice = pp.char_buf.items[char_top + 1 .. pp.char_buf.items.len - 2];
-                        const duped = try pp.comp.diag.arena.allocator().dupe(u8, slice);
+                        const duped = try pp.comp.diagnostics.arena.allocator().dupe(u8, slice);
 
-                        try pp.comp.diag.add(.{
+                        try pp.comp.addDiagnostic(.{
                             .tag = if (directive.id == .keyword_error) .error_directive else .warning_directive,
                             .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
                             .extra = .{ .str = duped },
@@ -588,12 +588,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         continue;
                     },
                     .keyword_include_next => {
-                        try pp.comp.diag.add(.{
+                        try pp.comp.addDiagnostic(.{
                             .tag = .include_next,
                             .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
                         }, &.{});
                         if (pp.include_depth == 0) {
-                            try pp.comp.diag.add(.{
+                            try pp.comp.addDiagnostic(.{
                                 .tag = .include_next_outside_header,
                                 .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
                             }, &.{});
@@ -710,7 +710,7 @@ fn tokFromRaw(raw: RawToken) Token {
 }
 
 fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
-    try pp.comp.diag.add(.{
+    try pp.comp.addDiagnostic(.{
         .tag = tag,
         .loc = .{
             .id = raw.source,
@@ -721,7 +721,7 @@ fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
 }
 
 fn errStr(pp: *Preprocessor, tok: Token, tag: Diagnostics.Tag, str: []const u8) !void {
-    try pp.comp.diag.add(.{
+    try pp.comp.addDiagnostic(.{
         .tag = tag,
         .loc = tok.loc,
         .extra = .{ .str = str },
@@ -731,7 +731,7 @@ fn errStr(pp: *Preprocessor, tok: Token, tag: Diagnostics.Tag, str: []const u8) 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
     const source = pp.comp.getSource(raw.source);
     const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
-    return pp.comp.diag.fatal(source.path, line_col.line, raw.line, line_col.col, fmt, args);
+    return pp.comp.diagnostics.fatal(source.path, line_col.line, raw.line, line_col.col, fmt, args);
 }
 
 fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) void {
@@ -799,7 +799,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     for (pp.top_expansion_buf.items) |tok| {
         if (tok.id == .macro_ws) continue;
         if (!tok.id.validPreprocessorExprStart()) {
-            try pp.comp.diag.add(.{
+            try pp.comp.addDiagnostic(.{
                 .tag = .invalid_preproc_expr_start,
                 .loc = tok.loc,
             }, tok.expansionSlice());
@@ -824,7 +824,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .string_literal_utf_32,
             .string_literal_wide,
             => {
-                try pp.comp.diag.add(.{
+                try pp.comp.addDiagnostic(.{
                     .tag = .string_literal_in_pp_expr,
                     .loc = tok.loc,
                 }, tok.expansionSlice());
@@ -854,7 +854,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .arrow,
             .period,
             => {
-                try pp.comp.diag.add(.{
+                try pp.comp.addDiagnostic(.{
                     .tag = .invalid_preproc_operator,
                     .loc = tok.loc,
                 }, tok.expansionSlice());
@@ -939,7 +939,7 @@ fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *Token, tokens: []const To
         return it.i;
     };
     if (!second.id.isMacroIdentifier()) {
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .macro_name_must_be_identifier,
             .loc = second.loc,
         }, second.expansionSlice());
@@ -950,11 +950,11 @@ fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *Token, tokens: []const To
     const last = it.nextNoWS();
     if (last == null or last.?.id != .r_paren) {
         const tok = last orelse tokFromRaw(eof);
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .closing_paren,
             .loc = tok.loc,
         }, tok.expansionSlice());
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .to_match_paren,
             .loc = first.loc,
         }, first.expansionSlice());
@@ -1248,7 +1248,7 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
     }
     if (pp.char_buf.items[pp.char_buf.items.len - 1] == '\\') {
         const tok = tokens[tokens.len - 1];
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .invalid_pp_stringify_escape,
             .loc = tok.loc,
         }, tok.expansionSlice());
@@ -1269,7 +1269,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
     const params = param_toks[begin..end];
 
     if (params.len == 0) {
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .expected_filename,
             .loc = param_toks[0].loc,
         }, param_toks[0].expansionSlice());
@@ -1277,7 +1277,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
     }
     // no string pasting
     if (params[0].id == .string_literal and params.len > 1) {
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .closing_paren,
             .loc = params[1].loc,
         }, params[1].expansionSlice());
@@ -1291,7 +1291,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
 
     const include_str = pp.char_buf.items[char_top..];
     if (include_str.len < 3) {
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .empty_filename,
             .loc = params[0].loc,
         }, params[0].expansionSlice());
@@ -1303,11 +1303,11 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
             if (include_str[include_str.len - 1] != '>') {
                 // Ugly hack to find out where the '>' should go, since we don't have the closing ')' location
                 const start = params[0].loc;
-                try pp.comp.diag.add(.{
+                try pp.comp.addDiagnostic(.{
                     .tag = .header_str_closing,
                     .loc = .{ .id = start.id, .byte_offset = start.byte_offset + @as(u32, @intCast(include_str.len)) + 1, .line = start.line },
                 }, params[0].expansionSlice());
-                try pp.comp.diag.add(.{
+                try pp.comp.addDiagnostic(.{
                     .tag = .header_str_match,
                     .loc = params[0].loc,
                 }, params[0].expansionSlice());
@@ -1317,7 +1317,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
         },
         '"' => return include_str,
         else => {
-            try pp.comp.diag.add(.{
+            try pp.comp.addDiagnostic(.{
                 .tag = .expected_filename,
                 .loc = params[0].loc,
             }, params[0].expansionSlice());
@@ -1347,7 +1347,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             }
             if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
-                try pp.comp.diag.add(
+                try pp.comp.addDiagnostic(
                     .{ .tag = .feature_check_requires_identifier, .loc = some.loc },
                     some.expansionSlice(),
                 );
@@ -1396,7 +1396,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             };
             if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
-                try pp.comp.diag.add(.{
+                try pp.comp.addDiagnostic(.{
                     .tag = .missing_tok_builtin,
                     .loc = some.loc,
                     .extra = .{ .tok_id_expected = .r_paren },
@@ -1417,7 +1417,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const filename = include_str[1 .. include_str.len - 1];
             if (builtin == .macro_param_has_include or pp.include_depth == 0) {
                 if (builtin == .macro_param_has_include_next) {
-                    try pp.comp.diag.add(.{
+                    try pp.comp.addDiagnostic(.{
                         .tag = .include_next_outside_header,
                         .loc = src_loc,
                     }, &.{});
@@ -1541,7 +1541,7 @@ fn expandFuncMacro(
                 const arg = expanded_args.items[0];
                 const result = if (arg.len == 0) blk: {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
+                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
                     break :blk false;
                 } else try pp.handleBuiltinMacro(raw.id, arg, loc);
                 const start = pp.comp.generated_buf.items.len;
@@ -1554,7 +1554,7 @@ fn expandFuncMacro(
                 const not_found = "0\n";
                 const result = if (arg.len == 0) blk: {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.diag.add(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
+                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
                     break :blk not_found;
                 } else res: {
                     var invalid: ?Token = null;
@@ -1570,7 +1570,7 @@ fn expandFuncMacro(
                     }
                     if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = loc };
                     if (invalid) |some| {
-                        try pp.comp.diag.add(
+                        try pp.comp.addDiagnostic(
                             .{ .tag = .feature_check_requires_identifier, .loc = some.loc },
                             some.expansionSlice(),
                         );
@@ -1615,7 +1615,7 @@ fn expandFuncMacro(
                     },
                 };
                 if (string == null and invalid == null) invalid = .{ .loc = loc, .id = .eof };
-                if (invalid) |some| try pp.comp.diag.add(
+                if (invalid) |some| try pp.comp.addDiagnostic(
                     .{ .tag = .pragma_operator_string_literal, .loc = some.loc },
                     some.expansionSlice(),
                 ) else try pp.pragmaOperator(string.?, loc);
@@ -1825,7 +1825,7 @@ fn collectMacroFuncArguments(
                     try args.append(owned);
                 }
                 tokenizer.* = saved_tokenizer;
-                try pp.comp.diag.add(
+                try pp.comp.addDiagnostic(
                     .{ .tag = .unterminated_macro_arg_list, .loc = name_tok.loc },
                     name_tok.expansionSlice(),
                 );
@@ -1969,7 +1969,7 @@ fn expandMacroExhaustive(
                         .arguments = .{ .expected = @intCast(macro.params.len), .actual = args_count },
                     };
                     if (macro.var_args and args_count < macro.params.len) {
-                        try pp.comp.diag.add(
+                        try pp.comp.addDiagnostic(
                             .{ .tag = .expected_at_least_arguments, .loc = buf.items[idx].loc, .extra = extra },
                             buf.items[idx].expansionSlice(),
                         );
@@ -1978,7 +1978,7 @@ fn expandMacroExhaustive(
                         continue;
                     }
                     if (!macro.var_args and args_count != macro.params.len) {
-                        try pp.comp.diag.add(
+                        try pp.comp.addDiagnostic(
                             .{ .tag = .expected_arguments, .loc = buf.items[idx].loc, .extra = extra },
                             buf.items[idx].expansionSlice(),
                         );
@@ -2030,7 +2030,7 @@ fn expandMacroExhaustive(
                         try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
                         if (tok.id == .keyword_defined and eval_ctx == .expr) {
-                            try pp.comp.diag.add(.{
+                            try pp.comp.addDiagnostic(.{
                                 .tag = .expansion_to_defined,
                                 .loc = tok.loc,
                             }, tok.expansionSlice());
@@ -2175,7 +2175,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
         try pp.errStr(
             lhs,
             .pasting_formed_invalid,
-            try pp.comp.diag.arena.allocator().dupe(u8, pp.comp.generated_buf.items[start..end]),
+            try pp.comp.diagnostics.arena.allocator().dupe(u8, pp.comp.generated_buf.items[start..end]),
         );
         try lhs_toks.append(tokFromRaw(next));
     }
@@ -2201,14 +2201,14 @@ fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
     const gop = try pp.defines.getOrPut(pp.gpa, name_str);
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
         const tag: Diagnostics.Tag = if (gop.value_ptr.is_builtin) .builtin_macro_redefined else .macro_redefined;
-        const start = pp.comp.diag.list.items.len;
-        try pp.comp.diag.add(.{
+        const start = pp.comp.diagnostics.list.items.len;
+        try pp.comp.addDiagnostic(.{
             .tag = tag,
             .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line },
             .extra = .{ .str = name_str },
         }, &.{});
-        if (!gop.value_ptr.is_builtin and pp.comp.diag.list.items.len != start) {
-            try pp.comp.diag.add(.{
+        if (!gop.value_ptr.is_builtin and pp.comp.diagnostics.list.items.len != start) {
+            try pp.comp.addDiagnostic(.{
                 .tag = .previous_definition,
                 .loc = gop.value_ptr.loc,
             }, &.{});
@@ -2644,7 +2644,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
             try pp.errStr(
                 tokFromRaw(param_first),
                 .unsupported_embed_param,
-                try pp.comp.diag.arena.allocator().dupe(u8, param),
+                try pp.comp.diagnostics.arena.allocator().dupe(u8, param),
             );
             pp.token_buf.items.len = start;
         }
@@ -2699,7 +2699,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     pp.include_depth += 1;
     defer pp.include_depth -= 1;
     if (pp.include_depth > max_include_depth) {
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .too_many_includes,
             .loc = .{ .id = first.source, .byte_offset = first.start, .line = first.line },
         }, &.{});
@@ -2787,7 +2787,7 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
             else => |e| return e,
         };
     }
-    return pp.comp.diag.add(.{
+    return pp.comp.addDiagnostic(.{
         .tag = .unknown_pragma,
         .loc = pragma_name_tok.loc,
     }, pragma_name_tok.expansionSlice());
@@ -2817,7 +2817,7 @@ fn findIncludeFilenameToken(
                 else => {},
             }
         }
-        try pp.comp.diag.add(.{
+        try pp.comp.addDiagnostic(.{
             .tag = .header_str_closing,
             .loc = .{ .id = first.source, .byte_offset = tokenizer.index, .line = first.line },
         }, &.{});

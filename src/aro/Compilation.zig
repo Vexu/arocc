@@ -90,7 +90,7 @@ pub const Environment = struct {
 const Compilation = @This();
 
 gpa: Allocator,
-diag: Diagnostics,
+diagnostics: Diagnostics,
 
 environment: Environment = .{},
 sources: std.StringArrayHashMapUnmanaged(Source) = .{},
@@ -132,7 +132,7 @@ ms_cwd_source_id: ?Source.Id = null,
 pub fn init(gpa: Allocator) Compilation {
     return .{
         .gpa = gpa,
-        .diag = Diagnostics.init(gpa),
+        .diagnostics = Diagnostics.init(gpa),
     };
 }
 
@@ -142,7 +142,7 @@ pub fn initDefault(gpa: Allocator) !Compilation {
     var comp: Compilation = .{
         .gpa = gpa,
         .environment = try Environment.loadAll(gpa),
-        .diag = Diagnostics.init(gpa),
+        .diagnostics = Diagnostics.init(gpa),
     };
     errdefer comp.deinit();
     try comp.addDefaultPragmaHandlers();
@@ -160,7 +160,7 @@ pub fn deinit(comp: *Compilation) void {
         comp.gpa.free(source.splice_locs);
     }
     comp.sources.deinit(comp.gpa);
-    comp.diag.deinit();
+    comp.diagnostics.deinit();
     comp.include_dirs.deinit(comp.gpa);
     for (comp.system_include_dirs.items) |path| comp.gpa.free(path);
     comp.system_include_dirs.deinit(comp.gpa);
@@ -184,7 +184,7 @@ const max_timestamp = 253402300799;
 
 fn getTimestamp(comp: *Compilation) !u47 {
     const provided: ?i64 = comp.getSourceEpoch(max_timestamp) catch blk: {
-        try comp.diag.add(.{
+        try comp.addDiagnostic(.{
             .tag = .invalid_source_epoch,
             .loc = .{ .id = .unused, .byte_offset = 0, .line = 0 },
         }, &.{});
@@ -832,7 +832,7 @@ fn generateVaListType(comp: *Compilation) !Type {
     };
 
     // TODO this might be bad?
-    const arena = comp.diag.arena.allocator();
+    const arena = comp.diagnostics.arena.allocator();
 
     var ty: Type = undefined;
     switch (kind) {
@@ -1059,7 +1059,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                         i = backslash_loc;
                         try splice_list.append(i);
                         if (state == .trailing_ws) {
-                            try comp.diag.add(.{
+                            try comp.addDiagnostic(.{
                                 .tag = .backslash_newline_escape,
                                 .loc = .{ .id = source_id, .byte_offset = i, .line = line },
                             }, &.{});
@@ -1083,7 +1083,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                             try splice_list.append(i);
                         }
                         if (state == .trailing_ws) {
-                            try comp.diag.add(.{
+                            try comp.addDiagnostic(.{
                                 .tag = .backslash_newline_escape,
                                 .loc = .{ .id = source_id, .byte_offset = i, .line = line },
                             }, &.{});
@@ -1389,7 +1389,7 @@ pub fn findInclude(
         defer stack_fallback.get().free(found.path);
         if (comp.addSourceFromPathExtra(found.path, found.kind)) |some| {
             if (it.tried_ms_cwd) {
-                try comp.diag.add(.{
+                try comp.addDiagnostic(.{
                     .tag = .ms_search_rule,
                     .extra = .{ .str = some.path },
                     .loc = .{
@@ -1492,6 +1492,7 @@ pub const CharUnitSize = enum(u32) {
 };
 
 pub const renderErrors = Diagnostics.render;
+pub const addDiagnostic = Diagnostics.add;
 
 test "addSourceFromReader" {
     const Test = struct {
@@ -1503,7 +1504,7 @@ test "addSourceFromReader" {
             const source = try comp.addSourceFromReader(buf_reader.reader(), "path", .user);
 
             try std.testing.expectEqualStrings(expected, source.buf);
-            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diag.list.items.len)));
+            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diagnostics.list.items.len)));
             try std.testing.expectEqualSlices(u32, splices, source.splice_locs);
         }
 
