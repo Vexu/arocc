@@ -26,6 +26,22 @@ const int bar =
 ;
 _Static_assert(bar == 'H', "");
 
+# if __has_embed("include/embed data" foo(1)) != 0
+#error unknown param was accepted
+#endif
+
+# if __has_embed("doesn't exist") != 0
+#error non-existent embed found
+#endif
+
+# if __has_embed("include/embed data" limit(1)) != 1
+#error embed should be found
+#endif
+
+# if __has_embed("include/empty") != 2
+#error empty wasn't detected
+#endif
+
 #define EXPECTED_ERRORS \
 	"#embed.c:19:56: warning: unsupported embed parameter 'vendor::unsupported' embed parameter [-Wunsupported-embed-param]" \
 	"#embed.c:19:101: warning: duplicate embed parameter 'limit' [-Wduplicate-embed-param]" \

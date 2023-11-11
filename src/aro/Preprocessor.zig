@@ -165,6 +165,10 @@ const builtin_macros = struct {
         .id = .macro_param_has_include_next,
         .source = .generated,
     }};
+    const has_embed = [1]RawToken{.{
+        .id = .macro_param_has_embed,
+        .source = .generated,
+    }};
 
     const is_identifier = [1]RawToken{.{
         .id = .macro_param_is_identifier,
@@ -213,6 +217,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_builtin", true, &builtin_macros.has_builtin);
     try pp.addBuiltinMacro("__has_include", true, &builtin_macros.has_include);
     try pp.addBuiltinMacro("__has_include_next", true, &builtin_macros.has_include_next);
+    try pp.addBuiltinMacro("__has_embed", true, &builtin_macros.has_embed);
     try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
     try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
 
@@ -1257,7 +1262,7 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
     try pp.char_buf.appendSlice("\"\n");
 }
 
-fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]const u8 {
+fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_args: ?*[]const Token) !?[]const u8 {
     const char_top = pp.char_buf.items.len;
     defer pp.char_buf.items.len = char_top;
 
@@ -1276,7 +1281,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
         return null;
     }
     // no string pasting
-    if (params[0].id == .string_literal and params.len > 1) {
+    if (embed_args == null and params[0].id == .string_literal and params.len > 1) {
         try pp.comp.addDiagnostic(.{
             .tag = .closing_paren,
             .loc = params[1].loc,
@@ -1284,9 +1289,15 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token) !?[]co
         return null;
     }
 
-    for (params) |tok| {
+    for (params, 0..) |tok, i| {
         const str = pp.expandedSliceExtra(tok, .preserve_macro_ws);
         try pp.char_buf.appendSlice(str);
+        if (embed_args) |some| {
+            if ((i == 0 and tok.id == .string_literal) or tok.id == .angle_bracket_right) {
+                some.* = params[i + 1 ..];
+                break;
+            }
+        }
     }
 
     const include_str = pp.char_buf.items[char_top..];
@@ -1408,7 +1419,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             return id == .identifier or id == .extended_identifier;
         },
         .macro_param_has_include, .macro_param_has_include_next => {
-            const include_str = (try pp.reconstructIncludeString(param_toks)) orelse return false;
+            const include_str = (try pp.reconstructIncludeString(param_toks, null)) orelse return false;
             const include_type: Compilation.IncludeType = switch (include_str[0]) {
                 '"' => .quotes,
                 '<' => .angle_brackets,
@@ -1623,6 +1634,139 @@ fn expandFuncMacro(
                 };
                 const start = pp.comp.generated_buf.items.len;
                 try pp.comp.generated_buf.appendSlice(pp.gpa, result);
+                try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
+            },
+            .macro_param_has_embed => {
+                const arg = expanded_args.items[0];
+                const not_found = "0\n";
+                const result = if (arg.len == 0) blk: {
+                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
+                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
+                    break :blk not_found;
+                } else res: {
+                    var embed_args: []const Token = &.{};
+                    const include_str = (try pp.reconstructIncludeString(arg, &embed_args)) orelse
+                        break :res not_found;
+
+                    var prev = tokFromRaw(raw);
+                    prev.id = .eof;
+                    var it: struct {
+                        i: u32 = 0,
+                        slice: []const Token,
+                        prev: Token,
+                        fn next(it: *@This()) Token {
+                            while (it.i < it.slice.len) switch (it.slice[it.i].id) {
+                                .macro_ws, .whitespace => it.i += 1,
+                                else => break,
+                            } else return it.prev;
+                            defer it.i += 1;
+                            it.prev = it.slice[it.i];
+                            it.prev.id = .eof;
+                            return it.slice[it.i];
+                        }
+                    } = .{ .slice = embed_args, .prev = prev };
+
+                    while (true) {
+                        const param_first = it.next();
+                        if (param_first.id == .eof) break;
+                        if (param_first.id != .identifier) {
+                            try pp.comp.addDiagnostic(
+                                .{ .tag = .malformed_embed_param, .loc = param_first.loc },
+                                param_first.expansionSlice(),
+                            );
+                            continue;
+                        }
+
+                        const char_top = pp.char_buf.items.len;
+                        defer pp.char_buf.items.len = char_top;
+
+                        const maybe_colon = it.next();
+                        const param = switch (maybe_colon.id) {
+                            .colon_colon => blk: {
+                                // vendor::param
+                                const param = it.next();
+                                if (param.id != .identifier) {
+                                    try pp.comp.addDiagnostic(
+                                        .{ .tag = .malformed_embed_param, .loc = param.loc },
+                                        param.expansionSlice(),
+                                    );
+                                    continue;
+                                }
+                                const l_paren = it.next();
+                                if (l_paren.id != .l_paren) {
+                                    try pp.comp.addDiagnostic(
+                                        .{ .tag = .malformed_embed_param, .loc = l_paren.loc },
+                                        l_paren.expansionSlice(),
+                                    );
+                                    continue;
+                                }
+                                break :blk "doesn't exist";
+                            },
+                            .l_paren => Attribute.normalize(pp.expandedSlice(param_first)),
+                            else => {
+                                try pp.comp.addDiagnostic(
+                                    .{ .tag = .malformed_embed_param, .loc = maybe_colon.loc },
+                                    maybe_colon.expansionSlice(),
+                                );
+                                continue;
+                            },
+                        };
+
+                        var arg_count: u32 = 0;
+                        var first_arg: Token = undefined;
+                        while (true) {
+                            const next = it.next();
+                            if (next.id == .eof) {
+                                try pp.comp.addDiagnostic(
+                                    .{ .tag = .malformed_embed_limit, .loc = param_first.loc },
+                                    param_first.expansionSlice(),
+                                );
+                                break;
+                            }
+                            if (next.id == .r_paren) break;
+                            arg_count += 1;
+                            if (arg_count == 1) first_arg = next;
+                        }
+
+                        if (std.mem.eql(u8, param, "limit")) {
+                            if (arg_count != 1) {
+                                try pp.comp.addDiagnostic(
+                                    .{ .tag = .malformed_embed_limit, .loc = param_first.loc },
+                                    param_first.expansionSlice(),
+                                );
+                                continue;
+                            }
+                            if (first_arg.id != .pp_num) {
+                                try pp.comp.addDiagnostic(
+                                    .{ .tag = .malformed_embed_limit, .loc = param_first.loc },
+                                    param_first.expansionSlice(),
+                                );
+                                continue;
+                            }
+                            _ = std.fmt.parseInt(u32, pp.expandedSlice(first_arg), 10) catch {
+                                break :res not_found;
+                            };
+                        } else if (!std.mem.eql(u8, param, "prefix") and !std.mem.eql(u8, param, "suffix") and
+                            !std.mem.eql(u8, param, "if_empty"))
+                        {
+                            break :res not_found;
+                        }
+                    }
+
+                    const include_type: Compilation.IncludeType = switch (include_str[0]) {
+                        '"' => .quotes,
+                        '<' => .angle_brackets,
+                        else => unreachable,
+                    };
+                    const filename = include_str[1 .. include_str.len - 1];
+                    const contents = (try pp.comp.findEmbed(filename, arg[0].loc.id, include_type, 1)) orelse
+                        break :res not_found;
+
+                    defer pp.comp.gpa.free(contents);
+                    break :res if (contents.len != 0) "1\n" else "2\n";
+                };
+                const start = pp.comp.generated_buf.items.len;
+                try pp.comp.generated_buf.appendSlice(pp.comp.gpa, result);
                 try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
             },
             .macro_param_pragma_operator => {
@@ -2628,6 +2772,10 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         while (true) {
             const next = tokenizer.nextNoWS();
             if (next.id == .r_paren) break;
+            if (next.id == .eof) {
+                try pp.err(maybe_colon, .malformed_embed_param);
+                break;
+            }
             try pp.token_buf.append(next);
         }
         const end: u32 = @intCast(pp.token_buf.items.len);
