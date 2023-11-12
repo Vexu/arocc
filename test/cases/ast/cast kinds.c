@@ -47,7 +47,7 @@ fn_def: 'fn () void'
       decl_ref_expr: '*int' lvalue
        name: p
      rhs:
-      implicit_cast: (array_to_pointer) 'd[2]int'
+      implicit_cast: (array_to_pointer) '*d[2]int'
         decl_ref_expr: '[2]int' lvalue
          name: arr
 

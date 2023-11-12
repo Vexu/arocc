@@ -5,7 +5,7 @@ static constexpr int b = 2;
 thread_local constexpr int c = 3;
 
 constexpr int foo(constexpr int param) {
-    auto constexpr int a = 1;
+    auto constexpr a = 1;
     register constexpr int b = 2;
     return b;
 }

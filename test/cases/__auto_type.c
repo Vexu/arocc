@@ -36,7 +36,7 @@ void baz(void) {
 
     __auto_type d;
 
-    __auto_type e = 1, f = 2;
+    __auto_type e = 1, f = 2, j = 3;
 
     struct S s = {};
     __auto_type g = s.bitfield;
