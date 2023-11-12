@@ -10,6 +10,7 @@ interner: *Interner,
 decls: std.StringArrayHashMapUnmanaged(Decl),
 
 pub const Decl = struct {
+    ty: Interner.Ref,
     instructions: std.MultiArrayList(Inst),
     body: std.ArrayListUnmanaged(Ref),
     arena: std.heap.ArenaAllocator.State,
@@ -63,6 +64,7 @@ pub const Builder = struct {
         errdefer duped_body.deinit(b.gpa);
 
         try b.decls.put(b.gpa, name, .{
+            .ty = .func,
             .instructions = duped_instructions,
             .body = duped_body,
             .arena = b.arena.state,

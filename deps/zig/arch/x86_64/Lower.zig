@@ -1,6 +1,8 @@
 //! This file contains the functionality for lowering x86_64 MIR to Instructions
 
-bin_file: *link.File,
+pic: bool,
+/// Set to null if no need to check for .zig.got
+opt_bin_file: ?*link.File,
 allocator: Allocator,
 mir: Mir,
 cc: std.builtin.CallingConvention,
@@ -258,6 +260,7 @@ pub fn lowerMir(lower: *Lower, index: Mir.Inst.Index) Error!struct {
             .pseudo_dbg_prologue_end_none,
             .pseudo_dbg_line_line_column,
             .pseudo_dbg_epilogue_begin_none,
+            .pseudo_dbg_inline_func,
             .pseudo_dead_none,
             => {},
             else => unreachable,
@@ -273,7 +276,7 @@ pub fn lowerMir(lower: *Lower, index: Mir.Inst.Index) Error!struct {
 pub fn fail(lower: *Lower, comptime format: []const u8, args: anytype) Error {
     @setCold(true);
     assert(lower.err_msg == null);
-    lower.err_msg = try std.fmt.allocPrint(lower.gpa, format, args);
+    lower.err_msg = try std.fmt.allocPrint(lower.allocator, format, args);
     return error.LowerFail;
 }
 
@@ -319,18 +322,14 @@ fn reloc(lower: *Lower, target: Reloc.Target) Immediate {
 
 fn emit(lower: *Lower, prefix: Prefix, mnemonic: Mnemonic, ops: []const Operand) Error!void {
     const needsZigGot = struct {
-        fn needsZigGot(sym: bits.Symbol, ctx: *link.File) bool {
+        fn needsZigGot(sym: bits.Symbol, opt_ctx: ?*link.File) bool {
+            const ctx = opt_ctx orelse return false;
             const elf_file = ctx.cast(link.File.Elf).?;
             const sym_index = elf_file.zigObjectPtr().?.symbol(sym.sym_index);
             return elf_file.symbol(sym_index).flags.needs_zig_got;
         }
     }.needsZigGot;
 
-    const is_obj_or_static_lib = switch (lower.bin_file.options.output_mode) {
-        .Exe => false,
-        .Obj => true,
-        .Lib => lower.bin_file.options.link_mode == .Static,
-    };
     var emit_prefix = prefix;
     var emit_mnemonic = mnemonic;
     var emit_ops_storage: [4]Operand = undefined;
@@ -345,17 +344,17 @@ fn emit(lower: *Lower, prefix: Prefix, mnemonic: Mnemonic, ops: []const Operand)
                     assert(mem_op.sib.disp == 0);
                     assert(mem_op.sib.scale_index.scale == 0);
                     _ = lower.reloc(.{ .linker_reloc = sym });
-                    break :op if (lower.bin_file.options.pic) switch (mnemonic) {
+                    break :op if (lower.pic) switch (mnemonic) {
                         .lea => {
                             break :op .{ .mem = Memory.rip(mem_op.sib.ptr_size, 0) };
                         },
                         .mov => {
-                            if (is_obj_or_static_lib and needsZigGot(sym, lower.bin_file)) emit_mnemonic = .lea;
+                            if (needsZigGot(sym, lower.opt_bin_file)) emit_mnemonic = .lea;
                             break :op .{ .mem = Memory.rip(mem_op.sib.ptr_size, 0) };
                         },
                         else => unreachable,
                     } else switch (mnemonic) {
-                        .call => break :op if (is_obj_or_static_lib and needsZigGot(sym, lower.bin_file)) .{
+                        .call => break :op if (needsZigGot(sym, lower.opt_bin_file)) .{
                             .imm = Immediate.s(0),
                         } else .{ .mem = Memory.sib(mem_op.sib.ptr_size, .{
                             .base = .{ .reg = .ds },
@@ -365,7 +364,7 @@ fn emit(lower: *Lower, prefix: Prefix, mnemonic: Mnemonic, ops: []const Operand)
                             break :op .{ .imm = Immediate.s(0) };
                         },
                         .mov => {
-                            if (is_obj_or_static_lib and needsZigGot(sym, lower.bin_file)) emit_mnemonic = .lea;
+                            if (needsZigGot(sym, lower.opt_bin_file)) emit_mnemonic = .lea;
                             break :op .{ .mem = Memory.sib(mem_op.sib.ptr_size, .{
                                 .base = .{ .reg = .ds },
                             }) };
@@ -561,7 +560,6 @@ const encoder = @import("encoder.zig");
 const link = @import("../../link.zig");
 const std = @import("std");
 
-const Air = @import("../../Air.zig");
 const Allocator = std.mem.Allocator;
 const Immediate = bits.Immediate;
 const Instruction = encoder.Instruction;

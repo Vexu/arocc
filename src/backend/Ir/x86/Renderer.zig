@@ -1,12 +1,15 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
+const Emit = @import("Emit.zig");
 const Interner = @import("../../Interner.zig");
 const Ir = @import("../../Ir.zig");
 const BaseRenderer = Ir.Renderer;
+const Object = @import("../../Object.zig");
 const zig = @import("zig");
 const abi = zig.arch.x86_64.abi;
 const bits = zig.arch.x86_64.bits;
+const Mir = zig.arch.x86_64.Mir;
 
 const Condition = bits.Condition;
 const Immediate = bits.Immediate;
@@ -44,6 +47,12 @@ interner: *Interner,
 
 register_manager: RegisterManager = .{},
 
+mir_instructions: std.MultiArrayList(Mir.Inst) = .{},
+mir_extra: std.ArrayListUnmanaged(u32) = .{},
+
+free_frame_indices: std.AutoArrayHashMapUnmanaged(FrameIndex, void) = .{},
+frame_locs: std.MultiArrayList(Mir.FrameLoc) = .{},
+
 pub fn render(base: *BaseRenderer) !void {
     var renderer: Renderer = .{
         .base = base,
@@ -51,15 +60,71 @@ pub fn render(base: *BaseRenderer) !void {
     };
 
     for (renderer.base.ir.decls.keys(), renderer.base.ir.decls.values()) |name, decl| {
-        renderer.renderFn(name, decl) catch |e| switch (e) {
-            error.OutOfMemory => return e,
-            error.LowerFail => continue,
-        };
+        if (decl.ty == .func) {
+            renderer.renderFn(name, decl) catch |e| switch (e) {
+                error.OutOfMemory => return e,
+                error.LowerFail => continue,
+            };
+        } else {
+            renderer.renderVariable(name, decl) catch |e| switch (e) {
+                error.OutOfMemory => return e,
+                error.LowerFail => continue,
+            };
+        }
     }
     if (renderer.base.errors.entries.len != 0) return error.LowerFail;
 }
 
-fn renderFn(r: *Renderer, name: []const u8, decl: Ir.Decl) !void {
+fn renderVariable(r: *Renderer, name: []const u8, decl: Ir.Decl) !void {
     _ = decl;
-    return r.base.fail(name, "TODO implement lowering functions", .{});
+    return r.base.fail(name, "TODO implement lowering variables", .{});
+}
+
+fn renderFn(r: *Renderer, name: []const u8, decl: Ir.Decl) !void {
+    r.mir_instructions.shrinkRetainingCapacity(0);
+    r.mir_extra.shrinkRetainingCapacity(0);
+
+    // TODO setup calling convention
+
+    for (decl.body.items) |inst| {
+        try r.renderInst(inst);
+    }
+
+    const cc: std.builtin.CallingConvention = .C;
+    const section: Object.Section = .func;
+    const code = try r.base.obj.getSection(section);
+
+    var emit = Emit{
+        .lower = .{
+            .pic = false,
+            .opt_bin_file = null,
+            .allocator = r.base.gpa,
+            .mir = .{
+                .instructions = r.mir_instructions.slice(),
+                .extra = r.mir_extra.items,
+                .frame_locs = undefined,
+            },
+            .cc = cc,
+        },
+        .code = code,
+    };
+    defer emit.deinit();
+    emit.emitMir() catch |err| switch (err) {
+        error.LowerFail, error.EmitFail => {
+            return r.base.fail(name, "{s}", .{emit.lower.err_msg.?});
+        },
+        error.InvalidInstruction, error.CannotEncode => |e| {
+            const msg = switch (e) {
+                error.InvalidInstruction => "CodeGen failed to find a viable instruction.",
+                error.CannotEncode => "CodeGen failed to encode the instruction.",
+            };
+            return r.base.fail(name, "{s}", .{msg});
+        },
+        else => |e| return e,
+    };
+}
+
+fn renderInst(r: *Renderer, inst: Ir.Ref) !void {
+    _ = inst;
+    _ = r;
 }
