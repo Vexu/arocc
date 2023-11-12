@@ -565,6 +565,11 @@ fn processSource(
     if (d.only_preprocess) {
         d.comp.renderErrors();
 
+        if (d.comp.diagnostics.errors != 0) {
+            if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
+            return;
+        }
+
         const file = if (d.output_name) |some|
             std.fs.cwd().createFile(some, .{}) catch |er|
                 return d.fatal("unable to create output file '{s}': {s}", .{ some, util.errorDescription(er) })
