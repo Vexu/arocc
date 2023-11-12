@@ -35,7 +35,5 @@ fn_def: 'fn () void'
         implicit_cast: (int_to_float) 'float' (value: 2)
           int_literal: 'int' (value: 2)
 
-    null_stmt: 'void'
-
     implicit_return: 'void'
 

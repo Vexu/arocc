@@ -2428,3 +2428,19 @@ identifier_not_normalized
     .kind = .warning
     .extra = .normalized
     .opt = W("normalized")
+
+c23_auto_plain_declarator
+    .msg = "'auto' requires a plain identifier declarator"
+    .kind = .@"error"
+
+c23_auto_single_declarator
+    .msg = "'auto' can only be used with a single declarator"
+    .kind = .@"error"
+
+c32_auto_requires_initializer
+    .msg = "'auto' requires an initializer"
+    .kind = .@"error"
+
+c23_auto_scalar_init
+    .msg = "'auto' requires a scalar initializer"
+    .kind = .@"error"

@@ -308,6 +308,8 @@ pub const Specifier = enum {
     /// GNU auto type
     /// This is a placeholder specifier - it must be replaced by the actual type specifier (determined by the initializer)
     auto_type,
+    /// C23 auto, behaves like auto_type
+    c23_auto,
 
     void,
     bool,
@@ -1005,7 +1007,7 @@ pub fn sizeCompare(a: Type, b: Type, comp: *Compilation) TypeSizeOrder {
 /// Size of type as reported by sizeof
 pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
     return switch (ty.specifier) {
-        .auto_type => unreachable,
+        .auto_type, .c23_auto => unreachable,
         .variable_len_array, .unspecified_variable_len_array => return null,
         .incomplete_array => return if (comp.langopts.emulate == .msvc) @as(?u64, 0) else null,
         .func, .var_args_func, .old_style_func, .void, .bool => 1,
@@ -1108,7 +1110,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
 
     return switch (ty.specifier) {
         .invalid => unreachable,
-        .auto_type => unreachable,
+        .auto_type, .c23_auto => unreachable,
 
         .variable_len_array,
         .incomplete_array,
@@ -1422,7 +1424,7 @@ pub fn combine(inner: *Type, outer: Type) Parser.Error!void {
         .decayed_typeof_type,
         .decayed_typeof_expr,
         => unreachable, // type should not be able to decay before being combined
-        .void => inner.* = outer,
+        .void, .invalid => inner.* = outer,
         else => unreachable,
     }
 }
@@ -1500,6 +1502,8 @@ pub const Builder = struct {
         void,
         /// GNU __auto_type extension
         auto_type,
+        /// C23 auto
+        c23_auto,
         nullptr_t,
         bool,
         char,
@@ -1612,6 +1616,7 @@ pub const Builder = struct {
                 .none => unreachable,
                 .void => "void",
                 .auto_type => "__auto_type",
+                .c23_auto => "auto",
                 .nullptr_t => "nullptr_t",
                 .bool => if (langopts.standard.atLeast(.c23)) "bool" else "_Bool",
                 .char => "char",
@@ -1751,6 +1756,7 @@ pub const Builder = struct {
             },
             .void => ty.specifier = .void,
             .auto_type => ty.specifier = .auto_type,
+            .c23_auto => ty.specifier = .c23_auto,
             .nullptr_t => unreachable, // nullptr_t can only be accessed via typeof(nullptr)
             .bool => ty.specifier = .bool,
             .char => ty.specifier = .char,
@@ -2179,6 +2185,10 @@ pub const Builder = struct {
                 .none => .auto_type,
                 else => return b.cannotCombine(p, source_tok),
             },
+            .c23_auto => b.specifier = switch (b.specifier) {
+                .none => .c23_auto,
+                else => return b.cannotCombine(p, source_tok),
+            },
             .fp16 => b.specifier = switch (b.specifier) {
                 .none => .fp16,
                 else => return b.cannotCombine(p, source_tok),
@@ -2296,6 +2306,7 @@ pub const Builder = struct {
         return switch (ty.specifier) {
             .void => .void,
             .auto_type => .auto_type,
+            .c23_auto => .c23_auto,
             .nullptr_t => .nullptr_t,
             .bool => .bool,
             .char => .char,
@@ -2627,7 +2638,7 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
             try ty.data.func.return_type.dump(mapper, langopts, w);
         },
         .array, .static_array, .decayed_array, .decayed_static_array => {
-            if (ty.specifier == .decayed_array or ty.specifier == .decayed_static_array) try w.writeByte('d');
+            if (ty.specifier == .decayed_array or ty.specifier == .decayed_static_array) try w.writeAll("*d");
             try w.writeByte('[');
             if (ty.specifier == .static_array or ty.specifier == .decayed_static_array) try w.writeAll("static ");
             try w.print("{d}]", .{ty.data.array.len});
@@ -2639,7 +2650,7 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
             try w.writeAll(")");
         },
         .incomplete_array, .decayed_incomplete_array => {
-            if (ty.specifier == .decayed_incomplete_array) try w.writeByte('d');
+            if (ty.specifier == .decayed_incomplete_array) try w.writeAll("*d");
             try w.writeAll("[]");
             try ty.data.array.elem.dump(mapper, langopts, w);
         },
@@ -2662,12 +2673,12 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
             if (dump_detailed_containers) try dumpRecord(ty.data.record, mapper, langopts, w);
         },
         .unspecified_variable_len_array, .decayed_unspecified_variable_len_array => {
-            if (ty.specifier == .decayed_unspecified_variable_len_array) try w.writeByte('d');
+            if (ty.specifier == .decayed_unspecified_variable_len_array) try w.writeAll("*d");
             try w.writeAll("[*]");
             try ty.data.sub_type.dump(mapper, langopts, w);
         },
         .variable_len_array, .decayed_variable_len_array => {
-            if (ty.specifier == .decayed_variable_len_array) try w.writeByte('d');
+            if (ty.specifier == .decayed_variable_len_array) try w.writeAll("*d");
             try w.writeAll("[<expr>]");
             try ty.data.expr.ty.dump(mapper, langopts, w);
         },

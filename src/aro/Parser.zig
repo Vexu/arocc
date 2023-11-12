@@ -1128,6 +1128,7 @@ fn decl(p: *Parser) Error!bool {
     }
 
     // Declare all variable/typedef declarators.
+    var warned_auto = false;
     while (true) {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         const tag = try decl_spec.validate(p, &init_d.d.ty, init_d.initializer.node != .none);
@@ -1160,7 +1161,16 @@ fn decl(p: *Parser) Error!bool {
 
         if (p.eatToken(.comma) == null) break;
 
-        if (decl_spec.auto_type) |tok_i| try p.errTok(.auto_type_requires_single_declarator, tok_i);
+        if (!warned_auto) {
+            if (decl_spec.auto_type) |tok_i| {
+                try p.errTok(.auto_type_requires_single_declarator, tok_i);
+                warned_auto = true;
+            }
+            if (p.comp.langopts.standard.atLeast(.c23) and decl_spec.storage_class == .auto) {
+                try p.errTok(.c23_auto_single_declarator, decl_spec.storage_class.auto);
+                warned_auto = true;
+            }
+        }
 
         init_d = (try p.initDeclarator(&decl_spec, attr_buf_top)) orelse {
             try p.err(.expected_ident_or_l_paren);
@@ -1349,7 +1359,10 @@ pub const DeclSpec = struct {
             // TODO move to attribute validation
             if (d.noreturn) |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
             switch (d.storage_class) {
-                .auto, .register => if (p.func.ty == null) try p.err(.illegal_storage_on_global),
+                .auto => if (p.func.ty == null and !p.comp.langopts.standard.atLeast(.c23)) {
+                    try p.err(.illegal_storage_on_global);
+                },
+                .register => if (p.func.ty == null) try p.err(.illegal_storage_on_global),
                 .typedef => return .typedef,
                 else => {},
             }
@@ -1430,8 +1443,13 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
     var d: DeclSpec = .{ .ty = .{ .specifier = undefined } };
     var spec: Type.Builder = .{};
 
+    var combined_auto = !p.comp.langopts.standard.atLeast(.c23);
     const start = p.tok_i;
     while (true) {
+        if (!combined_auto and d.storage_class == .auto) {
+            try spec.combine(p, .c23_auto, d.storage_class.auto);
+            combined_auto = true;
+        }
         if (try p.storageClassSpec(&d)) continue;
         if (try p.typeSpec(&spec)) continue;
         const id = p.tok_ids[p.tok_i];
@@ -1724,6 +1742,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         .d = (try p.declarator(decl_spec.ty, .normal)) orelse return null,
     };
 
+    if (decl_spec.ty.is(.c23_auto) and !init_d.d.ty.is(.c23_auto)) {
+        try p.errTok(.c23_auto_plain_declarator, decl_spec.storage_class.auto);
+        return error.ParsingFailed;
+    }
+
     try p.attributeSpecifierExtra(init_d.d.name);
     _ = try p.assembly(.decl_label);
     try p.attributeSpecifierExtra(init_d.d.name);
@@ -1757,6 +1780,10 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
             try p.errStr(.variable_incomplete_ty, init_d.d.name, try p.typeStr(init_d.d.ty));
             return error.ParsingFailed;
         }
+        if (p.tok_ids[p.tok_i] == .l_brace and init_d.d.ty.is(.c23_auto)) {
+            try p.errTok(.c23_auto_scalar_init, decl_spec.storage_class.auto);
+            return error.ParsingFailed;
+        }
 
         try p.syms.pushScope(p);
         defer p.syms.popScope();
@@ -1774,10 +1801,15 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     }
 
     const name = init_d.d.name;
-    if (init_d.d.ty.is(.auto_type)) {
+    const c23_auto = init_d.d.ty.is(.c23_auto);
+    if (init_d.d.ty.is(.auto_type) or c23_auto) {
         if (init_d.initializer.node == .none) {
             init_d.d.ty = Type.invalid;
-            try p.errStr(.auto_type_requires_initializer, name, p.tokSlice(name));
+            if (c23_auto) {
+                try p.errStr(.c32_auto_requires_initializer, decl_spec.storage_class.auto, p.tokSlice(name));
+            } else {
+                try p.errStr(.auto_type_requires_initializer, name, p.tokSlice(name));
+            }
             return init_d;
         } else {
             init_d.d.ty.specifier = init_d.initializer.ty.specifier;
@@ -2937,19 +2969,20 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             try p.errStr(.array_of_auto_type, d.name, p.tokSlice(d.name));
             return error.ParsingFailed;
         }
+
         const outer = try p.directDeclarator(base_type, d, kind);
         var max_bits = p.comp.target.ptrBitWidth();
         if (max_bits > 61) max_bits = 61;
         const max_bytes = (@as(u64, 1) << @truncate(max_bits)) - 1;
-        // `outer` is validated later so it may be invalid here
-        const outer_size = outer.sizeof(p.comp);
-        const max_elems = max_bytes / @max(1, outer_size orelse 1);
 
         if (!size.ty.isInt()) {
             try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
             return error.ParsingFailed;
         }
-        if (size.val.opt_ref == .none) {
+        if (base_type.is(.c23_auto)) {
+            // issue error later
+            return Type.invalid;
+        } else if (size.val.opt_ref == .none) {
             if (size.node != .none) {
                 try p.errTok(.vla, size_tok);
                 if (p.func.ty == null and kind != .param and p.record.kind == .invalid) {
@@ -2975,6 +3008,10 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 res_ty.specifier = .incomplete_array;
             }
         } else {
+            // `outer` is validated later so it may be invalid here
+            const outer_size = outer.sizeof(p.comp);
+            const max_elems = max_bytes / @max(1, outer_size orelse 1);
+
             var size_val = size.val;
             if (size_val.isZero(p.comp)) {
                 try p.errTok(.zero_length_array, l_bracket);
@@ -3018,7 +3055,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
         } else if (p.tok_ids[p.tok_i] == .r_paren) {
             specifier = if (p.comp.langopts.standard.atLeast(.c23))
-                .var_args_func
+                .func
             else
                 .old_style_func;
         } else if (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) {
@@ -3625,6 +3662,8 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
         if (p.getNode(node, .member_access_expr) orelse p.getNode(node, .member_access_ptr_expr)) |member_node| {
             if (p.tmpTree().isBitfield(member_node)) try p.errTok(.auto_type_from_bitfield, tok);
         }
+        return;
+    } else if (target.is(.c23_auto)) {
         return;
     }
 
@@ -4590,7 +4629,10 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             else {
                 parens -= 1;
             },
-            .semicolon,
+            .semicolon => if (parens == 0) {
+                p.tok_i += 1;
+                return;
+            },
             .keyword_for,
             .keyword_while,
             .keyword_do,
@@ -5768,8 +5810,13 @@ pub const Result = struct {
         };
     }
 
-    const Stage1Limitation = Error || error{CoercionFailed};
-    fn coerceExtra(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, c: CoerceContext) Stage1Limitation!void {
+    fn coerceExtra(
+        res: *Result,
+        p: *Parser,
+        dest_ty: Type,
+        tok: TokenIndex,
+        c: CoerceContext,
+    ) (Error || error{CoercionFailed})!void {
         // Subject of the coercion does not need to be qualified.
         var unqual_ty = dest_ty.canonicalize(.standard);
         unqual_ty.qual = .{};
