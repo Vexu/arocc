@@ -6,6 +6,7 @@
     <title>Aro - a C compiler</title>
     <link rel="stylesheet" href="style.css">
     <link rel="shortcut icon" href="aro-logo.svg" type="image/svg">
+    <meta name="description" content="Aro is an open-source C compiler written in Zig.">
 </head>
 
 <body>
@@ -19,23 +20,15 @@
         </div>
     </nav>
     <main>
-        <p>Mollitia saepe accusamus eos dolores. Voluptatem facilis numquam harum. Ipsam ratione doloribus vero. Rerum
-            quisquam velit ut ipsum molestias incidunt. Sed vitae qui et voluptatem odit et aut modi.
+        <h1>Introduction</h1>
+        <p>Aro is a C compiler originally started to be used as an alternative
+            C compiler in the <a href="http://ziglang.org">Zig compiler.</a>
         </p>
-        <p>Consectetur aut veniam ullam voluptas voluptatibus aliquam ipsa iusto. Qui mollitia nihil iusto dolorum
-            eligendi et eligendi quam. Temporibus sit aut ut quod vel ut. Voluptas blanditiis debitis a tenetur
-            blanditiis a dolores est.
-        </p>
-        <p>Deleniti ratione porro consequatur amet autem dolores. Quidem repudiandae laborum quos rerum alias eveniet
-            perferendis qui. Ea maxime eos nemo. Illum delectus delectus quia nulla doloribus et. Excepturi aspernatur
-            quos fugit doloribus. Soluta quasi ab suscipit.
-        </p>
-        <a href="https://ziglang.org">Cum ut et molestias modi. Ab necessitatibus omnis voluptate officiis non praesentium. Est mollitia aut
-            tempora consequatur recusandae. Nihil corrupti illo itaque fuga pariatur.
-        </a>
-        <p>Et excepturi et eos expedita voluptatem ex minus dolores. Necessitatibus assumenda natus cumque mollitia
-            tempora et. Quia explicabo quas qui non in. Est at voluptas vitae cupiditate nihil labore. Error cupiditate
-            cupiditate commodi sapiente esse unde.
+        <p>The compiler can be used as a Zig library consisting of the <code>aro</code>
+            module which contains the entire compiler and the language agnostic
+            <code>aro_backend</code> module which provides an (optimizable in the future)
+            IR that is translated to machine code using the self-hosted backends
+            of the Zig compiler.
         </p>
     </main>
 </body>

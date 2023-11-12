@@ -21,13 +21,24 @@ main {
 h1,
 h2,
 h3 {
-    line-height: 1.2
+    line-height: 1.2;
+    margin: 0 1em;
+    font-size: 2em;
+    width: fit-content;
 }
 
 a {
     color: #81b8d6;
     text-decoration: none;
     text-underline-offset: 5px;
+}
+
+code {
+    background: #f8f8f8;
+    border: 1px dotted silver;
+    padding-left: 0.3em;
+    padding-right: 0.3em;
+    border-radius: 5px;
 }
 
 main a:hover {
