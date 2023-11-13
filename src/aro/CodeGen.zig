@@ -4,6 +4,7 @@ const assert = std.debug.assert;
 const backend = @import("backend");
 const Interner = backend.Interner;
 const Ir = backend.Ir;
+const Inst = Ir.Inst;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Compilation = @import("Compilation.zig");
@@ -17,18 +18,18 @@ const Value = @import("Value.zig");
 
 const WipSwitch = struct {
     cases: Cases = .{},
-    default: ?Ir.Ref = null,
+    default: ?Inst.Ref = null,
     size: u64,
 
     const Cases = std.MultiArrayList(struct {
         val: Interner.Ref,
-        label: Ir.Ref,
+        label: Inst.Ref,
     });
 };
 
 const Symbol = struct {
     name: StringId,
-    val: Ir.Ref,
+    val: Inst.Ref,
 };
 
 const Error = Compilation.Error;
@@ -49,11 +50,11 @@ record_elem_buf: std.ArrayListUnmanaged(Interner.Ref) = .{},
 record_cache: std.AutoHashMapUnmanaged(*Type.Record, Interner.Ref) = .{},
 cond_dummy_ty: ?Interner.Ref = null,
 bool_invert: bool = false,
-bool_end_label: Ir.Ref = .none,
-cond_dummy_ref: Ir.Ref = undefined,
-continue_label: Ir.Ref = undefined,
-break_label: Ir.Ref = undefined,
-return_label: Ir.Ref = undefined,
+bool_end_label: Inst.Ref = .none,
+cond_dummy_ref: Inst.Ref = undefined,
+continue_label: Inst.Ref = undefined,
+break_label: Inst.Ref = undefined,
+return_label: Inst.Ref = undefined,
 
 fn fail(c: *CodeGen, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
     try c.comp.diagnostics.list.append(c.comp.gpa, .{
@@ -197,7 +198,11 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
         const size: u32 = @intCast(param.ty.sizeof(c.comp).?); // TODO add error in parser
         const @"align" = param.ty.alignof(c.comp);
         const alloc = try c.builder.addAlloc(size, @"align");
-        try c.builder.addStore(alloc, arg);
+        try c.builder.addStore(alloc, arg, .{
+            .@"align" = @"align",
+            .@"volatile" = param.ty.qual.@"volatile",
+            .atomic = param.ty.qual.atomic,
+        });
         try c.symbols.append(c.comp.gpa, .{ .name = param.name, .val = alloc });
     }
 
@@ -207,28 +212,28 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
 
     // Relocate returns
     if (c.ret_nodes.items.len == 0) {
-        _ = try c.builder.addInst(.ret, .{ .un = .none }, .noreturn);
+        _ = try c.builder.addInst(.ret, .{ .ret = .none });
     } else if (c.ret_nodes.items.len == 1) {
         c.builder.body.items.len -= 1;
-        _ = try c.builder.addInst(.ret, .{ .un = c.ret_nodes.items[0].value }, .noreturn);
+        _ = try c.builder.addInst(.ret, .{ .ret = c.ret_nodes.items[0].value });
     } else {
         try c.builder.startBlock(c.return_label);
-        const phi = try c.builder.addPhi(c.ret_nodes.items, try c.genType(func_ty.returnType()));
-        _ = try c.builder.addInst(.ret, .{ .un = phi }, .noreturn);
+        const phi = try c.builder.addPhi(c.ret_nodes.items);
+        _ = try c.builder.addInst(.ret, .{ .ret = phi });
     }
 
     try c.builder.finishFn(name);
 }
 
-fn addUn(c: *CodeGen, tag: Ir.Inst.Tag, operand: Ir.Ref, ty: Type) !Ir.Ref {
-    return c.builder.addInst(tag, .{ .un = operand }, try c.genType(ty));
+fn addUn(c: *CodeGen, tag: Ir.Inst.Tag, operand: Inst.Ref, ty: Type) !Inst.Ref {
+    return c.builder.addInst(tag, .{ .un = .{ .operand = operand, .ty = try c.genType(ty) } });
 }
 
-fn addBin(c: *CodeGen, tag: Ir.Inst.Tag, lhs: Ir.Ref, rhs: Ir.Ref, ty: Type) !Ir.Ref {
-    return c.builder.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, try c.genType(ty));
+fn addBin(c: *CodeGen, tag: Ir.Inst.Tag, lhs: Inst.Ref, rhs: Inst.Ref, ty: Type) !Inst.Ref {
+    return c.builder.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs, .ty = try c.genType(ty) } });
 }
 
-fn addBranch(c: *CodeGen, cond: Ir.Ref, true_label: Ir.Ref, false_label: Ir.Ref) !void {
+fn addBranch(c: *CodeGen, cond: Inst.Ref, true_label: Inst.Ref, false_label: Inst.Ref) !void {
     if (true_label == c.bool_end_label) {
         if (false_label == c.bool_end_label) {
             try c.phi_nodes.append(c.comp.gpa, .{ .label = c.builder.current_label, .value = cond });
@@ -251,7 +256,7 @@ fn genStmt(c: *CodeGen, node: NodeIndex) Error!void {
     _ = try c.genExpr(node);
 }
 
-fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
+fn genExpr(c: *CodeGen, node: NodeIndex) Error!Inst.Ref {
     std.debug.assert(node != .none);
     const ty = c.node_ty[@intFromEnum(node)];
     if (c.tree.value_map.get(node)) |val| {
@@ -308,7 +313,11 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const name = try StrInt.intern(c.comp, c.tree.tokSlice(data.decl.name));
             try c.symbols.append(c.comp.gpa, .{ .name = name, .val = alloc });
             if (data.decl.node != .none) {
-                try c.genInitializer(alloc, ty, data.decl.node);
+                try c.genInitializer(alloc, .{
+                    .@"align" = @"align",
+                    .@"volatile" = ty.qual.@"volatile",
+                    .atomic = ty.qual.atomic,
+                }, ty, data.decl.node);
             }
         },
         .labeled_stmt => {
@@ -371,24 +380,18 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             c.break_label = end_ref;
 
             const cond = try c.genExpr(data.bin.lhs);
-            const switch_index = c.builder.instructions.len;
-            _ = try c.builder.addInst(.@"switch", undefined, .noreturn);
 
             try c.genStmt(data.bin.rhs); // body
 
             const default_ref = wip_switch.default orelse end_ref;
             try c.builder.startBlock(end_ref);
 
-            const a = c.builder.arena.allocator();
-            const switch_data = try a.create(Ir.Inst.Switch);
-            switch_data.* = .{
-                .target = cond,
-                .cases_len = @intCast(wip_switch.cases.len),
-                .case_vals = (try a.dupe(Interner.Ref, wip_switch.cases.items(.val))).ptr,
-                .case_labels = (try a.dupe(Ir.Ref, wip_switch.cases.items(.label))).ptr,
-                .default = default_ref,
-            };
-            c.builder.instructions.items(.data)[switch_index] = .{ .@"switch" = switch_data };
+            try c.builder.addSwitch(
+                cond,
+                wip_switch.cases.items(.val),
+                wip_switch.cases.items(.label),
+                default_ref,
+            );
         },
         .case_stmt => {
             const val = c.tree.value_map.get(data.bin.lhs).?;
@@ -555,10 +558,15 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             return c.genExpr(data.bin.rhs);
         },
         .assign_expr => {
-            const rhs = try c.genExpr(data.bin.rhs);
-            const lhs = try c.genLval(data.bin.lhs);
-            try c.builder.addStore(lhs, rhs);
-            return rhs;
+            const ptr_ty = c.node_ty[@intFromEnum(data.bin.lhs)];
+            const ptr = try c.genExpr(data.bin.lhs);
+            const val = try c.genLval(data.bin.rhs);
+            try c.builder.addStore(ptr, val, .{
+                .@"align" = ptr_ty.alignof(c.comp),
+                .@"volatile" = ptr_ty.qual.@"volatile",
+                .atomic = ptr_ty.qual.atomic,
+            });
+            return ptr;
         },
         .mul_assign_expr => return c.genCompoundAssign(node, .mul),
         .div_assign_expr => return c.genCompoundAssign(node, .div),
@@ -634,8 +642,12 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             if (c.node_tag[@intFromEnum(data.un)] == .implicit_cast and un_data.cast.kind == .function_to_pointer) {
                 return c.genExpr(data.un);
             }
-            const operand = try c.genLval(data.un);
-            return c.addUn(.load, operand, ty);
+            const ptr = try c.genLval(data.un);
+            return c.builder.addLoad(ptr, try c.genType(ty), .{
+                .atomic = ty.qual.atomic,
+                .@"volatile" = ty.qual.@"volatile",
+                .@"align" = ty.alignof(c.comp),
+            });
         },
         .plus_expr => return c.genExpr(data.un),
         .negate_expr => {
@@ -653,35 +665,59 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             return c.addBin(.cmp_ne, zero, operand, ty);
         },
         .pre_inc_expr => {
-            const operand = try c.genLval(data.un);
-            const val = try c.addUn(.load, operand, ty);
+            const ptr_ty = c.node_ty[@intFromEnum(data.un)];
+            const attr: Inst.MemoryAttributes = .{
+                .@"align" = ptr_ty.alignof(c.comp),
+                .@"volatile" = ptr_ty.qual.@"volatile",
+                .atomic = ptr_ty.qual.atomic,
+            };
+            const ptr = try c.genLval(data.un);
+            const val = try c.builder.addLoad(ptr, try c.genType(ty), attr);
             const one = try c.builder.addConstant(.one, try c.genType(ty));
             const plus_one = try c.addBin(.add, val, one, ty);
-            try c.builder.addStore(operand, plus_one);
+            try c.builder.addStore(ptr, plus_one, attr);
             return plus_one;
         },
         .pre_dec_expr => {
-            const operand = try c.genLval(data.un);
-            const val = try c.addUn(.load, operand, ty);
+            const ptr_ty = c.node_ty[@intFromEnum(data.un)];
+            const attr: Inst.MemoryAttributes = .{
+                .@"align" = ptr_ty.alignof(c.comp),
+                .@"volatile" = ptr_ty.qual.@"volatile",
+                .atomic = ptr_ty.qual.atomic,
+            };
+            const ptr = try c.genLval(data.un);
+            const val = try c.builder.addLoad(ptr, try c.genType(ty), attr);
             const one = try c.builder.addConstant(.one, try c.genType(ty));
             const plus_one = try c.addBin(.sub, val, one, ty);
-            try c.builder.addStore(operand, plus_one);
+            try c.builder.addStore(ptr, plus_one, attr);
             return plus_one;
         },
         .post_inc_expr => {
-            const operand = try c.genLval(data.un);
-            const val = try c.addUn(.load, operand, ty);
+            const ptr_ty = c.node_ty[@intFromEnum(data.un)];
+            const attr: Inst.MemoryAttributes = .{
+                .@"align" = ptr_ty.alignof(c.comp),
+                .@"volatile" = ptr_ty.qual.@"volatile",
+                .atomic = ptr_ty.qual.atomic,
+            };
+            const ptr = try c.genLval(data.un);
+            const val = try c.builder.addLoad(ptr, try c.genType(ty), attr);
             const one = try c.builder.addConstant(.one, try c.genType(ty));
             const plus_one = try c.addBin(.add, val, one, ty);
-            try c.builder.addStore(operand, plus_one);
+            try c.builder.addStore(ptr, plus_one, attr);
             return val;
         },
         .post_dec_expr => {
-            const operand = try c.genLval(data.un);
-            const val = try c.addUn(.load, operand, ty);
+            const ptr_ty = c.node_ty[@intFromEnum(data.un)];
+            const attr: Inst.MemoryAttributes = .{
+                .@"align" = ptr_ty.alignof(c.comp),
+                .@"volatile" = ptr_ty.qual.@"volatile",
+                .atomic = ptr_ty.qual.atomic,
+            };
+            const ptr = try c.genLval(data.un);
+            const val = try c.builder.addLoad(ptr, try c.genType(ty), attr);
             const one = try c.builder.addConstant(.one, try c.genType(ty));
             const plus_one = try c.addBin(.sub, val, one, ty);
-            try c.builder.addStore(operand, plus_one);
+            try c.builder.addStore(ptr, plus_one, attr);
             return val;
         },
         .paren_expr => return c.genExpr(data.un),
@@ -693,8 +729,13 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
                 return .none;
             },
             .lval_to_rval => {
-                const operand = try c.genLval(data.cast.operand);
-                return c.addUn(.load, operand, ty);
+                const ptr_ty = c.node_ty[@intFromEnum(data.cast.operand)];
+                const ptr = try c.genLval(data.cast.operand);
+                return c.builder.addLoad(ptr, try c.genType(ty), .{
+                    .@"align" = ptr_ty.alignof(c.comp),
+                    .@"volatile" = ptr_ty.qual.@"volatile",
+                    .atomic = ptr_ty.qual.atomic,
+                });
             },
             .function_to_pointer, .array_to_pointer => {
                 return c.genLval(data.cast.operand);
@@ -722,7 +763,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             .pointer_to_bool, .int_to_bool, .float_to_bool => {
                 const lhs = try c.genExpr(data.cast.operand);
                 const rhs = try c.builder.addConstant(.zero, try c.genType(c.node_ty[@intFromEnum(node)]));
-                return c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
+                return c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs, .ty = .i1 } });
             },
             .bitcast,
             .pointer_to_int,
@@ -768,9 +809,9 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             }
 
             try c.builder.startBlock(then_label);
-            if (c.builder.instructions.items(.ty)[@intFromEnum(c.cond_dummy_ref)] == .i1) {
-                c.cond_dummy_ref = try c.addUn(.zext, c.cond_dummy_ref, cond_ty);
-            }
+            // if (c.builder.instructions.items(.ty)[@intFromEnum(c.cond_dummy_ref)] == .i1) {
+            //     c.cond_dummy_ref = try c.addUn(.zext, c.cond_dummy_ref, cond_ty);
+            // }
             const then_val = try c.genExpr(c.tree.data[data.if3.body]); // then
             try c.builder.addJump(end_label);
             const then_exit = c.builder.current_label;
@@ -785,7 +826,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
                 .{ .value = then_val, .label = then_exit },
                 .{ .value = else_val, .label = else_exit },
             };
-            return c.builder.addPhi(&phi_buf, try c.genType(ty));
+            return c.builder.addPhi(&phi_buf);
         },
         .cond_dummy_expr => return c.cond_dummy_ref,
         .cond_expr => {
@@ -818,7 +859,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
                 .{ .value = then_val, .label = then_exit },
                 .{ .value = else_val, .label = else_exit },
             };
-            return c.builder.addPhi(&phi_buf, try c.genType(ty));
+            return c.builder.addPhi(&phi_buf);
         },
         .call_expr_one => if (data.bin.rhs == .none) {
             return c.genCall(data.bin.lhs, &.{}, ty);
@@ -853,7 +894,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
 
             try c.builder.startBlock(exit_label);
 
-            const phi = try c.builder.addPhi(c.phi_nodes.items[phi_nodes_top..], .i1);
+            const phi = try c.builder.addPhi(c.phi_nodes.items[phi_nodes_top..]);
             return c.addUn(.zext, phi, ty);
         },
         .bool_and_expr => {
@@ -881,7 +922,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
 
             try c.builder.startBlock(exit_label);
 
-            const phi = try c.builder.addPhi(c.phi_nodes.items[phi_nodes_top..], .i1);
+            const phi = try c.builder.addPhi(c.phi_nodes.items[phi_nodes_top..]);
             return c.addUn(.zext, phi, ty);
         },
         .builtin_choose_expr => {
@@ -957,7 +998,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     return .none;
 }
 
-fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
+fn genLval(c: *CodeGen, node: NodeIndex) Error!Inst.Ref {
     std.debug.assert(node != .none);
     assert(c.tree.isLval(node));
     const data = c.node_data[@intFromEnum(node)];
@@ -978,10 +1019,7 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
                 }
             }
 
-            const duped_name = try c.builder.arena.allocator().dupeZ(u8, slice);
-            const ref: Ir.Ref = @enumFromInt(c.builder.instructions.len);
-            try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
-            return ref;
+            return c.builder.addSymbol(slice);
         },
         .deref_expr => return c.genExpr(data.un),
         .compound_literal_expr => {
@@ -989,7 +1027,11 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const size: u32 = @intCast(ty.sizeof(c.comp).?); // TODO add error in parser
             const @"align" = ty.alignof(c.comp);
             const alloc = try c.builder.addAlloc(size, @"align");
-            try c.genInitializer(alloc, ty, data.un);
+            try c.genInitializer(alloc, .{
+                .@"align" = @"align",
+                .@"volatile" = ty.qual.@"volatile",
+                .atomic = ty.qual.atomic,
+            }, ty, data.un);
             return alloc;
         },
         .builtin_choose_expr => {
@@ -1011,7 +1053,7 @@ fn genLval(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
     }
 }
 
-fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir.Ref) Error!void {
+fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Inst.Ref, false_label: Inst.Ref) Error!void {
     var node = base;
     while (true) switch (c.node_tag[@intFromEnum(node)]) {
         .paren_expr => {
@@ -1158,18 +1200,18 @@ fn genBoolExpr(c: *CodeGen, base: NodeIndex, true_label: Ir.Ref, false_label: Ir
     // Assume int operand.
     const lhs = try c.genExpr(node);
     const rhs = try c.builder.addConstant(.zero, try c.genType(c.node_ty[@intFromEnum(node)]));
-    const cmp = try c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
+    const cmp = try c.builder.addInst(.cmp_ne, .{ .bin = .{ .lhs = lhs, .rhs = rhs, .ty = .i1 } });
     if (c.cond_dummy_ty != null) c.cond_dummy_ref = cmp;
     try c.addBranch(cmp, true_label, false_label);
 }
 
-fn genBuiltinCall(c: *CodeGen, builtin: Builtin, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
+fn genBuiltinCall(c: *CodeGen, builtin: Builtin, arg_nodes: []const NodeIndex, ty: Type) Error!Inst.Ref {
     _ = arg_nodes;
     _ = ty;
     return c.fail("TODO CodeGen.genBuiltinCall {s}\n", .{Builtin.nameFromTag(builtin.tag).span()});
 }
 
-fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Ir.Ref {
+fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Type) Error!Inst.Ref {
     // Detect direct calls.
     const fn_ref = blk: {
         const data = c.node_data[@intFromEnum(fn_node)];
@@ -1199,42 +1241,38 @@ fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Ty
                         break :blk try c.genExpr(fn_node);
                     }
                 }
-
-                const duped_name = try c.builder.arena.allocator().dupeZ(u8, slice);
-                const ref: Ir.Ref = @enumFromInt(c.builder.instructions.len);
-                try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
-                break :blk ref;
+                break :blk try c.builder.addSymbol(slice);
             },
             else => break :blk try c.genExpr(fn_node),
         };
     };
 
-    const args = try c.builder.arena.allocator().alloc(Ir.Ref, arg_nodes.len);
+    const args = try c.builder.arena.allocator().alloc(Inst.Ref, arg_nodes.len);
     for (arg_nodes, args) |node, *arg| {
         // TODO handle calling convention here
         arg.* = try c.genExpr(node);
     }
     // TODO handle variadic call
-    const call = try c.builder.arena.allocator().create(Ir.Inst.Call);
-    call.* = .{
-        .func = fn_ref,
-        .args_len = @intCast(args.len),
-        .args_ptr = args.ptr,
-    };
-    return c.builder.addInst(.call, .{ .call = call }, try c.genType(ty));
+    return c.builder.addCall(fn_ref, try c.genType(ty), args);
 }
 
-fn genCompoundAssign(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genCompoundAssign(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Inst.Ref {
     const bin = c.node_data[@intFromEnum(node)].bin;
+    const ptr_ty = c.node_ty[@intFromEnum(bin.rhs)];
+    const attr: Inst.MemoryAttributes = .{
+        .@"align" = ptr_ty.alignof(c.comp),
+        .@"volatile" = ptr_ty.qual.@"volatile",
+        .atomic = ptr_ty.qual.atomic,
+    };
     const ty = c.node_ty[@intFromEnum(node)];
-    const rhs = try c.genExpr(bin.rhs);
-    const lhs = try c.genLval(bin.lhs);
-    const res = try c.addBin(tag, lhs, rhs, ty);
-    try c.builder.addStore(lhs, res);
+    const ptr = try c.genLval(bin.lhs);
+    const val = try c.genExpr(bin.rhs);
+    const res = try c.addBin(tag, ptr, val, ty);
+    try c.builder.addStore(ptr, res, attr);
     return res;
 }
 
-fn genBinOp(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genBinOp(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Inst.Ref {
     const bin = c.node_data[@intFromEnum(node)].bin;
     const ty = c.node_ty[@intFromEnum(node)];
     const lhs = try c.genExpr(bin.lhs);
@@ -1242,19 +1280,19 @@ fn genBinOp(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
     return c.addBin(tag, lhs, rhs, ty);
 }
 
-fn genComparison(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genComparison(c: *CodeGen, node: NodeIndex, tag: Ir.Inst.Tag) Error!Inst.Ref {
     const bin = c.node_data[@intFromEnum(node)].bin;
     const lhs = try c.genExpr(bin.lhs);
     const rhs = try c.genExpr(bin.rhs);
 
-    return c.builder.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs } }, .i1);
+    return c.builder.addInst(tag, .{ .bin = .{ .lhs = lhs, .rhs = rhs, .ty = .i1 } });
 }
 
-fn genPtrArithmetic(c: *CodeGen, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, ty: Type) Error!Ir.Ref {
+fn genPtrArithmetic(c: *CodeGen, ptr: Inst.Ref, offset: Inst.Ref, offset_ty: Type, ty: Type) Error!Inst.Ref {
     // TODO consider adding a getelemptr instruction
     const size = ty.elemType().sizeof(c.comp).?;
     if (size == 1) {
-        return c.builder.addInst(.add, .{ .bin = .{ .lhs = ptr, .rhs = offset } }, try c.genType(ty));
+        return c.builder.addInst(.add, .{ .bin = .{ .lhs = ptr, .rhs = offset, .ty = try c.genType(ty) } });
     }
 
     const size_inst = try c.builder.addConstant((try Value.int(size, c.comp)).ref(), try c.genType(offset_ty));
@@ -1262,7 +1300,13 @@ fn genPtrArithmetic(c: *CodeGen, ptr: Ir.Ref, offset: Ir.Ref, offset_ty: Type, t
     return c.addBin(.add, ptr, offset_inst, offset_ty);
 }
 
-fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: Type, initializer: NodeIndex) Error!void {
+fn genInitializer(
+    c: *CodeGen,
+    ptr: Inst.Ref,
+    ptr_attr: Inst.MemoryAttributes,
+    dest_ty: Type,
+    initializer: NodeIndex,
+) Error!void {
     std.debug.assert(initializer != .none);
     switch (c.node_tag[@intFromEnum(initializer)]) {
         .array_init_expr_two,
@@ -1279,12 +1323,12 @@ fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: Type, initializer: NodeInde
             if (dest_ty.isArray()) {
                 return c.fail("TODO memcpy\n", .{});
             } else {
-                try c.builder.addStore(ptr, str_ptr);
+                try c.builder.addStore(ptr, str_ptr, ptr_attr);
             }
         },
         else => {
             const res = try c.genExpr(initializer);
-            try c.builder.addStore(ptr, res);
+            try c.builder.addStore(ptr, res, ptr_attr);
         },
     }
 }

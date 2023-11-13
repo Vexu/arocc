@@ -10,15 +10,54 @@ interner: *Interner,
 decls: std.StringArrayHashMapUnmanaged(Decl),
 
 pub const Decl = struct {
-    ty: Interner.Ref,
+    decl_ty: Interner.Ref,
     instructions: std.MultiArrayList(Inst),
-    body: std.ArrayListUnmanaged(Ref),
+    body: std.ArrayListUnmanaged(Inst.Ref),
     arena: std.heap.ArenaAllocator.State,
 
     pub fn deinit(decl: *Decl, gpa: Allocator) void {
         decl.instructions.deinit(gpa);
         decl.body.deinit(gpa);
         decl.arena.promote(gpa).deinit();
+    }
+
+    pub fn data(decl: *const Decl, ref: Inst.Ref) Inst.Data {
+        return decl.instructions.items(.data)[@intFromEnum(ref)];
+    }
+
+    pub fn tag(decl: *const Decl, ref: Inst.Ref) Inst.Tag {
+        return decl.instructions.items(.tag)[@intFromEnum(ref)];
+    }
+
+    pub fn ty(decl: *const Decl, ref: Inst.Ref) Interner.Ref {
+        var cur = ref;
+        while (true) switch (decl.tag(cur)) {
+            .constant => return decl.data(cur).constant.ty,
+            .arg => return decl.data(cur).arg.ty,
+            .symbol => return .ptr,
+            .label => unreachable,
+            .jmp => return .noreturn,
+            .@"switch" => return .noreturn,
+            .branch => return .noreturn,
+            .select => cur = decl.data(cur).branch.then,
+            .call => return decl.data(cur).call.ret_ty,
+            .alloc => return .ptr,
+            .phi => cur = decl.data(cur).phi.inputs()[0].value,
+            .ret => {
+                cur = decl.data(cur).ret;
+                if (cur == .none) return .void;
+            },
+            .load => return decl.data(cur).load.ty,
+            // zig fmt: off
+            .store, .bit_or, .bit_xor, .bit_and, .bit_shl, .bit_shr,
+            .add, .sub, .mul, .div, .mod
+            => return decl.data(cur).bin.ty,
+            .cmp_eq, .cmp_ne, .cmp_lt, .cmp_lte, .cmp_gt, .cmp_gte,
+            => return .i1,
+            .bit_not, .negate, .trunc, .zext, .sext
+            => return decl.data(cur).un.ty,
+            // zig fmt: on
+        };
     }
 };
 
@@ -29,10 +68,10 @@ pub const Builder = struct {
 
     decls: std.StringArrayHashMapUnmanaged(Decl) = .{},
     instructions: std.MultiArrayList(Ir.Inst) = .{},
-    body: std.ArrayListUnmanaged(Ref) = .{},
+    body: std.ArrayListUnmanaged(Inst.Ref) = .{},
     alloc_count: u32 = 0,
     arg_count: u32 = 0,
-    current_label: Ref = undefined,
+    current_label: Inst.Ref = undefined,
 
     pub fn deinit(b: *Builder) void {
         for (b.decls.values()) |*decl| {
@@ -64,7 +103,7 @@ pub const Builder = struct {
         errdefer duped_body.deinit(b.gpa);
 
         try b.decls.put(b.gpa, name, .{
-            .ty = .func,
+            .decl_ty = .func,
             .instructions = duped_instructions,
             .body = duped_body,
             .arena = b.arena.state,
@@ -76,103 +115,133 @@ pub const Builder = struct {
         b.arg_count = 0;
     }
 
-    pub fn startBlock(b: *Builder, label: Ref) !void {
+    pub fn startBlock(b: *Builder, label: Inst.Ref) !void {
         try b.body.append(b.gpa, label);
         b.current_label = label;
     }
 
-    pub fn addArg(b: *Builder, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
-        try b.instructions.append(b.gpa, .{ .tag = .arg, .data = .{ .none = {} }, .ty = ty });
+    pub fn addArg(b: *Builder, ty: Interner.Ref) Allocator.Error!Inst.Ref {
+        const ref: Inst.Ref = @enumFromInt(b.instructions.len);
+        try b.instructions.append(b.gpa, .{ .tag = .arg, .data = .{
+            .arg = .{ .ty = ty },
+        } });
         try b.body.insert(b.gpa, b.arg_count, ref);
         b.arg_count += 1;
         return ref;
     }
 
-    pub fn addAlloc(b: *Builder, size: u32, @"align": u32) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
-        try b.instructions.append(b.gpa, .{
-            .tag = .alloc,
-            .data = .{ .alloc = .{ .size = size, .@"align" = @"align" } },
-            .ty = .ptr,
-        });
+    pub fn addAlloc(b: *Builder, size: u32, @"align": u32) Allocator.Error!Inst.Ref {
+        const ref: Inst.Ref = @enumFromInt(b.instructions.len);
+        try b.instructions.append(b.gpa, .{ .tag = .alloc, .data = .{
+            .alloc = .{ .size = size, .@"align" = @"align" },
+        } });
         try b.body.insert(b.gpa, b.alloc_count + b.arg_count + 1, ref);
         b.alloc_count += 1;
         return ref;
     }
 
-    pub fn addInst(b: *Builder, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
-        try b.instructions.append(b.gpa, .{ .tag = tag, .data = data, .ty = ty });
+    pub fn addInst(b: *Builder, tag: Ir.Inst.Tag, data: Ir.Inst.Data) Allocator.Error!Inst.Ref {
+        const ref: Inst.Ref = @enumFromInt(b.instructions.len);
+        try b.instructions.append(b.gpa, .{ .tag = tag, .data = data });
         try b.body.append(b.gpa, ref);
         return ref;
     }
 
-    pub fn makeLabel(b: *Builder, name: [*:0]const u8) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
-        try b.instructions.append(b.gpa, .{ .tag = .label, .data = .{ .label = name }, .ty = .void });
+    pub fn makeLabel(b: *Builder, name: [:0]const u8) Allocator.Error!Inst.Ref {
+        const ref: Inst.Ref = @enumFromInt(b.instructions.len);
+        try b.instructions.append(b.gpa, .{ .tag = .label, .data = .{
+            .label = .{ .ptr = name.ptr, .len = @intCast(name.len) },
+        } });
         return ref;
     }
 
-    pub fn addJump(b: *Builder, label: Ref) Allocator.Error!void {
-        _ = try b.addInst(.jmp, .{ .un = label }, .noreturn);
+    pub fn addJump(b: *Builder, label: Inst.Ref) Allocator.Error!void {
+        _ = try b.addInst(.jmp, .{ .jmp = label });
     }
 
-    pub fn addBranch(b: *Builder, cond: Ref, true_label: Ref, false_label: Ref) Allocator.Error!void {
+    pub const addSelect = addBranch;
+
+    pub fn addBranch(
+        b: *Builder,
+        cond: Inst.Ref,
+        true_label: Inst.Ref,
+        false_label: Inst.Ref,
+    ) Allocator.Error!void {
         const branch = try b.arena.allocator().create(Ir.Inst.Branch);
         branch.* = .{
             .cond = cond,
             .then = true_label,
             .@"else" = false_label,
         };
-        _ = try b.addInst(.branch, .{ .branch = branch }, .noreturn);
+        _ = try b.addInst(.branch, .{ .branch = branch });
     }
 
-    pub fn addSwitch(b: *Builder, target: Ref, values: []Interner.Ref, labels: []Ref, default: Ref) Allocator.Error!void {
+    pub fn addSwitch(
+        b: *Builder,
+        target: Inst.Ref,
+        values: []Interner.Ref,
+        labels: []Inst.Ref,
+        default: Inst.Ref,
+    ) Allocator.Error!void {
         assert(values.len == labels.len);
-        const a = b.arena.allocator();
-        const @"switch" = try a.create(Ir.Inst.Switch);
-        @"switch".* = .{
+        const @"switch" = try b.arena.allocator().alloc(Inst.Ref, Inst.Call.size + values.len * 2);
+        @as(*Inst.Switch, @ptrCast(@"switch".ptr)).* = .{
             .target = target,
-            .cases_len = @intCast(values.len),
-            .case_vals = (try a.dupe(Interner.Ref, values)).ptr,
-            .case_labels = (try a.dupe(Ref, labels)).ptr,
             .default = default,
+            .cases_len = @intCast(values.len),
         };
-        _ = try b.addInst(.@"switch", .{ .@"switch" = @"switch" }, .noreturn);
+        std.mem.copy(Interner.Ref, @ptrCast(@"switch"[Inst.Switch.size..]), values);
+        std.mem.copy(Inst.Ref, @"switch"[Inst.Switch.size + values.len ..], labels);
+        _ = try b.addInst(.@"switch", .{ .@"switch" = @ptrCast(@"switch".ptr) });
     }
 
-    pub fn addStore(b: *Builder, ptr: Ref, val: Ref) Allocator.Error!void {
-        _ = try b.addInst(.store, .{ .bin = .{ .lhs = ptr, .rhs = val } }, .void);
+    pub fn addStore(b: *Builder, ptr: Inst.Ref, val: Inst.Ref, attr: Inst.MemoryAttributes) Allocator.Error!void {
+        _ = try b.addInst(.store, .{ .store = .{ .ptr = ptr, .val = val, .attr = attr } });
     }
 
-    pub fn addConstant(b: *Builder, val: Interner.Ref, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
-        try b.instructions.append(b.gpa, .{
-            .tag = .constant,
-            .data = .{ .constant = val },
-            .ty = ty,
-        });
+    pub fn addLoad(b: *Builder, ptr: Inst.Ref, ty: Interner.Ref, attr: Inst.MemoryAttributes) Allocator.Error!Inst.Ref {
+        return b.addInst(.load, .{ .load = .{ .ptr = ptr, .ty = ty, .attr = attr } });
+    }
+
+    pub fn addConstant(b: *Builder, val: Interner.Ref, ty: Interner.Ref) Allocator.Error!Inst.Ref {
+        const ref: Inst.Ref = @enumFromInt(b.instructions.len);
+        try b.instructions.append(b.gpa, .{ .tag = .constant, .data = .{
+            .constant = .{ .val = val, .ty = ty },
+        } });
         return ref;
     }
 
-    pub fn addPhi(b: *Builder, inputs: []const Inst.Phi.Input, ty: Interner.Ref) Allocator.Error!Ref {
+    pub fn addPhi(b: *Builder, inputs: []const Inst.Phi.Input) Allocator.Error!Inst.Ref {
         const a = b.arena.allocator();
-        const input_refs = try a.alloc(Ref, inputs.len * 2 + 1);
-        input_refs[0] = @enumFromInt(inputs.len);
-        std.mem.copy(Ref, input_refs[1..], std.mem.bytesAsSlice(Ref, std.mem.sliceAsBytes(inputs)));
+        const input_refs = try a.alloc(Inst.Ref, inputs.len * 2);
+        std.mem.copy(Inst.Ref, input_refs, std.mem.bytesAsSlice(Inst.Ref, std.mem.sliceAsBytes(inputs)));
 
-        return b.addInst(.phi, .{ .phi = .{ .ptr = input_refs.ptr } }, ty);
+        return b.addInst(.phi, .{ .phi = .{ .ptr = input_refs.ptr, .len = @intCast(inputs.len) } });
     }
 
-    pub fn addSelect(b: *Builder, cond: Ref, then: Ref, @"else": Ref, ty: Interner.Ref) Allocator.Error!Ref {
-        const branch = try b.arena.allocator().create(Ir.Inst.Branch);
-        branch.* = .{
-            .cond = cond,
-            .then = then,
-            .@"else" = @"else",
+    pub fn addSymbol(b: *Builder, name: []const u8) Allocator.Error!Inst.Ref {
+        const duped_name = try b.arena.allocator().dupeZ(u8, name);
+        const ref: Inst.Ref = @enumFromInt(b.instructions.len);
+        try b.instructions.append(b.gpa, .{ .tag = .symbol, .data = .{
+            .symbol = .{ .ptr = duped_name.ptr, .len = @intCast(duped_name.len) },
+        } });
+        return ref;
+    }
+
+    pub fn addCall(
+        b: *Builder,
+        fn_ref: Inst.Ref,
+        ret_ty: Interner.Ref,
+        args: []const Inst.Ref,
+    ) Allocator.Error!Inst.Ref {
+        const call = try b.arena.allocator().alloc(Inst.Ref, Inst.Call.size + args.len);
+        @as(*Inst.Call, @ptrCast(call.ptr)).* = .{
+            .func = fn_ref,
+            .ret_ty = ret_ty,
+            .args_len = @intCast(args.len),
         };
-        return b.addInst(.select, .{ .branch = branch }, ty);
+        std.mem.copy(Inst.Ref, call[Inst.Call.size..], args);
+        return b.addInst(.call, .{ .call = @ptrCast(call.ptr) });
     }
 };
 
@@ -235,48 +304,42 @@ pub fn render(
     return obj;
 }
 
-pub const Ref = enum(u32) { none = std.math.maxInt(u32), _ };
-
 pub const Inst = struct {
     tag: Tag,
     data: Data,
-    ty: Interner.Ref,
+
+    pub const Ref = enum(u32) { none = std.math.maxInt(u32), _ };
 
     pub const Tag = enum {
-        // data.constant
-        // not included in blocks
+        /// data.constant
+        /// not included in blocks
         constant,
-
-        // data.arg
-        // not included in blocks
+        /// data.arg
+        /// not included in blocks
         arg,
+        /// data.arg
+        /// not included in blocks
         symbol,
-
-        // data.label
+        /// data.label
         label,
-
-        // data.block
-        label_addr,
+        /// data.jmp
         jmp,
-
-        // data.switch
+        /// data.switch
         @"switch",
-
-        // data.branch
+        /// data.branch
         branch,
+        /// data.branch
         select,
-
-        // data.un
-        jmp_val,
-
-        // data.call
+        /// data.call
         call,
-
-        // data.alloc
+        /// data.alloc
         alloc,
-
-        // data.phi
+        /// data.phi
         phi,
+        /// data.ret
+        ret,
+        /// data.load
+        load,
 
         // data.bin
         store,
@@ -298,8 +361,6 @@ pub const Inst = struct {
         mod,
 
         // data.un
-        ret,
-        load,
         bit_not,
         negate,
         trunc,
@@ -308,23 +369,65 @@ pub const Inst = struct {
     };
 
     pub const Data = union {
-        constant: Interner.Ref,
         none: void,
+        constant: struct {
+            ty: Interner.Ref,
+            val: Interner.Ref,
+        },
         bin: struct {
+            ty: Interner.Ref,
             lhs: Ref,
             rhs: Ref,
         },
-        un: Ref,
-        arg: u32,
+        un: struct {
+            ty: Interner.Ref,
+            operand: Ref,
+        },
+        symbol: struct {
+            len: u32,
+            ptr: [*:0]const u8,
+
+            pub fn name(s: @This()) []const u8 {
+                return s.ptr[0..s.len];
+            }
+        },
+        arg: struct {
+            ty: Interner.Ref,
+        },
         alloc: struct {
             size: u32,
             @"align": u32,
         },
-        @"switch": *Switch,
+        load: struct {
+            ty: Interner.Ref,
+            attr: MemoryAttributes,
+            ptr: Ref,
+        },
+        store: struct {
+            attr: MemoryAttributes,
+            ptr: Ref,
+            val: Ref,
+        },
         call: *Call,
-        label: [*:0]const u8,
+        ret: Ref,
+        label: struct {
+            len: u32,
+            ptr: [*:0]const u8,
+
+            pub fn name(l: @This()) []const u8 {
+                return l.ptr[0..l.len];
+            }
+        },
+        jmp: Ref,
+        @"switch": *Switch,
         branch: *Branch,
         phi: Phi,
+    };
+
+    pub const MemoryAttributes = packed struct(u32) {
+        @"volatile": bool,
+        atomic: bool,
+        @"align": u30,
     };
 
     pub const Branch = struct {
@@ -337,31 +440,41 @@ pub const Inst = struct {
         target: Ref,
         cases_len: u32,
         default: Ref,
-        case_vals: [*]Interner.Ref,
-        case_labels: [*]Ref,
+
+        pub const size = std.meta.fields(Switch).len;
+
+        pub fn values(s: *const Switch) []const Interner.Ref {
+            return @as([*]const Interner.Ref, @ptrCast(s))[size..][0..s.cases_len];
+        }
+
+        pub fn labels(s: *const Switch) []const Ref {
+            return @as([*]const Ref, @ptrCast(s))[size + s.cases_len ..][0..s.cases_len];
+        }
     };
 
     pub const Call = struct {
         func: Ref,
+        ret_ty: Interner.Ref,
         args_len: u32,
-        args_ptr: [*]Ref,
 
-        pub fn args(c: Call) []Ref {
-            return c.args_ptr[0..c.args_len];
+        pub const size = std.meta.fields(Call).len;
+
+        pub fn args(c: *const Call) []const Ref {
+            return @as([*]const Ref, @ptrCast(c))[size..][0..c.args_len];
         }
     };
 
     pub const Phi = struct {
-        ptr: [*]Ir.Ref,
+        len: u32,
+        ptr: [*]Ref,
 
         pub const Input = struct {
-            label: Ir.Ref,
-            value: Ir.Ref,
+            label: Ref,
+            value: Ref,
         };
 
         pub fn inputs(p: Phi) []Input {
-            const len = @intFromEnum(p.ptr[0]) * 2;
-            const slice = (p.ptr + 1)[0..len];
+            const slice = (p.ptr + 1)[0..p.len];
             return std.mem.bytesAsSlice(Input, std.mem.sliceAsBytes(slice));
         }
     };
@@ -381,7 +494,7 @@ const REF = std.io.tty.Color.blue;
 const LITERAL = std.io.tty.Color.green;
 const ATTRIBUTE = std.io.tty.Color.yellow;
 
-const RefMap = std.AutoArrayHashMap(Ref, void);
+const RefMap = std.AutoArrayHashMap(Inst.Ref, void);
 
 pub fn dump(ir: *const Ir, gpa: Allocator, config: std.io.tty.Config, w: anytype) !void {
     for (ir.decls.keys(), ir.decls.values()) |name, *decl| {
@@ -400,8 +513,7 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
     defer label_map.deinit();
 
     const ret_inst = decl.body.items[decl.body.items.len - 1];
-    const ret_operand = data[@intFromEnum(ret_inst)].un;
-    const ret_ty = decl.instructions.items(.ty)[@intFromEnum(ret_operand)];
+    const ret_ty = decl.ty(ret_inst);
     try ir.writeType(ret_ty, config, w);
     try config.setColor(w, REF);
     try w.print(" @{s}", .{name});
@@ -428,28 +540,27 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
     for (decl.body.items[arg_count..]) |ref| {
         const i = @intFromEnum(ref);
         const tag = tags[i];
+        if (tag == .label) {
+            const label_index = label_map.getIndex(ref).?;
+            try config.setColor(w, REF);
+            try w.print("{s}.{d}:\n", .{ data[i].label.name(), label_index });
+            continue;
+        }
+        try w.writeAll("    ");
         switch (tag) {
-            .arg, .constant, .symbol => unreachable,
-            .label => {
-                const label_index = label_map.getIndex(ref).?;
-                try config.setColor(w, REF);
-                try w.print("{s}.{d}:\n", .{ data[i].label, label_index });
-            },
-            // .label_val => {
-            //     const un = data[i].un;
-            //     try w.print("    %{d} = label.{d}\n", .{ i, @intFromEnum(un) });
-            // },
+            .arg, .constant, .symbol => unreachable, // not included in function bodies
+            .label => unreachable, // handled above
             .jmp => {
-                const un = data[i].un;
+                const operand = data[i].un.operand;
                 try config.setColor(w, INST);
-                try w.writeAll("    jmp ");
-                try writeLabel(decl, &label_map, un, config, w);
+                try w.writeAll("jmp ");
+                try writeLabel(decl, &label_map, operand, config, w);
                 try w.writeByte('\n');
             },
             .branch => {
                 const br = data[i].branch;
                 try config.setColor(w, INST);
-                try w.writeAll("    branch ");
+                try w.writeAll("branch ");
                 try ir.writeRef(decl, &ref_map, br.cond, config, w);
                 try config.setColor(w, .reset);
                 try w.writeAll(", ");
@@ -472,18 +583,14 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
                 try ir.writeRef(decl, &ref_map, br.@"else", config, w);
                 try w.writeByte('\n');
             },
-            // .jmp_val => {
-            //     const bin = data[i].bin;
-            //     try w.print("    %{s} %{d} label.{d}\n", .{ @tagName(tag), @intFromEnum(bin.lhs), @intFromEnum(bin.rhs) });
-            // },
             .@"switch" => {
                 const @"switch" = data[i].@"switch";
                 try config.setColor(w, INST);
-                try w.writeAll("    switch ");
+                try w.writeAll("switch ");
                 try ir.writeRef(decl, &ref_map, @"switch".target, config, w);
                 try config.setColor(w, .reset);
                 try w.writeAll(" {");
-                for (@"switch".case_vals[0..@"switch".cases_len], @"switch".case_labels) |val_ref, label_ref| {
+                for (@"switch".values(), @"switch".labels()) |val_ref, label_ref| {
                     try w.writeAll("\n        ");
                     try ir.writeValue(val_ref, config, w);
                     try config.setColor(w, .reset);
@@ -544,25 +651,29 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
                 try w.writeAll("\n    }\n");
             },
             .store => {
-                const bin = data[i].bin;
+                const store = data[i].store;
                 try config.setColor(w, INST);
-                try w.writeAll("    store ");
-                try ir.writeRef(decl, &ref_map, bin.lhs, config, w);
+                try w.writeAll("store ");
+                try writeMemAttr(store.attr, config, w);
+                try ir.writeRef(decl, &ref_map, store.ptr, config, w);
                 try config.setColor(w, .reset);
                 try w.writeAll(", ");
-                try ir.writeRef(decl, &ref_map, bin.rhs, config, w);
+                try ir.writeRef(decl, &ref_map, store.val, config, w);
                 try w.writeByte('\n');
             },
             .ret => {
                 try config.setColor(w, INST);
-                try w.writeAll("    ret ");
-                if (data[i].un != .none) try ir.writeRef(decl, &ref_map, data[i].un, config, w);
+                try w.writeAll("ret ");
+                const operand = data[i].ret;
+                if (operand != .none) try ir.writeRef(decl, &ref_map, operand, config, w);
                 try w.writeByte('\n');
             },
             .load => {
                 try ir.writeNewRef(decl, &ref_map, ref, config, w);
                 try w.writeAll("load ");
-                try ir.writeRef(decl, &ref_map, data[i].un, config, w);
+                const load = data[i].load;
+                try writeMemAttr(load.attr, config, w);
+                try ir.writeRef(decl, &ref_map, load.ptr, config, w);
                 try w.writeByte('\n');
             },
             .bit_or,
@@ -597,13 +708,12 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
             .zext,
             .sext,
             => {
-                const un = data[i].un;
+                const operand = data[i].un.operand;
                 try ir.writeNewRef(decl, &ref_map, ref, config, w);
                 try w.print("{s} ", .{@tagName(tag)});
-                try ir.writeRef(decl, &ref_map, un, config, w);
+                try ir.writeRef(decl, &ref_map, operand, config, w);
                 try w.writeByte('\n');
             },
-            .label_addr, .jmp_val => {},
         }
     }
     try config.setColor(w, .reset);
@@ -614,7 +724,10 @@ fn writeType(ir: Ir, ty_ref: Interner.Ref, config: std.io.tty.Config, w: anytype
     const ty = ir.interner.get(ty_ref);
     try config.setColor(w, TYPE);
     switch (ty) {
-        .ptr_ty, .noreturn_ty, .void_ty, .func_ty => try w.writeAll(@tagName(ty)),
+        .ptr_ty, .noreturn_ty, .void_ty, .func_ty => {
+            const tag = @tagName(ty);
+            try w.writeAll(tag[0 .. tag.len - 3]);
+        },
         .int_ty => |bits| try w.print("i{d}", .{bits}),
         .float_ty => |bits| try w.print("f{d}", .{bits}),
         .array_ty => |info| {
@@ -656,43 +769,57 @@ fn writeValue(ir: Ir, val: Interner.Ref, config: std.io.tty.Config, w: anytype) 
     }
 }
 
-fn writeRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: anytype) !void {
+fn writeRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Inst.Ref, config: std.io.tty.Config, w: anytype) !void {
     assert(ref != .none);
-    const index = @intFromEnum(ref);
-    const ty_ref = decl.instructions.items(.ty)[index];
-    if (decl.instructions.items(.tag)[index] == .constant) {
-        try ir.writeType(ty_ref, config, w);
-        const v_ref = decl.instructions.items(.data)[index].constant;
-        try w.writeByte(' ');
-        try ir.writeValue(v_ref, config, w);
-        return;
-    } else if (decl.instructions.items(.tag)[index] == .symbol) {
-        const name = decl.instructions.items(.data)[index].label;
-        try ir.writeType(ty_ref, config, w);
-        try config.setColor(w, REF);
-        try w.print(" @{s}", .{name});
-        return;
+    switch (decl.tag(ref)) {
+        .constant => {
+            const constant = decl.data(ref).constant;
+            try ir.writeType(constant.ty, config, w);
+            try w.writeByte(' ');
+            try ir.writeValue(constant.val, config, w);
+        },
+        .symbol => {
+            const symbol = decl.data(ref).symbol;
+            try ir.writeType(.ptr, config, w);
+            try config.setColor(w, REF);
+            try w.print(" @{s}", .{symbol.name()});
+        },
+        else => {
+            try ir.writeType(decl.ty(ref), config, w);
+            try config.setColor(w, REF);
+            const ref_index = ref_map.getIndex(ref).?;
+            try w.print(" %{d}", .{ref_index});
+        },
     }
-    try ir.writeType(ty_ref, config, w);
-    try config.setColor(w, REF);
-    const ref_index = ref_map.getIndex(ref).?;
-    try w.print(" %{d}", .{ref_index});
 }
 
-fn writeNewRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: anytype) !void {
+fn writeNewRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Inst.Ref, config: std.io.tty.Config, w: anytype) !void {
     try ref_map.put(ref, {});
-    try w.writeAll("    ");
     try ir.writeRef(decl, ref_map, ref, config, w);
     try config.setColor(w, .reset);
     try w.writeAll(" = ");
     try config.setColor(w, INST);
 }
 
-fn writeLabel(decl: *const Decl, label_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: anytype) !void {
+fn writeLabel(decl: *const Decl, label_map: *RefMap, ref: Inst.Ref, config: std.io.tty.Config, w: anytype) !void {
     assert(ref != .none);
-    const index = @intFromEnum(ref);
-    const label = decl.instructions.items(.data)[index].label;
+    const label = decl.data(ref).label;
     try config.setColor(w, REF);
     const label_index = label_map.getIndex(ref).?;
-    try w.print("{s}.{d}", .{ label, label_index });
+    try w.print("{s}.{d}", .{ label.name(), label_index });
+}
+
+fn writeMemAttr(attr: Inst.MemoryAttributes, config: std.io.tty.Config, w: anytype) !void {
+    if (attr.@"volatile") {
+        try config.setColor(w, ATTRIBUTE);
+        try w.writeAll("volatile ");
+    }
+    if (attr.atomic) {
+        try config.setColor(w, ATTRIBUTE);
+        try w.writeAll("atomic ");
+    }
+    try config.setColor(w, ATTRIBUTE);
+    try w.writeAll("align ");
+    try config.setColor(w, LITERAL);
+    try w.print("{d} ", .{attr.@"align"});
 }

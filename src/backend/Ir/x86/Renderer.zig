@@ -18,7 +18,7 @@ const Register = bits.Register;
 const RegisterLock = RegisterManager.RegisterLock;
 const FrameIndex = bits.FrameIndex;
 
-const RegisterManager = zig.RegisterManager(Renderer, Register, Ir.Ref, abi.allocatable_regs);
+const RegisterManager = zig.RegisterManager(Renderer, Register, Ir.Inst.Ref, abi.allocatable_regs);
 
 // Register classes
 const RegisterBitSet = RegisterManager.RegisterBitSet;
@@ -60,7 +60,7 @@ pub fn render(base: *BaseRenderer) !void {
     };
 
     for (renderer.base.ir.decls.keys(), renderer.base.ir.decls.values()) |name, decl| {
-        if (decl.ty == .func) {
+        if (decl.decl_ty == .func) {
             renderer.renderFn(name, decl) catch |e| switch (e) {
                 error.OutOfMemory => return e,
                 error.LowerFail => continue,
@@ -124,7 +124,7 @@ fn renderFn(r: *Renderer, name: []const u8, decl: Ir.Decl) !void {
     };
 }
 
-fn renderInst(r: *Renderer, inst: Ir.Ref) !void {
+fn renderInst(r: *Renderer, inst: Ir.Inst.Ref) !void {
     _ = inst;
     _ = r;
 }
