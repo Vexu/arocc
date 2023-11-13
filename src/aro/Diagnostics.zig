@@ -551,11 +551,7 @@ const MsgWriter = struct {
 
     fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
         m.setColor(.white);
-        const prefix = if (std.fs.path.dirname(path) == null and path[0] != '<')
-            "." ++ std.fs.path.sep_str
-        else
-            "";
-        m.print("{s}{s}:{d}:{d}: ", .{ prefix, path, line, col });
+        m.print("{s}:{d}:{d}: ", .{ path, line, col });
     }
 
     fn start(m: *MsgWriter, kind: Kind) void {
