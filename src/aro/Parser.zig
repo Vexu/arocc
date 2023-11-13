@@ -323,7 +323,7 @@ fn expectIdentifier(p: *Parser) Error!TokenIndex {
         return p.errExpectedToken(.identifier, actual);
     }
 
-    return (try p.eatIdentifier()) orelse unreachable;
+    return (try p.eatIdentifier()) orelse error.ParsingFailed;
 }
 
 fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
@@ -4376,7 +4376,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 /// | keyword_default ':' stmt
 fn labeledStmt(p: *Parser) Error!?NodeIndex {
     if ((p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) and p.tok_ids[p.tok_i + 1] == .colon) {
-        const name_tok = p.expectIdentifier() catch unreachable;
+        const name_tok = try p.expectIdentifier();
         const str = p.tokSlice(name_tok);
         if (p.findLabel(str)) |some| {
             try p.errStr(.duplicate_label, name_tok, str);
@@ -7458,7 +7458,7 @@ fn primaryExpr(p: *Parser) Error!Result {
     }
     switch (p.tok_ids[p.tok_i]) {
         .identifier, .extended_identifier => {
-            const name_tok = p.expectIdentifier() catch unreachable;
+            const name_tok = try p.expectIdentifier();
             const name = p.tokSlice(name_tok);
             const interned_name = try StrInt.intern(p.comp, name);
             if (p.syms.findSymbol(interned_name)) |sym| {
