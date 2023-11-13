@@ -609,8 +609,8 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
             .call => {
                 const call = data[i].call;
                 try ir.writeNewRef(decl, &ref_map, ref, config, w);
-                try w.writeAll("call ");
-                try ir.writeRef(decl, &ref_map, call.func, config, w);
+                try w.writeAll("call");
+                try ir.writeRefExtra(decl, &ref_map, call.func, false, config, w);
                 try config.setColor(w, .reset);
                 try w.writeAll("(");
                 for (call.args(), 0..) |arg, arg_i| {
@@ -764,29 +764,44 @@ fn writeValue(ir: Ir, val: Interner.Ref, config: std.io.tty.Config, w: anytype) 
         .float => |repr| switch (repr) {
             inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| return std.zig.fmt.stringEscape(b, "", .{}, w),
+        .bytes => |b| {
+            try w.writeByte('"');
+            try std.zig.fmt.stringEscape(b, "", .{}, w);
+            try w.writeByte('"');
+        },
         else => unreachable, // not a value
     }
 }
-
 fn writeRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Inst.Ref, config: std.io.tty.Config, w: anytype) !void {
+    try ir.writeRefExtra(decl, ref_map, ref, true, config, w);
+}
+
+fn writeRefExtra(
+    ir: Ir,
+    decl: *const Decl,
+    ref_map: *RefMap,
+    ref: Inst.Ref,
+    write_type: bool,
+    config: std.io.tty.Config,
+    w: anytype,
+) !void {
     assert(ref != .none);
     switch (decl.tag(ref)) {
         .constant => {
             const constant = decl.data(ref).constant;
-            try ir.writeType(constant.ty, config, w);
+            if (write_type) try ir.writeType(constant.ty, config, w);
             try w.writeByte(' ');
             try ir.writeValue(constant.val, config, w);
         },
         .symbol => {
             const symbol = decl.data(ref).symbol;
-            try ir.writeType(.ptr, config, w);
+            if (write_type) try ir.writeType(.ptr, config, w);
             try config.setColor(w, REF);
             try w.print(" @{s}", .{symbol.name()});
         },
         else => {
             try ir.writeType(decl.ty(ref), config, w);
-            try config.setColor(w, REF);
+            if (write_type) try config.setColor(w, REF);
             const ref_index = ref_map.getIndex(ref).?;
             try w.print(" %{d}", .{ref_index});
         },

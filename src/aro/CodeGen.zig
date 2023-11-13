@@ -100,6 +100,9 @@ pub fn genIr(tree: Tree) Compilation.Error!Ir {
             .struct_decl,
             .union_decl,
             .enum_decl,
+            .struct_forward_decl,
+            .union_forward_decl,
+            .enum_forward_decl,
             => {},
 
             .fn_proto,

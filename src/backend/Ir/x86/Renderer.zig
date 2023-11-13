@@ -59,7 +59,7 @@ pub fn render(base: *BaseRenderer) !void {
         .interner = base.ir.interner,
     };
 
-    for (renderer.base.ir.decls.keys(), renderer.base.ir.decls.values()) |name, decl| {
+    for (renderer.base.ir.decls.keys(), renderer.base.ir.decls.values()) |name, *decl| {
         if (decl.decl_ty == .func) {
             renderer.renderFn(name, decl) catch |e| switch (e) {
                 error.OutOfMemory => return e,
@@ -75,19 +75,27 @@ pub fn render(base: *BaseRenderer) !void {
     if (renderer.base.errors.entries.len != 0) return error.LowerFail;
 }
 
-fn renderVariable(r: *Renderer, name: []const u8, decl: Ir.Decl) !void {
+fn renderVariable(r: *Renderer, name: []const u8, decl: *const Ir.Decl) !void {
     _ = decl;
     return r.base.fail(name, "TODO implement lowering variables", .{});
 }
 
-fn renderFn(r: *Renderer, name: []const u8, decl: Ir.Decl) !void {
+fn renderFn(r: *Renderer, name: []const u8, decl: *const Ir.Decl) !void {
     r.mir_instructions.shrinkRetainingCapacity(0);
     r.mir_extra.shrinkRetainingCapacity(0);
 
     // TODO setup calling convention
 
-    for (decl.body.items) |inst| {
-        try r.renderInst(inst);
+    const tags = decl.instructions.items(.tag);
+    var arg_count: u32 = 0;
+    while (true) : (arg_count += 1) {
+        const ref = decl.body.items[arg_count];
+        if (tags[@intFromEnum(ref)] != .arg) break;
+        // TODO handle args
+    }
+
+    for (decl.body.items[arg_count..]) |inst| {
+        try r.renderInst(decl, inst);
     }
 
     const cc: std.builtin.CallingConvention = .C;
@@ -124,7 +132,18 @@ fn renderFn(r: *Renderer, name: []const u8, decl: Ir.Decl) !void {
     };
 }
 
-fn renderInst(r: *Renderer, inst: Ir.Inst.Ref) !void {
-    _ = inst;
-    _ = r;
+fn renderInst(r: *Renderer, decl: *const Ir.Decl, inst: Ir.Inst.Ref) !void {
+    switch (decl.tag(inst)) {
+        .constant, .arg, .symbol => unreachable,
+        .label => {
+
+        },
+        .call => {
+
+        },
+        .ret => {
+
+        },
+        else => |t| return r.base.fail("decl.name", "TODO renderInst({s})", .{@tagName(t)}),
+    }
 }
