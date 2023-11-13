@@ -1,67 +1,46 @@
-FROM ubuntu:20.04
+FROM alpine:latest as build
 
-ARG DEBIAN_FRONTEND=noninteractive
+WORKDIR /usr/src/minisign
 
-env NO_ARCH_OPT 1
+RUN apk add --no-cache build-base cmake curl pkgconfig
+RUN apk add --no-cache upx ||:
+RUN curl https://download.libsodium.org/libsodium/releases/LATEST.tar.gz | tar xzvf - && cd libsodium-stable && env CFLAGS="-Os" CPPFLAGS="-DED25519_NONDETERMINISTIC=1" ./configure --disable-dependency-tracking && make -j$(nproc) check && make install && cd .. && rm -fr libsodium-stable
 
-RUN apt-get update && \
-    apt-get -y install --no-install-suggests --no-install-recommends \
-    automake \
-    ninja-build \
-    bison flex \
-    build-essential \
-    git \
-    python3 python3-dev python3-setuptools python-is-python3 \
-    libtool libtool-bin \
-    libglib2.0-dev \
-    wget jupp nano bash-completion less \
-    apt-utils apt-transport-https ca-certificates gnupg dialog \
-    libpixman-1-dev \
-    gnuplot-nox \
-    && rm -rf /var/lib/apt/lists/*
+COPY ./ ./
+RUN wget https://github.com/jedisct1/minisign/releases/download/0.11/minisign-0.11.tar.gz
+RUN tar -xf minisign-0.11.tar.gz
+RUN mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DBUILD_STATIC_EXECUTABLES=1 .. && make -j$(nproc)
+RUN upx --lzma build/minisign ||:
 
-RUN echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-13 main" >> /etc/apt/sources.list && \
-    wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+FROM aflplusplus/aflplusplus
+COPY --from=build /usr/src/minisign/build/minisign /usr/local/bin/
 
-RUN echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu focal main" >> /etc/apt/sources.list && \
-    apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 1E9377A2BA9EF27F
-
-RUN apt-get update && apt-get full-upgrade -y && \
-    apt-get -y install --no-install-suggests --no-install-recommends \
-    gcc-10 g++-10 gcc-10-plugin-dev gcc-10-multilib gcc-multilib gdb lcov \
-    clang-13 clang-tools-13 libc++1-13 libc++-13-dev \
-    libc++abi1-13 libc++abi-13-dev libclang1-13 libclang-13-dev \
-    libclang-common-13-dev libclang-cpp13 libclang-cpp13-dev liblld-13 \
-    liblld-13-dev liblldb-13 liblldb-13-dev libllvm13 libomp-13-dev \
-    libomp5-13 lld-13 lldb-13 llvm-13 llvm-13-dev llvm-13-runtime llvm-13-tools \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 0
-RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 0
-
-ENV LLVM_CONFIG=llvm-config-13
-ENV AFL_SKIP_CPUFREQ=1
-ENV AFL_TRY_AFFINITY=1
-ENV AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1
-
-RUN git clone --depth=1 https://github.com/vanhauser-thc/afl-cov /afl-cov
-RUN cd /afl-cov && make install && cd ..
-
-RUN git clone https://github.com/AFLplusplus/AFLplusplus.git
-
-WORKDIR /AFLplusplus
-
-RUN export CC=gcc-10 && export CXX=g++-10 && make clean && \
-    make distrib && make install && make clean
-
-WORKDIR /
-
+ARG USER_ID
+ARG GROUP_ID
 ARG ZIG_VERSION
-ARG ZIG_SIG
+ARG ZIG_PUBKEY
 
-RUN wget https://ziglang.org/builds/$ZIG_VERSION.tar.xz && \
-    echo $ZIG_SIG $ZIG_VERSION.tar.xz | sha256sum --check --strict && \
+RUN if [ ${USER_ID:-0} -ne 0 ] && [ ${GROUP_ID:-0} -ne 0 ]; then \
+    userdel -f www-data &&\
+    if getent group www-data ; then groupdel www-data; fi &&\
+    groupadd -g ${GROUP_ID} www-data &&\
+    useradd -l -u ${USER_ID} -g www-data www-data && \
+    install -d -m 0755 -o www-data -g www-data /home/www-data &&\
+    chown --changes --silent --no-dereference --recursive \
+          --from=33:33 ${USER_ID}:${GROUP_ID} \
+        /home/www-data \
+;fi
+
+WORKDIR /usr/local/bin
+
+RUN wget --inet4-only https://ziglang.org/builds/$ZIG_VERSION.tar.xz && \
+    wget --inet4-only "https://ziglang.org/builds/$ZIG_VERSION.tar.xz.minisig" && \
+    minisign -Vm $ZIG_VERSION.tar.xz -P $ZIG_PUBKEY && \
     tar -xvf $ZIG_VERSION.tar.xz && \
-    rm $ZIG_VERSION.tar.xz
+    rm $ZIG_VERSION.tar.xz $ZIG_VERSION.tar.xz.minisig
 
-ENV PATH="/$ZIG_VERSION:$PATH"
+USER www-data
+WORKDIR /home/www-data
+
+
+ENV PATH="$PATH:/usr/local/bin/$ZIG_VERSION"
