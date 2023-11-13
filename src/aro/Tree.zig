@@ -677,7 +677,7 @@ pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     return tmp_tokenizer.buf[tok.start..tok.end];
 }
 
-pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) @TypeOf(writer).Error!void {
+pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void {
     const mapper = tree.comp.string_interner.getFastTypeMapper(tree.comp.gpa) catch tree.comp.string_interner.getSlowTypeMapper();
     defer mapper.deinit(tree.comp.gpa);
 
@@ -734,7 +734,7 @@ fn dumpNode(
     mapper: StringInterner.TypeMapper,
     config: std.io.tty.Config,
     w: anytype,
-) @TypeOf(w).Error!void {
+) !void {
     const delta = 2;
     const half = delta / 2;
     const TYPE = std.io.tty.Color.bright_magenta;
