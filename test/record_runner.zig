@@ -285,10 +285,10 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
 
     var tree = try aro.Parser.parse(&pp);
     defer tree.deinit();
-    tree.dump(false, std.io.null_writer) catch {};
+    tree.dump(.no_color, std.io.null_writer) catch {};
 
     if (test_single_target) {
-        comp.renderErrors();
+        aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
         return;
     }
 
@@ -306,7 +306,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     if (comp.diagnostics.list.items.len == 0 and expected.any()) {
         stats.progress.log("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
     } else {
-        var m = aro.Diagnostics.defaultMsgWriter(&comp);
+        var m = aro.Diagnostics.defaultMsgWriter(std.io.tty.detectConfig(std.io.getStdErr()));
         defer m.deinit();
         var actual = ExpectedFailure{};
         for (comp.diagnostics.list.items) |msg| {

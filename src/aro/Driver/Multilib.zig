@@ -1,5 +1,4 @@
 const std = @import("std");
-const util = @import("backend").util;
 const Filesystem = @import("Filesystem.zig").Filesystem;
 
 pub const Flags = std.BoundedArray([]const u8, 6);

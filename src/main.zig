@@ -64,7 +64,7 @@ pub fn main() u8 {
             return 1;
         },
         error.FatalError => {
-            comp.renderErrors();
+            driver.renderErrors();
             if (fast_exit) process.exit(1);
             return 1;
         },

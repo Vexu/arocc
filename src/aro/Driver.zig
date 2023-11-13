@@ -5,8 +5,8 @@ const process = std.process;
 const backend = @import("backend");
 const Ir = backend.Ir;
 const Object = backend.Object;
-const util = backend.util;
 const Compilation = @import("Compilation.zig");
+const Diagnostics = @import("Diagnostics.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Source = @import("Source.zig");
@@ -42,6 +42,7 @@ verbose_ast: bool = false,
 verbose_pp: bool = false,
 verbose_ir: bool = false,
 verbose_linker_args: bool = false,
+color: ?bool = null,
 
 /// Full path to the aro executable
 aro_name: []const u8 = "",
@@ -175,23 +176,18 @@ pub fn parseArgs(
     args: []const []const u8,
 ) !bool {
     var i: usize = 1;
-    var color_setting: enum {
-        on,
-        off,
-        unset,
-    } = .unset;
     var comment_arg: []const u8 = "";
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
             if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
                 std_out.print(usage, .{args[0]}) catch |er| {
-                    return d.fatal("unable to print usage: {s}", .{util.errorDescription(er)});
+                    return d.fatal("unable to print usage: {s}", .{errorDescription(er)});
                 };
                 return true;
             } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
                 std_out.writeAll(@import("backend").version_str ++ "\n") catch |er| {
-                    return d.fatal("unable to print version: {s}", .{util.errorDescription(er)});
+                    return d.fatal("unable to print version: {s}", .{errorDescription(er)});
                 };
                 return true;
             } else if (mem.startsWith(u8, arg, "-D")) {
@@ -238,9 +234,9 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fno-char8_t")) {
                 d.comp.langopts.has_char8_t_override = false;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
-                color_setting = .on;
+                d.color = true;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
-                color_setting = .off;
+                d.color = false;
             } else if (mem.eql(u8, arg, "-fdollars-in-identifiers")) {
                 d.comp.langopts.dollars_in_identifiers = true;
             } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
@@ -436,16 +432,11 @@ pub fn parseArgs(
             try d.link_objects.append(d.comp.gpa, arg);
         } else {
             const source = d.addSource(arg) catch |er| {
-                return d.fatal("unable to add source file '{s}': {s}", .{ arg, util.errorDescription(er) });
+                return d.fatal("unable to add source file '{s}': {s}", .{ arg, errorDescription(er) });
             };
             try d.inputs.append(d.comp.gpa, source);
         }
     }
-    d.comp.diagnostics.color = switch (color_setting) {
-        .on => true,
-        .off => false,
-        .unset => util.fileSupportsColor(std.io.getStdErr()) and !std.process.hasEnvVarConstant("NO_COLOR"),
-    };
     if (d.comp.langopts.preserve_comments and !d.only_preprocess) {
         return d.fatal("invalid argument '{s}' only allowed with '-E'", .{comment_arg});
     }
@@ -473,9 +464,57 @@ pub fn err(d: *Driver, msg: []const u8) !void {
     try d.comp.addDiagnostic(.{ .tag = .cli_error, .extra = .{ .str = msg } }, &.{});
 }
 
-pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{FatalError} {
-    d.comp.renderErrors();
-    return d.comp.diagnostics.fatalNoSrc(fmt, args);
+pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
+    try d.comp.diagnostics.list.append(d.comp.gpa, .{
+        .tag = .cli_error,
+        .kind = .@"fatal error",
+        .extra = .{ .str = try std.fmt.allocPrint(d.comp.diagnostics.arena.allocator(), fmt, args) },
+    });
+    return error.FatalError;
+}
+
+pub fn renderErrors(d: *Driver) void {
+    Diagnostics.render(d.comp, d.detectConfig(std.io.getStdErr()));
+}
+
+pub fn detectConfig(d: *Driver, file: std.fs.File) std.io.tty.Config {
+    if (d.color == true) return .escape_codes;
+    if (d.color == false) return .no_color;
+
+    if (file.supportsAnsiEscapeCodes()) return .escape_codes;
+    if (@import("builtin").os.tag == .windows and file.isTty()) {
+        var info: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
+        if (std.os.windows.kernel32.GetConsoleScreenBufferInfo(file.handle, &info) != std.os.windows.TRUE) {
+            return .no_color;
+        }
+        return .{ .windows_api = .{
+            .handle = file.handle,
+            .reset_attributes = info.wAttributes,
+        } };
+    }
+
+    return .no_color;
+}
+
+pub fn errorDescription(e: anyerror) []const u8 {
+    return switch (e) {
+        error.OutOfMemory => "ran out of memory",
+        error.FileNotFound => "file not found",
+        error.IsDir => "is a directory",
+        error.NotDir => "is not a directory",
+        error.NotOpenForReading => "file is not open for reading",
+        error.NotOpenForWriting => "file is not open for writing",
+        error.InvalidUtf8 => "input is not valid UTF-8",
+        error.FileBusy => "file is busy",
+        error.NameTooLong => "file name is too long",
+        error.AccessDenied => "access denied",
+        error.FileTooBig => "file is too big",
+        error.ProcessFdQuotaExceeded, error.SystemFdQuotaExceeded => "ran out of file descriptors",
+        error.SystemResources => "ran out of system resources",
+        error.FatalError => "a fatal error occurred",
+        error.Unexpected => "an unexpected error occurred",
+        else => @errorName(e),
+    };
 }
 
 /// The entry point of the Aro compiler.
@@ -510,7 +549,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     if (fast_exit and d.inputs.items.len == 1) {
         d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit) catch |e| switch (e) {
             error.FatalError => {
-                d.comp.renderErrors();
+                d.renderErrors();
                 d.exitWithCleanup(1);
             },
             else => |er| return er,
@@ -521,7 +560,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     for (d.inputs.items) |source| {
         d.processSource(tc, source, builtin, user_macros, fast_exit) catch |e| switch (e) {
             error.FatalError => {
-                d.comp.renderErrors();
+                d.renderErrors();
             },
             else => |er| return er,
         };
@@ -563,7 +602,7 @@ fn processSource(
     try pp.preprocessSources(&.{ source, builtin, user_macros });
 
     if (d.only_preprocess) {
-        d.comp.renderErrors();
+        d.renderErrors();
 
         if (d.comp.diagnostics.errors != 0) {
             if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
@@ -572,17 +611,17 @@ fn processSource(
 
         const file = if (d.output_name) |some|
             std.fs.cwd().createFile(some, .{}) catch |er|
-                return d.fatal("unable to create output file '{s}': {s}", .{ some, util.errorDescription(er) })
+                return d.fatal("unable to create output file '{s}': {s}", .{ some, errorDescription(er) })
         else
             std.io.getStdOut();
         defer if (d.output_name != null) file.close();
 
         var buf_w = std.io.bufferedWriter(file.writer());
         pp.prettyPrintTokens(buf_w.writer()) catch |er|
-            return d.fatal("unable to write result: {s}", .{util.errorDescription(er)});
+            return d.fatal("unable to write result: {s}", .{errorDescription(er)});
 
         buf_w.flush() catch |er|
-            return d.fatal("unable to write result: {s}", .{util.errorDescription(er)});
+            return d.fatal("unable to write result: {s}", .{errorDescription(er)});
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
     }
@@ -593,13 +632,12 @@ fn processSource(
     if (d.verbose_ast) {
         const stdout = std.io.getStdOut();
         var buf_writer = std.io.bufferedWriter(stdout.writer());
-        const color = d.comp.diagnostics.color and util.fileSupportsColor(stdout);
-        tree.dump(color, buf_writer.writer()) catch {};
+        tree.dump(d.detectConfig(stdout), buf_writer.writer()) catch {};
         buf_writer.flush() catch {};
     }
 
     const prev_errors = d.comp.diagnostics.errors;
-    d.comp.renderErrors();
+    d.renderErrors();
 
     if (d.comp.diagnostics.errors != prev_errors) {
         if (fast_exit) d.exitWithCleanup(1);
@@ -624,8 +662,7 @@ fn processSource(
     if (d.verbose_ir) {
         const stdout = std.io.getStdOut();
         var buf_writer = std.io.bufferedWriter(stdout.writer());
-        const color = d.comp.diagnostics.color and util.fileSupportsColor(stdout);
-        ir.dump(d.comp.gpa, color, buf_writer.writer()) catch {};
+        ir.dump(d.comp.gpa, d.detectConfig(stdout), buf_writer.writer()) catch {};
         buf_writer.flush() catch {};
     }
 
@@ -676,11 +713,11 @@ fn processSource(
     };
 
     const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |er|
-        return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
+        return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
     defer out_file.close();
 
     obj.finish(out_file) catch |er|
-        return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, util.errorDescription(er) });
+        return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, errorDescription(er) });
 
     if (d.only_compile) {
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
@@ -719,7 +756,7 @@ pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) !void 
 
     if (d.verbose_linker_args) {
         dumpLinkerArgs(argv.items) catch |er| {
-            return d.fatal("unable to dump linker args: {s}", .{util.errorDescription(er)});
+            return d.fatal("unable to dump linker args: {s}", .{errorDescription(er)});
         };
     }
     var child = std.ChildProcess.init(argv.items, d.comp.gpa);
@@ -729,7 +766,7 @@ pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) !void 
     child.stderr_behavior = .Inherit;
 
     const term = child.spawnAndWait() catch |er| {
-        return d.fatal("unable to spawn linker: {s}", .{util.errorDescription(er)});
+        return d.fatal("unable to spawn linker: {s}", .{errorDescription(er)});
     };
     switch (term) {
         .Exited => |code| if (code != 0) {

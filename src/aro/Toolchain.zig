@@ -1,5 +1,4 @@
 const std = @import("std");
-const util = @import("backend").util;
 const Driver = @import("Driver.zig");
 const Compilation = @import("Compilation.zig");
 const mem = std.mem;

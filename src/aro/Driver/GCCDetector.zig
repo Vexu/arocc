@@ -1,5 +1,4 @@
 const std = @import("std");
-const util = @import("backend").util;
 const Toolchain = @import("../Toolchain.zig");
 const target_util = @import("../target.zig");
 const system_defaults = @import("system_defaults");

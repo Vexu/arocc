@@ -734,9 +734,17 @@ fn errStr(pp: *Preprocessor, tok: Token, tag: Diagnostics.Tag, str: []const u8) 
 }
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
-    const source = pp.comp.getSource(raw.source);
-    const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
-    return pp.comp.diagnostics.fatal(source.path, line_col.line, raw.line, line_col.col, fmt, args);
+    try pp.comp.diagnostics.list.append(pp.gpa, .{
+        .tag = .cli_error,
+        .kind = .@"fatal error",
+        .extra = .{ .str = try std.fmt.allocPrint(pp.comp.diagnostics.arena.allocator(), fmt, args) },
+        .loc = .{
+            .id = raw.source,
+            .byte_offset = raw.start,
+            .line = raw.line,
+        },
+    });
+    return error.FatalError;
 }
 
 fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) void {

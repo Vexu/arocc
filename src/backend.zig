@@ -1,7 +1,6 @@
 pub const Interner = @import("backend/Interner.zig");
 pub const Ir = @import("backend/Ir.zig");
 pub const Object = @import("backend/Object.zig");
-pub const util = @import("backend/util.zig");
 
 pub const CallingConvention = enum {
     C,

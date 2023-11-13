@@ -17,7 +17,6 @@ const backend = @import("backend");
 pub const Interner = backend.Interner;
 pub const Ir = backend.Ir;
 pub const Object = backend.Object;
-pub const util = backend.util;
 pub const CallingConvention = backend.CallingConvention;
 
 pub const version_str = backend.version_str;
