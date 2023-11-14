@@ -4083,7 +4083,13 @@ fn asmStr(p: *Parser) Error!Result {
             try p.errStr(.invalid_asm_str, p.tok_i, "wide");
             return error.ParsingFailed;
         },
-        else => break,
+        else => {
+            if (i == p.tok_i) {
+                try p.errStr(.expected_str_literal_in, p.tok_i, "asm");
+                return error.ParsingFailed;
+            }
+            break;
+        },
     };
     return try p.stringLiteral();
 }
