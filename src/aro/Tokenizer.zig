@@ -496,9 +496,9 @@ pub const Token = struct {
             return switch (id) {
                 .include_start,
                 .include_resume,
-                .unterminated_comment, // Fatal error; parsing should not be attempted
                 => unreachable,
 
+                .unterminated_comment,
                 .invalid,
                 .identifier,
                 .extended_identifier,
