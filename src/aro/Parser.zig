@@ -3504,6 +3504,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, res: *Result, fi
     const actual_ty = res.ty;
     if (ty.isArray() or ty.isComplex()) {
         if (il.*.node != .none) return false;
+        if (try p.coerceArrayInitExtra(res, first_tok, ty.*, false)) return true;
         const start_index = il.*.list.items.len;
         var index = if (start_index != 0) il.*.list.items[start_index - 1].index else start_index;
 
@@ -3539,7 +3540,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, res: *Result, fi
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, index);
             if (il.*.node == .none and actual_ty.eql(field.ty, p.comp, false)) return true;
-            if (il.*.node == .none and try p.coerceArrayInit(res, first_tok, ty.*)) return true;
+            if (il.*.node == .none and try p.coerceArrayInitExtra(res, first_tok, ty.*, false)) return true;
             if (try p.findScalarInitializer(il, ty, res, first_tok)) return true;
         }
         return false;
@@ -3553,7 +3554,7 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, res: *Result, fi
         ty.* = union_ty.data.record.fields[0].ty;
         il.* = try il.*.find(p.gpa, 0);
         // if (il.*.node == .none and actual_ty.eql(ty, p.comp, false)) return true;
-        if (try p.coerceArrayInit(res, first_tok, ty.*)) return true;
+        if (try p.coerceArrayInitExtra(res, first_tok, ty.*, false)) return true;
         if (try p.findScalarInitializer(il, ty, res, first_tok)) return true;
         return false;
     }
@@ -3614,10 +3615,15 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
 }
 
 fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bool {
+    return p.coerceArrayInitExtra(item, tok, target, true);
+}
+
+fn coerceArrayInitExtra(p: *Parser, item: *Result, tok: TokenIndex, target: Type, report_err: bool) !bool {
     if (!target.isArray()) return false;
 
     const is_str_lit = p.nodeIs(item.node, .string_literal_expr);
     if (!is_str_lit and !p.nodeIsCompoundLiteral(item.node) or !item.ty.isArray()) {
+        if (!report_err) return false;
         try p.errTok(.array_init_str, tok);
         return true; // do not do further coercion
     }
@@ -3629,6 +3635,7 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
         (is_str_lit and item_spec == .char and (target_spec == .uchar or target_spec == .schar)) or
         (is_str_lit and item_spec == .uchar and (target_spec == .uchar or target_spec == .schar or target_spec == .char));
     if (!compatible) {
+        if (!report_err) return false;
         const e_msg = " with array of type ";
         try p.errStr(.incompatible_array_init, tok, try p.typePairStrExtra(target, e_msg, item.ty));
         return true; // do not do further coercion
@@ -3640,9 +3647,10 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
         const array_len = arr_ty.arrayLen().?;
         if (is_str_lit) {
             // the null byte of a string can be dropped
-            if (len - 1 > array_len)
+            if (len - 1 > array_len and report_err) {
                 try p.errTok(.str_init_too_long, tok);
-        } else if (len > array_len) {
+            }
+        } else if (len > array_len and report_err) {
             try p.errStr(
                 .arr_init_too_long,
                 tok,
