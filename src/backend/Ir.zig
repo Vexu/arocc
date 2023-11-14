@@ -374,10 +374,10 @@ pub fn deinit(ir: *Ir, gpa: std.mem.Allocator) void {
 }
 
 const TYPE = std.io.tty.Color.bright_magenta;
-const INST = std.io.tty.Color.cyan;
-const REF = std.io.tty.Color.blue;
-const LITERAL = std.io.tty.Color.green;
-const ATTRIBUTE = std.io.tty.Color.yellow;
+const INST = std.io.tty.Color.bright_cyan;
+const REF = std.io.tty.Color.bright_blue;
+const LITERAL = std.io.tty.Color.bright_green;
+const ATTRIBUTE = std.io.tty.Color.bright_yellow;
 
 const RefMap = std.AutoArrayHashMap(Ref, void);
 

@@ -550,14 +550,14 @@ const MsgWriter = struct {
     }
 
     fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
-        m.setColor(.white);
+        m.setColor(.bold);
         m.print("{s}:{d}:{d}: ", .{ path, line, col });
     }
 
     fn start(m: *MsgWriter, kind: Kind) void {
         switch (kind) {
-            .@"fatal error", .@"error" => m.setColor(.red),
-            .note => m.setColor(.cyan),
+            .@"fatal error", .@"error" => m.setColor(.bright_red),
+            .note => m.setColor(.bright_cyan),
             .warning => m.setColor(.bright_magenta),
             .off, .default => unreachable,
         }
@@ -580,7 +580,8 @@ const MsgWriter = struct {
         const trailer = if (end_with_splice) "\\ " else "";
         m.setColor(.reset);
         m.print("\n{s}{s}\n{s: >[3]}", .{ line, trailer, "", col });
-        m.setColor(.green);
+        m.setColor(.bold);
+        m.setColor(.bright_green);
         m.write("^\n");
         m.setColor(.reset);
     }

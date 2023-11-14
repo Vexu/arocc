@@ -738,11 +738,11 @@ fn dumpNode(
     const delta = 2;
     const half = delta / 2;
     const TYPE = std.io.tty.Color.bright_magenta;
-    const TAG = std.io.tty.Color.cyan;
-    const IMPLICIT = std.io.tty.Color.blue;
-    const NAME = std.io.tty.Color.red;
-    const LITERAL = std.io.tty.Color.green;
-    const ATTRIBUTE = std.io.tty.Color.yellow;
+    const TAG = std.io.tty.Color.bright_cyan;
+    const IMPLICIT = std.io.tty.Color.bright_blue;
+    const NAME = std.io.tty.Color.bright_red;
+    const LITERAL = std.io.tty.Color.bright_green;
+    const ATTRIBUTE = std.io.tty.Color.bright_yellow;
     std.debug.assert(node != .none);
 
     const tag = tree.nodes.items(.tag)[@intFromEnum(node)];
