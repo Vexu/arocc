@@ -403,13 +403,22 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
 
     const target = tc.getTarget();
-    const biarch_variant_target = if (target.ptrBitWidth() == 32) target_util.get64BitArchVariant(target) else target_util.get32BitArchVariant(target);
+    const biarch_variant_target = if (target.ptrBitWidth() == 32)
+        target_util.get64BitArchVariant(target)
+    else
+        target_util.get32BitArchVariant(target);
 
     var candidate_lib_dirs: PathPrefixes = .{};
-    var candidate_biarch_lib_dirs: PathPrefixes = .{};
     var candidate_triple_aliases: PathPrefixes = .{};
+    var candidate_biarch_lib_dirs: PathPrefixes = .{};
     var candidate_biarch_triple_aliases: PathPrefixes = .{};
-    try collectLibDirsAndTriples(tc, &candidate_lib_dirs, &candidate_biarch_lib_dirs, &candidate_triple_aliases, &candidate_biarch_triple_aliases);
+    try collectLibDirsAndTriples(
+        tc,
+        &candidate_lib_dirs,
+        &candidate_triple_aliases,
+        &candidate_biarch_lib_dirs,
+        &candidate_biarch_triple_aliases,
+    );
 
     var target_buf: [64]u8 = undefined;
     const triple_str = target_util.toLLVMTriple(target, &target_buf);
@@ -476,7 +485,13 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     }
 }
 
-fn findBiarchMultilibs(tc: *const Toolchain, result: *Multilib.Detected, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
+fn findBiarchMultilibs(
+    tc: *const Toolchain,
+    result: *Multilib.Detected,
+    target: std.Target,
+    path: [2][]const u8,
+    needs_biarch_suffix: bool,
+) !bool {
     const suff64 = if (target.os.tag == .solaris) switch (target.cpu.arch) {
         .x86, .x86_64 => "/amd64",
         .sparc => "/sparcv9",
@@ -531,7 +546,13 @@ fn findBiarchMultilibs(tc: *const Toolchain, result: *Multilib.Detected, target:
     return result.select(flags);
 }
 
-fn scanGCCForMultilibs(self: *GCCDetector, tc: *const Toolchain, target: std.Target, path: [2][]const u8, needs_biarch_suffix: bool) !bool {
+fn scanGCCForMultilibs(
+    self: *GCCDetector,
+    tc: *const Toolchain,
+    target: std.Target,
+    path: [2][]const u8,
+    needs_biarch_suffix: bool,
+) !bool {
     var detected: Multilib.Detected = .{};
     if (target.cpu.arch == .csky) {
         // TODO
