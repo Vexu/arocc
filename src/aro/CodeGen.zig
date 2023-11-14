@@ -48,6 +48,7 @@ ret_nodes: std.ArrayListUnmanaged(Ir.Inst.Phi.Input) = .{},
 phi_nodes: std.ArrayListUnmanaged(Ir.Inst.Phi.Input) = .{},
 record_elem_buf: std.ArrayListUnmanaged(Interner.Ref) = .{},
 record_cache: std.AutoHashMapUnmanaged(*Type.Record, Interner.Ref) = .{},
+attr_buf: std.ArrayListUnmanaged(Ir.Attribute) = .{},
 cond_dummy_ty: ?Interner.Ref = null,
 bool_invert: bool = false,
 bool_end_label: Inst.Ref = .none,
@@ -79,12 +80,15 @@ pub fn genIr(tree: Tree) Compilation.Error!Ir {
         .node_data = tree.nodes.items(.data),
         .node_ty = tree.nodes.items(.ty),
     };
-    defer c.symbols.deinit(gpa);
-    defer c.ret_nodes.deinit(gpa);
-    defer c.phi_nodes.deinit(gpa);
-    defer c.record_elem_buf.deinit(gpa);
-    defer c.record_cache.deinit(gpa);
-    defer c.builder.deinit();
+    defer {
+        c.symbols.deinit(gpa);
+        c.ret_nodes.deinit(gpa);
+        c.phi_nodes.deinit(gpa);
+        c.record_elem_buf.deinit(gpa);
+        c.record_cache.deinit(gpa);
+        c.attr_buf.deinit(gpa);
+        c.builder.deinit();
+    }
 
     const node_tags = tree.nodes.items(.tag);
     for (tree.root_decls) |decl| {
@@ -194,14 +198,26 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
 
     try c.builder.startFn();
 
+    const attr_buf_top = c.attr_buf.items.len;
+    defer c.attr_buf.items.len = attr_buf_top;
+
+    // TODO add function attributes here
+
     for (func_ty.data.func.params) |param| {
         // TODO handle calling convention here
-        const arg = try c.builder.addArg(try c.genType(param.ty));
+        const param_ref = ref: {
+            const param_attrs = c.attr_buf.items.len;
+            defer c.attr_buf.items.len = param_attrs;
+
+            // TODO add parameter attributes here
+
+            break :ref try c.builder.addParam(try c.genType(param.ty), c.attr_buf.items[param_attrs..]);
+        };
 
         const size: u32 = @intCast(param.ty.sizeof(c.comp).?); // TODO add error in parser
         const @"align" = param.ty.alignof(c.comp);
         const alloc = try c.builder.addAlloc(size, @"align");
-        try c.builder.addStore(alloc, arg, .{
+        try c.builder.addStore(alloc, param_ref, .{
             .@"align" = @"align",
             .@"volatile" = param.ty.qual.@"volatile",
             .atomic = param.ty.qual.atomic,
@@ -225,7 +241,7 @@ fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
         _ = try c.builder.addInst(.ret, .{ .ret = phi });
     }
 
-    try c.builder.finishFn(name);
+    try c.builder.finishFn(name, c.attr_buf.items[attr_buf_top..]);
 }
 
 fn addUn(c: *CodeGen, tag: Ir.Inst.Tag, operand: Inst.Ref, ty: Type) !Inst.Ref {
@@ -1253,6 +1269,7 @@ fn genCall(c: *CodeGen, fn_node: NodeIndex, arg_nodes: []const NodeIndex, ty: Ty
     const args = try c.builder.arena.allocator().alloc(Inst.Ref, arg_nodes.len);
     for (arg_nodes, args) |node, *arg| {
         // TODO handle calling convention here
+        // TODO add argument attributes here
         arg.* = try c.genExpr(node);
     }
     // TODO handle variadic call

@@ -4,16 +4,14 @@ const assert = std.debug.assert;
 const Interner = @import("Interner.zig");
 const Object = @import("Object.zig");
 
-const Ir = @This();
-
-interner: *Interner,
-decls: std.StringArrayHashMapUnmanaged(Decl),
-
 pub const Decl = struct {
     decl_ty: Interner.Ref,
     instructions: std.MultiArrayList(Inst),
     body: std.ArrayListUnmanaged(Inst.Ref),
     arena: std.heap.ArenaAllocator.State,
+    /// The first `attr_count` instructions in `body` will be attributes
+    /// specific to this declaration.
+    attr_count: u32,
 
     pub fn deinit(decl: *Decl, gpa: Allocator) void {
         decl.instructions.deinit(gpa);
@@ -32,8 +30,9 @@ pub const Decl = struct {
     pub fn ty(decl: *const Decl, ref: Inst.Ref) Interner.Ref {
         var cur = ref;
         while (true) switch (decl.tag(cur)) {
+            .attribute => unreachable,
             .constant => return decl.data(cur).constant.ty,
-            .arg => return decl.data(cur).arg.ty,
+            .param => return decl.data(cur).param.ty,
             .symbol => return .ptr,
             .label => unreachable,
             .jmp => return .noreturn,
@@ -61,6 +60,19 @@ pub const Decl = struct {
     }
 };
 
+const Ir = @This();
+
+interner: *Interner,
+decls: std.StringArrayHashMapUnmanaged(Decl),
+
+pub fn deinit(ir: *Ir, gpa: std.mem.Allocator) void {
+    for (ir.decls.values()) |*decl| {
+        decl.deinit(gpa);
+    }
+    ir.decls.deinit(gpa);
+    ir.* = undefined;
+}
+
 pub const Builder = struct {
     gpa: Allocator,
     arena: std.heap.ArenaAllocator,
@@ -69,8 +81,8 @@ pub const Builder = struct {
     decls: std.StringArrayHashMapUnmanaged(Decl) = .{},
     instructions: std.MultiArrayList(Ir.Inst) = .{},
     body: std.ArrayListUnmanaged(Inst.Ref) = .{},
-    alloc_count: u32 = 0,
-    arg_count: u32 = 0,
+    param_index: u32 = 0,
+    alloc_index: u32 = 1,
     current_label: Inst.Ref = undefined,
 
     pub fn deinit(b: *Builder) void {
@@ -96,23 +108,35 @@ pub const Builder = struct {
         b.current_label = entry;
     }
 
-    pub fn finishFn(b: *Builder, name: []const u8) !void {
+    pub fn finishFn(b: *Builder, name: []const u8, attributes: []const Attribute) !void {
+        try b.instructions.ensureUnusedCapacity(b.gpa, attributes.len);
+        const attr_dest = try b.body.addManyAt(b.gpa, 0, attributes.len);
+        for (attr_dest, attributes) |*dest, attr| {
+            const ref: Inst.Ref = @enumFromInt(b.instructions.len);
+            b.instructions.appendAssumeCapacity(.{ .tag = .attribute, .data = .{
+                .attribute = attr,
+            } });
+            dest.* = ref;
+        }
+        try b.decls.ensureUnusedCapacity(b.gpa, 1);
+
         var duped_instructions = try b.instructions.clone(b.gpa);
         errdefer duped_instructions.deinit(b.gpa);
         var duped_body = try b.body.clone(b.gpa);
         errdefer duped_body.deinit(b.gpa);
 
-        try b.decls.put(b.gpa, name, .{
+        b.decls.putAssumeCapacity(name, .{
             .decl_ty = .func,
             .instructions = duped_instructions,
             .body = duped_body,
             .arena = b.arena.state,
+            .attr_count = @intCast(attributes.len),
         });
         b.instructions.shrinkRetainingCapacity(0);
         b.body.shrinkRetainingCapacity(0);
         b.arena = std.heap.ArenaAllocator.init(b.gpa);
-        b.alloc_count = 0;
-        b.arg_count = 0;
+        b.alloc_index = 1;
+        b.param_index = 0;
     }
 
     pub fn startBlock(b: *Builder, label: Inst.Ref) !void {
@@ -120,13 +144,23 @@ pub const Builder = struct {
         b.current_label = label;
     }
 
-    pub fn addArg(b: *Builder, ty: Interner.Ref) Allocator.Error!Inst.Ref {
+    pub fn addParam(b: *Builder, ty: Interner.Ref, attributes: []const Attribute) Allocator.Error!Inst.Ref {
+        try b.instructions.ensureUnusedCapacity(b.gpa, attributes.len + 1);
+        const attr_dest = try b.body.addManyAt(b.gpa, b.param_index, attributes.len + 1);
+        for (attr_dest[0..attributes.len], attributes) |*dest, attr| {
+            const ref: Inst.Ref = @enumFromInt(b.instructions.len);
+            b.instructions.appendAssumeCapacity(.{ .tag = .attribute, .data = .{
+                .attribute = attr,
+            } });
+            dest.* = ref;
+        }
+
         const ref: Inst.Ref = @enumFromInt(b.instructions.len);
-        try b.instructions.append(b.gpa, .{ .tag = .arg, .data = .{
-            .arg = .{ .ty = ty },
+        b.instructions.appendAssumeCapacity(.{ .tag = .param, .data = .{
+            .param = .{ .ty = ty },
         } });
-        try b.body.insert(b.gpa, b.arg_count, ref);
-        b.arg_count += 1;
+        attr_dest[attributes.len] = ref;
+        b.param_index += @intCast(attr_dest.len);
         return ref;
     }
 
@@ -135,8 +169,8 @@ pub const Builder = struct {
         try b.instructions.append(b.gpa, .{ .tag = .alloc, .data = .{
             .alloc = .{ .size = size, .@"align" = @"align" },
         } });
-        try b.body.insert(b.gpa, b.alloc_count + b.arg_count + 1, ref);
-        b.alloc_count += 1;
+        try b.body.insert(b.gpa, b.param_index + b.alloc_index, ref);
+        b.alloc_index += 1;
         return ref;
     }
 
@@ -311,34 +345,39 @@ pub const Inst = struct {
     pub const Ref = enum(u32) { none = std.math.maxInt(u32), _ };
 
     pub const Tag = enum {
-        /// data.constant
-        /// not included in blocks
+        /// Uses `data.constant`.
+        /// Not included in blocks.
         constant,
-        /// data.arg
-        /// not included in blocks
-        arg,
-        /// data.arg
-        /// not included in blocks
+        /// Uses `data.param`.
+        /// Not included in blocks.
+        param,
+        /// Uses `data.symbol`.
+        /// Not included in blocks.
         symbol,
-        /// data.label
+        /// Uses `data.attribute`.
+        /// Only valid at the start of functions,
+        /// before `param` instructions, and
+        /// in call arguments.
+        attribute,
+        /// Uses `data.label`.
         label,
-        /// data.jmp
+        /// Uses `data.jmp`.
         jmp,
-        /// data.switch
+        /// Uses `data.switch`.
         @"switch",
-        /// data.branch
+        /// Uses `data.branch`.
         branch,
-        /// data.branch
+        /// Uses `data.branch`.
         select,
-        /// data.call
+        /// Uses `data.call`.
         call,
-        /// data.alloc
+        /// Uses `data.alloc`.
         alloc,
-        /// data.phi
+        /// Uses `data.phi`.
         phi,
-        /// data.ret
+        /// Uses `data.ret`.
         ret,
-        /// data.load
+        /// Uses `data.load`.
         load,
 
         // data.bin
@@ -369,19 +408,9 @@ pub const Inst = struct {
     };
 
     pub const Data = union {
-        none: void,
         constant: struct {
             ty: Interner.Ref,
             val: Interner.Ref,
-        },
-        bin: struct {
-            ty: Interner.Ref,
-            lhs: Ref,
-            rhs: Ref,
-        },
-        un: struct {
-            ty: Interner.Ref,
-            operand: Ref,
         },
         symbol: struct {
             len: u32,
@@ -391,9 +420,10 @@ pub const Inst = struct {
                 return s.ptr[0..s.len];
             }
         },
-        arg: struct {
+        param: struct {
             ty: Interner.Ref,
         },
+        attribute: Attribute,
         alloc: struct {
             size: u32,
             @"align": u32,
@@ -422,6 +452,15 @@ pub const Inst = struct {
         @"switch": *Switch,
         branch: *Branch,
         phi: Phi,
+        bin: struct {
+            ty: Interner.Ref,
+            lhs: Ref,
+            rhs: Ref,
+        },
+        un: struct {
+            ty: Interner.Ref,
+            operand: Ref,
+        },
     };
 
     pub const MemoryAttributes = packed struct(u32) {
@@ -480,13 +519,52 @@ pub const Inst = struct {
     };
 };
 
-pub fn deinit(ir: *Ir, gpa: std.mem.Allocator) void {
-    for (ir.decls.values()) |*decl| {
-        decl.deinit(gpa);
-    }
-    ir.decls.deinit(gpa);
-    ir.* = undefined;
-}
+pub const Attribute = union(enum) {
+    /// Only valid on functions.
+    /// Sets stack alignment, must be a power of two.
+    align_stack: Interner.Ref,
+    /// Only valid on functions.
+    /// Forces optimizer to inline the function at call sites.
+    always_inline,
+    /// Only valid on functions.
+    /// Disallows optimizer from inlining the function.
+    no_inline,
+    /// Only valid on functions.
+    /// Hints that inlining the function is desireable.
+    inline_hint,
+    /// Only valid on functions.
+    /// Hints that the function is rarely called.
+    cold,
+    /// Only valid on functions.
+    /// Hints that the function is frequently called.
+    hot,
+    /// Only valid on functions.
+    /// Disables emitting prologue / epilogue for the function.
+    naked,
+
+    /// Valid on parameters and arguments.
+    /// Specifies that an integer argument should be zero extended
+    /// to an ABI sized integer.
+    zero_extend,
+    /// Valid on parameters and arguments.
+    /// Specifies that an integer argument should be sign extended
+    /// to an ABI sized integer.
+    sign_extend,
+    /// Valid on parameters and arguments.
+    /// Gives the pointee type of an pointer argument that should be treated.
+    /// Implies a hidden copy in the callee.
+    by_value: Interner.Ref,
+    /// Valid on parameters and arguments.
+    /// Similar to `by_value` but does not imply a hidden copy.
+    by_ref: Interner.Ref,
+    /// Valid on parameters and arguments.
+    /// Specifies that the pointer argument is used to return a value from
+    /// the function. Callee must guarantee it to be valid.
+    ret_ptr: Interner.Ref,
+    /// Valid on parameters and arguments.
+    /// Specifies the alignment of a pointer argument.
+    @"align": Interner.Ref,
+};
 
 const TYPE = std.io.tty.Color.bright_magenta;
 const INST = std.io.tty.Color.cyan;
@@ -512,6 +590,12 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
     var label_map = RefMap.init(gpa);
     defer label_map.deinit();
 
+    for (decl.body.items[0..decl.attr_count]) |ref| {
+        const attr = data[@intFromEnum(ref)].attribute;
+        try ir.writeAttribute(attr, config, w);
+    }
+    try w.writeByte('\n');
+
     const ret_inst = decl.body.items[decl.body.items.len - 1];
     const ret_ty = decl.ty(ret_inst);
     try ir.writeType(ret_ty, config, w);
@@ -520,11 +604,23 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
     try config.setColor(w, .reset);
     try w.writeAll("(");
 
-    var arg_count: u32 = 0;
+    var arg_count: u32 = decl.attr_count;
+    var need_param_comma = false;
     while (true) : (arg_count += 1) {
         const ref = decl.body.items[arg_count];
-        if (tags[@intFromEnum(ref)] != .arg) break;
-        if (arg_count != 0) try w.writeAll(", ");
+        switch (tags[@intFromEnum(ref)]) {
+            .attribute => {
+                if (need_param_comma) try w.writeAll(", ");
+                need_param_comma = false;
+                const attr = data[@intFromEnum(ref)].attribute;
+                try ir.writeAttribute(attr, config, w);
+                continue;
+            },
+            .param => {},
+            else => break,
+        }
+        if (need_param_comma) try w.writeAll(", ");
+        need_param_comma = true;
         try ref_map.put(ref, {});
         try ir.writeRef(decl, &ref_map, ref, config, w);
         try config.setColor(w, .reset);
@@ -548,7 +644,7 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
         }
         try w.writeAll("    ");
         switch (tag) {
-            .arg, .constant, .symbol => unreachable, // not included in function bodies
+            .param, .constant, .symbol, .attribute => unreachable, // not included in function bodies
             .label => unreachable, // handled above
             .jmp => {
                 const operand = data[i].un.operand;
@@ -613,8 +709,16 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
                 try ir.writeRefExtra(decl, &ref_map, call.func, false, config, w);
                 try config.setColor(w, .reset);
                 try w.writeAll("(");
-                for (call.args(), 0..) |arg, arg_i| {
-                    if (arg_i != 0) try w.writeAll(", ");
+                var need_arg_comma = false;
+                for (call.args()) |arg| {
+                    if (need_arg_comma) try w.writeAll(", ");
+                    if (tags[@intFromEnum(arg)] == .attribute) {
+                        need_arg_comma = false;
+                        const attr = data[@intFromEnum(arg)].attribute;
+                        try ir.writeAttribute(attr, config, w);
+                        continue;
+                    }
+                    need_arg_comma = true;
                     try ir.writeRef(decl, &ref_map, arg, config, w);
                     try config.setColor(w, .reset);
                 }
@@ -772,6 +876,7 @@ fn writeValue(ir: Ir, val: Interner.Ref, config: std.io.tty.Config, w: anytype) 
         else => unreachable, // not a value
     }
 }
+
 fn writeRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Inst.Ref, config: std.io.tty.Config, w: anytype) !void {
     try ir.writeRefExtra(decl, ref_map, ref, true, config, w);
 }
@@ -837,4 +942,25 @@ fn writeMemAttr(attr: Inst.MemoryAttributes, config: std.io.tty.Config, w: anyty
     try w.writeAll("align ");
     try config.setColor(w, LITERAL);
     try w.print("{d} ", .{attr.@"align"});
+}
+
+fn writeAttribute(ir: Ir, attr: Attribute, config: std.io.tty.Config, w: anytype) !void {
+    try config.setColor(w, ATTRIBUTE);
+    try w.writeAll(@tagName(attr));
+    switch (attr) {
+        .align_stack, .@"align" => |val| {
+            try w.writeByte('(');
+            try ir.writeValue(val, config, w);
+            try config.setColor(w, ATTRIBUTE);
+            try w.writeByte(')');
+        },
+        .by_value, .by_ref, .ret_ptr => |ty| {
+            try w.writeByte('(');
+            try ir.writeType(ty, config, w);
+            try config.setColor(w, ATTRIBUTE);
+            try w.writeByte(')');
+        },
+        else => {},
+    }
+    try w.writeByte(' ');
 }

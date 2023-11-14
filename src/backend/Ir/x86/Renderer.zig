@@ -87,11 +87,15 @@ fn renderFn(r: *Renderer, name: []const u8, decl: *const Ir.Decl) !void {
     // TODO setup calling convention
 
     const tags = decl.instructions.items(.tag);
-    var arg_count: u32 = 0;
+    var arg_count: u32 = decl.attr_count;
     while (true) : (arg_count += 1) {
         const ref = decl.body.items[arg_count];
-        if (tags[@intFromEnum(ref)] != .arg) break;
         // TODO handle args
+        switch (tags[@intFromEnum(ref)]) {
+            .attribute => {},
+            .param => {},
+            else => break,
+        }
     }
 
     for (decl.body.items[arg_count..]) |inst| {
@@ -134,16 +138,10 @@ fn renderFn(r: *Renderer, name: []const u8, decl: *const Ir.Decl) !void {
 
 fn renderInst(r: *Renderer, decl: *const Ir.Decl, inst: Ir.Inst.Ref) !void {
     switch (decl.tag(inst)) {
-        .constant, .arg, .symbol => unreachable,
-        .label => {
-
-        },
-        .call => {
-
-        },
-        .ret => {
-
-        },
+        .constant, .param, .symbol, .attribute => unreachable,
+        .label => {},
+        .call => {},
+        .ret => {},
         else => |t| return r.base.fail("decl.name", "TODO renderInst({s})", .{@tagName(t)}),
     }
 }
