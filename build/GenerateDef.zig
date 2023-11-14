@@ -140,7 +140,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
     }
 
     {
-        var sorted_list = try arena.dupe([]const u8, values.keys());
+        const sorted_list = try arena.dupe([]const u8, values.keys());
         defer arena.free(sorted_list);
         std.mem.sort([]const u8, sorted_list, {}, struct {
             pub fn lessThan(_: void, a: []const u8, b: []const u8) bool {
@@ -460,7 +460,7 @@ const DafsaBuilder = struct {
         var arena = std.heap.ArenaAllocator.init(allocator);
         errdefer arena.deinit();
 
-        var root = try arena.allocator().create(Node);
+        const root = try arena.allocator().create(Node);
         root.* = .{};
         return DafsaBuilder{
             .root = root,
@@ -540,7 +540,7 @@ const DafsaBuilder = struct {
             std.debug.assert(node.children[c] == null);
 
             var arena = self.arena.promote(self.allocator);
-            var child = try arena.allocator().create(Node);
+            const child = try arena.allocator().create(Node);
             self.arena = arena.state;
 
             child.* = .{};

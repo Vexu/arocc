@@ -244,7 +244,7 @@ pub const Instruction = struct {
                     }),
                 },
                 .imm => |imm| if (enc_op.isSigned()) {
-                    var imms = imm.asSigned(enc_op.immBitSize());
+                    const imms = imm.asSigned(enc_op.immBitSize());
                     if (imms < 0) try writer.writeByte('-');
                     try writer.print("0x{x}", .{@abs(imms)});
                 } else try writer.print("0x{x}", .{imm.asUnsigned(enc_op.immBitSize())}),

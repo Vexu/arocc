@@ -48,7 +48,7 @@ const Stats = struct {
     };
 
     fn recordResult(self: *Stats, kind: ResultKind) void {
-        var ptr = switch (kind) {
+        const ptr = switch (kind) {
             .ok => &self.ok_count,
             .fail => &self.fail_count,
             .skip => &self.skip_count,
@@ -96,7 +96,7 @@ pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
 
-    var args = try std.process.argsAlloc(gpa);
+    const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
     if (args.len != 2) {
@@ -188,7 +188,7 @@ pub fn main() !void {
 
 fn runTestCases(allocator: std.mem.Allocator, test_dir: []const u8, wg: *std.Thread.WaitGroup, test_cases: []const TestCase, stride: usize, stats: *Stats) void {
     defer wg.finish();
-    var mem = allocator.alloc(u8, MAX_MEM_PER_TEST) catch |err| {
+    const mem = allocator.alloc(u8, MAX_MEM_PER_TEST) catch |err| {
         std.log.err("{s}", .{@errorName(err)});
         if (@errorReturnTrace()) |trace| {
             std.debug.dumpStackTrace(trace.*);

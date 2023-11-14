@@ -114,7 +114,7 @@ pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
 
-    var args = try std.process.argsAlloc(gpa);
+    const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
     if (args.len != 3) {

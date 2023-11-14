@@ -278,7 +278,7 @@ pub fn tokenize(pp: *Preprocessor, source: Source) Error!Token {
     try pp.tokens.ensureTotalCapacity(pp.gpa, pp.tokens.len + estimated_token_count);
 
     while (true) {
-        var tok = tokenizer.next();
+        const tok = tokenizer.next();
         if (tok.id == .eof) return tokFromRaw(tok);
         try pp.tokens.append(pp.gpa, tokFromRaw(tok));
     }
@@ -797,7 +797,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
 
     pp.top_expansion_buf.items.len = 0;
     const eof = while (true) {
-        var tok = tokenizer.next();
+        const tok = tokenizer.next();
         switch (tok.id) {
             .nl, .eof => break tok,
             .whitespace => if (pp.top_expansion_buf.items.len == 0) continue,
