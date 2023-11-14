@@ -414,7 +414,7 @@ pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         defer comp.gpa.free(limbs);
         var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-        var limbs_buffer = try comp.gpa.alloc(
+        const limbs_buffer = try comp.gpa.alloc(
             std.math.big.Limb,
             std.math.big.int.calcMulLimbsBufferLen(lhs_bigint.limbs.len, rhs_bigint.limbs.len, 1),
         );

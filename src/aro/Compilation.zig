@@ -1142,7 +1142,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
     if (i != contents.len) contents = try comp.gpa.realloc(contents, i);
     errdefer @compileError("errdefers in callers would possibly free the realloced slice using the original len");
 
-    var source = Source{
+    const source = Source{
         .id = source_id,
         .path = duped_path,
         .buf = contents,

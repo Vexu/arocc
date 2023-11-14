@@ -1651,7 +1651,7 @@ fn gnuAttributeList(p: *Parser) Error!void {
 
 fn c23AttributeList(p: *Parser) Error!void {
     while (p.tok_ids[p.tok_i] != .r_bracket) {
-        var namespace_tok = try p.expectIdentifier();
+        const namespace_tok = try p.expectIdentifier();
         var namespace: ?[]const u8 = null;
         if (p.eatToken(.colon_colon)) |_| {
             namespace = p.tokSlice(namespace_tok);
@@ -3209,7 +3209,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
 fn typeName(p: *Parser) Error!?Type {
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
-    var ty = (try p.specQual()) orelse return null;
+    const ty = (try p.specQual()) orelse return null;
     if (try p.declarator(ty, .abstract)) |some| {
         if (some.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         return try Attribute.applyTypeAttributes(p, some.ty, attr_buf_top, .align_ignored);
@@ -3636,7 +3636,7 @@ fn coerceArrayInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !bo
 
     if (target.get(.array)) |arr_ty| {
         assert(item.ty.specifier == .array);
-        var len = item.ty.arrayLen().?;
+        const len = item.ty.arrayLen().?;
         const array_len = arr_ty.arrayLen().?;
         if (is_str_lit) {
             // the null byte of a string can be dropped
@@ -5222,7 +5222,7 @@ pub const Result = struct {
 
     fn lvalConversion(res: *Result, p: *Parser) Error!void {
         if (res.ty.isFunc()) {
-            var elem_ty = try p.arena.create(Type);
+            const elem_ty = try p.arena.create(Type);
             elem_ty.* = res.ty;
             res.ty.specifier = .pointer;
             res.ty.data = .{ .sub_type = elem_ty };
@@ -6114,7 +6114,7 @@ fn condExpr(p: *Parser) Error!Result {
     }
 
     // Prepare for possible binary conditional expression.
-    var maybe_colon = p.eatToken(.colon);
+    const maybe_colon = p.eatToken(.colon);
 
     // Depending on the value of the condition, avoid evaluating unreachable branches.
     var then_expr = blk: {
@@ -6506,7 +6506,7 @@ fn typesCompatible(p: *Parser) Error!Result {
 
     const compatible = first_unqual.eql(second_unqual, p.comp, true);
 
-    var res = Result{
+    const res = Result{
         .val = Value.fromBool(compatible),
         .node = try p.addNode(.{ .tag = .builtin_types_compatible_p, .ty = Type.int, .data = .{ .bin = .{
             .lhs = lhs,
@@ -7772,9 +7772,9 @@ fn stringLiteral(p: *Parser) Error!Result {
                 switch (char_width) {
                     .@"1" => p.strings.appendSliceAssumeCapacity(view.bytes),
                     .@"2" => {
-                        var capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.strings.unusedCapacitySlice());
+                        const capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.strings.unusedCapacitySlice());
                         const dest_len = std.mem.alignBackward(usize, capacity_slice.len, 2);
-                        var dest = std.mem.bytesAsSlice(u16, capacity_slice[0..dest_len]);
+                        const dest = std.mem.bytesAsSlice(u16, capacity_slice[0..dest_len]);
                         const words_written = std.unicode.utf8ToUtf16Le(dest, view.bytes) catch unreachable;
                         p.strings.resize(p.strings.items.len + words_written * 2) catch unreachable;
                     },
@@ -7915,7 +7915,7 @@ fn charLiteral(p: *Parser) Error!Result {
     else
         p.comp.types.intmax;
 
-    var res = Result{
+    const res = Result{
         .ty = if (p.in_macro) macro_ty else ty,
         .val = try Value.int(val, p.comp),
         .node = try p.addNode(.{ .tag = .char_literal, .ty = ty, .data = undefined }),

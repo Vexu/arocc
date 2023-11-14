@@ -145,10 +145,10 @@ pub const Attributed = struct {
     base: Type,
 
     pub fn create(allocator: std.mem.Allocator, base: Type, existing_attributes: []const Attribute, attributes: []const Attribute) !*Attributed {
-        var attributed_type = try allocator.create(Attributed);
+        const attributed_type = try allocator.create(Attributed);
         errdefer allocator.destroy(attributed_type);
 
-        var all_attrs = try allocator.alloc(Attribute, existing_attributes.len + attributes.len);
+        const all_attrs = try allocator.alloc(Attribute, existing_attributes.len + attributes.len);
         std.mem.copy(Attribute, all_attrs, existing_attributes);
         std.mem.copy(Attribute, all_attrs[existing_attributes.len..], attributes);
 
@@ -1715,7 +1715,7 @@ pub const Builder = struct {
                 // TODO this really should be easier
                 switch (ty.specifier) {
                     .array, .static_array, .incomplete_array => {
-                        var old = ty.data.array;
+                        const old = ty.data.array;
                         ty.data.array = try p.arena.create(Array);
                         ty.data.array.* = .{
                             .len = old.len,
@@ -1723,7 +1723,7 @@ pub const Builder = struct {
                         };
                     },
                     .variable_len_array, .unspecified_variable_len_array => {
-                        var old = ty.data.expr;
+                        const old = ty.data.expr;
                         ty.data.expr = try p.arena.create(Expr);
                         ty.data.expr.* = .{
                             .node = old.node,
