@@ -5560,7 +5560,7 @@ pub const Result = struct {
         res.val = .{};
     }
 
-    fn castType(res: *Result, p: *Parser, to: Type, tok: TokenIndex) !void {
+    fn castType(res: *Result, p: *Parser, to: Type, operand_tok: TokenIndex, l_paren: TokenIndex) !void {
         var cast_kind: Tree.CastKind = undefined;
 
         if (to.is(.void)) {
@@ -5571,7 +5571,7 @@ pub const Result = struct {
             if (res.ty.is(.nullptr_t)) {
                 cast_kind = .no_op;
             } else {
-                try p.errStr(.invalid_object_cast, tok, try p.typePairStrExtra(res.ty, " to ", to));
+                try p.errStr(.invalid_object_cast, l_paren, try p.typePairStrExtra(res.ty, " to ", to));
                 return error.ParsingFailed;
             }
         } else if (res.ty.is(.nullptr_t)) {
@@ -5584,7 +5584,7 @@ pub const Result = struct {
             } else if (to.isPtr()) {
                 try res.nullCast(p, to);
             } else {
-                try p.errStr(.invalid_object_cast, tok, try p.typePairStrExtra(res.ty, " to ", to));
+                try p.errStr(.invalid_object_cast, l_paren, try p.typePairStrExtra(res.ty, " to ", to));
                 return error.ParsingFailed;
             }
             cast_kind = .no_op;
@@ -5595,10 +5595,10 @@ pub const Result = struct {
             const new_float = to.isFloat();
 
             if (new_float and res.ty.isPtr()) {
-                try p.errStr(.invalid_cast_to_float, tok, try p.typeStr(to));
+                try p.errStr(.invalid_cast_to_float, l_paren, try p.typeStr(to));
                 return error.ParsingFailed;
             } else if (old_float and to.isPtr()) {
-                try p.errStr(.invalid_cast_to_pointer, tok, try p.typeStr(res.ty));
+                try p.errStr(.invalid_cast_to_pointer, l_paren, try p.typeStr(res.ty));
                 return error.ParsingFailed;
             }
             const old_real = res.ty.isReal();
@@ -5681,6 +5681,9 @@ pub const Result = struct {
                         try res.implicitCast(p, .complex_int_to_real);
                     }
                     cast_kind = .int_to_pointer;
+                } else {
+                    try p.errStr(.cond_expr_type, operand_tok, try p.typeStr(res.ty));
+                    return error.ParsingFailed;
                 }
             } else if (new_float) {
                 if (res.ty.is(.bool)) {
@@ -5734,7 +5737,7 @@ pub const Result = struct {
                 try res.val.floatCast(to, p.comp);
             } else if (old_int and new_int) {
                 if (to.hasIncompleteSize()) {
-                    try p.errStr(.cast_to_incomplete_type, tok, try p.typeStr(to));
+                    try p.errStr(.cast_to_incomplete_type, l_paren, try p.typeStr(to));
                     return error.ParsingFailed;
                 }
                 try res.val.intCast(to, p.comp);
@@ -5742,26 +5745,26 @@ pub const Result = struct {
         } else if (to.get(.@"union")) |union_ty| {
             if (union_ty.data.record.hasFieldOfType(res.ty, p.comp)) {
                 cast_kind = .union_cast;
-                try p.errTok(.gnu_union_cast, tok);
+                try p.errTok(.gnu_union_cast, l_paren);
             } else {
                 if (union_ty.data.record.isIncomplete()) {
-                    try p.errStr(.cast_to_incomplete_type, tok, try p.typeStr(to));
+                    try p.errStr(.cast_to_incomplete_type, l_paren, try p.typeStr(to));
                 } else {
-                    try p.errStr(.invalid_union_cast, tok, try p.typeStr(res.ty));
+                    try p.errStr(.invalid_union_cast, l_paren, try p.typeStr(res.ty));
                 }
                 return error.ParsingFailed;
             }
         } else {
             if (to.is(.auto_type)) {
-                try p.errTok(.invalid_cast_to_auto_type, tok);
+                try p.errTok(.invalid_cast_to_auto_type, l_paren);
             } else {
-                try p.errStr(.invalid_cast_type, tok, try p.typeStr(to));
+                try p.errStr(.invalid_cast_type, l_paren, try p.typeStr(to));
             }
             return error.ParsingFailed;
         }
-        if (to.anyQual()) try p.errStr(.qual_cast, tok, try p.typeStr(to));
+        if (to.anyQual()) try p.errStr(.qual_cast, l_paren, try p.typeStr(to));
         if (to.isInt() and res.ty.isPtr() and to.sizeCompare(res.ty, p.comp) == .lt) {
-            try p.errStr(.cast_to_smaller_int, tok, try p.typePairStrExtra(to, " from ", res.ty));
+            try p.errStr(.cast_to_smaller_int, l_paren, try p.typePairStrExtra(to, " from ", res.ty));
         }
         res.ty = to;
         res.ty.qual = .{};
@@ -6454,10 +6457,11 @@ fn castExpr(p: *Parser) Error!Result {
             break :cast_expr;
         }
 
+        const operand_tok = p.tok_i;
         var operand = try p.castExpr();
         try operand.expect(p);
         try operand.lvalConversion(p);
-        try operand.castType(p, ty, l_paren);
+        try operand.castType(p, ty, operand_tok, l_paren);
         return operand;
     }
     switch (p.tok_ids[p.tok_i]) {

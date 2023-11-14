@@ -14,6 +14,8 @@ void foo(void) {
     int x = 1;
     x ? (void)1 : 1;
     (enum E)1;
+    int *ptr;
+    ptr = (int *)(void)5;
 }
 
 #define EXPECTED_ERRORS "casts.c:5:5: error: cannot cast to non arithmetic or pointer type 'struct Foo'" \
@@ -24,4 +26,5 @@ void foo(void) {
     "casts.c:10:13: warning: cast to smaller integer type 'char' from 'char *' [-Wpointer-to-int-cast]" \
     "casts.c:11:13: error: pointer cannot be cast to type 'float'" \
     "casts.c:16:5: error: cast to incomplete type 'enum E'" \
+    "casts.c:18:18: error: used type 'void' where arithmetic or pointer type is required" \
 
