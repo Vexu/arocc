@@ -1010,7 +1010,7 @@ fn decl(p: *Parser) Error!bool {
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null) {
             const attrs = init_d.d.ty.getAttributes();
-            var base_ty = if (init_d.d.ty.specifier == .attributed) init_d.d.ty.elemType() else init_d.d.ty;
+            var base_ty = if (init_d.d.ty.specifier == .attributed) init_d.d.ty.data.attributed.base else init_d.d.ty;
             base_ty.specifier = .func;
             init_d.d.ty = try base_ty.withAttributes(p.arena, attrs);
 
@@ -1428,12 +1428,14 @@ fn typeof(p: *Parser) Error!?Type {
             .data = typeof_expr.ty.data,
             .qual = if (unqual) .{} else typeof_expr.ty.qual.inheritFromTypeof(),
             .specifier = typeof_expr.ty.specifier,
+            .decayed = typeof_expr.ty.decayed,
         },
     };
 
     return Type{
         .data = .{ .expr = inner },
         .specifier = .typeof_expr,
+        .decayed = typeof_expr.ty.decayed,
     };
 }
 
@@ -1814,6 +1816,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         } else {
             init_d.d.ty.specifier = init_d.initializer.ty.specifier;
             init_d.d.ty.data = init_d.initializer.ty.data;
+            init_d.d.ty.decayed = init_d.initializer.ty.decayed;
         }
     }
     if (apply_var_attributes) {
