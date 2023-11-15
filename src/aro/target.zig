@@ -1,7 +1,6 @@
 const std = @import("std");
 const LangOpts = @import("LangOpts.zig");
 const Type = @import("Type.zig");
-const llvm = @import("zig").codegen.llvm;
 const TargetSet = @import("Builtins/Properties.zig").TargetSet;
 
 /// intmax_t for this target
