@@ -7938,6 +7938,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
         .F, .IF => .float,
         .F16 => .float16,
         .L, .IL => .long_double,
+        .W, .IW => .float80,
         .Q, .IQ, .F128, .IF128 => .float128,
         else => unreachable,
     } };
@@ -7972,6 +7973,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             .I => .complex_double,
             .IF => .complex_float,
             .IL => .complex_long_double,
+            .IW => .complex_float80,
             .IQ, .IF128 => .complex_float128,
             else => unreachable,
         } };

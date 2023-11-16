@@ -77,6 +77,12 @@ pub const Suffix = enum {
     // _Float16
     F16,
 
+    // __float80
+    W,
+
+    // Imaginary __float80
+    IW,
+
     // _Float128
     Q, F128,
 
@@ -117,12 +123,14 @@ pub const Suffix = enum {
         .{ .F16, &.{"F16"} },
         .{ .F, &.{"F"} },
         .{ .L, &.{"L"} },
+        .{ .W, &.{"W"} },
         .{ .F128, &.{"F128"} },
         .{ .Q, &.{"Q"} },
 
         .{ .I, &.{"I"} },
         .{ .IL, &.{ "I", "L" } },
         .{ .IF, &.{ "I", "F" } },
+        .{ .IW, &.{ "I", "W" } },
         .{ .IF128, &.{ "I", "F128" } },
         .{ .IQ, &.{ "I", "Q" } },
     };
@@ -153,8 +161,8 @@ pub const Suffix = enum {
 
     pub fn isImaginary(suffix: Suffix) bool {
         return switch (suffix) {
-            .I, .IL, .IF, .IU, .IUL, .ILL, .IULL, .IWB, .IUWB, .IF128, .IQ => true,
-            .None, .L, .F16, .F, .U, .UL, .LL, .ULL, .WB, .UWB, .F128, .Q => false,
+            .I, .IL, .IF, .IU, .IUL, .ILL, .IULL, .IWB, .IUWB, .IF128, .IQ, .IW => true,
+            .None, .L, .F16, .F, .U, .UL, .LL, .ULL, .WB, .UWB, .F128, .Q, .W => false,
         };
     }
 
@@ -162,7 +170,7 @@ pub const Suffix = enum {
         return switch (suffix) {
             .None, .L, .LL, .I, .IL, .ILL, .WB, .IWB => true,
             .U, .UL, .ULL, .IU, .IUL, .IULL, .UWB, .IUWB => false,
-            .F, .IF, .F16, .F128, .IF128, .Q, .IQ => unreachable,
+            .F, .IF, .F16, .F128, .IF128, .Q, .IQ, .W, .IW => unreachable,
         };
     }
 
