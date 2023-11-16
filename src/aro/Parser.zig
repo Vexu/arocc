@@ -7938,6 +7938,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
         .F, .IF => .float,
         .F16 => .float16,
         .L, .IL => .long_double,
+        .Q, .IQ, .F128, .IF128 => .float128,
         else => unreachable,
     } };
     const val = try Value.intern(p.comp, key: {
@@ -7971,6 +7972,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             .I => .complex_double,
             .IF => .complex_float,
             .IL => .complex_long_double,
+            .IQ, .IF128 => .complex_float128,
             else => unreachable,
         } };
         res.val = .{}; // TODO add complex values
