@@ -4817,10 +4817,23 @@ const CallExpr = union(enum) {
     /// of arguments, `paramCountOverride` is used to tell us how many arguments we should actually expect to see for
     /// these custom-typechecked functions.
     fn paramCountOverride(self: CallExpr) ?u32 {
+        @setEvalBranchQuota(10_000);
         return switch (self) {
             .standard => null,
             .builtin => |builtin| switch (builtin.tag) {
                 Builtin.tagFromName("__builtin_complex").? => 2,
+
+                Builtin.tagFromName("__atomic_fetch_add").?,
+                Builtin.tagFromName("__atomic_fetch_sub").?,
+                Builtin.tagFromName("__atomic_fetch_and").?,
+                Builtin.tagFromName("__atomic_fetch_xor").?,
+                Builtin.tagFromName("__atomic_fetch_or").?,
+                Builtin.tagFromName("__atomic_fetch_nand").?,
+                => 3,
+
+                Builtin.tagFromName("__atomic_compare_exchange").?,
+                Builtin.tagFromName("__atomic_compare_exchange_n").?,
+                => 6,
                 else => null,
             },
         };
@@ -4830,10 +4843,25 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => callable_ty.returnType(),
             .builtin => |builtin| switch (builtin.tag) {
+                Builtin.tagFromName("__atomic_fetch_add").?,
+                Builtin.tagFromName("__atomic_fetch_sub").?,
+                Builtin.tagFromName("__atomic_fetch_and").?,
+                Builtin.tagFromName("__atomic_fetch_xor").?,
+                Builtin.tagFromName("__atomic_fetch_or").?,
+                Builtin.tagFromName("__atomic_fetch_nand").?,
+                => {
+                    if (p.list_buf.items.len < 2) return Type.invalid; // not enough arguments; already an error
+                    const second_param = p.list_buf.items[p.list_buf.items.len - 2];
+                    return p.nodes.items(.ty)[@intFromEnum(second_param)];
+                },
                 Builtin.tagFromName("__builtin_complex").? => {
+                    if (p.list_buf.items.len < 1) return Type.invalid; // not enough arguments; already an error
                     const last_param = p.list_buf.items[p.list_buf.items.len - 1];
                     return p.nodes.items(.ty)[@intFromEnum(last_param)].makeComplex();
                 },
+                Builtin.tagFromName("__atomic_compare_exchange").?,
+                Builtin.tagFromName("__atomic_compare_exchange_n").?,
+                => .{ .specifier = .bool },
                 else => callable_ty.returnType(),
             },
         };

@@ -408,6 +408,17 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
         \\
     );
 
+    // atomics
+    try w.writeAll(
+        \\#define __ATOMIC_RELAXED 0
+        \\#define __ATOMIC_CONSUME 1
+        \\#define __ATOMIC_ACQUIRE 2
+        \\#define __ATOMIC_RELEASE 3
+        \\#define __ATOMIC_ACQ_REL 4
+        \\#define __ATOMIC_SEQ_CST 5
+        \\
+    );
+
     // types
     if (comp.getCharSignedness() == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
     try w.writeAll("#define __CHAR_BIT__ 8\n");
