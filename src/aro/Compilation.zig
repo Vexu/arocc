@@ -691,6 +691,14 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
 
 /// Smallest integer type with at least N bits
 fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) Type {
+    if (bits == 64 and (comp.target.isDarwin() or comp.target.isWasm())) {
+        // WebAssembly and Darwin use `long long` for `int_least64_t` and `int_fast64_t`.
+        return .{ .specifier = if (signedness == .signed) .long_long else .ulong_long };
+    }
+    if (bits == 16 and comp.target.cpu.arch == .avr) {
+        // AVR uses int for int_least16_t and int_fast16_t.
+        return .{ .specifier = if (signedness == .signed) .int else .uint };
+    }
     const candidates = switch (signedness) {
         .signed => &[_]Type.Specifier{ .schar, .short, .int, .long, .long_long },
         .unsigned => &[_]Type.Specifier{ .uchar, .ushort, .uint, .ulong, .ulong_long },
