@@ -177,4 +177,78 @@ typedef __UINTMAX_TYPE__ uintmax_t;
 
 #endif /* __INT8_TYPE__ */
 
+typedef __INT_LEAST64_TYPE__ int_least64_t;
+typedef __INT_LEAST32_TYPE__ int_least32_t;
+typedef __INT_LEAST16_TYPE__ int_least16_t;
+typedef __INT_LEAST8_TYPE__ int_least8_t;
+
+typedef __UINT_LEAST64_TYPE__ uint_least64_t;
+typedef __UINT_LEAST32_TYPE__ uint_least32_t;
+typedef __UINT_LEAST16_TYPE__ uint_least16_t;
+typedef __UINT_LEAST8_TYPE__ uint_least8_t;
+
+#define INT_LEAST8_MAX __INT_LEAST8_MAX__
+#define INT_LEAST8_MIN (-__INT_LEAST8_MAX__-1)
+#define UINT_LEAST8_MAX __UINT_LEAST8_MAX__
+
+#define INT_LEAST16_MAX __INT_LEAST16_MAX__
+#define INT_LEAST16_MIN (-__INT_LEAST16_MAX__-1)
+#define UINT_LEAST16_MAX __UINT_LEAST16_MAX__
+
+#define INT_LEAST32_MAX __INT_LEAST32_MAX__
+#define INT_LEAST32_MIN (-__INT_LEAST32_MAX__-1)
+#define UINT_LEAST32_MAX __UINT_LEAST32_MAX__
+
+#define INT_LEAST64_MAX __INT_LEAST64_MAX__
+#define INT_LEAST64_MIN (-__INT_LEAST64_MAX__-1)
+#define UINT_LEAST64_MAX __UINT_LEAST64_MAX__
+
+
+typedef __INT_FAST64_TYPE__ int_fast64_t;
+typedef __INT_FAST32_TYPE__ int_fast32_t;
+typedef __INT_FAST16_TYPE__ int_fast16_t;
+typedef __INT_FAST8_TYPE__ int_fast8_t;
+
+typedef __UINT_FAST64_TYPE__ uint_fast64_t;
+typedef __UINT_FAST32_TYPE__ uint_fast32_t;
+typedef __UINT_FAST16_TYPE__ uint_fast16_t;
+typedef __UINT_FAST8_TYPE__ uint_fast8_t;
+
+#define INT_FAST8_MAX __INT_FAST8_MAX__
+#define INT_FAST8_MIN (-__INT_FAST8_MAX__-1)
+
+#define INT_FAST16_MAX __INT_FAST16_MAX__
+#define INT_FAST16_MIN (-__INT_FAST16_MAX__-1)
+
+#define INT_FAST32_MAX __INT_FAST32_MAX__
+#define INT_FAST32_MIN (-__INT_FAST32_MAX__-1)
+
+#define INT_FAST64_MAX __INT_FAST64_MAX__
+#define INT_FAST64_MIN (-__INT_FAST64_MAX__-1)
+
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+
+#define INT_FAST8_WIDTH   __INT_FAST8_WIDTH__
+#define UINT_FAST8_WIDTH  __INT_FAST8_WIDTH__
+#define INT_LEAST8_WIDTH  __INT_LEAST8_WIDTH__
+#define UINT_LEAST8_WIDTH __INT_LEAST8_WIDTH__
+
+#define INT_FAST16_WIDTH   __INT_FAST16_WIDTH__
+#define UINT_FAST16_WIDTH  __INT_FAST16_WIDTH__
+#define INT_LEAST16_WIDTH  __INT_LEAST16_WIDTH__
+#define UINT_LEAST16_WIDTH __INT_LEAST16_WIDTH__
+
+#define INT_FAST32_WIDTH   __INT_FAST32_WIDTH__
+#define UINT_FAST32_WIDTH  __INT_FAST32_WIDTH__
+#define INT_LEAST32_WIDTH  __INT_LEAST32_WIDTH__
+#define UINT_LEAST32_WIDTH __INT_LEAST32_WIDTH__
+
+#define INT_FAST64_WIDTH   __INT_FAST64_WIDTH__
+#define UINT_FAST64_WIDTH  __INT_FAST64_WIDTH__
+#define INT_LEAST64_WIDTH  __INT_LEAST64_WIDTH__
+#define UINT_LEAST64_WIDTH __INT_LEAST64_WIDTH__
+
+#endif
+
 #endif /* __STDC_HOSTED__ && __has_include_next(<stdint.h>) */
