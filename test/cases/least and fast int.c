@@ -1,4 +1,4 @@
-//aro-args -std=c23 --target=x86_64-macos
+//aro-args -std=c23 --target=x86_64-macos -ffreestanding
 
 #include <stdint.h>
 

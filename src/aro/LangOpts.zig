@@ -126,6 +126,8 @@ fp_eval_method: ?FPEvalMethod = null,
 char_signedness_override: ?std.builtin.Signedness = null,
 /// If set, override the default availability of char8_t (by default, enabled in C23 and later; disabled otherwise)
 has_char8_t_override: ?bool = null,
+/// compile in a hosted environment if true; freestanding otherwise
+hosted: bool = true,
 
 /// Whether to allow GNU-style inline assembly
 gnu_asm: bool = true,

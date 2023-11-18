@@ -98,6 +98,7 @@ pub const usage =
     \\  -fno-declspec           Disable support for __declspec attributes
     \\  -ffp-eval-method=[source|double|extended]
     \\                          Evaluation method to use for floating-point arithmetic
+    \\  -ffreestanding          Compilation in a freestanding environment
     \\  -fgnu-inline-asm        Enable GNU style inline asm (default: enabled)
     \\  -fno-gnu-inline-asm     Disable GNU style inline asm
     \\  -fms-extensions         Enable support for Microsoft extensions
@@ -277,6 +278,8 @@ pub fn parseArgs(
                 d.comp.langopts.declspec_attrs = true;
             } else if (mem.eql(u8, arg, "-fno-declspec")) {
                 d.comp.langopts.declspec_attrs = false;
+            } else if (mem.eql(u8, arg, "-ffreestanding")) {
+                d.comp.langopts.hosted = false;
             } else if (mem.eql(u8, arg, "-fms-extensions")) {
                 d.comp.langopts.enableMSExtensions();
             } else if (mem.eql(u8, arg, "-fno-ms-extensions")) {
