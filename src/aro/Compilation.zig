@@ -593,7 +593,7 @@ fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target_util.FP
         },
     );
 
-    var defPrefix = std.BoundedArray(u8, 32).init(0) catch unreachable;
+    var defPrefix: std.BoundedArray(u8, 32) = .{};
     defPrefix.writer().print("__{s}_", .{prefix}) catch return error.OutOfMemory;
 
     const prefix_slice = defPrefix.constSlice();
@@ -781,7 +781,7 @@ fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StrInt.T
         ty = if (unsigned) comp.types.int64.makeIntegerUnsigned() else comp.types.int64;
     }
 
-    var prefix = std.BoundedArray(u8, 16).init(0) catch unreachable;
+    var prefix: std.BoundedArray(u8, 16) = .{};
     prefix.writer().print("{s}{d}", .{ if (unsigned) "__UINT" else "__INT", width }) catch return error.OutOfMemory;
 
     {
@@ -919,7 +919,7 @@ fn generateExactWidthIntMax(comp: *const Compilation, w: anytype, specifier: Typ
         ty = if (unsigned) comp.types.int64.makeIntegerUnsigned() else comp.types.int64;
     }
 
-    var name = std.BoundedArray(u8, 6).init(0) catch unreachable;
+    var name: std.BoundedArray(u8, 6) = .{};
     name.writer().print("{s}{d}", .{ if (unsigned) "UINT" else "INT", bit_count }) catch return error.OutOfMemory;
 
     return comp.generateIntMax(w, name.constSlice(), ty);
