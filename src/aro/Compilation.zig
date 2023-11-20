@@ -472,6 +472,7 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     try generateTypeMacro(w, mapper, "__WCHAR_TYPE__", comp.types.wchar, comp.langopts);
 
     try comp.generateExactWidthTypes(w, mapper);
+    try comp.generateFastAndLeastWidthTypes(w, mapper);
 
     if (target_util.FPSemantics.halfPrecisionType(comp.target)) |half| {
         try generateFloatMacros(w, "FLT16", half, "F16");
@@ -508,10 +509,11 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         );
     }
 
+    try buf.appendSlice("#define __STDC__ 1\n");
+    try buf.writer().print("#define __STDC_HOSTED__ {d}\n", .{@intFromBool(comp.target.os.tag != .freestanding)});
+
     // standard macros
     try buf.appendSlice(
-        \\#define __STDC__ 1
-        \\#define __STDC_HOSTED__ 1
         \\#define __STDC_NO_ATOMICS__ 1
         \\#define __STDC_NO_COMPLEX__ 1
         \\#define __STDC_NO_THREADS__ 1
@@ -593,7 +595,7 @@ fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target_util.FP
         },
     );
 
-    var defPrefix = std.BoundedArray(u8, 32).init(0) catch unreachable;
+    var defPrefix: std.BoundedArray(u8, 32) = .{};
     defPrefix.writer().print("__{s}_", .{prefix}) catch return error.OutOfMemory;
 
     const prefix_slice = defPrefix.constSlice();
@@ -690,6 +692,14 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
 
 /// Smallest integer type with at least N bits
 fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) Type {
+    if (bits == 64 and (comp.target.isDarwin() or comp.target.isWasm())) {
+        // WebAssembly and Darwin use `long long` for `int_least64_t` and `int_fast64_t`.
+        return .{ .specifier = if (signedness == .signed) .long_long else .ulong_long };
+    }
+    if (bits == 16 and comp.target.cpu.arch == .avr) {
+        // AVR uses int for int_least16_t and int_fast16_t.
+        return .{ .specifier = if (signedness == .signed) .int else .uint };
+    }
     const candidates = switch (signedness) {
         .signed => &[_]Type.Specifier{ .schar, .short, .int, .long, .long_long },
         .unsigned => &[_]Type.Specifier{ .uchar, .ushort, .uint, .ulong, .ulong_long },
@@ -703,6 +713,52 @@ fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Sign
 fn intSize(comp: *const Compilation, specifier: Type.Specifier) u64 {
     const ty = Type{ .specifier = specifier };
     return ty.sizeof(comp).?;
+}
+
+fn generateFastOrLeastType(
+    comp: *Compilation,
+    bits: usize,
+    kind: enum { least, fast },
+    signedness: std.builtin.Signedness,
+    w: anytype,
+    mapper: StrInt.TypeMapper,
+) !void {
+    const ty = comp.intLeastN(bits, signedness); // defining the fast types as the least types is permitted
+
+    var prefix: std.BoundedArray(u8, 32) = .{};
+    const base_name = switch (signedness) {
+        .signed => "__INT_",
+        .unsigned => "__UINT_",
+    };
+    const kind_str = switch (kind) {
+        .fast => "FAST",
+        .least => "LEAST",
+    };
+
+    prefix.writer().print("{s}{s}{d}", .{ base_name, kind_str, bits }) catch return error.OutOfMemory;
+
+    {
+        const len = prefix.len;
+        defer prefix.resize(len) catch unreachable; // restoring previous size
+        prefix.appendSliceAssumeCapacity("_TYPE__");
+        try generateTypeMacro(w, mapper, prefix.constSlice(), ty, comp.langopts);
+    }
+
+    switch (signedness) {
+        .signed => try comp.generateIntMaxAndWidth(w, prefix.constSlice()[2..], ty),
+        .unsigned => try comp.generateIntMax(w, prefix.constSlice()[2..], ty),
+    }
+    try comp.generateFmt(prefix.constSlice(), w, ty);
+}
+
+fn generateFastAndLeastWidthTypes(comp: *Compilation, w: anytype, mapper: StrInt.TypeMapper) !void {
+    const sizes = [_]usize{ 8, 16, 32, 64 };
+    for (sizes) |size| {
+        try comp.generateFastOrLeastType(size, .least, .signed, w, mapper);
+        try comp.generateFastOrLeastType(size, .least, .unsigned, w, mapper);
+        try comp.generateFastOrLeastType(size, .fast, .signed, w, mapper);
+        try comp.generateFastOrLeastType(size, .fast, .unsigned, w, mapper);
+    }
 }
 
 fn generateExactWidthTypes(comp: *const Compilation, w: anytype, mapper: StrInt.TypeMapper) !void {
@@ -781,7 +837,7 @@ fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StrInt.T
         ty = if (unsigned) comp.types.int64.makeIntegerUnsigned() else comp.types.int64;
     }
 
-    var prefix = std.BoundedArray(u8, 16).init(0) catch unreachable;
+    var prefix: std.BoundedArray(u8, 16) = .{};
     prefix.writer().print("{s}{d}", .{ if (unsigned) "__UINT" else "__INT", width }) catch return error.OutOfMemory;
 
     {
@@ -919,7 +975,7 @@ fn generateExactWidthIntMax(comp: *const Compilation, w: anytype, specifier: Typ
         ty = if (unsigned) comp.types.int64.makeIntegerUnsigned() else comp.types.int64;
     }
 
-    var name = std.BoundedArray(u8, 6).init(0) catch unreachable;
+    var name: std.BoundedArray(u8, 6) = .{};
     name.writer().print("{s}{d}", .{ if (unsigned) "UINT" else "INT", bit_count }) catch return error.OutOfMemory;
 
     return comp.generateIntMax(w, name.constSlice(), ty);
