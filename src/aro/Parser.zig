@@ -347,7 +347,7 @@ pub fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
     const loc = p.pp.tokens.items(.loc)[tok];
     var tmp_tokenizer = Tokenizer{
         .buf = p.comp.getSource(loc.id).buf,
-        .comp = p.comp,
+        .langopts = p.comp.langopts,
         .index = loc.byte_offset,
         .source = .generated,
     };

@@ -669,7 +669,7 @@ pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     const loc = tree.tokens.items(.loc)[tok_i];
     var tmp_tokenizer = Tokenizer{
         .buf = tree.comp.getSource(loc.id).buf,
-        .comp = tree.comp,
+        .langopts = tree.comp.langopts,
         .index = loc.byte_offset,
         .source = .generated,
     };

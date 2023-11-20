@@ -315,7 +315,7 @@ fn invalidTokenDiagnostic(tok_id: Token.Id) Diagnostics.Tag {
 fn findIncludeGuard(pp: *Preprocessor, source: Source) ?[]const u8 {
     var tokenizer = Tokenizer{
         .buf = source.buf,
-        .comp = pp.comp,
+        .langopts = pp.comp.langopts,
         .source = source.id,
     };
     var hash = tokenizer.nextNoWS();
@@ -334,7 +334,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
     pp.preprocess_count += 1;
     var tokenizer = Tokenizer{
         .buf = source.buf,
-        .comp = pp.comp,
+        .langopts = pp.comp.langopts,
         .source = source.id,
     };
 
@@ -1185,7 +1185,7 @@ fn pragmaOperator(pp: *Preprocessor, arg_tok: Token, operator_loc: Source.Locati
     try pp.comp.generated_buf.appendSlice(pp.gpa, pp.char_buf.items);
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.generated_buf.items,
-        .comp = pp.comp,
+        .langopts = pp.comp.langopts,
         .index = @intCast(start),
         .source = .generated,
         .line = pp.generated_line,
@@ -1864,7 +1864,7 @@ fn expandVaOpt(
         .buf = source.buf,
         .index = raw.start,
         .source = raw.source,
-        .comp = pp.comp,
+        .langopts = pp.comp.langopts,
         .line = raw.line,
     };
     while (tokenizer.index < raw.end) {
@@ -2282,11 +2282,11 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
 
 fn expandedSliceExtra(pp: *const Preprocessor, tok: Token, macro_ws_handling: enum { single_macro_ws, preserve_macro_ws }) []const u8 {
     if (tok.id.lexeme()) |some| {
-        if (!tok.id.allowsDigraphs(pp.comp) and !(tok.id == .macro_ws and macro_ws_handling == .preserve_macro_ws)) return some;
+        if (!tok.id.allowsDigraphs(pp.comp.langopts) and !(tok.id == .macro_ws and macro_ws_handling == .preserve_macro_ws)) return some;
     }
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.getSource(tok.loc.id).buf,
-        .comp = pp.comp,
+        .langopts = pp.comp.langopts,
         .index = tok.loc.byte_offset,
         .source = .generated,
     };
@@ -2340,7 +2340,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const Token)
     // Try to tokenize the result.
     var tmp_tokenizer = Tokenizer{
         .buf = pp.comp.generated_buf.items,
-        .comp = pp.comp,
+        .langopts = pp.comp.langopts,
         .index = @intCast(start),
         .source = .generated,
     };
