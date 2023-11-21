@@ -609,7 +609,7 @@ pub fn signedness(ty: Type, comp: *const Compilation) std.builtin.Signedness {
     return switch (ty.specifier) {
         // zig fmt: off
         .char, .complex_char => return comp.getCharSignedness(),
-        .uchar, .ushort, .uint, .ulong, .ulong_long, .bool, .complex_uchar, .complex_ushort,
+        .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128, .bool, .complex_uchar, .complex_ushort,
         .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => .unsigned,
         // zig fmt: on
         .bit_int, .complex_bit_int => ty.data.int.signedness,
