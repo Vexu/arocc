@@ -7979,7 +7979,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
         const strings_top = p.strings.items.len;
         defer p.strings.items.len = strings_top;
         for (buf) |c| {
-            if (c != '_') p.strings.appendAssumeCapacity(c);
+            if (c != '\'') p.strings.appendAssumeCapacity(c);
         }
 
         const float = std.fmt.parseFloat(f128, p.strings.items[strings_top..]) catch unreachable;
@@ -8158,11 +8158,21 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
     var managed = try big.int.Managed.init(p.gpa);
     defer managed.deinit();
 
-    managed.setString(base, buf) catch |e| switch (e) {
-        error.InvalidBase => unreachable, // `base` is one of 2, 8, 10, 16
-        error.InvalidCharacter => unreachable, // digits validated by Tokenizer
-        else => |er| return er,
-    };
+    {
+        try p.strings.ensureUnusedCapacity(buf.len);
+
+        const strings_top = p.strings.items.len;
+        defer p.strings.items.len = strings_top;
+        for (buf) |c| {
+            if (c != '\'') p.strings.appendAssumeCapacity(c);
+        }
+
+        managed.setString(base, p.strings.items[strings_top..]) catch |e| switch (e) {
+            error.InvalidBase => unreachable, // `base` is one of 2, 8, 10, 16
+            error.InvalidCharacter => unreachable, // digits validated by Tokenizer
+            else => |er| return er,
+        };
+    }
     const c = managed.toConst();
     const bits_needed: std.math.IntFittingRange(0, Compilation.bit_int_max_bits) = blk: {
         // Literal `0` requires at least 1 bit
