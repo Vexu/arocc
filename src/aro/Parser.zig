@@ -7827,7 +7827,7 @@ fn stringLiteral(p: *Parser) Error!Result {
                 }
             },
         };
-        for (char_literal_parser.errors.constSlice()) |item| {
+        for (char_literal_parser.errors()) |item| {
             try p.errExtra(item.tag, p.tok_i, item.extra);
         }
     }
@@ -7942,7 +7942,7 @@ fn charLiteral(p: *Parser) Error!Result {
             char_literal_parser.err(.char_lit_too_wide, .{ .none = {} });
         }
 
-        for (char_literal_parser.errors.constSlice()) |item| {
+        for (char_literal_parser.errors()) |item| {
             try p.errExtra(item.tag, p.tok_i, item.extra);
         }
     }
