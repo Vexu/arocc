@@ -124,10 +124,13 @@ pub fn findTag(
 }
 
 const ScopeKind = enum {
-    vars,
+    /// structs, enums, unions
     tags,
+    /// everything else
+    vars,
 };
 
+/// Return the Symbol for `name` (or null if not found) in the innermost scope
 pub fn get(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
     return switch (kind) {
         .vars => s.scopes.items[s.innermost].vars.get(name),
@@ -135,6 +138,8 @@ pub fn get(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
     };
 }
 
+/// Return the Symbol for `name` (or null if not found) in the nearest active scope,
+/// starting at the innermost.
 fn lookup(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
     var i = s.innermost + 1;
     while (i > 0) {
@@ -147,6 +152,8 @@ fn lookup(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
     return null;
 }
 
+/// Define a symbol in the innermost scope. Does not issue diagnostics or check correctness
+/// with regard to the C standard.
 pub fn define(s: *SymbolStack, allocator: Allocator, symbol: Symbol) !void {
     switch (symbol.kind) {
         .constexpr, .def, .decl, .enumeration, .typedef => {
@@ -223,6 +230,8 @@ pub fn defineSymbol(
     });
 }
 
+/// Get a pointer to the named symbol in the innermost scope.
+/// Asserts that a symbol with the name exists.
 pub fn getPtr(s: *SymbolStack, name: StringId, kind: ScopeKind) *Symbol {
     return switch (kind) {
         .tags => s.scopes.items[s.innermost].tags.getPtr(name).?,
