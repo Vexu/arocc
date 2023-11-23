@@ -17009,6 +17009,8 @@ wmemmove
     .header = .wchar
     .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
 
+# C11 _Atomic operations for <stdatomic.h>.
+
 __c11_atomic_init
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
@@ -17064,6 +17066,8 @@ __c11_atomic_fetch_max
 __c11_atomic_fetch_min
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
+
+# GNU atomics
 
 __atomic_load
     .param_str = "v."
@@ -17152,6 +17156,8 @@ __atomic_min_fetch
 __atomic_nand_fetch
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
+
+# clang extensions
 
 __atomic_fetch_min
     .param_str = "v."
