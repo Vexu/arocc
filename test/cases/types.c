@@ -18,12 +18,12 @@ typedef A C;
 typedef C B;
 
 typedef int I[2];
-void baz(I const a, const I b) {
+void qux(I const a, const I b) {
     b += 1;
     a += 1;
 }
 
 enum E {
-    A = (char) 2,
-    B = (long) 3,
+    D = (char) 2,
+    E = (long) 3,
 };

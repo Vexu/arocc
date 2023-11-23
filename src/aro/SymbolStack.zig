@@ -174,9 +174,18 @@ pub fn defineTypedef(
     node: NodeIndex,
 ) !void {
     if (s.get(name, .vars)) |prev| {
-        if (!ty.eql(prev.ty, p.comp, true)) {
-            try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(ty, " vs ", prev.ty));
-            if (prev.tok != 0) try p.errTok(.previous_definition, prev.tok);
+        switch (prev.kind) {
+            .typedef => {
+                if (!ty.eql(prev.ty, p.comp, true)) {
+                    try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(ty, " vs ", prev.ty));
+                    if (prev.tok != 0) try p.errTok(.previous_definition, prev.tok);
+                }
+            },
+            .enumeration, .decl, .def, .constexpr => {
+                try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
+                try p.errTok(.previous_definition, prev.tok);
+            },
+            else => unreachable,
         }
     }
     try s.define(p.gpa, .{
@@ -215,7 +224,10 @@ pub fn defineSymbol(
                 try p.errStr(.redefinition, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
-            .typedef => {}, // TODO typedef
+            .typedef => {
+                try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
+                try p.errTok(.previous_definition, prev.tok);
+            },
             else => unreachable,
         }
     }
@@ -267,7 +279,10 @@ pub fn declareSymbol(
                     return;
                 }
             },
-            .typedef => {}, //todo typedef
+            .typedef => {
+                try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
+                try p.errTok(.previous_definition, prev.tok);
+            },
             else => unreachable,
         }
     }
@@ -288,7 +303,10 @@ pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: T
                 try p.errStr(.redefinition_of_parameter, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
-            .typedef => {}, //todo typedef
+            .typedef => {
+                try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
+                try p.errTok(.previous_definition, prev.tok);
+            },
             else => unreachable,
         }
     }
@@ -355,7 +373,10 @@ pub fn defineEnumeration(
                 try p.errTok(.previous_definition, prev.tok);
                 return;
             },
-            .typedef => {}, //todo typedef
+            .typedef => {
+                try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
+                try p.errTok(.previous_definition, prev.tok);
+            },
             else => unreachable,
         }
     }

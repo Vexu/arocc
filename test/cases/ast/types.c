@@ -42,7 +42,7 @@ typedef: '[2]int'
  name: I
 
 fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
- name: baz
+ name: qux
  body:
   compound_stmt: 'void'
     add_assign_expr: '*d[2]const int'
@@ -65,13 +65,13 @@ fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
 
 enum_decl_two: 'enum E: unsigned int'
   enum_field_decl: 'int' (value: 2)
-   name: A
+   name: D
    value:
     implicit_cast: (int_cast) 'int'
       explicit_cast: (int_cast) 'char' (value: 2)
         int_literal: 'int' (value: 2)
   enum_field_decl: 'int' (value: 3)
-   name: B
+   name: E
    value:
     implicit_cast: (int_cast) 'int'
       explicit_cast: (int_cast) 'long' (value: 3)
