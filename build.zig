@@ -1,6 +1,7 @@
 const std = @import("std");
 const Build = std.Build;
 const GenerateDef = @import("build/GenerateDef.zig");
+const ZigLibDirStep = @import("build/ZigLibDir.zig");
 
 const aro_version = std.SemanticVersion{
     .major = 0,
@@ -8,32 +9,49 @@ const aro_version = std.SemanticVersion{
     .patch = 0,
 };
 
-fn addFuzzStep(b: *Build, target: std.zig.CrossTarget) !void {
+fn addFuzzStep(b: *Build, target: std.zig.CrossTarget, afl_clang_lto_path: []const u8, aro_module: *std.Build.Module) !void {
+    const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
+    var fuzz_target = target;
+    fuzz_target.ofmt = .c;
+
+    const lib_dir_step = try ZigLibDirStep.create(b);
+
+    const compiler_rt = b.createModule(.{
+        .source_file = lib_dir_step.getCompilerRTPath(),
+    });
     const fuzz_lib = b.addStaticLibrary(.{
         .name = "fuzz-lib",
-        .target = target,
-        .optimize = .Debug,
         .root_source_file = .{ .path = "test/fuzz/fuzz_lib.zig" },
+        .optimize = .Debug,
+        .target = fuzz_target,
+        .single_threaded = true,
     });
-    fuzz_lib.addModule("aro", b.modules.get("aro").?);
-    fuzz_lib.want_lto = true;
-    fuzz_lib.bundle_compiler_rt = true;
+    fuzz_lib.addModule("compiler_rt", compiler_rt);
 
-    const fuzz_executable_name = "fuzz";
-    const fuzz_exe_path = try b.cache_root.join(b.allocator, &.{fuzz_executable_name});
+    fuzz_lib.addModule("aro", aro_module);
+    const fuzz_compile = b.addSystemCommand(&.{
+        afl_clang_lto_path,
+        "-Wno-incompatible-pointer-types",
+        "-nostdinc",
+        "-isystem",
+    });
+    fuzz_compile.addDirectoryArg(lib_dir_step.getIncludePath());
+    fuzz_compile.addArgs(&.{
+        "-isystem",
+        "/usr/include",
+        "-isystem",
+        "/usr/local/include",
+        "-std=c99",
+    });
+    fuzz_compile.addFileArg(.{ .path = "test/fuzz/main.c" });
+    fuzz_compile.addArg("-I");
+    fuzz_compile.addDirectoryArg(lib_dir_step.getLibPath());
+    fuzz_compile.addArg("-o");
+    const fuzz_exe = fuzz_compile.addOutputFileArg("arofuzz");
+    const fuzz_install = b.addInstallBinFile(fuzz_exe, "arofuzz");
 
-    // We want `afl-clang-lto -o path/to/output test/fuzz/main.c path/to/library`
-    const fuzz_compile = b.addSystemCommand(&.{ "afl-clang-lto", "-o", fuzz_exe_path, "test/fuzz/main.c" });
-    // Add the path to the library file to afl-clang-lto's args
     fuzz_compile.addArtifactArg(fuzz_lib);
-
-    // Install the cached output to the install 'bin' path
-    const fuzz_install = b.addInstallBinFile(.{ .path = fuzz_exe_path }, fuzz_executable_name);
-
-    // Add a top-level step that compiles and installs the fuzz executable
-    const fuzz_compile_run = b.step("fuzz", "Build executable for fuzz testing using afl-clang-lto");
-    fuzz_compile_run.dependOn(&fuzz_compile.step);
-    fuzz_compile_run.dependOn(&fuzz_install.step);
+    fuzz_step.dependOn(&fuzz_install.step);
 }
 
 pub fn build(b: *Build) !void {
@@ -47,6 +65,7 @@ pub fn build(b: *Build) !void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardOptimizeOption(.{});
 
+    const afl_clang_lto_path = b.option([]const u8, "afl-clang-lto-path", "Path to afl-clang-lto") orelse "afl-clang-lto";
     const enable_linker_build_id = b.option(bool, "enable-linker-build-id", "pass --build-id to linker") orelse false;
     const default_linker = b.option([]const u8, "default-linker", "Default linker aro will use if none is supplied via -fuse-ld") orelse "ld";
     const default_sysroot = b.option([]const u8, "default-sysroot", "Default <path> to all compiler invocations for --sysroot=<path>.") orelse "";
@@ -239,5 +258,5 @@ pub fn build(b: *Build) !void {
     if (!skip_integration_tests) tests_step.dependOn(&integration_test_runner.step);
     if (!skip_record_tests) tests_step.dependOn(&record_tests_runner.step);
 
-    try addFuzzStep(b, target);
+    try addFuzzStep(b, target, afl_clang_lto_path, aro_module);
 }

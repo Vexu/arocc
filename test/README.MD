@@ -75,19 +75,26 @@ If a test case is currently broken, it should be commented and a `TESTS_SKIPPED`
 ---
 ## Running fuzz tests
 Fuzz testing requires [AFLplusplus](https://github.com/AFLplusplus/AFLplusplus). Run `zig build fuzz` to build the fuzz target,
-then `afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/fuzz`
+then `afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/arofuzz`
 
 A Dockerfile is provided to make it easier to get started with fuzzing. It requires two build args,
-`ZIG_VERSION` and `ZIG_SIG`. `ZIG_VERSION` should be the release filename from https://ziglang.org/download/, *without*
-the `.tar.xz` extension. `ZIG_ZIG` should be the SHA256 signature for the file.
+`ZIG_VERSION` and `ZIG_PUBKEY`. `ZIG_VERSION` should be the release filename from https://ziglang.org/download/, *without*
+the `.tar.xz` extension. `ZIG_PUBKEY` should be the minisign public key on https://ziglang.org/download/. You can also
+provide `USER_ID` and `GROUP_ID` so that files created in the container have the same user id and group id as files on
+your host system.
+
+Please read https://github.com/AFLplusplus/AFLplusplus/blob/stable/docs/fuzzing_in_depth.md#0-common-sense-risks before
+running the fuzzer on your system.
 
 ```sh-session
-docker build -t aro-fuzz \
-    --build-arg ZIG_VERSION=zig-linux-x86_64-0.9.0-dev.1903+2af94e76a \
-    --build-arg ZIG_SIG=79f0c9dceb254b55c0765e50a96a8f8b8e51ab63b06c80248fe90f0f69597410 \
-    test/docker/fuzz
 
-docker run --rm -it -v $PWD:/arocc -w /arocc aro-fuzz
-zig build fuzz
-afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/fuzz
+docker build -t aro-fuzz \
+    --build-arg ZIG_VERSION=zig-linux-x86_64-0.12.0-dev.1595+70d8baaec \
+    --build-arg ZIG_PUBKEY=RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U \
+    --build-arg USER_ID=$(id -u ${USER}) \
+    --build-arg GROUP_ID=$(id -g ${USER}) \
+    test/docker/fuzz
+docker run --rm -it -v $PWD:/arocc -w /arocc --mount type=tmpfs,destination=/ramdisk -e AFL_TMPDIR=/ramdisk aro-fuzz
+zig build fuzz  # This might take a while
+afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/arofuzz
 ```

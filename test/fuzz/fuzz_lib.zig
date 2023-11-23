@@ -19,13 +19,16 @@ fn compileSlice(buf: []const u8) !void {
     var fixed_allocator = std.heap.FixedBufferAllocator.init(fixed_buffer_mem[0..]);
     const allocator = fixed_allocator.allocator();
 
+    const aro_dir = try std.fs.selfExePathAlloc(allocator);
+    defer allocator.free(aro_dir);
+
     var comp = Compilation.init(allocator);
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.defineSystemIncludes();
+    try comp.defineSystemIncludes(aro_dir);
 
-    const builtin = try comp.generateBuiltinMacros();
+    const builtin = try comp.generateBuiltinMacros(.include_system_defines);
     const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
 
     processSource(&comp, builtin, user_source) catch |e| switch (e) {
@@ -47,5 +50,5 @@ fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void
     var tree = try Parser.parse(&pp);
     defer tree.deinit();
 
-    try tree.dump(false, std.io.null_writer);
+    try tree.dump(.no_color, std.io.null_writer);
 }
