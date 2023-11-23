@@ -716,7 +716,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     }
 
     try p.syms.pushScope(&p);
-    defer p.syms.popScope(&p);
+    defer p.syms.popScope();
 
     // NodeIndex 0 must be invalid
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
@@ -1008,7 +1008,7 @@ fn decl(p: *Parser) Error!bool {
         defer p.func = func;
 
         try p.syms.pushScope(p);
-        defer p.syms.popScope(p);
+        defer p.syms.popScope();
 
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null) {
@@ -1791,7 +1791,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         }
 
         try p.syms.pushScope(p);
-        defer p.syms.popScope(p);
+        defer p.syms.popScope();
 
         const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
         try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, .none);
@@ -3070,7 +3070,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             try p.syms.pushScope(p);
             defer {
                 p.param_buf.items.len = param_buf_top;
-                p.syms.popScope(p);
+                p.syms.popScope();
             }
 
             specifier = .old_style_func;
@@ -3126,7 +3126,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
     const param_buf_top = p.param_buf.items.len;
     defer p.param_buf.items.len = param_buf_top;
     try p.syms.pushScope(p);
-    defer p.syms.popScope(p);
+    defer p.syms.popScope();
 
     while (true) {
         const attr_buf_top = p.attr_buf.len;
@@ -4238,7 +4238,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
     }
     if (p.eatToken(.keyword_for)) |_| {
         try p.syms.pushScope(p);
-        defer p.syms.popScope(p);
+        defer p.syms.popScope();
         const decl_buf_top = p.decl_buf.items.len;
         defer p.decl_buf.items.len = decl_buf_top;
 
@@ -4497,7 +4497,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
 
     // the parameters of a function are in the same scope as the body
     if (!is_fn_body) try p.syms.pushScope(p);
-    defer if (!is_fn_body) p.syms.popScope(p);
+    defer if (!is_fn_body) p.syms.popScope();
 
     var noreturn_index: ?TokenIndex = null;
     var noreturn_label_count: u32 = 0;

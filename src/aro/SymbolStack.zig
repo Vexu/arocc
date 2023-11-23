@@ -34,6 +34,7 @@ pub const Kind = enum {
 };
 
 scopes: std.ArrayListUnmanaged(Scope) = .{},
+innermost: usize = 0,
 
 const Scope = struct {
     vars: std.AutoHashMapUnmanaged(StringId, Symbol) = .{},
@@ -43,21 +44,34 @@ const Scope = struct {
         self.vars.deinit(allocator);
         self.tags.deinit(allocator);
     }
+
+    fn clearRetainingCapacity(self: *Scope) void {
+        self.vars.clearRetainingCapacity();
+        self.tags.clearRetainingCapacity();
+    }
 };
 
 pub fn deinit(s: *SymbolStack, gpa: Allocator) void {
-    std.debug.assert(s.scopes.items.len == 0);
+    std.debug.assert(s.innermost == std.math.maxInt(@TypeOf(s.innermost)));
+    for (s.scopes.items) |*scope| {
+        scope.deinit(gpa);
+    }
     s.scopes.deinit(gpa);
     s.* = undefined;
 }
 
 pub fn pushScope(s: *SymbolStack, p: *Parser) !void {
-    try s.scopes.append(p.gpa, .{});
+    if (s.innermost + 1 >= s.scopes.items.len) {
+        s.innermost = s.scopes.items.len;
+        try s.scopes.append(p.gpa, .{});
+    } else {
+        s.innermost += 1;
+        s.scopes.items[s.innermost].clearRetainingCapacity();
+    }
 }
 
-pub fn popScope(s: *SymbolStack, p: *Parser) void {
-    s.scopes.items[s.scopes.items.len - 1].deinit(p.gpa);
-    s.scopes.items.len -= 1;
+pub fn popScope(s: *SymbolStack) void {
+    s.innermost -%= 1;
 }
 
 pub fn findTypedef(s: *SymbolStack, p: *Parser, name: StringId, name_tok: TokenIndex, no_type_yet: bool) !?Symbol {
@@ -116,13 +130,13 @@ const ScopeKind = enum {
 
 pub fn get(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
     return switch (kind) {
-        .vars => s.scopes.items[s.scopes.items.len - 1].vars.get(name),
-        .tags => s.scopes.items[s.scopes.items.len - 1].tags.get(name),
+        .vars => s.scopes.items[s.innermost].vars.get(name),
+        .tags => s.scopes.items[s.innermost].tags.get(name),
     };
 }
 
 fn lookup(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
-    var i = s.scopes.items.len;
+    var i = s.innermost + 1;
     while (i > 0) {
         i -= 1;
         switch (kind) {
@@ -136,10 +150,10 @@ fn lookup(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
 pub fn define(s: *SymbolStack, allocator: Allocator, symbol: Symbol) !void {
     switch (symbol.kind) {
         .constexpr, .def, .decl, .enumeration, .typedef => {
-            try s.scopes.items[s.scopes.items.len - 1].vars.put(allocator, symbol.name, symbol);
+            try s.scopes.items[s.innermost].vars.put(allocator, symbol.name, symbol);
         },
         .@"struct", .@"union", .@"enum" => {
-            try s.scopes.items[s.scopes.items.len - 1].tags.put(allocator, symbol.name, symbol);
+            try s.scopes.items[s.innermost].tags.put(allocator, symbol.name, symbol);
         },
     }
 }
@@ -211,8 +225,8 @@ pub fn defineSymbol(
 
 pub fn getPtr(s: *SymbolStack, name: StringId, kind: ScopeKind) *Symbol {
     return switch (kind) {
-        .tags => s.scopes.items[s.scopes.items.len - 1].tags.getPtr(name).?,
-        .vars => s.scopes.items[s.scopes.items.len - 1].vars.getPtr(name).?,
+        .tags => s.scopes.items[s.innermost].tags.getPtr(name).?,
+        .vars => s.scopes.items[s.innermost].vars.getPtr(name).?,
     };
 }
 
