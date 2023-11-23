@@ -456,6 +456,10 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     try comp.generateSizeofType(w, "__SIZEOF_WCHAR_T__", comp.types.wchar);
     // try comp.generateSizeofType(w, "__SIZEOF_WINT_T__", .{ .specifier = .pointer });
 
+    if (target_util.hasInt128(comp.target)) {
+        try comp.generateSizeofType(w, "__SIZEOF_INT128__", .{ .specifier = .int128 });
+    }
+
     // various int types
     const mapper = comp.string_interner.getSlowTypeMapper();
     try generateTypeMacro(w, mapper, "__INTPTR_TYPE__", comp.types.intptr, comp.langopts);

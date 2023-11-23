@@ -255,4 +255,35 @@ typedef __UINT_FAST8_TYPE__ uint_fast8_t;
 
 #endif
 
+#ifdef __SIZEOF_INT128__
+typedef signed   __int128 int128_t;
+typedef unsigned __int128 uint128_t;
+typedef signed   __int128 int_fast128_t;
+typedef unsigned __int128 uint_fast128_t;
+typedef signed   __int128 int_least128_t;
+typedef unsigned __int128 uint_least128_t;
+# define UINT128_MAX         ((uint128_t)-1)
+# define INT128_MAX          ((int128_t)+(UINT128_MAX/2))
+# define INT128_MIN          (-INT128_MAX-1)
+# define UINT_LEAST128_MAX   UINT128_MAX
+# define INT_LEAST128_MAX    INT128_MAX
+# define INT_LEAST128_MIN    INT128_MIN
+# define UINT_FAST128_MAX    UINT128_MAX
+# define INT_FAST128_MAX     INT128_MAX
+# define INT_FAST128_MIN     INT128_MIN
+# define INT128_WIDTH        128
+# define UINT128_WIDTH       128
+# define INT_LEAST128_WIDTH  128
+# define UINT_LEAST128_WIDTH 128
+# define INT_FAST128_WIDTH   128
+# define UINT_FAST128_WIDTH  128
+# if UINT128_WIDTH > __LLONG_WIDTH__
+#  define INT128_C(N)         ((int_least128_t)+N ## WB)
+#  define UINT128_C(N)        ((uint_least128_t)+N ## WBU)
+# else
+#  define INT128_C(N)         ((int_least128_t)+N ## LL)
+#  define UINT128_C(N)        ((uint_least128_t)+N ## LLU)
+# endif
+#endif
+
 #endif /* __STDC_HOSTED__ && __has_include_next(<stdint.h>) */
