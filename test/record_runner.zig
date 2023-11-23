@@ -114,7 +114,7 @@ pub fn main() !void {
 
     // Collect all cases. Set scope to clean when done.
     {
-        var cases_dir = try std.fs.cwd().openIterableDir(args[1], .{});
+        var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
         defer cases_dir.close();
         var buf: [1024]u8 = undefined;
         var buf_strm = std.io.fixedBufferStream(&buf);
