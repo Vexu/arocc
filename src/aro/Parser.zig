@@ -714,6 +714,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.field_attr_buf.deinit();
     }
 
+    try p.syms.pushScope(&p);
+    defer p.syms.popScope();
+
     // NodeIndex 0 must be invalid
     _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
 
@@ -1065,7 +1068,7 @@ fn decl(p: *Parser) Error!bool {
                     d.ty = try Attribute.applyParameterAttributes(p, d.ty, attr_buf_top_declarator, .alignas_on_param);
 
                     // bypass redefinition check to avoid duplicate errors
-                    try p.syms.syms.append(p.gpa, .{
+                    try p.syms.define(p.gpa, .{
                         .kind = .def,
                         .name = interned_name,
                         .tok = d.name,
@@ -1087,7 +1090,7 @@ fn decl(p: *Parser) Error!bool {
                 }
 
                 // bypass redefinition check to avoid duplicate errors
-                try p.syms.syms.append(p.gpa, .{
+                try p.syms.define(p.gpa, .{
                     .kind = .def,
                     .name = param.name,
                     .tok = param.name_tok,
@@ -2107,7 +2110,7 @@ fn recordSpec(p: *Parser) Error!Type {
                 .specifier = if (is_struct) .@"struct" else .@"union",
                 .data = .{ .record = record_ty },
             }, attr_buf_top, null);
-            try p.syms.syms.append(p.gpa, .{
+            try p.syms.define(p.gpa, .{
                 .kind = if (is_struct) .@"struct" else .@"union",
                 .name = interned_name,
                 .tok = ident,
@@ -2153,10 +2156,8 @@ fn recordSpec(p: *Parser) Error!Type {
 
     // declare a symbol for the type
     // We need to replace the symbol's type if it has attributes
-    var symbol_index: ?usize = null;
     if (maybe_ident != null and !defined) {
-        symbol_index = p.syms.syms.len;
-        try p.syms.syms.append(p.gpa, .{
+        try p.syms.define(p.gpa, .{
             .kind = if (is_struct) .@"struct" else .@"union",
             .name = record_ty.name,
             .tok = maybe_ident.?,
@@ -2218,8 +2219,11 @@ fn recordSpec(p: *Parser) Error!Type {
         .specifier = if (is_struct) .@"struct" else .@"union",
         .data = .{ .record = record_ty },
     }, attr_buf_top, null);
-    if (ty.specifier == .attributed and symbol_index != null) {
-        p.syms.syms.items(.ty)[symbol_index.?] = ty;
+    if (ty.specifier == .attributed and maybe_ident != null) {
+        const ident_str = p.tokSlice(maybe_ident.?);
+        const interned_name = try StrInt.intern(p.comp, ident_str);
+        const ptr = p.syms.getPtr(interned_name, .tags);
+        ptr.ty = ty;
     }
 
     if (!ty.hasIncompleteSize()) {
@@ -2476,7 +2480,7 @@ fn enumSpec(p: *Parser) Error!Type {
                 .specifier = .@"enum",
                 .data = .{ .@"enum" = enum_ty },
             }, attr_buf_top, null);
-            try p.syms.syms.append(p.gpa, .{
+            try p.syms.define(p.gpa, .{
                 .kind = .@"enum",
                 .name = interned_name,
                 .tok = ident,
@@ -2527,7 +2531,6 @@ fn enumSpec(p: *Parser) Error!Type {
         p.enum_buf.items.len = enum_buf_top;
     }
 
-    const sym_stack_top = p.syms.syms.len;
     var e = Enumerator.init(fixed_ty);
     while (try p.enumerator(&e)) |field_and_node| {
         try p.enum_buf.append(field_and_node.field);
@@ -2553,13 +2556,12 @@ fn enumSpec(p: *Parser) Error!Type {
     const field_nodes = p.list_buf.items[list_buf_top..];
 
     if (fixed_ty == null) {
-        const vals = p.syms.syms.items(.val)[sym_stack_top..];
-        const types = p.syms.syms.items(.ty)[sym_stack_top..];
-
         for (enum_fields, 0..) |*field, i| {
             if (field.ty.eql(Type.int, p.comp, false)) continue;
 
-            var res = Result{ .node = field.node, .ty = field.ty, .val = vals[i] };
+            const sym = p.syms.get(field.name, .vars) orelse continue;
+
+            var res = Result{ .node = field.node, .ty = field.ty, .val = sym.val };
             const dest_ty = if (p.comp.fixedEnumTagSpecifier()) |some|
                 Type{ .specifier = some }
             else if (try res.intFitsInType(p, Type.int))
@@ -2569,8 +2571,9 @@ fn enumSpec(p: *Parser) Error!Type {
             else
                 continue;
 
-            try vals[i].intCast(dest_ty, p.comp);
-            types[i] = dest_ty;
+            const symbol = p.syms.getPtr(field.name, .vars);
+            try symbol.val.intCast(dest_ty, p.comp);
+            symbol.ty = dest_ty;
             p.nodes.items(.ty)[@intFromEnum(field_nodes[i])] = dest_ty;
             field.ty = dest_ty;
             res.ty = dest_ty;
@@ -2587,7 +2590,7 @@ fn enumSpec(p: *Parser) Error!Type {
 
     // declare a symbol for the type
     if (maybe_ident != null and !defined) {
-        try p.syms.syms.append(p.gpa, .{
+        try p.syms.define(p.gpa, .{
             .kind = .@"enum",
             .name = enum_ty.name,
             .ty = ty,
