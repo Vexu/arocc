@@ -20,6 +20,7 @@ unsigned _BitInt(5) h = 3Uwb;
 int y = 0wb;
 int z = 0uwb;
 int x = 1'2;
+_Static_assert(((int)-18446744073709551616WB) == 0);
 
 #define EXPECTED_ERRORS "_BitInt.c:3:1: warning: '_BitInt' in C17 and earlier is a Clang extension' [-Wbit-int-extension]" \
     "_BitInt.c:13:1: error: _BitInt of bit sizes greater than 65535 not supported" \
