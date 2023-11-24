@@ -2890,7 +2890,7 @@ fn declarator(
         try res.ty.combine(outer);
         try res.ty.validateCombinedType(p, suffix_start);
         res.old_style_func = d.old_style_func;
-        res.func_declarator = d.func_declarator;
+        if (d.func_declarator) |some| res.func_declarator = some;
         return res;
     }
 
