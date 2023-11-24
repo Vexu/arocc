@@ -134,7 +134,7 @@ pub fn main() !void {
 
     // collect all cases
     {
-        var cases_dir = try std.fs.cwd().openIterableDir(args[1], .{});
+        var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
         defer cases_dir.close();
 
         var it = cases_dir.iterate();
