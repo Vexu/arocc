@@ -747,6 +747,17 @@ fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anyty
     return error.FatalError;
 }
 
+fn fatalNotFound(pp: *Preprocessor, tok: Token, filename: []const u8) Compilation.Error {
+    const old = pp.comp.diagnostics.fatal_errors;
+    pp.comp.diagnostics.fatal_errors = true;
+    defer pp.comp.diagnostics.fatal_errors = old;
+
+    try pp.comp.diagnostics.addExtra(pp.comp.langopts, .{ .tag = .cli_error, .loc = tok.loc, .extra = .{
+        .str = try std.fmt.allocPrint(pp.comp.diagnostics.arena.allocator(), "'{s}' not found", .{filename}),
+    } }, tok.expansionSlice(), false);
+    unreachable; // addExtra should've returned FatalError
+}
+
 fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) void {
     const source = pp.comp.getSource(raw.source);
     const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
@@ -2703,6 +2714,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         error.InvalidInclude => return,
         else => |e| return e,
     };
+    defer Token.free(filename_tok.expansion_locs, pp.gpa);
 
     // Check for empty filename.
     const tok_slice = pp.expandedSliceExtra(filename_tok, .single_macro_ws);
@@ -2836,7 +2848,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     }
 
     const embed_bytes = (try pp.comp.findEmbed(filename, first.source, include_type, limit)) orelse
-        return pp.fatal(first, "'{s}' not found", .{filename});
+        return pp.fatalNotFound(filename_tok, filename);
     defer pp.comp.gpa.free(embed_bytes);
 
     try Range.expand(prefix, pp, tokenizer);
@@ -2984,8 +2996,6 @@ fn findIncludeFilenameToken(
     tokenizer: *Tokenizer,
     trailing_token_behavior: enum { ignore_trailing_tokens, expect_nl_eof },
 ) !Token {
-    const start = pp.tokens.len;
-    defer pp.tokens.len = start;
     var first = first_token;
 
     if (first.id == .angle_bracket_left) to_end: {
@@ -3008,35 +3018,60 @@ fn findIncludeFilenameToken(
         }, &.{});
         try pp.err(first, .header_str_match);
     }
-    // Try to expand if the argument is a macro.
-    try pp.expandMacro(tokenizer, first);
 
-    // Check that we actually got a string.
-    const filename_tok = pp.tokens.get(start);
-    switch (filename_tok.id) {
-        .string_literal, .macro_string => {},
-        else => {
-            try pp.err(first, .expected_filename);
-            try pp.expectNl(tokenizer);
-            return error.InvalidInclude;
+    const source_tok = tokFromRaw(first);
+    const filename_tok, const expanded_trailing = switch (source_tok.id) {
+        .string_literal, .macro_string => .{ source_tok, false },
+        else => expanded: {
+            // Try to expand if the argument is a macro.
+            pp.top_expansion_buf.items.len = 0;
+            defer for (pp.top_expansion_buf.items) |tok| Token.free(tok.expansion_locs, pp.gpa);
+            try pp.top_expansion_buf.append(source_tok);
+            pp.expansion_source_loc = source_tok.loc;
+
+            try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, .non_expr);
+            var trailing_toks: []const Token = &.{};
+            const include_str = (try pp.reconstructIncludeString(pp.top_expansion_buf.items, &trailing_toks)) orelse {
+                try pp.err(first, .expected_filename);
+                try pp.expectNl(tokenizer);
+                return error.InvalidInclude;
+            };
+            const start = pp.comp.generated_buf.items.len;
+            try pp.comp.generated_buf.appendSlice(pp.gpa, include_str);
+
+            break :expanded .{ try pp.makeGeneratedToken(start, switch (include_str[0]) {
+                '"' => .string_literal,
+                '<' => .macro_string,
+                else => unreachable,
+            }, pp.top_expansion_buf.items[0]), trailing_toks.len != 0 };
         },
-    }
+    };
+
     switch (trailing_token_behavior) {
         .expect_nl_eof => {
             // Error on extra tokens.
             const nl = tokenizer.nextNoWS();
-            if ((nl.id != .nl and nl.id != .eof) or pp.tokens.len > start + 1) {
+            if ((nl.id != .nl and nl.id != .eof) or expanded_trailing) {
                 skipToNl(tokenizer);
-                try pp.err(first, .extra_tokens_directive_end);
+                try pp.comp.diagnostics.addExtra(pp.comp.langopts, .{
+                    .tag = .extra_tokens_directive_end,
+                    .loc = filename_tok.loc,
+                }, filename_tok.expansionSlice(), false);
             }
         },
-        .ignore_trailing_tokens => {},
+        .ignore_trailing_tokens => if (expanded_trailing) {
+            try pp.comp.diagnostics.addExtra(pp.comp.langopts, .{
+                .tag = .extra_tokens_directive_end,
+                .loc = filename_tok.loc,
+            }, filename_tok.expansionSlice(), false);
+        },
     }
     return filename_tok;
 }
 
 fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, which: Compilation.WhichInclude) !Source {
     const filename_tok = try pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof);
+    defer Token.free(filename_tok.expansion_locs, pp.gpa);
 
     // Check for empty filename.
     const tok_slice = pp.expandedSliceExtra(filename_tok, .single_macro_ws);
@@ -3054,7 +3089,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
     };
 
     return (try pp.comp.findInclude(filename, first, include_type, which)) orelse
-        pp.fatal(first, "'{s}' not found", .{filename});
+        return pp.fatalNotFound(filename_tok, filename);
 }
 
 fn printLinemarker(
