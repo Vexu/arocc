@@ -105,6 +105,7 @@ pub const Func = struct {
     fn eql(a: *const Func, b: *const Func, a_spec: Specifier, b_spec: Specifier, comp: *const Compilation) bool {
         // return type cannot have qualifiers
         if (!a.return_type.eql(b.return_type, comp, false)) return false;
+        if (a.params.len == 0 and b.params.len == 0) return true;
 
         if (a.params.len != b.params.len) {
             if (a_spec == .old_style_func or b_spec == .old_style_func) {

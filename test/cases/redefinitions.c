@@ -85,6 +85,12 @@ int f4(int);
 int f5(int (*)(), double (*)[3]);
 int f5(int (*)(char), double (*)[]); // not compatible since char undergoes default argument promotion
 
+void f6();
+void f6(void) {}
+
+void f7(void);
+void f7() {}
+
 #define EXPECTED_ERRORS "redefinitions.c:4:5: error: redefinition of 'foo' as different kind of symbol" \
     "redefinitions.c:1:5: note: previous definition is here" \
     "redefinitions.c:5:5: error: redefinition of 'foo' as different kind of symbol" \
