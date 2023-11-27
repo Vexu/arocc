@@ -114,6 +114,7 @@ pub const Func = struct {
                 }
                 return true;
             }
+            return false;
         }
         if ((a_spec == .func) != (b_spec == .func)) return false;
         // TODO validate this
