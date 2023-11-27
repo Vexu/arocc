@@ -75,6 +75,9 @@ int (*return_array_ptr(void))[2] {
     return &ARRAY;
 }
 
+void no_params(void);
+void no_params(int x){}
+
 #define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing" \
     "functions.c:20:14: error: illegal initializer (only variables can be initialized)" \
     "functions.c:18:2: warning: non-void function 'foooo' does not return a value [-Wreturn-type]" \
@@ -85,3 +88,6 @@ int (*return_array_ptr(void))[2] {
     "functions.c:50:3: error: parameter has incomplete type 'union Union'" \
     "functions.c:53:30: error: parameter has incomplete type 'enum E'" \
     "functions.c:55:9: error: parameter has incomplete type 'enum EE'" \
+    "functions.c:79:6: error: redefinition of 'no_params' with a different type" \
+    "functions.c:78:6: note: previous definition is here" \
+
