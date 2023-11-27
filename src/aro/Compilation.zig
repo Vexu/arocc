@@ -1349,6 +1349,10 @@ pub fn hasInclude(
     /// __has_include vs __has_include_next
     which: WhichInclude,
 ) !bool {
+    if (mem.indexOfScalar(u8, filename, 0) != null) {
+        return false;
+    }
+
     const cwd = std.fs.cwd();
     if (std.fs.path.isAbsolute(filename)) {
         if (which == .next) return false;
