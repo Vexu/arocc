@@ -83,16 +83,6 @@ pub const Signedness = enum {
     signed,
     unsigned,
     unspecified,
-    platform_dependant,
-
-    pub fn unwrap(s: Signedness, comp: *const Compilation) std.builtin.Signedness {
-        return switch (s) {
-            .signed => .signed,
-            .unsigned => .unsigned,
-            .unspecified => .signed,
-            .platform_dependant => comp.getCharSignedness(),
-        };
-    }
 };
 
 // might not need all 4 of these when finished,
@@ -144,6 +134,8 @@ pub const FieldLayout = struct {
 const Type = @This();
 
 ref: Interner.Ref,
+
+pub const invalid = Type{ .ref = .invalid };
 
 pub fn isCallable(ty: Type) ?Type {
     return switch (ty.specifier) {

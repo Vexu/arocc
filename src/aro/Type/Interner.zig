@@ -3,13 +3,14 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const Hash = std.hash.Wyhash;
 const Attribute = @import("../Attribute.zig");
-const Compilation = @import("Compilation.zig");
+const Compilation = @import("../Compilation.zig");
 const StringInterner = @import("../StringInterner.zig");
 const StringId = StringInterner.StringId;
 const Tree = @import("../Tree.zig");
 const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
 const Type = @import("../Type.zig");
+const target_util = @import("../target.zig");
 
 const Interner = @This();
 
@@ -20,23 +21,33 @@ items: std.MultiArrayList(struct {
 }) = .{},
 extra: std.ArrayListUnmanaged(u32) = .{},
 named: struct {
-    wchar: Type,
-    uint_least16_t: Type,
-    uint_least32_t: Type,
-    ptrdiff: Type,
-    size: Type,
-    va_list: Type,
-    pid_t: Type,
-    ns_constant_string: Type,
-    file: Type,
-    jmp_buf: Type,
-    sigjmp_buf: Type,
-    ucontext_t: Type,
-    intmax: Type,
-    intptr: Type,
-    int16: Type,
-    int64: Type,
-},
+    wchar: Type = Type.invalid,
+    uint_least16_t: Type = Type.invalid,
+    uint_least32_t: Type = Type.invalid,
+    ptrdiff: Type = Type.invalid,
+    size: Type = Type.invalid,
+    va_list: Type = Type.invalid,
+    pid_t: Type = Type.invalid,
+    ns_constant_string: Type = Type.invalid,
+    file: Type = Type.invalid,
+    jmp_buf: Type = Type.invalid,
+    sigjmp_buf: Type = Type.invalid,
+    ucontext_t: Type = Type.invalid,
+    intmax: Type = Type.invalid,
+    intptr: Type = Type.invalid,
+    int16: Type = Type.invalid,
+    int64: Type = Type.invalid,
+} = .{},
+target_specific: struct {
+    char_sign: std.builtin.Signedness = .signed,
+    short_bits: u16 = 16,
+    int_bits: u16 = 32,
+    long_bits: u16 = 64,
+    long_long_bits: u16 = 64,
+    float_bits: u16 = 32,
+    double_bits: u16 = 64,
+    long_double_bits: u16 = 128,
+} = .{},
 
 const KeyAdapter = struct {
     interner: *const Interner,
@@ -53,9 +64,6 @@ const KeyAdapter = struct {
 };
 
 pub const Key = union(enum) {
-    /// A NaN-like poison value
-    invalid,
-
     /// GNU auto type
     /// This is a placeholder specifier - it must be replaced by the actual type specifier (determined by the initializer)
     auto_type: Type.Qualifiers,
@@ -111,6 +119,7 @@ pub const Key = union(enum) {
     typedef: struct {
         qual: Type.Qualifiers,
         ty: Type,
+        name: StringId,
     },
 
     decayed: struct {
@@ -128,7 +137,9 @@ pub const Key = union(enum) {
         qual: Type.Qualifiers,
         signedness: Type.Signedness,
         bits: u16,
-        name: enum {
+        name: Name,
+
+        pub const Name = enum {
             char,
             short,
             int,
@@ -136,13 +147,15 @@ pub const Key = union(enum) {
             long_long,
             int128,
             bit_int,
-        },
+        };
     };
 
     pub const Float = struct {
         qual: Type.Qualifiers,
         bits: u16,
-        name: enum {
+        name: Name,
+        
+        pub const Name = enum {
             fp16,
             float16,
             float,
@@ -150,7 +163,7 @@ pub const Key = union(enum) {
             long_double,
             float80,
             float128,
-        },
+        };
     };
 
     pub const Func = struct {
@@ -282,11 +295,105 @@ pub const Key = union(enum) {
 };
 
 pub const Ref = enum(u32) {
+    /// A NaN-like poison value
     invalid = std.math.maxInt(u32),
     _,
 };
 
-pub const Tag = enum(u8) {};
+pub const Tag = enum(u8) {
+    /// `data` is `Type.Qualifiers`
+    auto_type,
+    /// `data` is `Type.Qualifiers`
+    c23_auto,
+    /// `data` is `Type.Qualifiers`
+    nullptr_t,
+    /// `data` is `Type.Qualifiers`
+    bool,
+    /// `data` is `Type.Qualifiers`
+    void,
+    /// `data` is `PackedInt`
+    int,
+    /// `data` is `PackedInt`
+    complex_int,
+    /// `data` is `PackedInt`
+    imaginary_int,
+    /// `data` is `PackedFloat`
+    float,
+    /// `data` is `PackedFloat`
+    complex_float,
+    /// `data` is `PackedFloat`
+    imaginary_float,
+
+    // func,
+    // var_args_func,
+    // old_style_func,
+
+    // pointer: Pointer,
+    // unspecified_variable_len_array: Pointer,
+
+    // array: Array,
+    // static_array: Array,
+    // incomplete_array: Array,
+    // vector: Array,
+    // variable_len_array: Expr,
+
+    // @"struct": Record,
+    // @"union": Record,
+
+    // @"enum": Enum,
+
+    // /// typeof(type-name)
+    // typeof_type: struct {
+    //     qual: Type.Qualifiers,
+    //     ty: Type,
+    // },
+    // /// typeof(expression)
+    // typeof_expr: Expr,
+
+    // typedef: struct {
+    //     qual: Type.Qualifiers,
+    //     ty: Type,
+    //     name: StringId,
+    // },
+
+    // decayed: struct {
+    //     qual: Type.Qualifiers,
+    //     ty: Type,
+    // },
+
+    // attributed: struct {
+    //     qual: Type.Qualifiers,
+    //     ty: Type,
+    //     attributes: []const Attribute,
+    // },
+
+    pub const PackedInt = packed struct(u32) {
+        qual: Type.Qualifiers,
+        signedness: Type.Signedness,
+        bits: u16,
+        name: Key.Int.Name,
+    };
+
+    pub const PackedFloat = packed struct(u32) {
+        qual: Type.Qualifiers,
+        bits: u16,
+        name: Key.Float.Name,
+    };
+};
+
+pub fn initNamed(i: *Interner, comp: *Compilation) void {
+    // Set target specific information.
+    i.target_specific.char_sign = comp.getCharSignedness();
+    i.short_bits = comp.target.c_type_bit_size(.short);
+    i.int_bits = comp.target.c_type_bit_size(.int);
+    i.long_bits = comp.target.c_type_bit_size(.long);
+    i.long_long_bits = comp.target.c_type_bit_size(.longlong);
+    i.float_bits = comp.target.c_type_bit_size(.float);
+    i.double_bits = comp.target.c_type_bit_size(.double);
+    i.long_double_bits = comp.target.c_type_bit_size(.longdouble);
+
+    // TODO
+}
 
 pub fn deinit(i: *Interner, gpa: Allocator) void {
     i.map.deinit(gpa);
@@ -295,7 +402,6 @@ pub fn deinit(i: *Interner, gpa: Allocator) void {
 }
 
 pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
-    if (key.toRef()) |some| return some;
     const adapter: KeyAdapter = .{ .interner = i };
     const gop = try i.map.getOrPutAdapted(gpa, key, adapter);
     if (gop.found_existing) return @enumFromInt(gop.index);
@@ -330,10 +436,7 @@ pub fn get(i: *const Interner, ref: Ref) Key {
 
 pub fn getExtra(i: *const Interner, ref: Ref, search: enum { deep, shallow }) Key {
     _ = search;
-    switch (ref) {
-        else => {},
-    }
-
+    assert(ref != .invalid);
     while (true) {
         const item = i.items.get(@intFromEnum(ref));
         switch (item.tag) {}
