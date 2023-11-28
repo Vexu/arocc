@@ -1,13 +1,14 @@
 const std = @import("std");
-const Tree = @import("Tree.zig");
-const TokenIndex = Tree.TokenIndex;
-const NodeIndex = Tree.NodeIndex;
-const Parser = @import("Parser.zig");
-const Compilation = @import("Compilation.zig");
 const Attribute = @import("Attribute.zig");
+const Compilation = @import("Compilation.zig");
+const Interner = @import("Type/Interner.zig");
+const Parser = @import("Parser.zig");
 const StringInterner = @import("StringInterner.zig");
 const StringId = StringInterner.StringId;
 const target_util = @import("target.zig");
+const Tree = @import("Tree.zig");
+const TokenIndex = Tree.TokenIndex;
+const NodeIndex = Tree.NodeIndex;
 const LangOpts = @import("LangOpts.zig");
 
 pub const Qualifiers = packed struct {
@@ -15,9 +16,6 @@ pub const Qualifiers = packed struct {
     atomic: bool = false,
     @"volatile": bool = false,
     restrict: bool = false,
-
-    // for function parameters only, stored here since it fits in the padding
-    register: bool = false,
 
     pub fn any(quals: Qualifiers) bool {
         return quals.@"const" or quals.restrict or quals.@"volatile" or quals.atomic;
@@ -28,7 +26,6 @@ pub const Qualifiers = packed struct {
         if (quals.atomic) try w.writeAll("_Atomic ");
         if (quals.@"volatile") try w.writeAll("volatile ");
         if (quals.restrict) try w.writeAll("restrict ");
-        if (quals.register) try w.writeAll("register ");
     }
 
     /// Merge the const/volatile qualifiers, used by type resolution
@@ -47,7 +44,6 @@ pub const Qualifiers = packed struct {
             .atomic = a.atomic or b.atomic,
             .@"volatile" = a.@"volatile" or b.@"volatile",
             .restrict = a.restrict or b.restrict,
-            .register = a.register or b.register,
         };
     }
 
@@ -57,14 +53,6 @@ pub const Qualifiers = packed struct {
         if (b.@"volatile" and !a.@"volatile") return false;
         if (b.atomic and !a.atomic) return false;
         return true;
-    }
-
-    /// register is a storage class and not actually a qualifier
-    /// so it is not preserved by typeof()
-    pub fn inheritFromTypeof(quals: Qualifiers) Qualifiers {
-        var res = quals;
-        res.register = false;
-        return res;
     }
 
     pub const Builder = struct {
@@ -91,102 +79,19 @@ pub const Qualifiers = packed struct {
     };
 };
 
-// TODO improve memory usage
-pub const Func = struct {
-    return_type: Type,
-    params: []Param,
+pub const Signedness = enum {
+    signed,
+    unsigned,
+    unspecified,
+    platform_dependant,
 
-    pub const Param = struct {
-        ty: Type,
-        name: StringId,
-        name_tok: TokenIndex,
-    };
-
-    fn eql(a: *const Func, b: *const Func, a_spec: Specifier, b_spec: Specifier, comp: *const Compilation) bool {
-        // return type cannot have qualifiers
-        if (!a.return_type.eql(b.return_type, comp, false)) return false;
-        if (a.params.len == 0 and b.params.len == 0) return true;
-
-        if (a.params.len != b.params.len) {
-            if (a_spec == .old_style_func or b_spec == .old_style_func) {
-                const maybe_has_params = if (a_spec == .old_style_func) b else a;
-                for (maybe_has_params.params) |param| {
-                    if (param.ty.undergoesDefaultArgPromotion(comp)) return false;
-                }
-                return true;
-            }
-            return false;
-        }
-        if ((a_spec == .func) != (b_spec == .func)) return false;
-        // TODO validate this
-        for (a.params, b.params) |param, b_qual| {
-            var a_unqual = param.ty;
-            a_unqual.qual.@"const" = false;
-            a_unqual.qual.@"volatile" = false;
-            var b_unqual = b_qual.ty;
-            b_unqual.qual.@"const" = false;
-            b_unqual.qual.@"volatile" = false;
-            if (!a_unqual.eql(b_unqual, comp, true)) return false;
-        }
-        return true;
-    }
-};
-
-pub const Array = struct {
-    len: u64,
-    elem: Type,
-};
-
-pub const Expr = struct {
-    node: NodeIndex,
-    ty: Type,
-};
-
-pub const Attributed = struct {
-    attributes: []Attribute,
-    base: Type,
-
-    pub fn create(allocator: std.mem.Allocator, base: Type, existing_attributes: []const Attribute, attributes: []const Attribute) !*Attributed {
-        const attributed_type = try allocator.create(Attributed);
-        errdefer allocator.destroy(attributed_type);
-
-        const all_attrs = try allocator.alloc(Attribute, existing_attributes.len + attributes.len);
-        @memcpy(all_attrs[0..existing_attributes.len], existing_attributes);
-        @memcpy(all_attrs[existing_attributes.len..], attributes);
-
-        attributed_type.* = .{
-            .attributes = all_attrs,
-            .base = base,
+    pub fn unwrap(s: Signedness, comp: *const Compilation) std.builtin.Signedness {
+        return switch (s) {
+            .signed => .signed,
+            .unsigned => .unsigned,
+            .unspecified => .signed,
+            .platform_dependant => comp.getCharSignedness(),
         };
-        return attributed_type;
-    }
-};
-
-// TODO improve memory usage
-pub const Enum = struct {
-    fields: []Field,
-    tag_ty: Type,
-    name: StringId,
-    fixed: bool,
-
-    pub const Field = struct {
-        ty: Type,
-        name: StringId,
-        name_tok: TokenIndex,
-        node: NodeIndex,
-    };
-
-    pub fn isIncomplete(e: Enum) bool {
-        return e.fields.len == std.math.maxInt(usize);
-    }
-
-    pub fn create(allocator: std.mem.Allocator, name: StringId, fixed_ty: ?Type) !*Enum {
-        var e = try allocator.create(Enum);
-        e.name = name;
-        e.fields.len = std.math.maxInt(usize);
-        if (fixed_ty) |some| e.tag_ty = some;
-        e.fixed = fixed_ty != null;
-        return e;
     }
 };
 
@@ -236,208 +141,9 @@ pub const FieldLayout = struct {
     }
 };
 
-// TODO improve memory usage
-pub const Record = struct {
-    fields: []Field,
-    type_layout: TypeLayout,
-    /// If this is null, none of the fields have attributes
-    /// Otherwise, it's a pointer to N items (where N == number of fields)
-    /// and the item at index i is the attributes for the field at index i
-    field_attributes: ?[*][]const Attribute,
-    name: StringId,
-
-    pub const Field = struct {
-        ty: Type,
-        name: StringId,
-        /// zero for anonymous fields
-        name_tok: TokenIndex = 0,
-        bit_width: ?u32 = null,
-        layout: FieldLayout = .{
-            .offset_bits = 0,
-            .size_bits = 0,
-        },
-
-        pub fn isNamed(f: *const Field) bool {
-            return f.name_tok != 0;
-        }
-
-        pub fn isAnonymousRecord(f: Field) bool {
-            return !f.isNamed() and f.ty.isRecord();
-        }
-
-        /// false for bitfields
-        pub fn isRegularField(f: *const Field) bool {
-            return f.bit_width == null;
-        }
-
-        /// bit width as specified in the C source. Asserts that `f` is a bitfield.
-        pub fn specifiedBitWidth(f: *const Field) u32 {
-            return f.bit_width.?;
-        }
-    };
-
-    pub fn isIncomplete(r: Record) bool {
-        return r.fields.len == std.math.maxInt(usize);
-    }
-
-    pub fn create(allocator: std.mem.Allocator, name: StringId) !*Record {
-        var r = try allocator.create(Record);
-        r.name = name;
-        r.fields.len = std.math.maxInt(usize);
-        r.field_attributes = null;
-        r.type_layout = .{
-            .size_bits = 8,
-            .field_alignment_bits = 8,
-            .pointer_alignment_bits = 8,
-            .required_alignment_bits = 8,
-        };
-        return r;
-    }
-
-    pub fn hasFieldOfType(self: *const Record, ty: Type, comp: *const Compilation) bool {
-        if (self.isIncomplete()) return false;
-        for (self.fields) |f| {
-            if (ty.eql(f.ty, comp, false)) return true;
-        }
-        return false;
-    }
-};
-
-pub const Specifier = enum {
-    /// A NaN-like poison value
-    invalid,
-
-    /// GNU auto type
-    /// This is a placeholder specifier - it must be replaced by the actual type specifier (determined by the initializer)
-    auto_type,
-    /// C23 auto, behaves like auto_type
-    c23_auto,
-
-    void,
-    bool,
-
-    // integers
-    char,
-    schar,
-    uchar,
-    short,
-    ushort,
-    int,
-    uint,
-    long,
-    ulong,
-    long_long,
-    ulong_long,
-    int128,
-    uint128,
-    complex_char,
-    complex_schar,
-    complex_uchar,
-    complex_short,
-    complex_ushort,
-    complex_int,
-    complex_uint,
-    complex_long,
-    complex_ulong,
-    complex_long_long,
-    complex_ulong_long,
-    complex_int128,
-    complex_uint128,
-
-    // data.int
-    bit_int,
-    complex_bit_int,
-
-    // floating point numbers
-    fp16,
-    float16,
-    float,
-    double,
-    long_double,
-    float80,
-    float128,
-    complex_float,
-    complex_double,
-    complex_long_double,
-    complex_float80,
-    complex_float128,
-
-    // data.sub_type
-    pointer,
-    unspecified_variable_len_array,
-    // data.func
-    /// int foo(int bar, char baz) and int (void)
-    func,
-    /// int foo(int bar, char baz, ...)
-    var_args_func,
-    /// int foo(bar, baz) and int foo()
-    /// is also var args, but we can give warnings about incorrect amounts of parameters
-    old_style_func,
-
-    // data.array
-    array,
-    static_array,
-    incomplete_array,
-    vector,
-    // data.expr
-    variable_len_array,
-
-    // data.record
-    @"struct",
-    @"union",
-
-    // data.enum
-    @"enum",
-
-    /// typeof(type-name)
-    typeof_type,
-
-    /// typeof(expression)
-    typeof_expr,
-
-    /// data.attributed
-    attributed,
-
-    /// C23 nullptr_t
-    nullptr_t,
-};
-
 const Type = @This();
 
-/// All fields of Type except data may be mutated
-data: union {
-    sub_type: *Type,
-    func: *Func,
-    array: *Array,
-    expr: *Expr,
-    @"enum": *Enum,
-    record: *Record,
-    attributed: *Attributed,
-    none: void,
-    int: struct {
-        bits: u16,
-        signedness: std.builtin.Signedness,
-    },
-} = .{ .none = {} },
-specifier: Specifier,
-qual: Qualifiers = .{},
-decayed: bool = false,
-
-pub const int = Type{ .specifier = .int };
-pub const invalid = Type{ .specifier = .invalid };
-
-/// Determine if type matches the given specifier, recursing into typeof
-/// types if necessary.
-pub fn is(ty: Type, specifier: Specifier) bool {
-    std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
-    return ty.get(specifier) != null;
-}
-
-pub fn withAttributes(self: Type, allocator: std.mem.Allocator, attributes: []const Attribute) !Type {
-    if (attributes.len == 0) return self;
-    const attributed_type = try Type.Attributed.create(allocator, self, self.getAttributes(), attributes);
-    return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type }, .decayed = self.decayed };
-}
+ref: Interner.Ref,
 
 pub fn isCallable(ty: Type) ?Type {
     return switch (ty.specifier) {
