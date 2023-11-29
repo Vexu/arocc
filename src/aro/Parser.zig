@@ -6443,12 +6443,10 @@ fn addExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         const lhs_ty = lhs.ty;
-        const rhs_ty = rhs.ty;
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
                 if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp) and
-                    rhs_ty.signedness(p.comp) != .unsigned and
-                    lhs_ty.signedness(p.comp) != .unsigned) try p.errOverflow(plus.?, lhs);
+                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(plus.?, lhs);
             } else {
                 if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(minus.?, lhs);
             }
@@ -6488,7 +6486,6 @@ fn mulExpr(p: *Parser) Error!Result {
         if (try lhs.adjustTypes(percent.?, &rhs, p, if (tag == .mod_expr) .integer else .arithmetic)) {
             if (mul != null) {
                 if (try lhs.val.mul(lhs.val, rhs.val, lhs.ty, p.comp) and
-                    rhs.ty.signedness(p.comp) != .unsigned and
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(mul.?, lhs);
             } else if (div != null) {
                 if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(mul.?, lhs);
