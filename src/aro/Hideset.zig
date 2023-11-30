@@ -60,17 +60,6 @@ const Iterator = struct {
         defer self.i = self.slice.items(.next)[@intFromEnum(self.i)];
         return self.slice.items(.name)[@intFromEnum(self.i)];
     }
-
-    /// Computes remaining length in iterator without modifying it
-    fn len(self: *const Iterator) usize {
-        const nexts = self.slice.items(.next);
-        var cur = self.i;
-        var count: usize = 0;
-        while (cur != .sentinel) : (count += 1) {
-            cur = nexts[@intFromEnum(cur)];
-        }
-        return count;
-    }
 };
 
 pub fn deinit(self: *Hideset) void {
@@ -103,13 +92,8 @@ pub fn ensureUnusedCapacity(self: *Hideset, new_size: usize) !void {
     try self.linked_list.ensureUnusedCapacity(self.comp.gpa, new_size);
 }
 
-/// Allocates a new item and returns its index
-fn allocate(self: *Hideset, name: Identifier) !Index {
-    try self.linked_list.ensureUnusedCapacity(self.comp.gpa, 1);
-    return self.allocateAssumeCapacity(name);
-}
-
-fn allocateAssumeCapacity(self: *Hideset, name: Identifier) Index {
+/// Creates a one-item list with contents `name`
+fn createNodeAssumeCapacity(self: *Hideset, name: Identifier) Index {
     const next_idx = self.linked_list.len;
     self.linked_list.appendAssumeCapacity(.{ .name = name });
     return @enumFromInt(next_idx);
@@ -117,9 +101,9 @@ fn allocateAssumeCapacity(self: *Hideset, name: Identifier) Index {
 
 /// Create a new list with `name` at the front followed by `tail`
 pub fn prepend(self: *Hideset, name: Identifier, tail: Index) !Index {
-    const new_idx = try self.allocate(name);
-    self.linked_list.items(.next)[@intFromEnum(new_idx)] = tail;
-    return new_idx;
+    const new_idx = self.linked_list.len;
+    try self.linked_list.append(self.comp.gpa, .{ .name = name, .next = tail });
+    return @enumFromInt(new_idx);
 }
 
 /// Copy a, then attach b at the end
@@ -129,7 +113,7 @@ pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
     try self.ensureUnusedCapacity(self.len(a));
     var it = self.iterator(a);
     while (it.next()) |name| {
-        const new_idx = self.allocateAssumeCapacity(name);
+        const new_idx = self.createNodeAssumeCapacity(name);
         if (head == b) {
             head = new_idx;
         }
@@ -154,7 +138,13 @@ pub fn contains(self: *const Hideset, list: Index, name: []const u8) bool {
 }
 
 fn len(self: *const Hideset, list: Index) usize {
-    return self.iterator(list).len();
+    const nexts = self.linked_list.items(.next);
+    var cur = list;
+    var count: usize = 0;
+    while (cur != .sentinel) : (count += 1) {
+        cur = nexts[@intFromEnum(cur)];
+    }
+    return count;
 }
 
 pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
@@ -175,7 +165,7 @@ pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
     while (it.next()) |name| {
         const str = name.slice(self.comp);
         if (self.intersection_map.contains(str)) {
-            const new_idx = self.allocateAssumeCapacity(name);
+            const new_idx = self.createNodeAssumeCapacity(name);
             if (head == .sentinel) {
                 head = new_idx;
             }
