@@ -49,7 +49,6 @@ const Index = enum(u32) {
 map: std.HashMapUnmanaged(Identifier, Index, HashContext, std.hash_map.default_max_load_percentage) = .{},
 intersection_map: std.StringHashMapUnmanaged(void) = .{},
 linked_list: Item.List = .{},
-next_idx: Index = @enumFromInt(0),
 comp: *const Compilation,
 
 const Iterator = struct {
@@ -60,6 +59,17 @@ const Iterator = struct {
         if (self.i == .sentinel) return null;
         defer self.i = self.slice.items(.next)[@intFromEnum(self.i)];
         return self.slice.items(.name)[@intFromEnum(self.i)];
+    }
+
+    /// Computes remaining length in iterator without modifying it
+    fn len(self: *const Iterator) usize {
+        const nexts = self.slice.items(.next);
+        var cur = self.i;
+        var count: usize = 0;
+        while (cur != .sentinel) : (count += 1) {
+            cur = nexts[@intFromEnum(cur)];
+        }
+        return count;
     }
 };
 
@@ -76,7 +86,7 @@ pub fn deinit(self: *Hideset) void {
 }
 
 pub fn clearRetainingCapacity(self: *Hideset) void {
-    self.next_idx = @enumFromInt(0);
+    self.linked_list.shrinkRetainingCapacity(0);
     self.map.clearRetainingCapacity();
 }
 
@@ -95,19 +105,20 @@ pub fn put(self: *Hideset, key: Identifier, value: Index) !void {
     try self.map.put(self.comp.gpa, key, value);
 }
 
-pub fn ensureTotalCapacity(self: *Hideset, new_size: usize) !void {
-    try self.linked_list.ensureTotalCapacity(self.comp.gpa, new_size);
+pub fn ensureUnusedCapacity(self: *Hideset, new_size: usize) !void {
+    try self.linked_list.ensureUnusedCapacity(self.comp.gpa, new_size);
 }
 
 /// Allocates a new item and returns its index
 fn allocate(self: *Hideset, name: Identifier) !Index {
-    const next: Index = if (@intFromEnum(self.next_idx) < self.linked_list.len) self.next_idx else blk: {
-        const new_item_idx = try self.linked_list.addOne(self.comp.gpa);
-        break :blk @enumFromInt(new_item_idx);
-    };
-    self.next_idx = @enumFromInt(@intFromEnum(next) + 1);
-    self.linked_list.set(@intFromEnum(next), .{ .name = name });
-    return next;
+    try self.linked_list.ensureUnusedCapacity(self.comp.gpa, 1);
+    return self.allocateAssumeCapacity(name);
+}
+
+fn allocateAssumeCapacity(self: *Hideset, name: Identifier) Index {
+    const next_idx = self.linked_list.len;
+    self.linked_list.appendAssumeCapacity(.{ .name = name });
+    return @enumFromInt(next_idx);
 }
 
 /// Create a new list with `name` at the front followed by `tail`
@@ -121,9 +132,10 @@ pub fn prepend(self: *Hideset, name: Identifier, tail: Index) !Index {
 pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
     var cur: Index = .sentinel;
     var head: Index = b;
+    try self.ensureUnusedCapacity(self.len(a));
     var it = self.iterator(a);
     while (it.next()) |name| {
-        const new_idx = try self.allocate(name);
+        const new_idx = self.allocateAssumeCapacity(name);
         if (head == b) {
             head = new_idx;
         }
@@ -147,6 +159,10 @@ pub fn contains(self: *const Hideset, list: Index, name: []const u8) bool {
     return false;
 }
 
+fn len(self: *const Hideset, list: Index) usize {
+    return self.iterator(list).len();
+}
+
 pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
     if (a == .sentinel or b == .sentinel) return .sentinel;
     self.intersection_map.clearRetainingCapacity();
@@ -154,15 +170,18 @@ pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
     var cur: Index = .sentinel;
     var head: Index = .sentinel;
     var it = self.iterator(a);
-    while (it.next()) |name| {
+    var a_len: usize = 0;
+    while (it.next()) |name| : (a_len += 1) {
         const str = name.slice(self.comp);
         try self.intersection_map.put(self.comp.gpa, str, {});
     }
+    try self.ensureUnusedCapacity(@min(a_len, self.len(b)));
+
     it = self.iterator(b);
     while (it.next()) |name| {
         const str = name.slice(self.comp);
         if (self.intersection_map.contains(str)) {
-            const new_idx = try self.allocate(name);
+            const new_idx = self.allocateAssumeCapacity(name);
             if (head == .sentinel) {
                 head = new_idx;
             }

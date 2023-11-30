@@ -346,7 +346,6 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
     // Estimate how many new tokens this source will contain.
     const estimated_token_count = source.buf.len / 8;
     try pp.tokens.ensureTotalCapacity(pp.gpa, pp.tokens.len + estimated_token_count);
-    try pp.hideset.ensureTotalCapacity(1024);
 
     var if_level: u8 = 0;
     var if_kind = std.PackedIntArray(u2, 256).init([1]u2{0} ** 256);
