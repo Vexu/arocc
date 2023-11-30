@@ -7,18 +7,7 @@ const Tokenizer = @import("Tokenizer.zig");
 
 pub const Hideset = @This();
 
-const HashContext = struct {
-    pub fn hash(ctx: HashContext, key: Identifier) u64 {
-        _ = ctx;
-        return std.hash.Wyhash.hash(0, std.mem.asBytes(&key));
-    }
-    pub fn eql(ctx: HashContext, a: Identifier, b: Identifier) bool {
-        _ = ctx;
-        return a.id == b.id and a.byte_offset == b.byte_offset;
-    }
-};
-
-const Identifier = packed struct(u64) {
+const Identifier = struct {
     id: Source.Id = .unused,
     byte_offset: u32 = 0,
 
@@ -46,7 +35,7 @@ const Index = enum(u32) {
     _,
 };
 
-map: std.HashMapUnmanaged(Identifier, Index, HashContext, std.hash_map.default_max_load_percentage) = .{},
+map: std.AutoHashMapUnmanaged(Identifier, Index) = .{},
 intersection_map: std.StringHashMapUnmanaged(void) = .{},
 linked_list: Item.List = .{},
 comp: *const Compilation,
