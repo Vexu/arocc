@@ -1890,22 +1890,6 @@ fn expandVaOpt(
     }
 }
 
-fn shouldExpand(tok: Token, macro: *Macro) bool {
-    if (tok.loc.id == macro.loc.id and
-        tok.loc.byte_offset >= macro.start and
-        tok.loc.byte_offset <= macro.end)
-        return false;
-    for (tok.expansionSlice()) |loc| {
-        if (loc.id == macro.loc.id and
-            loc.byte_offset >= macro.start and
-            loc.byte_offset <= macro.end)
-            return false;
-    }
-    if (tok.flags.expansion_disabled) return false;
-
-    return true;
-}
-
 fn bufCopyTokens(buf: *ExpandBuf, tokens: []const Token, src: []const Source.Location) !void {
     try buf.ensureUnusedCapacity(tokens.len);
     for (tokens) |tok| {
