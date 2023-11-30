@@ -73,12 +73,6 @@ const Iterator = struct {
     }
 };
 
-pub fn init(comp: *const Compilation) Hideset {
-    return Hideset{
-        .comp = comp,
-    };
-}
-
 pub fn deinit(self: *Hideset) void {
     self.map.deinit(self.comp.gpa);
     self.intersection_map.deinit(self.comp.gpa);

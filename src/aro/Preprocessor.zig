@@ -116,7 +116,7 @@ pub fn init(comp: *Compilation) Preprocessor {
         .char_buf = std.ArrayList(u8).init(comp.gpa),
         .poisoned_identifiers = std.StringHashMap(void).init(comp.gpa),
         .top_expansion_buf = ExpandBuf.init(comp.gpa),
-        .hideset = Hideset.init(comp),
+        .hideset = .{ .comp = comp },
     };
     comp.pragmaEvent(.before_preprocess);
     return pp;
