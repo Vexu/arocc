@@ -51,6 +51,9 @@ int Y = 'abc\E';
 #pragma GCC diagnostic pop
 int Z = 'ABC\D';
 
+_Static_assert(sizeof(__CHAR16_TYPE__) == sizeof(u'A'), "");
+_Static_assert(sizeof(__CHAR32_TYPE__) == sizeof(U'A'), "");
+
 #define EXPECTED_ERRORS "wide character constants.c:9:27: error: character too large for enclosing character literal type" \
     "wide character constants.c:10:16: error: wide character literals may not contain multiple characters" \
     "wide character constants.c:11:16: error: Unicode character literals may not contain multiple characters" \
