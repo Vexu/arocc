@@ -457,6 +457,7 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     try comp.generateIntMaxAndWidth(w, "PTRDIFF", comp.types.ptrdiff);
     try comp.generateIntMaxAndWidth(w, "INTPTR", comp.types.intptr);
     try comp.generateIntMaxAndWidth(w, "UINTPTR", comp.types.intptr.makeIntegerUnsigned());
+    try comp.generateIntMaxAndWidth(w, "SIG_ATOMIC", target_util.sigAtomicType(comp.target));
 
     // int widths
     try w.print("#define __BITINT_MAXWIDTH__ {d}\n", .{bit_int_max_bits});
@@ -493,6 +494,8 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     try generateTypeMacro(w, mapper, "__PTRDIFF_TYPE__", comp.types.ptrdiff, comp.langopts);
     try generateTypeMacro(w, mapper, "__SIZE_TYPE__", comp.types.size, comp.langopts);
     try generateTypeMacro(w, mapper, "__WCHAR_TYPE__", comp.types.wchar, comp.langopts);
+    try generateTypeMacro(w, mapper, "__CHAR16_TYPE__", comp.types.uint_least16_t, comp.langopts);
+    try generateTypeMacro(w, mapper, "__CHAR32_TYPE__", comp.types.uint_least32_t, comp.langopts);
 
     try comp.generateExactWidthTypes(w, mapper);
     try comp.generateFastAndLeastWidthTypes(w, mapper);
