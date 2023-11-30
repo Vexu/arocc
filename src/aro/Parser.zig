@@ -6448,7 +6448,8 @@ fn addExpr(p: *Parser) Error!Result {
                 if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp) and
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(plus.?, lhs);
             } else {
-                if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(minus.?, lhs);
+                if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp) and
+                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(minus.?, lhs);
             }
         }
         if (lhs.ty.specifier != .invalid and lhs_ty.isPtr() and !lhs_ty.isVoidStar() and lhs_ty.elemType().hasIncompleteSize()) {
@@ -6488,7 +6489,8 @@ fn mulExpr(p: *Parser) Error!Result {
                 if (try lhs.val.mul(lhs.val, rhs.val, lhs.ty, p.comp) and
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(mul.?, lhs);
             } else if (div != null) {
-                if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(mul.?, lhs);
+                if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.comp) and
+                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(mul.?, lhs);
             } else {
                 var res = try Value.rem(lhs.val, rhs.val, lhs.ty, p.comp);
                 if (res.opt_ref == .none) {
