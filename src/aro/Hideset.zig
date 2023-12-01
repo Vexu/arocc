@@ -1,4 +1,4 @@
-//! A hideset is a linked list (implemented as an array so that `next` pointers are 4-byte indices)
+//! A hideset is a linked list (implemented as an array so that elements are identified by 4-byte indices)
 //! of the set of identifiers from which a token was expanded.
 //! During macro expansion, if a token would otherwise be expanded, but its hideset contains
 //! the token itself, then it is not expanded
@@ -30,6 +30,13 @@ const Identifier = struct {
         const res = tmp_tokenizer.next();
         return tmp_tokenizer.buf[res.start..res.end];
     }
+
+    fn fromLocation(loc: Source.Location) Identifier {
+        return .{
+            .id = loc.id,
+            .byte_offset = loc.byte_offset,
+        };
+    }
 };
 
 const Item = struct {
@@ -45,10 +52,13 @@ const Index = enum(u32) {
 };
 
 map: std.AutoHashMapUnmanaged(Identifier, Index) = .{},
+/// Used for computing intersection of two lists; stored here so that allocations can be retained
+/// until hideset is deinit'ed
 intersection_map: std.StringHashMapUnmanaged(void) = .{},
 linked_list: Item.List = .{},
 comp: *const Compilation,
 
+/// Invalidated if the underlying MultiArrayList slice is reallocated due to resize
 const Iterator = struct {
     slice: Item.List.Slice,
     i: Index,
@@ -72,22 +82,22 @@ pub fn clearRetainingCapacity(self: *Hideset) void {
 }
 
 /// Iterator is invalidated if the underlying MultiArrayList slice is reallocated due to resize
-pub fn iterator(self: *const Hideset, idx: Index) Iterator {
+fn iterator(self: *const Hideset, idx: Index) Iterator {
     return Iterator{
         .slice = self.linked_list.slice(),
         .i = idx,
     };
 }
 
-pub fn get(self: *const Hideset, key: Identifier) Index {
-    return self.map.get(key) orelse .sentinel;
+pub fn get(self: *const Hideset, loc: Source.Location) Index {
+    return self.map.get(Identifier.fromLocation(loc)) orelse .sentinel;
 }
 
-pub fn put(self: *Hideset, key: Identifier, value: Index) !void {
-    try self.map.put(self.comp.gpa, key, value);
+pub fn put(self: *Hideset, loc: Source.Location, value: Index) !void {
+    try self.map.put(self.comp.gpa, Identifier.fromLocation(loc), value);
 }
 
-pub fn ensureUnusedCapacity(self: *Hideset, new_size: usize) !void {
+fn ensureUnusedCapacity(self: *Hideset, new_size: usize) !void {
     try self.linked_list.ensureUnusedCapacity(self.comp.gpa, new_size);
 }
 
@@ -99,9 +109,9 @@ fn createNodeAssumeCapacity(self: *Hideset, identifier: Identifier) Index {
 }
 
 /// Create a new list with `identifier` at the front followed by `tail`
-pub fn prepend(self: *Hideset, identifier: Identifier, tail: Index) !Index {
+pub fn prepend(self: *Hideset, loc: Source.Location, tail: Index) !Index {
     const new_idx = self.linked_list.len;
-    try self.linked_list.append(self.comp.gpa, .{ .identifier = identifier, .next = tail });
+    try self.linked_list.append(self.comp.gpa, .{ .identifier = Identifier.fromLocation(loc), .next = tail });
     return @enumFromInt(new_idx);
 }
 

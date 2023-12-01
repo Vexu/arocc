@@ -2109,7 +2109,7 @@ fn expandMacroExhaustive(
                 idx += 1;
                 continue;
             };
-            const macro_hidelist = pp.hideset.get(.{ .id = macro_tok.loc.id, .byte_offset = macro_tok.loc.byte_offset });
+            const macro_hidelist = pp.hideset.get(macro_tok.loc);
             if (pp.hideset.contains(macro_hidelist, expanded)) {
                 idx += 1;
                 continue;
@@ -2148,9 +2148,9 @@ fn expandMacroExhaustive(
                         }
                         args.deinit();
                     }
-                    const r_paren_hidelist = pp.hideset.get(.{ .id = r_paren.loc.id, .byte_offset = r_paren.loc.byte_offset });
+                    const r_paren_hidelist = pp.hideset.get(r_paren.loc);
                     var hs = try pp.hideset.intersection(macro_hidelist, r_paren_hidelist);
-                    hs = try pp.hideset.prepend(.{ .id = macro_tok.loc.id, .byte_offset = macro_tok.loc.byte_offset }, hs);
+                    hs = try pp.hideset.prepend(macro_tok.loc, hs);
 
                     var args_count: u32 = @intCast(args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
@@ -2207,9 +2207,9 @@ fn expandMacroExhaustive(
                     for (res.items) |*tok| {
                         try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
-                        const tok_hidelist = pp.hideset.get(.{ .id = tok.loc.id, .byte_offset = tok.loc.byte_offset });
+                        const tok_hidelist = pp.hideset.get(tok.loc);
                         const new_hidelist = try pp.hideset.@"union"(tok_hidelist, hs);
-                        try pp.hideset.put(.{ .id = tok.loc.id, .byte_offset = tok.loc.byte_offset }, new_hidelist);
+                        try pp.hideset.put(tok.loc, new_hidelist);
                     }
 
                     const tokens_removed = macro_scan_idx - idx + 1;
@@ -2226,7 +2226,7 @@ fn expandMacroExhaustive(
                     const res = try pp.expandObjMacro(macro);
                     defer res.deinit();
 
-                    const hs = try pp.hideset.prepend(.{ .id = macro_tok.loc.id, .byte_offset = macro_tok.loc.byte_offset }, macro_hidelist);
+                    const hs = try pp.hideset.prepend(macro_tok.loc, macro_hidelist);
 
                     const macro_expansion_locs = macro_tok.expansionSlice();
                     var increment_idx_by = res.items.len;
@@ -2235,9 +2235,9 @@ fn expandMacroExhaustive(
                         try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
 
-                        const tok_hidelist = pp.hideset.get(.{ .id = tok.loc.id, .byte_offset = tok.loc.byte_offset });
+                        const tok_hidelist = pp.hideset.get(tok.loc);
                         const new_hidelist = try pp.hideset.@"union"(tok_hidelist, hs);
-                        try pp.hideset.put(.{ .id = tok.loc.id, .byte_offset = tok.loc.byte_offset }, new_hidelist);
+                        try pp.hideset.put(tok.loc, new_hidelist);
 
                         if (tok.id == .keyword_defined and eval_ctx == .expr) {
                             try pp.comp.addDiagnostic(.{
