@@ -1,3 +1,12 @@
+//! A hideset is a linked list (implemented as an array so that `next` pointers are 4-byte indices)
+//! of the set of identifiers from which a token was expanded.
+//! During macro expansion, if a token would otherwise be expanded, but its hideset contains
+//! the token itself, then it is not expanded
+//! Most tokens have an empty hideset, and the hideset is not needed once expansion is complete,
+//! so we use a hash map to store them instead of directly storing them with the token.
+//! The C standard underspecifies the algorithm for updating a token's hideset;
+//! we use the one here: https://www.spinellis.gr/blog/20060626/cpp.algo.pdf
+
 const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
@@ -24,7 +33,7 @@ const Identifier = struct {
 };
 
 const Item = struct {
-    name: Identifier = .{},
+    identifier: Identifier = .{},
     next: Index = .sentinel,
 
     const List = std.MultiArrayList(Item);
@@ -47,7 +56,7 @@ const Iterator = struct {
     fn next(self: *Iterator) ?Identifier {
         if (self.i == .sentinel) return null;
         defer self.i = self.slice.items(.next)[@intFromEnum(self.i)];
-        return self.slice.items(.name)[@intFromEnum(self.i)];
+        return self.slice.items(.identifier)[@intFromEnum(self.i)];
     }
 };
 
@@ -62,6 +71,7 @@ pub fn clearRetainingCapacity(self: *Hideset) void {
     self.map.clearRetainingCapacity();
 }
 
+/// Iterator is invalidated if the underlying MultiArrayList slice is reallocated due to resize
 pub fn iterator(self: *const Hideset, idx: Index) Iterator {
     return Iterator{
         .slice = self.linked_list.slice(),
@@ -69,8 +79,8 @@ pub fn iterator(self: *const Hideset, idx: Index) Iterator {
     };
 }
 
-pub fn get(self: *const Hideset, name: Identifier) Index {
-    return self.map.get(name) orelse .sentinel;
+pub fn get(self: *const Hideset, key: Identifier) Index {
+    return self.map.get(key) orelse .sentinel;
 }
 
 pub fn put(self: *Hideset, key: Identifier, value: Index) !void {
@@ -81,17 +91,17 @@ pub fn ensureUnusedCapacity(self: *Hideset, new_size: usize) !void {
     try self.linked_list.ensureUnusedCapacity(self.comp.gpa, new_size);
 }
 
-/// Creates a one-item list with contents `name`
-fn createNodeAssumeCapacity(self: *Hideset, name: Identifier) Index {
+/// Creates a one-item list with contents `identifier`
+fn createNodeAssumeCapacity(self: *Hideset, identifier: Identifier) Index {
     const next_idx = self.linked_list.len;
-    self.linked_list.appendAssumeCapacity(.{ .name = name });
+    self.linked_list.appendAssumeCapacity(.{ .identifier = identifier });
     return @enumFromInt(next_idx);
 }
 
-/// Create a new list with `name` at the front followed by `tail`
-pub fn prepend(self: *Hideset, name: Identifier, tail: Index) !Index {
+/// Create a new list with `identifier` at the front followed by `tail`
+pub fn prepend(self: *Hideset, identifier: Identifier, tail: Index) !Index {
     const new_idx = self.linked_list.len;
-    try self.linked_list.append(self.comp.gpa, .{ .name = name, .next = tail });
+    try self.linked_list.append(self.comp.gpa, .{ .identifier = identifier, .next = tail });
     return @enumFromInt(new_idx);
 }
 
@@ -101,8 +111,8 @@ pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
     var head: Index = b;
     try self.ensureUnusedCapacity(self.len(a));
     var it = self.iterator(a);
-    while (it.next()) |name| {
-        const new_idx = self.createNodeAssumeCapacity(name);
+    while (it.next()) |identifier| {
+        const new_idx = self.createNodeAssumeCapacity(identifier);
         if (head == b) {
             head = new_idx;
         }
@@ -117,11 +127,10 @@ pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
     return head;
 }
 
-pub fn contains(self: *const Hideset, list: Index, name: []const u8) bool {
+pub fn contains(self: *const Hideset, list: Index, str: []const u8) bool {
     var it = self.iterator(list);
-    while (it.next()) |item_name| {
-        const this = item_name.slice(self.comp);
-        if (mem.eql(u8, name, this)) return true;
+    while (it.next()) |identifier| {
+        if (mem.eql(u8, str, identifier.slice(self.comp))) return true;
     }
     return false;
 }
@@ -144,17 +153,17 @@ pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
     var head: Index = .sentinel;
     var it = self.iterator(a);
     var a_len: usize = 0;
-    while (it.next()) |name| : (a_len += 1) {
-        const str = name.slice(self.comp);
+    while (it.next()) |identifier| : (a_len += 1) {
+        const str = identifier.slice(self.comp);
         try self.intersection_map.put(self.comp.gpa, str, {});
     }
     try self.ensureUnusedCapacity(@min(a_len, self.len(b)));
 
     it = self.iterator(b);
-    while (it.next()) |name| {
-        const str = name.slice(self.comp);
+    while (it.next()) |identifier| {
+        const str = identifier.slice(self.comp);
         if (self.intersection_map.contains(str)) {
-            const new_idx = self.createNodeAssumeCapacity(name);
+            const new_idx = self.createNodeAssumeCapacity(identifier);
             if (head == .sentinel) {
                 head = new_idx;
             }
