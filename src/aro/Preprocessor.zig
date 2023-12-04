@@ -41,8 +41,6 @@ const Macro = struct {
 
     /// Location of macro in the source
     loc: Source.Location,
-    start: u32,
-    end: u32,
 
     fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
         if (a.tokens.len != b.tokens.len) return false;
@@ -205,8 +203,6 @@ fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: [
         .var_args = false,
         .is_func = is_func,
         .loc = .{ .id = .generated },
-        .start = 0,
-        .end = 0,
         .is_builtin = true,
     });
 }
@@ -2460,8 +2456,6 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
             .tokens = &.{},
             .var_args = false,
             .loc = tokFromRaw(macro_name).loc,
-            .start = 0,
-            .end = 0,
             .is_func = false,
         }),
         .whitespace => first = tokenizer.next(),
@@ -2479,7 +2473,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     var need_ws = false;
     // Collect the token body and validate any ## found.
     var tok = first;
-    const end_index = while (true) {
+    while (true) {
         tok.id.simplifyMacroKeyword();
         switch (tok.id) {
             .hash_hash => {
@@ -2498,7 +2492,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
                 try pp.token_buf.append(tok);
                 try pp.token_buf.append(next);
             },
-            .nl, .eof => break tok.start,
+            .nl, .eof => break,
             .comment => if (pp.comp.langopts.preserve_comments_in_macros) {
                 if (need_ws) {
                     need_ws = false;
@@ -2521,13 +2515,11 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
             },
         }
         tok = tokenizer.next();
-    } else unreachable;
+    }
 
     const list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
     try pp.defineMacro(macro_name, .{
         .loc = tokFromRaw(macro_name).loc,
-        .start = first.start,
-        .end = end_index,
         .tokens = list,
         .params = undefined,
         .is_func = false,
@@ -2544,9 +2536,9 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
     // Parse the parameter list.
     var gnu_var_args: []const u8 = "";
     var var_args = false;
-    const start_index = while (true) {
+    while (true) {
         var tok = tokenizer.nextNoWS();
-        if (tok.id == .r_paren) break tok.end;
+        if (tok.id == .r_paren) break;
         if (tok.id == .eof) return pp.err(tok, .unterminated_macro_param_list);
         if (tok.id == .ellipsis) {
             var_args = true;
@@ -2556,7 +2548,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.err(l_paren, .to_match_paren);
                 return skipToNl(tokenizer);
             }
-            break r_paren.end;
+            break;
         }
         if (!tok.id.isMacroIdentifier()) {
             try pp.err(tok, .invalid_token_param_list);
@@ -2575,22 +2567,22 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.err(l_paren, .to_match_paren);
                 return skipToNl(tokenizer);
             }
-            break r_paren.end;
+            break;
         } else if (tok.id == .r_paren) {
-            break tok.end;
+            break;
         } else if (tok.id != .comma) {
             try pp.err(tok, .expected_comma_param_list);
             return skipToNl(tokenizer);
         }
-    } else unreachable;
+    }
 
     var need_ws = false;
     // Collect the body tokens and validate # and ##'s found.
     pp.token_buf.items.len = 0; // Safe to use since we can only be in one directive at a time.
-    const end_index = tok_loop: while (true) {
+    tok_loop: while (true) {
         var tok = tokenizer.next();
         switch (tok.id) {
-            .nl, .eof => break tok.start,
+            .nl, .eof => break,
             .whitespace => need_ws = pp.token_buf.items.len != 0,
             .comment => if (!pp.comp.langopts.preserve_comments_in_macros) continue else {
                 if (need_ws) {
@@ -2709,7 +2701,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
                 try pp.token_buf.append(tok);
             },
         }
-    } else unreachable;
+    }
 
     const param_list = try pp.arena.allocator().dupe([]const u8, params.items);
     const token_list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
@@ -2719,8 +2711,6 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
         .var_args = var_args or gnu_var_args.len != 0,
         .tokens = token_list,
         .loc = tokFromRaw(macro_name).loc,
-        .start = start_index,
-        .end = end_index,
     });
 }
 
