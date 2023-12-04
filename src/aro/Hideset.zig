@@ -41,13 +41,13 @@ const Identifier = struct {
 
 const Item = struct {
     identifier: Identifier = .{},
-    next: Index = .sentinel,
+    next: Index = .none,
 
     const List = std.MultiArrayList(Item);
 };
 
 const Index = enum(u32) {
-    sentinel = std.math.maxInt(u32),
+    none = std.math.maxInt(u32),
     _,
 };
 
@@ -64,7 +64,7 @@ const Iterator = struct {
     i: Index,
 
     fn next(self: *Iterator) ?Identifier {
-        if (self.i == .sentinel) return null;
+        if (self.i == .none) return null;
         defer self.i = self.slice.items(.next)[@intFromEnum(self.i)];
         return self.slice.items(.identifier)[@intFromEnum(self.i)];
     }
@@ -90,7 +90,7 @@ fn iterator(self: *const Hideset, idx: Index) Iterator {
 }
 
 pub fn get(self: *const Hideset, loc: Source.Location) Index {
-    return self.map.get(Identifier.fromLocation(loc)) orelse .sentinel;
+    return self.map.get(Identifier.fromLocation(loc)) orelse .none;
 }
 
 pub fn put(self: *Hideset, loc: Source.Location, value: Index) !void {
@@ -117,7 +117,7 @@ pub fn prepend(self: *Hideset, loc: Source.Location, tail: Index) !Index {
 
 /// Copy a, then attach b at the end
 pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
-    var cur: Index = .sentinel;
+    var cur: Index = .none;
     var head: Index = b;
     try self.ensureUnusedCapacity(self.len(a));
     var it = self.iterator(a);
@@ -126,12 +126,12 @@ pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
         if (head == b) {
             head = new_idx;
         }
-        if (cur != .sentinel) {
+        if (cur != .none) {
             self.linked_list.items(.next)[@intFromEnum(cur)] = new_idx;
         }
         cur = new_idx;
     }
-    if (cur != .sentinel) {
+    if (cur != .none) {
         self.linked_list.items(.next)[@intFromEnum(cur)] = b;
     }
     return head;
@@ -149,18 +149,18 @@ fn len(self: *const Hideset, list: Index) usize {
     const nexts = self.linked_list.items(.next);
     var cur = list;
     var count: usize = 0;
-    while (cur != .sentinel) : (count += 1) {
+    while (cur != .none) : (count += 1) {
         cur = nexts[@intFromEnum(cur)];
     }
     return count;
 }
 
 pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
-    if (a == .sentinel or b == .sentinel) return .sentinel;
+    if (a == .none or b == .none) return .none;
     self.intersection_map.clearRetainingCapacity();
 
-    var cur: Index = .sentinel;
-    var head: Index = .sentinel;
+    var cur: Index = .none;
+    var head: Index = .none;
     var it = self.iterator(a);
     var a_len: usize = 0;
     while (it.next()) |identifier| : (a_len += 1) {
@@ -172,10 +172,10 @@ pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
     while (it.next()) |identifier| {
         if (self.intersection_map.contains(identifier)) {
             const new_idx = self.createNodeAssumeCapacity(identifier);
-            if (head == .sentinel) {
+            if (head == .none) {
                 head = new_idx;
             }
-            if (cur != .sentinel) {
+            if (cur != .none) {
                 self.linked_list.items(.next)[@intFromEnum(cur)] = new_idx;
             }
             cur = new_idx;
