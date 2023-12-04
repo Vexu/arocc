@@ -6421,7 +6421,8 @@ fn shiftExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(shr.?, &rhs, p, .integer)) {
             if (shl != null) {
-                if (try lhs.val.shl(lhs.val, rhs.val, lhs.ty, p.comp)) try p.errOverflow(shl.?, lhs);
+                if (try lhs.val.shl(lhs.val, rhs.val, lhs.ty, p.comp) and
+                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(shl.?, lhs);
             } else {
                 lhs.val = try lhs.val.shr(rhs.val, lhs.ty, p.comp);
             }
