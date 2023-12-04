@@ -54,7 +54,7 @@ const Index = enum(u32) {
 map: std.AutoHashMapUnmanaged(Identifier, Index) = .{},
 /// Used for computing intersection of two lists; stored here so that allocations can be retained
 /// until hideset is deinit'ed
-intersection_map: std.StringHashMapUnmanaged(void) = .{},
+intersection_map: std.AutoHashMapUnmanaged(Identifier, void) = .{},
 linked_list: Item.List = .{},
 comp: *const Compilation,
 
@@ -164,15 +164,13 @@ pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
     var it = self.iterator(a);
     var a_len: usize = 0;
     while (it.next()) |identifier| : (a_len += 1) {
-        const str = identifier.slice(self.comp);
-        try self.intersection_map.put(self.comp.gpa, str, {});
+        try self.intersection_map.put(self.comp.gpa, identifier, {});
     }
     try self.ensureUnusedCapacity(@min(a_len, self.len(b)));
 
     it = self.iterator(b);
     while (it.next()) |identifier| {
-        const str = identifier.slice(self.comp);
-        if (self.intersection_map.contains(str)) {
+        if (self.intersection_map.contains(identifier)) {
             const new_idx = self.createNodeAssumeCapacity(identifier);
             if (head == .sentinel) {
                 head = new_idx;
