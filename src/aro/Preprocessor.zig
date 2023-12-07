@@ -1104,6 +1104,10 @@ fn deinitMacroArguments(allocator: Allocator, args: *const MacroArguments) void 
 fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.gpa);
     errdefer buf.deinit();
+    if (simple_macro.tokens.len == 0) {
+        try buf.append(.{ .id = .placemarker, .loc = .{ .id = .generated } });
+        return buf;
+    }
     try buf.ensureTotalCapacity(simple_macro.tokens.len);
 
     // Add all of the simple_macros tokens to the new buffer handling any concats.
@@ -2295,6 +2299,10 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
             continue;
         }
         if (tok.id == .comment and !pp.comp.langopts.preserve_comments_in_macros) {
+            Token.free(tok.expansion_locs, pp.gpa);
+            continue;
+        }
+        if (tok.id == .placemarker) {
             Token.free(tok.expansion_locs, pp.gpa);
             continue;
         }
