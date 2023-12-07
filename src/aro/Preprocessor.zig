@@ -1463,6 +1463,17 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
     }
 }
 
+/// Treat whitespace-only paste arguments as empty
+fn getPasteArgs(args: []const Token) []const Token {
+    for (args) |tok| {
+        if (tok.id != .macro_ws) return args;
+    }
+    return &[1]Token{.{
+        .id = .placemarker,
+        .loc = .{ .id = .generated, .byte_offset = 0, .line = 0 },
+    }};
+}
+
 fn expandFuncMacro(
     pp: *Preprocessor,
     loc: Source.Location,
@@ -1511,10 +1522,7 @@ fn expandFuncMacro(
                         continue
                     else
                         &[1]Token{tokFromRaw(raw_next)},
-                    .macro_param, .macro_param_no_expand => if (args.items[raw_next.end].len > 0)
-                        args.items[raw_next.end]
-                    else
-                        &[1]Token{tokFromRaw(.{ .id = .placemarker, .source = .generated })},
+                    .macro_param, .macro_param_no_expand => getPasteArgs(args.items[raw_next.end]),
                     .keyword_va_args => variable_arguments.items,
                     .keyword_va_opt => blk: {
                         try pp.expandVaOpt(&va_opt_buf, raw_next, variable_arguments.items.len != 0);
@@ -1528,10 +1536,7 @@ fn expandFuncMacro(
                 if (next.len != 0) break;
             },
             .macro_param_no_expand => {
-                const slice = if (args.items[raw.end].len > 0)
-                    args.items[raw.end]
-                else
-                    &[1]Token{tokFromRaw(.{ .id = .placemarker, .source = .generated })};
+                const slice = getPasteArgs(args.items[raw.end]);
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
                 try bufCopyTokens(&buf, slice, &.{raw_loc});
             },
