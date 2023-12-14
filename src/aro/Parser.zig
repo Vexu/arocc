@@ -432,6 +432,11 @@ pub fn removeNull(p: *Parser, str: Value) !Value {
 }
 
 pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
+    if (@import("builtin").mode != .Debug) {
+        if (ty.is(.invalid)) {
+            return "Tried to render invalid type - this is an aro bug.";
+        }
+    }
     if (Type.Builder.fromType(ty).str(p.comp.langopts)) |str| return str;
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
@@ -446,6 +451,11 @@ pub fn typePairStr(p: *Parser, a: Type, b: Type) ![]const u8 {
 }
 
 pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const u8 {
+    if (@import("builtin").mode != .Debug) {
+        if (a.is(.invalid) or b.is(.invalid)) {
+            return "Tried to render invalid type - this is an aro bug.";
+        }
+    }
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
