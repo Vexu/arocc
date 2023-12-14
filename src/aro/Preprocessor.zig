@@ -1287,7 +1287,8 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
     try pp.char_buf.appendSlice("\"\n");
 }
 
-fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_args: ?*[]const Token) !?[]const u8 {
+fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_args: ?*[]const Token, first: Token) !?[]const u8 {
+    assert(param_toks.len != 0);
     const char_top = pp.char_buf.items.len;
     defer pp.char_buf.items.len = char_top;
 
@@ -1299,11 +1300,10 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_
     const params = param_toks[begin..end];
 
     if (params.len == 0) {
-        if (param_toks.len == 0) return null;
         try pp.comp.addDiagnostic(.{
             .tag = .expected_filename,
-            .loc = param_toks[0].loc,
-        }, param_toks[0].expansionSlice());
+            .loc = first.loc,
+        }, first.expansionSlice());
         return null;
     }
     // no string pasting
@@ -1328,6 +1328,13 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_
 
     const include_str = pp.char_buf.items[char_top..];
     if (include_str.len < 3) {
+        if (include_str.len == 0) {
+            try pp.comp.addDiagnostic(.{
+                .tag = .expected_filename,
+                .loc = first.loc,
+            }, first.expansionSlice());
+            return null;
+        }
         try pp.comp.addDiagnostic(.{
             .tag = .empty_filename,
             .loc = params[0].loc,
@@ -1445,7 +1452,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             return id == .identifier or id == .extended_identifier;
         },
         .macro_param_has_include, .macro_param_has_include_next => {
-            const include_str = (try pp.reconstructIncludeString(param_toks, null)) orelse return false;
+            const include_str = (try pp.reconstructIncludeString(param_toks, null, param_toks[0])) orelse return false;
             const include_type: Compilation.IncludeType = switch (include_str[0]) {
                 '"' => .quotes,
                 '<' => .angle_brackets,
@@ -1676,7 +1683,7 @@ fn expandFuncMacro(
                     break :blk not_found;
                 } else res: {
                     var embed_args: []const Token = &.{};
-                    const include_str = (try pp.reconstructIncludeString(arg, &embed_args)) orelse
+                    const include_str = (try pp.reconstructIncludeString(arg, &embed_args, arg[0])) orelse
                         break :res not_found;
 
                     var prev = tokFromRaw(raw);
@@ -3054,8 +3061,7 @@ fn findIncludeFilenameToken(
 
             try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, .non_expr);
             var trailing_toks: []const Token = &.{};
-            const include_str = (try pp.reconstructIncludeString(pp.top_expansion_buf.items, &trailing_toks)) orelse {
-                try pp.err(first, .expected_filename);
+            const include_str = (try pp.reconstructIncludeString(pp.top_expansion_buf.items, &trailing_toks, tokFromRaw(first))) orelse {
                 try pp.expectNl(tokenizer);
                 return error.InvalidInclude;
             };
