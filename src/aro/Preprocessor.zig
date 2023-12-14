@@ -1295,6 +1295,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_
     const params = param_toks[begin..end];
 
     if (params.len == 0) {
+        if (param_toks.len == 0) return null;
         try pp.comp.addDiagnostic(.{
             .tag = .expected_filename,
             .loc = param_toks[0].loc,
