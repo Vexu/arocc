@@ -1104,6 +1104,10 @@ fn deinitMacroArguments(allocator: Allocator, args: *const MacroArguments) void 
 fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf {
     var buf = ExpandBuf.init(pp.gpa);
     errdefer buf.deinit();
+    if (simple_macro.tokens.len == 0) {
+        try buf.append(.{ .id = .placemarker, .loc = .{ .id = .generated } });
+        return buf;
+    }
     try buf.ensureTotalCapacity(simple_macro.tokens.len);
 
     // Add all of the simple_macros tokens to the new buffer handling any concats.
@@ -1283,7 +1287,8 @@ fn stringify(pp: *Preprocessor, tokens: []const Token) !void {
     try pp.char_buf.appendSlice("\"\n");
 }
 
-fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_args: ?*[]const Token) !?[]const u8 {
+fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_args: ?*[]const Token, first: Token) !?[]const u8 {
+    assert(param_toks.len != 0);
     const char_top = pp.char_buf.items.len;
     defer pp.char_buf.items.len = char_top;
 
@@ -1295,11 +1300,10 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_
     const params = param_toks[begin..end];
 
     if (params.len == 0) {
-        if (param_toks.len == 0) return null;
         try pp.comp.addDiagnostic(.{
             .tag = .expected_filename,
-            .loc = param_toks[0].loc,
-        }, param_toks[0].expansionSlice());
+            .loc = first.loc,
+        }, first.expansionSlice());
         return null;
     }
     // no string pasting
@@ -1324,6 +1328,13 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const Token, embed_
 
     const include_str = pp.char_buf.items[char_top..];
     if (include_str.len < 3) {
+        if (include_str.len == 0) {
+            try pp.comp.addDiagnostic(.{
+                .tag = .expected_filename,
+                .loc = first.loc,
+            }, first.expansionSlice());
+            return null;
+        }
         try pp.comp.addDiagnostic(.{
             .tag = .empty_filename,
             .loc = params[0].loc,
@@ -1441,7 +1452,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             return id == .identifier or id == .extended_identifier;
         },
         .macro_param_has_include, .macro_param_has_include_next => {
-            const include_str = (try pp.reconstructIncludeString(param_toks, null)) orelse return false;
+            const include_str = (try pp.reconstructIncludeString(param_toks, null, param_toks[0])) orelse return false;
             const include_type: Compilation.IncludeType = switch (include_str[0]) {
                 '"' => .quotes,
                 '<' => .angle_brackets,
@@ -1461,6 +1472,17 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
         },
         else => unreachable,
     }
+}
+
+/// Treat whitespace-only paste arguments as empty
+fn getPasteArgs(args: []const Token) []const Token {
+    for (args) |tok| {
+        if (tok.id != .macro_ws) return args;
+    }
+    return &[1]Token{.{
+        .id = .placemarker,
+        .loc = .{ .id = .generated, .byte_offset = 0, .line = 0 },
+    }};
 }
 
 fn expandFuncMacro(
@@ -1511,10 +1533,7 @@ fn expandFuncMacro(
                         continue
                     else
                         &[1]Token{tokFromRaw(raw_next)},
-                    .macro_param, .macro_param_no_expand => if (args.items[raw_next.end].len > 0)
-                        args.items[raw_next.end]
-                    else
-                        &[1]Token{tokFromRaw(.{ .id = .placemarker, .source = .generated })},
+                    .macro_param, .macro_param_no_expand => getPasteArgs(args.items[raw_next.end]),
                     .keyword_va_args => variable_arguments.items,
                     .keyword_va_opt => blk: {
                         try pp.expandVaOpt(&va_opt_buf, raw_next, variable_arguments.items.len != 0);
@@ -1528,10 +1547,7 @@ fn expandFuncMacro(
                 if (next.len != 0) break;
             },
             .macro_param_no_expand => {
-                const slice = if (args.items[raw.end].len > 0)
-                    args.items[raw.end]
-                else
-                    &[1]Token{tokFromRaw(.{ .id = .placemarker, .source = .generated })};
+                const slice = getPasteArgs(args.items[raw.end]);
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
                 try bufCopyTokens(&buf, slice, &.{raw_loc});
             },
@@ -1667,7 +1683,7 @@ fn expandFuncMacro(
                     break :blk not_found;
                 } else res: {
                     var embed_args: []const Token = &.{};
-                    const include_str = (try pp.reconstructIncludeString(arg, &embed_args)) orelse
+                    const include_str = (try pp.reconstructIncludeString(arg, &embed_args, arg[0])) orelse
                         break :res not_found;
 
                     var prev = tokFromRaw(raw);
@@ -2290,6 +2306,10 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
             continue;
         }
         if (tok.id == .comment and !pp.comp.langopts.preserve_comments_in_macros) {
+            Token.free(tok.expansion_locs, pp.gpa);
+            continue;
+        }
+        if (tok.id == .placemarker) {
             Token.free(tok.expansion_locs, pp.gpa);
             continue;
         }
@@ -3041,8 +3061,7 @@ fn findIncludeFilenameToken(
 
             try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, .non_expr);
             var trailing_toks: []const Token = &.{};
-            const include_str = (try pp.reconstructIncludeString(pp.top_expansion_buf.items, &trailing_toks)) orelse {
-                try pp.err(first, .expected_filename);
+            const include_str = (try pp.reconstructIncludeString(pp.top_expansion_buf.items, &trailing_toks, tokFromRaw(first))) orelse {
                 try pp.expectNl(tokenizer);
                 return error.InvalidInclude;
             };
