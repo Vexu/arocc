@@ -291,7 +291,7 @@ pub fn addExtra(
                 .kind = .note,
                 .extra = .{ .unsigned = expansion_locs.len - d.macro_backtrace_limit },
             });
-            i = half - 1;
+            i = half -| 1;
             while (i > 0) {
                 i -= 1;
                 d.list.appendAssumeCapacity(.{
