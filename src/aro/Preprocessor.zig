@@ -248,7 +248,7 @@ pub fn preprocessSources(pp: *Preprocessor, sources: []const Source) Error!void 
         try pp.addIncludeStart(header);
         _ = try pp.preprocess(header);
     }
-    try pp.addIncludeResume(first.id, 0, 0);
+    try pp.addIncludeResume(first.id, 0, 1);
     const eof = try pp.preprocess(first);
     try pp.tokens.append(pp.comp.gpa, eof);
 }
@@ -290,7 +290,7 @@ pub fn addIncludeStart(pp: *Preprocessor, source: Source) !void {
     try pp.tokens.append(pp.gpa, .{ .id = .include_start, .loc = .{
         .id = source.id,
         .byte_offset = std.math.maxInt(u32),
-        .line = 0,
+        .line = 1,
     } });
 }
 
@@ -3130,8 +3130,7 @@ fn printLinemarker(
 ) !void {
     try w.writeByte('#');
     if (pp.linemarkers == .line_directives) try w.writeAll("line");
-    // line_no is 0 indexed
-    try w.print(" {d} \"", .{line_no + 1});
+    try w.print(" {d} \"", .{line_no});
     for (source.path) |byte| switch (byte) {
         '\n' => try w.writeAll("\\n"),
         '\r' => try w.writeAll("\\r"),
@@ -3248,7 +3247,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
             .include_start => {
                 const source = pp.comp.getSource(cur.loc.id);
 
-                try pp.printLinemarker(w, 0, source, .start);
+                try pp.printLinemarker(w, 1, source, .start);
                 last_nl = true;
             },
             .include_resume => {
