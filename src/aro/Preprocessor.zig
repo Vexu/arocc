@@ -94,6 +94,8 @@ linemarkers: Linemarkers = .none,
 
 hideset: Hideset,
 
+tokenizers: std.ArrayListUnmanaged(Tokenizer) = .{},
+
 pub const parse = Parser.parse;
 
 pub const Linemarkers = enum {
@@ -237,12 +239,28 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.include_guards.deinit(pp.gpa);
     pp.top_expansion_buf.deinit();
     pp.hideset.deinit();
+    pp.tokenizers.deinit(pp.gpa);
 }
 
 /// Preprocess a compilation unit of sources into a parsable list of tokens.
 pub fn preprocessSources(pp: *Preprocessor, sources: []const Source) Error!void {
     assert(sources.len > 1);
     const first = sources[0];
+    try pp.tokenizers.ensureTotalCapacity(pp.comp.gpa, sources.len);
+    pp.tokenizers.appendAssumeCapacity(.{
+        .buf = first.buf,
+        .langopts = pp.comp.langopts,
+        .source = first.id,
+    });
+    var i: usize = sources.len;
+    while (i > 1) {
+        i -= 1;
+        pp.tokenizers.appendAssumeCapacity(.{
+            .buf = sources[i].buf,
+            .langopts = pp.comp.langopts,
+            .source = sources[i].id,
+        });
+    }
     try pp.addIncludeStart(first);
     for (sources[1..]) |header| {
         try pp.addIncludeStart(header);
