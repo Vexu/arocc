@@ -9,6 +9,7 @@ step: Step,
 path: []const u8,
 name: []const u8,
 kind: Options.Kind,
+needs_large_dafsa_node: bool,
 generated_file: GeneratedFile,
 
 pub const base_id: Step.Id = .custom;
@@ -17,6 +18,7 @@ pub const Options = struct {
     name: []const u8,
     src_prefix: []const u8 = "src/aro",
     kind: Kind = .dafsa,
+    needs_large_dafsa_node: bool = false,
 
     pub const Kind = enum { dafsa, named };
 };
@@ -36,6 +38,7 @@ pub fn create(owner: *std.Build, options: Options) std.Build.ModuleDependency {
         .path = path,
         .name = options.name,
         .kind = options.kind,
+        .needs_large_dafsa_node = options.needs_large_dafsa_node,
         .generated_file = .{ .step = &self.step },
     };
     const module = self.step.owner.createModule(.{
@@ -377,39 +380,65 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
             \\
             \\
         );
-        try writer.writeAll(
-            \\/// We're 1 bit shy of being able to fit this in a u32:
-            \\/// - char only contains 0-9, a-z, A-Z, and _, so it could use a enum(u6) with a way to convert <-> u8
-            \\///   (note: this would have a performance cost that may make the u32 not worth it)
-            \\/// - number has a max value of > 2047 and < 4095 (the first _ node has the largest number),
-            \\///   so it could fit into a u12
-            \\/// - child_index currently has a max of > 4095 and < 8191, so it could fit into a u13
-            \\///
-            \\/// with the end_of_word/end_of_list 2 bools, that makes 33 bits total
-            \\const Node = packed struct(u64) {
-            \\    char: u8,
-            \\    /// Nodes are numbered with "an integer which gives the number of words that
-            \\    /// would be accepted by the automaton starting from that state." This numbering
-            \\    /// allows calculating "a one-to-one correspondence between the integers 1 to L
-            \\    /// (L is the number of words accepted by the automaton) and the words themselves."
-            \\    ///
-            \\    /// Essentially, this allows us to have a minimal perfect hashing scheme such that
-            \\    /// it's possible to store & lookup the properties of each builtin using a separate array.
-            \\    number: u16,
-            \\    /// If true, this node is the end of a valid builtin.
-            \\    /// Note: This does not necessarily mean that this node does not have child nodes.
-            \\    end_of_word: bool,
-            \\    /// If true, this node is the end of a sibling list.
-            \\    /// If false, then (index + 1) will contain the next sibling.
-            \\    end_of_list: bool,
-            \\    /// Padding bits to get to u64, unsure if there's some way to use these to improve something.
-            \\    _extra: u22 = 0,
-            \\    /// Index of the first child of this node.
-            \\    child_index: u16,
-            \\};
-            \\
-            \\
-        );
+        if (self.needs_large_dafsa_node) {
+            try writer.writeAll(
+                \\/// We're 1 bit shy of being able to fit this in a u32:
+                \\/// - char only contains 0-9, a-z, A-Z, and _, so it could use a enum(u6) with a way to convert <-> u8
+                \\///   (note: this would have a performance cost that may make the u32 not worth it)
+                \\/// - number has a max value of > 2047 and < 4095 (the first _ node has the largest number),
+                \\///   so it could fit into a u12
+                \\/// - child_index currently has a max of > 4095 and < 8191, so it could fit into a u13
+                \\///
+                \\/// with the end_of_word/end_of_list 2 bools, that makes 33 bits total
+                \\const Node = packed struct(u64) {
+                \\    char: u8,
+                \\    /// Nodes are numbered with "an integer which gives the number of words that
+                \\    /// would be accepted by the automaton starting from that state." This numbering
+                \\    /// allows calculating "a one-to-one correspondence between the integers 1 to L
+                \\    /// (L is the number of words accepted by the automaton) and the words themselves."
+                \\    ///
+                \\    /// Essentially, this allows us to have a minimal perfect hashing scheme such that
+                \\    /// it's possible to store & lookup the properties of each builtin using a separate array.
+                \\    number: u16,
+                \\    /// If true, this node is the end of a valid builtin.
+                \\    /// Note: This does not necessarily mean that this node does not have child nodes.
+                \\    end_of_word: bool,
+                \\    /// If true, this node is the end of a sibling list.
+                \\    /// If false, then (index + 1) will contain the next sibling.
+                \\    end_of_list: bool,
+                \\    /// Padding bits to get to u64, unsure if there's some way to use these to improve something.
+                \\    _extra: u22 = 0,
+                \\    /// Index of the first child of this node.
+                \\    child_index: u16,
+                \\};
+                \\
+                \\
+            );
+        } else {
+            try writer.writeAll(
+                \\const Node = packed struct(u32) {
+                \\    char: u8,
+                \\    /// Nodes are numbered with "an integer which gives the number of words that
+                \\    /// would be accepted by the automaton starting from that state." This numbering
+                \\    /// allows calculating "a one-to-one correspondence between the integers 1 to L
+                \\    /// (L is the number of words accepted by the automaton) and the words themselves."
+                \\    ///
+                \\    /// Essentially, this allows us to have a minimal perfect hashing scheme such that
+                \\    /// it's possible to store & lookup the properties of each name using a separate array.
+                \\    number: u8,
+                \\    /// If true, this node is the end of a valid name.
+                \\    /// Note: This does not necessarily mean that this node does not have child nodes.
+                \\    end_of_word: bool,
+                \\    /// If true, this node is the end of a sibling list.
+                \\    /// If false, then (index + 1) will contain the next sibling.
+                \\    end_of_list: bool,
+                \\    /// Index of the first child of this node.
+                \\    child_index: u14,
+                \\};
+                \\
+                \\
+            );
+        }
         try builder.writeDafsa(writer);
         try writeData(writer, values_array);
         try writer.writeAll(
