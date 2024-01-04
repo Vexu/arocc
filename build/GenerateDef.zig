@@ -23,7 +23,7 @@ pub const Options = struct {
     pub const Kind = enum { dafsa, named };
 };
 
-pub fn create(owner: *std.Build, options: Options) std.Build.ModuleDependency {
+pub fn create(owner: *std.Build, options: Options) std.Build.Module.Import {
     const self = owner.allocator.create(GenerateDef) catch @panic("OOM");
     const path = owner.pathJoin(&.{ options.src_prefix, options.name });
 
@@ -42,7 +42,7 @@ pub fn create(owner: *std.Build, options: Options) std.Build.ModuleDependency {
         .generated_file = .{ .step = &self.step },
     };
     const module = self.step.owner.createModule(.{
-        .source_file = .{ .generated = &self.generated_file },
+        .root_source_file = .{ .generated = &self.generated_file },
     });
     return .{
         .module = module,

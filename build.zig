@@ -9,15 +9,15 @@ const aro_version = std.SemanticVersion{
     .patch = 0,
 };
 
-fn addFuzzStep(b: *Build, target: std.zig.CrossTarget, afl_clang_lto_path: []const u8, aro_module: *std.Build.Module) !void {
+fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: []const u8, aro_module: *std.Build.Module) !void {
     const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
     var fuzz_target = target;
-    fuzz_target.ofmt = .c;
+    fuzz_target.result.ofmt = .c;
 
     const lib_dir_step = try ZigLibDirStep.create(b);
 
     const compiler_rt = b.createModule(.{
-        .source_file = lib_dir_step.getCompilerRTPath(),
+        .root_source_file = lib_dir_step.getCompilerRTPath(),
     });
     const fuzz_lib = b.addStaticLibrary(.{
         .name = "fuzz-lib",
@@ -26,9 +26,9 @@ fn addFuzzStep(b: *Build, target: std.zig.CrossTarget, afl_clang_lto_path: []con
         .target = fuzz_target,
         .single_threaded = true,
     });
-    fuzz_lib.addModule("compiler_rt", compiler_rt);
+    fuzz_lib.root_module.addImport("compiler_rt", compiler_rt);
 
-    fuzz_lib.addModule("aro", aro_module);
+    fuzz_lib.root_module.addImport("aro", aro_module);
     const fuzz_compile = b.addSystemCommand(&.{
         afl_clang_lto_path,
         "-Wno-incompatible-pointer-types",
@@ -144,11 +144,11 @@ pub fn build(b: *Build) !void {
     const aro_options_module = aro_options.createModule();
 
     const zig_module = b.createModule(.{
-        .source_file = .{ .path = "deps/zig/lib.zig" },
+        .root_source_file = .{ .path = "deps/zig/lib.zig" },
     });
     const aro_backend = b.addModule("aro_backend", .{
-        .source_file = .{ .path = "src/backend.zig" },
-        .dependencies = &.{
+        .root_source_file = .{ .path = "src/backend.zig" },
+        .imports = &.{
             .{
                 .name = "zig",
                 .module = zig_module,
@@ -160,8 +160,8 @@ pub fn build(b: *Build) !void {
         },
     });
     const aro_module = b.addModule("aro", .{
-        .source_file = .{ .path = "src/aro.zig" },
-        .dependencies = &.{
+        .root_source_file = .{ .path = "src/aro.zig" },
+        .imports = &.{
             .{
                 .name = "system_defaults",
                 .module = system_defaults.createModule(),
@@ -193,7 +193,7 @@ pub fn build(b: *Build) !void {
         .target = target,
         .single_threaded = true,
     });
-    exe.addModule("aro", aro_module);
+    exe.root_module.addImport("aro", aro_module);
 
     // tracy integration
     if (tracy) |tracy_path| {
@@ -203,7 +203,7 @@ pub fn build(b: *Build) !void {
         ) catch unreachable;
 
         // On mingw, we need to opt into windows 7+ to get some features required by tracy.
-        const tracy_c_flags: []const []const u8 = if (target.isWindows() and target.getAbi() == .gnu)
+        const tracy_c_flags: []const []const u8 = if (target.result.isMinGW())
             &[_][]const u8{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined", "-D_WIN32_WINNT=0x601" }
         else
             &[_][]const u8{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined" };
@@ -213,7 +213,7 @@ pub fn build(b: *Build) !void {
         exe.linkLibCpp();
         exe.linkLibC();
 
-        if (target.isWindows()) {
+        if (target.result.os.tag == .windows) {
             exe.linkSystemLibrary("dbghelp");
             exe.linkSystemLibrary("ws2_32");
         }
@@ -226,8 +226,8 @@ pub fn build(b: *Build) !void {
     const tests_step = b.step("test", "Run all tests");
 
     var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/aro.zig" } });
-    for (aro_module.dependencies.keys(), aro_module.dependencies.values()) |name, module| {
-        unit_tests.addModule(name, module);
+    for (aro_module.import_table.keys(), aro_module.import_table.values()) |name, module| {
+        unit_tests.root_module.addImport(name, module);
     }
     const run_test = b.addRunArtifact(unit_tests);
     tests_step.dependOn(&run_test.step);
@@ -236,10 +236,11 @@ pub fn build(b: *Build) !void {
         .name = "test-runner",
         .root_source_file = .{ .path = "test/runner.zig" },
         .optimize = mode,
+        .target = target,
     });
-    integration_tests.addModule("aro", aro_module);
+    integration_tests.root_module.addImport("aro", aro_module);
     const test_runner_options = b.addOptions();
-    integration_tests.addOptions("build_options", test_runner_options);
+    integration_tests.root_module.addOptions("build_options", test_runner_options);
     test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
 
     const integration_test_runner = b.addRunArtifact(integration_tests);
@@ -250,8 +251,9 @@ pub fn build(b: *Build) !void {
         .name = "record-runner",
         .root_source_file = .{ .path = "test/record_runner.zig" },
         .optimize = mode,
+        .target = target,
     });
-    record_tests.addModule("aro", aro_module);
+    record_tests.root_module.addImport("aro", aro_module);
     const record_tests_runner = b.addRunArtifact(record_tests);
     record_tests_runner.addArg(b.pathFromRoot("test/records"));
 

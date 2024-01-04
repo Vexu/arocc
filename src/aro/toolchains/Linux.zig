@@ -388,8 +388,8 @@ test Linux {
     defer comp.environment = .{};
 
     const raw_triple = "x86_64-linux-gnu";
-    const cross = std.zig.CrossTarget.parse(.{ .arch_os_abi = raw_triple }) catch unreachable;
-    comp.target = cross.toTarget(); // TODO deprecated
+    const target_query = try std.Target.Query.parse(.{ .arch_os_abi = raw_triple });
+    comp.target = try std.zig.system.resolveTargetQuery(target_query);
     comp.langopts.setEmulatedCompiler(.gcc);
 
     var driver: Driver = .{ .comp = &comp };
