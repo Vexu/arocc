@@ -89,8 +89,8 @@ const Parser = @This();
 pp: *Preprocessor,
 comp: *Compilation,
 gpa: mem.Allocator,
-tok_ids: []const Token.Id,
-tok_i: TokenIndex = 0,
+
+tokens: std.ArrayList(Token),
 
 // values of the incomplete Tree
 arena: Allocator,
@@ -216,12 +216,12 @@ fn checkIdentifierCodepointWarnings(comp: *Compilation, codepoint: u21, loc: Sou
 /// Return value indicates whether the token should be considered an identifier
 /// true means consider the token to actually be an identifier
 /// false means it is not
-fn validateExtendedIdentifier(p: *Parser) !bool {
-    assert(p.tok_ids[p.tok_i] == .extended_identifier);
+fn validateExtendedIdentifier(p: *Parser, tok: Token) !bool {
+    assert(tok.id == .extended_identifier);
 
-    const slice = p.tokSlice(p.tok_i);
+    const slice = p.tokSlice(tok);
     const view = std.unicode.Utf8View.init(slice) catch {
-        try p.errTok(.invalid_utf8, p.tok_i);
+        try p.errTok(.invalid_utf8, tok);
         return error.FatalError;
     };
     var it = view.iterator();
@@ -230,7 +230,7 @@ fn validateExtendedIdentifier(p: *Parser) !bool {
     var warned = false;
     var len: usize = 0;
     var invalid_char: u21 = undefined;
-    var loc = p.pp.tokens.items(.loc)[p.tok_i];
+    var loc = tok.loc;
 
     var normalized = true;
     var last_canonical_class: char_info.CanonicalCombiningClass = .not_reordered;
@@ -269,81 +269,81 @@ fn validateExtendedIdentifier(p: *Parser) !bool {
             canonical_class != .not_reordered)
         {
             normalized = false;
-            try p.errStr(.identifier_not_normalized, p.tok_i, slice);
+            try p.errStr(.identifier_not_normalized, tok, slice);
             continue;
         }
         if (char_info.isNormalized(codepoint) != .yes) {
             normalized = false;
-            try p.errExtra(.identifier_not_normalized, p.tok_i, .{ .normalized = slice });
+            try p.errExtra(.identifier_not_normalized, tok, .{ .normalized = slice });
         }
         last_canonical_class = canonical_class;
     }
 
     if (!valid_identifier) {
         if (len == 1) {
-            try p.errExtra(.unexpected_character, p.tok_i, .{ .actual_codepoint = invalid_char });
+            try p.errExtra(.unexpected_character, tok, .{ .actual_codepoint = invalid_char });
             return false;
         } else {
-            try p.errExtra(.invalid_identifier_start_char, p.tok_i, .{ .actual_codepoint = invalid_char });
+            try p.errExtra(.invalid_identifier_start_char, tok, .{ .actual_codepoint = invalid_char });
         }
     }
 
     return true;
 }
 
-fn eatIdentifier(p: *Parser) !?TokenIndex {
-    switch (p.tok_ids[p.tok_i]) {
+fn eatIdentifier(p: *Parser) !?Token {
+    const tok = try p.pp.nextToken();
+    switch (tok.id) {
         .identifier => {},
         .extended_identifier => {
-            if (!try p.validateExtendedIdentifier()) {
-                p.tok_i += 1;
+            if (!try p.validateExtendedIdentifier(tok)) {
                 return null;
             }
         },
         else => return null,
     }
-    p.tok_i += 1;
 
     // Handle illegal '$' characters in identifiers
     if (!p.comp.langopts.dollars_in_identifiers) {
-        if (p.tok_ids[p.tok_i] == .invalid and p.tokSlice(p.tok_i)[0] == '$') {
-            try p.err(.dollars_in_identifiers);
-            p.tok_i += 1;
+        const next_tok = try p.pp.peekToken();
+        if (next_tok.id == .invalid and p.tokSlice(next_tok)[0] == '$') {
+            try p.errTok(.dollars_in_identifiers, next_tok);
+            _ = try p.pp.nextToken();
             return error.ParsingFailed;
         }
     }
-
-    return p.tok_i - 1;
+    return tok;
 }
 
-fn expectIdentifier(p: *Parser) Error!TokenIndex {
-    const actual = p.tok_ids[p.tok_i];
-    if (actual != .identifier and actual != .extended_identifier) {
+fn expectIdentifier(p: *Parser) Error!Token {
+    const actual = try p.pp.peekToken();
+    if (actual.id != .identifier and actual.id != .extended_identifier) {
         return p.errExpectedToken(.identifier, actual);
     }
 
     return (try p.eatIdentifier()) orelse error.ParsingFailed;
 }
 
-fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
+fn eatToken(p: *Parser, id: Token.Id) ?Token {
     assert(id != .identifier and id != .extended_identifier); // use eatIdentifier
-    if (p.tok_ids[p.tok_i] == id) {
-        defer p.tok_i += 1;
-        return p.tok_i;
+    const tok = try p.pp.peekToken();
+    if (tok.id == id) {
+        _ = p.pp.nextToken();
+        return tok;
     } else return null;
 }
 
-fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
+fn expectToken(p: *Parser, expected: Token.Id) Error!Token {
     assert(expected != .identifier and expected != .extended_identifier); // use expectIdentifier
-    const actual = p.tok_ids[p.tok_i];
-    if (actual != expected) return p.errExpectedToken(expected, actual);
-    defer p.tok_i += 1;
-    return p.tok_i;
+    const actual = try p.pp.peekToken();
+    if (actual.id != expected) return p.errExpectedToken(expected, actual);
+    _ = try p.pp.nextToken();
+    return actual;
 }
 
-pub fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
-    if (p.tok_ids[tok].lexeme()) |some| return some;
-    const loc = p.pp.tokens.items(.loc)[tok];
+pub fn tokSlice(p: *Parser, tok: Token) []const u8 {
+    if (tok.id.lexeme()) |some| return some;
+    const loc = tok.loc;
     var tmp_tokenizer = Tokenizer{
         .buf = p.comp.getSource(loc.id).buf,
         .langopts = p.comp.langopts,
@@ -354,7 +354,7 @@ pub fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
     return tmp_tokenizer.buf[res.start..res.end];
 }
 
-fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
+fn expectClosing(p: *Parser, opening: Token, id: Token.Id) Error!void {
     _ = p.expectToken(id) catch |e| {
         if (e == error.ParsingFailed) {
             try p.errTok(switch (id) {
@@ -368,37 +368,38 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
     };
 }
 
-fn errOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
+fn errOverflow(p: *Parser, op_tok: Token, res: Result) !void {
     try p.errStr(.overflow, op_tok, try res.str(p));
 }
 
-fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
-    switch (actual) {
-        .invalid => try p.errExtra(.expected_invalid, p.tok_i, .{ .tok_id_expected = expected }),
-        .eof => try p.errExtra(.expected_eof, p.tok_i, .{ .tok_id_expected = expected }),
-        else => try p.errExtra(.expected_token, p.tok_i, .{ .tok_id = .{
+fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token) Error {
+    switch (actual.id) {
+        .invalid => try p.errExtra(.expected_invalid, actual, .{ .tok_id_expected = expected }),
+        .eof => try p.errExtra(.expected_eof, actual, .{ .tok_id_expected = expected }),
+        else => try p.errExtra(.expected_token, actual, .{ .tok_id = .{
             .expected = expected,
-            .actual = actual,
+            .actual = actual.id,
         } }),
     }
     return error.ParsingFailed;
 }
 
-pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, str: []const u8) Compilation.Error!void {
+pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok: Token, str: []const u8) Compilation.Error!void {
     @setCold(true);
-    return p.errExtra(tag, tok_i, .{ .str = str });
+    return p.errExtra(tag, tok, .{ .str = str });
 }
 
-pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diagnostics.Message.Extra) Compilation.Error!void {
+pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok: Token, extra: Diagnostics.Message.Extra) Compilation.Error!void {
     @setCold(true);
-    const tok = p.pp.tokens.get(tok_i);
     var loc = tok.loc;
-    if (tok_i != 0 and tok.id == .eof) {
-        // if the token is EOF, point at the end of the previous token instead
-        const prev = p.pp.tokens.get(tok_i - 1);
-        loc = prev.loc;
-        loc.byte_offset += @intCast(p.tokSlice(tok_i - 1).len);
-    }
+    _ = &loc;
+    // TODOTODOTODO
+    // if (tok_i != 0 and tok.id == .eof) {
+    //     // if the token is EOF, point at the end of the previous token instead
+    //     const prev = p.pp.tokens.get(tok_i - 1);
+    //     loc = prev.loc;
+    //     loc.byte_offset += @intCast(p.tokSlice(tok_i - 1).len);
+    // }
     try p.comp.addDiagnostic(.{
         .tag = tag,
         .loc = loc,
@@ -406,14 +407,9 @@ pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diag
     }, tok.expansionSlice());
 }
 
-pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.Error!void {
+pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok: Token) Compilation.Error!void {
     @setCold(true);
-    return p.errExtra(tag, tok_i, .{ .none = {} });
-}
-
-pub fn err(p: *Parser, tag: Diagnostics.Tag) Compilation.Error!void {
-    @setCold(true);
-    return p.errExtra(tag, p.tok_i, .{ .none = {} });
+    return p.errExtra(tag, tok, .{ .none = {} });
 }
 
 pub fn todo(p: *Parser, msg: []const u8) Error {
@@ -653,8 +649,8 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
 
         const tentative_def_tok = p.tentative_defs.get(decl_type_name) orelse continue;
         const type_str = try p.typeStr(ty);
-        try p.errStr(.tentative_definition_incomplete, tentative_def_tok, type_str);
-        try p.errStr(.forward_declaration_here, data[idx].decl_ref, type_str);
+        try p.errStr(.tentative_definition_incomplete, p.tokens.items[tentative_def_tok], type_str);
+        try p.errStr(.forward_declaration_here, p.tokens.items[data[idx].decl_ref], type_str);
     }
     const errors_added = p.comp.diagnostics.list.items.len - err_start;
     assert(errors_added == 2 * p.tentative_defs.count()); // Each tentative def should add an error + note
@@ -672,7 +668,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .comp = pp.comp,
         .gpa = pp.comp.gpa,
         .arena = arena.allocator(),
-        .tok_ids = pp.tokens.items(.id),
         .strings = std.ArrayList(u8).init(pp.comp.gpa),
         .value_map = Tree.ValueMap.init(pp.comp.gpa),
         .data = NodeList.init(pp.comp.gpa),
@@ -683,6 +678,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .enum_buf = std.ArrayList(Type.Enum.Field).init(pp.comp.gpa),
         .record_buf = std.ArrayList(Type.Record.Field).init(pp.comp.gpa),
         .field_attr_buf = std.ArrayList([]const Attribute).init(pp.comp.gpa),
+        .tokens = std.ArrayList(Token).init(pp.comp.gpa),
         .string_ids = .{
             .declspec_id = try StrInt.intern(pp.comp, "__declspec"),
             .main_id = try StrInt.intern(pp.comp, "main"),
@@ -712,6 +708,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.tentative_defs.deinit(pp.comp.gpa);
         assert(p.field_attr_buf.items.len == 0);
         p.field_attr_buf.deinit();
+        p.tokens.deinit();
     }
 
     try p.syms.pushScope(&p);
@@ -752,8 +749,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             p.extension_suppressed = true;
 
             if (try p.parseOrNextDecl(decl)) continue;
-            switch (p.tok_ids[p.tok_i]) {
-                .semicolon => p.tok_i += 1,
+            const tok = try p.pp.peekToken();
+            switch (tok.id) {
+                .semicolon => _ = try p.pp.nextToken(),
                 .keyword_static_assert,
                 .keyword_c23_static_assert,
                 .keyword_pragma,
@@ -762,7 +760,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
                 .keyword_asm1,
                 .keyword_asm2,
                 => {},
-                else => try p.err(.expected_external_decl),
+                else => try p.errTok(.expected_external_decl, tok),
             }
             continue;
         }
@@ -780,8 +778,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             try p.errTok(.extra_semi, tok);
             continue;
         }
-        try p.err(.expected_external_decl);
-        p.tok_i += 1;
+        try p.errTok(.expected_external_decl, try p.pp.nextToken());
     }
     if (p.tentative_defs.count() > 0) {
         try p.diagnoseIncompleteDefinitions();
@@ -887,12 +884,12 @@ fn nextExternDecl(p: *Parser) void {
 
 fn skipTo(p: *Parser, id: Token.Id) void {
     var parens: u32 = 0;
-    while (true) : (p.tok_i += 1) {
-        if (p.tok_ids[p.tok_i] == id and parens == 0) {
-            p.tok_i += 1;
+    while (true) : (try p.pp.nextToken()) {
+        if ((try p.pp.peekToken()).id == id and parens == 0) {
+            _ = try p.pp.nextToken();
             return;
         }
-        switch (p.tok_ids[p.tok_i]) {
+        switch ((try p.pp.peekToken()).id) {
             .l_paren, .l_brace, .l_bracket => parens += 1,
             .r_paren, .r_brace, .r_bracket => if (parens != 0) {
                 parens -= 1;
@@ -924,7 +921,10 @@ fn typedefDefined(p: *Parser, name: StringId, ty: Type) void {
 ///  | declSpec declarator decl* compoundStmt
 fn decl(p: *Parser) Error!bool {
     _ = try p.pragma();
-    const first_tok = p.tok_i;
+    try p.pp.pushCheckpoint();
+    errdefer p.pp.popCheckpoint();
+
+    const first_tok = try p.pp.peekToken();
     const attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = attr_buf_top;
 
@@ -932,15 +932,19 @@ fn decl(p: *Parser) Error!bool {
 
     var decl_spec = if (try p.declSpec()) |some| some else blk: {
         if (p.func.ty != null) {
-            p.tok_i = first_tok;
+            p.pp.restoreCheckpoint();
             return false;
         }
-        switch (p.tok_ids[first_tok]) {
+        p.pp.popCheckpoint();
+        switch (first_tok.id) {
             .asterisk, .l_paren, .identifier, .extended_identifier => {},
-            else => if (p.tok_i != first_tok) {
-                try p.err(.expected_ident_or_l_paren);
-                return error.ParsingFailed;
-            } else return false,
+            else => {
+                const cur_tok = try p.pp.peekToken();
+                if (cur_tok.id != first_tok.id) {
+                    try p.errTok(.expected_ident_or_l_paren, cur_tok);
+                    return error.ParsingFailed;
+                } else return false;
+            },
         }
         var spec: Type.Builder = .{};
         break :blk DeclSpec{ .ty = try spec.finish(p) };
@@ -1389,10 +1393,10 @@ pub const DeclSpec = struct {
 ///   | keyword_typeof '(' expr ')'
 fn typeof(p: *Parser) Error!?Type {
     var unqual = false;
-    switch (p.tok_ids[p.tok_i]) {
-        .keyword_typeof, .keyword_typeof1, .keyword_typeof2 => p.tok_i += 1,
+    switch ((try p.pp.peekToken()).id) {
+        .keyword_typeof, .keyword_typeof1, .keyword_typeof2 => _ = try p.pp.nextToken(),
         .keyword_typeof_unqual => {
-            p.tok_i += 1;
+            _ = try p.pp.nextToken();
             unqual = true;
         },
         else => return null,
@@ -1855,6 +1859,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     return init_d;
 }
 
+fn addToken(p: *Parser, tok: Token) !u32 {
+    try p.tokens.append(tok);
+    return @intCast(p.tokens.item.len - 1);
+}
+
 /// typeSpec
 ///  : keyword_void
 ///  | keyword_auto_type
@@ -1882,7 +1891,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
 ///   | keyword_c23_alignas '(' typeName ')'
 ///   | keyword_c23_alignas '(' integerConstExpr ')'
 fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
-    const start = p.tok_i;
+    const start = try p.pp.peekToken();
     while (true) {
         try p.attributeSpecifier();
 
@@ -1891,43 +1900,46 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             continue;
         }
         if (try p.typeQual(&ty.qual)) continue;
-        switch (p.tok_ids[p.tok_i]) {
-            .keyword_void => try ty.combine(p, .void, p.tok_i),
+        const tok = try p.pp.peekToken();
+        switch (tok.id) {
+            .keyword_void => try ty.combine(p, .void, tok),
             .keyword_auto_type => {
-                try p.errTok(.auto_type_extension, p.tok_i);
-                try ty.combine(p, .auto_type, p.tok_i);
+                try p.errTok(.auto_type_extension, tok);
+                try ty.combine(p, .auto_type, tok);
             },
-            .keyword_bool, .keyword_c23_bool => try ty.combine(p, .bool, p.tok_i),
-            .keyword_int8, .keyword_int8_2, .keyword_char => try ty.combine(p, .char, p.tok_i),
-            .keyword_int16, .keyword_int16_2, .keyword_short => try ty.combine(p, .short, p.tok_i),
-            .keyword_int32, .keyword_int32_2, .keyword_int => try ty.combine(p, .int, p.tok_i),
-            .keyword_long => try ty.combine(p, .long, p.tok_i),
-            .keyword_int64, .keyword_int64_2 => try ty.combine(p, .long_long, p.tok_i),
-            .keyword_int128 => try ty.combine(p, .int128, p.tok_i),
-            .keyword_signed => try ty.combine(p, .signed, p.tok_i),
-            .keyword_unsigned => try ty.combine(p, .unsigned, p.tok_i),
-            .keyword_fp16 => try ty.combine(p, .fp16, p.tok_i),
-            .keyword_float16 => try ty.combine(p, .float16, p.tok_i),
-            .keyword_float => try ty.combine(p, .float, p.tok_i),
-            .keyword_double => try ty.combine(p, .double, p.tok_i),
-            .keyword_complex => try ty.combine(p, .complex, p.tok_i),
-            .keyword_float80 => try ty.combine(p, .float80, p.tok_i),
+            .keyword_bool, .keyword_c23_bool => try ty.combine(p, .bool, tok),
+            .keyword_int8, .keyword_int8_2, .keyword_char => try ty.combine(p, .char, tok),
+            .keyword_int16, .keyword_int16_2, .keyword_short => try ty.combine(p, .short, tok),
+            .keyword_int32, .keyword_int32_2, .keyword_int => try ty.combine(p, .int, tok),
+            .keyword_long => try ty.combine(p, .long, tok),
+            .keyword_int64, .keyword_int64_2 => try ty.combine(p, .long_long, tok),
+            .keyword_int128 => try ty.combine(p, .int128, tok),
+            .keyword_signed => try ty.combine(p, .signed, tok),
+            .keyword_unsigned => try ty.combine(p, .unsigned, tok),
+            .keyword_fp16 => try ty.combine(p, .fp16, tok),
+            .keyword_float16 => try ty.combine(p, .float16, tok),
+            .keyword_float => try ty.combine(p, .float, tok),
+            .keyword_double => try ty.combine(p, .double, tok),
+            .keyword_complex => try ty.combine(p, .complex, tok),
+            .keyword_float80 => try ty.combine(p, .float80, tok),
             .keyword_float128_1, .keyword_float128_2 => {
                 if (!p.comp.hasFloat128()) {
-                    try p.errStr(.type_not_supported_on_target, p.tok_i, p.tok_ids[p.tok_i].lexeme().?);
+                    try p.errStr(.type_not_supported_on_target, tok, tok.id.lexeme().?);
                 }
-                try ty.combine(p, .float128, p.tok_i);
+                try ty.combine(p, .float128, tok);
             },
             .keyword_atomic => {
-                const atomic_tok = p.tok_i;
-                p.tok_i += 1;
+                const atomic_tok = tok;
+                try p.pp.pushCheckpoint();
+                _ = try p.pp.nextToken();
                 const l_paren = p.eatToken(.l_paren) orelse {
                     // _Atomic qualifier not _Atomic(typeName)
-                    p.tok_i = atomic_tok;
+                    p.pp.restoreCheckpoint();
                     break;
                 };
+                p.pp.popCheckpoint();
                 const inner_ty = (try p.typeName()) orelse {
-                    try p.err(.expected_type);
+                    try p.errTok(.expected_type, try p.pp.peekToken()); // TODO IS THIS RIGHT
                     return error.ParsingFailed;
                 };
                 try p.expectClosing(l_paren, .r_paren);
@@ -1937,17 +1949,20 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
 
                 if (ty.qual.atomic != null)
                     try p.errStr(.duplicate_decl_spec, atomic_tok, "atomic")
-                else
-                    ty.qual.atomic = atomic_tok;
+                else {
+                    ty.qual.atomic = @intCast(p.tokens.items.len);
+                    try p.tokens.append(atomic_tok);
+                }
                 continue;
             },
             .keyword_alignas,
             .keyword_c23_alignas,
             => {
-                const align_tok = p.tok_i;
-                p.tok_i += 1;
+                const align_tok = try p.pp.nextToken();
+                const align_tok_idx = try p.addToken(align_tok);
+
                 const l_paren = try p.expectToken(.l_paren);
-                const typename_start = p.tok_i;
+                const typename_start = try p.pp.peekToken();
                 if (try p.typeName()) |inner_ty| {
                     if (!inner_ty.alignable()) {
                         try p.errStr(.invalid_alignof, typename_start, try p.typeStr(inner_ty));
@@ -1955,15 +1970,15 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     const alignment = Attribute.Alignment{ .requested = inner_ty.alignof(p.comp) };
                     try p.attr_buf.append(p.gpa, .{
                         .attr = .{ .tag = .aligned, .args = .{
-                            .aligned = .{ .alignment = alignment, .__name_tok = align_tok },
+                            .aligned = .{ .alignment = alignment, .__name_tok = align_tok_idx },
                         }, .syntax = .keyword },
-                        .tok = align_tok,
+                        .tok = align_tok_idx,
                     });
                 } else {
-                    const arg_start = p.tok_i;
+                    const arg_start = try p.pp.peekToken();
                     const res = try p.integerConstExpr(.no_const_decl_folding);
                     if (!res.val.isZero(p.comp)) {
-                        var args = Attribute.initArguments(.aligned, align_tok);
+                        var args = Attribute.initArguments(.aligned, align_tok_idx);
                         if (try p.diagnose(.aligned, &args, 0, res)) |msg| {
                             try p.errExtra(msg.tag, arg_start, msg.extra);
                             p.skipTo(.r_paren);
@@ -1972,7 +1987,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                         args.aligned.alignment.?.node = res.node;
                         try p.attr_buf.append(p.gpa, .{
                             .attr = .{ .tag = .aligned, .args = args, .syntax = .keyword },
-                            .tok = align_tok,
+                            .tok = align_tok_idx,
                         });
                     }
                 }
@@ -2003,24 +2018,26 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 .tok = p.tok_i,
             }),
             .keyword_struct, .keyword_union => {
-                const tag_tok = p.tok_i;
+                const tag_tok = try p.pp.peekToken();
                 const record_ty = try p.recordSpec();
                 try ty.combine(p, Type.Builder.fromType(record_ty), tag_tok);
                 continue;
             },
             .keyword_enum => {
-                const tag_tok = p.tok_i;
+                const tag_tok = try p.pp.peekToken();
                 const enum_ty = try p.enumSpec();
                 try ty.combine(p, Type.Builder.fromType(enum_ty), tag_tok);
                 continue;
             },
             .identifier, .extended_identifier => {
-                var interned_name = try StrInt.intern(p.comp, p.tokSlice(p.tok_i));
+                const ident_tok = try p.pp.peekToken();
+
+                var interned_name = try StrInt.intern(p.comp, p.tokSlice(ident_tok));
                 var declspec_found = false;
 
                 if (interned_name == p.string_ids.declspec_id) {
-                    try p.errTok(.declspec_not_enabled, p.tok_i);
-                    p.tok_i += 1;
+                    try p.errTok(.declspec_not_enabled, ident_tok);
+                    _ = try p.pp.nextToken();
                     if (p.eatToken(.l_paren)) |_| {
                         p.skipTo(.r_paren);
                         continue;
@@ -2028,16 +2045,18 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                     declspec_found = true;
                 }
                 if (ty.typedef != null) break;
+                const next_tok = p.pp.peekToken();
                 if (declspec_found) {
-                    interned_name = try StrInt.intern(p.comp, p.tokSlice(p.tok_i));
+                    interned_name = try StrInt.intern(p.comp, p.tokSlice(next_tok));
                 }
-                const typedef = (try p.syms.findTypedef(p, interned_name, p.tok_i, ty.specifier != .none)) orelse break;
+                const tok_idx = try p.addToken(next_tok);
+                const typedef = (try p.syms.findTypedef(p, interned_name, tok_idx, ty.specifier != .none)) orelse break;
                 if (!ty.combineTypedef(p, typedef.ty, typedef.tok)) break;
             },
             .keyword_bit_int => {
-                try p.err(.bit_int);
-                const bit_int_tok = p.tok_i;
-                p.tok_i += 1;
+                try p.errTok(.bit_int, tok);
+                const bit_int_tok = tok;
+                _ = try p.nextToken();
                 const l_paren = try p.expectToken(.l_paren);
                 const res = try p.integerConstExpr(.gnu_folding_extension);
                 try p.expectClosing(l_paren, .r_paren);
@@ -2058,7 +2077,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             else => break,
         }
         // consume single token specifiers here
-        p.tok_i += 1;
+        _ = try p.nextToken();
     }
     return p.tok_i != start;
 }
@@ -2814,36 +2833,49 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 fn typeQual(p: *Parser, b: *Type.Qualifiers.Builder) Error!bool {
     var any = false;
     while (true) {
-        switch (p.tok_ids[p.tok_i]) {
+        const tok = try p.pp.peekToken();
+        switch (tok.id) {
             .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => {
+                _ = try p.pp.nextToken();
                 if (b.restrict != null)
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "restrict")
-                else
-                    b.restrict = p.tok_i;
+                    try p.errStr(.duplicate_decl_spec, tok, "restrict")
+                else {
+                    b.restrict = @intCast(p.tokens.items.len);
+                    try p.tokens.append(tok);
+                }
             },
             .keyword_const, .keyword_const1, .keyword_const2 => {
+                _ = try p.pp.nextToken();
                 if (b.@"const" != null)
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "const")
-                else
-                    b.@"const" = p.tok_i;
+                    try p.errStr(.duplicate_decl_spec, tok, "const")
+                else {
+                    b.@"const" = @intCast(p.tokens.items.len);
+                    try p.tokens.append(tok);
+                }
             },
             .keyword_volatile, .keyword_volatile1, .keyword_volatile2 => {
+                _ = try p.pp.nextToken();
                 if (b.@"volatile" != null)
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "volatile")
-                else
-                    b.@"volatile" = p.tok_i;
+                    try p.errStr(.duplicate_decl_spec, tok, "volatile")
+                else {
+                    b.@"volatile" = @intCast(p.tokens.items.len);
+                    try p.tokens.append(tok);
+                }
             },
             .keyword_atomic => {
+                _ = try p.pp.nextToken();
                 // _Atomic(typeName) instead of just _Atomic
-                if (p.tok_ids[p.tok_i + 1] == .l_paren) break;
+                const next = try p.pp.peekToken();
+                if (next.id == .l_paren) break;
                 if (b.atomic != null)
-                    try p.errStr(.duplicate_decl_spec, p.tok_i, "atomic")
-                else
-                    b.atomic = p.tok_i;
+                    try p.errStr(.duplicate_decl_spec, tok, "atomic")
+                else {
+                    b.atomic = @intCast(p.tokens.items.len);
+                    try p.tokens.append(tok);
+                }
             },
             else => break,
         }
-        p.tok_i += 1;
         any = true;
     }
     return any;
@@ -2865,17 +2897,18 @@ fn declarator(
     base_type: Type,
     kind: DeclaratorKind,
 ) Error!?Declarator {
-    const start = p.tok_i;
+    const start = try p.pp.peekToken();
     var d = Declarator{ .name = 0, .ty = try p.pointer(base_type) };
     if (base_type.is(.auto_type) and !d.ty.is(.auto_type)) {
         try p.errTok(.auto_type_requires_plain_declarator, start);
         return error.ParsingFailed;
     }
 
-    const maybe_ident = p.tok_i;
+    const maybe_ident = try p.pp.peekToken();
     if (kind != .abstract and (try p.eatIdentifier()) != null) {
-        d.name = maybe_ident;
-        const combine_tok = p.tok_i;
+        d.name = @intCast(p.tokens.items.len);
+        try p.tokens.append(maybe_ident);
+        const combine_tok = try p.pp.peekToken();
         d.ty = try p.directDeclarator(d.ty, &d, kind);
         try d.ty.validateCombinedType(p, combine_tok);
         return d;
@@ -2921,18 +2954,22 @@ fn declarator(
 ///  | '[' '*' ']'
 ///  | '(' paramDecls? ')'
 fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: DeclaratorKind) Error!Type {
+    try p.pp.pushCheckpoint();
     if (p.eatToken(.l_bracket)) |l_bracket| {
-        if (p.tok_ids[p.tok_i] == .l_bracket) {
+        const tok = try p.pp.peekToken();
+        if (tok.id == .l_bracket) {
             switch (kind) {
                 .normal, .record => if (p.comp.langopts.standard.atLeast(.c23)) {
-                    p.tok_i -= 1;
+                    p.pp.restoreCheckpoint();
                     return base_type;
                 },
                 .param, .abstract => {},
             }
-            try p.err(.expected_expr);
+            p.pp.popCheckpoint();
+            try p.errTok(.expected_expr, tok);
             return error.ParsingFailed;
         }
+        p.pp.popCheckpoint();
         var res_ty = Type{
             // so that we can get any restrict type that might be present
             .specifier = .pointer,
@@ -2943,7 +2980,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         var static = p.eatToken(.keyword_static);
         if (static != null and !got_quals) got_quals = try p.typeQual(&quals);
         var star = p.eatToken(.asterisk);
-        const size_tok = p.tok_i;
+        const size_tok = try p.pp.peekToken();
 
         const const_decl_folding = p.const_decl_folding;
         p.const_decl_folding = .gnu_vla_folding_extension;
@@ -3058,13 +3095,14 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         if (try p.paramDecls(d)) |params| {
             func_ty.params = params;
             if (p.eatToken(.ellipsis)) |_| specifier = .var_args_func;
-        } else if (p.tok_ids[p.tok_i] == .r_paren) {
+        } else if ((try p.pp.peekToken()).id == .r_paren) {
             specifier = if (p.comp.langopts.standard.atLeast(.c23))
                 .func
             else
                 .old_style_func;
-        } else if (p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) {
-            d.old_style_func = p.tok_i;
+        } else if ((try p.pp.peekToken()).id == .identifier or (try p.pp.peekToken()).id == .extended_identifier) { // FIXME
+            d.old_style_func = @intCast(p.tokens.items.len);
+            try p.tokens.append(try p.pp.peekToken());
             const param_buf_top = p.param_buf.items.len;
             try p.syms.pushScope(p);
             defer {
@@ -3075,18 +3113,21 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             specifier = .old_style_func;
             while (true) {
                 const name_tok = try p.expectIdentifier();
+                const name_idx: u32 = @intCast(p.tokens.items.len);
+                try p.tokens.append(name_tok);
+
                 const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
-                try p.syms.defineParam(p, interned_name, undefined, name_tok);
+                try p.syms.defineParam(p, interned_name, undefined, name_idx);
                 try p.param_buf.append(.{
                     .name = interned_name,
-                    .name_tok = name_tok,
+                    .name_tok = name_idx,
                     .ty = .{ .specifier = .int },
                 });
                 if (p.eatToken(.comma) == null) break;
             }
             func_ty.params = try p.arena.dupe(Type.Func.Param, p.param_buf.items[param_buf_top..]);
         } else {
-            try p.err(.expected_param_decl);
+            try p.errTok(.expected_param_decl, (try p.pp.peekToken()));
         }
 
         try p.expectClosing(l_paren, .r_paren);
@@ -5665,7 +5706,7 @@ pub const Result = struct {
         res.val = .{};
     }
 
-    fn castType(res: *Result, p: *Parser, to: Type, operand_tok: TokenIndex, l_paren: TokenIndex) !void {
+    fn castType(res: *Result, p: *Parser, to: Type, operand_tok: Token, l_paren: TokenIndex) !void {
         var cast_kind: Tree.CastKind = undefined;
 
         if (to.is(.void)) {
@@ -6207,7 +6248,7 @@ fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
 
 /// condExpr : lorExpr ('?' expression? ':' condExpr)?
 fn condExpr(p: *Parser) Error!Result {
-    const cond_tok = p.tok_i;
+    const cond_tok = try p.pp.peekToken();
     var cond = try p.lorExpr();
     if (cond.empty(p) or p.eatToken(.question_mark) == null) return cond;
     try cond.lvalConversion(p);
@@ -6541,11 +6582,13 @@ fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
 ///  | __builtin_bitoffsetof '(' typeName ',' offsetofMemberDesignator ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!Result {
+    try p.pp.pushCheckpoint();
     if (p.eatToken(.l_paren)) |l_paren| cast_expr: {
-        if (p.tok_ids[p.tok_i] == .l_brace) {
-            try p.err(.gnu_statement_expression);
+        const tok = try p.pp.peekToken();
+        if (tok.id == .l_brace) {
+            try p.errTok(.gnu_statement_expression, tok);
             if (p.func.ty == null) {
-                try p.err(.stmt_expr_not_allowed_file_scope);
+                try p.errTok(.stmt_expr_not_allowed_file_scope, tok);
                 return error.ParsingFailed;
             }
             var stmt_expr_state: StmtExprState = .{};
@@ -6561,19 +6604,22 @@ fn castExpr(p: *Parser) Error!Result {
             try res.un(p, .stmt_expr);
             return res;
         }
+        try p.pp.pushCheckpoint();
         const ty = (try p.typeName()) orelse {
-            p.tok_i -= 1;
+            try p.pp.restoreCheckpoint();
             break :cast_expr;
         };
+        p.pp.popCheckpoint();
         try p.expectClosing(l_paren, .r_paren);
 
         if (p.tok_ids[p.tok_i] == .l_brace) {
             // Compound literal; handled in unExpr
-            p.tok_i = l_paren;
+            p.pp.restoreCheckpoint();
             break :cast_expr;
         }
+        p.pp.popCheckpoint();
 
-        const operand_tok = p.tok_i;
+        const operand_tok = try p.pp.peekToken();
         var operand = try p.castExpr();
         try operand.expect(p);
         try operand.lvalConversion(p);

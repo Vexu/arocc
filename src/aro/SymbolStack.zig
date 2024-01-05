@@ -179,13 +179,13 @@ pub fn defineTypedef(
         switch (prev.kind) {
             .typedef => {
                 if (!ty.eql(prev.ty, p.comp, true)) {
-                    try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(ty, " vs ", prev.ty));
-                    if (prev.tok != 0) try p.errTok(.previous_definition, prev.tok);
+                    try p.errStr(.redefinition_of_typedef, p.tokens.items[tok], try p.typePairStrExtra(ty, " vs ", prev.ty));
+                    if (prev.tok != 0) try p.errTok(.previous_definition, p.tokens.items[prev.tok]);
                 }
             },
             .enumeration, .decl, .def, .constexpr => {
-                try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
-                try p.errTok(.previous_definition, prev.tok);
+                try p.errStr(.redefinition_different_sym, p.tokens.items[tok], p.tokSlice(p.tokens.items[tok]));
+                try p.errTok(.previous_definition, p.tokens.items[prev.tok]);
             },
             else => unreachable,
         }

@@ -1391,7 +1391,7 @@ pub fn combine(inner: *Type, outer: Type) Parser.Error!void {
     }
 }
 
-pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
+pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: Tree.Token) Parser.Error!void {
     switch (ty.specifier) {
         .pointer => return ty.data.sub_type.validateCombinedType(p, source_tok),
         .unspecified_variable_len_array,
@@ -1874,20 +1874,20 @@ pub const Builder = struct {
         return ty;
     }
 
-    fn cannotCombine(b: Builder, p: *Parser, source_tok: TokenIndex) !void {
+    fn cannotCombine(b: Builder, p: *Parser, source_tok: Tree.Token) !void {
         if (b.error_on_invalid) return error.CannotCombine;
         const ty_str = b.specifier.str(p.comp.langopts) orelse try p.typeStr(try b.finish(p));
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
-        if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
+        if (b.typedef) |some| try p.errStr(.spec_from_typedef, p.tokens.items[some.tok], try p.typeStr(some.ty));
     }
 
-    fn duplicateSpec(b: *Builder, p: *Parser, source_tok: TokenIndex, spec: []const u8) !void {
+    fn duplicateSpec(b: *Builder, p: *Parser, source_tok: Tree.Token, spec: []const u8) !void {
         if (b.error_on_invalid) return error.CannotCombine;
         if (p.comp.langopts.emulate != .clang) return b.cannotCombine(p, source_tok);
         try p.errStr(.duplicate_decl_spec, p.tok_i, spec);
     }
 
-    pub fn combineFromTypeof(b: *Builder, p: *Parser, new: Type, source_tok: TokenIndex) Compilation.Error!void {
+    pub fn combineFromTypeof(b: *Builder, p: *Parser, new: Type, source_tok: Tree.Token) Compilation.Error!void {
         if (b.typeof != null) return p.errStr(.cannot_combine_spec, source_tok, "typeof");
         if (b.specifier != .none) return p.errStr(.invalid_typeof, source_tok, @tagName(b.specifier));
         const inner = switch (new.specifier) {
@@ -1919,14 +1919,14 @@ pub const Builder = struct {
         return true;
     }
 
-    pub fn combine(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) !void {
+    pub fn combine(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: Tree.Token) !void {
         b.combineExtra(p, new, source_tok) catch |err| switch (err) {
             error.CannotCombine => unreachable,
             else => |e| return e,
         };
     }
 
-    fn combineExtra(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: TokenIndex) !void {
+    fn combineExtra(b: *Builder, p: *Parser, new: Builder.Specifier, source_tok: Tree.Token) !void {
         if (b.typeof != null) {
             if (b.error_on_invalid) return error.CannotCombine;
             try p.errStr(.invalid_typeof, source_tok, @tagName(new));

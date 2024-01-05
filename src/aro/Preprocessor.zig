@@ -96,6 +96,24 @@ hideset: Hideset,
 
 tokenizers: std.ArrayListUnmanaged(Tokenizer) = .{},
 
+tok_i: usize = 0,
+
+checkpoints: std.ArrayListUnmanaged(u32) = .{},
+
+pub fn pushCheckpoint(pp: *Preprocessor) !void {
+    return pp.checkpoints.append(pp.comp.gpa, @intCast(pp.tokens.len));
+}
+
+/// done checkpointing, no need to go back
+pub fn popCheckpoint(pp: *Preprocessor) void {
+    _ = pp.checkpoints.pop();
+}
+
+/// go back to previous token stream
+pub fn restoreCheckpoint(pp: *Preprocessor) void {
+    pp.tok_i = pp.checkpoints.pop();
+}
+
 pub const parse = Parser.parse;
 
 pub const Linemarkers = enum {
@@ -240,6 +258,7 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.top_expansion_buf.deinit();
     pp.hideset.deinit();
     pp.tokenizers.deinit(pp.gpa);
+    pp.checkpoints.deinit(pp.gpa);
 }
 
 /// Preprocess a compilation unit of sources into a parsable list of tokens.
@@ -261,26 +280,26 @@ pub fn preprocessSources(pp: *Preprocessor, sources: []const Source) Error!void 
             .source = sources[i].id,
         });
     }
-    try pp.addIncludeStart(first);
-    for (sources[1..]) |header| {
-        try pp.addIncludeStart(header);
-        _ = try pp.preprocess(header);
-    }
-    try pp.addIncludeResume(first.id, 0, 1);
-    const eof = try pp.preprocess(first);
-    try pp.tokens.append(pp.comp.gpa, eof);
+    // try pp.addIncludeStart(first);
+    // for (sources[1..]) |header| {
+    //     try pp.addIncludeStart(header);
+    //     _ = try pp.preprocess(header);
+    // }
+    // try pp.addIncludeResume(first.id, 0, 1);
+    // const eof = try pp.preprocess(first);
+    // try pp.tokens.append(pp.comp.gpa, eof);
 }
 
 /// Preprocess a source file, returns eof token.
-pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
-    const eof = pp.preprocessExtra(source) catch |er| switch (er) {
-        // This cannot occur in the main file and is handled in `include`.
-        error.StopPreprocessing => unreachable,
-        else => |e| return e,
-    };
-    try eof.checkMsEof(source, pp.comp);
-    return eof;
-}
+// pub fn preprocess(pp: *Preprocessor, source: Source) Error!Token {
+//     const eof = pp.preprocessExtra(source) catch |er| switch (er) {
+//         // This cannot occur in the main file and is handled in `include`.
+//         error.StopPreprocessing => unreachable,
+//         else => |e| return e,
+//     };
+//     try eof.checkMsEof(source, pp.comp);
+//     return eof;
+// }
 
 /// Tokenize a file without any preprocessing, returns eof token.
 pub fn tokenize(pp: *Preprocessor, source: Source) Error!Token {
@@ -347,19 +366,14 @@ fn findIncludeGuard(pp: *Preprocessor, source: Source) ?[]const u8 {
     return pp.tokSlice(guard);
 }
 
-fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
-    var guard_name = pp.findIncludeGuard(source);
+fn preprocessExtra(pp: *Preprocessor) MacroError!void {
+    // var guard_name = pp.findIncludeGuard(source);
 
     pp.preprocess_count += 1;
-    var tokenizer = Tokenizer{
-        .buf = source.buf,
-        .langopts = pp.comp.langopts,
-        .source = source.id,
-    };
 
     // Estimate how many new tokens this source will contain.
-    const estimated_token_count = source.buf.len / 8;
-    try pp.tokens.ensureTotalCapacity(pp.gpa, pp.tokens.len + estimated_token_count);
+    // const estimated_token_count = source.buf.len / 8;
+    // try pp.tokens.ensureTotalCapacity(pp.gpa, pp.tokens.len + estimated_token_count);
 
     var if_level: u8 = 0;
     var if_kind = std.PackedIntArray(u2, 256).init([1]u2{0} ** 256);
@@ -369,10 +383,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
 
     var start_of_line = true;
     while (true) {
-        var tok = tokenizer.next();
+        var tok = pp.tokenizers.items[pp.tokenizers.items.len - 1].next();
         switch (tok.id) {
             .hash => if (!start_of_line) try pp.tokens.append(pp.gpa, tokFromRaw(tok)) else {
-                const directive = tokenizer.nextNoWS();
+                const directive = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
                 switch (directive.id) {
                     .keyword_error, .keyword_warning => {
                         // #error tokens..
@@ -381,7 +395,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                         defer pp.char_buf.items.len = char_top;
 
                         while (true) {
-                            tok = tokenizer.next();
+                            tok = pp.tokenizers.items[pp.tokenizers.items.len - 1].next();
                             if (tok.id == .nl or tok.id == .eof) break;
                             if (tok.id == .whitespace) tok.id = .macro_ws;
                             try pp.top_expansion_buf.append(tokFromRaw(tok));
@@ -402,14 +416,14 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             return pp.fatal(directive, "too many #if nestings", .{});
                         if_level = sum;
 
-                        if (try pp.expr(&tokenizer)) {
+                        if (try pp.expr(&pp.tokenizers.items[pp.tokenizers.items.len - 1])) {
                             if_kind.set(if_level, until_endif);
                             if (pp.verbose) {
                                 pp.verboseLog(directive, "entering then branch of #if", .{});
                             }
                         } else {
                             if_kind.set(if_level, until_else);
-                            try pp.skip(&tokenizer, .until_else);
+                            try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_else);
                             if (pp.verbose) {
                                 pp.verboseLog(directive, "entering else branch of #if", .{});
                             }
@@ -421,8 +435,8 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             return pp.fatal(directive, "too many #if nestings", .{});
                         if_level = sum;
 
-                        const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
-                        try pp.expectNl(&tokenizer);
+                        const macro_name = (try pp.expectMacroName(&pp.tokenizers.items[pp.tokenizers.items.len - 1])) orelse continue;
+                        try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                         if (pp.defines.get(macro_name) != null) {
                             if_kind.set(if_level, until_endif);
                             if (pp.verbose) {
@@ -430,7 +444,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             }
                         } else {
                             if_kind.set(if_level, until_else);
-                            try pp.skip(&tokenizer, .until_else);
+                            try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_else);
                             if (pp.verbose) {
                                 pp.verboseLog(directive, "entering else branch of #ifdef", .{});
                             }
@@ -442,13 +456,13 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             return pp.fatal(directive, "too many #if nestings", .{});
                         if_level = sum;
 
-                        const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
-                        try pp.expectNl(&tokenizer);
+                        const macro_name = (try pp.expectMacroName(&pp.tokenizers.items[pp.tokenizers.items.len - 1])) orelse continue;
+                        try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                         if (pp.defines.get(macro_name) == null) {
                             if_kind.set(if_level, until_endif);
                         } else {
                             if_kind.set(if_level, until_else);
-                            try pp.skip(&tokenizer, .until_else);
+                            try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_else);
                         }
                     },
                     .keyword_elif => {
@@ -457,24 +471,24 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             if_level += 1;
                             if_kind.set(if_level, until_else);
                         } else if (if_level == 1) {
-                            guard_name = null;
+                            // guard_name = null;
                         }
                         switch (if_kind.get(if_level)) {
-                            until_else => if (try pp.expr(&tokenizer)) {
+                            until_else => if (try pp.expr(&pp.tokenizers.items[pp.tokenizers.items.len - 1])) {
                                 if_kind.set(if_level, until_endif);
                                 if (pp.verbose) {
                                     pp.verboseLog(directive, "entering then branch of #elif", .{});
                                 }
                             } else {
-                                try pp.skip(&tokenizer, .until_else);
+                                try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_else);
                                 if (pp.verbose) {
                                     pp.verboseLog(directive, "entering else branch of #elif", .{});
                                 }
                             },
-                            until_endif => try pp.skip(&tokenizer, .until_endif),
+                            until_endif => try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_endif),
                             until_endif_seen_else => {
                                 try pp.err(directive, .elif_after_else);
-                                skipToNl(&tokenizer);
+                                skipToNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                             },
                             else => unreachable,
                         }
@@ -485,19 +499,19 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             if_level += 1;
                             if_kind.set(if_level, until_else);
                         } else if (if_level == 1) {
-                            guard_name = null;
+                            // guard_name = null;
                         }
                         switch (if_kind.get(if_level)) {
                             until_else => {
-                                const macro_name = try pp.expectMacroName(&tokenizer);
+                                const macro_name = try pp.expectMacroName(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                                 if (macro_name == null) {
                                     if_kind.set(if_level, until_else);
-                                    try pp.skip(&tokenizer, .until_else);
+                                    try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_else);
                                     if (pp.verbose) {
                                         pp.verboseLog(directive, "entering else branch of #elifdef", .{});
                                     }
                                 } else {
-                                    try pp.expectNl(&tokenizer);
+                                    try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                                     if (pp.defines.get(macro_name.?) != null) {
                                         if_kind.set(if_level, until_endif);
                                         if (pp.verbose) {
@@ -505,17 +519,17 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                                         }
                                     } else {
                                         if_kind.set(if_level, until_else);
-                                        try pp.skip(&tokenizer, .until_else);
+                                        try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_else);
                                         if (pp.verbose) {
                                             pp.verboseLog(directive, "entering else branch of #elifdef", .{});
                                         }
                                     }
                                 }
                             },
-                            until_endif => try pp.skip(&tokenizer, .until_endif),
+                            until_endif => try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_endif),
                             until_endif_seen_else => {
                                 try pp.err(directive, .elifdef_after_else);
-                                skipToNl(&tokenizer);
+                                skipToNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                             },
                             else => unreachable,
                         }
@@ -526,19 +540,19 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                             if_level += 1;
                             if_kind.set(if_level, until_else);
                         } else if (if_level == 1) {
-                            guard_name = null;
+                            // guard_name = null;
                         }
                         switch (if_kind.get(if_level)) {
                             until_else => {
-                                const macro_name = try pp.expectMacroName(&tokenizer);
+                                const macro_name = try pp.expectMacroName(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                                 if (macro_name == null) {
                                     if_kind.set(if_level, until_else);
-                                    try pp.skip(&tokenizer, .until_else);
+                                    try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_else);
                                     if (pp.verbose) {
                                         pp.verboseLog(directive, "entering else branch of #elifndef", .{});
                                     }
                                 } else {
-                                    try pp.expectNl(&tokenizer);
+                                    try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                                     if (pp.defines.get(macro_name.?) == null) {
                                         if_kind.set(if_level, until_endif);
                                         if (pp.verbose) {
@@ -546,28 +560,28 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                                         }
                                     } else {
                                         if_kind.set(if_level, until_else);
-                                        try pp.skip(&tokenizer, .until_else);
+                                        try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_else);
                                         if (pp.verbose) {
                                             pp.verboseLog(directive, "entering else branch of #elifndef", .{});
                                         }
                                     }
                                 }
                             },
-                            until_endif => try pp.skip(&tokenizer, .until_endif),
+                            until_endif => try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_endif),
                             until_endif_seen_else => {
                                 try pp.err(directive, .elifdef_after_else);
-                                skipToNl(&tokenizer);
+                                skipToNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                             },
                             else => unreachable,
                         }
                     },
                     .keyword_else => {
-                        try pp.expectNl(&tokenizer);
+                        try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                         if (if_level == 0) {
                             try pp.err(directive, .else_without_if);
                             continue;
                         } else if (if_level == 1) {
-                            guard_name = null;
+                            // guard_name = null;
                         }
                         switch (if_kind.get(if_level)) {
                             until_else => {
@@ -576,39 +590,39 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                                     pp.verboseLog(directive, "#else branch here", .{});
                                 }
                             },
-                            until_endif => try pp.skip(&tokenizer, .until_endif_seen_else),
+                            until_endif => try pp.skip(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .until_endif_seen_else),
                             until_endif_seen_else => {
                                 try pp.err(directive, .else_after_else);
-                                skipToNl(&tokenizer);
+                                skipToNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                             },
                             else => unreachable,
                         }
                     },
                     .keyword_endif => {
-                        try pp.expectNl(&tokenizer);
+                        try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                         if (if_level == 0) {
-                            guard_name = null;
+                            // guard_name = null;
                             try pp.err(directive, .endif_without_if);
                             continue;
                         } else if (if_level == 1) {
-                            const saved_tokenizer = tokenizer;
-                            defer tokenizer = saved_tokenizer;
+                            const saved_tokenizer = pp.tokenizers.items[pp.tokenizers.items.len - 1];
+                            defer pp.tokenizers.items[pp.tokenizers.items.len - 1] = saved_tokenizer;
 
-                            var next = tokenizer.nextNoWS();
-                            while (next.id == .nl) : (next = tokenizer.nextNoWS()) {}
-                            if (next.id != .eof) guard_name = null;
+                            var next = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
+                            while (next.id == .nl) : (next = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS()) {}
+                            // if (next.id != .eof) guard_name = null;
                         }
                         if_level -= 1;
                     },
-                    .keyword_define => try pp.define(&tokenizer),
+                    .keyword_define => try pp.define(&pp.tokenizers.items[pp.tokenizers.items.len - 1]),
                     .keyword_undef => {
-                        const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
+                        const macro_name = (try pp.expectMacroName(&pp.tokenizers.items[pp.tokenizers.items.len - 1])) orelse continue;
 
                         _ = pp.defines.remove(macro_name);
-                        try pp.expectNl(&tokenizer);
+                        try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                     },
                     .keyword_include => {
-                        try pp.include(&tokenizer, .first);
+                        try pp.include(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .first);
                         continue;
                     },
                     .keyword_include_next => {
@@ -621,54 +635,61 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                                 .tag = .include_next_outside_header,
                                 .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
                             }, &.{});
-                            try pp.include(&tokenizer, .first);
+                            try pp.include(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .first);
                         } else {
-                            try pp.include(&tokenizer, .next);
+                            try pp.include(&pp.tokenizers.items[pp.tokenizers.items.len - 1], .next);
                         }
                     },
-                    .keyword_embed => try pp.embed(&tokenizer),
+                    .keyword_embed => try pp.embed(&pp.tokenizers.items[pp.tokenizers.items.len - 1]),
                     .keyword_pragma => {
-                        try pp.pragma(&tokenizer, directive, null, &.{});
+                        try pp.pragma(&pp.tokenizers.items[pp.tokenizers.items.len - 1], directive, null, &.{});
                         continue;
                     },
                     .keyword_line => {
                         // #line number "file"
-                        const digits = tokenizer.nextNoWS();
+                        const digits = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
                         if (digits.id != .pp_num) try pp.err(digits, .line_simple_digit);
                         // TODO: validate that the pp_num token is solely digits
 
                         if (digits.id == .eof or digits.id == .nl) continue;
-                        const name = tokenizer.nextNoWS();
+                        const name = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
-                        try pp.expectNl(&tokenizer);
+                        try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                     },
                     .pp_num => {
                         // # number "file" flags
                         // TODO: validate that the pp_num token is solely digits
                         // if not, emit `GNU line marker directive requires a simple digit sequence`
-                        const name = tokenizer.nextNoWS();
+                        const name = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
 
-                        const flag_1 = tokenizer.nextNoWS();
+                        const flag_1 = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
                         if (flag_1.id == .eof or flag_1.id == .nl) continue;
-                        const flag_2 = tokenizer.nextNoWS();
+                        const flag_2 = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
                         if (flag_2.id == .eof or flag_2.id == .nl) continue;
-                        const flag_3 = tokenizer.nextNoWS();
+                        const flag_3 = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
                         if (flag_3.id == .eof or flag_3.id == .nl) continue;
-                        const flag_4 = tokenizer.nextNoWS();
+                        const flag_4 = pp.tokenizers.items[pp.tokenizers.items.len - 1].nextNoWS();
                         if (flag_4.id == .eof or flag_4.id == .nl) continue;
-                        try pp.expectNl(&tokenizer);
+                        try pp.expectNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                     },
                     .nl => {},
                     .eof => {
                         if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
-                        return tokFromRaw(directive);
+                        pp.tokenizers.shrinkRetainingCapacity(pp.tokenizers.items.len - 1);
+                        const tree_tok = tokFromRaw(directive);
+                        if (pp.tokenizers.items.len == 0) {
+                            try pp.tokens.append(pp.comp.gpa, tree_tok);
+                        }
+                        try tree_tok.checkMsEof(pp.comp.getSource(directive.source), pp.comp);
+
+                        return;
                     },
                     else => {
                         try pp.err(tok, .invalid_preprocessing_directive);
-                        skipToNl(&tokenizer);
+                        skipToNl(&pp.tokenizers.items[pp.tokenizers.items.len - 1]);
                     },
                 }
                 if (pp.preserve_whitespace) {
@@ -683,22 +704,29 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
             },
             .eof => {
                 if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
+                const source = pp.comp.getSource(tok.source);
+                const tree_tok = tokFromRaw(tok);
+                try tree_tok.checkMsEof(source, pp.comp);
                 // The following check needs to occur here and not at the top of the function
                 // because a pragma may change the level during preprocessing
                 if (source.buf.len > 0 and source.buf[source.buf.len - 1] != '\n') {
                     try pp.err(tok, .newline_eof);
                 }
-                if (guard_name) |name| {
-                    if (try pp.include_guards.fetchPut(pp.gpa, source.id, name)) |prev| {
-                        assert(mem.eql(u8, name, prev.value));
-                    }
+                // if (guard_name) |name| {
+                //     if (try pp.include_guards.fetchPut(pp.gpa, source.id, name)) |prev| {
+                //         assert(mem.eql(u8, name, prev.value));
+                //     }
+                // }
+                pp.tokenizers.shrinkRetainingCapacity(pp.tokenizers.items.len - 1);
+                if (pp.tokenizers.items.len == 0) {
+                    try pp.tokens.append(pp.comp.gpa, tree_tok);
                 }
-                return tokFromRaw(tok);
+                return;
             },
             .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
                 start_of_line = false;
                 try pp.err(tok, invalidTokenDiagnostic(tag));
-                try pp.expandMacro(&tokenizer, tok);
+                try pp.expandMacro(&pp.tokenizers.items[pp.tokenizers.items.len - 1], tok);
             },
             .unterminated_comment => try pp.err(tok, .unterminated_comment),
             else => {
@@ -707,7 +735,8 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!Token {
                 }
                 // Add the token to the buffer doing any necessary expansions.
                 start_of_line = false;
-                try pp.expandMacro(&tokenizer, tok);
+                try pp.expandMacro(&pp.tokenizers.items[pp.tokenizers.items.len - 1], tok);
+                return;
             },
         }
     }
@@ -2959,17 +2988,23 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         pp.verboseLog(first, "include file {s}", .{new_source.path});
     }
 
-    const tokens_start = pp.tokens.len;
+    // const tokens_start = pp.tokens.len;
     try pp.addIncludeStart(new_source);
-    const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
-        error.StopPreprocessing => {
-            for (pp.tokens.items(.expansion_locs)[tokens_start..]) |loc| Token.free(loc, pp.gpa);
-            pp.tokens.len = tokens_start;
-            return;
-        },
-        else => |e| return e,
-    };
-    try eof.checkMsEof(new_source, pp.comp);
+    try pp.tokenizers.append(pp.comp.gpa, .{
+        .buf = new_source.buf,
+        .langopts = pp.comp.langopts,
+        .source = new_source.id,
+    });
+
+    // const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
+    //     error.StopPreprocessing => {
+    //         for (pp.tokens.items(.expansion_locs)[tokens_start..]) |loc| Token.free(loc, pp.gpa);
+    //         pp.tokens.len = tokens_start;
+    //         return;
+    //     },
+    //     else => |e| return e,
+    // };
+    // try eof.checkMsEof(new_source, pp.comp);
     if (pp.preserve_whitespace and pp.tokens.items(.id)[pp.tokens.len - 1] != .nl) {
         try pp.tokens.append(pp.gpa, .{ .id = .nl, .loc = .{
             .id = tokenizer.source,
@@ -3180,17 +3215,63 @@ fn printLinemarker(
     try w.writeByte('\n');
 }
 
+fn readMoreTokens(pp: *Preprocessor) !void {
+    _ = pp.preprocessExtra() catch |er| switch (er) {
+        // This cannot occur in the main file and is handled in `include`.
+        error.StopPreprocessing => unreachable,
+        else => |e| return e,
+    };
+    // try eof.checkMsEof(source, pp.comp);
+    // return eof;
+
+    // try pp.top_expansion_buf.append(.{ .id = .eof, .loc = .{} });
+}
+
+pub fn nextToken(pp: *Preprocessor) !Token {
+    if (pp.tok_i >= pp.tokens.len) {
+        if (pp.checkpoints.items.len == 0) {
+            pp.tok_i = 0;
+            pp.tokens.shrinkRetainingCapacity(0);
+        }
+        const prev_len = pp.tokens.len;
+        while (pp.tokens.len == prev_len) {
+            try pp.readMoreTokens();
+        }
+    }
+    defer pp.tok_i += 1;
+    return pp.tokens.get(pp.tok_i);
+}
+
+pub fn peekToken(pp: *Preprocessor) !Token {
+    if (pp.tok_i >= pp.tokens.len) {
+        pp.tok_i = 0;
+        pp.tokens.shrinkRetainingCapacity(0);
+        while (pp.tokens.len == 0) {
+            try pp.readMoreTokens();
+        }
+    }
+    return pp.tokens.get(pp.tok_i);
+}
+
 // After how many empty lines are needed to replace them with linemarkers.
 const collapse_newlines = 8;
 
 /// Pretty print tokens and try to preserve whitespace.
 pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
-    const tok_ids = pp.tokens.items(.id);
+    var toks: std.MultiArrayList(Token) = .{};
+    defer toks.deinit(pp.comp.gpa);
+    while (true) {
+        const cur = try pp.nextToken();
+        try toks.append(pp.comp.gpa, cur);
+        if (cur.id == .eof) break;
+    }
+
+    const tok_ids = toks.items(.id);
 
     var i: u32 = 0;
     var last_nl = true;
     outer: while (true) : (i += 1) {
-        var cur: Token = pp.tokens.get(i);
+        var cur: Token = toks.get(i);
         switch (cur.id) {
             .eof => {
                 if (!last_nl) try w.writeByte('\n');
@@ -3214,7 +3295,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                         i = @intCast((j - 1) - @intFromBool(tok_ids[j - 1] == .whitespace));
                         if (!last_nl) try w.writeAll("\n");
                         if (pp.linemarkers != .none) {
-                            const next = pp.tokens.get(i);
+                            const next = toks.get(i);
                             const source = pp.comp.getSource(next.loc.id);
                             const line_col = source.lineCol(next.loc);
                             try pp.printLinemarker(w, line_col.line_no, source, .none);
@@ -3227,7 +3308,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                 try w.writeAll("\n");
             },
             .keyword_pragma => {
-                const pragma_name = pp.expandedSlice(pp.tokens.get(i + 1));
+                const pragma_name = pp.expandedSlice(toks.get(i + 1));
                 const end_idx = mem.indexOfScalarPos(Token.Id, tok_ids, i, .nl) orelse i + 1;
                 const pragma_len = @as(u32, @intCast(end_idx)) - i;
 
@@ -3235,14 +3316,14 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                     if (!prag.shouldPreserveTokens(pp, i + 1)) {
                         try w.writeByte('\n');
                         i += pragma_len;
-                        cur = pp.tokens.get(i);
+                        cur = toks.get(i);
                         continue;
                     }
                 }
                 try w.writeAll("#pragma");
                 i += 1;
                 while (true) : (i += 1) {
-                    cur = pp.tokens.get(i);
+                    cur = toks.get(i);
                     if (cur.id == .nl) {
                         try w.writeByte('\n');
                         last_nl = true;
