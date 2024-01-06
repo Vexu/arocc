@@ -792,6 +792,7 @@ fn expectNl(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         const tok = tokenizer.next();
         if (tok.id == .nl or tok.id == .eof) return;
         if (tok.id == .whitespace) continue;
+        if (tok.id == .comment and pp.comp.langopts.preserve_comments) continue;
         if (!sent_err) {
             sent_err = true;
             try pp.err(tok, .extra_tokens_directive_end);
