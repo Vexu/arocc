@@ -2444,3 +2444,15 @@ c32_auto_requires_initializer
 c23_auto_scalar_init
     .msg = "'auto' requires a scalar initializer"
     .kind = .@"error"
+
+negative_shift_count
+    .msg = "shift count is negative"
+    .opt = W("shift-count-negative")
+    .kind = .warning
+    .all = true
+
+too_big_shift_count
+    .msg = "shift count >= width of type"
+    .opt = W("shift-count-overflow")
+    .kind = .warning
+    .all = true

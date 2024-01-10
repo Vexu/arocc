@@ -208,6 +208,8 @@ pub const Options = struct {
     @"unsupported-embed-param": Kind = .default,
     @"unused-result": Kind = .default,
     normalized: Kind = .default,
+    @"shift-count-negative": Kind = .default,
+    @"shift-count-overflow": Kind = .default,
 };
 
 const Diagnostics = @This();

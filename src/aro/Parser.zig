@@ -6420,6 +6420,12 @@ fn shiftExpr(p: *Parser) Error!Result {
         try rhs.expect(p);
 
         if (try lhs.adjustTypes(shr.?, &rhs, p, .integer)) {
+            if (rhs.val.compare(.lt, Value.zero, p.comp)) {
+                try p.errStr(.negative_shift_count, shl orelse shr.?, try rhs.str(p));
+            }
+            if (rhs.val.compare(.gte, try Value.int(lhs.ty.bitSizeof(p.comp).?, p.comp), p.comp)) {
+                try p.errStr(.too_big_shift_count, shl orelse shr.?, try rhs.str(p));
+            }
             if (shl != null) {
                 if (try lhs.val.shl(lhs.val, rhs.val, lhs.ty, p.comp) and
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(shl.?, lhs);
