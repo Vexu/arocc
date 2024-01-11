@@ -889,7 +889,8 @@ pub fn hasIncompleteSize(ty: Type) bool {
         .@"struct", .@"union" => ty.data.record.isIncomplete(),
         .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
         .typeof_type => ty.data.sub_type.hasIncompleteSize(),
-        .typeof_expr => ty.data.expr.ty.hasIncompleteSize(),
+        .typeof_expr, .variable_len_array => ty.data.expr.ty.hasIncompleteSize(),
+        .unspecified_variable_len_array => ty.data.sub_type.hasIncompleteSize(),
         .attributed => ty.data.attributed.base.hasIncompleteSize(),
         else => false,
     };

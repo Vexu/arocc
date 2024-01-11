@@ -17,6 +17,7 @@ void foo(int arr[]) {
     struct bar a[] = {1};
     struct bar[1][1] = {{1}};
     struct bar b[1][] = {{1}};
+    struct bar b[1][B(1)] = {1};
 }
 
 int bar["foo"];
@@ -49,10 +50,12 @@ void foo(void) {
     "invalid types.c:17:17: error: array has incomplete element type 'struct bar'" \
     "invalid types.c:18:15: error: expected identifier or '('" \
     "invalid types.c:19:17: error: array has incomplete element type 'struct bar []'" \
-    "invalid types.c:22:9: error: size of array has non-integer type 'char [4]'" \
-    "invalid types.c:23:13: error: array initializer must be an initializer list or wide string literal" \
+    "invalid types.c:20:21: error: call to undeclared function 'B'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]" \
+    "invalid types.c:20:23: warning: passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]" \
+    "invalid types.c:20:17: error: array has incomplete element type 'struct bar [<expr>]'" \
+    "invalid types.c:23:9: error: size of array has non-integer type 'char [4]'" \
     "invalid types.c:24:13: error: array initializer must be an initializer list or wide string literal" \
-    "invalid types.c:26:5: warning: tentative array definition assumed to have one element" \
-    "invalid types.c:28:6: error: redefinition of 'foo'" \
-    "invalid types.c:29:9: error: variable has incomplete type 'int []'" \
-
+    "invalid types.c:25:13: error: array initializer must be an initializer list or wide string literal" \
+    "invalid types.c:27:5: warning: tentative array definition assumed to have one element" \
+    "invalid types.c:29:6: error: redefinition of 'foo'" \
+    "invalid types.c:30:9: error: variable has incomplete type 'int []'" \
