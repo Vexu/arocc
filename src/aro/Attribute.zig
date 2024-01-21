@@ -7,7 +7,6 @@ const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
 const Tree = @import("Tree.zig");
 const NodeIndex = Tree.NodeIndex;
-const TokenIndex = Tree.TokenIndex;
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
 
@@ -329,7 +328,7 @@ pub const Alignment = struct {
     requested: u29,
 };
 pub const Identifier = struct {
-    tok: TokenIndex = 0,
+    tok: Tree.Token = Tree.Token.invalid,
 };
 
 const attributes = struct {
@@ -352,7 +351,7 @@ const attributes = struct {
     };
     pub const aligned = struct {
         alignment: ?Alignment = null,
-        __name_tok: TokenIndex,
+        __name_tok: Tree.Token,
     };
     pub const alloc_align = struct {
         position: u32,
@@ -389,7 +388,7 @@ const attributes = struct {
     };
     pub const deprecated = struct {
         msg: ?Value = null,
-        __name_tok: TokenIndex,
+        __name_tok: Tree.Token,
     };
     pub const designated_init = struct {};
     pub const destructor = struct {
@@ -399,7 +398,7 @@ const attributes = struct {
     pub const dllimport = struct {};
     pub const @"error" = struct {
         msg: Value,
-        __name_tok: TokenIndex,
+        __name_tok: Tree.Token,
     };
     pub const externally_visible = struct {};
     pub const fallthrough = struct {};
@@ -576,7 +575,7 @@ const attributes = struct {
     pub const transparent_union = struct {};
     pub const unavailable = struct {
         msg: ?Value = null,
-        __name_tok: TokenIndex,
+        __name_tok: Tree.Token,
     };
     pub const uninitialized = struct {};
     pub const unsequenced = struct {};
@@ -607,7 +606,7 @@ const attributes = struct {
     pub const warn_unused_result = struct {};
     pub const warning = struct {
         msg: Value,
-        __name_tok: TokenIndex,
+        __name_tok: Tree.Token,
     };
     pub const weak = struct {};
     pub const weakref = struct {
@@ -666,7 +665,7 @@ pub fn ArgumentsForTag(comptime tag: Tag) type {
     return @field(attributes, decl.name);
 }
 
-pub fn initArguments(tag: Tag, name_tok: TokenIndex) Arguments {
+pub fn initArguments(tag: Tag, name_tok: Tree.Token) Arguments {
     switch (tag) {
         inline else => |arg_tag| {
             const union_element = @field(attributes, @tagName(arg_tag));
@@ -715,7 +714,7 @@ pub fn normalize(name: []const u8) []const u8 {
     return name;
 }
 
-fn ignoredAttrErr(p: *Parser, tok: TokenIndex, attr: Attribute.Tag, context: []const u8) !void {
+fn ignoredAttrErr(p: *Parser, tok: Tree.Token, attr: Attribute.Tag, context: []const u8) !void {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
@@ -968,7 +967,7 @@ pub fn applyLabelAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
     return ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub fn applyStatementAttributes(p: *Parser, ty: Type, expr_start: TokenIndex, attr_buf_start: usize) !Type {
+pub fn applyStatementAttributes(p: *Parser, ty: Type, expr_start: Tree.Token, attr_buf_start: usize) !Type {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
@@ -1015,7 +1014,7 @@ fn applyAligned(attr: Attribute, p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !v
     try p.attr_application_buf.append(p.gpa, attr);
 }
 
-fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type) !void {
+fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: Tree.Token, ty: Type) !void {
     const union_ty = ty.get(.@"union") orelse {
         return p.errTok(.transparent_union_wrong_type, tok);
     };
@@ -1042,7 +1041,7 @@ fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type)
     try p.attr_application_buf.append(p.gpa, attr);
 }
 
-fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, ty: *Type) !void {
+fn applyVectorSize(attr: Attribute, p: *Parser, tok: Tree.Token, ty: *Type) !void {
     if (!(ty.isInt() or ty.isFloat()) or !ty.isReal()) {
         const orig_ty = try p.typeStr(ty.*);
         ty.* = Type.invalid;

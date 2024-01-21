@@ -95,6 +95,7 @@ pub const Token = struct {
     pub const Id = Tokenizer.Token.Id;
     pub const NumberPrefix = number_affixes.Prefix;
     pub const NumberSuffix = number_affixes.Suffix;
+    pub const invalid: Token = .{ .id = .invalid, .loc = .{} };
 };
 
 pub const TokenIndex = u32;

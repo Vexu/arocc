@@ -1514,26 +1514,27 @@ pub fn addPragmaHandler(comp: *Compilation, name: []const u8, handler: *Pragma) 
 }
 
 pub fn addDefaultPragmaHandlers(comp: *Compilation) Allocator.Error!void {
-    const GCC = @import("pragmas/gcc.zig");
-    var gcc = try GCC.init(comp.gpa);
-    errdefer gcc.deinit(gcc, comp);
+    _ = comp;
+    // const GCC = @import("pragmas/gcc.zig");
+    // var gcc = try GCC.init(comp.gpa);
+    // errdefer gcc.deinit(gcc, comp);
 
-    const Once = @import("pragmas/once.zig");
-    var once = try Once.init(comp.gpa);
-    errdefer once.deinit(once, comp);
+    // const Once = @import("pragmas/once.zig");
+    // var once = try Once.init(comp.gpa);
+    // errdefer once.deinit(once, comp);
 
-    const Message = @import("pragmas/message.zig");
-    var message = try Message.init(comp.gpa);
-    errdefer message.deinit(message, comp);
+    // const Message = @import("pragmas/message.zig");
+    // var message = try Message.init(comp.gpa);
+    // errdefer message.deinit(message, comp);
 
-    const Pack = @import("pragmas/pack.zig");
-    var pack = try Pack.init(comp.gpa);
-    errdefer pack.deinit(pack, comp);
+    // const Pack = @import("pragmas/pack.zig");
+    // var pack = try Pack.init(comp.gpa);
+    // errdefer pack.deinit(pack, comp);
 
-    try comp.addPragmaHandler("GCC", gcc);
-    try comp.addPragmaHandler("once", once);
-    try comp.addPragmaHandler("message", message);
-    try comp.addPragmaHandler("pack", pack);
+    // try comp.addPragmaHandler("GCC", gcc);
+    // try comp.addPragmaHandler("once", once);
+    // try comp.addPragmaHandler("message", message);
+    // try comp.addPragmaHandler("pack", pack);
 }
 
 pub fn getPragma(comp: *Compilation, name: []const u8) ?*Pragma {

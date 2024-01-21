@@ -966,12 +966,11 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .pp = pp,
         .comp = pp.comp,
         .gpa = pp.gpa,
-        .tok_ids = pp.tokens.items(.id),
-        .tok_i = @intCast(start),
         .arena = pp.arena.allocator(),
         .in_macro = true,
         .strings = std.ArrayList(u8).init(pp.comp.gpa),
 
+        .tokens = undefined,
         .data = undefined,
         .value_map = undefined,
         .labels = undefined,

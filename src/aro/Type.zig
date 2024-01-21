@@ -1,6 +1,6 @@
 const std = @import("std");
 const Tree = @import("Tree.zig");
-const TokenIndex = Tree.TokenIndex;
+const Token = Tree.Token;
 const NodeIndex = Tree.NodeIndex;
 const Parser = @import("Parser.zig");
 const Compilation = @import("Compilation.zig");
@@ -68,25 +68,25 @@ pub const Qualifiers = packed struct {
     }
 
     pub const Builder = struct {
-        @"const": ?TokenIndex = null,
-        atomic: ?TokenIndex = null,
-        @"volatile": ?TokenIndex = null,
-        restrict: ?TokenIndex = null,
+        @"const": Token = Token.invalid,
+        atomic: Token = Token.invalid,
+        @"volatile": Token = Token.invalid,
+        restrict: Token = Token.invalid,
 
         pub fn finish(b: Qualifiers.Builder, p: *Parser, ty: *Type) !void {
-            if (ty.specifier != .pointer and b.restrict != null) {
-                try p.errStr(.restrict_non_pointer, b.restrict.?, try p.typeStr(ty.*));
+            if (ty.specifier != .pointer and b.restrict.id != .invalid) {
+                try p.errStr(.restrict_non_pointer, b.restrict, try p.typeStr(ty.*));
             }
-            if (b.atomic) |some| {
-                if (ty.isArray()) try p.errStr(.atomic_array, some, try p.typeStr(ty.*));
-                if (ty.isFunc()) try p.errStr(.atomic_func, some, try p.typeStr(ty.*));
-                if (ty.hasIncompleteSize()) try p.errStr(.atomic_incomplete, some, try p.typeStr(ty.*));
+            if (b.atomic.id != .invalid) {
+                if (ty.isArray()) try p.errStr(.atomic_array, b.atomic, try p.typeStr(ty.*));
+                if (ty.isFunc()) try p.errStr(.atomic_func, b.atomic, try p.typeStr(ty.*));
+                if (ty.hasIncompleteSize()) try p.errStr(.atomic_incomplete, b.atomic, try p.typeStr(ty.*));
             }
 
-            if (b.@"const" != null) ty.qual.@"const" = true;
-            if (b.atomic != null) ty.qual.atomic = true;
-            if (b.@"volatile" != null) ty.qual.@"volatile" = true;
-            if (b.restrict != null) ty.qual.restrict = true;
+            if (b.@"const".id != .invalid) ty.qual.@"const" = true;
+            if (b.atomic.id != .invalid) ty.qual.atomic = true;
+            if (b.@"volatile".id != .invalid) ty.qual.@"volatile" = true;
+            if (b.restrict.id != invalid) ty.qual.restrict = true;
         }
     };
 };
@@ -99,7 +99,7 @@ pub const Func = struct {
     pub const Param = struct {
         ty: Type,
         name: StringId,
-        name_tok: TokenIndex,
+        name_tok: Token,
     };
 
     fn eql(a: *const Func, b: *const Func, a_spec: Specifier, b_spec: Specifier, comp: *const Compilation) bool {
@@ -172,7 +172,7 @@ pub const Enum = struct {
     pub const Field = struct {
         ty: Type,
         name: StringId,
-        name_tok: TokenIndex,
+        name_tok: Token,
         node: NodeIndex,
     };
 
@@ -250,7 +250,7 @@ pub const Record = struct {
         ty: Type,
         name: StringId,
         /// zero for anonymous fields
-        name_tok: TokenIndex = 0,
+        name_tok: Token = Token.invalid,
         bit_width: ?u32 = null,
         layout: FieldLayout = .{
             .offset_bits = 0,
@@ -258,7 +258,7 @@ pub const Record = struct {
         },
 
         pub fn isNamed(f: *const Field) bool {
-            return f.name_tok != 0;
+            return f.name_tok.id != .invalid;
         }
 
         pub fn isAnonymousRecord(f: Field) bool {
@@ -1445,11 +1445,11 @@ pub fn validateCombinedType(ty: Type, p: *Parser, source_tok: Tree.Token) Parser
 
 /// An unfinished Type
 pub const Builder = struct {
-    complex_tok: ?TokenIndex = null,
-    bit_int_tok: ?TokenIndex = null,
-    auto_type_tok: ?TokenIndex = null,
+    complex_tok: Token = Token.invalid,
+    bit_int_tok: Token = Token.invalid,
+    auto_type_tok: Token = Token.invalid,
     typedef: ?struct {
-        tok: TokenIndex,
+        tok: Token,
         ty: Type,
     } = null,
     specifier: Builder.Specifier = .none,
@@ -1878,13 +1878,13 @@ pub const Builder = struct {
         if (b.error_on_invalid) return error.CannotCombine;
         const ty_str = b.specifier.str(p.comp.langopts) orelse try p.typeStr(try b.finish(p));
         try p.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
-        if (b.typedef) |some| try p.errStr(.spec_from_typedef, p.tokens.items[some.tok], try p.typeStr(some.ty));
+        if (b.typedef) |some| try p.errStr(.spec_from_typedef, some.tok, try p.typeStr(some.ty));
     }
 
     fn duplicateSpec(b: *Builder, p: *Parser, source_tok: Tree.Token, spec: []const u8) !void {
         if (b.error_on_invalid) return error.CannotCombine;
         if (p.comp.langopts.emulate != .clang) return b.cannotCombine(p, source_tok);
-        try p.errStr(.duplicate_decl_spec, p.tok_i, spec);
+        try p.errStr(.duplicate_decl_spec, try p.pp.peekToken(), spec);
     }
 
     pub fn combineFromTypeof(b: *Builder, p: *Parser, new: Type, source_tok: Tree.Token) Compilation.Error!void {
@@ -1904,7 +1904,7 @@ pub const Builder = struct {
     }
 
     /// Try to combine type from typedef, returns true if successful.
-    pub fn combineTypedef(b: *Builder, p: *Parser, typedef_ty: Type, name_tok: TokenIndex) bool {
+    pub fn combineTypedef(b: *Builder, p: *Parser, typedef_ty: Type, name_tok: Token) bool {
         b.error_on_invalid = true;
         defer b.error_on_invalid = false;
 
@@ -2419,8 +2419,6 @@ pub fn printNamed(ty: Type, name: []const u8, mapper: StringInterner.TypeMapper,
     try w.writeAll(name);
     try ty.printEpilogue(mapper, langopts, w);
 }
-
-const StringGetter = fn (TokenIndex) []const u8;
 
 /// return true if `ty` is simple
 fn printPrologue(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: anytype) @TypeOf(w).Error!bool {

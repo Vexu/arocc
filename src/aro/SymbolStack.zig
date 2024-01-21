@@ -16,7 +16,7 @@ const SymbolStack = @This();
 pub const Symbol = struct {
     name: StringId,
     ty: Type,
-    tok: TokenIndex,
+    tok: Token,
     node: NodeIndex = .none,
     kind: Kind,
     val: Value,
@@ -76,7 +76,7 @@ pub fn popScope(s: *SymbolStack) void {
     s.active_len -= 1;
 }
 
-pub fn findTypedef(s: *SymbolStack, p: *Parser, name: StringId, name_tok: TokenIndex, no_type_yet: bool) !?Symbol {
+pub fn findTypedef(s: *SymbolStack, p: *Parser, name: StringId, name_tok: Token, no_type_yet: bool) !?Symbol {
     const prev = s.lookup(name, .vars) orelse s.lookup(name, .tags) orelse return null;
     switch (prev.kind) {
         .typedef => return prev,
@@ -108,11 +108,11 @@ pub fn findTag(
     p: *Parser,
     name: StringId,
     kind: Token.Id,
-    name_tok: TokenIndex,
-    next_tok_id: Token.Id,
+    name_tok: Token,
+    next_tok: Token,
 ) !?Symbol {
     // `tag Name;` should always result in a new type if in a new scope.
-    const prev = (if (next_tok_id == .semicolon) s.get(name, .tags) else s.lookup(name, .tags)) orelse return null;
+    const prev = (if (next_tok.id == .semicolon) s.get(name, .tags) else s.lookup(name, .tags)) orelse return null;
     switch (prev.kind) {
         .@"enum" => if (kind == .keyword_enum) return prev,
         .@"struct" => if (kind == .keyword_struct) return prev,
@@ -172,20 +172,20 @@ pub fn defineTypedef(
     p: *Parser,
     name: StringId,
     ty: Type,
-    tok: TokenIndex,
+    tok: Token,
     node: NodeIndex,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .typedef => {
                 if (!ty.eql(prev.ty, p.comp, true)) {
-                    try p.errStr(.redefinition_of_typedef, p.tokens.items[tok], try p.typePairStrExtra(ty, " vs ", prev.ty));
-                    if (prev.tok != 0) try p.errTok(.previous_definition, p.tokens.items[prev.tok]);
+                    try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(ty, " vs ", prev.ty));
+                    if (prev.tok.id != .invalid) try p.errTok(.previous_definition, prev.tok);
                 }
             },
             .enumeration, .decl, .def, .constexpr => {
-                try p.errStr(.redefinition_different_sym, p.tokens.items[tok], p.tokSlice(p.tokens.items[tok]));
-                try p.errTok(.previous_definition, p.tokens.items[prev.tok]);
+                try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
+                try p.errTok(.previous_definition, tok);
             },
             else => unreachable,
         }
@@ -205,7 +205,7 @@ pub fn defineSymbol(
     p: *Parser,
     name: StringId,
     ty: Type,
-    tok: TokenIndex,
+    tok: Token,
     node: NodeIndex,
     val: Value,
     constexpr: bool,
@@ -258,7 +258,7 @@ pub fn declareSymbol(
     p: *Parser,
     name: StringId,
     ty: Type,
-    tok: TokenIndex,
+    tok: Token,
     node: NodeIndex,
 ) !void {
     if (s.get(name, .vars)) |prev| {
@@ -298,7 +298,7 @@ pub fn declareSymbol(
     });
 }
 
-pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: TokenIndex) !void {
+pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: Token) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .enumeration, .decl, .def, .constexpr => {
@@ -329,7 +329,7 @@ pub fn defineTag(
     p: *Parser,
     name: StringId,
     kind: Token.Id,
-    tok: TokenIndex,
+    tok: Token,
 ) !?Symbol {
     const prev = s.get(name, .tags) orelse return null;
     switch (prev.kind) {
@@ -360,7 +360,7 @@ pub fn defineEnumeration(
     p: *Parser,
     name: StringId,
     ty: Type,
-    tok: TokenIndex,
+    tok: Token,
     val: Value,
 ) !void {
     if (s.get(name, .vars)) |prev| {
