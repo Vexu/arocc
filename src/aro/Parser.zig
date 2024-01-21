@@ -5039,15 +5039,19 @@ pub const Result = struct {
             .call_expr_one => {
                 const fn_ptr = p.nodes.items(.data)[@intFromEnum(cur_node)].bin.lhs;
                 const fn_ty = p.nodes.items(.ty)[@intFromEnum(fn_ptr)].elemType();
-                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, "TODO get name");
-                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, "TODO get name");
+                const cast_info = p.nodes.items(.data)[@intFromEnum(fn_ptr)].cast.operand;
+                const decl_ref = p.nodes.items(.data)[@intFromEnum(cast_info)].decl_ref;
+                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(decl_ref));
+                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(decl_ref));
                 return;
             },
             .call_expr => {
                 const fn_ptr = p.data.items[p.nodes.items(.data)[@intFromEnum(cur_node)].range.start];
                 const fn_ty = p.nodes.items(.ty)[@intFromEnum(fn_ptr)].elemType();
-                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, "TODO get name");
-                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, "TODO get name");
+                const cast_info = p.nodes.items(.data)[@intFromEnum(fn_ptr)].cast.operand;
+                const decl_ref = p.nodes.items(.data)[@intFromEnum(cast_info)].decl_ref;
+                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(decl_ref));
+                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(decl_ref));
                 return;
             },
             .stmt_expr => {
