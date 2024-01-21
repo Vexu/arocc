@@ -7,4 +7,4 @@ void bar() {
 }
 
 
-#define EXPECTED_ERRORS "warn unused result.c:6:4: warning: ignoring return value of 'foo', declared with 'warn_unused_result' attribute [-Wunused-result"
+#define EXPECTED_ERRORS "warn unused result.c:6:4: warning: ignoring return value of 'foo', declared with 'warn_unused_result' attribute [-Wunused-result]"
