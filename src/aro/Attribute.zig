@@ -230,7 +230,7 @@ fn diagnoseField(
 ) !?Diagnostics.Message {
     if (res.val.opt_ref == .none) {
         if (Wanted == Identifier and node.tag == .decl_ref_expr) {
-            @field(@field(arguments, decl.name), field.name) = Identifier{ .tok = node.data.decl_ref };
+            @field(@field(arguments, decl.name), field.name) = Identifier{ .tok = p.tokens.items[node.data.decl_ref] };
             return null;
         }
         return invalidArgMsg(Wanted, .expression);

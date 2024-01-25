@@ -4,7 +4,6 @@ const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 const Tree = @import("Tree.zig");
 const Token = Tree.Token;
-const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
 const Parser = @import("Parser.zig");

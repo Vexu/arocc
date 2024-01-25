@@ -1909,7 +1909,7 @@ pub const Builder = struct {
         defer b.error_on_invalid = false;
 
         const new_spec = fromType(typedef_ty);
-        b.combineExtra(p, new_spec, 0) catch |err| switch (err) {
+        b.combineExtra(p, new_spec, Token.invalid) catch |err| switch (err) {
             error.FatalError => unreachable, // we do not add any diagnostics
             error.OutOfMemory => unreachable, // we do not add any diagnostics
             error.ParsingFailed => unreachable, // we do not add any diagnostics

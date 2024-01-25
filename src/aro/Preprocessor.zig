@@ -3226,6 +3226,12 @@ fn readMoreTokens(pp: *Preprocessor) !void {
     // try pp.top_expansion_buf.append(.{ .id = .eof, .loc = .{} });
 }
 
+/// Skip the next token. Asserts that the token has already been inspected
+pub fn discardToken(pp: *Preprocessor) void {
+    std.debug.assert(pp.tok_i < pp.tokens.len);
+    pp.tok_i += 1;
+}
+
 pub fn nextToken(pp: *Preprocessor) !Token {
     if (pp.tok_i >= pp.tokens.len) {
         if (pp.checkpoints.items.len == 0) {
