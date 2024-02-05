@@ -281,7 +281,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
         stats.progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
         return;
     };
-    try pp.tokens.append(alloc, eof);
+    try pp.addToken(eof);
 
     var tree = try aro.Parser.parse(&pp);
     defer tree.deinit();

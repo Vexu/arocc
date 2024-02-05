@@ -237,7 +237,7 @@ pub fn main() !void {
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
-        try pp.tokens.append(gpa, eof);
+        try pp.addToken(eof);
 
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .pp_num) {
