@@ -245,7 +245,7 @@ pub fn build(b: *Build) !void {
 
     const integration_test_runner = b.addRunArtifact(integration_tests);
     integration_test_runner.addArg(b.pathFromRoot("test/cases"));
-    integration_test_runner.addArg(b.zig_exe);
+    integration_test_runner.addArg(b.graph.zig_exe);
 
     const record_tests = b.addExecutable(.{
         .name = "record-runner",

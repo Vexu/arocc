@@ -40,7 +40,7 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
     const b = step.owner;
     const self = @fieldParentPtr(ZigLibDir, "step", step);
 
-    const zig_env_args: [2][]const u8 = .{ b.zig_exe, "env" };
+    const zig_env_args: [2][]const u8 = .{ b.graph.zig_exe, "env" };
     var out_code: u8 = undefined;
     const zig_env = try b.runAllowFail(&zig_env_args, &out_code, .Ignore);
 
