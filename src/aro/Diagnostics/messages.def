@@ -2456,3 +2456,9 @@ too_big_shift_count
     .opt = W("shift-count-overflow")
     .kind = .warning
     .all = true
+
+complex_conj
+    .msg = "ISO C does not support '~' for complex conjugation of '{s}'"
+    .opt = W("pedantic")
+    .extra = .str
+    .kind = .off
