@@ -6977,6 +6977,8 @@ fn unExpr(p: *Parser) Error!Result {
                 if (operand.val.is(.int, p.comp)) {
                     operand.val = try operand.val.bitNot(operand.ty, p.comp);
                 }
+            } else if (operand.ty.isComplex()) {
+                try p.errStr(.complex_conj, tok, try p.typeStr(operand.ty));
             } else {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
                 operand.val = .{};

@@ -12,6 +12,7 @@ void foo(int x, float y) {
     z = __builtin_complex(2.0, 3);
     z = __builtin_complex(2.0, 3.0f);
     z = __builtin_complex(2.0, 3.0);
+    z = ~z;
 }
 
 #define EXPECTED_ERRORS "complex numbers clang.c:5:20: error: static_assert expression is not an integral constant expression" \
@@ -21,4 +22,5 @@ void foo(int x, float y) {
     "complex numbers clang.c:10:6: warning: ISO C does not support '++'/'--' on complex type '_Complex double' [-Wpedantic]" \
     "complex numbers clang.c:12:32: error: argument type 'int' is not a real floating point type" \
     "complex numbers clang.c:13:32: error: arguments are of different types ('double' vs 'float')" \
+    "complex numbers clang.c:15:9: warning: ISO C does not support '~' for complex conjugation of '_Complex double' [-Wpedantic]" \
 
