@@ -70,12 +70,17 @@ const ExpansionEntry = struct {
     locs: [*]Source.Location,
 };
 
+const TokenState = struct {
+    tokens_len: usize,
+    expansion_locs_len: usize,
+};
+
 comp: *Compilation,
 gpa: mem.Allocator,
 arena: std.heap.ArenaAllocator,
 defines: DefineMap = .{},
 tokens: Token.List = .{},
-expansion_locs: std.MultiArrayList(ExpansionEntry),
+expansion_locs: std.MultiArrayList(ExpansionEntry) = .{},
 token_buf: RawTokenList,
 char_buf: std.ArrayList(u8),
 /// Counter that is incremented each time preprocess() is called
@@ -123,7 +128,6 @@ pub fn init(comp: *Compilation) Preprocessor {
         .poisoned_identifiers = std.StringHashMap(void).init(comp.gpa),
         .top_expansion_buf = ExpandBuf.init(comp.gpa),
         .hideset = .{ .comp = comp },
-        .expansion_locs = .{},
     };
     comp.pragmaEvent(.before_preprocess);
     return pp;
@@ -825,14 +829,24 @@ fn expectNl(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     }
 }
 
+fn getTokenState(pp: *const Preprocessor) TokenState {
+    return .{
+        .tokens_len = pp.tokens.len,
+        .expansion_locs_len = pp.expansion_locs.len,
+    };
+}
+
+fn restoreTokenState(pp: *Preprocessor, state: TokenState) void {
+    pp.tokens.len = state.tokens_len;
+    pp.expansion_locs.len = state.expansion_locs_len;
+}
+
 /// Consume all tokens until a newline and parse the result into a boolean.
 fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
-    const start = pp.tokens.len;
-    const locs_start = pp.expansion_locs.len;
+    const token_state = pp.getTokenState();
     defer {
         for (pp.top_expansion_buf.items) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, pp.gpa);
-        pp.tokens.len = start;
-        pp.expansion_locs.len = locs_start;
+        pp.restoreTokenState(token_state);
     }
 
     pp.top_expansion_buf.items.len = 0;
@@ -948,7 +962,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .comp = pp.comp,
         .gpa = pp.gpa,
         .tok_ids = pp.tokens.items(.id),
-        .tok_i = @intCast(start),
+        .tok_i = @intCast(token_state.tokens_len),
         .arena = pp.arena.allocator(),
         .in_macro = true,
         .strings = std.ArrayList(u8).init(pp.comp.gpa),
@@ -2969,14 +2983,12 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         pp.verboseLog(first, "include file {s}", .{new_source.path});
     }
 
-    const tokens_start = pp.tokens.len;
-    const locs_start = pp.expansion_locs.len;
+    const token_state = pp.getTokenState();
     try pp.addIncludeStart(new_source);
     const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
         error.StopPreprocessing => {
-            for (pp.expansion_locs.items(.locs)[locs_start..]) |loc| TokenWithExpansionLocs.free(loc, pp.gpa);
-            pp.tokens.len = tokens_start;
-            pp.expansion_locs.len = locs_start;
+            for (pp.expansion_locs.items(.locs)[token_state.expansion_locs_len..]) |loc| TokenWithExpansionLocs.free(loc, pp.gpa);
+            pp.restoreTokenState(token_state);
             return;
         },
         else => |e| return e,
