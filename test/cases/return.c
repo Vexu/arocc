@@ -120,7 +120,6 @@ void call_return_signed(void) {
     "return.c:32:5: error: non-void function 'bar' should return a value [-Wreturn-type]" \
     "return.c:35:12: error: void function 'baz' should not return a value [-Wreturn-type]" \
     "return.c:38:17: error: function cannot return a function" \
-    "return.c:74:5: warning: unreachable code [-Wunreachable-code]" \
     "return.c:96:12: error: returning 'double' from a function with incompatible result type 'void *'" \
     "warning: returning 'unsigned int *' from a function with incompatible result type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
 

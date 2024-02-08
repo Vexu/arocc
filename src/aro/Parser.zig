@@ -4603,24 +4603,31 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) NoreturnKind {
         },
         .compound_stmt_two => {
             const data = p.nodes.items(.data)[@intFromEnum(node)];
-            if (data.bin.rhs != .none) return p.nodeIsNoreturn(data.bin.rhs);
-            if (data.bin.lhs != .none) return p.nodeIsNoreturn(data.bin.lhs);
+            const lhs_type = if (data.bin.lhs != .none) p.nodeIsNoreturn(data.bin.lhs) else .no;
+            const rhs_type = if (data.bin.rhs != .none) p.nodeIsNoreturn(data.bin.rhs) else .no;
+            if (lhs_type == .complex or rhs_type == .complex) return .complex;
+            if (lhs_type == .yes or rhs_type == .yes) return .yes;
             return .no;
         },
         .compound_stmt => {
             const data = p.nodes.items(.data)[@intFromEnum(node)];
-            return p.nodeIsNoreturn(p.data.items[data.range.end - 1]);
+            var it = data.range.start;
+            while (it != data.range.end) : (it += 1) {
+                const kind = p.nodeIsNoreturn(p.data.items[it]);
+                if (kind != .no) return kind;
+            }
+            return .no;
         },
         .labeled_stmt => {
             const data = p.nodes.items(.data)[@intFromEnum(node)];
             return p.nodeIsNoreturn(data.decl.node);
         },
-        .switch_stmt => {
+        .default_stmt => {
             const data = p.nodes.items(.data)[@intFromEnum(node)];
-            if (data.bin.rhs == .none) return .complex;
-            if (p.nodeIsNoreturn(data.bin.rhs) == .yes) return .yes;
-            return .complex;
+            if (data.un == .none) return .no;
+            return p.nodeIsNoreturn(data.un);
         },
+        .while_stmt, .do_while_stmt, .for_decl_stmt, .forever_stmt, .for_stmt, .switch_stmt => return .complex,
         else => return .no,
     }
 }
