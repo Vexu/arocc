@@ -80,7 +80,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
     _ = try pp.preprocess(user_macros);
 
     const eof = try pp.preprocess(file);
-    try pp.tokens.append(allocator, eof);
+    try pp.addToken(eof);
 
     var tree = try aro.Parser.parse(&pp);
     defer tree.deinit();
