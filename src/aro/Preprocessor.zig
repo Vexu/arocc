@@ -3027,19 +3027,17 @@ fn makePragmaToken(pp: *Preprocessor, raw: RawToken, operator_loc: ?Source.Locat
 }
 
 pub fn addToken(pp: *Preprocessor, tok: TokenWithExpansionLocs) !void {
-    const idx: u32 = @intCast(pp.tokens.len);
-    try pp.tokens.append(pp.gpa, .{ .id = tok.id, .loc = tok.loc });
     if (tok.expansion_locs) |expansion_locs| {
-        try pp.expansion_locs.append(pp.gpa, .{ .idx = idx, .locs = expansion_locs });
+        try pp.expansion_locs.append(pp.gpa, .{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
     }
+    try pp.tokens.append(pp.gpa, .{ .id = tok.id, .loc = tok.loc });
 }
 
 pub fn addTokenAssumeCapacity(pp: *Preprocessor, tok: TokenWithExpansionLocs) void {
-    const idx: u32 = @intCast(pp.tokens.len);
-    pp.tokens.appendAssumeCapacity(.{ .id = tok.id, .loc = tok.loc });
     if (tok.expansion_locs) |expansion_locs| {
-        pp.expansion_locs.appendAssumeCapacity(.{ .idx = idx, .locs = expansion_locs });
+        pp.expansion_locs.appendAssumeCapacity(.{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
     }
+    pp.tokens.appendAssumeCapacity(.{ .id = tok.id, .loc = tok.loc });
 }
 
 pub fn ensureTotalTokenCapacity(pp: *Preprocessor, capacity: usize) !void {
