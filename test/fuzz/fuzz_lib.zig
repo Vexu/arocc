@@ -45,7 +45,7 @@ fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void
 
     _ = try pp.preprocess(builtin);
     const eof = try pp.preprocess(user_source);
-    try pp.tokens.append(pp.comp.gpa, eof);
+    try pp.addToken(eof);
 
     var tree = try Parser.parse(&pp);
     defer tree.deinit();

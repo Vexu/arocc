@@ -403,7 +403,7 @@ pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diag
         .tag = tag,
         .loc = loc,
         .extra = extra,
-    }, tok.expansionSlice());
+    }, p.pp.expansionSlice(tok_i));
 }
 
 pub fn errTok(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex) Compilation.Error!void {

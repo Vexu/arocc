@@ -80,7 +80,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
     _ = try pp.preprocess(user_macros);
 
     const eof = try pp.preprocess(file);
-    try pp.tokens.append(allocator, eof);
+    try pp.addToken(eof);
 
     var tree = try aro.Parser.parse(&pp);
     defer tree.deinit();
@@ -237,7 +237,7 @@ pub fn main() !void {
             progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
-        try pp.tokens.append(gpa, eof);
+        try pp.addToken(eof);
 
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .pp_num) {

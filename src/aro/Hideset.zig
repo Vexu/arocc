@@ -81,6 +81,12 @@ pub fn clearRetainingCapacity(self: *Hideset) void {
     self.map.clearRetainingCapacity();
 }
 
+pub fn clearAndFree(self: *Hideset) void {
+    self.map.clearAndFree(self.comp.gpa);
+    self.intersection_map.clearAndFree(self.comp.gpa);
+    self.linked_list.shrinkAndFree(self.comp.gpa, 0);
+}
+
 /// Iterator is invalidated if the underlying MultiArrayList slice is reallocated due to resize
 fn iterator(self: *const Hideset, idx: Index) Iterator {
     return Iterator{
