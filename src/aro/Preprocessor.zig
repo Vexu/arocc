@@ -72,15 +72,17 @@ const ExpansionEntry = struct {
 
 const TokenState = struct {
     tokens_len: usize,
-    expansion_locs_len: usize,
+    expansion_entries_len: usize,
 };
 
 comp: *Compilation,
 gpa: mem.Allocator,
 arena: std.heap.ArenaAllocator,
 defines: DefineMap = .{},
+/// Do not directly mutate this; use addToken / addTokenAssumeCapacity / ensureTotalTokenCapacity / ensureUnusedTokenCapacity
 tokens: Token.List = .{},
-expansion_locs: std.MultiArrayList(ExpansionEntry) = .{},
+/// Do not directly mutate this; must be kept in sync with `tokens`
+expansion_entries: std.MultiArrayList(ExpansionEntry) = .{},
 token_buf: RawTokenList,
 char_buf: std.ArrayList(u8),
 /// Counter that is incremented each time preprocess() is called
@@ -249,8 +251,8 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.include_guards.deinit(pp.gpa);
     pp.top_expansion_buf.deinit();
     pp.hideset.deinit();
-    for (pp.expansion_locs.items(.locs)) |locs| TokenWithExpansionLocs.free(locs, pp.gpa);
-    pp.expansion_locs.deinit(pp.gpa);
+    for (pp.expansion_entries.items(.locs)) |locs| TokenWithExpansionLocs.free(locs, pp.gpa);
+    pp.expansion_entries.deinit(pp.gpa);
 }
 
 pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location {
@@ -261,9 +263,9 @@ pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location
         }
     };
 
-    const indices = pp.expansion_locs.items(.idx);
+    const indices = pp.expansion_entries.items(.idx);
     const idx = std.sort.binarySearch(Tree.TokenIndex, tok, indices, {}, S.order_token_index) orelse return &.{};
-    const locs = pp.expansion_locs.items(.locs)[idx];
+    const locs = pp.expansion_entries.items(.locs)[idx];
     var i: usize = 0;
     while (locs[i].id != .unused) : (i += 1) {}
     return locs[0..i];
@@ -832,13 +834,13 @@ fn expectNl(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
 fn getTokenState(pp: *const Preprocessor) TokenState {
     return .{
         .tokens_len = pp.tokens.len,
-        .expansion_locs_len = pp.expansion_locs.len,
+        .expansion_entries_len = pp.expansion_entries.len,
     };
 }
 
 fn restoreTokenState(pp: *Preprocessor, state: TokenState) void {
     pp.tokens.len = state.tokens_len;
-    pp.expansion_locs.len = state.expansion_locs_len;
+    pp.expansion_entries.len = state.expansion_entries_len;
 }
 
 /// Consume all tokens until a newline and parse the result into a boolean.
@@ -2987,7 +2989,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     try pp.addIncludeStart(new_source);
     const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
         error.StopPreprocessing => {
-            for (pp.expansion_locs.items(.locs)[token_state.expansion_locs_len..]) |loc| TokenWithExpansionLocs.free(loc, pp.gpa);
+            for (pp.expansion_entries.items(.locs)[token_state.expansion_entries_len..]) |loc| TokenWithExpansionLocs.free(loc, pp.gpa);
             pp.restoreTokenState(token_state);
             return;
         },
@@ -3028,26 +3030,26 @@ fn makePragmaToken(pp: *Preprocessor, raw: RawToken, operator_loc: ?Source.Locat
 
 pub fn addToken(pp: *Preprocessor, tok: TokenWithExpansionLocs) !void {
     if (tok.expansion_locs) |expansion_locs| {
-        try pp.expansion_locs.append(pp.gpa, .{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
+        try pp.expansion_entries.append(pp.gpa, .{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
     }
     try pp.tokens.append(pp.gpa, .{ .id = tok.id, .loc = tok.loc });
 }
 
 pub fn addTokenAssumeCapacity(pp: *Preprocessor, tok: TokenWithExpansionLocs) void {
     if (tok.expansion_locs) |expansion_locs| {
-        pp.expansion_locs.appendAssumeCapacity(.{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
+        pp.expansion_entries.appendAssumeCapacity(.{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
     }
     pp.tokens.appendAssumeCapacity(.{ .id = tok.id, .loc = tok.loc });
 }
 
 pub fn ensureTotalTokenCapacity(pp: *Preprocessor, capacity: usize) !void {
     try pp.tokens.ensureTotalCapacity(pp.gpa, capacity);
-    try pp.expansion_locs.ensureTotalCapacity(pp.gpa, capacity);
+    try pp.expansion_entries.ensureTotalCapacity(pp.gpa, capacity);
 }
 
 pub fn ensureUnusedTokenCapacity(pp: *Preprocessor, capacity: usize) !void {
     try pp.tokens.ensureUnusedCapacity(pp.gpa, capacity);
-    try pp.expansion_locs.ensureUnusedCapacity(pp.gpa, capacity);
+    try pp.expansion_entries.ensureUnusedCapacity(pp.gpa, capacity);
 }
 
 /// Handle a pragma directive
