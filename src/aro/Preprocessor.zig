@@ -66,7 +66,7 @@ const Macro = struct {
 const Preprocessor = @This();
 
 const ExpansionEntry = struct {
-    idx: u32,
+    idx: Tree.TokenIndex,
     locs: [*]Source.Location,
 };
 
