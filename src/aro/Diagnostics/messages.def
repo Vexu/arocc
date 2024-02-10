@@ -2462,3 +2462,13 @@ complex_conj
     .opt = W("pedantic")
     .extra = .str
     .kind = .off
+
+overflow_builtin_requires_int
+    .msg = "operand argument to overflow builtin must be an integer ('{s}' invalid)"
+    .extra = .str
+    .kind = .@"error"
+
+overflow_result_requires_ptr
+    .msg = "result argument to overflow builtin must be a pointer to a non-const integer ('{s}' invalid)"
+    .extra = .str
+    .kind = .@"error"
