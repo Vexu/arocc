@@ -4794,7 +4794,11 @@ const CallExpr = union(enum) {
                 Builtin.tagFromName("__va_start").?,
                 Builtin.tagFromName("va_start").?,
                 => arg_idx != 1,
-                Builtin.tagFromName("__builtin_complex").? => false,
+                Builtin.tagFromName("__builtin_complex").?,
+                Builtin.tagFromName("__builtin_add_overflow").?,
+                Builtin.tagFromName("__builtin_sub_overflow").?,
+                Builtin.tagFromName("__builtin_mul_overflow").?,
+                => false,
                 else => true,
             },
         };
@@ -4807,6 +4811,7 @@ const CallExpr = union(enum) {
     }
 
     fn checkVarArg(self: CallExpr, p: *Parser, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32) !void {
+        @setEvalBranchQuota(10_000);
         if (self == .standard) return;
 
         const builtin_tok = p.nodes.items(.data)[@intFromEnum(self.builtin.node)].decl.name;
@@ -4816,6 +4821,11 @@ const CallExpr = union(enum) {
             Builtin.tagFromName("va_start").?,
             => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
             Builtin.tagFromName("__builtin_complex").? => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            Builtin.tagFromName("__builtin_add_overflow").?,
+            Builtin.tagFromName("__builtin_sub_overflow").?,
+            Builtin.tagFromName("__builtin_mul_overflow").?,
+            => return p.checkArithOverflowArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+
             else => {},
         }
     }
@@ -4859,6 +4869,9 @@ const CallExpr = union(enum) {
                 Builtin.tagFromName("__atomic_xor_fetch").?,
                 Builtin.tagFromName("__atomic_or_fetch").?,
                 Builtin.tagFromName("__atomic_nand_fetch").?,
+                Builtin.tagFromName("__builtin_add_overflow").?,
+                Builtin.tagFromName("__builtin_sub_overflow").?,
+                Builtin.tagFromName("__builtin_mul_overflow").?,
                 => 3,
 
                 Builtin.tagFromName("__c11_atomic_compare_exchange_strong").?,
@@ -7419,6 +7432,20 @@ fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     const decl_ref = p.getNode(arg.node, .decl_ref_expr);
     if (decl_ref == null or last_param_name != try StrInt.intern(p.comp, p.tokSlice(p.nodes.items(.data)[@intFromEnum(decl_ref.?)].decl_ref))) {
         try p.errTok(.va_start_not_last_param, param_tok);
+    }
+}
+
+fn checkArithOverflowArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
+    _ = builtin_tok;
+    _ = first_after;
+    if (idx <= 1) {
+        if (!arg.ty.isInt()) {
+            return p.errStr(.overflow_builtin_requires_int, param_tok, try p.typeStr(arg.ty));
+        }
+    } else if (idx == 2) {
+        if (!arg.ty.isPtr()) return p.errStr(.overflow_result_requires_ptr, param_tok, try p.typeStr(arg.ty));
+        const child = arg.ty.elemType();
+        if (!child.isInt() or child.is(.bool) or child.is(.@"enum") or child.qual.@"const") return p.errStr(.overflow_result_requires_ptr, param_tok, try p.typeStr(arg.ty));
     }
 }
 
