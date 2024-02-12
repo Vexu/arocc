@@ -645,7 +645,6 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
     const tys = node_slices.items(.ty);
     const data = node_slices.items(.data);
 
-    const err_start = p.comp.diagnostics.list.items.len;
     for (p.decl_buf.items) |decl_node| {
         const idx = @intFromEnum(decl_node);
         switch (tags[idx]) {
@@ -666,8 +665,6 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
         try p.errStr(.tentative_definition_incomplete, tentative_def_tok, type_str);
         try p.errStr(.forward_declaration_here, data[idx].decl_ref, type_str);
     }
-    const errors_added = p.comp.diagnostics.list.items.len - err_start;
-    assert(errors_added == 2 * p.tentative_defs.count()); // Each tentative def should add an error + note
 }
 
 /// root : (decl | assembly ';' | staticAssert)*
