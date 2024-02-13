@@ -432,6 +432,11 @@ pub fn removeNull(p: *Parser, str: Value) !Value {
 }
 
 pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
+    if (@import("builtin").mode != .Debug) {
+        if (ty.is(.invalid)) {
+            return "Tried to render invalid type - this is an aro bug.";
+        }
+    }
     if (Type.Builder.fromType(ty).str(p.comp.langopts)) |str| return str;
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
@@ -446,6 +451,11 @@ pub fn typePairStr(p: *Parser, a: Type, b: Type) ![]const u8 {
 }
 
 pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const u8 {
+    if (@import("builtin").mode != .Debug) {
+        if (a.is(.invalid) or b.is(.invalid)) {
+            return "Tried to render invalid type - this is an aro bug.";
+        }
+    }
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
@@ -635,7 +645,6 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
     const tys = node_slices.items(.ty);
     const data = node_slices.items(.data);
 
-    const err_start = p.comp.diagnostics.list.items.len;
     for (p.decl_buf.items) |decl_node| {
         const idx = @intFromEnum(decl_node);
         switch (tags[idx]) {
@@ -656,8 +665,6 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
         try p.errStr(.tentative_definition_incomplete, tentative_def_tok, type_str);
         try p.errStr(.forward_declaration_here, data[idx].decl_ref, type_str);
     }
-    const errors_added = p.comp.diagnostics.list.items.len - err_start;
-    assert(errors_added == 2 * p.tentative_defs.count()); // Each tentative def should add an error + note
 }
 
 /// root : (decl | assembly ';' | staticAssert)*

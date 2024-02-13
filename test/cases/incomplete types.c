@@ -43,6 +43,12 @@ void incomplete_enum_float(void) {
 
 void incomplete_unspecified_variable_len_array(struct S b[1][*]);
 
+void f1(struct Foo *a) { } /* should produce `warning: declaration of 'struct Foo' will not be visible outside of this function [-Wvisibility]` instead of tentative definition error */
+
+struct Foo f;
+
+#define TESTS_SKIPPED 1
+
 #define EXPECTED_ERRORS "incomplete types.c:4:5: error: dereferencing pointer to incomplete type 'struct S'" \
     "incomplete types.c:5:11: error: dereferencing pointer to incomplete type 'struct S'" \
     "incomplete types.c:8:5: error: dereferencing pointer to incomplete type 'union U'" \
@@ -56,3 +62,8 @@ void incomplete_unspecified_variable_len_array(struct S b[1][*]);
     "incomplete types.c:34:13: error: statement requires expression with integer type ('struct node' invalid)" \
     "incomplete types.c:40:12: error: variable has incomplete type 'enum E'" \
     "incomplete types.c:44:58: error: array has incomplete element type 'struct S [*]'" \
+    "incomplete types.c:48:12: error: tentative definition has type 'struct Foo' that is never completed" \
+    "incomplete types.c:46:16: note: forward declaration of 'struct Foo'" \
+    "incomplete types.c:48:12: error: tentative definition has type 'struct Foo' that is never completed" \
+    "incomplete types.c:48:8: note: forward declaration of 'struct Foo'" \
+
