@@ -8002,6 +8002,7 @@ fn charLiteral(p: *Parser) Error!Result {
 
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
 
+    var is_multichar = false;
     if (slice.len == 1 and std.ascii.isASCII(slice[0])) {
         // fast path: single unescaped ASCII char
         val = slice[0];
@@ -8035,7 +8036,7 @@ fn charLiteral(p: *Parser) Error!Result {
             },
         };
 
-        const is_multichar = chars.items.len > 1;
+        is_multichar = chars.items.len > 1;
         if (is_multichar) {
             if (char_kind == .char and chars.items.len == 4) {
                 char_literal_parser.warn(.four_char_char_literal, .{ .none = {} });
@@ -8078,9 +8079,19 @@ fn charLiteral(p: *Parser) Error!Result {
     else
         p.comp.types.intmax;
 
+    var value = try Value.int(val, p.comp);
+    // C99 6.4.4.4.10
+    // > If an integer character constant contains a single character or escape sequence,
+    // > its value is the one that results when an object with type char whose value is
+    // > that of the single character or escape sequence is converted to type int.
+    // This conversion only matters if `char` is signed and has a high-order bit of `1`
+    if (char_kind == .char and !is_multichar and val > 0x7F and p.comp.getCharSignedness() == .signed) {
+        try value.intCast(.{ .specifier = .char }, p.comp);
+    }
+
     const res = Result{
         .ty = if (p.in_macro) macro_ty else ty,
-        .val = try Value.int(val, p.comp),
+        .val = value,
         .node = try p.addNode(.{ .tag = .char_literal, .ty = ty, .data = undefined }),
     };
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
