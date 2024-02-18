@@ -1,5 +1,5 @@
 ## Adding a new test
-To add a new test, add a new file to [test/cases](tests/cases) or expand an existing one.
+To add a new test, add a new file to [test/cases](/test/cases) or expand an existing one.
 
 ---
 ## Passing arguments to the compiler
