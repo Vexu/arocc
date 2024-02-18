@@ -11,9 +11,11 @@ const aro_version = std.SemanticVersion{
 
 fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: []const u8, aro_module: *std.Build.Module) !void {
     const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
-    var fuzz_target = target;
-    fuzz_target.result.ofmt = .c;
-    fuzz_target.query.ofmt = .c;
+    const fuzz_target = blk: {
+        var query = target.query;
+        query.ofmt = .c;
+        break :blk b.resolveTargetQuery(query);
+    };
 
     const lib_dir_step = try ZigLibDirStep.create(b);
 
