@@ -13,6 +13,7 @@ fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: 
     const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
     var fuzz_target = target;
     fuzz_target.result.ofmt = .c;
+    fuzz_target.query.ofmt = .c;
 
     const lib_dir_step = try ZigLibDirStep.create(b);
 
