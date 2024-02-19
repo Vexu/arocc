@@ -16,7 +16,7 @@ void foo(void) {
 ---
 ## Testing preprocessor
 The output of the preprocessor can be tested by adding `//aro-args -E` on
-the first line of the file and then placing the expected result in [test/cases/expaneded](test/cases/expaned).
+the first line of the file and then placing the expected result in [test/cases/expaneded](/test/cases/expaned).
 
 **example:**
 ```c
