@@ -1,5 +1,5 @@
 ## Adding a new test
-To add a new test, add a new file to [test/cases](tests/cases) or expand an existing one.
+To add a new test, add a new file to [test/cases](/test/cases) or expand an existing one.
 
 ---
 ## Passing arguments to the compiler
@@ -16,7 +16,7 @@ void foo(void) {
 ---
 ## Testing preprocessor
 The output of the preprocessor can be tested by adding `//aro-args -E` on
-the first line of the file and then placing the expected result in [test/cases/expaneded](test/cases/expaned).
+the first line of the file and then placing the expected result in [test/cases/expanded](/test/cases/expanded).
 
 **example:**
 ```c
