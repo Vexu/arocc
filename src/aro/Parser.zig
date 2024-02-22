@@ -2567,6 +2567,7 @@ fn enumSpec(p: *Parser) Error!Type {
             if (field.ty.eql(Type.int, p.comp, false)) continue;
 
             const sym = p.syms.get(field.name, .vars) orelse continue;
+            if (sym.kind != .enumeration) continue; // already an error
 
             var res = Result{ .node = field.node, .ty = field.ty, .val = sym.val };
             const dest_ty = if (p.comp.fixedEnumTagSpecifier()) |some|
