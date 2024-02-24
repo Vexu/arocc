@@ -400,7 +400,7 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
 
     if (getMultiarchTriple(target)) |triple| {
         const joined = try std.fs.path.join(comp.gpa, &.{ sysroot, "usr", "include", triple });
-        errdefer comp.gpa.free(joined);
+        defer comp.gpa.free(joined);
         if (tc.filesystem.exists(joined)) {
             try comp.addSystemIncludeDir(joined);
         }
