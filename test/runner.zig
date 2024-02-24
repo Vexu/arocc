@@ -58,7 +58,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.defineSystemIncludes(test_dir);
+    try comp.addBuiltinIncludeDir(test_dir);
 
     const file = try comp.addSourceFromPath(path);
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
@@ -173,7 +173,7 @@ pub fn main() !void {
     try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
 
     try initial_comp.addDefaultPragmaHandlers();
-    try initial_comp.defineSystemIncludes(test_dir);
+    try initial_comp.addBuiltinIncludeDir(test_dir);
 
     // apparently we can't use setAstCwd without libc on windows yet
     const win = @import("builtin").os.tag == .windows;
