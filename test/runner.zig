@@ -15,6 +15,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
     var only_preprocess = false;
     var line_markers: aro.Preprocessor.Linemarkers = .none;
     var system_defines: aro.Compilation.SystemDefinesMode = .include_system_defines;
+    comp.langopts.gnuc_version = 40201; // Set to clang default value since we do not call parseArgs if there are no args
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
         var test_args = std.ArrayList([]const u8).init(comp.gpa);
         defer test_args.deinit();
@@ -57,7 +58,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.defineSystemIncludes(test_dir);
+    try comp.addBuiltinIncludeDir(test_dir);
 
     const file = try comp.addSourceFromPath(path);
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
@@ -172,7 +173,7 @@ pub fn main() !void {
     try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
 
     try initial_comp.addDefaultPragmaHandlers();
-    try initial_comp.defineSystemIncludes(test_dir);
+    try initial_comp.addBuiltinIncludeDir(test_dir);
 
     // apparently we can't use setAstCwd without libc on windows yet
     const win = @import("builtin").os.tag == .windows;

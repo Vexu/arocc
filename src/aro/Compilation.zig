@@ -241,6 +241,12 @@ pub const SystemDefinesMode = enum {
 fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     const ptr_width = comp.target.ptrBitWidth();
 
+    if (comp.langopts.gnuc_version > 0) {
+        try w.print("#define __GNUC__ {d}\n", .{comp.langopts.gnuc_version / 10_000});
+        try w.print("#define __GNUC_MINOR__ {d}\n", .{comp.langopts.gnuc_version / 100 % 100});
+        try w.print("#define __GNUC_PATCHLEVEL__ {d}\n", .{comp.langopts.gnuc_version % 100});
+    }
+
     // os macros
     switch (comp.target.os.tag) {
         .linux => try w.writeAll(
@@ -1051,9 +1057,8 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
     return comp.langopts.char_signedness_override orelse comp.target.charSignedness();
 }
 
-pub fn defineSystemIncludes(comp: *Compilation, aro_dir: []const u8) !void {
-    var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-    const allocator = stack_fallback.get();
+/// Add built-in aro headers directory to system include paths
+pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8) !void {
     var search_path = aro_dir;
     while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
         var base_dir = std.fs.cwd().openDir(dirname, .{}) catch continue;
@@ -1065,23 +1070,12 @@ pub fn defineSystemIncludes(comp: *Compilation, aro_dir: []const u8) !void {
         try comp.system_include_dirs.append(comp.gpa, path);
         break;
     } else return error.AroIncludeNotFound;
+}
 
-    if (comp.target.os.tag == .linux) {
-        const triple_str = try comp.target.linuxTriple(allocator);
-        defer allocator.free(triple_str);
-
-        const multiarch_path = try std.fs.path.join(allocator, &.{ "/usr/include", triple_str });
-        defer allocator.free(multiarch_path);
-
-        if (!std.meta.isError(std.fs.accessAbsolute(multiarch_path, .{}))) {
-            const duped = try comp.gpa.dupe(u8, multiarch_path);
-            errdefer comp.gpa.free(duped);
-            try comp.system_include_dirs.append(comp.gpa, duped);
-        }
-    }
-    const usr_include = try comp.gpa.dupe(u8, "/usr/include");
-    errdefer comp.gpa.free(usr_include);
-    try comp.system_include_dirs.append(comp.gpa, usr_include);
+pub fn addSystemIncludeDir(comp: *Compilation, path: []const u8) !void {
+    const duped = try comp.gpa.dupe(u8, path);
+    errdefer comp.gpa.free(duped);
+    try comp.system_include_dirs.append(comp.gpa, duped);
 }
 
 pub fn getSource(comp: *const Compilation, id: Source.Id) Source {

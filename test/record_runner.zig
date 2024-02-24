@@ -221,7 +221,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.defineSystemIncludes(test_dir);
+    try comp.addBuiltinIncludeDir(test_dir);
 
     const target = setTarget(&comp, test_case.target) catch |err| switch (err) {
         error.UnknownCpuModel => unreachable,
