@@ -12,3 +12,5 @@ void foo(void) {
     q3 = 1.0f128i;
     q3 = 1.0IF128;
 }
+
+_Static_assert(1.F128 + 2.F128 == 3.F128, "");
