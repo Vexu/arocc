@@ -1,0 +1,4 @@
+_Static_assert(1.0 + 2.0i == 2.0i + 1.0, "");
+_Static_assert(2.0i * 2.0i == -4.0, "");
+_Static_assert((double)2.0i == 0, "");
+_Static_assert((double)(_Complex double)42 == 42, "");

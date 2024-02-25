@@ -22,7 +22,7 @@ fn_def: 'fn () void'
       decl_ref_expr: '_Complex long double' lvalue
        name: z
      rhs:
-      imaginary_literal: '_Complex long double'
+      imaginary_literal: '_Complex long double' (value: 0 + 1i)
         float_literal: 'long double'
 
     assign_expr: '_Complex long double'
@@ -30,7 +30,7 @@ fn_def: 'fn () void'
       decl_ref_expr: '_Complex long double' lvalue
        name: z
      rhs:
-      imaginary_literal: '_Complex long double'
+      imaginary_literal: '_Complex long double' (value: 0 + 1i)
         float_literal: 'long double'
 
     implicit_return: 'void'

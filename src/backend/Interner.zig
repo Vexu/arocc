@@ -34,6 +34,7 @@ const KeyAdapter = struct {
 pub const Key = union(enum) {
     int_ty: u16,
     float_ty: u16,
+    complex_ty: u16,
     ptr_ty,
     noreturn_ty,
     void_ty,
@@ -62,6 +63,7 @@ pub const Key = union(enum) {
         }
     },
     float: Float,
+    complex: Complex,
     bytes: []const u8,
 
     pub const Float = union(enum) {
@@ -70,6 +72,12 @@ pub const Key = union(enum) {
         f64: f64,
         f80: f80,
         f128: f128,
+    };
+    pub const Complex = union(enum) {
+        cf32: [2]Ref,
+        cf64: [2]Ref,
+        cf80: [2]Ref,
+        cf128: [2]Ref,
     };
 
     pub fn hash(key: Key) u32 {
@@ -84,6 +92,12 @@ pub const Key = union(enum) {
                 std.hash.autoHash(&hasher, elem);
             },
             .float => |repr| switch (repr) {
+                inline else => |data| std.hash.autoHash(
+                    &hasher,
+                    @as(std.meta.Int(.unsigned, @bitSizeOf(@TypeOf(data))), @bitCast(data)),
+                ),
+            },
+            .complex => |repr| switch (repr) {
                 inline else => |data| std.hash.autoHash(
                     &hasher,
                     @as(std.meta.Int(.unsigned, @bitSizeOf(@TypeOf(data))), @bitCast(data)),
@@ -154,6 +168,13 @@ pub const Key = union(enum) {
                 128 => return .f128,
                 else => unreachable,
             },
+            .complex_ty => |bits| switch (bits) {
+                32 => return .cf32,
+                64 => return .cf64,
+                80 => return .cf80,
+                128 => return .cf128,
+                else => unreachable,
+            },
             .ptr_ty => return .ptr,
             .func_ty => return .func,
             .noreturn_ty => return .noreturn,
@@ -199,6 +220,10 @@ pub const Ref = enum(u32) {
     zero = max - 16,
     one = max - 17,
     null = max - 18,
+    cf32 = max - 19,
+    cf64 = max - 20,
+    cf80 = max - 21,
+    cf128 = max - 22,
     _,
 };
 
@@ -224,6 +249,10 @@ pub const OptRef = enum(u32) {
     zero = max - 16,
     one = max - 17,
     null = max - 18,
+    cf32 = max - 19,
+    cf64 = max - 20,
+    cf80 = max - 21,
+    cf128 = max - 22,
     _,
 };
 
@@ -232,6 +261,8 @@ pub const Tag = enum(u8) {
     int_ty,
     /// `data` is `u16`
     float_ty,
+    /// `data` is `u16`
+    complex_ty,
     /// `data` is index to `Array`
     array_ty,
     /// `data` is index to `Vector`
@@ -254,6 +285,14 @@ pub const Tag = enum(u8) {
     f80,
     /// `data` is `F128`
     f128,
+    /// `data` is `[2]Ref`
+    cf32,
+    /// `data` is `[2]Ref`
+    cf64,
+    /// `data` is `[2]Ref`
+    cf80,
+    /// `data` is `[2]Ref`
+    cf128,
     /// `data` is `Bytes`
     bytes,
     /// `data` is `Record`
@@ -407,6 +446,12 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
                 .data = bits,
             });
         },
+        .complex_ty => |bits| {
+            i.items.appendAssumeCapacity(.{
+                .tag = .complex_ty,
+                .data = bits,
+            });
+        },
         .array_ty => |info| {
             const split_len = PackedU64.init(info.len);
             i.items.appendAssumeCapacity(.{
@@ -493,6 +538,24 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
                 .data = try i.addExtra(gpa, Tag.F128.pack(data)),
             }),
         },
+        .complex => |repr| switch (repr) {
+            .cf32 => |data| i.items.appendAssumeCapacity(.{
+                .tag = .cf32,
+                .data = try i.addExtra(gpa, PackedU64{ .a = @intFromEnum(data[0]), .b = @intFromEnum(data[1]) }),
+            }),
+            .cf64 => |data| i.items.appendAssumeCapacity(.{
+                .tag = .cf64,
+                .data = try i.addExtra(gpa, PackedU64{ .a = @intFromEnum(data[0]), .b = @intFromEnum(data[1]) }),
+            }),
+            .cf80 => |data| i.items.appendAssumeCapacity(.{
+                .tag = .cf80,
+                .data = try i.addExtra(gpa, PackedU64{ .a = @intFromEnum(data[0]), .b = @intFromEnum(data[1]) }),
+            }),
+            .cf128 => |data| i.items.appendAssumeCapacity(.{
+                .tag = .cf128,
+                .data = try i.addExtra(gpa, PackedU64{ .a = @intFromEnum(data[0]), .b = @intFromEnum(data[1]) }),
+            }),
+        },
         .bytes => |bytes| {
             const strings_index: u32 = @intCast(i.strings.items.len);
             try i.strings.appendSlice(gpa, bytes);
@@ -527,19 +590,24 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
 }
 
 fn addExtra(i: *Interner, gpa: Allocator, extra: anytype) Allocator.Error!u32 {
-    const fields = @typeInfo(@TypeOf(extra)).Struct.fields;
-    try i.extra.ensureUnusedCapacity(gpa, fields.len);
+    const is_array = @typeInfo(@TypeOf(extra)) == .Array;
+    const fields = if (is_array) @typeInfo(@TypeOf(extra[0])).Struct.fields else @typeInfo(@TypeOf(extra)).Struct.fields;
+    try i.extra.ensureUnusedCapacity(gpa, fields.len * if (is_array) 2 else 1);
     return i.addExtraAssumeCapacity(extra);
 }
 
 fn addExtraAssumeCapacity(i: *Interner, extra: anytype) u32 {
     const result = @as(u32, @intCast(i.extra.items.len));
-    inline for (@typeInfo(@TypeOf(extra)).Struct.fields) |field| {
-        i.extra.appendAssumeCapacity(switch (field.type) {
-            Ref => @intFromEnum(@field(extra, field.name)),
-            u32 => @field(extra, field.name),
-            else => @compileError("bad field type: " ++ @typeName(field.type)),
-        });
+    const is_array = @typeInfo(@TypeOf(extra)) == .Array;
+    const base = if (is_array) &extra else &.{extra};
+    inline for (base) |item| {
+        inline for (@typeInfo(@TypeOf(item)).Struct.fields) |field| {
+            i.extra.appendAssumeCapacity(switch (field.type) {
+                Ref => @intFromEnum(@field(item, field.name)),
+                u32 => @field(item, field.name),
+                else => @compileError("bad field type: " ++ @typeName(field.type)),
+            });
+        }
     }
     return result;
 }
@@ -564,6 +632,7 @@ pub fn get(i: *const Interner, ref: Ref) Key {
         .zero => return .{ .int = .{ .u64 = 0 } },
         .one => return .{ .int = .{ .u64 = 1 } },
         .null => return .null,
+        .cf64 => return .{ .complex_ty = 64 },
         else => {},
     }
 
@@ -572,6 +641,7 @@ pub fn get(i: *const Interner, ref: Ref) Key {
     return switch (item.tag) {
         .int_ty => .{ .int_ty = @intCast(data) },
         .float_ty => .{ .float_ty = @intCast(data) },
+        .complex_ty => .{ .complex_ty = @intCast(data) },
         .array_ty => {
             const array_ty = i.extraData(Tag.Array, data);
             return .{ .array_ty = .{
@@ -611,6 +681,16 @@ pub fn get(i: *const Interner, ref: Ref) Key {
         .f128 => {
             const float = i.extraData(Tag.F128, data);
             return .{ .float = .{ .f128 = float.get() } };
+        },
+        .cf32, .cf64, .cf80, .cf128 => {
+            const components = i.extraData(PackedU64, data);
+            return switch (item.tag) {
+                .cf32 => .{ .complex = .{ .cf32 = .{ @enumFromInt(components.a), @enumFromInt(components.b) } } },
+                .cf64 => .{ .complex = .{ .cf64 = .{ @enumFromInt(components.a), @enumFromInt(components.b) } } },
+                .cf80 => .{ .complex = .{ .cf80 = .{ @enumFromInt(components.a), @enumFromInt(components.b) } } },
+                .cf128 => .{ .complex = .{ .cf128 = .{ @enumFromInt(components.a), @enumFromInt(components.b) } } },
+                else => unreachable,
+            };
         },
         .bytes => {
             const bytes = i.extraData(Tag.Bytes, data);

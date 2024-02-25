@@ -8151,7 +8151,13 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             .IQ, .IF128 => .complex_float128,
             else => unreachable,
         } };
-        res.val = .{}; // TODO add complex values
+        res.val = try Value.intern(p.comp, switch (res.ty.bitSizeof(p.comp).?) {
+            64 => .{ .complex = .{ .cf32 = .{ .zero, val.ref() } } },
+            128 => .{ .complex = .{ .cf64 = .{ .zero, val.ref() } } },
+            160 => .{ .complex = .{ .cf80 = .{ .zero, val.ref() } } },
+            256 => .{ .complex = .{ .cf128 = .{ .zero, val.ref() } } },
+            else => unreachable,
+        });
         try res.un(p, .imaginary_literal);
     }
     return res;
