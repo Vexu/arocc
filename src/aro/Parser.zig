@@ -6934,7 +6934,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             try operand.usualUnaryConversion(p, tok);
-            if (operand.val.is(.int, p.comp)) {
+            if (operand.val.is(.int, p.comp) or operand.val.is(.float, p.comp)) {
                 _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p.comp);
             } else {
                 operand.val = .{};
