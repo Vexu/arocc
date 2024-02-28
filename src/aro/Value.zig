@@ -45,6 +45,14 @@ pub fn is(v: Value, tag: std.meta.Tag(Interner.Key), comp: *const Compilation) b
     return comp.interner.get(v.ref()) == tag;
 }
 
+pub fn isArithmetic(v: Value, comp: *const Compilation) bool {
+    if (v.opt_ref == .none) return false;
+    return switch (comp.interner.get(v.ref())) {
+        .int, .float, .complex => true,
+        else => false,
+    };
+}
+
 /// Number of bits needed to hold `v`.
 /// Asserts that `v` is not negative
 pub fn minUnsignedBits(v: Value, comp: *const Compilation) usize {
@@ -237,10 +245,10 @@ pub fn floatCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     const bits = dest_ty.bitSizeof(comp).?;
     if (dest_ty.isComplex()) {
         v.* = try switch (bits) {
-            64 => makeComplex(f32, v.real(f32, comp), v.imag(f32, comp), comp),
-            128 => makeComplex(f64, v.real(f64, comp), v.imag(f64, comp), comp),
-            160 => makeComplex(f80, v.real(f80, comp), v.imag(f80, comp), comp),
-            256 => makeComplex(f128, v.real(f128, comp), v.imag(f128, comp), comp),
+            64 => makeComplex(f32, v.toFloat(f32, comp), v.imag(f32, comp), comp),
+            128 => makeComplex(f64, v.toFloat(f64, comp), v.imag(f64, comp), comp),
+            160 => makeComplex(f80, v.toFloat(f80, comp), v.imag(f80, comp), comp),
+            256 => makeComplex(f128, v.toFloat(f128, comp), v.imag(f128, comp), comp),
             else => unreachable,
         };
     } else {
@@ -256,28 +264,12 @@ pub fn floatCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     }
 }
 
-pub fn real(v: Value, comptime T: type, comp: *const Compilation) T {
-    return switch (comp.interner.get(v.ref())) {
-        .int => |repr| switch (repr) {
-            inline .u64, .i64 => |data| @floatFromInt(data),
-            .big_int => |data| @floatCast(bigIntToFloat(data.limbs, data.positive)),
-        },
-        .float => |repr| switch (repr) {
-            inline else => |data| @floatCast(data),
-        },
-        .complex => |repr| switch (repr) {
-            .cf32, .cf64, .cf80, .cf128 => |components| Value.fromRef(components[0]).toFloat(T, comp),
-        },
-        else => unreachable,
-    };
-}
-
 pub fn imag(v: Value, comptime T: type, comp: *const Compilation) T {
     return switch (comp.interner.get(v.ref())) {
         .int => 0.0,
         .float => 0.0,
         .complex => |repr| switch (repr) {
-            .cf32, .cf64, .cf80, .cf128 => |components| Value.fromRef(components[1]).toFloat(T, comp),
+            inline else => |components| return @floatCast(components[1]),
         },
         else => unreachable,
     };
@@ -293,7 +285,7 @@ pub fn toFloat(v: Value, comptime T: type, comp: *const Compilation) T {
             inline else => |data| @floatCast(data),
         },
         .complex => |repr| switch (repr) {
-            .cf32, .cf64, .cf80, .cf128 => |components| Value.fromRef(components[0]).toFloat(T, comp),
+            inline else => |components| @floatCast(components[0]),
         },
         else => unreachable,
     };
@@ -342,9 +334,7 @@ pub fn isZero(v: Value, comp: *const Compilation) bool {
             .big_int => |data| return data.eqlZero(),
         },
         .complex => |repr| switch (repr) {
-            .cf32, .cf64, .cf80, .cf128 => |components| {
-                return Value.fromRef(components[0]).isZero(comp) and Value.fromRef(components[1]).isZero(comp);
-            },
+            inline else => |data| return data[0] == 0.0 and data[1] == 0.0,
         },
         .bytes => return false,
         else => unreachable,
@@ -380,62 +370,32 @@ const ComplexOp = enum {
 };
 
 fn makeComplex(comptime T: type, re: T, im: T, comp: *Compilation) !Value {
-    const rep = try comp.interner.put(comp.gpa, switch (T) {
-        f32 => .{ .float = .{ .f32 = re } },
-        f64 => .{ .float = .{ .f64 = re } },
-        f80 => .{ .float = .{ .f80 = re } },
-        f128 => .{ .float = .{ .f128 = re } },
-        else => unreachable,
-    });
-    const imp = try comp.interner.put(comp.gpa, switch (T) {
-        f32 => .{ .float = .{ .f32 = im } },
-        f64 => .{ .float = .{ .f64 = im } },
-        f80 => .{ .float = .{ .f80 = im } },
-        f128 => .{ .float = .{ .f128 = im } },
-        else => unreachable,
-    });
-    const c = switch (T) {
-        f32 => .{ .cf32 = .{ rep, imp } },
-        f64 => .{ .cf64 = .{ rep, imp } },
-        f80 => .{ .cf80 = .{ rep, imp } },
-        f128 => .{ .cf128 = .{ rep, imp } },
-        else => unreachable,
+    return switch (T) {
+        f32 => intern(comp, .{ .complex = .{ .cf32 = .{ re, im } } }),
+        f64 => intern(comp, .{ .complex = .{ .cf64 = .{ re, im } } }),
+        f80 => intern(comp, .{ .complex = .{ .cf80 = .{ re, im } } }),
+        f128 => intern(comp, .{ .complex = .{ .cf128 = .{ re, im } } }),
+        else => @compileError("cannot make complex"),
     };
-    return intern(comp, .{ .complex = c });
 }
 
 fn complexAddSub(lhs: Value, rhs: Value, comptime T: type, op: ComplexOp, comp: *Compilation) !Value {
     const res_re = switch (op) {
-        .add => lhs.real(T, comp) + rhs.real(T, comp),
-        .sub => lhs.real(T, comp) - rhs.real(T, comp),
+        .add => lhs.toFloat(T, comp) + rhs.toFloat(T, comp),
+        .sub => lhs.toFloat(T, comp) - rhs.toFloat(T, comp),
     };
     const res_im = switch (op) {
         .add => lhs.imag(T, comp) + rhs.imag(T, comp),
         .sub => lhs.imag(T, comp) - rhs.imag(T, comp),
     };
 
-    const re = try Value.intern(comp, switch (T) {
-        f32 => .{ .float = .{ .f32 = res_re } },
-        f64 => .{ .float = .{ .f64 = res_re } },
-        f80 => .{ .float = .{ .f80 = res_re } },
-        f128 => .{ .float = .{ .f128 = res_re } },
-        else => unreachable,
-    });
-    const im = try Value.intern(comp, switch (T) {
-        f32 => .{ .float = .{ .f32 = res_im } },
-        f64 => .{ .float = .{ .f64 = res_im } },
-        f80 => .{ .float = .{ .f80 = res_im } },
-        f128 => .{ .float = .{ .f128 = res_im } },
-        else => unreachable,
-    });
-    const c = switch (T) {
-        f32 => .{ .cf32 = .{ re.ref(), im.ref() } },
-        f64 => .{ .cf64 = .{ re.ref(), im.ref() } },
-        f80 => .{ .cf80 = .{ re.ref(), im.ref() } },
-        f128 => .{ .cf128 = .{ re.ref(), im.ref() } },
+    return switch (T) {
+        f32 => intern(comp, .{ .complex = .{ .cf32 = .{ res_re, res_im } } }),
+        f64 => intern(comp, .{ .complex = .{ .cf64 = .{ res_re, res_im } } }),
+        f80 => intern(comp, .{ .complex = .{ .cf80 = .{ res_re, res_im } } }),
+        f128 => intern(comp, .{ .complex = .{ .cf128 = .{ res_re, res_im } } }),
         else => unreachable,
     };
-    return intern(comp, .{ .complex = c });
 }
 
 pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
@@ -524,9 +484,9 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 
 /// c99 Annex G complex multiplication algorithm
 pub fn complexMul(lhs: Value, rhs: Value, comptime T: type, comp: *Compilation) !Value {
-    var a = lhs.real(T, comp);
+    var a = lhs.toFloat(T, comp);
     var b = lhs.imag(T, comp);
-    var c = rhs.real(T, comp);
+    var c = rhs.toFloat(T, comp);
     var d = rhs.imag(T, comp);
     const ac = a * c;
     const bd = b * d;
@@ -886,12 +846,8 @@ pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w
         },
         .bytes => |b| return printString(b, ty, comp, w),
         .complex => |repr| switch (repr) {
-            .cf32, .cf64, .cf80, .cf128 => |components| {
-                try Value.fromRef(components[0]).print(ty.makeReal(), comp, w);
-                try w.writeAll(" + ");
-                try Value.fromRef(components[1]).print(ty.makeReal(), comp, w);
-                try w.writeByte('i');
-            },
+            .cf32 => |components| return w.print("{d} + {d}i", .{ @round(@as(f64, @floatCast(components[0])) * 1000000) / 1000000, @round(@as(f64, @floatCast(components[1])) * 1000000) / 1000000 }),
+            inline else => |components| return w.print("{d} + {d}i", .{ @as(f64, @floatCast(components[0])), @as(f64, @floatCast(components[1])) }),
         },
         else => unreachable, // not a value
     }

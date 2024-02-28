@@ -74,10 +74,10 @@ pub const Key = union(enum) {
         f128: f128,
     };
     pub const Complex = union(enum) {
-        cf32: [2]Ref,
-        cf64: [2]Ref,
-        cf80: [2]Ref,
-        cf128: [2]Ref,
+        cf32: [2]f32,
+        cf64: [2]f64,
+        cf80: [2]f80,
+        cf128: [2]f128,
     };
 
     pub fn hash(key: Key) u32 {
@@ -285,13 +285,13 @@ pub const Tag = enum(u8) {
     f80,
     /// `data` is `F128`
     f128,
-    /// `data` is `[2]Ref`
+    /// `data` is `CF32`
     cf32,
-    /// `data` is `[2]Ref`
+    /// `data` is `CF64`
     cf64,
-    /// `data` is `[2]Ref`
+    /// `data` is `CF80`
     cf80,
-    /// `data` is `[2]Ref`
+    /// `data` is `CF128`
     cf128,
     /// `data` is `Bytes`
     bytes,
@@ -389,6 +389,113 @@ pub const Tag = enum(u8) {
                 .piece1 = @as(u32, @truncate(bits >> 32)),
                 .piece2 = @as(u32, @truncate(bits >> 64)),
                 .piece3 = @as(u32, @truncate(bits >> 96)),
+            };
+        }
+    };
+
+    pub const CF32 = struct {
+        piece0: u32,
+        piece1: u32,
+
+        pub fn get(self: CF32) [2]f32 {
+            return .{
+                @bitCast(self.piece0),
+                @bitCast(self.piece1),
+            };
+        }
+
+        fn pack(val: [2]f32) CF32 {
+            return .{
+                .piece0 = @bitCast(val[0]),
+                .piece1 = @bitCast(val[1]),
+            };
+        }
+    };
+
+    pub const CF64 = struct {
+        piece0: u32,
+        piece1: u32,
+        piece2: u32,
+        piece3: u32,
+
+        pub fn get(self: CF64) [2]f64 {
+            return .{
+                (F64{ .piece0 = self.piece0, .piece1 = self.piece1 }).get(),
+                (F64{ .piece0 = self.piece2, .piece1 = self.piece3 }).get(),
+            };
+        }
+
+        fn pack(val: [2]f64) CF64 {
+            const real = F64.pack(val[0]);
+            const imag = F64.pack(val[1]);
+            return .{
+                .piece0 = real.piece0,
+                .piece1 = real.piece1,
+                .piece2 = imag.piece0,
+                .piece3 = imag.piece1,
+            };
+        }
+    };
+
+    /// TODO pack into 5 pieces
+    pub const CF80 = struct {
+        piece0: u32,
+        piece1: u32,
+        piece2: u32, // u16 part, top bits
+        piece3: u32,
+        piece4: u32,
+        piece5: u32, // u16 part, top bits
+
+        pub fn get(self: CF80) [2]f80 {
+            return .{
+                (F80{ .piece0 = self.piece0, .piece1 = self.piece1, .piece2 = self.piece2 }).get(),
+                (F80{ .piece0 = self.piece3, .piece1 = self.piece4, .piece2 = self.piece5 }).get(),
+            };
+        }
+
+        fn pack(val: [2]f80) CF80 {
+            const real = F80.pack(val[0]);
+            const imag = F80.pack(val[1]);
+            return .{
+                .piece0 = real.piece0,
+                .piece1 = real.piece1,
+                .piece2 = real.piece2,
+                .piece3 = imag.piece0,
+                .piece4 = imag.piece1,
+                .piece5 = imag.piece2,
+            };
+        }
+    };
+
+    pub const CF128 = struct {
+        piece0: u32,
+        piece1: u32,
+        piece2: u32,
+        piece3: u32,
+        piece4: u32,
+        piece5: u32,
+        piece6: u32,
+        piece7: u32,
+
+        pub fn get(self: CF128) [2]f128 {
+            return .{
+                (F128{ .piece0 = self.piece0, .piece1 = self.piece1, .piece2 = self.piece2, .piece3 = self.piece3 }).get(),
+                (F128{ .piece0 = self.piece4, .piece1 = self.piece5, .piece2 = self.piece6, .piece3 = self.piece7 }).get(),
+            };
+        }
+
+        fn pack(val: [2]f128) CF128 {
+            const real = F128.pack(val[0]);
+            const imag = F128.pack(val[1]);
+            return .{
+                .piece0 = real.piece0,
+                .piece1 = real.piece1,
+                .piece2 = real.piece2,
+                .piece3 = real.piece3,
+                .piece4 = imag.piece0,
+                .piece5 = imag.piece1,
+                .piece6 = imag.piece2,
+                .piece7 = imag.piece3,
             };
         }
     };
@@ -541,19 +648,19 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
         .complex => |repr| switch (repr) {
             .cf32 => |data| i.items.appendAssumeCapacity(.{
                 .tag = .cf32,
-                .data = try i.addExtra(gpa, PackedU64{ .a = @intFromEnum(data[0]), .b = @intFromEnum(data[1]) }),
+                .data = try i.addExtra(gpa, Tag.CF32.pack(data)),
             }),
             .cf64 => |data| i.items.appendAssumeCapacity(.{
                 .tag = .cf64,
-                .data = try i.addExtra(gpa, PackedU64{ .a = @intFromEnum(data[0]), .b = @intFromEnum(data[1]) }),
+                .data = try i.addExtra(gpa, Tag.CF64.pack(data)),
             }),
             .cf80 => |data| i.items.appendAssumeCapacity(.{
                 .tag = .cf80,
-                .data = try i.addExtra(gpa, PackedU64{ .a = @intFromEnum(data[0]), .b = @intFromEnum(data[1]) }),
+                .data = try i.addExtra(gpa, Tag.CF80.pack(data)),
             }),
             .cf128 => |data| i.items.appendAssumeCapacity(.{
                 .tag = .cf128,
-                .data = try i.addExtra(gpa, PackedU64{ .a = @intFromEnum(data[0]), .b = @intFromEnum(data[1]) }),
+                .data = try i.addExtra(gpa, Tag.CF128.pack(data)),
             }),
         },
         .bytes => |bytes| {
@@ -632,7 +739,9 @@ pub fn get(i: *const Interner, ref: Ref) Key {
         .zero => return .{ .int = .{ .u64 = 0 } },
         .one => return .{ .int = .{ .u64 = 1 } },
         .null => return .null,
+        .cf32 => return .{ .complex_ty = 32 },
         .cf64 => return .{ .complex_ty = 64 },
+        .cf80 => return .{ .complex_ty = 80 },
         else => {},
     }
 
@@ -682,15 +791,21 @@ pub fn get(i: *const Interner, ref: Ref) Key {
             const float = i.extraData(Tag.F128, data);
             return .{ .float = .{ .f128 = float.get() } };
         },
-        .cf32, .cf64, .cf80, .cf128 => {
-            const components = i.extraData(PackedU64, data);
-            return switch (item.tag) {
-                .cf32 => .{ .complex = .{ .cf32 = .{ @enumFromInt(components.a), @enumFromInt(components.b) } } },
-                .cf64 => .{ .complex = .{ .cf64 = .{ @enumFromInt(components.a), @enumFromInt(components.b) } } },
-                .cf80 => .{ .complex = .{ .cf80 = .{ @enumFromInt(components.a), @enumFromInt(components.b) } } },
-                .cf128 => .{ .complex = .{ .cf128 = .{ @enumFromInt(components.a), @enumFromInt(components.b) } } },
-                else => unreachable,
-            };
+        .cf32 => {
+            const components = i.extraData(Tag.CF32, data);
+            return .{ .complex = .{ .cf32 = components.get() } };
+        },
+        .cf64 => {
+            const components = i.extraData(Tag.CF64, data);
+            return .{ .complex = .{ .cf64 = components.get() } };
+        },
+        .cf80 => {
+            const components = i.extraData(Tag.CF80, data);
+            return .{ .complex = .{ .cf80 = components.get() } };
+        },
+        .cf128 => {
+            const components = i.extraData(Tag.CF128, data);
+            return .{ .complex = .{ .cf128 = components.get() } };
         },
         .bytes => {
             const bytes = i.extraData(Tag.Bytes, data);

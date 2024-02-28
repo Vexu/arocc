@@ -6941,7 +6941,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             try operand.usualUnaryConversion(p, tok);
-            if (operand.val.is(.int, p.comp) or operand.val.is(.float, p.comp)) {
+            if (operand.val.isArithmetic(p.comp)) {
                 _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p.comp);
             } else {
                 operand.val = .{};
@@ -8152,10 +8152,10 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             else => unreachable,
         } };
         res.val = try Value.intern(p.comp, switch (res.ty.bitSizeof(p.comp).?) {
-            64 => .{ .complex = .{ .cf32 = .{ .zero, val.ref() } } },
-            128 => .{ .complex = .{ .cf64 = .{ .zero, val.ref() } } },
-            160 => .{ .complex = .{ .cf80 = .{ .zero, val.ref() } } },
-            256 => .{ .complex = .{ .cf128 = .{ .zero, val.ref() } } },
+            64 => .{ .complex = .{ .cf32 = .{ 0.0, val.toFloat(f32, p.comp) } } },
+            128 => .{ .complex = .{ .cf64 = .{ 0.0, val.toFloat(f64, p.comp) } } },
+            160 => .{ .complex = .{ .cf80 = .{ 0.0, val.toFloat(f80, p.comp) } } },
+            256 => .{ .complex = .{ .cf128 = .{ 0.0, val.toFloat(f128, p.comp) } } },
             else => unreachable,
         });
         try res.un(p, .imaginary_literal);
