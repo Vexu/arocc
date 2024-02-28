@@ -440,25 +440,26 @@ fn complexAddSub(lhs: Value, rhs: Value, comptime T: type, op: ComplexOp, comp: 
 
 pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isComplex()) {
-        res.* = switch (bits) {
-            64 => try complexAddSub(lhs, rhs, f32, .add, comp),
-            128 => try complexAddSub(lhs, rhs, f64, .add, comp),
-            160 => try complexAddSub(lhs, rhs, f80, .add, comp),
-            256 => try complexAddSub(lhs, rhs, f128, .add, comp),
-            else => unreachable,
-        };
-        return false;
-    } else if (ty.isFloat()) {
-        const f: Interner.Key.Float = switch (bits) {
-            16 => .{ .f16 = lhs.toFloat(f16, comp) + rhs.toFloat(f16, comp) },
-            32 => .{ .f32 = lhs.toFloat(f32, comp) + rhs.toFloat(f32, comp) },
-            64 => .{ .f64 = lhs.toFloat(f64, comp) + rhs.toFloat(f64, comp) },
-            80 => .{ .f80 = lhs.toFloat(f80, comp) + rhs.toFloat(f80, comp) },
-            128 => .{ .f128 = lhs.toFloat(f128, comp) + rhs.toFloat(f128, comp) },
-            else => unreachable,
-        };
-        res.* = try intern(comp, .{ .float = f });
+    if (ty.isFloat()) {
+        if (ty.isComplex()) {
+            res.* = switch (bits) {
+                64 => try complexAddSub(lhs, rhs, f32, .add, comp),
+                128 => try complexAddSub(lhs, rhs, f64, .add, comp),
+                160 => try complexAddSub(lhs, rhs, f80, .add, comp),
+                256 => try complexAddSub(lhs, rhs, f128, .add, comp),
+                else => unreachable,
+            };
+        } else {
+            const f: Interner.Key.Float = switch (bits) {
+                16 => .{ .f16 = lhs.toFloat(f16, comp) + rhs.toFloat(f16, comp) },
+                32 => .{ .f32 = lhs.toFloat(f32, comp) + rhs.toFloat(f32, comp) },
+                64 => .{ .f64 = lhs.toFloat(f64, comp) + rhs.toFloat(f64, comp) },
+                80 => .{ .f80 = lhs.toFloat(f80, comp) + rhs.toFloat(f80, comp) },
+                128 => .{ .f128 = lhs.toFloat(f128, comp) + rhs.toFloat(f128, comp) },
+                else => unreachable,
+            };
+            res.* = try intern(comp, .{ .float = f });
+        }
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
@@ -481,25 +482,26 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 
 pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isComplex()) {
-        res.* = switch (bits) {
-            64 => try complexAddSub(lhs, rhs, f32, .sub, comp),
-            128 => try complexAddSub(lhs, rhs, f64, .sub, comp),
-            160 => try complexAddSub(lhs, rhs, f80, .sub, comp),
-            256 => try complexAddSub(lhs, rhs, f128, .sub, comp),
-            else => unreachable,
-        };
-        return false;
-    } else if (ty.isFloat()) {
-        const f: Interner.Key.Float = switch (bits) {
-            16 => .{ .f16 = lhs.toFloat(f16, comp) - rhs.toFloat(f16, comp) },
-            32 => .{ .f32 = lhs.toFloat(f32, comp) - rhs.toFloat(f32, comp) },
-            64 => .{ .f64 = lhs.toFloat(f64, comp) - rhs.toFloat(f64, comp) },
-            80 => .{ .f80 = lhs.toFloat(f80, comp) - rhs.toFloat(f80, comp) },
-            128 => .{ .f128 = lhs.toFloat(f128, comp) - rhs.toFloat(f128, comp) },
-            else => unreachable,
-        };
-        res.* = try intern(comp, .{ .float = f });
+    if (ty.isFloat()) {
+        if (ty.isComplex()) {
+            res.* = switch (bits) {
+                64 => try complexAddSub(lhs, rhs, f32, .sub, comp),
+                128 => try complexAddSub(lhs, rhs, f64, .sub, comp),
+                160 => try complexAddSub(lhs, rhs, f80, .sub, comp),
+                256 => try complexAddSub(lhs, rhs, f128, .sub, comp),
+                else => unreachable,
+            };
+        } else {
+            const f: Interner.Key.Float = switch (bits) {
+                16 => .{ .f16 = lhs.toFloat(f16, comp) - rhs.toFloat(f16, comp) },
+                32 => .{ .f32 = lhs.toFloat(f32, comp) - rhs.toFloat(f32, comp) },
+                64 => .{ .f64 = lhs.toFloat(f64, comp) - rhs.toFloat(f64, comp) },
+                80 => .{ .f80 = lhs.toFloat(f80, comp) - rhs.toFloat(f80, comp) },
+                128 => .{ .f128 = lhs.toFloat(f128, comp) - rhs.toFloat(f128, comp) },
+                else => unreachable,
+            };
+            res.* = try intern(comp, .{ .float = f });
+        }
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
@@ -569,25 +571,26 @@ pub fn complexMul(lhs: Value, rhs: Value, comptime T: type, comp: *Compilation) 
 
 pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isComplex()) {
-        res.* = switch (bits) {
-            64 => try lhs.complexMul(rhs, f32, comp),
-            128 => try lhs.complexMul(rhs, f64, comp),
-            160 => try lhs.complexMul(rhs, f80, comp),
-            256 => try lhs.complexMul(rhs, f128, comp),
-            else => unreachable,
-        };
-        return false;
-    } else if (ty.isFloat()) {
-        const f: Interner.Key.Float = switch (bits) {
-            16 => .{ .f16 = lhs.toFloat(f16, comp) * rhs.toFloat(f16, comp) },
-            32 => .{ .f32 = lhs.toFloat(f32, comp) * rhs.toFloat(f32, comp) },
-            64 => .{ .f64 = lhs.toFloat(f64, comp) * rhs.toFloat(f64, comp) },
-            80 => .{ .f80 = lhs.toFloat(f80, comp) * rhs.toFloat(f80, comp) },
-            128 => .{ .f128 = lhs.toFloat(f128, comp) * rhs.toFloat(f128, comp) },
-            else => unreachable,
-        };
-        res.* = try intern(comp, .{ .float = f });
+    if (ty.isFloat()) {
+        if (ty.isComplex()) {
+            res.* = switch (bits) {
+                64 => try lhs.complexMul(rhs, f32, comp),
+                128 => try lhs.complexMul(rhs, f64, comp),
+                160 => try lhs.complexMul(rhs, f80, comp),
+                256 => try lhs.complexMul(rhs, f128, comp),
+                else => unreachable,
+            };
+        } else {
+            const f: Interner.Key.Float = switch (bits) {
+                16 => .{ .f16 = lhs.toFloat(f16, comp) * rhs.toFloat(f16, comp) },
+                32 => .{ .f32 = lhs.toFloat(f32, comp) * rhs.toFloat(f32, comp) },
+                64 => .{ .f64 = lhs.toFloat(f64, comp) * rhs.toFloat(f64, comp) },
+                80 => .{ .f80 = lhs.toFloat(f80, comp) * rhs.toFloat(f80, comp) },
+                128 => .{ .f128 = lhs.toFloat(f128, comp) * rhs.toFloat(f128, comp) },
+                else => unreachable,
+            };
+            res.* = try intern(comp, .{ .float = f });
+        }
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
