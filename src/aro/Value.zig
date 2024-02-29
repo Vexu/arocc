@@ -19,7 +19,7 @@ pub const @"null" = Value{ .opt_ref = .null };
 
 pub fn intern(comp: *Compilation, k: Interner.Key) !Value {
     const r = try comp.interner.put(comp.gpa, k);
-    return Value.fromRef(r);
+    return .{ .opt_ref = @enumFromInt(@intFromEnum(r)) };
 }
 
 pub fn int(i: anytype, comp: *Compilation) !Value {
@@ -34,10 +34,6 @@ pub fn int(i: anytype, comp: *Compilation) !Value {
 pub fn ref(v: Value) Interner.Ref {
     std.debug.assert(v.opt_ref != .none);
     return @enumFromInt(@intFromEnum(v.opt_ref));
-}
-
-fn fromRef(r: Interner.Ref) @This() {
-    return .{ .opt_ref = @enumFromInt(@intFromEnum(r)) };
 }
 
 pub fn is(v: Value, tag: std.meta.Tag(Interner.Key), comp: *const Compilation) bool {
