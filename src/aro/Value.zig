@@ -240,13 +240,14 @@ pub fn floatCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
     const bits = dest_ty.bitSizeof(comp).?;
     if (dest_ty.isComplex()) {
-        v.* = try switch (bits) {
-            64 => makeComplex(f32, v.toFloat(f32, comp), v.imag(f32, comp), comp),
-            128 => makeComplex(f64, v.toFloat(f64, comp), v.imag(f64, comp), comp),
-            160 => makeComplex(f80, v.toFloat(f80, comp), v.imag(f80, comp), comp),
-            256 => makeComplex(f128, v.toFloat(f128, comp), v.imag(f128, comp), comp),
+        const cf: Interner.Key.Complex = switch (bits) {
+            64 => .{ .cf32 = .{ v.toFloat(f32, comp), v.imag(f32, comp) } },
+            128 => .{ .cf64 = .{ v.toFloat(f64, comp), v.imag(f64, comp) } },
+            160 => .{ .cf80 = .{ v.toFloat(f80, comp), v.imag(f80, comp) } },
+            256 => .{ .cf128 = .{ v.toFloat(f128, comp), v.imag(f128, comp) } },
             else => unreachable,
         };
+        v.* = try intern(comp, .{ .complex = cf });
     } else {
         const f: Interner.Key.Float = switch (bits) {
             16 => .{ .f16 = v.toFloat(f16, comp) },
