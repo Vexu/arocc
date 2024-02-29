@@ -697,24 +697,19 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
 }
 
 fn addExtra(i: *Interner, gpa: Allocator, extra: anytype) Allocator.Error!u32 {
-    const is_array = @typeInfo(@TypeOf(extra)) == .Array;
-    const fields = if (is_array) @typeInfo(@TypeOf(extra[0])).Struct.fields else @typeInfo(@TypeOf(extra)).Struct.fields;
-    try i.extra.ensureUnusedCapacity(gpa, fields.len * if (is_array) 2 else 1);
+    const fields = @typeInfo(@TypeOf(extra)).Struct.fields;
+    try i.extra.ensureUnusedCapacity(gpa, fields.len);
     return i.addExtraAssumeCapacity(extra);
 }
 
 fn addExtraAssumeCapacity(i: *Interner, extra: anytype) u32 {
     const result = @as(u32, @intCast(i.extra.items.len));
-    const is_array = @typeInfo(@TypeOf(extra)) == .Array;
-    const base = if (is_array) &extra else &.{extra};
-    inline for (base) |item| {
-        inline for (@typeInfo(@TypeOf(item)).Struct.fields) |field| {
-            i.extra.appendAssumeCapacity(switch (field.type) {
-                Ref => @intFromEnum(@field(item, field.name)),
-                u32 => @field(item, field.name),
-                else => @compileError("bad field type: " ++ @typeName(field.type)),
-            });
-        }
+    inline for (@typeInfo(@TypeOf(extra)).Struct.fields) |field| {
+        i.extra.appendAssumeCapacity(switch (field.type) {
+            Ref => @intFromEnum(@field(extra, field.name)),
+            u32 => @field(extra, field.name),
+            else => @compileError("bad field type: " ++ @typeName(field.type)),
+        });
     }
     return result;
 }
