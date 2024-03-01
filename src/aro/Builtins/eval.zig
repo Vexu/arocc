@@ -10,8 +10,6 @@ const Type = @import("../Type.zig");
 const Value = @import("../Value.zig");
 
 pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const NodeIndex) !Value {
-    _ = args;
-
     const builtin = Builtin.fromTag(tag);
     if (!builtin.properties.attributes.const_evaluable) return .{};
 
@@ -34,6 +32,11 @@ pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const NodeIndex) !Value {
                 else => unreachable,
             };
             return Value.intern(p.comp, .{ .float = f });
+        },
+        Builtin.tagFromName("__builtin_isinf").? => blk: {
+            if (args.len == 0) break :blk;
+            const val = p.value_map.get(args[0]) orelse break :blk;
+            return Value.fromBool(val.isInf(p.comp));
         },
         else => {},
     }

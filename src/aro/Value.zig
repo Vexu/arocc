@@ -339,6 +339,19 @@ pub fn isZero(v: Value, comp: *const Compilation) bool {
     }
 }
 
+pub fn isInf(v: Value, comp: *const Compilation) bool {
+    if (v.opt_ref == .none) return false;
+    return switch (comp.interner.get(v.ref())) {
+        .float => |repr| switch (repr) {
+            inline else => |data| std.math.isInf(data),
+        },
+        .complex => |repr| switch (repr) {
+            inline else => |components| std.math.isInf(components[0]) or std.math.isInf(components[1]),
+        },
+        else => false,
+    };
+}
+
 /// Converts value to zero or one;
 /// `.none` value remains unchanged.
 pub fn boolCast(v: *Value, comp: *const Compilation) void {

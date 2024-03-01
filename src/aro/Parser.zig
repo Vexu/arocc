@@ -4812,10 +4812,12 @@ const CallExpr = union(enum) {
                 Builtin.tagFromName("__va_start").?,
                 Builtin.tagFromName("va_start").?,
                 => arg_idx != 1,
-                Builtin.tagFromName("__builtin_complex").?,
                 Builtin.tagFromName("__builtin_add_overflow").?,
-                Builtin.tagFromName("__builtin_sub_overflow").?,
+                Builtin.tagFromName("__builtin_complex").?,
+                Builtin.tagFromName("__builtin_isinf").?,
+                Builtin.tagFromName("__builtin_isinf_sign").?,
                 Builtin.tagFromName("__builtin_mul_overflow").?,
+                Builtin.tagFromName("__builtin_sub_overflow").?,
                 => false,
                 else => true,
             },
@@ -4861,6 +4863,8 @@ const CallExpr = union(enum) {
                 Builtin.tagFromName("__c11_atomic_thread_fence").?,
                 Builtin.tagFromName("__c11_atomic_signal_fence").?,
                 Builtin.tagFromName("__c11_atomic_is_lock_free").?,
+                Builtin.tagFromName("__builtin_isinf").?,
+                Builtin.tagFromName("__builtin_isinf_sign").?,
                 => 1,
 
                 Builtin.tagFromName("__builtin_complex").?,
@@ -5006,7 +5010,7 @@ const CallExpr = union(enum) {
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
-                const val = try evalBuiltin(builtin.tag, p, args);
+                const val = try evalBuiltin(builtin.tag, p, args[1..]);
                 return Result{ .node = builtin.node, .ty = ret_ty, .val = val };
             },
         }
