@@ -367,16 +367,6 @@ const ComplexOp = enum {
     sub,
 };
 
-fn makeComplex(comptime T: type, re: T, im: T, comp: *Compilation) !Value {
-    return switch (T) {
-        f32 => intern(comp, .{ .complex = .{ .cf32 = .{ re, im } } }),
-        f64 => intern(comp, .{ .complex = .{ .cf64 = .{ re, im } } }),
-        f80 => intern(comp, .{ .complex = .{ .cf80 = .{ re, im } } }),
-        f128 => intern(comp, .{ .complex = .{ .cf128 = .{ re, im } } }),
-        else => @compileError("cannot make complex"),
-    };
-}
-
 fn complexAddSub(lhs: Value, rhs: Value, comptime T: type, op: ComplexOp, comp: *Compilation) !Value {
     const res_re = switch (op) {
         .add => lhs.toFloat(T, comp) + rhs.toFloat(T, comp),
