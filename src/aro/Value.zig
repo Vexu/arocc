@@ -539,15 +539,26 @@ pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
     if (ty.isFloat()) {
-        const f: Interner.Key.Float = switch (bits) {
-            16 => .{ .f16 = lhs.toFloat(f16, comp) / rhs.toFloat(f16, comp) },
-            32 => .{ .f32 = lhs.toFloat(f32, comp) / rhs.toFloat(f32, comp) },
-            64 => .{ .f64 = lhs.toFloat(f64, comp) / rhs.toFloat(f64, comp) },
-            80 => .{ .f80 = lhs.toFloat(f80, comp) / rhs.toFloat(f80, comp) },
-            128 => .{ .f128 = lhs.toFloat(f128, comp) / rhs.toFloat(f128, comp) },
-            else => unreachable,
-        };
-        res.* = try intern(comp, .{ .float = f });
+        if (ty.isComplex()) {
+            const cf: Interner.Key.Complex = switch (bits) {
+                64 => .{ .cf32 = annex_g.complexFloatDiv(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
+                128 => .{ .cf64 = annex_g.complexFloatDiv(f64, lhs.toFloat(f64, comp), lhs.imag(f64, comp), rhs.toFloat(f64, comp), rhs.imag(f64, comp)) },
+                160 => .{ .cf80 = annex_g.complexFloatDiv(f80, lhs.toFloat(f80, comp), lhs.imag(f80, comp), rhs.toFloat(f80, comp), rhs.imag(f80, comp)) },
+                256 => .{ .cf128 = annex_g.complexFloatDiv(f128, lhs.toFloat(f128, comp), lhs.imag(f128, comp), rhs.toFloat(f128, comp), rhs.imag(f128, comp)) },
+                else => unreachable,
+            };
+            res.* = try intern(comp, .{ .complex = cf });
+        } else {
+            const f: Interner.Key.Float = switch (bits) {
+                16 => .{ .f16 = lhs.toFloat(f16, comp) / rhs.toFloat(f16, comp) },
+                32 => .{ .f32 = lhs.toFloat(f32, comp) / rhs.toFloat(f32, comp) },
+                64 => .{ .f64 = lhs.toFloat(f64, comp) / rhs.toFloat(f64, comp) },
+                80 => .{ .f80 = lhs.toFloat(f80, comp) / rhs.toFloat(f80, comp) },
+                128 => .{ .f128 = lhs.toFloat(f128, comp) / rhs.toFloat(f128, comp) },
+                else => unreachable,
+            };
+            res.* = try intern(comp, .{ .float = f });
+        }
         return false;
     } else {
         var lhs_space: BigIntSpace = undefined;
