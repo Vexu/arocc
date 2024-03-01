@@ -28,6 +28,7 @@ const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
+const evalBuiltin = @import("Builtins/eval.zig").eval;
 
 const Switch = struct {
     default: ?TokenIndex = null,
@@ -5005,7 +5006,8 @@ const CallExpr = union(enum) {
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
-                return Result{ .node = builtin.node, .ty = ret_ty };
+                const val = try evalBuiltin(builtin.tag, p, args);
+                return Result{ .node = builtin.node, .ty = ret_ty, .val = val };
             },
         }
     }
