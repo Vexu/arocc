@@ -759,6 +759,18 @@ pub fn shr(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
+pub fn complexConj(val: Value, ty: Type, comp: *Compilation) !Value {
+    const bits = ty.bitSizeof(comp).?;
+    const cf: Interner.Key.Complex = switch (bits) {
+        64 => .{ .cf32 = .{ val.toFloat(f32, comp), -val.imag(f32, comp) } },
+        128 => .{ .cf64 = .{ val.toFloat(f64, comp), -val.imag(f64, comp) } },
+        160 => .{ .cf80 = .{ val.toFloat(f80, comp), -val.imag(f80, comp) } },
+        256 => .{ .cf128 = .{ val.toFloat(f128, comp), -val.imag(f128, comp) } },
+        else => unreachable,
+    };
+    return intern(comp, .{ .complex = cf });
+}
+
 pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) bool {
     if (op == .eq) {
         return lhs.opt_ref == rhs.opt_ref;
