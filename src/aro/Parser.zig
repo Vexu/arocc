@@ -4817,6 +4817,7 @@ const CallExpr = union(enum) {
                 Builtin.tagFromName("__builtin_isinf").?,
                 Builtin.tagFromName("__builtin_isinf_sign").?,
                 Builtin.tagFromName("__builtin_mul_overflow").?,
+                Builtin.tagFromName("__builtin_isnan").?,
                 Builtin.tagFromName("__builtin_sub_overflow").?,
                 => false,
                 else => true,
@@ -4865,6 +4866,7 @@ const CallExpr = union(enum) {
                 Builtin.tagFromName("__c11_atomic_is_lock_free").?,
                 Builtin.tagFromName("__builtin_isinf").?,
                 Builtin.tagFromName("__builtin_isinf_sign").?,
+                Builtin.tagFromName("__builtin_isnan").?,
                 => 1,
 
                 Builtin.tagFromName("__builtin_complex").?,

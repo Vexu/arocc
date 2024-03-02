@@ -352,6 +352,19 @@ pub fn isInf(v: Value, comp: *const Compilation) bool {
     };
 }
 
+pub fn isNan(v: Value, comp: *const Compilation) bool {
+    if (v.opt_ref == .none) return false;
+    return switch (comp.interner.get(v.ref())) {
+        .float => |repr| switch (repr) {
+            inline else => |data| std.math.isNan(data),
+        },
+        .complex => |repr| switch (repr) {
+            inline else => |components| std.math.isNan(components[0]) or std.math.isNan(components[1]),
+        },
+        else => false,
+    };
+}
+
 /// Converts value to zero or one;
 /// `.none` value remains unchanged.
 pub fn boolCast(v: *Value, comp: *const Compilation) void {

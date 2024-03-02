@@ -38,6 +38,11 @@ pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const NodeIndex) !Value {
             const val = p.value_map.get(args[0]) orelse break :blk;
             return Value.fromBool(val.isInf(p.comp));
         },
+        Builtin.tagFromName("__builtin_isnan").? => blk: {
+            if (args.len == 0) break :blk;
+            const val = p.value_map.get(args[0]) orelse break :blk;
+            return Value.fromBool(val.isNan(p.comp));
+        },
         else => {},
     }
     return .{};
