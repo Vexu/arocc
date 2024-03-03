@@ -3240,6 +3240,56 @@ fn typeName(p: *Parser) Error!?Type {
     return try Attribute.applyTypeAttributes(p, ty, attr_buf_top, .align_ignored);
 }
 
+fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
+    assert(p.tok_ids[p.tok_i] == .l_brace);
+    assert(init_ty.isComplex());
+
+    const real_ty = init_ty.makeReal();
+    const l_brace = p.tok_i;
+    p.tok_i += 1;
+    try p.errTok(.complex_component_init, l_brace);
+
+    const first_tok = p.tok_i;
+    var first = try p.assignExpr();
+    try first.expect(p);
+    try p.coerceInit(&first, first_tok, real_ty);
+
+    var second: Result = .{
+        .ty = real_ty,
+        .val = Value.zero,
+    };
+    if (p.eatToken(.comma)) |_| {
+        const second_tok = p.tok_i;
+        const maybe_second = try p.assignExpr();
+        if (!maybe_second.empty(p)) {
+            second = maybe_second;
+            try p.coerceInit(&second, second_tok, real_ty);
+        }
+    }
+
+    try p.expectClosing(l_brace, .r_brace);
+
+    const arr_init_node: Tree.Node = .{
+        .tag = .array_init_expr_two,
+        .ty = init_ty,
+        .data = .{ .bin = .{ .lhs = first.node, .rhs = second.node } },
+    };
+    var res: Result = .{
+        .node = try p.addNode(arr_init_node),
+        .ty = init_ty,
+    };
+    if (first.val.opt_ref != .none and second.val.opt_ref != .none) {
+        res.val = try Value.intern(p.comp, switch (real_ty.bitSizeof(p.comp).?) {
+            32 => .{ .complex = .{ .cf32 = .{ first.val.toFloat(f32, p.comp), second.val.toFloat(f32, p.comp) } } },
+            64 => .{ .complex = .{ .cf64 = .{ first.val.toFloat(f64, p.comp), second.val.toFloat(f64, p.comp) } } },
+            80 => .{ .complex = .{ .cf80 = .{ first.val.toFloat(f80, p.comp), second.val.toFloat(f80, p.comp) } } },
+            128 => .{ .complex = .{ .cf128 = .{ first.val.toFloat(f128, p.comp), second.val.toFloat(f128, p.comp) } } },
+            else => unreachable,
+        });
+    }
+    return res;
+}
+
 /// initializer
 ///  : assignExpr
 ///  | '{' initializerItems '}'
@@ -3258,15 +3308,19 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
         return error.ParsingFailed;
     }
 
-    var il: InitList = .{};
-    defer il.deinit(p.gpa);
+    if (init_ty.isComplex()) {
+        return p.complexInitializer(init_ty);
+    } else {
+        var il: InitList = .{};
+        defer il.deinit(p.gpa);
 
-    _ = try p.initializerItem(&il, init_ty);
+        _ = try p.initializerItem(&il, init_ty);
 
-    const res = try p.convertInitList(il, init_ty);
-    var res_ty = p.nodes.items(.ty)[@intFromEnum(res)];
-    res_ty.qual = init_ty.qual;
-    return Result{ .ty = res_ty, .node = res };
+        const res = try p.convertInitList(il, init_ty);
+        var res_ty = p.nodes.items(.ty)[@intFromEnum(res)];
+        res_ty.qual = init_ty.qual;
+        return Result{ .ty = res_ty, .node = res };
+    }
 }
 
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?

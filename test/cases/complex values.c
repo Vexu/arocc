@@ -22,12 +22,18 @@ _Static_assert(!__builtin_isinf(2.0 + 3.0), "");
 void foo(void) {
 	double x = __builtin_inf();
 	_Static_assert(!__builtin_isinf(x), "");
+	_Complex double cd = (_Complex double){x};
+	cd = (_Complex double){x,};
+	cd = (_Complex double){x,0.0};
 }
 
 _Static_assert(__builtin_isnan(__real(0.0/0.0)), "");
 _Static_assert(__builtin_isinf(__real((2.0 + 2.0i)/0.0)), "");
 _Static_assert(__builtin_isinf(__imag((2.0 + 2.0i)/0.0)), "");
 
+_Static_assert((_Complex double){2.0, __builtin_inf()} == (_Complex double){2.0, 3.0/0.0}, "");
+_Static_assert(__builtin_isinf(__imag((_Complex double){2.0, __builtin_inf()})), "");
+_Static_assert((_Complex double){2.0} + (_Complex double){2.0, 4.0} == (_Complex double){4.0, 4.0}, "");
 
 #define EXPECTED_ERRORS "complex values.c:24:17: error: static_assert expression is not an integral constant expression" \
 
