@@ -38,6 +38,12 @@ _Static_assert(1.0 / (_Complex double){__builtin_inf(), __builtin_nan("")} == 0.
 constexpr _Complex double product = (_Complex double){__builtin_inf(), __builtin_nan("") * 2.0};
 _Static_assert(__builtin_isinf(__real__ product), "");
 _Static_assert(__builtin_isnan(__imag__ product), "");
+_Complex double a = (_Complex double) {1.0, 2.0,};
+_Complex double b = (_Complex double) {1.0, 2.0,,,,,,};
+_Complex double c = (_Complex double) {1.0, 2.0,3.0};
+
 
 #define EXPECTED_ERRORS "complex values.c:24:17: error: static_assert expression is not an integral constant expression" \
+	"complex values.c:42:49: error: expected expression" \
+	"complex values.c:43:49: warning: excess elements in scalar initializer [-Wexcess-initializers]" \
 

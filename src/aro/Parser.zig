@@ -3275,7 +3275,22 @@ fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
         }
     }
 
+    // Eat excess initializers
+    var extra_tok: ?TokenIndex = null;
+    while (p.eatToken(.comma)) |_| {
+        if (p.tok_ids[p.tok_i] == .r_brace) break;
+        extra_tok = p.tok_i;
+        const extra = try p.assignExpr();
+        if (extra.empty(p)) {
+            try p.errTok(.expected_expr, p.tok_i);
+            p.skipTo(.r_brace);
+            return error.ParsingFailed;
+        }
+    }
     try p.expectClosing(l_brace, .r_brace);
+    if (extra_tok) |tok| {
+        try p.errTok(.excess_scalar_init, tok);
+    }
 
     const arr_init_node: Tree.Node = .{
         .tag = .array_init_expr_two,
