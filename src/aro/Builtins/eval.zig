@@ -51,6 +51,20 @@ pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const NodeIndex) !Value {
             const val = p.value_map.get(args[0]) orelse break :blk;
             return Value.fromBool(val.isInf(p.comp));
         },
+        Builtin.tagFromName("__builtin_isinf_sign").? => blk: {
+            if (args.len == 0) break :blk;
+            const val = p.value_map.get(args[0]) orelse break :blk;
+            switch (val.isInfSign(p.comp)) {
+                .unknown => {},
+                .finite => return Value.zero,
+                .positive => return Value.one,
+                .negative => {
+                    var negative_one: Value = undefined;
+                    _ = try negative_one.sub(Value.zero, Value.one, .{ .specifier = .int }, p.comp);
+                    return negative_one;
+                },
+            }
+        },
         Builtin.tagFromName("__builtin_isnan").? => blk: {
             if (args.len == 0) break :blk;
             const val = p.value_map.get(args[0]) orelse break :blk;
