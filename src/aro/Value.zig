@@ -289,6 +289,34 @@ pub fn toFloat(v: Value, comptime T: type, comp: *const Compilation) T {
     };
 }
 
+pub fn realPart(v: Value, comp: *Compilation) !Value {
+    if (v.opt_ref == .none) return v;
+    return switch (comp.interner.get(v.ref())) {
+        .int, .float => v,
+        .complex => |repr| Value.intern(comp, switch (repr) {
+            .cf32 => |components| .{ .float = .{ .f32 = components[0] } },
+            .cf64 => |components| .{ .float = .{ .f64 = components[0] } },
+            .cf80 => |components| .{ .float = .{ .f80 = components[0] } },
+            .cf128 => |components| .{ .float = .{ .f128 = components[0] } },
+        }),
+        else => unreachable,
+    };
+}
+
+pub fn imaginaryPart(v: Value, comp: *Compilation) !Value {
+    if (v.opt_ref == .none) return v;
+    return switch (comp.interner.get(v.ref())) {
+        .int, .float => Value.zero,
+        .complex => |repr| Value.intern(comp, switch (repr) {
+            .cf32 => |components| .{ .float = .{ .f32 = components[1] } },
+            .cf64 => |components| .{ .float = .{ .f64 = components[1] } },
+            .cf80 => |components| .{ .float = .{ .f80 = components[1] } },
+            .cf128 => |components| .{ .float = .{ .f128 = components[1] } },
+        }),
+        else => unreachable,
+    };
+}
+
 fn bigIntToFloat(limbs: []const std.math.big.Limb, positive: bool) f128 {
     if (limbs.len == 0) return 0;
 

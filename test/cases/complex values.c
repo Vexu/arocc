@@ -1,3 +1,4 @@
+//aro-args -std=c23
 _Static_assert(1.0 + 2.0i == 2.0i + 1.0, "");
 _Static_assert(2.0i * 2.0i == -4.0, "");
 _Static_assert((double)2.0i == 0, "");
@@ -23,5 +24,10 @@ void foo(void) {
 	_Static_assert(!__builtin_isinf(x), "");
 }
 
-#define EXPECTED_ERRORS "complex values.c:23:17: error: static_assert expression is not an integral constant expression" \
+_Static_assert(__builtin_isnan(__real(0.0/0.0)), "");
+_Static_assert(__builtin_isinf(__real((2.0 + 2.0i)/0.0)), "");
+_Static_assert(__builtin_isinf(__imag((2.0 + 2.0i)/0.0)), "");
+
+
+#define EXPECTED_ERRORS "complex values.c:24:17: error: static_assert expression is not an integral constant expression" \
 

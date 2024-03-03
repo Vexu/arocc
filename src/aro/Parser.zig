@@ -7159,7 +7159,9 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_imag, imag_tok, try p.typeStr(operand.ty));
             }
-            if (operand.ty.isReal()) {
+            if (operand.ty.isComplex()) {
+                operand.val = try operand.val.imaginaryPart(p.comp);
+            } else if (operand.ty.isReal()) {
                 switch (p.comp.langopts.emulate) {
                     .msvc => {}, // Doesn't support `_Complex` or `__imag` in the first place
                     .gcc => operand.val = Value.zero,
@@ -7189,6 +7191,7 @@ fn unExpr(p: *Parser) Error!Result {
             }
             // convert _Complex T to T
             operand.ty = operand.ty.makeReal();
+            operand.val = try operand.val.realPart(p.comp);
             try operand.un(p, .real_expr);
             return operand;
         },
