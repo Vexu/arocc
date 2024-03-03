@@ -67,9 +67,15 @@ pub fn complexFloatDiv(comptime T: type, a_param: T, b_param: T, c_param: T, d_p
     var denom_logb: i32 = 0;
     const max_cd = @max(@abs(c), @abs(d));
     if (isFinite(max_cd)) {
-        denom_logb = ilogb(max_cd);
-        c = scalbn(c, -denom_logb);
-        d = scalbn(d, -denom_logb);
+        if (max_cd == 0) {
+            denom_logb = std.math.minInt(i32) + 1;
+            c = 0;
+            d = 0;
+        } else {
+            denom_logb = ilogb(max_cd);
+            c = scalbn(c, -denom_logb);
+            d = scalbn(d, -denom_logb);
+        }
     }
     const denom = c * c + d * d;
     var x = scalbn((a * c + b * d) / denom, -denom_logb);
@@ -102,7 +108,11 @@ test complexFloatMul {
 
 test complexFloatDiv {
     // Naive algorithm would produce NaN + NaNi instead of inf + NaNi
-    const result = complexFloatDiv(f64, inf(f64), std.math.nan(f64), 2, 0);
+    var result = complexFloatDiv(f64, inf(f64), std.math.nan(f64), 2, 0);
     try std.testing.expect(isInf(result[0]));
     try std.testing.expect(isNan(result[1]));
+
+    result = complexFloatDiv(f64, 2.0, 2.0, 0.0, 0.0);
+    try std.testing.expect(isInf(result[0]));
+    try std.testing.expect(isInf(result[1]));
 }
