@@ -572,6 +572,14 @@ fn nodeIs(p: *Parser, node: NodeIndex, tag: Tree.Tag) bool {
     return p.getNode(node, tag) != null;
 }
 
+pub fn getDecayedStringLiteral(p: *Parser, node: NodeIndex) ?Value {
+    const cast_node = p.getNode(node, .implicit_cast) orelse return null;
+    const data = p.nodes.items(.data)[@intFromEnum(cast_node)];
+    if (data.cast.kind != .array_to_pointer) return null;
+    const literal_node = p.getNode(data.cast.operand, .string_literal_expr) orelse return null;
+    return p.value_map.get(literal_node);
+}
+
 fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
     var cur = node;
     const tags = p.nodes.items(.tag);

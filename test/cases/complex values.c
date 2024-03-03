@@ -34,6 +34,10 @@ _Static_assert(__builtin_isinf(__imag((2.0 + 2.0i)/0.0)), "");
 _Static_assert((_Complex double){2.0, __builtin_inf()} == (_Complex double){2.0, 3.0/0.0}, "");
 _Static_assert(__builtin_isinf(__imag((_Complex double){2.0, __builtin_inf()})), "");
 _Static_assert((_Complex double){2.0} + (_Complex double){2.0, 4.0} == (_Complex double){4.0, 4.0}, "");
+_Static_assert(1.0 / (_Complex double){__builtin_inf(), __builtin_nan("")} == 0.0, "");
+constexpr _Complex double product = (_Complex double){__builtin_inf(), __builtin_nan("") * 2.0};
+_Static_assert(__builtin_isinf(__real__ product), "");
+_Static_assert(__builtin_isnan(__imag__ product), "");
 
 #define EXPECTED_ERRORS "complex values.c:24:17: error: static_assert expression is not an integral constant expression" \
 
