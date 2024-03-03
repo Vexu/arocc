@@ -8543,7 +8543,6 @@ fn ppNum(p: *Parser) Error!Result {
         }
         res.ty = if (res.ty.isUnsignedInt(p.comp)) p.comp.types.intmax.makeIntegerUnsigned() else p.comp.types.intmax;
     } else if (res.val.opt_ref != .none) {
-        // TODO add complex values
         try p.value_map.put(res.node, res.val);
     }
     return res;
