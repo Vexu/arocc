@@ -3253,6 +3253,9 @@ fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
     assert(init_ty.isComplex());
 
     const real_ty = init_ty.makeReal();
+    if (real_ty.isInt()) {
+        return p.todo("Complex integer initializers");
+    }
     const l_brace = p.tok_i;
     p.tok_i += 1;
     try p.errTok(.complex_component_init, l_brace);

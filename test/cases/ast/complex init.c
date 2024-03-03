@@ -16,13 +16,6 @@ fn_def: 'fn () void'
         float_literal: 'float' (value: 1)
         float_literal: 'float' (value: 2)
 
-    var: '_Complex int'
-     name: ci
-     init:
-      array_init_expr_two: '_Complex int'
-        int_literal: 'int' (value: 1)
-        int_literal: 'int' (value: 2)
-
     assign_expr: '_Complex double'
      lhs:
       decl_ref_expr: '_Complex double' lvalue
