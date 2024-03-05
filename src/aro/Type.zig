@@ -1313,6 +1313,10 @@ pub fn integerRank(ty: Type, comp: *const Compilation) usize {
         .long_long, .ulong_long => 6 + (ty.bitSizeof(comp).? << 3),
         .int128, .uint128 => 7 + (ty.bitSizeof(comp).? << 3),
 
+        .typeof_type => ty.data.sub_type.integerRank(comp),
+        .typeof_expr => ty.data.expr.ty.integerRank(comp),
+        .attributed => ty.data.attributed.base.integerRank(comp),
+
         else => unreachable,
     });
 }
