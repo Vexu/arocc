@@ -26,7 +26,7 @@ fn compileSlice(buf: []const u8) !void {
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.defineSystemIncludes(aro_dir);
+    try comp.addSystemIncludeDir(aro_dir);
 
     const builtin = try comp.generateBuiltinMacros(.include_system_defines);
     const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
