@@ -7680,6 +7680,8 @@ fn primaryExpr(p: *Parser) Error!Result {
                 else
                     try p.errStr(.implicit_func_decl, name_tok, name);
 
+                if (p.record.kind != .invalid) return .{ .ty = Type.invalid };
+
                 const func_ty = try p.arena.create(Type.Func);
                 func_ty.* = .{ .return_type = .{ .specifier = .int }, .params = &.{} };
                 const ty: Type = .{ .specifier = .old_style_func, .data = .{ .func = func_ty } };
