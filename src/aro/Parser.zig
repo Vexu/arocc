@@ -7680,6 +7680,12 @@ fn primaryExpr(p: *Parser) Error!Result {
                 else
                     try p.errStr(.implicit_func_decl, name_tok, name);
 
+                // If record.kind != .invalid, we are currently parsing a record. Getting to here means
+                // that the C code tried to call a function which has not been defined or declared yet.
+                // It's always an error to call an implicitly defined function like this during record parsing.
+                // We return early because we do not want to create an implicitly defined function. Doing so
+                // will inadvertently treat the implicitly-defined function as a field decl for the record being
+                // parsed.
                 if (p.record.kind != .invalid) return .{ .ty = Type.invalid };
 
                 const func_ty = try p.arena.create(Type.Func);
