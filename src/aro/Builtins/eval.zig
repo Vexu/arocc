@@ -58,7 +58,7 @@ pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const NodeIndex) !Value {
                 .unknown => {},
                 .finite => return Value.zero,
                 .positive => return Value.one,
-                .negative => return Value.int(-1, p.comp),
+                .negative => return Value.int(@as(i64, -1), p.comp),
             }
         },
         Builtin.tagFromName("__builtin_isnan").? => blk: {
