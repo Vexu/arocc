@@ -3336,17 +3336,16 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
 
     if (init_ty.isComplex()) {
         return p.complexInitializer(init_ty);
-    } else {
-        var il: InitList = .{};
-        defer il.deinit(p.gpa);
-
-        _ = try p.initializerItem(&il, init_ty);
-
-        const res = try p.convertInitList(il, init_ty);
-        var res_ty = p.nodes.items(.ty)[@intFromEnum(res)];
-        res_ty.qual = init_ty.qual;
-        return Result{ .ty = res_ty, .node = res };
     }
+    var il: InitList = .{};
+    defer il.deinit(p.gpa);
+
+    _ = try p.initializerItem(&il, init_ty);
+
+    const res = try p.convertInitList(il, init_ty);
+    var res_ty = p.nodes.items(.ty)[@intFromEnum(res)];
+    res_ty.qual = init_ty.qual;
+    return Result{ .ty = res_ty, .node = res };
 }
 
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?
