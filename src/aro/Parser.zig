@@ -2208,7 +2208,15 @@ fn recordSpec(p: *Parser) Error!Type {
     } else {
         record_ty.fields = try p.arena.dupe(Type.Record.Field, p.record_buf.items[record_buf_top..]);
     }
-    if (old_field_attr_start < p.field_attr_buf.items.len) {
+    const attr_count = p.field_attr_buf.items.len - old_field_attr_start;
+    const record_decls = p.decl_buf.items[decl_buf_top..];
+    if (attr_count > 0) {
+        if (attr_count != record_decls.len) {
+            // A mismatch here means that non-field decls were parsed. This can happen if there were
+            // parse errors during attribute parsing. Bail here because if there are any field attributes,
+            // there must be exactly one per field.
+            return error.ParsingFailed;
+        }
         const field_attr_slice = p.field_attr_buf.items[old_field_attr_start..];
         const duped = try p.arena.dupe([]const Attribute, field_attr_slice);
         record_ty.field_attributes = duped.ptr;
@@ -2249,7 +2257,6 @@ fn recordSpec(p: *Parser) Error!Type {
         .ty = ty,
         .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
     };
-    const record_decls = p.decl_buf.items[decl_buf_top..];
     switch (record_decls.len) {
         0 => {},
         1 => node.data = .{ .bin = .{ .lhs = record_decls[0], .rhs = .none } },
@@ -7679,14 +7686,6 @@ fn primaryExpr(p: *Parser) Error!Result {
                     try p.errStr(.unknown_builtin, name_tok, name)
                 else
                     try p.errStr(.implicit_func_decl, name_tok, name);
-
-                // If record.kind != .invalid, we are currently parsing a record. Getting to here means
-                // that the C code tried to call a function which has not been defined or declared yet.
-                // It's always an error to call an implicitly defined function like this during record parsing.
-                // We return early because we do not want to create an implicitly defined function. Doing so
-                // will inadvertently treat the implicitly-defined function as a field decl for the record being
-                // parsed.
-                if (p.record.kind != .invalid) return .{ .ty = Type.invalid };
 
                 const func_ty = try p.arena.create(Type.Func);
                 func_ty.* = .{ .return_type = .{ .specifier = .int }, .params = &.{} };

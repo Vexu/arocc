@@ -5,5 +5,10 @@ struct S {
   __attribute__((packed)) b;
 };
 
+struct S2 {
+  __attribute__((__aligned__(char:  1))) long a;
+  __attribute__((packed)) b;
+};
+
 void foo(void) {
 }
