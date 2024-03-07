@@ -2,36 +2,36 @@ fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: '__float80'
+    var: 'long double'
      name: x
      init:
-      float_literal: '__float80' (value: 1)
+      float_literal: 'long double' (value: 1)
 
-    assign_expr: '__float80'
+    assign_expr: 'long double'
      lhs:
-      decl_ref_expr: '__float80' lvalue
+      decl_ref_expr: 'long double' lvalue
        name: x
      rhs:
-      float_literal: '__float80' (value: 1)
+      float_literal: 'long double' (value: 1)
 
-    var: '_Complex __float80'
+    var: '_Complex long double'
      name: z
 
-    assign_expr: '_Complex __float80'
+    assign_expr: '_Complex long double'
      lhs:
-      decl_ref_expr: '_Complex __float80' lvalue
+      decl_ref_expr: '_Complex long double' lvalue
        name: z
      rhs:
-      imaginary_literal: '_Complex __float80'
-        float_literal: '__float80'
+      imaginary_literal: '_Complex long double'
+        float_literal: 'long double'
 
-    assign_expr: '_Complex __float80'
+    assign_expr: '_Complex long double'
      lhs:
-      decl_ref_expr: '_Complex __float80' lvalue
+      decl_ref_expr: '_Complex long double' lvalue
        name: z
      rhs:
-      imaginary_literal: '_Complex __float80'
-        float_literal: '__float80'
+      imaginary_literal: '_Complex long double'
+        float_literal: 'long double'
 
     implicit_return: 'void'
 

@@ -746,6 +746,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         if (ty.isArray()) ty.decayArray();
 
         try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__NSConstantString"), pp.comp.types.ns_constant_string.ty, 0, .none);
+
+        if (p.comp.float80Type()) |float80_ty| {
+            try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__float80"), float80_ty, 0, .none);
+        }
     }
 
     while (p.eatToken(.eof) == null) {
@@ -1917,7 +1921,6 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             .keyword_float => try ty.combine(p, .float, p.tok_i),
             .keyword_double => try ty.combine(p, .double, p.tok_i),
             .keyword_complex => try ty.combine(p, .complex, p.tok_i),
-            .keyword_float80 => try ty.combine(p, .float80, p.tok_i),
             .keyword_float128_1, .keyword_float128_2 => {
                 if (!p.comp.hasFloat128()) {
                     try p.errStr(.type_not_supported_on_target, p.tok_i, p.tok_ids[p.tok_i].lexeme().?);
@@ -5617,10 +5620,9 @@ pub const Result = struct {
 
         // if either is a float cast to that type
         if (a.ty.isFloat() or b.ty.isFloat()) {
-            const float_types = [7][2]Type.Specifier{
+            const float_types = [6][2]Type.Specifier{
                 .{ .complex_long_double, .long_double },
                 .{ .complex_float128, .float128 },
-                .{ .complex_float80, .float80 },
                 .{ .complex_double, .double },
                 .{ .complex_float, .float },
                 // No `_Complex __fp16` type
@@ -5644,7 +5646,6 @@ pub const Result = struct {
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[4])) return;
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[6])) return;
         }
 
         if (a.ty.eql(b.ty, p.comp, true)) {
@@ -8111,7 +8112,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
         .F, .IF => .float,
         .F16 => .float16,
         .L, .IL => .long_double,
-        .W, .IW => .float80,
+        .W, .IW => p.comp.float80Type().?.specifier,
         .Q, .IQ, .F128, .IF128 => .float128,
         else => unreachable,
     } };
@@ -8146,7 +8147,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             .I => .complex_double,
             .IF => .complex_float,
             .IL => .complex_long_double,
-            .IW => .complex_float80,
+            .IW => p.comp.float80Type().?.makeComplex().specifier,
             .IQ, .IF128 => .complex_float128,
             else => unreachable,
         } };
@@ -8417,6 +8418,10 @@ pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
         }
         return error.ParsingFailed;
     };
+    if (suffix.isFloat80() and p.comp.float80Type() == null) {
+        try p.errStr(.invalid_float_suffix, tok_i, suffix_str);
+        return error.ParsingFailed;
+    }
 
     if (is_float) {
         assert(prefix == .hex or prefix == .decimal);
