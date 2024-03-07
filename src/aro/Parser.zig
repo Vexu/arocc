@@ -28,7 +28,6 @@ const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
-const target_util = @import("target.zig");
 
 const Switch = struct {
     default: ?TokenIndex = null,
