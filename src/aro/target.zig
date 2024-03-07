@@ -133,6 +133,14 @@ pub fn int64Type(target: std.Target) Type {
     return .{ .specifier = .long_long };
 }
 
+pub fn float80Type(target: std.Target) ?Type {
+    switch (target.cpu.arch) {
+        .x86, .x86_64 => return .{ .specifier = .long_double },
+        else => {},
+    }
+    return null;
+}
+
 /// This function returns 1 if function alignment is not observable or settable.
 pub fn defaultFunctionAlignment(target: std.Target) u8 {
     return switch (target.cpu.arch) {

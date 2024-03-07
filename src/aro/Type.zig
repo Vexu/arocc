@@ -354,12 +354,10 @@ pub const Specifier = enum {
     float,
     double,
     long_double,
-    float80,
     float128,
     complex_float,
     complex_double,
     complex_long_double,
-    complex_float80,
     complex_float128,
 
     // data.sub_type
@@ -536,7 +534,7 @@ pub fn isFloat(ty: Type) bool {
     return switch (ty.specifier) {
         // zig fmt: off
         .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double,
-        .fp16, .float16, .float80, .float128, .complex_float80, .complex_float128 => true,
+        .fp16, .float16, .float128, .complex_float128 => true,
         // zig fmt: on
         .typeof_type => ty.data.sub_type.isFloat(),
         .typeof_expr => ty.data.expr.ty.isFloat(),
@@ -548,7 +546,7 @@ pub fn isFloat(ty: Type) bool {
 pub fn isReal(ty: Type) bool {
     return switch (ty.specifier) {
         // zig fmt: off
-        .complex_float, .complex_double, .complex_long_double, .complex_float80,
+        .complex_float, .complex_double, .complex_long_double,
         .complex_float128, .complex_char, .complex_schar, .complex_uchar, .complex_short,
         .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong,
         .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
@@ -564,7 +562,7 @@ pub fn isReal(ty: Type) bool {
 pub fn isComplex(ty: Type) bool {
     return switch (ty.specifier) {
         // zig fmt: off
-        .complex_float, .complex_double, .complex_long_double, .complex_float80,
+        .complex_float, .complex_double, .complex_long_double,
         .complex_float128, .complex_char, .complex_schar, .complex_uchar, .complex_short,
         .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong,
         .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
@@ -671,7 +669,7 @@ pub fn elemType(ty: Type) Type {
         .attributed => ty.data.attributed.base.elemType(),
         .invalid => Type.invalid,
         // zig fmt: off
-        .complex_float, .complex_double, .complex_long_double, .complex_float80,
+        .complex_float, .complex_double, .complex_long_double,
         .complex_float128, .complex_char, .complex_schar, .complex_uchar, .complex_short,
         .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong,
         .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
@@ -1004,7 +1002,6 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .fp16, .float16 => 2,
         .float => comp.target.c_type_byte_size(.float),
         .double => comp.target.c_type_byte_size(.double),
-        .float80 => 16,
         .float128 => 16,
         .bit_int => {
             return std.mem.alignForward(u64, (ty.data.int.bits + 7) / 8, ty.alignof(comp));
@@ -1013,7 +1010,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
         .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
         .complex_int128, .complex_uint128, .complex_float, .complex_double,
-        .complex_long_double, .complex_float80, .complex_float128, .complex_bit_int,
+        .complex_long_double, .complex_float128, .complex_bit_int,
         => return 2 * ty.makeReal().sizeof(comp).?,
         // zig fmt: on
         .pointer => unreachable,
@@ -1050,7 +1047,6 @@ pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
         .attributed => ty.data.attributed.base.bitSizeof(comp),
         .bit_int => return ty.data.int.bits,
         .long_double => comp.target.c_type_bit_size(.longdouble),
-        .float80 => return 80,
         else => 8 * (ty.sizeof(comp) orelse return null),
     };
 }
@@ -1100,7 +1096,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
         .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
         .complex_int128, .complex_uint128, .complex_float, .complex_double,
-        .complex_long_double, .complex_float80, .complex_float128, .complex_bit_int,
+        .complex_long_double, .complex_float128, .complex_bit_int,
         => return ty.makeReal().alignof(comp),
         // zig fmt: on
 
@@ -1126,7 +1122,7 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .int128, .uint128 => if (comp.target.cpu.arch == .s390x and comp.target.os.tag == .linux and comp.target.isGnu()) 8 else 16,
         .fp16, .float16 => 2,
 
-        .float80, .float128 => 16,
+        .float128 => 16,
         .pointer,
         .static_array,
         .nullptr_t,
@@ -1332,8 +1328,8 @@ pub fn makeReal(ty: Type) Type {
     // TODO discards attributed/typeof
     var base = ty.canonicalize(.standard);
     switch (base.specifier) {
-        .complex_float, .complex_double, .complex_long_double, .complex_float80, .complex_float128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) - 5);
+        .complex_float, .complex_double, .complex_long_double, .complex_float128 => {
+            base.specifier = @enumFromInt(@intFromEnum(base.specifier) - 4);
             return base;
         },
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128 => {
@@ -1352,8 +1348,8 @@ pub fn makeComplex(ty: Type) Type {
     // TODO discards attributed/typeof
     var base = ty.canonicalize(.standard);
     switch (base.specifier) {
-        .float, .double, .long_double, .float80, .float128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 5);
+        .float, .double, .long_double, .float128 => {
+            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 4);
             return base;
         },
         .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128 => {
@@ -1543,13 +1539,11 @@ pub const Builder = struct {
         float,
         double,
         long_double,
-        float80,
         float128,
         complex,
         complex_float,
         complex_double,
         complex_long_double,
-        complex_float80,
         complex_float128,
 
         pointer: *Type,
@@ -1656,13 +1650,11 @@ pub const Builder = struct {
                 .float => "float",
                 .double => "double",
                 .long_double => "long double",
-                .float80 => "__float80",
                 .float128 => "__float128",
                 .complex => "_Complex",
                 .complex_float => "_Complex float",
                 .complex_double => "_Complex double",
                 .complex_long_double => "_Complex long double",
-                .complex_float80 => "_Complex __float80",
                 .complex_float128 => "_Complex __float128",
 
                 .attributed => |attributed| Builder.fromType(attributed.base).str(langopts),
@@ -1786,12 +1778,10 @@ pub const Builder = struct {
             .float => ty.specifier = .float,
             .double => ty.specifier = .double,
             .long_double => ty.specifier = .long_double,
-            .float80 => ty.specifier = .float80,
             .float128 => ty.specifier = .float128,
             .complex_float => ty.specifier = .complex_float,
             .complex_double => ty.specifier = .complex_double,
             .complex_long_double => ty.specifier = .complex_long_double,
-            .complex_float80 => ty.specifier = .complex_float80,
             .complex_float128 => ty.specifier = .complex_float128,
             .complex => {
                 try p.errTok(.plain_complex, p.tok_i - 1);
@@ -2156,11 +2146,6 @@ pub const Builder = struct {
                 .complex => .complex_double,
                 else => return b.cannotCombine(p, source_tok),
             },
-            .float80 => b.specifier = switch (b.specifier) {
-                .none => .float80,
-                .complex => .complex_float80,
-                else => return b.cannotCombine(p, source_tok),
-            },
             .float128 => b.specifier = switch (b.specifier) {
                 .none => .float128,
                 .complex => .complex_float128,
@@ -2171,7 +2156,6 @@ pub const Builder = struct {
                 .float => .complex_float,
                 .double => .complex_double,
                 .long_double => .complex_long_double,
-                .float80 => .complex_float80,
                 .float128 => .complex_float128,
                 .char => .complex_char,
                 .schar => .complex_schar,
@@ -2209,7 +2193,6 @@ pub const Builder = struct {
                 .complex_float,
                 .complex_double,
                 .complex_long_double,
-                .complex_float80,
                 .complex_float128,
                 .complex_char,
                 .complex_schar,
@@ -2296,13 +2279,11 @@ pub const Builder = struct {
             .float16 => .float16,
             .float => .float,
             .double => .double,
-            .float80 => .float80,
             .float128 => .float128,
             .long_double => .long_double,
             .complex_float => .complex_float,
             .complex_double => .complex_double,
             .complex_long_double => .complex_long_double,
-            .complex_float80 => .complex_float80,
             .complex_float128 => .complex_float128,
 
             .pointer => .{ .pointer = ty.data.sub_type },

@@ -258,7 +258,6 @@ pub const Token = struct {
         keyword_asm,
         keyword_asm1,
         keyword_asm2,
-        keyword_float80,
         /// _Float128
         keyword_float128_1,
         /// __float128
@@ -417,7 +416,6 @@ pub const Token = struct {
                 .keyword_asm,
                 .keyword_asm1,
                 .keyword_asm2,
-                .keyword_float80,
                 .keyword_float128_1,
                 .keyword_float128_2,
                 .keyword_int128,
@@ -702,7 +700,6 @@ pub const Token = struct {
                 .keyword_asm => "asm",
                 .keyword_asm1 => "__asm",
                 .keyword_asm2 => "__asm__",
-                .keyword_float80 => "__float80",
                 .keyword_float128_1 => "_Float128",
                 .keyword_float128_2 => "__float128",
                 .keyword_int128 => "__int128",
@@ -982,7 +979,6 @@ pub const Token = struct {
         .{ "asm", .keyword_asm },
         .{ "__asm", .keyword_asm1 },
         .{ "__asm__", .keyword_asm2 },
-        .{ "__float80", .keyword_float80 },
         .{ "_Float128", .keyword_float128_1 },
         .{ "__float128", .keyword_float128_2 },
         .{ "__int128", .keyword_int128 },

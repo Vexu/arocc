@@ -184,4 +184,8 @@ pub const Suffix = enum {
             else => false,
         };
     }
+
+    pub fn isFloat80(suffix: Suffix) bool {
+        return suffix == .W or suffix == .IW;
+    }
 };

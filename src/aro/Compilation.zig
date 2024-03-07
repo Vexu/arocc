@@ -720,6 +720,11 @@ fn generateBuiltinTypes(comp: *Compilation) !void {
     try comp.generateNsConstantStringType();
 }
 
+pub fn float80Type(comp: *const Compilation) ?Type {
+    if (comp.langopts.emulate != .gcc) return null;
+    return target_util.float80Type(comp.target);
+}
+
 /// Smallest integer type with at least N bits
 fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) Type {
     if (bits == 64 and (comp.target.isDarwin() or comp.target.isWasm())) {
