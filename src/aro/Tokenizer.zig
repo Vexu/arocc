@@ -1300,11 +1300,17 @@ pub fn next(self: *Tokenizer) Token {
                 else => {},
             },
             .char_escape_sequence => switch (c) {
-                '\r', '\n' => unreachable, // removed by line splicing
+                '\r', '\n' => {
+                    id = .unterminated_char_literal;
+                    break;
+                },
                 else => state = .char_literal,
             },
             .string_escape_sequence => switch (c) {
-                '\r', '\n' => unreachable, // removed by line splicing
+                '\r', '\n' => {
+                    id = .unterminated_string_literal;
+                    break;
+                },
                 else => state = .string_literal,
             },
             .identifier, .extended_identifier => switch (c) {
