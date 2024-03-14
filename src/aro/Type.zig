@@ -1138,12 +1138,18 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
     };
 }
 
+// This enum should be kept public because it is used by the downstream zig translate-c
+pub const QualHandling = enum {
+    standard,
+    preserve_quals,
+};
+
 /// Canonicalize a possibly-typeof() type. If the type is not a typeof() type, simply
 /// return it. Otherwise, determine the actual qualified type.
 /// The `qual_handling` parameter can be used to return the full set of qualifiers
 /// added by typeof() operations, which is useful when determining the elemType of
 /// arrays and pointers.
-pub fn canonicalize(ty: Type, qual_handling: enum { standard, preserve_quals }) Type {
+pub fn canonicalize(ty: Type, qual_handling: QualHandling) Type {
     var cur = ty;
     if (cur.specifier == .attributed) {
         cur = cur.data.attributed.base;
