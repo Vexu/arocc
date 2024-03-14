@@ -54,11 +54,11 @@ const Stats = struct {
             .skip => &self.skip_count,
             .invalid_target => &self.invalid_target_count,
         };
-        _ = @atomicRmw(u32, ptr, .Add, 1, .Monotonic);
+        _ = @atomicRmw(u32, ptr, .Add, 1, .monotonic);
     }
 
     fn updateMaxMemUsage(self: *Stats, bytes: usize) void {
-        _ = @atomicRmw(usize, &self.max_alloc, .Max, bytes, .Monotonic);
+        _ = @atomicRmw(usize, &self.max_alloc, .Max, bytes, .monotonic);
     }
 };
 
