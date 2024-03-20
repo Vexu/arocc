@@ -896,6 +896,13 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
                 else => try p.errStr(.callconv_not_supported, tok, p.tok_ids[tok].lexeme().?),
             },
         },
+        .malloc => {
+            if (base_ty.returnType().isPtr()) {
+                try p.attr_application_buf.append(p.gpa, attr);
+            } else {
+                try ignoredAttrErr(p, tok, attr.tag, "functions that do not return pointers");
+            }
+        },
         .access,
         .alloc_align,
         .alloc_size,
@@ -908,7 +915,6 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
         .ifunc,
         .interrupt,
         .interrupt_handler,
-        .malloc,
         .no_address_safety_analysis,
         .no_icf,
         .no_instrument_function,
