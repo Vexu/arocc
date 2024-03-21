@@ -173,7 +173,7 @@ pub const Filesystem = union(enum) {
     pub fn exists(fs: Filesystem, path: []const u8) bool {
         switch (fs) {
             .real => {
-                std.posix.access(path, std.posix.F_OK) catch return false;
+                std.fs.cwd().access(path, .{}) catch return false;
                 return true;
             },
             .fake => |paths| return existsFake(paths, path),
