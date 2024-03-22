@@ -865,6 +865,8 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_int,
             .keyword_long,
             .keyword_signed,
+            .keyword_signed1,
+            .keyword_signed2,
             .keyword_unsigned,
             .keyword_float,
             .keyword_double,
@@ -1875,6 +1877,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
 ///  | keyword_float
 ///  | keyword_double
 ///  | keyword_signed
+///  | keyword_signed1
+///  | keyword_signed2
 ///  | keyword_unsigned
 ///  | keyword_bool
 ///  | keyword_c23_bool
@@ -1914,7 +1918,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
             .keyword_long => try ty.combine(p, .long, p.tok_i),
             .keyword_int64, .keyword_int64_2 => try ty.combine(p, .long_long, p.tok_i),
             .keyword_int128 => try ty.combine(p, .int128, p.tok_i),
-            .keyword_signed => try ty.combine(p, .signed, p.tok_i),
+            .keyword_signed, .keyword_signed1, .keyword_signed2 => try ty.combine(p, .signed, p.tok_i),
             .keyword_unsigned => try ty.combine(p, .unsigned, p.tok_i),
             .keyword_fp16 => try ty.combine(p, .fp16, p.tok_i),
             .keyword_float16 => try ty.combine(p, .float16, p.tok_i),
@@ -4706,6 +4710,8 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_int,
             .keyword_long,
             .keyword_signed,
+            .keyword_signed1,
+            .keyword_signed2,
             .keyword_unsigned,
             .keyword_float,
             .keyword_double,
