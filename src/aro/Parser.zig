@@ -28,6 +28,7 @@ const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
+const evalBuiltin = @import("Builtins/eval.zig").eval;
 
 const Switch = struct {
     default: ?TokenIndex = null,
@@ -569,6 +570,14 @@ fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
 
 fn nodeIs(p: *Parser, node: NodeIndex, tag: Tree.Tag) bool {
     return p.getNode(node, tag) != null;
+}
+
+pub fn getDecayedStringLiteral(p: *Parser, node: NodeIndex) ?Value {
+    const cast_node = p.getNode(node, .implicit_cast) orelse return null;
+    const data = p.nodes.items(.data)[@intFromEnum(cast_node)];
+    if (data.cast.kind != .array_to_pointer) return null;
+    const literal_node = p.getNode(data.cast.operand, .string_literal_expr) orelse return null;
+    return p.value_map.get(literal_node);
 }
 
 fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
@@ -3243,6 +3252,74 @@ fn typeName(p: *Parser) Error!?Type {
     return try Attribute.applyTypeAttributes(p, ty, attr_buf_top, .align_ignored);
 }
 
+fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
+    assert(p.tok_ids[p.tok_i] == .l_brace);
+    assert(init_ty.isComplex());
+
+    const real_ty = init_ty.makeReal();
+    if (real_ty.isInt()) {
+        return p.todo("Complex integer initializers");
+    }
+    const l_brace = p.tok_i;
+    p.tok_i += 1;
+    try p.errTok(.complex_component_init, l_brace);
+
+    const first_tok = p.tok_i;
+    var first = try p.assignExpr();
+    try first.expect(p);
+    try p.coerceInit(&first, first_tok, real_ty);
+
+    var second: Result = .{
+        .ty = real_ty,
+        .val = Value.zero,
+    };
+    if (p.eatToken(.comma)) |_| {
+        const second_tok = p.tok_i;
+        const maybe_second = try p.assignExpr();
+        if (!maybe_second.empty(p)) {
+            second = maybe_second;
+            try p.coerceInit(&second, second_tok, real_ty);
+        }
+    }
+
+    // Eat excess initializers
+    var extra_tok: ?TokenIndex = null;
+    while (p.eatToken(.comma)) |_| {
+        if (p.tok_ids[p.tok_i] == .r_brace) break;
+        extra_tok = p.tok_i;
+        const extra = try p.assignExpr();
+        if (extra.empty(p)) {
+            try p.errTok(.expected_expr, p.tok_i);
+            p.skipTo(.r_brace);
+            return error.ParsingFailed;
+        }
+    }
+    try p.expectClosing(l_brace, .r_brace);
+    if (extra_tok) |tok| {
+        try p.errTok(.excess_scalar_init, tok);
+    }
+
+    const arr_init_node: Tree.Node = .{
+        .tag = .array_init_expr_two,
+        .ty = init_ty,
+        .data = .{ .bin = .{ .lhs = first.node, .rhs = second.node } },
+    };
+    var res: Result = .{
+        .node = try p.addNode(arr_init_node),
+        .ty = init_ty,
+    };
+    if (first.val.opt_ref != .none and second.val.opt_ref != .none) {
+        res.val = try Value.intern(p.comp, switch (real_ty.bitSizeof(p.comp).?) {
+            32 => .{ .complex = .{ .cf32 = .{ first.val.toFloat(f32, p.comp), second.val.toFloat(f32, p.comp) } } },
+            64 => .{ .complex = .{ .cf64 = .{ first.val.toFloat(f64, p.comp), second.val.toFloat(f64, p.comp) } } },
+            80 => .{ .complex = .{ .cf80 = .{ first.val.toFloat(f80, p.comp), second.val.toFloat(f80, p.comp) } } },
+            128 => .{ .complex = .{ .cf128 = .{ first.val.toFloat(f128, p.comp), second.val.toFloat(f128, p.comp) } } },
+            else => unreachable,
+        });
+    }
+    return res;
+}
+
 /// initializer
 ///  : assignExpr
 ///  | '{' initializerItems '}'
@@ -3261,6 +3338,9 @@ fn initializer(p: *Parser, init_ty: Type) Error!Result {
         return error.ParsingFailed;
     }
 
+    if (init_ty.isComplex()) {
+        return p.complexInitializer(init_ty);
+    }
     var il: InitList = .{};
     defer il.deinit(p.gpa);
 
@@ -4817,10 +4897,13 @@ const CallExpr = union(enum) {
                 Builtin.tagFromName("__va_start").?,
                 Builtin.tagFromName("va_start").?,
                 => arg_idx != 1,
-                Builtin.tagFromName("__builtin_complex").?,
                 Builtin.tagFromName("__builtin_add_overflow").?,
-                Builtin.tagFromName("__builtin_sub_overflow").?,
+                Builtin.tagFromName("__builtin_complex").?,
+                Builtin.tagFromName("__builtin_isinf").?,
+                Builtin.tagFromName("__builtin_isinf_sign").?,
                 Builtin.tagFromName("__builtin_mul_overflow").?,
+                Builtin.tagFromName("__builtin_isnan").?,
+                Builtin.tagFromName("__builtin_sub_overflow").?,
                 => false,
                 else => true,
             },
@@ -4866,6 +4949,9 @@ const CallExpr = union(enum) {
                 Builtin.tagFromName("__c11_atomic_thread_fence").?,
                 Builtin.tagFromName("__c11_atomic_signal_fence").?,
                 Builtin.tagFromName("__c11_atomic_is_lock_free").?,
+                Builtin.tagFromName("__builtin_isinf").?,
+                Builtin.tagFromName("__builtin_isinf_sign").?,
+                Builtin.tagFromName("__builtin_isnan").?,
                 => 1,
 
                 Builtin.tagFromName("__builtin_complex").?,
@@ -5011,7 +5097,8 @@ const CallExpr = union(enum) {
                         call_node.data = .{ .range = try p.addList(args) };
                     },
                 }
-                return Result{ .node = builtin.node, .ty = ret_ty };
+                const val = try evalBuiltin(builtin.tag, p, args[1..]);
+                return Result{ .node = builtin.node, .ty = ret_ty, .val = val };
             },
         }
     }
@@ -6947,7 +7034,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
             try operand.usualUnaryConversion(p, tok);
-            if (operand.val.is(.int, p.comp) or operand.val.is(.float, p.comp)) {
+            if (operand.val.isArithmetic(p.comp)) {
                 _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p.comp);
             } else {
                 operand.val = .{};
@@ -7020,6 +7107,9 @@ fn unExpr(p: *Parser) Error!Result {
                 }
             } else if (operand.ty.isComplex()) {
                 try p.errStr(.complex_conj, tok, try p.typeStr(operand.ty));
+                if (operand.val.is(.complex, p.comp)) {
+                    operand.val = try operand.val.complexConj(operand.ty, p.comp);
+                }
             } else {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
                 operand.val = .{};
@@ -7154,7 +7244,9 @@ fn unExpr(p: *Parser) Error!Result {
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_imag, imag_tok, try p.typeStr(operand.ty));
             }
-            if (operand.ty.isReal()) {
+            if (operand.ty.isComplex()) {
+                operand.val = try operand.val.imaginaryPart(p.comp);
+            } else if (operand.ty.isReal()) {
                 switch (p.comp.langopts.emulate) {
                     .msvc => {}, // Doesn't support `_Complex` or `__imag` in the first place
                     .gcc => operand.val = Value.zero,
@@ -7184,6 +7276,7 @@ fn unExpr(p: *Parser) Error!Result {
             }
             // convert _Complex T to T
             operand.ty = operand.ty.makeReal();
+            operand.val = try operand.val.realPart(p.comp);
             try operand.un(p, .real_expr);
             return operand;
         },
@@ -8157,7 +8250,13 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             .IQ, .IF128 => .complex_float128,
             else => unreachable,
         } };
-        res.val = .{}; // TODO add complex values
+        res.val = try Value.intern(p.comp, switch (res.ty.bitSizeof(p.comp).?) {
+            64 => .{ .complex = .{ .cf32 = .{ 0.0, val.toFloat(f32, p.comp) } } },
+            128 => .{ .complex = .{ .cf64 = .{ 0.0, val.toFloat(f64, p.comp) } } },
+            160 => .{ .complex = .{ .cf80 = .{ 0.0, val.toFloat(f80, p.comp) } } },
+            256 => .{ .complex = .{ .cf128 = .{ 0.0, val.toFloat(f128, p.comp) } } },
+            else => unreachable,
+        });
         try res.un(p, .imaginary_literal);
     }
     return res;
@@ -8452,7 +8551,6 @@ fn ppNum(p: *Parser) Error!Result {
         }
         res.ty = if (res.ty.isUnsignedInt(p.comp)) p.comp.types.intmax.makeIntegerUnsigned() else p.comp.types.intmax;
     } else if (res.val.opt_ref != .none) {
-        // TODO add complex values
         try p.value_map.put(res.node, res.val);
     }
     return res;
