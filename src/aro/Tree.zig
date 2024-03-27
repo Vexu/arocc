@@ -608,6 +608,34 @@ pub fn bitfieldWidth(tree: *const Tree, node: NodeIndex, inspect_lval: bool) ?u3
     }
 }
 
+/// Find the nearest token that represents the thing being called, if any.
+pub fn callableTok(tree: *const Tree, node: NodeIndex) ?TokenIndex {
+    const data = tree.nodes.items(.data);
+    const tags = tree.nodes.items(.tag);
+
+    var cur_node = node;
+    while (true) switch (tags[@intFromEnum(cur_node)]) {
+        .decl_ref_expr => return data[@intFromEnum(cur_node)].decl_ref,
+        .paren_expr => cur_node = data[@intFromEnum(cur_node)].un,
+        .comma_expr => cur_node = data[@intFromEnum(cur_node)].bin.rhs,
+
+        .explicit_cast, .implicit_cast => cur_node = data[@intFromEnum(cur_node)].cast.operand,
+        .addr_of_expr, .deref_expr => cur_node = data[@intFromEnum(cur_node)].un,
+        .call_expr_one => cur_node = data[@intFromEnum(cur_node)].bin.lhs,
+        .call_expr => cur_node = tree.data[data[@intFromEnum(cur_node)].range.start],
+        .member_access_expr, .member_access_ptr_expr => {
+            const member = data[@intFromEnum(cur_node)].member;
+            var ty = tree.nodes.items(.ty)[@intFromEnum(member.lhs)];
+            if (ty.isPtr()) ty = ty.elemType();
+            const record = ty.getRecord().?;
+            const field = record.fields[member.index];
+            return field.name_tok;
+        },
+        .stmt_expr => return null,
+        else => unreachable,
+    };
+}
+
 pub fn isLval(tree: *const Tree, node: NodeIndex) bool {
     var is_const: bool = undefined;
     return tree.isLvalExtra(node, &is_const);
