@@ -5168,18 +5168,16 @@ pub const Result = struct {
             => return,
             .call_expr_one => {
                 const fn_ptr = p.nodes.items(.data)[@intFromEnum(cur_node)].bin.lhs;
-                const call_tok = p.tmpTree().callableTok(fn_ptr) orelse return;
-                const fn_ty = p.nodes.items(.ty)[@intFromEnum(fn_ptr)].elemType();
-                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_tok));
-                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_tok));
+                const call_info = p.tmpTree().callableResultUsage(fn_ptr) orelse return;
+                if (call_info.nodiscard) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_info.tok));
+                if (call_info.warn_unused_result) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_info.tok));
                 return;
             },
             .call_expr => {
                 const fn_ptr = p.data.items[p.nodes.items(.data)[@intFromEnum(cur_node)].range.start];
-                const call_tok = p.tmpTree().callableTok(fn_ptr) orelse return;
-                const fn_ty = p.nodes.items(.ty)[@intFromEnum(fn_ptr)].elemType();
-                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_tok));
-                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_tok));
+                const call_info = p.tmpTree().callableResultUsage(fn_ptr) orelse return;
+                if (call_info.nodiscard) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_info.tok));
+                if (call_info.warn_unused_result) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_info.tok));
                 return;
             },
             .stmt_expr => {

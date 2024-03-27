@@ -608,14 +608,29 @@ pub fn bitfieldWidth(tree: *const Tree, node: NodeIndex, inspect_lval: bool) ?u3
     }
 }
 
-/// Find the nearest token that represents the thing being called, if any.
-pub fn callableTok(tree: *const Tree, node: NodeIndex) ?TokenIndex {
+const CallableResultUsage = struct {
+    /// name token of the thing being called, for diagnostics
+    tok: TokenIndex,
+    /// true if `nodiscard` attribute present
+    nodiscard: bool,
+    /// true if `warn_unused_result` attribute present
+    warn_unused_result: bool,
+};
+
+pub fn callableResultUsage(tree: *const Tree, node: NodeIndex) ?CallableResultUsage {
     const data = tree.nodes.items(.data);
-    const tags = tree.nodes.items(.tag);
 
     var cur_node = node;
-    while (true) switch (tags[@intFromEnum(cur_node)]) {
-        .decl_ref_expr => return data[@intFromEnum(cur_node)].decl_ref,
+    while (true) switch (tree.nodes.items(.tag)[@intFromEnum(cur_node)]) {
+        .decl_ref_expr => {
+            const tok = data[@intFromEnum(cur_node)].decl_ref;
+            const fn_ty = tree.nodes.items(.ty)[@intFromEnum(node)].elemType();
+            return .{
+                .tok = tok,
+                .nodiscard = fn_ty.hasAttribute(.nodiscard),
+                .warn_unused_result = fn_ty.hasAttribute(.warn_unused_result),
+            };
+        },
         .paren_expr => cur_node = data[@intFromEnum(cur_node)].un,
         .comma_expr => cur_node = data[@intFromEnum(cur_node)].bin.rhs,
 
@@ -629,10 +644,18 @@ pub fn callableTok(tree: *const Tree, node: NodeIndex) ?TokenIndex {
             if (ty.isPtr()) ty = ty.elemType();
             const record = ty.getRecord().?;
             const field = record.fields[member.index];
-            return field.name_tok;
+            const attributes = if (record.field_attributes) |attrs| attrs[member.index] else &.{};
+            return .{
+                .tok = field.name_tok,
+                .nodiscard = for (attributes) |attr| {
+                    if (attr.tag == .nodiscard) break true;
+                } else false,
+                .warn_unused_result = for (attributes) |attr| {
+                    if (attr.tag == .warn_unused_result) break true;
+                } else false,
+            };
         },
-        .stmt_expr => return null,
-        else => unreachable,
+        else => return null,
     };
 }
 
