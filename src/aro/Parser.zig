@@ -5168,20 +5168,16 @@ pub const Result = struct {
             => return,
             .call_expr_one => {
                 const fn_ptr = p.nodes.items(.data)[@intFromEnum(cur_node)].bin.lhs;
-                const fn_ty = p.nodes.items(.ty)[@intFromEnum(fn_ptr)].elemType();
-                const cast_info = p.nodes.items(.data)[@intFromEnum(fn_ptr)].cast.operand;
-                const decl_ref = p.nodes.items(.data)[@intFromEnum(cast_info)].decl_ref;
-                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(decl_ref));
-                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(decl_ref));
+                const call_info = p.tmpTree().callableResultUsage(fn_ptr) orelse return;
+                if (call_info.nodiscard) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_info.tok));
+                if (call_info.warn_unused_result) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_info.tok));
                 return;
             },
             .call_expr => {
                 const fn_ptr = p.data.items[p.nodes.items(.data)[@intFromEnum(cur_node)].range.start];
-                const fn_ty = p.nodes.items(.ty)[@intFromEnum(fn_ptr)].elemType();
-                const cast_info = p.nodes.items(.data)[@intFromEnum(fn_ptr)].cast.operand;
-                const decl_ref = p.nodes.items(.data)[@intFromEnum(cast_info)].decl_ref;
-                if (fn_ty.hasAttribute(.nodiscard)) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(decl_ref));
-                if (fn_ty.hasAttribute(.warn_unused_result)) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(decl_ref));
+                const call_info = p.tmpTree().callableResultUsage(fn_ptr) orelse return;
+                if (call_info.nodiscard) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_info.tok));
+                if (call_info.warn_unused_result) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_info.tok));
                 return;
             },
             .stmt_expr => {

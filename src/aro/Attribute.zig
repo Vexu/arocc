@@ -789,7 +789,7 @@ pub fn applyFieldAttributes(p: *Parser, field_ty: *Type, attr_buf_start: usize) 
     p.attr_application_buf.items.len = 0;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
-        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode,
+        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode, .warn_unused_result, .nodiscard,
         => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .vector_size => try attr.applyVectorSize(p, tok, field_ty),

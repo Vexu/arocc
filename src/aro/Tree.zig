@@ -608,6 +608,57 @@ pub fn bitfieldWidth(tree: *const Tree, node: NodeIndex, inspect_lval: bool) ?u3
     }
 }
 
+const CallableResultUsage = struct {
+    /// name token of the thing being called, for diagnostics
+    tok: TokenIndex,
+    /// true if `nodiscard` attribute present
+    nodiscard: bool,
+    /// true if `warn_unused_result` attribute present
+    warn_unused_result: bool,
+};
+
+pub fn callableResultUsage(tree: *const Tree, node: NodeIndex) ?CallableResultUsage {
+    const data = tree.nodes.items(.data);
+
+    var cur_node = node;
+    while (true) switch (tree.nodes.items(.tag)[@intFromEnum(cur_node)]) {
+        .decl_ref_expr => {
+            const tok = data[@intFromEnum(cur_node)].decl_ref;
+            const fn_ty = tree.nodes.items(.ty)[@intFromEnum(node)].elemType();
+            return .{
+                .tok = tok,
+                .nodiscard = fn_ty.hasAttribute(.nodiscard),
+                .warn_unused_result = fn_ty.hasAttribute(.warn_unused_result),
+            };
+        },
+        .paren_expr => cur_node = data[@intFromEnum(cur_node)].un,
+        .comma_expr => cur_node = data[@intFromEnum(cur_node)].bin.rhs,
+
+        .explicit_cast, .implicit_cast => cur_node = data[@intFromEnum(cur_node)].cast.operand,
+        .addr_of_expr, .deref_expr => cur_node = data[@intFromEnum(cur_node)].un,
+        .call_expr_one => cur_node = data[@intFromEnum(cur_node)].bin.lhs,
+        .call_expr => cur_node = tree.data[data[@intFromEnum(cur_node)].range.start],
+        .member_access_expr, .member_access_ptr_expr => {
+            const member = data[@intFromEnum(cur_node)].member;
+            var ty = tree.nodes.items(.ty)[@intFromEnum(member.lhs)];
+            if (ty.isPtr()) ty = ty.elemType();
+            const record = ty.getRecord().?;
+            const field = record.fields[member.index];
+            const attributes = if (record.field_attributes) |attrs| attrs[member.index] else &.{};
+            return .{
+                .tok = field.name_tok,
+                .nodiscard = for (attributes) |attr| {
+                    if (attr.tag == .nodiscard) break true;
+                } else false,
+                .warn_unused_result = for (attributes) |attr| {
+                    if (attr.tag == .warn_unused_result) break true;
+                } else false,
+            };
+        },
+        else => return null,
+    };
+}
+
 pub fn isLval(tree: *const Tree, node: NodeIndex) bool {
     var is_const: bool = undefined;
     return tree.isLvalExtra(node, &is_const);
