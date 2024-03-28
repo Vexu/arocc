@@ -772,7 +772,7 @@ pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag:
         .copy,
         .tls_model,
         .visibility,
-        => std.debug.panic("apply variable attribute {s}", .{@tagName(attr.tag)}),
+        => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .variables } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "variables"),
     };
     const existing = ty.getAttributes();
@@ -823,7 +823,7 @@ pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Di
         .copy,
         .scalar_storage_order,
         .nonstring,
-        => std.debug.panic("apply type attribute {s}", .{@tagName(attr.tag)}),
+        => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .types } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "types"),
     };
 
@@ -943,7 +943,7 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
         .visibility,
         .weakref,
         .zero_call_used_regs,
-        => std.debug.panic("apply type attribute {s}", .{@tagName(attr.tag)}),
+        => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .functions } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "functions"),
     };
     return ty.withAttributes(p.arena, p.attr_application_buf.items);
