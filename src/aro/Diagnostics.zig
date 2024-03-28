@@ -47,6 +47,10 @@ pub const Message = struct {
             tag: Attribute.Tag,
             specifier: enum { @"struct", @"union", @"enum" },
         },
+        attribute_todo: struct {
+            tag: Attribute.Tag,
+            kind: enum { variables, fields, types, functions },
+        },
         builtin_with_header: struct {
             builtin: Builtin.Tag,
             header: Header,
@@ -421,6 +425,10 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
         .ignored_record_attr => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
             @tagName(msg.extra.ignored_record_attr.tag),
             @tagName(msg.extra.ignored_record_attr.specifier),
+        }),
+        .attribute_todo => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
+            @tagName(msg.extra.attribute_todo.tag),
+            @tagName(msg.extra.attribute_todo.kind),
         }),
         .builtin_with_header => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
             @tagName(msg.extra.builtin_with_header.header),

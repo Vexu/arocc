@@ -2472,3 +2472,8 @@ overflow_result_requires_ptr
     .msg = "result argument to overflow builtin must be a pointer to a non-const integer ('{s}' invalid)"
     .extra = .str
     .kind = .@"error"
+
+attribute_todo
+    .msg = "TODO: implement '{s}' attribute for {s}"
+    .extra = .attribute_todo
+    .kind = .@"error"
