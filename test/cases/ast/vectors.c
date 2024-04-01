@@ -1,6 +1,3 @@
-typedef: 'invalid'
- name: invalid1
-
 typedef: 'float'
  name: invalid2
 

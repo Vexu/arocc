@@ -1049,11 +1049,13 @@ fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type)
 }
 
 fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, ty: *Type) !void {
-    if (!(ty.isInt() or ty.isFloat()) or !ty.isReal()) {
-        const orig_ty = try p.typeStr(ty.*);
-        ty.* = Type.invalid;
-        return p.errStr(.invalid_vec_elem_ty, tok, orig_ty);
+    const is_enum = ty.is(.@"enum");
+    if (!(ty.isInt() or ty.isFloat()) or !ty.isReal() or (is_enum and p.comp.langopts.emulate == .gcc)) {
+        try p.errStr(.invalid_vec_elem_ty, tok, try p.typeStr(ty.*));
+        return error.ParsingFailed;
     }
+    if (is_enum) return;
+
     const vec_bytes = attr.args.vector_size.bytes;
     const ty_size = ty.sizeof(p.comp).?;
     if (vec_bytes % ty_size != 0) {
