@@ -38,7 +38,7 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
     _ = prog_node;
 
     const b = step.owner;
-    const self = @fieldParentPtr(ZigLibDir, "step", step);
+    const self: *ZigLibDir = @fieldParentPtr("step", step);
 
     const zig_env_args: [2][]const u8 = .{ b.graph.zig_exe, "env" };
     var out_code: u8 = undefined;
