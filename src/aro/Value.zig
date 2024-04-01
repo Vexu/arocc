@@ -188,6 +188,19 @@ pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChang
 /// `.none` value remains unchanged.
 pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
+
+    if (dest_ty.isComplex()) {
+        const bits = dest_ty.bitSizeof(comp).?;
+        const cf: Interner.Key.Complex = switch (bits) {
+            64 => .{ .cf32 = .{ v.toFloat(f32, comp), 0 } },
+            128 => .{ .cf64 = .{ v.toFloat(f64, comp), 0 } },
+            160 => .{ .cf80 = .{ v.toFloat(f80, comp), 0 } },
+            256 => .{ .cf128 = .{ v.toFloat(f128, comp), 0 } },
+            else => unreachable,
+        };
+        v.* = try intern(comp, .{ .complex = cf });
+        return;
+    }
     const bits = dest_ty.bitSizeof(comp).?;
     return switch (comp.interner.get(v.ref()).int) {
         inline .u64, .i64 => |data| {
