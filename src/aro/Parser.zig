@@ -5962,6 +5962,10 @@ pub const Result = struct {
             if (to.is(.bool)) {
                 res.val.boolCast(p.comp);
             } else if (old_float and new_int) {
+                if (to.hasIncompleteSize()) {
+                    try p.errStr(.cast_to_incomplete_type, l_paren, try p.typeStr(to));
+                    return error.ParsingFailed;
+                }
                 // Explicit cast, no conversion warning
                 _ = try res.val.floatToInt(to, p.comp);
             } else if (new_float and old_int) {
