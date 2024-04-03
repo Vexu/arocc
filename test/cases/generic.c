@@ -8,6 +8,7 @@ void foo(void) {
     _Static_assert(_Generic(7, int[2]: 8, int(int): 9, default: 1) == 1, "test failure");
     _Static_assert(_Generic(7, default: 1) == 1, "test failure");
     _Static_assert(_Generic("hello", char *: 1, default: 2) == 1, "test failure");
+    _Generic(0, int: 8, long: bar());
 }
 
 #define EXPECTED_ERRORS "generic.c:2:15: error: expected ',', found ')'" \
@@ -22,3 +23,5 @@ void foo(void) {
     "generic.c:7:23: note: compatible type 'int' specified here" \
     "generic.c:8:32: warning: generic association array type cannot be matched with [-Wgeneric-qual-type]" \
     "generic.c:8:43: warning: generic association function type cannot be matched with [-Wgeneric-qual-type]" \
+    "generic.c:11:31: error: call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]" \
+

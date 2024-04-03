@@ -8614,11 +8614,16 @@ fn genericSelection(p: *Parser) Error!Result {
                 try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
                 try p.errStr(.generic_duplicate_here, chosen_tok, try p.typeStr(ty));
             }
-            for (p.list_buf.items[list_buf_top + 1 ..], p.decl_buf.items[decl_buf_top..]) |item, prev_tok| {
-                const prev_ty = p.nodes.items(.ty)[@intFromEnum(item)];
-                if (prev_ty.eql(ty, p.comp, true)) {
-                    try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
-                    try p.errStr(.generic_duplicate_here, @intFromEnum(prev_tok), try p.typeStr(ty));
+            const list_buf = p.list_buf.items[list_buf_top + 1 ..];
+            const decl_buf = p.decl_buf.items[decl_buf_top..];
+            if (list_buf.len == decl_buf.len) {
+                // If these do not have the same length, there is already an error
+                for (list_buf, decl_buf) |item, prev_tok| {
+                    const prev_ty = p.nodes.items(.ty)[@intFromEnum(item)];
+                    if (prev_ty.eql(ty, p.comp, true)) {
+                        try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
+                        try p.errStr(.generic_duplicate_here, @intFromEnum(prev_tok), try p.typeStr(ty));
+                    }
                 }
             }
             try p.list_buf.append(try p.addNode(.{
