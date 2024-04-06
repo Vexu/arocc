@@ -1329,15 +1329,30 @@ fn stringify(pp: *Preprocessor, tokens: []const TokenWithExpansionLocs) !void {
                 try pp.char_buf.append(c);
         }
     }
-    if (pp.char_buf.items[pp.char_buf.items.len - 1] == '\\') {
+    try pp.char_buf.ensureUnusedCapacity(2);
+    if (pp.char_buf.items[pp.char_buf.items.len - 1] != '\\') {
+        pp.char_buf.appendSliceAssumeCapacity("\"\n");
+        return;
+    }
+    pp.char_buf.appendAssumeCapacity('"');
+    var tokenizer: Tokenizer = .{
+        .buf = pp.char_buf.items,
+        .index = 0,
+        .source = .generated,
+        .langopts = pp.comp.langopts,
+        .line = 0,
+    };
+    const item = tokenizer.next();
+    if (item.id == .unterminated_string_literal) {
         const tok = tokens[tokens.len - 1];
         try pp.comp.addDiagnostic(.{
             .tag = .invalid_pp_stringify_escape,
             .loc = tok.loc,
         }, tok.expansionSlice());
-        pp.char_buf.items.len -= 1;
+        pp.char_buf.items.len -= 2; // erase unpaired backslash and appended end quote
+        pp.char_buf.appendAssumeCapacity('"');
     }
-    try pp.char_buf.appendSlice("\"\n");
+    pp.char_buf.appendAssumeCapacity('\n');
 }
 
 fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpansionLocs, embed_args: ?*[]const TokenWithExpansionLocs, first: TokenWithExpansionLocs) !?[]const u8 {
