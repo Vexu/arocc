@@ -739,9 +739,10 @@ pub fn bitXor(lhs: Value, rhs: Value, comp: *Compilation) !Value {
     const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
     const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
+    const extra = @intFromBool(lhs_bigint.positive != rhs_bigint.positive);
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
-        @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
+        @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len) + extra,
     );
     defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };

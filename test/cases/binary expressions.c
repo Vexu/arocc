@@ -72,6 +72,13 @@ int invalid_ptr_arithmetic(struct Foo *num) {
     return num - num;
 }
 
+_Static_assert((1 ^ -1) == -2, "");
+_Static_assert((0 ^ 0) == 0, "");
+_Static_assert((-1 ^ 0) == -1, "");
+_Static_assert((-1 ^ -1) == 0, "");
+_Static_assert((-2 ^ 2) == -4, "");
+
+
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
     "binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')" \
