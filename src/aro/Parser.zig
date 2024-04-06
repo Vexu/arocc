@@ -6415,6 +6415,8 @@ fn lorExpr(p: *Parser) Error!Result {
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
             const res = lhs.val.toBool(p.comp) or rhs.val.toBool(p.comp);
             lhs.val = Value.fromBool(res);
+        } else {
+            lhs.val.boolCast(p.comp);
         }
         try lhs.boolRes(p, .bool_or_expr, rhs);
     }
