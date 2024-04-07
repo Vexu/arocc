@@ -72,6 +72,11 @@ int invalid_ptr_arithmetic(struct Foo *num) {
     return num - num;
 }
 
+void address_of_invalid_type(void) {
+    char x[64];
+    char *y = &(x&x);    
+}
+
 _Static_assert((1 ^ -1) == -2, "");
 _Static_assert((0 ^ 0) == 0, "");
 _Static_assert((-1 ^ 0) == -1, "");
@@ -104,3 +109,5 @@ _Static_assert((-2 ^ 2) == -4, "");
     "binary expressions.c:62:7: error: invalid operands to binary expression ('int' and 'float')" \
     "binary expressions.c:67:5: error: used type 'void' where arithmetic or pointer type is required" \
     "binary expressions.c:72:16: error: arithmetic on a pointer to an incomplete type 'struct Foo'" \
+    "binary expressions.c:77:18: error: invalid operands to binary expression ('char *' and 'char *')" \
+

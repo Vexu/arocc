@@ -6979,17 +6979,19 @@ fn unExpr(p: *Parser) Error!Result {
             {
                 if (tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
             }
-            if (!tree.isLval(operand.node)) {
+            if (!tree.isLval(operand.node) and !operand.ty.is(.invalid)) {
                 try p.errTok(.addr_of_rvalue, tok);
             }
             if (operand.ty.qual.register) try p.errTok(.addr_of_register, tok);
 
-            const elem_ty = try p.arena.create(Type);
-            elem_ty.* = operand.ty;
-            operand.ty = Type{
-                .specifier = .pointer,
-                .data = .{ .sub_type = elem_ty },
-            };
+            if (!operand.ty.is(.invalid)) {
+                const elem_ty = try p.arena.create(Type);
+                elem_ty.* = operand.ty;
+                operand.ty = Type{
+                    .specifier = .pointer,
+                    .data = .{ .sub_type = elem_ty },
+                };
+            }
             try operand.saveValue(p);
             try operand.un(p, .addr_of_expr);
             return operand;
