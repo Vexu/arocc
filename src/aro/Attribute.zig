@@ -282,7 +282,17 @@ fn diagnoseField(
         .float => .float,
         .complex => .complex_float,
         .null => .nullptr_t,
-        else => unreachable,
+        .int_ty,
+        .float_ty,
+        .complex_ty,
+        .ptr_ty,
+        .noreturn_ty,
+        .void_ty,
+        .func_ty,
+        .array_ty,
+        .vector_ty,
+        .record_ty,
+        => unreachable,
     });
 }
 
