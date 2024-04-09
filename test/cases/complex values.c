@@ -33,6 +33,8 @@ _Complex double c = (_Complex double) {1.0, 2.0,3.0};
 
 _Static_assert(3 + 4.0il == 3 + 4.0il, "");
 _Static_assert(5ll + 4.0il == 5ll + 4.0il, "");
+unsigned long complex_integer = 2.0i;
+bool b = 3 != 2.0i;
 
 #define EXPECTED_ERRORS "complex values.c:31:49: error: expected expression" \
 	"complex values.c:32:49: warning: excess elements in scalar initializer [-Wexcess-initializers]" \

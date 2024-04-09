@@ -198,7 +198,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
         if (self.kind == .named) {
             try writer.writeAll("pub const Tag = enum {\n");
             for (values.keys()) |property| {
-                try writer.print("    {s},\n", .{std.zig.fmtId(property)});
+                try writer.print("    {p},\n", .{std.zig.fmtId(property)});
             }
             try writer.writeAll(
                 \\

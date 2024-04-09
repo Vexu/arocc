@@ -143,7 +143,7 @@ pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChang
         v.* = fromBool(!was_zero);
         if (was_zero or was_one) return .none;
         return .value_changed;
-    } else if (dest_ty.isUnsignedInt(comp) and v.compare(.lt, zero, comp)) {
+    } else if (dest_ty.isUnsignedInt(comp) and float_val < 0) {
         v.* = zero;
         return .out_of_range;
     }
@@ -869,6 +869,12 @@ pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *cons
         const lhs_f128 = lhs.toFloat(f128, comp);
         const rhs_f128 = rhs.toFloat(f128, comp);
         return std.math.compare(lhs_f128, op, rhs_f128);
+    }
+    if (lhs_key == .complex or rhs_key == .complex) {
+        assert(op == .neq);
+        const real_equal = std.math.compare(lhs.toFloat(f128, comp), .eq, rhs.toFloat(f128, comp));
+        const imag_equal = std.math.compare(lhs.imag(f128, comp), .eq, rhs.imag(f128, comp));
+        return !real_equal or !imag_equal;
     }
 
     var lhs_bigint_space: BigIntSpace = undefined;
