@@ -870,6 +870,12 @@ pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *cons
         const rhs_f128 = rhs.toFloat(f128, comp);
         return std.math.compare(lhs_f128, op, rhs_f128);
     }
+    if (lhs_key == .complex or rhs_key == .complex) {
+        assert(op == .neq);
+        const real_equal = std.math.compare(lhs.toFloat(f128, comp), .eq, rhs.toFloat(f128, comp));
+        const imag_equal = std.math.compare(lhs.imag(f128, comp), .eq, rhs.imag(f128, comp));
+        return !real_equal or !imag_equal;
+    }
 
     var lhs_bigint_space: BigIntSpace = undefined;
     var rhs_bigint_space: BigIntSpace = undefined;
