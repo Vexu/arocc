@@ -969,6 +969,11 @@ array_too_large
     .msg = "array is too large"
     .kind = .@"error"
 
+record_too_large
+    .msg = "type '{s}' is too large"
+    .kind = .@"error"
+    .extra = .str
+
 incompatible_ptr_init
     .msg = "incompatible pointer types initializing {s}"
     .extra = .str

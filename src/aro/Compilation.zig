@@ -909,7 +909,7 @@ fn generateNsConstantStringType(comp: *Compilation) !void {
     comp.types.ns_constant_string.fields[2] = .{ .name = try StrInt.intern(comp, "str"), .ty = const_char_ptr };
     comp.types.ns_constant_string.fields[3] = .{ .name = try StrInt.intern(comp, "length"), .ty = .{ .specifier = .long } };
     comp.types.ns_constant_string.ty = .{ .specifier = .@"struct", .data = .{ .record = &comp.types.ns_constant_string.record } };
-    record_layout.compute(&comp.types.ns_constant_string.record, comp.types.ns_constant_string.ty, comp, null);
+    record_layout.compute(&comp.types.ns_constant_string.record, comp.types.ns_constant_string.ty, comp, null) catch unreachable;
 }
 
 fn generateVaListType(comp: *Compilation) !Type {
@@ -957,7 +957,7 @@ fn generateVaListType(comp: *Compilation) !Type {
             record_ty.fields[3] = .{ .name = try StrInt.intern(comp, "__gr_offs"), .ty = .{ .specifier = .int } };
             record_ty.fields[4] = .{ .name = try StrInt.intern(comp, "__vr_offs"), .ty = .{ .specifier = .int } };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
-            record_layout.compute(record_ty, ty, comp, null);
+            record_layout.compute(record_ty, ty, comp, null) catch unreachable;
         },
         .x86_64_va_list => {
             const record_ty = try arena.create(Type.Record);
@@ -975,7 +975,7 @@ fn generateVaListType(comp: *Compilation) !Type {
             record_ty.fields[2] = .{ .name = try StrInt.intern(comp, "overflow_arg_area"), .ty = void_ptr };
             record_ty.fields[3] = .{ .name = try StrInt.intern(comp, "reg_save_area"), .ty = void_ptr };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
-            record_layout.compute(record_ty, ty, comp, null);
+            record_layout.compute(record_ty, ty, comp, null) catch unreachable;
         },
     }
     if (kind == .char_ptr or kind == .void_ptr) {
