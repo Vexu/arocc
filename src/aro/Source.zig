@@ -75,6 +75,10 @@ pub fn lineCol(source: Source, loc: Location) LineCol {
             i += 1;
             continue;
         };
+        const slice = source.buf[i..];
+        if (len > slice.len) {
+            break;
+        }
         const cp = std.unicode.utf8Decode(source.buf[i..][0..len]) catch {
             i += 1;
             continue;
