@@ -371,8 +371,12 @@ pub fn main() !void {
             continue;
         }
 
-        if (pp.defines.contains("NO_ERROR_VALIDATION")) continue;
-
+        if (pp.defines.contains("NO_ERROR_VALIDATION")) {
+            var m = MsgWriter.init(pp.comp.gpa);
+            defer m.deinit();
+            aro.Diagnostics.renderMessages(pp.comp, &m);
+            continue;
+        }
         aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
 
         if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
