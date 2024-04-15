@@ -190,13 +190,10 @@ pub const Enum = struct {
     }
 };
 
-// might not need all 4 of these when finished,
-// but currently it helps having all 4 when diff-ing
-// the rust code.
 pub const TypeLayout = struct {
     /// The size of the type in bits.
     ///
-    /// This is the value returned by `sizeof` and C and `std::mem::size_of` in Rust
+    /// This is the value returned by `sizeof` in C
     /// (but in bits instead of bytes). This is a multiple of `pointer_alignment_bits`.
     size_bits: u64,
     /// The alignment of the type, in bits, when used as a field in a record.
@@ -205,9 +202,7 @@ pub const TypeLayout = struct {
     /// cases in GCC where `_Alignof` returns a smaller value.
     field_alignment_bits: u32,
     /// The alignment, in bits, of valid pointers to this type.
-    ///
-    /// This is the value returned by `std::mem::align_of` in Rust
-    /// (but in bits instead of bytes). `size_bits` is a multiple of this value.
+    /// `size_bits` is a multiple of this value.
     pointer_alignment_bits: u32,
     /// The required alignment of the type in bits.
     ///

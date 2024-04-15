@@ -2263,7 +2263,9 @@ fn recordSpec(p: *Parser) Error!Type {
             // TODO: msvc considers `#pragma pack` on a per-field basis
             .msvc => p.pragma_pack,
         };
-        record_layout.compute(record_ty, ty, p.comp, pragma_pack_value);
+        record_layout.compute(record_ty, ty, p.comp, pragma_pack_value) catch |er| switch (er) {
+            error.Overflow => try p.errStr(.record_too_large, maybe_ident orelse kind_tok, try p.typeStr(ty)),
+        };
     }
 
     // finish by creating a node
