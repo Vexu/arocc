@@ -58,6 +58,19 @@ _Static_assert(__builtin_types_compatible_p(enum Unsigned, unsigned), "");
 _Static_assert(!__builtin_types_compatible_p(enum Signed, enum Plain), "");
 _Static_assert(!__builtin_types_compatible_p(enum Unsigned, enum Plain), "");
 
+void pointers(void) {
+    int x;
+    unsigned y;
+
+    enum Signed *e1 = &x;
+    enum Signed *e2 = &y;
+    enum Unsigned *e3 = &x;
+    enum Unsigned *e4 = &y;
+
+    enum Incomplete *i1 = &x;
+    enum Incomplete *i2 = &y;
+}
+
 #define EXPECTED_ERRORS "enum fixed.c:2:7: warning: enumeration types with a fixed underlying type are a Clang extension [-Wfixed-enum-extension]" \
     "enum fixed.c:4:6: error: enumeration previously declared with fixed underlying type" \
     "enum fixed.c:2:6: note: previous definition is here" \
@@ -67,3 +80,8 @@ _Static_assert(!__builtin_types_compatible_p(enum Unsigned, enum Plain), "");
     "enum fixed.c:9:6: note: previous definition is here" \
     "enum fixed.c:14:5: error: enumerator value is not representable in the underlying type 'unsigned char'" \
     "enum fixed.c:18:5: error: enumerator value is not representable in the underlying type 'char'" \
+    "enum fixed.c:66:23: warning: incompatible pointer types initializing 'enum Signed: int *' from incompatible type 'unsigned int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "enum fixed.c:67:25: warning: incompatible pointer types initializing 'enum Unsigned: unsigned int *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
+    "enum fixed.c:70:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
+    "enum fixed.c:71:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]" \
+
