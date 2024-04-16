@@ -1220,6 +1220,10 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
         if (!b.isFunc()) return false;
     } else if (a.isArray()) {
         if (!b.isArray()) return false;
+    } else if (a.specifier == .@"enum" and a.data.@"enum".fixed and b.specifier != .@"enum") {
+        return a.data.@"enum".tag_ty.eql(b, comp, check_qualifiers);
+    } else if (b.specifier == .@"enum" and b.data.@"enum".fixed and a.specifier != .@"enum") {
+        return a.eql(b.data.@"enum".tag_ty, comp, check_qualifiers);
     } else if (a.specifier != b.specifier) return false;
 
     if (a.qual.atomic != b.qual.atomic) return false;
