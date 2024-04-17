@@ -2489,12 +2489,13 @@ fn enumSpec(p: *Parser) Error!Type {
             try p.errTok(.enum_fixed, colon);
             break :fixed null;
         };
-        if (fixed.isInt() and !fixed.is(.@"enum")) {
-            try p.errTok(.enum_fixed, colon);
-        } else {
+
+        if (!fixed.isInt() or fixed.is(.@"enum")) {
             try p.errStr(.invalid_type_underlying_enum, ty_start, try p.typeStr(fixed));
             break :fixed Type.int;
         }
+
+        try p.errTok(.enum_fixed, colon);
         break :fixed fixed;
     } else null;
 
