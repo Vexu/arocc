@@ -71,6 +71,34 @@ void pointers(void) {
     enum Incomplete *i2 = &y;
 }
 
+typedef struct BackingStruct {
+   int x;
+} BackingStruct;
+
+typedef enum BackingEnum : int {
+   B0,
+} BackingEnum;
+
+enum Bad1: BackingStruct {
+    B1,
+};
+
+enum Bad2: BackingEnum {
+    B2,
+};
+
+enum Bad3: unsigned * {
+    B3,
+};
+
+void more_pointers(void) {
+    unsigned y;
+
+    enum SignedEnum: int *p = &y;
+    enum UnsignedEnum: unsigned *p2 = &y;
+    enum CharEnum: char signed *p3 = &y;
+}
+
 #define EXPECTED_ERRORS "enum fixed.c:2:7: warning: enumeration types with a fixed underlying type are a Clang extension [-Wfixed-enum-extension]" \
     "enum fixed.c:4:6: error: enumeration previously declared with fixed underlying type" \
     "enum fixed.c:2:6: note: previous definition is here" \
@@ -84,4 +112,9 @@ void pointers(void) {
     "enum fixed.c:67:25: warning: incompatible pointer types initializing 'enum Unsigned: unsigned int *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
     "enum fixed.c:70:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
     "enum fixed.c:71:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]" \
+    "enum fixed.c:82:12: error: non-integral type 'struct BackingStruct' is an invalid underlying type" \
+    "enum fixed.c:86:12: error: non-integral type 'enum BackingEnum: int' is an invalid underlying type" \
+    "enum fixed.c:90:23: error: expected identifier or '('" \
+    "enum fixed.c:97:31: warning: incompatible pointer types initializing 'enum SignedEnum: int *' from incompatible type 'unsigned int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "enum fixed.c:99:38: warning: incompatible pointer types initializing 'enum CharEnum: signed char *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]" \
 

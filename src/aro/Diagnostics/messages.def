@@ -2482,3 +2482,8 @@ attribute_todo
     .msg = "TODO: implement '{s}' attribute for {s}"
     .extra = .attribute_todo
     .kind = .@"error"
+
+invalid_type_underlying_enum
+    .msg = "non-integral type '{s}' is an invalid underlying type"
+    .extra = .str
+    .kind = .@"error"
