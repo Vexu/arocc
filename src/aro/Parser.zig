@@ -2478,7 +2478,8 @@ fn enumSpec(p: *Parser) Error!Type {
 
     const maybe_ident = try p.eatIdentifier();
     const fixed_ty = if (p.eatToken(.colon)) |colon| fixed: {
-        const fixed = (try p.typeName()) orelse {
+        const ty_start = p.tok_i;
+        const fixed = (try p.specQual()) orelse {
             if (p.record.kind != .invalid) {
                 // This is a bit field.
                 p.tok_i -= 1;
@@ -2488,7 +2489,12 @@ fn enumSpec(p: *Parser) Error!Type {
             try p.errTok(.enum_fixed, colon);
             break :fixed null;
         };
-        try p.errTok(.enum_fixed, colon);
+        if (fixed.isInt() and !fixed.is(.@"enum")) {
+            try p.errTok(.enum_fixed, colon);
+        } else {
+            try p.errStr(.invalid_type_underlying_enum, ty_start, try p.typeStr(fixed));
+            break :fixed Type.int;
+        }
         break :fixed fixed;
     } else null;
 
