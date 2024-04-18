@@ -6447,6 +6447,8 @@ fn landExpr(p: *Parser) Error!Result {
         if (try lhs.adjustTypes(tok, &rhs, p, .boolean_logic)) {
             const res = lhs.val.toBool(p.comp) and rhs.val.toBool(p.comp);
             lhs.val = Value.fromBool(res);
+        } else {
+            lhs.val.boolCast(p.comp);
         }
         try lhs.boolRes(p, .bool_and_expr, rhs);
     }
@@ -6516,6 +6518,8 @@ fn eqExpr(p: *Parser) Error!Result {
             const op: std.math.CompareOperator = if (tag == .equal_expr) .eq else .neq;
             const res = lhs.val.compare(op, rhs.val, p.comp);
             lhs.val = Value.fromBool(res);
+        } else {
+            lhs.val.boolCast(p.comp);
         }
         try lhs.boolRes(p, tag, rhs);
     }
@@ -6545,6 +6549,8 @@ fn compExpr(p: *Parser) Error!Result {
             };
             const res = lhs.val.compare(op, rhs.val, p.comp);
             lhs.val = Value.fromBool(res);
+        } else {
+            lhs.val.boolCast(p.comp);
         }
         try lhs.boolRes(p, tag, rhs);
     }
