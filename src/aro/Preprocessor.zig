@@ -1356,7 +1356,14 @@ fn stringify(pp: *Preprocessor, tokens: []const TokenWithExpansionLocs) !void {
 }
 
 fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpansionLocs, embed_args: ?*[]const TokenWithExpansionLocs, first: TokenWithExpansionLocs) !?[]const u8 {
-    assert(param_toks.len != 0);
+    if (param_toks.len == 0) {
+        try pp.comp.addDiagnostic(.{
+            .tag = .expected_filename,
+            .loc = first.loc,
+        }, first.expansionSlice());
+        return null;
+    }
+
     const char_top = pp.char_buf.items.len;
     defer pp.char_buf.items.len = char_top;
 
