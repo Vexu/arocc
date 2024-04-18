@@ -83,6 +83,9 @@ _Static_assert((-1 ^ 0) == -1, "");
 _Static_assert((-1 ^ -1) == 0, "");
 _Static_assert((-2 ^ 2) == -4, "");
 
+_Static_assert(2.0||(2.0 == 2.0), "");
+_Static_assert(2.0||(3.0 > 2.0), "");
+_Static_assert(2.0||(2.0 && 2.0), "");
 
 #define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')" \
     "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
