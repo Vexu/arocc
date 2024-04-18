@@ -251,8 +251,7 @@ fn diagnoseField(
         },
         .bytes => |bytes| {
             if (Wanted == Value) {
-                std.debug.assert(node.tag == .string_literal_expr);
-                if (!node.ty.elemType().is(.char) and !node.ty.elemType().is(.uchar)) {
+                if (node.tag != .string_literal_expr or (!node.ty.elemType().is(.char) and !node.ty.elemType().is(.uchar))) {
                     return .{
                         .tag = .attribute_requires_string,
                         .extra = .{ .str = decl.name },
