@@ -757,10 +757,16 @@ pub fn bitAnd(lhs: Value, rhs: Value, comp: *Compilation) !Value {
     const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
     const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-    const limbs = try comp.gpa.alloc(
-        std.math.big.Limb,
-        @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
-    );
+    const limb_count = if (lhs_bigint.positive and rhs_bigint.positive)
+        @min(lhs_bigint.limbs.len, rhs_bigint.limbs.len)
+    else if (lhs_bigint.positive)
+        lhs_bigint.limbs.len
+    else if (rhs_bigint.positive)
+        rhs_bigint.limbs.len
+    else
+        @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len) + 1;
+
+    const limbs = try comp.gpa.alloc(std.math.big.Limb, limb_count);
     defer comp.gpa.free(limbs);
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
