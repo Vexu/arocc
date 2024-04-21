@@ -1220,9 +1220,9 @@ pub fn eql(a_param: Type, b_param: Type, comp: *const Compilation, check_qualifi
         if (!b.isFunc()) return false;
     } else if (a.isArray()) {
         if (!b.isArray()) return false;
-    } else if (a.specifier == .@"enum" and a.data.@"enum".fixed and b.specifier != .@"enum") {
+    } else if (a.specifier == .@"enum" and b.specifier != .@"enum") {
         return a.data.@"enum".tag_ty.eql(b, comp, check_qualifiers);
-    } else if (b.specifier == .@"enum" and b.data.@"enum".fixed and a.specifier != .@"enum") {
+    } else if (b.specifier == .@"enum" and a.specifier != .@"enum") {
         return a.eql(b.data.@"enum".tag_ty, comp, check_qualifiers);
     } else if (a.specifier != b.specifier) return false;
 
@@ -1318,10 +1318,8 @@ pub fn integerRank(ty: Type, comp: *const Compilation) usize {
         .typeof_expr => ty.data.expr.ty.integerRank(comp),
         .attributed => ty.data.attributed.base.integerRank(comp),
 
-        .@"enum" => {
-            std.debug.assert(real.data.@"enum".fixed);
-            return real.data.@"enum".tag_ty.integerRank(comp);
-        },
+        .@"enum" => real.data.@"enum".tag_ty.integerRank(comp),
+
         else => unreachable,
     });
 }
