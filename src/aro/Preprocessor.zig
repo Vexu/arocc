@@ -976,7 +976,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .tok_i = @intCast(token_state.tokens_len),
         .arena = pp.arena.allocator(),
         .in_macro = true,
-        .strings = std.ArrayList(u8).init(pp.comp.gpa),
+        .strings = std.ArrayListAligned(u8, 4).init(pp.comp.gpa),
 
         .data = undefined,
         .value_map = undefined,
