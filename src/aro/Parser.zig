@@ -5466,10 +5466,14 @@ pub const Result = struct {
 
     fn lvalConversion(res: *Result, p: *Parser) Error!void {
         if (res.ty.isFunc()) {
-            const elem_ty = try p.arena.create(Type);
-            elem_ty.* = res.ty;
-            res.ty.specifier = .pointer;
-            res.ty.data = .{ .sub_type = elem_ty };
+            if (res.ty.isInvalidFunc()) {
+                res.ty = .{ .specifier = .invalid };
+            } else {
+                const elem_ty = try p.arena.create(Type);
+                elem_ty.* = res.ty;
+                res.ty.specifier = .pointer;
+                res.ty.data = .{ .sub_type = elem_ty };
+            }
             try res.implicitCast(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
             res.val = .{};

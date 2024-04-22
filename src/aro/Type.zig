@@ -696,6 +696,16 @@ pub fn params(ty: Type) []Func.Param {
     };
 }
 
+/// Returns true if the return value or any param of `ty` is `.invalid`
+/// Asserts that ty is a function type
+pub fn isInvalidFunc(ty: Type) bool {
+    if (ty.returnType().is(.invalid)) return true;
+    for (ty.params()) |param| {
+        if (param.ty.is(.invalid)) return true;
+    }
+    return false;
+}
+
 pub fn arrayLen(ty: Type) ?u64 {
     return switch (ty.specifier) {
         .array, .static_array => ty.data.array.len,
