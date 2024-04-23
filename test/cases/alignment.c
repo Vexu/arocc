@@ -34,6 +34,7 @@ _Static_assert(_Alignof(n) == 32, "incorrect alignment");
 
 __attribute__((aligned("foo"))) o;
 _Alignas(1.2) p;
+_Static_assert(_Alignof(_BitInt(65535)) > 0, "");
 
 #define EXPECTED_ERRORS "alignment.c:1:1: error: '_Alignas' attribute only applies to variables and fields" \
     "alignment.c:3:3: error: '_Alignas' attribute only applies to variables and fields" \

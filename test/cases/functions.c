@@ -78,6 +78,9 @@ int (*return_array_ptr(void))[2] {
 void no_params(void);
 void no_params(int x){}
 
+void invalid_func(__auto_type);
+int invalid_int = invalid_func;
+
 #define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing" \
     "functions.c:20:14: error: illegal initializer (only variables can be initialized)" \
     "functions.c:18:2: warning: non-void function 'foooo' does not return a value [-Wreturn-type]" \
@@ -90,4 +93,5 @@ void no_params(int x){}
     "functions.c:55:9: error: parameter has incomplete type 'enum EE'" \
     "functions.c:79:6: error: redefinition of 'no_params' with a different type" \
     "functions.c:78:6: note: previous definition is here" \
+    "functions.c:81:19: error: '__auto_type' not allowed in function prototype" \
 

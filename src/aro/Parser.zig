@@ -100,7 +100,7 @@ value_map: Tree.ValueMap,
 
 // buffers used during compilation
 syms: SymbolStack = .{},
-strings: std.ArrayList(u8),
+strings: std.ArrayListAligned(u8, 4),
 labels: std.ArrayList(Label),
 list_buf: NodeList,
 decl_buf: NodeList,
@@ -160,7 +160,7 @@ record: struct {
     }
 
     fn addFieldsFromAnonymous(r: @This(), p: *Parser, ty: Type) Error!void {
-        for (ty.data.record.fields) |f| {
+        for (ty.getRecord().?.fields) |f| {
             if (f.isAnonymousRecord()) {
                 try r.addFieldsFromAnonymous(p, f.ty.canonicalize(.standard));
             } else if (f.name_tok != 0) {
@@ -688,7 +688,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .gpa = pp.comp.gpa,
         .arena = arena.allocator(),
         .tok_ids = pp.tokens.items(.id),
-        .strings = std.ArrayList(u8).init(pp.comp.gpa),
+        .strings = std.ArrayListAligned(u8, 4).init(pp.comp.gpa),
         .value_map = Tree.ValueMap.init(pp.comp.gpa),
         .data = NodeList.init(pp.comp.gpa),
         .labels = std.ArrayList(Label).init(pp.comp.gpa),
@@ -5466,10 +5466,14 @@ pub const Result = struct {
 
     fn lvalConversion(res: *Result, p: *Parser) Error!void {
         if (res.ty.isFunc()) {
-            const elem_ty = try p.arena.create(Type);
-            elem_ty.* = res.ty;
-            res.ty.specifier = .pointer;
-            res.ty.data = .{ .sub_type = elem_ty };
+            if (res.ty.isInvalidFunc()) {
+                res.ty = .{ .specifier = .invalid };
+            } else {
+                const elem_ty = try p.arena.create(Type);
+                elem_ty.* = res.ty;
+                res.ty.specifier = .pointer;
+                res.ty.data = .{ .sub_type = elem_ty };
+            }
             try res.implicitCast(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
             res.val = .{};
@@ -8018,6 +8022,9 @@ fn stringLiteral(p: *Parser) Error!Result {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
+    const literal_start = mem.alignForward(usize, strings_top, @intFromEnum(char_width));
+    try p.strings.resize(literal_start);
+
     while (p.tok_i < string_end) : (p.tok_i += 1) {
         const this_kind = text_literal.Kind.classify(p.tok_ids[p.tok_i], .string_literal).?;
         const slice = this_kind.contentSlice(p.tokSlice(p.tok_i));
@@ -8068,7 +8075,7 @@ fn stringLiteral(p: *Parser) Error!Result {
                 switch (char_width) {
                     .@"1" => p.strings.appendSliceAssumeCapacity(view.bytes),
                     .@"2" => {
-                        const capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.strings.unusedCapacitySlice());
+                        const capacity_slice: []align(@alignOf(u16)) u8 = @alignCast(p.strings.allocatedSlice()[literal_start..]);
                         const dest_len = std.mem.alignBackward(usize, capacity_slice.len, 2);
                         const dest = std.mem.bytesAsSlice(u16, capacity_slice[0..dest_len]);
                         const words_written = std.unicode.utf8ToUtf16Le(dest, view.bytes) catch unreachable;
@@ -8089,7 +8096,7 @@ fn stringLiteral(p: *Parser) Error!Result {
         }
     }
     p.strings.appendNTimesAssumeCapacity(0, @intFromEnum(char_width));
-    const slice = p.strings.items[strings_top..];
+    const slice = p.strings.items[literal_start..];
 
     // TODO this won't do anything if there is a cache hit
     const interned_align = mem.alignForward(
