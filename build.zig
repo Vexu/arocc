@@ -1,7 +1,6 @@
 const std = @import("std");
 const Build = std.Build;
 const GenerateDef = @import("build/GenerateDef.zig");
-const ZigLibDirStep = @import("build/ZigLibDir.zig");
 
 const aro_version = std.SemanticVersion{
     .major = 0,
@@ -11,44 +10,20 @@ const aro_version = std.SemanticVersion{
 
 fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: []const u8, aro_module: *std.Build.Module) !void {
     const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
-    const fuzz_target = blk: {
-        var query = target.query;
-        query.ofmt = .c;
-        break :blk b.resolveTargetQuery(query);
-    };
-
-    const lib_dir_step = try ZigLibDirStep.create(b);
-
-    const compiler_rt = b.createModule(.{
-        .root_source_file = lib_dir_step.getCompilerRTPath(),
-    });
     const fuzz_lib = b.addStaticLibrary(.{
         .name = "fuzz-lib",
         .root_source_file = .{ .path = "test/fuzz/fuzz_lib.zig" },
         .optimize = .Debug,
-        .target = fuzz_target,
+        .target = target,
         .single_threaded = true,
     });
-    fuzz_lib.root_module.addImport("compiler_rt", compiler_rt);
+    fuzz_lib.want_lto = true;
+    fuzz_lib.bundle_compiler_rt = true;
+    fuzz_lib.pie = true;
 
     fuzz_lib.root_module.addImport("aro", aro_module);
-    const fuzz_compile = b.addSystemCommand(&.{
-        afl_clang_lto_path,
-        "-Wno-incompatible-pointer-types",
-        "-nostdinc",
-        "-isystem",
-    });
-    fuzz_compile.addDirectoryArg(lib_dir_step.getIncludePath());
-    fuzz_compile.addArgs(&.{
-        "-isystem",
-        "/usr/include",
-        "-isystem",
-        "/usr/local/include",
-        "-std=c99",
-    });
+    const fuzz_compile = b.addSystemCommand(&.{afl_clang_lto_path});
     fuzz_compile.addFileArg(.{ .path = "test/fuzz/main.c" });
-    fuzz_compile.addArg("-I");
-    fuzz_compile.addDirectoryArg(lib_dir_step.getLibPath());
     fuzz_compile.addArg("-o");
     const fuzz_exe = fuzz_compile.addOutputFileArg("arofuzz");
     const fuzz_install = b.addInstallBinFile(fuzz_exe, "arofuzz");
