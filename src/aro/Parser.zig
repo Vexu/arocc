@@ -2814,14 +2814,12 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     if (err_start == p.comp.diagnostics.list.items.len) {
         // only do these warnings if we didn't already warn about overflow or non-representable values
         if (e.res.val.compare(.lt, Value.zero, p.comp)) {
-            const min_int = (Type{ .specifier = .int }).minInt(p.comp);
-            const min_val = try Value.int(min_int, p.comp);
+            const min_val = try Value.minInt(Type.int, p.comp);
             if (e.res.val.compare(.lt, min_val, p.comp)) {
                 try p.errStr(.enumerator_too_small, name_tok, try e.res.str(p));
             }
         } else {
-            const max_int = (Type{ .specifier = .int }).maxInt(p.comp);
-            const max_val = try Value.int(max_int, p.comp);
+            const max_val = try Value.maxInt(Type.int, p.comp);
             if (e.res.val.compare(.gt, max_val, p.comp)) {
                 try p.errStr(.enumerator_too_large, name_tok, try e.res.str(p));
             }
@@ -6024,8 +6022,8 @@ pub const Result = struct {
     }
 
     fn intFitsInType(res: Result, p: *Parser, ty: Type) !bool {
-        const max_int = try Value.int(ty.maxInt(p.comp), p.comp);
-        const min_int = try Value.int(ty.minInt(p.comp), p.comp);
+        const max_int = try Value.maxInt(ty, p.comp);
+        const min_int = try Value.minInt(ty, p.comp);
         return res.val.compare(.lte, max_int, p.comp) and
             (res.ty.isUnsignedInt(p.comp) or res.val.compare(.gte, min_int, p.comp));
     }
@@ -8371,8 +8369,10 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         if (!p.in_macro) try p.value_map.put(res.node, res.val);
         return res;
     }
+    const interned_val = try Value.int(val, p.comp);
     if (suffix.isSignedInteger()) {
-        if (val > p.comp.types.intmax.maxInt(p.comp)) {
+        const max_int = try Value.maxInt(p.comp.types.intmax, p.comp);
+        if (interned_val.compare(.gt, max_int, p.comp)) {
             try p.errTok(.implicitly_unsigned_literal, tok_i);
         }
     }
@@ -8400,8 +8400,8 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
     for (specs) |spec| {
         res.ty = Type{ .specifier = spec };
         if (res.ty.compareIntegerRanks(suffix_ty, p.comp).compare(.lt)) continue;
-        const max_int = res.ty.maxInt(p.comp);
-        if (val <= max_int) break;
+        const max_int = try Value.maxInt(res.ty, p.comp);
+        if (interned_val.compare(.lte, max_int, p.comp)) break;
     } else {
         res.ty = .{ .specifier = .ulong_long };
     }

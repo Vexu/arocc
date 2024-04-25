@@ -994,11 +994,26 @@ fn generateVaListType(comp: *Compilation) !Type {
 fn generateIntMax(comp: *const Compilation, w: anytype, name: []const u8, ty: Type) !void {
     const bit_count: u8 = @intCast(ty.sizeof(comp).? * 8);
     const unsigned = ty.isUnsignedInt(comp);
-    const max = if (bit_count == 128)
-        @as(u128, if (unsigned) std.math.maxInt(u128) else std.math.maxInt(u128))
-    else
-        ty.maxInt(comp);
+    const max: u128 = switch (bit_count) {
+        8 => if (unsigned) std.math.maxInt(u8) else std.math.maxInt(i8),
+        16 => if (unsigned) std.math.maxInt(u16) else std.math.maxInt(i16),
+        32 => if (unsigned) std.math.maxInt(u32) else std.math.maxInt(i32),
+        64 => if (unsigned) std.math.maxInt(u64) else std.math.maxInt(i64),
+        128 => if (unsigned) std.math.maxInt(u128) else std.math.maxInt(i128),
+        else => unreachable,
+    };
     try w.print("#define __{s}_MAX__ {d}{s}\n", .{ name, max, ty.intValueSuffix(comp) });
+}
+
+/// Largest value that can be stored in wchar_t
+pub fn wcharMax(comp: *const Compilation) u32 {
+    const unsigned = comp.types.wchar.isUnsignedInt(comp);
+    return switch (comp.types.wchar.bitSizeof(comp).?) {
+        8 => if (unsigned) std.math.maxInt(u8) else std.math.maxInt(i8),
+        16 => if (unsigned) std.math.maxInt(u16) else std.math.maxInt(i16),
+        32 => if (unsigned) std.math.maxInt(u32) else std.math.maxInt(i32),
+        else => unreachable,
+    };
 }
 
 fn generateExactWidthIntMax(comp: *const Compilation, w: anytype, specifier: Type.Specifier) !void {
