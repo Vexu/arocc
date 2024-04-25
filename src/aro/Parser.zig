@@ -6648,7 +6648,7 @@ fn mulExpr(p: *Parser) Error!Result {
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(mul.?, lhs);
             } else if (div != null) {
                 if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.comp) and
-                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(mul.?, lhs);
+                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(div.?, lhs);
             } else {
                 var res = try Value.rem(lhs.val, rhs.val, lhs.ty, p.comp);
                 if (res.opt_ref == .none) {
