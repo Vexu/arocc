@@ -1818,10 +1818,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr;
         if (!init_list_expr.ty.isArray()) break :init;
-        if (init_d.d.ty.specifier == .incomplete_array) {
-            // Modifying .data is exceptionally allowed for .incomplete_array.
-            init_d.d.ty.data.array.len = init_list_expr.ty.arrayLen() orelse break :init;
-            init_d.d.ty.specifier = .array;
+        if (init_d.d.ty.is(.incomplete_array)) {
+            init_d.d.ty.setIncompleteArrayLen(init_list_expr.ty.arrayLen() orelse break :init);
         }
     }
 
