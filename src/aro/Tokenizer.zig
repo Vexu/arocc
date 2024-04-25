@@ -875,11 +875,8 @@ pub const Token = struct {
         };
     }
 
-    const all_kws = std.ComptimeStringMap(Id, .{
-        .{ "auto", auto: {
-            @setEvalBranchQuota(3000);
-            break :auto .keyword_auto;
-        } },
+    const all_kws = std.StaticStringMap(Id).initComptime(.{
+        .{ "auto", .keyword_auto },
         .{ "break", .keyword_break },
         .{ "case", .keyword_case },
         .{ "char", .keyword_char },
