@@ -1818,10 +1818,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr;
         if (!init_list_expr.ty.isArray()) break :init;
-        if (init_d.d.ty.specifier == .incomplete_array) {
-            // Modifying .data is exceptionally allowed for .incomplete_array.
-            init_d.d.ty.data.array.len = init_list_expr.ty.arrayLen() orelse break :init;
-            init_d.d.ty.specifier = .array;
+        if (init_d.d.ty.is(.incomplete_array)) {
+            init_d.d.ty.setIncompleteArrayLen(init_list_expr.ty.arrayLen() orelse break :init);
         }
     }
 
@@ -6650,7 +6648,7 @@ fn mulExpr(p: *Parser) Error!Result {
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(mul.?, lhs);
             } else if (div != null) {
                 if (try lhs.val.div(lhs.val, rhs.val, lhs.ty, p.comp) and
-                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(mul.?, lhs);
+                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(div.?, lhs);
             } else {
                 var res = try Value.rem(lhs.val, rhs.val, lhs.ty, p.comp);
                 if (res.opt_ref == .none) {

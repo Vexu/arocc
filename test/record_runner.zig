@@ -4,11 +4,8 @@ const aro = @import("aro");
 
 /// These tests don't work for any platform due to Aro bugs.
 /// Skip entirely.
-const global_test_exclude = std.ComptimeStringMap(void, .{
-    // ComptimeStringMap can't be empty so the entry below is a placeholder
-    // To skip a test entirely just put the test name e.g. .{"0044"}
-    .{"NONE"},
-});
+/// To skip a test entirely just put the test name as a single-element tuple e.g. initComptime(.{.{"0044"}});
+const global_test_exclude = std.StaticStringMap(void).initComptime(.{});
 
 fn lessThan(_: void, lhs: []const u8, rhs: []const u8) bool {
     return std.mem.lessThan(u8, lhs, rhs);
@@ -412,7 +409,7 @@ fn parseTargetsFromCode(cases: *TestCase.List, path: []const u8, source: []const
 
 const compErr = blk: {
     @setEvalBranchQuota(100_000);
-    break :blk std.ComptimeStringMap(ExpectedFailure, .{
+    break :blk std.StaticStringMap(ExpectedFailure).initComptime(.{
         .{
             "aarch64-generic-windows-msvc:Msvc|0011",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },

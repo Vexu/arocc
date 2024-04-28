@@ -463,6 +463,23 @@ pub fn isArray(ty: Type) bool {
     };
 }
 
+/// Must only be used to set the length of an incomplete array as determined by its initializer
+pub fn setIncompleteArrayLen(ty: *Type, len: u64) void {
+    switch (ty.specifier) {
+        .incomplete_array => {
+            // Modifying .data is exceptionally allowed for .incomplete_array.
+            ty.data.array.len = len;
+            ty.specifier = .array;
+        },
+
+        .typeof_type => ty.data.sub_type.setIncompleteArrayLen(len),
+        .typeof_expr => ty.data.expr.ty.setIncompleteArrayLen(len),
+        .attributed => ty.data.attributed.base.setIncompleteArrayLen(len),
+
+        else => unreachable,
+    }
+}
+
 /// Whether the type is promoted if used as a variadic argument or as an argument to a function with no prototype
 fn undergoesDefaultArgPromotion(ty: Type, comp: *const Compilation) bool {
     return switch (ty.specifier) {
