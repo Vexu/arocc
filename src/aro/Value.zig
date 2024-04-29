@@ -893,7 +893,7 @@ pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *cons
 fn twosCompIntLimit(limit: std.math.big.int.TwosCompIntLimit, ty: Type, comp: *Compilation) !Value {
     const signedness = ty.signedness(comp);
     if (limit == .min and signedness == .unsigned) return Value.zero;
-    const mag_bits = ty.bitSizeof(comp).?;
+    const mag_bits: usize = @intCast(ty.bitSizeof(comp).?);
     switch (mag_bits) {
         inline 8, 16, 32, 64 => |bits| {
             if (limit == .min) return Value.int(@as(i64, std.math.minInt(std.meta.Int(.signed, bits))), comp);
