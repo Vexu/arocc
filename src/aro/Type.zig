@@ -959,31 +959,6 @@ pub fn hasField(ty: Type, name: StringId) bool {
     return false;
 }
 
-// TODO handle bitints
-pub fn minInt(ty: Type, comp: *const Compilation) i64 {
-    std.debug.assert(ty.isInt());
-    if (ty.isUnsignedInt(comp)) return 0;
-    return switch (ty.sizeof(comp).?) {
-        1 => std.math.minInt(i8),
-        2 => std.math.minInt(i16),
-        4 => std.math.minInt(i32),
-        8 => std.math.minInt(i64),
-        else => unreachable,
-    };
-}
-
-// TODO handle bitints
-pub fn maxInt(ty: Type, comp: *const Compilation) u64 {
-    std.debug.assert(ty.isInt());
-    return switch (ty.sizeof(comp).?) {
-        1 => if (ty.isUnsignedInt(comp)) @as(u64, std.math.maxInt(u8)) else std.math.maxInt(i8),
-        2 => if (ty.isUnsignedInt(comp)) @as(u64, std.math.maxInt(u16)) else std.math.maxInt(i16),
-        4 => if (ty.isUnsignedInt(comp)) @as(u64, std.math.maxInt(u32)) else std.math.maxInt(i32),
-        8 => if (ty.isUnsignedInt(comp)) @as(u64, std.math.maxInt(u64)) else std.math.maxInt(i64),
-        else => unreachable,
-    };
-}
-
 const TypeSizeOrder = enum {
     lt,
     gt,
