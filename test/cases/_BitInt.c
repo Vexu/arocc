@@ -26,6 +26,7 @@ enum E: _BitInt(512) {
     A=6703903964971298549787012499102923063739682910296196688861780721860882015036773488400937149083451713845015929093243025426876941405973284973216824503042047WB,
     B,
 };
+_Static_assert(sizeof(_BitInt(65535)) == 8192, "");
 
 #define EXPECTED_ERRORS "_BitInt.c:3:1: warning: '_BitInt' in C17 and earlier is a Clang extension' [-Wbit-int-extension]" \
     "_BitInt.c:13:1: error: _BitInt of bit sizes greater than 65535 not supported" \
