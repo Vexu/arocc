@@ -1001,7 +1001,7 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
         .double => comp.target.c_type_byte_size(.double),
         .float128 => 16,
         .bit_int => {
-            return std.mem.alignForward(u64, (ty.data.int.bits + 7) / 8, ty.alignof(comp));
+            return std.mem.alignForward(u64, (@as(u32, ty.data.int.bits) + 7) / 8, ty.alignof(comp));
         },
         // zig fmt: off
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
