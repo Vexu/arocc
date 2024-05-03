@@ -2701,8 +2701,6 @@ const Enumerator = struct {
             return;
         }
         if (try e.res.val.add(e.res.val, Value.one, e.res.ty, p.comp)) {
-            const byte_size = e.res.ty.sizeof(p.comp).?;
-            const bit_size: u8 = @intCast(if (e.res.ty.isUnsignedInt(p.comp)) byte_size * 8 else byte_size * 8 - 1);
             if (e.fixed) {
                 try p.errStr(.enum_not_representable_fixed, tok, try p.typeStr(e.res.ty));
                 return;
@@ -2711,6 +2709,8 @@ const Enumerator = struct {
                 try p.errTok(.enumerator_overflow, tok);
                 break :blk larger;
             } else blk: {
+                const signed = !e.res.ty.isUnsignedInt(p.comp);
+                const bit_size: u8 = @intCast(e.res.ty.bitSizeof(p.comp).? - @intFromBool(signed));
                 try p.errExtra(.enum_not_representable, tok, .{ .pow_2_as_string = bit_size });
                 break :blk Type{ .specifier = .ulong_long };
             };
