@@ -2230,8 +2230,10 @@ fn expandMacroExhaustive(
                         else => |e| return e,
                     };
                     assert(r_paren.id == .r_paren);
+                    var free_arg_expansion_locs = false;
                     defer {
                         for (args.items) |item| {
+                            if (free_arg_expansion_locs) for (item) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, pp.gpa);
                             pp.gpa.free(item);
                         }
                         args.deinit();
@@ -2257,6 +2259,7 @@ fn expandMacroExhaustive(
                         .arguments = .{ .expected = @intCast(macro.params.len), .actual = args_count },
                     };
                     if (macro.var_args and args_count < macro.params.len) {
+                        free_arg_expansion_locs = true;
                         try pp.comp.addDiagnostic(
                             .{ .tag = .expected_at_least_arguments, .loc = buf.items[idx].loc, .extra = extra },
                             buf.items[idx].expansionSlice(),
@@ -2266,6 +2269,7 @@ fn expandMacroExhaustive(
                         continue;
                     }
                     if (!macro.var_args and args_count != macro.params.len) {
+                        free_arg_expansion_locs = true;
                         try pp.comp.addDiagnostic(
                             .{ .tag = .expected_arguments, .loc = buf.items[idx].loc, .extra = extra },
                             buf.items[idx].expansionSlice(),
