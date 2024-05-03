@@ -9,10 +9,15 @@ const Source = aro.Source;
 const Preprocessor = aro.Preprocessor;
 const Parser = aro.Parser;
 
-var fixed_buffer_mem: [10 * 1024 * 1024]u8 = undefined;
+var fixed_buffer_mem: [20 * 1024 * 1024]u8 = undefined;
 
 export fn compile_c_buf(buf: [*]const u8, len: c_int) void {
-    compileSlice(buf[0..@intCast(len)]) catch unreachable;
+    compileSlice(buf[0..@intCast(len)]) catch |e| switch (e) {
+        error.FatalError,
+        error.OutOfMemory,
+        => {},
+        else => unreachable,
+    };
 }
 
 fn compileSlice(buf: []const u8) !void {
@@ -31,10 +36,7 @@ fn compileSlice(buf: []const u8) !void {
     const builtin = try comp.generateBuiltinMacros(.include_system_defines);
     const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
 
-    processSource(&comp, builtin, user_source) catch |e| switch (e) {
-        error.FatalError => {},
-        else => |err| return err,
-    };
+    try processSource(&comp, builtin, user_source);
     _ = comp.sources.swapRemove(user_source.path);
 }
 
