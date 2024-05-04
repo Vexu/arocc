@@ -1421,6 +1421,8 @@ fn typeof(p: *Parser) Error!?Type {
     const l_paren = try p.expectToken(.l_paren);
     if (try p.typeName()) |ty| {
         try p.expectClosing(l_paren, .r_paren);
+        if (ty.is(.invalid)) return null;
+
         const typeof_ty = try p.arena.create(Type);
         typeof_ty.* = .{
             .data = ty.data,
@@ -1442,6 +1444,8 @@ fn typeof(p: *Parser) Error!?Type {
             .specifier = .nullptr_t,
             .qual = if (unqual) .{} else typeof_expr.ty.qual.inheritFromTypeof(),
         };
+    } else if (typeof_expr.ty.is(.invalid)) {
+        return null;
     }
 
     const inner = try p.arena.create(Type.Expr);
