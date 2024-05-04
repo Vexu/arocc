@@ -6936,8 +6936,11 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
             try ptr.lvalConversion(p);
             try index.lvalConversion(p);
 
-            if (!index.ty.isInt()) try p.errTok(.invalid_index, l_bracket_tok);
-            try p.checkArrayBounds(index, lhs, l_bracket_tok);
+            if (index.ty.isInt()) {
+                try p.checkArrayBounds(index, lhs, l_bracket_tok);
+            } else {
+                try p.errTok(.invalid_index, l_bracket_tok);
+            }
 
             try index.saveValue(p);
             try ptr.bin(p, .array_access_expr, index);
@@ -7439,12 +7442,18 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             try index.lvalConversion(p);
             if (ptr.ty.isPtr()) {
                 ptr.ty = ptr.ty.elemType();
-                if (!index.ty.isInt()) try p.errTok(.invalid_index, l_bracket);
-                try p.checkArrayBounds(index_before_conversion, array_before_conversion, l_bracket);
+                if (index.ty.isInt()) {
+                    try p.checkArrayBounds(index_before_conversion, array_before_conversion, l_bracket);
+                } else {
+                    try p.errTok(.invalid_index, l_bracket);
+                }
             } else if (index.ty.isPtr()) {
                 index.ty = index.ty.elemType();
-                if (!ptr.ty.isInt()) try p.errTok(.invalid_index, l_bracket);
-                try p.checkArrayBounds(array_before_conversion, index_before_conversion, l_bracket);
+                if (ptr.ty.isInt()) {
+                    try p.checkArrayBounds(array_before_conversion, index_before_conversion, l_bracket);
+                } else {
+                    try p.errTok(.invalid_index, l_bracket);
+                }
                 std.mem.swap(Result, &ptr, &index);
             } else {
                 try p.errTok(.invalid_subscript, l_bracket);
