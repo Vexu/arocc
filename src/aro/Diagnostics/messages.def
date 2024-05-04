@@ -2487,3 +2487,8 @@ invalid_type_underlying_enum
     .msg = "non-integral type '{s}' is an invalid underlying type"
     .extra = .str
     .kind = .@"error"
+
+auto_type_self_initialized
+    .msg = "variable '{s}' declared with deduced type '__auto_type' cannot appear in its own initializer"
+    .extra = .str
+    .kind = .@"error"

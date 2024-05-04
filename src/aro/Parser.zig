@@ -130,6 +130,10 @@ const_decl_folding: ConstDeclFoldingMode = .fold_const_decls,
 /// address-of-label expression (tracked with contains_address_of_label)
 computed_goto_tok: ?TokenIndex = null,
 
+/// __auto_type may only be used with a single declarator. Keep track of the name
+/// so that it is not used in its own initializer.
+auto_type_decl_name: StringId = .empty,
+
 /// Various variables that are different for each function.
 func: struct {
     /// null if not in function, will always be plain func, var_args_func or old_style_func
@@ -1792,6 +1796,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     } else {
         apply_var_attributes = true;
     }
+    const c23_auto = init_d.d.ty.is(.c23_auto);
+    const auto_type = init_d.d.ty.is(.auto_type);
 
     if (p.eatToken(.equal)) |eq| init: {
         if (decl_spec.storage_class == .typedef or
@@ -1819,6 +1825,11 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
 
         const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
         try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, .none);
+        if (c23_auto or auto_type) {
+            p.auto_type_decl_name = interned_name;
+        }
+        defer p.auto_type_decl_name = .empty;
+
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr;
         if (!init_list_expr.ty.isArray()) break :init;
@@ -1828,8 +1839,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
     }
 
     const name = init_d.d.name;
-    const c23_auto = init_d.d.ty.is(.c23_auto);
-    if (init_d.d.ty.is(.auto_type) or c23_auto) {
+    if (auto_type or c23_auto) {
         if (init_d.initializer.node == .none) {
             init_d.d.ty = Type.invalid;
             if (c23_auto) {
@@ -7755,6 +7765,10 @@ fn primaryExpr(p: *Parser) Error!Result {
             const name_tok = try p.expectIdentifier();
             const name = p.tokSlice(name_tok);
             const interned_name = try StrInt.intern(p.comp, name);
+            if (interned_name == p.auto_type_decl_name) {
+                try p.errStr(.auto_type_self_initialized, name_tok, name);
+                return error.ParsingFailed;
+            }
             if (p.syms.findSymbol(interned_name)) |sym| {
                 try p.checkDeprecatedUnavailable(sym.ty, name_tok, sym.tok);
                 if (sym.kind == .constexpr) {
