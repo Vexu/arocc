@@ -88,7 +88,7 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
     };
 
     const output = try self.generate(contents);
-    b.cache_root.handle.writeFile(sub_path, output) catch |err| {
+    b.cache_root.handle.writeFile(.{ .sub_path = sub_path, .data = output }) catch |err| {
         return step.fail("unable to write file '{}{s}': {s}", .{
             b.cache_root, sub_path, @errorName(err),
         });
