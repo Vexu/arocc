@@ -857,6 +857,8 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
     switch (specifier) {
         .@"enum" => {
             if (ty.hasIncompleteSize()) return .{ .specifier = .int };
+            if (ty.data.@"enum".fixed) return ty.data.@"enum".tag_ty.integerPromotion(comp);
+
             specifier = ty.data.@"enum".tag_ty.specifier;
         },
         .bit_int, .complex_bit_int => return .{ .specifier = specifier, .data = ty.data },
