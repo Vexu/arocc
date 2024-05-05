@@ -3154,12 +3154,14 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
 fn pointer(p: *Parser, base_ty: Type) Error!Type {
     var ty = base_ty;
     while (p.eatToken(.asterisk)) |_| {
-        const elem_ty = try p.arena.create(Type);
-        elem_ty.* = ty;
-        ty = Type{
-            .specifier = .pointer,
-            .data = .{ .sub_type = elem_ty },
-        };
+        if (!ty.is(.invalid)) {
+            const elem_ty = try p.arena.create(Type);
+            elem_ty.* = ty;
+            ty = Type{
+                .specifier = .pointer,
+                .data = .{ .sub_type = elem_ty },
+            };
+        }
         var quals = Type.Qualifiers.Builder{};
         _ = try p.typeQual(&quals);
         try quals.finish(p, &ty);
@@ -5127,6 +5129,8 @@ pub const Result = struct {
     node: NodeIndex = .none,
     ty: Type = .{ .specifier = .int },
     val: Value = .{},
+
+    const invalid: Result = .{ .ty = Type.invalid };
 
     pub fn str(res: Result, p: *Parser) ![]const u8 {
         switch (res.val.opt_ref) {
@@ -7277,6 +7281,7 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
             try operand.lvalConversion(p);
+            if (operand.ty.is(.invalid)) return Result.invalid;
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_imag, imag_tok, try p.typeStr(operand.ty));
             }
@@ -7307,6 +7312,7 @@ fn unExpr(p: *Parser) Error!Result {
             var operand = try p.castExpr();
             try operand.expect(p);
             try operand.lvalConversion(p);
+            if (operand.ty.is(.invalid)) return Result.invalid;
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_real, real_tok, try p.typeStr(operand.ty));
             }
