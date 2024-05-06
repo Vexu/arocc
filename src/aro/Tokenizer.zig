@@ -735,7 +735,8 @@ pub const Token = struct {
 
         pub fn symbol(id: Id) []const u8 {
             return switch (id) {
-                .macro_string, .invalid => unreachable,
+                .macro_string => unreachable,
+                .invalid => "invalid bytes",
                 .identifier,
                 .extended_identifier,
                 .macro_func,

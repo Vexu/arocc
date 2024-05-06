@@ -1060,6 +1060,12 @@ pub fn nextLargestIntSameSign(comp: *const Compilation, ty: Type) ?Type {
     return null;
 }
 
+/// Maximum size of an array, in bytes
+pub fn maxArrayBytes(comp: *const Compilation) u64 {
+    const max_bits = @min(61, comp.target.ptrBitWidth());
+    return (@as(u64, 1) << @truncate(max_bits)) - 1;
+}
+
 /// If `enum E { ... }` syntax has a fixed underlying integer type regardless of the presence of
 /// __attribute__((packed)) or the range of values of the corresponding enumerator constants,
 /// specify it here.
