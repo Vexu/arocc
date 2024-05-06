@@ -3025,9 +3025,6 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         }
 
         const outer = try p.directDeclarator(base_type, d, kind);
-        var max_bits = p.comp.target.ptrBitWidth();
-        if (max_bits > 61) max_bits = 61;
-        const max_bytes = (@as(u64, 1) << @truncate(max_bits)) - 1;
 
         if (!size.ty.isInt()) {
             try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
@@ -3064,7 +3061,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         } else {
             // `outer` is validated later so it may be invalid here
             const outer_size = outer.sizeof(p.comp);
-            const max_elems = max_bytes / @max(1, outer_size orelse 1);
+            const max_elems = p.comp.maxArrayBytes() / @max(1, outer_size orelse 1);
 
             var size_val = size.val;
             if (size_val.isZero(p.comp)) {
@@ -3863,6 +3860,12 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             .ty = init_ty,
             .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
         };
+
+        const max_elems = p.comp.maxArrayBytes() / (elem_ty.sizeof(p.comp) orelse 1);
+        if (start > max_elems) {
+            try p.errTok(.array_too_large, il.tok);
+            start = max_elems;
+        }
 
         if (init_ty.specifier == .incomplete_array) {
             arr_init_node.ty.specifier = .array;
