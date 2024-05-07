@@ -5739,6 +5739,15 @@ pub const Result = struct {
 
         // if either is a float cast to that type
         if (a.ty.isFloat() or b.ty.isFloat()) {
+            const a_no_complex = a.ty.is(.fp16) or a.ty.is(.float16);
+            const b_no_complex = b.ty.is(.fp16) or b.ty.is(.float16);
+            const a_complex = a.ty.isComplex();
+            const b_complex = b.ty.isComplex();
+
+            if ((a_complex and b_no_complex) or (b_complex and a_no_complex)) {
+                return p.todo("_Complex 16-bit float values");
+            }
+
             const float_types = [6][2]Type.Specifier{
                 .{ .complex_long_double, .long_double },
                 .{ .complex_float128, .float128 },
