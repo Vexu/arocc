@@ -3861,7 +3861,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
         };
 
-        const max_elems = p.comp.maxArrayBytes() / (elem_ty.sizeof(p.comp) orelse 1);
+        const max_elems = p.comp.maxArrayBytes() / (@max(1, elem_ty.sizeof(p.comp) orelse 1));
         if (start > max_elems) {
             try p.errTok(.array_too_large, il.tok);
             start = max_elems;
