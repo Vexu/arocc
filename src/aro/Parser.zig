@@ -3030,7 +3030,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
             return error.ParsingFailed;
         }
-        if (base_type.is(.c23_auto)) {
+        if (base_type.is(.c23_auto) or outer.is(.invalid)) {
             // issue error later
             return Type.invalid;
         } else if (size.val.opt_ref == .none) {
