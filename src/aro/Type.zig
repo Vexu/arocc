@@ -296,6 +296,15 @@ pub const Record = struct {
         }
         return false;
     }
+
+    pub fn hasField(self: *const Record, name: StringId) bool {
+        std.debug.assert(!self.isIncomplete());
+        for (self.fields) |f| {
+            if (f.isAnonymousRecord() and f.ty.getRecord().?.hasField(name)) return true;
+            if (name == f.name) return true;
+        }
+        return false;
+    }
 };
 
 pub const Specifier = enum {
@@ -937,28 +946,7 @@ pub fn hasUnboundVLA(ty: Type) bool {
 }
 
 pub fn hasField(ty: Type, name: StringId) bool {
-    switch (ty.specifier) {
-        .@"struct" => {
-            std.debug.assert(!ty.data.record.isIncomplete());
-            for (ty.data.record.fields) |f| {
-                if (f.isAnonymousRecord() and f.ty.hasField(name)) return true;
-                if (name == f.name) return true;
-            }
-        },
-        .@"union" => {
-            std.debug.assert(!ty.data.record.isIncomplete());
-            for (ty.data.record.fields) |f| {
-                if (f.isAnonymousRecord() and f.ty.hasField(name)) return true;
-                if (name == f.name) return true;
-            }
-        },
-        .typeof_type => return ty.data.sub_type.hasField(name),
-        .typeof_expr => return ty.data.expr.ty.hasField(name),
-        .attributed => return ty.data.attributed.base.hasField(name),
-        .invalid => return false,
-        else => unreachable,
-    }
-    return false;
+    return ty.getRecord().?.hasField(name);
 }
 
 const TypeSizeOrder = enum {

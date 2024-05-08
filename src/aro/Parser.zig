@@ -6929,11 +6929,11 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
     errdefer p.skipTo(.r_paren);
     const base_field_name_tok = try p.expectIdentifier();
     const base_field_name = try StrInt.intern(p.comp, p.tokSlice(base_field_name_tok));
-    try p.validateFieldAccess(base_ty, base_ty, base_field_name_tok, base_field_name);
+    const base_record_ty = base_ty.getRecord().?;
+    try p.validateFieldAccess(base_record_ty, base_ty, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
 
     var cur_offset: u64 = 0;
-    const base_record_ty = base_ty.canonicalize(.standard);
     var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, &cur_offset);
 
     var total_offset = cur_offset;
@@ -6943,13 +6943,12 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
             const field_name_tok = try p.expectIdentifier();
             const field_name = try StrInt.intern(p.comp, p.tokSlice(field_name_tok));
 
-            if (!lhs.ty.isRecord()) {
+            const lhs_record_ty = lhs.ty.getRecord() orelse {
                 try p.errStr(.offsetof_ty, field_name_tok, try p.typeStr(lhs.ty));
                 return error.ParsingFailed;
-            }
-            try p.validateFieldAccess(lhs.ty, lhs.ty, field_name_tok, field_name);
-            const record_ty = lhs.ty.canonicalize(.standard);
-            lhs = try p.fieldAccessExtra(lhs.node, record_ty, field_name, false, &cur_offset);
+            };
+            try p.validateFieldAccess(lhs_record_ty, lhs.ty, field_name_tok, field_name);
+            lhs = try p.fieldAccessExtra(lhs.node, lhs_record_ty, field_name, false, &cur_offset);
             total_offset += cur_offset;
         },
         .l_bracket => {
@@ -7526,16 +7525,12 @@ fn fieldAccess(
     const expr_ty = lhs.ty;
     const is_ptr = expr_ty.isPtr();
     const expr_base_ty = if (is_ptr) expr_ty.elemType() else expr_ty;
-    const record_ty = expr_base_ty.canonicalize(.standard);
+    const record_ty = expr_base_ty.getRecord() orelse {
+        try p.errStr(.expected_record_ty, field_name_tok, try p.typeStr(expr_ty));
+        return error.ParsingFailed;
+    };
 
-    switch (record_ty.specifier) {
-        .@"struct", .@"union" => {},
-        else => {
-            try p.errStr(.expected_record_ty, field_name_tok, try p.typeStr(expr_ty));
-            return error.ParsingFailed;
-        },
-    }
-    if (record_ty.hasIncompleteSize()) {
+    if (record_ty.isIncomplete()) {
         try p.errStr(.deref_incomplete_ty_ptr, field_name_tok - 2, try p.typeStr(expr_base_ty));
         return error.ParsingFailed;
     }
@@ -7548,7 +7543,7 @@ fn fieldAccess(
     return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, &discard);
 }
 
-fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_tok: TokenIndex, field_name: StringId) Error!void {
+fn validateFieldAccess(p: *Parser, record_ty: *const Type.Record, expr_ty: Type, field_name_tok: TokenIndex, field_name: StringId) Error!void {
     if (record_ty.hasField(field_name)) return;
 
     p.strings.items.len = 0;
@@ -7563,8 +7558,8 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
     return error.ParsingFailed;
 }
 
-fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: StringId, is_arrow: bool, offset_bits: *u64) Error!Result {
-    for (record_ty.data.record.fields, 0..) |f, i| {
+fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: *const Type.Record, field_name: StringId, is_arrow: bool, offset_bits: *u64) Error!Result {
+    for (record_ty.fields, 0..) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
             const inner = try p.addNode(.{
@@ -7572,7 +7567,7 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
                 .ty = f.ty,
                 .data = .{ .member = .{ .lhs = lhs, .index = @intCast(i) } },
             });
-            const ret = p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
+            const ret = p.fieldAccessExtra(inner, f.ty.getRecord().?, field_name, false, offset_bits);
             offset_bits.* = f.layout.offset_bits;
             return ret;
         }
