@@ -10,6 +10,7 @@ pub const Token = struct {
     start: u32 = 0,
     end: u32 = 0,
     line: u32 = 0,
+    bol: bool = false,
 
     pub const Id = enum(u8) {
         invalid,
@@ -322,6 +323,10 @@ pub const Token = struct {
 
         /// A comment token if asked to preserve comments.
         comment,
+
+        pub fn isDirectiveEnd(id: Id) bool {
+            return id == .nl or id == .eof;
+        }
 
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
@@ -1030,6 +1035,7 @@ index: u32 = 0,
 source: Source.Id,
 langopts: LangOpts,
 line: u32 = 1,
+bol: bool = true,
 
 pub fn next(self: *Tokenizer) Token {
     var state: enum {
@@ -1077,6 +1083,8 @@ pub fn next(self: *Tokenizer) Token {
 
     var start = self.index;
     var id: Token.Id = .eof;
+    const bol = self.bol;
+    self.bol = false;
 
     while (self.index < self.buf.len) : (self.index += 1) {
         const c = self.buf[self.index];
@@ -1086,6 +1094,7 @@ pub fn next(self: *Tokenizer) Token {
                     id = .nl;
                     self.index += 1;
                     self.line += 1;
+                    self.bol = true;
                     break;
                 },
                 '"' => {
@@ -1265,6 +1274,7 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 '\n' => {
                     id = .unterminated_string_literal;
+                    self.bol = true;
                     break;
                 },
                 '\r' => unreachable,
@@ -1281,6 +1291,7 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 '\n' => {
                     id = .unterminated_char_literal;
+                    self.bol = true;
                     break;
                 },
                 else => {
@@ -1297,6 +1308,7 @@ pub fn next(self: *Tokenizer) Token {
                 },
                 '\n' => {
                     id = .unterminated_char_literal;
+                    self.bol = true;
                     break;
                 },
                 else => {},
@@ -1304,6 +1316,7 @@ pub fn next(self: *Tokenizer) Token {
             .char_escape_sequence => switch (c) {
                 '\r', '\n' => {
                     id = .unterminated_char_literal;
+                    self.bol = true;
                     break;
                 },
                 else => state = .char_literal,
@@ -1311,6 +1324,7 @@ pub fn next(self: *Tokenizer) Token {
             .string_escape_sequence => switch (c) {
                 '\r', '\n' => {
                     id = .unterminated_string_literal;
+                    self.bol = true;
                     break;
                 },
                 else => state = .string_literal,
@@ -1624,6 +1638,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .line_comment => switch (c) {
                 '\n' => {
+                    self.bol = true;
                     if (self.langopts.preserve_comments) {
                         id = .comment;
                         break;
@@ -1656,6 +1671,7 @@ pub fn next(self: *Tokenizer) Token {
             },
             .multi_line_comment_done => switch (c) {
                 '\n' => {
+                    self.bol = true;
                     start = self.index;
                     id = .nl;
                     self.index += 1;
@@ -1782,6 +1798,7 @@ pub fn next(self: *Tokenizer) Token {
         .end = self.index,
         .line = self.line,
         .source = self.source,
+        .bol = bol,
     };
 }
 

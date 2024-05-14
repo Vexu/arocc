@@ -9,6 +9,7 @@ const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
+const NewPreprocessor = @import("NewPreprocessor.zig");
 const Source = @import("Source.zig");
 const Toolchain = @import("Toolchain.zig");
 const target_util = @import("target.zig");
@@ -36,6 +37,7 @@ line_commands: bool = true,
 /// If true, use `#line <num>` instead of `# <num>` for line directives
 use_line_directives: bool = false,
 only_preprocess: bool = false,
+new_preprocessor: bool = false,
 only_syntax: bool = false,
 only_compile: bool = false,
 only_preprocess_and_compile: bool = false,
@@ -236,6 +238,8 @@ pub fn parseArgs(
                 d.only_compile = true;
             } else if (mem.eql(u8, arg, "-E")) {
                 d.only_preprocess = true;
+            } else if (mem.eql(u8, arg, "-fnew-preprocessor")) {
+                d.new_preprocessor = true;
             } else if (mem.eql(u8, arg, "-P") or mem.eql(u8, arg, "--no-line-commands")) {
                 d.line_commands = false;
             } else if (mem.eql(u8, arg, "-fuse-line-directives")) {
@@ -630,6 +634,47 @@ fn processSource(
     comptime fast_exit: bool,
 ) !void {
     d.comp.generated_buf.items.len = 0;
+    if (d.new_preprocessor) {
+        var pp = try NewPreprocessor.initDefault(d.comp);
+        defer pp.deinit();
+        if (d.comp.langopts.ms_extensions) {
+            d.comp.ms_cwd_source_id = source.id;
+        }
+
+        if (d.verbose_pp) pp.verbose = true;
+        if (d.only_preprocess) {
+            pp.preserve_whitespace = true;
+            if (d.line_commands) {
+                pp.linemarkers = if (d.use_line_directives) .line_directives else .numeric_directives;
+            }
+        }
+
+        try pp.preprocessSources(&.{ source, builtin, user_macros });
+
+        d.renderErrors();
+
+        if (d.comp.diagnostics.errors != 0) {
+            if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
+            return;
+        }
+
+        const file = if (d.output_name) |some|
+            std.fs.cwd().createFile(some, .{}) catch |er|
+                return d.fatal("unable to create output file '{s}': {s}", .{ some, errorDescription(er) })
+        else
+            std.io.getStdOut();
+        defer if (d.output_name != null) file.close();
+
+        var buf_w = std.io.bufferedWriter(file.writer());
+        pp.prettyPrintTokens(buf_w.writer()) catch |er|
+            return d.fatal("unable to write result: {s}", .{errorDescription(er)});
+
+        buf_w.flush() catch |er|
+            return d.fatal("unable to write result: {s}", .{errorDescription(er)});
+
+        std.process.exit(0); // Not linking, no need for cleanup.
+        return;
+    }
     var pp = try Preprocessor.initDefault(d.comp);
     defer pp.deinit();
 

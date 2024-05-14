@@ -35,5 +35,6 @@ test {
     _ = @import("aro/target.zig");
     _ = @import("aro/Tokenizer.zig");
     _ = @import("aro/toolchains/Linux.zig");
+    _ = @import("aro/treap.zig");
     _ = @import("aro/Value.zig");
 }
