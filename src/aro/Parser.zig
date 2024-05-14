@@ -6702,7 +6702,7 @@ fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
 }
 
 /// castExpr
-///  :  '(' compoundStmt ')'
+///  :  '(' compoundStmt ')' suffixExpr*
 ///  |  '(' typeName ')' castExpr
 ///  | '(' typeName ')' '{' initializerItems '}'
 ///  | __builtin_choose_expr '(' integerConstExpr ',' assignExpr ',' assignExpr ')'
@@ -6729,6 +6729,11 @@ fn castExpr(p: *Parser) Error!Result {
             };
             try p.expectClosing(l_paren, .r_paren);
             try res.un(p, .stmt_expr);
+            while (true) {
+                const suffix = try p.suffixExpr(res);
+                if (suffix.empty(p)) break;
+                res = suffix;
+            }
             return res;
         }
         const ty = (try p.typeName()) orelse {
