@@ -16,6 +16,7 @@ void foo(void) {
         z;
     });
     z++;
+    ({foo;})();
 }
 
 void self_referential_initializer(void) {
