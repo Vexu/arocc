@@ -42,7 +42,7 @@ pub fn create(owner: *std.Build, options: Options) std.Build.Module.Import {
         .generated_file = .{ .step = &self.step },
     };
     const module = self.step.owner.createModule(.{
-        .root_source_file = .{ .generated = &self.generated_file },
+        .root_source_file = .{ .generated = .{ .file = &self.generated_file } },
     });
     return .{
         .module = module,

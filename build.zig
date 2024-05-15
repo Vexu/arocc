@@ -12,7 +12,7 @@ fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: 
     const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
     const fuzz_lib = b.addStaticLibrary(.{
         .name = "fuzz-lib",
-        .root_source_file = .{ .path = "test/fuzz/fuzz_lib.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "test/fuzz/fuzz_lib.zig" } },
         .optimize = .Debug,
         .target = target,
         .single_threaded = true,
@@ -23,7 +23,7 @@ fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: 
 
     fuzz_lib.root_module.addImport("aro", aro_module);
     const fuzz_compile = b.addSystemCommand(&.{afl_clang_lto_path});
-    fuzz_compile.addFileArg(.{ .path = "test/fuzz/main.c" });
+    fuzz_compile.addFileArg(.{ .src_path = .{ .owner = b, .sub_path = "test/fuzz/main.c" } });
     fuzz_compile.addArg("-o");
     const fuzz_exe = fuzz_compile.addOutputFileArg("arofuzz");
     const fuzz_install = b.addInstallBinFile(fuzz_exe, "arofuzz");
@@ -122,10 +122,10 @@ pub fn build(b: *Build) !void {
     const aro_options_module = aro_options.createModule();
 
     const zig_module = b.createModule(.{
-        .root_source_file = .{ .path = "deps/zig/lib.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "deps/zig/lib.zig" } },
     });
     const aro_backend = b.addModule("aro_backend", .{
-        .root_source_file = .{ .path = "src/backend.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/backend.zig" } },
         .imports = &.{
             .{
                 .name = "zig",
@@ -138,7 +138,7 @@ pub fn build(b: *Build) !void {
         },
     });
     const aro_module = b.addModule("aro", .{
-        .root_source_file = .{ .path = "src/aro.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/aro.zig" } },
         .imports = &.{
             .{
                 .name = "system_defaults",
@@ -159,14 +159,14 @@ pub fn build(b: *Build) !void {
     });
 
     b.installDirectory(.{
-        .source_dir = .{ .path = "include" },
+        .source_dir = .{ .src_path = .{ .owner = b, .sub_path = "include" } },
         .install_dir = .prefix,
         .install_subdir = "include",
     });
 
     const exe = b.addExecutable(.{
         .name = "arocc",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/main.zig" } },
         .optimize = mode,
         .target = target,
         .single_threaded = true,
@@ -186,8 +186,8 @@ pub fn build(b: *Build) !void {
         else
             &[_][]const u8{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined" };
 
-        exe.addIncludePath(.{ .path = tracy_path });
-        exe.addCSourceFile(.{ .file = .{ .path = client_cpp }, .flags = tracy_c_flags });
+        exe.addIncludePath(.{ .src_path = .{ .owner = b, .sub_path = tracy_path } });
+        exe.addCSourceFile(.{ .file = .{ .src_path = .{ .owner = b, .sub_path = client_cpp } }, .flags = tracy_c_flags });
         exe.linkLibCpp();
         exe.linkLibC();
 
@@ -203,7 +203,7 @@ pub fn build(b: *Build) !void {
 
     const tests_step = b.step("test", "Run all tests");
 
-    var unit_tests = b.addTest(.{ .root_source_file = .{ .path = "src/aro.zig" } });
+    var unit_tests = b.addTest(.{ .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "src/aro.zig" } } });
     for (aro_module.import_table.keys(), aro_module.import_table.values()) |name, module| {
         unit_tests.root_module.addImport(name, module);
     }
@@ -212,7 +212,7 @@ pub fn build(b: *Build) !void {
 
     const integration_tests = b.addExecutable(.{
         .name = "test-runner",
-        .root_source_file = .{ .path = "test/runner.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "test/runner.zig" } },
         .optimize = mode,
         .target = target,
     });
@@ -227,7 +227,7 @@ pub fn build(b: *Build) !void {
 
     const record_tests = b.addExecutable(.{
         .name = "record-runner",
-        .root_source_file = .{ .path = "test/record_runner.zig" },
+        .root_source_file = .{ .src_path = .{ .owner = b, .sub_path = "test/record_runner.zig" } },
         .optimize = mode,
         .target = target,
     });
