@@ -726,7 +726,7 @@ pub fn float80Type(comp: *const Compilation) ?Type {
 }
 
 /// Smallest integer type with at least N bits
-fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) Type {
+pub fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) Type {
     if (bits == 64 and (comp.target.isDarwin() or comp.target.isWasm())) {
         // WebAssembly and Darwin use `long long` for `int_least64_t` and `int_fast64_t`.
         return .{ .specifier = if (signedness == .signed) .long_long else .ulong_long };
