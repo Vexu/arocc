@@ -1109,10 +1109,15 @@ pub fn alignof(ty: Type, comp: *const Compilation) u29 {
         .long_long => comp.target.c_type_alignment(.longlong),
         .ulong_long => comp.target.c_type_alignment(.ulonglong),
 
-        .bit_int => @min(
-            std.math.ceilPowerOfTwoPromote(u16, (ty.data.int.bits +| 7) / 8),
-            comp.target.maxIntAlignment(),
-        ),
+        .bit_int => {
+            // https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2709.pdf
+            // _BitInt(N) types align with existing calling conventions. They have the same size and alignment as the
+            // smallest basic type that can contain them. Types that are larger than __int64_t are conceptually treated
+            // as struct of register size chunks. The number of chunks is the smallest number that can contain the type.
+            if (ty.data.int.bits > 64) return 8;
+            const basic_type = comp.intLeastN(ty.data.int.bits, ty.data.int.signedness);
+            return basic_type.alignof(comp);
+        },
 
         .float => comp.target.c_type_alignment(.float),
         .double => comp.target.c_type_alignment(.double),
