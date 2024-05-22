@@ -5739,15 +5739,6 @@ pub const Result = struct {
 
         // if either is a float cast to that type
         if (a.ty.isFloat() or b.ty.isFloat()) {
-            const a_no_complex = a.ty.is(.fp16) or a.ty.is(.float16);
-            const b_no_complex = b.ty.is(.fp16) or b.ty.is(.float16);
-            const a_complex = a.ty.isComplex();
-            const b_complex = b.ty.isComplex();
-
-            if ((a_complex and b_no_complex) or (b_complex and a_no_complex)) {
-                return p.todo("_Complex 16-bit float values");
-            }
-
             const float_types = [6][2]Type.Specifier{
                 .{ .complex_long_double, .long_double },
                 .{ .complex_float128, .float128 },
@@ -5755,8 +5746,7 @@ pub const Result = struct {
                 .{ .complex_float, .float },
                 // No `_Complex __fp16` type
                 .{ .invalid, .fp16 },
-                // No `_Complex _Float16`
-                .{ .invalid, .float16 },
+                .{ .complex_float16, .float16 },
             };
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
@@ -5774,6 +5764,7 @@ pub const Result = struct {
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[4])) return;
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
+            unreachable;
         }
 
         if (a.ty.eql(b.ty, p.comp, true)) {
@@ -8283,7 +8274,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
     const ty = Type{ .specifier = switch (suffix) {
         .None, .I => .double,
         .F, .IF => .float,
-        .F16 => .float16,
+        .F16, .IF16 => .float16,
         .L, .IL => .long_double,
         .W, .IW => p.comp.float80Type().?.specifier,
         .Q, .IQ, .F128, .IF128 => .float128,
@@ -8318,6 +8309,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
         try p.err(.gnu_imaginary_constant);
         res.ty = .{ .specifier = switch (suffix) {
             .I => .complex_double,
+            .IF16 => .complex_float16,
             .IF => .complex_float,
             .IL => .complex_long_double,
             .IW => p.comp.float80Type().?.makeComplex().specifier,
@@ -8325,6 +8317,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             else => unreachable,
         } };
         res.val = try Value.intern(p.comp, switch (res.ty.bitSizeof(p.comp).?) {
+            32 => .{ .complex = .{ .cf16 = .{ 0.0, val.toFloat(f16, p.comp) } } },
             64 => .{ .complex = .{ .cf32 = .{ 0.0, val.toFloat(f32, p.comp) } } },
             128 => .{ .complex = .{ .cf64 = .{ 0.0, val.toFloat(f64, p.comp) } } },
             160 => .{ .complex = .{ .cf80 = .{ 0.0, val.toFloat(f80, p.comp) } } },
