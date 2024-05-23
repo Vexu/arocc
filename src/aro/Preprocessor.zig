@@ -1562,11 +1562,13 @@ fn getPasteArgs(args: []const TokenWithExpansionLocs) []const TokenWithExpansion
 
 fn expandFuncMacro(
     pp: *Preprocessor,
-    loc: Source.Location,
+    macro_tok: TokenWithExpansionLocs,
     func_macro: *const Macro,
     args: *const MacroArguments,
     expanded_args: *const MacroArguments,
+    hideset_arg: Hideset.Index,
 ) MacroError!ExpandBuf {
+    var hideset = hideset_arg;
     var buf = ExpandBuf.init(pp.gpa);
     try buf.ensureTotalCapacity(func_macro.tokens.len);
     errdefer buf.deinit();
@@ -1617,16 +1619,21 @@ fn expandFuncMacro(
                     },
                     else => &[1]TokenWithExpansionLocs{tokFromRaw(raw_next)},
                 };
-
                 try pp.pasteTokens(&buf, next);
                 if (next.len != 0) break;
             },
             .macro_param_no_expand => {
+                if (tok_i + 1 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
+                    hideset = pp.hideset.get(tokFromRaw(func_macro.tokens[tok_i + 1]).loc);
+                }
                 const slice = getPasteArgs(args.items[raw.end]);
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
                 try bufCopyTokens(&buf, slice, &.{raw_loc});
             },
             .macro_param => {
+                if (tok_i + 1 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
+                    hideset = pp.hideset.get(tokFromRaw(func_macro.tokens[tok_i + 1]).loc);
+                }
                 const arg = expanded_args.items[raw.end];
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
                 try bufCopyTokens(&buf, arg, &.{raw_loc});
@@ -1665,9 +1672,9 @@ fn expandFuncMacro(
                 const arg = expanded_args.items[0];
                 const result = if (arg.len == 0) blk: {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
+                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = macro_tok.loc, .extra = extra }, &.{});
                     break :blk false;
-                } else try pp.handleBuiltinMacro(raw.id, arg, loc);
+                } else try pp.handleBuiltinMacro(raw.id, arg, macro_tok.loc);
                 const start = pp.comp.generated_buf.items.len;
                 const w = pp.comp.generated_buf.writer(pp.gpa);
                 try w.print("{}\n", .{@intFromBool(result)});
@@ -1678,7 +1685,7 @@ fn expandFuncMacro(
                 const not_found = "0\n";
                 const result = if (arg.len == 0) blk: {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
+                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = macro_tok.loc, .extra = extra }, &.{});
                     break :blk not_found;
                 } else res: {
                     var invalid: ?TokenWithExpansionLocs = null;
@@ -1710,7 +1717,7 @@ fn expandFuncMacro(
                     if (vendor_ident != null and attr_ident == null) {
                         invalid = vendor_ident;
                     } else if (attr_ident == null and invalid == null) {
-                        invalid = .{ .id = .eof, .loc = loc };
+                        invalid = .{ .id = .eof, .loc = macro_tok.loc };
                     }
                     if (invalid) |some| {
                         try pp.comp.addDiagnostic(
@@ -1754,7 +1761,7 @@ fn expandFuncMacro(
                 const not_found = "0\n";
                 const result = if (arg.len == 0) blk: {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = loc, .extra = extra }, &.{});
+                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = macro_tok.loc, .extra = extra }, &.{});
                     break :blk not_found;
                 } else res: {
                     var embed_args: []const TokenWithExpansionLocs = &.{};
@@ -1900,11 +1907,11 @@ fn expandFuncMacro(
                         break;
                     },
                 };
-                if (string == null and invalid == null) invalid = .{ .loc = loc, .id = .eof };
+                if (string == null and invalid == null) invalid = .{ .loc = macro_tok.loc, .id = .eof };
                 if (invalid) |some| try pp.comp.addDiagnostic(
                     .{ .tag = .pragma_operator_string_literal, .loc = some.loc },
                     some.expansionSlice(),
-                ) else try pp.pragmaOperator(string.?, loc);
+                ) else try pp.pragmaOperator(string.?, macro_tok.loc);
             },
             .comma => {
                 if (tok_i + 2 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
@@ -1952,6 +1959,15 @@ fn expandFuncMacro(
         }
     }
     removePlacemarkers(&buf);
+
+    const macro_expansion_locs = macro_tok.expansionSlice();
+    for (buf.items) |*tok| {
+        try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
+        try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
+        const tok_hidelist = pp.hideset.get(tok.loc);
+        const new_hidelist = try pp.hideset.@"union"(tok_hidelist, hideset);
+        try pp.hideset.put(tok.loc, new_hidelist);
+    }
 
     return buf;
 }
@@ -2291,19 +2307,9 @@ fn expandMacroExhaustive(
                         expanded_args.appendAssumeCapacity(try expand_buf.toOwnedSlice());
                     }
 
-                    var res = try pp.expandFuncMacro(macro_tok.loc, macro, &args, &expanded_args);
+                    var res = try pp.expandFuncMacro(macro_tok, macro, &args, &expanded_args, hs);
                     defer res.deinit();
                     const tokens_added = res.items.len;
-
-                    const macro_expansion_locs = macro_tok.expansionSlice();
-                    for (res.items) |*tok| {
-                        try tok.addExpansionLocation(pp.gpa, &.{macro_tok.loc});
-                        try tok.addExpansionLocation(pp.gpa, macro_expansion_locs);
-                        const tok_hidelist = pp.hideset.get(tok.loc);
-                        const new_hidelist = try pp.hideset.@"union"(tok_hidelist, hs);
-                        try pp.hideset.put(tok.loc, new_hidelist);
-                    }
-
                     const tokens_removed = macro_scan_idx - idx + 1;
                     for (buf.items[idx .. idx + tokens_removed]) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, pp.gpa);
                     try buf.replaceRange(idx, tokens_removed, res.items);

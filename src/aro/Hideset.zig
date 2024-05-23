@@ -46,7 +46,7 @@ const Item = struct {
     const List = std.MultiArrayList(Item);
 };
 
-const Index = enum(u32) {
+pub const Index = enum(u32) {
     none = std.math.maxInt(u32),
     _,
 };

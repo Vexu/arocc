@@ -3030,7 +3030,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             try p.errStr(.array_size_non_int, size_tok, try p.typeStr(size.ty));
             return error.ParsingFailed;
         }
-        if (base_type.is(.c23_auto)) {
+        if (base_type.is(.c23_auto) or outer.is(.invalid)) {
             // issue error later
             return Type.invalid;
         } else if (size.val.opt_ref == .none) {
@@ -3861,7 +3861,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
             .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
         };
 
-        const max_elems = p.comp.maxArrayBytes() / (elem_ty.sizeof(p.comp) orelse 1);
+        const max_elems = p.comp.maxArrayBytes() / (@max(1, elem_ty.sizeof(p.comp) orelse 1));
         if (start > max_elems) {
             try p.errTok(.array_too_large, il.tok);
             start = max_elems;
@@ -5746,8 +5746,7 @@ pub const Result = struct {
                 .{ .complex_float, .float },
                 // No `_Complex __fp16` type
                 .{ .invalid, .fp16 },
-                // No `_Complex _Float16`
-                .{ .invalid, .float16 },
+                .{ .complex_float16, .float16 },
             };
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
@@ -5765,6 +5764,7 @@ pub const Result = struct {
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[4])) return;
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
+            unreachable;
         }
 
         if (a.ty.eql(b.ty, p.comp, true)) {
@@ -6920,11 +6920,11 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
     errdefer p.skipTo(.r_paren);
     const base_field_name_tok = try p.expectIdentifier();
     const base_field_name = try StrInt.intern(p.comp, p.tokSlice(base_field_name_tok));
-    try p.validateFieldAccess(base_ty, base_ty, base_field_name_tok, base_field_name);
+    const base_record_ty = base_ty.getRecord().?;
+    try p.validateFieldAccess(base_record_ty, base_ty, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .tag = .default_init_expr, .ty = base_ty, .data = undefined });
 
     var cur_offset: u64 = 0;
-    const base_record_ty = base_ty.canonicalize(.standard);
     var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, &cur_offset);
 
     var total_offset = cur_offset;
@@ -6934,13 +6934,12 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
             const field_name_tok = try p.expectIdentifier();
             const field_name = try StrInt.intern(p.comp, p.tokSlice(field_name_tok));
 
-            if (!lhs.ty.isRecord()) {
+            const lhs_record_ty = lhs.ty.getRecord() orelse {
                 try p.errStr(.offsetof_ty, field_name_tok, try p.typeStr(lhs.ty));
                 return error.ParsingFailed;
-            }
-            try p.validateFieldAccess(lhs.ty, lhs.ty, field_name_tok, field_name);
-            const record_ty = lhs.ty.canonicalize(.standard);
-            lhs = try p.fieldAccessExtra(lhs.node, record_ty, field_name, false, &cur_offset);
+            };
+            try p.validateFieldAccess(lhs_record_ty, lhs.ty, field_name_tok, field_name);
+            lhs = try p.fieldAccessExtra(lhs.node, lhs_record_ty, field_name, false, &cur_offset);
             total_offset += cur_offset;
         },
         .l_bracket => {
@@ -7517,16 +7516,12 @@ fn fieldAccess(
     const expr_ty = lhs.ty;
     const is_ptr = expr_ty.isPtr();
     const expr_base_ty = if (is_ptr) expr_ty.elemType() else expr_ty;
-    const record_ty = expr_base_ty.canonicalize(.standard);
+    const record_ty = expr_base_ty.getRecord() orelse {
+        try p.errStr(.expected_record_ty, field_name_tok, try p.typeStr(expr_ty));
+        return error.ParsingFailed;
+    };
 
-    switch (record_ty.specifier) {
-        .@"struct", .@"union" => {},
-        else => {
-            try p.errStr(.expected_record_ty, field_name_tok, try p.typeStr(expr_ty));
-            return error.ParsingFailed;
-        },
-    }
-    if (record_ty.hasIncompleteSize()) {
+    if (record_ty.isIncomplete()) {
         try p.errStr(.deref_incomplete_ty_ptr, field_name_tok - 2, try p.typeStr(expr_base_ty));
         return error.ParsingFailed;
     }
@@ -7539,7 +7534,7 @@ fn fieldAccess(
     return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, &discard);
 }
 
-fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_tok: TokenIndex, field_name: StringId) Error!void {
+fn validateFieldAccess(p: *Parser, record_ty: *const Type.Record, expr_ty: Type, field_name_tok: TokenIndex, field_name: StringId) Error!void {
     if (record_ty.hasField(field_name)) return;
 
     p.strings.items.len = 0;
@@ -7554,8 +7549,8 @@ fn validateFieldAccess(p: *Parser, record_ty: Type, expr_ty: Type, field_name_to
     return error.ParsingFailed;
 }
 
-fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: StringId, is_arrow: bool, offset_bits: *u64) Error!Result {
-    for (record_ty.data.record.fields, 0..) |f, i| {
+fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: *const Type.Record, field_name: StringId, is_arrow: bool, offset_bits: *u64) Error!Result {
+    for (record_ty.fields, 0..) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
             const inner = try p.addNode(.{
@@ -7563,7 +7558,7 @@ fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: Type, field_name: Str
                 .ty = f.ty,
                 .data = .{ .member = .{ .lhs = lhs, .index = @intCast(i) } },
             });
-            const ret = p.fieldAccessExtra(inner, f.ty, field_name, false, offset_bits);
+            const ret = p.fieldAccessExtra(inner, f.ty.getRecord().?, field_name, false, offset_bits);
             offset_bits.* = f.layout.offset_bits;
             return ret;
         }
@@ -8279,7 +8274,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
     const ty = Type{ .specifier = switch (suffix) {
         .None, .I => .double,
         .F, .IF => .float,
-        .F16 => .float16,
+        .F16, .IF16 => .float16,
         .L, .IL => .long_double,
         .W, .IW => p.comp.float80Type().?.specifier,
         .Q, .IQ, .F128, .IF128 => .float128,
@@ -8314,6 +8309,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
         try p.err(.gnu_imaginary_constant);
         res.ty = .{ .specifier = switch (suffix) {
             .I => .complex_double,
+            .IF16 => .complex_float16,
             .IF => .complex_float,
             .IL => .complex_long_double,
             .IW => p.comp.float80Type().?.makeComplex().specifier,
@@ -8321,6 +8317,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
             else => unreachable,
         } };
         res.val = try Value.intern(p.comp, switch (res.ty.bitSizeof(p.comp).?) {
+            32 => .{ .complex = .{ .cf16 = .{ 0.0, val.toFloat(f16, p.comp) } } },
             64 => .{ .complex = .{ .cf32 = .{ 0.0, val.toFloat(f32, p.comp) } } },
             128 => .{ .complex = .{ .cf64 = .{ 0.0, val.toFloat(f64, p.comp) } } },
             160 => .{ .complex = .{ .cf80 = .{ 0.0, val.toFloat(f80, p.comp) } } },

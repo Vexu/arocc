@@ -192,6 +192,7 @@ pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     if (dest_ty.isComplex()) {
         const bits = dest_ty.bitSizeof(comp).?;
         const cf: Interner.Key.Complex = switch (bits) {
+            32 => .{ .cf16 = .{ v.toFloat(f16, comp), 0 } },
             64 => .{ .cf32 = .{ v.toFloat(f32, comp), 0 } },
             128 => .{ .cf64 = .{ v.toFloat(f64, comp), 0 } },
             160 => .{ .cf80 = .{ v.toFloat(f80, comp), 0 } },
@@ -255,6 +256,7 @@ pub fn floatCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     const bits = dest_ty.bitSizeof(comp).?;
     if (dest_ty.isComplex()) {
         const cf: Interner.Key.Complex = switch (bits) {
+            32 => .{ .cf16 = .{ v.toFloat(f16, comp), v.imag(f16, comp) } },
             64 => .{ .cf32 = .{ v.toFloat(f32, comp), v.imag(f32, comp) } },
             128 => .{ .cf64 = .{ v.toFloat(f64, comp), v.imag(f64, comp) } },
             160 => .{ .cf80 = .{ v.toFloat(f80, comp), v.imag(f80, comp) } },
@@ -307,6 +309,7 @@ pub fn realPart(v: Value, comp: *Compilation) !Value {
     return switch (comp.interner.get(v.ref())) {
         .int, .float => v,
         .complex => |repr| Value.intern(comp, switch (repr) {
+            .cf16 => |components| .{ .float = .{ .f16 = components[0] } },
             .cf32 => |components| .{ .float = .{ .f32 = components[0] } },
             .cf64 => |components| .{ .float = .{ .f64 = components[0] } },
             .cf80 => |components| .{ .float = .{ .f80 = components[0] } },
@@ -321,6 +324,7 @@ pub fn imaginaryPart(v: Value, comp: *Compilation) !Value {
     return switch (comp.interner.get(v.ref())) {
         .int, .float => Value.zero,
         .complex => |repr| Value.intern(comp, switch (repr) {
+            .cf16 => |components| .{ .float = .{ .f16 = components[1] } },
             .cf32 => |components| .{ .float = .{ .f32 = components[1] } },
             .cf64 => |components| .{ .float = .{ .f64 = components[1] } },
             .cf80 => |components| .{ .float = .{ .f80 = components[1] } },
@@ -461,6 +465,7 @@ fn complexAddSub(lhs: Value, rhs: Value, comptime T: type, op: ComplexOp, comp: 
     };
 
     return switch (T) {
+        f16 => intern(comp, .{ .complex = .{ .cf16 = .{ res_re, res_im } } }),
         f32 => intern(comp, .{ .complex = .{ .cf32 = .{ res_re, res_im } } }),
         f64 => intern(comp, .{ .complex = .{ .cf64 = .{ res_re, res_im } } }),
         f80 => intern(comp, .{ .complex = .{ .cf80 = .{ res_re, res_im } } }),
@@ -474,6 +479,7 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     if (ty.isFloat()) {
         if (ty.isComplex()) {
             res.* = switch (bits) {
+                32 => try complexAddSub(lhs, rhs, f16, .add, comp),
                 64 => try complexAddSub(lhs, rhs, f32, .add, comp),
                 128 => try complexAddSub(lhs, rhs, f64, .add, comp),
                 160 => try complexAddSub(lhs, rhs, f80, .add, comp),
@@ -516,6 +522,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     if (ty.isFloat()) {
         if (ty.isComplex()) {
             res.* = switch (bits) {
+                32 => try complexAddSub(lhs, rhs, f16, .sub, comp),
                 64 => try complexAddSub(lhs, rhs, f32, .sub, comp),
                 128 => try complexAddSub(lhs, rhs, f64, .sub, comp),
                 160 => try complexAddSub(lhs, rhs, f80, .sub, comp),
@@ -558,6 +565,7 @@ pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     if (ty.isFloat()) {
         if (ty.isComplex()) {
             const cf: Interner.Key.Complex = switch (bits) {
+                32 => .{ .cf16 = annex_g.complexFloatMul(f16, lhs.toFloat(f16, comp), lhs.imag(f16, comp), rhs.toFloat(f16, comp), rhs.imag(f16, comp)) },
                 64 => .{ .cf32 = annex_g.complexFloatMul(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
                 128 => .{ .cf64 = annex_g.complexFloatMul(f64, lhs.toFloat(f64, comp), lhs.imag(f64, comp), rhs.toFloat(f64, comp), rhs.imag(f64, comp)) },
                 160 => .{ .cf80 = annex_g.complexFloatMul(f80, lhs.toFloat(f80, comp), lhs.imag(f80, comp), rhs.toFloat(f80, comp), rhs.imag(f80, comp)) },
@@ -614,6 +622,7 @@ pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     if (ty.isFloat()) {
         if (ty.isComplex()) {
             const cf: Interner.Key.Complex = switch (bits) {
+                32 => .{ .cf16 = annex_g.complexFloatDiv(f16, lhs.toFloat(f16, comp), lhs.imag(f16, comp), rhs.toFloat(f16, comp), rhs.imag(f16, comp)) },
                 64 => .{ .cf32 = annex_g.complexFloatDiv(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
                 128 => .{ .cf64 = annex_g.complexFloatDiv(f64, lhs.toFloat(f64, comp), lhs.imag(f64, comp), rhs.toFloat(f64, comp), rhs.imag(f64, comp)) },
                 160 => .{ .cf80 = annex_g.complexFloatDiv(f80, lhs.toFloat(f80, comp), lhs.imag(f80, comp), rhs.toFloat(f80, comp), rhs.imag(f80, comp)) },
@@ -853,6 +862,7 @@ pub fn shr(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
 pub fn complexConj(val: Value, ty: Type, comp: *Compilation) !Value {
     const bits = ty.bitSizeof(comp).?;
     const cf: Interner.Key.Complex = switch (bits) {
+        32 => .{ .cf16 = .{ val.toFloat(f16, comp), -val.imag(f16, comp) } },
         64 => .{ .cf32 = .{ val.toFloat(f32, comp), -val.imag(f32, comp) } },
         128 => .{ .cf64 = .{ val.toFloat(f64, comp), -val.imag(f64, comp) } },
         160 => .{ .cf80 = .{ val.toFloat(f80, comp), -val.imag(f80, comp) } },

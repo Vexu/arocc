@@ -782,6 +782,7 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .callable => "callable",
         .mesh => "mesh",
         .amplification => "amplification",
+        .ohos => "openhos",
     };
     writer.writeAll(llvm_abi) catch unreachable;
     return stream.getWritten();
