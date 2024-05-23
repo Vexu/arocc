@@ -344,7 +344,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
 /// Get Zig std.Target from string in the arch-cpu-os-abi format.
 fn getTarget(zig_target_string: []const u8) !std.Target {
     var ret: std.Target = undefined;
-    var iter = std.mem.tokenize(u8, zig_target_string, "-");
+    var iter = std.mem.tokenizeScalar(u8, zig_target_string, '-');
 
     ret.cpu.arch = std.meta.stringToEnum(std.Target.Cpu.Arch, iter.next().?).?;
     ret.cpu.model = try std.Target.Cpu.Arch.parseCpuModel(ret.cpu.arch, iter.next().?);
@@ -384,12 +384,12 @@ fn setTarget(comp: *aro.Compilation, target: []const u8) !std.Target {
 }
 
 fn parseTargetsFromCode(cases: *TestCase.List, path: []const u8, source: []const u8) !void {
-    var lines = std.mem.tokenize(u8, source, "\n");
+    var lines = std.mem.tokenizeScalar(u8, source, '\n');
     while (lines.next()) |line| {
         if (std.mem.indexOf(u8, line, "// MAPPING|") == null) continue;
 
         std.debug.assert(std.mem.count(u8, line, "|") > 1);
-        var parts = std.mem.tokenize(u8, line, "|");
+        var parts = std.mem.tokenizeScalar(u8, line, '|');
         _ = parts.next(); // Skip the MAPPING bit
         const define = parts.next().?; // The define to set for this chunk.
 

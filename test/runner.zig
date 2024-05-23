@@ -20,7 +20,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         var test_args = std.ArrayList([]const u8).init(comp.gpa);
         defer test_args.deinit();
         const nl = std.mem.indexOfAny(u8, file.buf, "\n\r") orelse file.buf.len;
-        var it = std.mem.tokenize(u8, file.buf[0..nl], " ");
+        var it = std.mem.tokenizeScalar(u8, file.buf[0..nl], ' ');
         while (it.next()) |some| try test_args.append(some);
 
         var driver: aro.Driver = .{ .comp = comp };
@@ -37,7 +37,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
     if (std.mem.indexOf(u8, file.buf, "//aro-env")) |idx| {
         const buf = file.buf[idx..];
         const nl = std.mem.indexOfAny(u8, buf, "\n\r") orelse buf.len;
-        var it = std.mem.tokenize(u8, buf[0..nl], " ");
+        var it = std.mem.tokenizeScalar(u8, buf[0..nl], ' ');
         while (it.next()) |some| {
             var parts = std.mem.splitScalar(u8, some, '=');
             const name = parts.next().?;
@@ -411,7 +411,7 @@ pub fn main() !void {
             //     try obj.finish(out_file);
             // }
 
-            var child = std.ChildProcess.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
+            var child = std.process.Child.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
             child.stdout_behavior = .Pipe;
 
             try child.spawn();
