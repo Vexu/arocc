@@ -34,8 +34,7 @@ const Stats = struct {
     skip_count: u32 = 0,
     invalid_target_count: u32 = 0,
     max_alloc: usize = 0,
-    progress: *std.Progress,
-    root_node: *std.Progress.Node,
+    root_node: std.Progress.Node,
 
     const ResultKind = enum {
         ok,
@@ -154,11 +153,13 @@ pub fn main() !void {
         try parseTargetsFromCode(&test_cases, path, source);
     }
 
-    var progress = std.Progress{};
-    const root_node = progress.start("Layout", test_cases.items.len);
+    const root_node = std.Progress.start(.{
+        .disable_printing = false,
+        .root_name = "Layout",
+        .estimated_total_items = test_cases.items.len,
+    });
 
     var stats = Stats{
-        .progress = &progress,
         .root_node = root_node,
     };
 
@@ -242,13 +243,11 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     });
 
     var case_node = stats.root_node.start(case_name.items, 0);
-    case_node.activate();
     defer case_node.end();
-    stats.progress.refresh();
 
     const file = comp.addSourceFromBuffer(path, test_case.source) catch |err| {
         stats.recordResult(.fail);
-        stats.progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
+        std.debug.print("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
         return;
     };
 
@@ -275,7 +274,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     _ = try pp.preprocess(user_macros);
     const eof = pp.preprocess(file) catch |err| {
         stats.recordResult(.fail);
-        stats.progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
+        std.debug.print("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
         return;
     };
     try pp.addToken(eof);
@@ -301,7 +300,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     const expected = compErr.get(buf[0..buf_strm.pos]) orelse ExpectedFailure{};
 
     if (comp.diagnostics.list.items.len == 0 and expected.any()) {
-        stats.progress.log("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
+        std.debug.print("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
     } else {
         var m = aro.Diagnostics.defaultMsgWriter(std.io.tty.detectConfig(std.io.getStdErr()));
         defer m.deinit();

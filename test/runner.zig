@@ -89,15 +89,16 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
 }
 
 fn testAllAllocationFailures(cases: [][]const u8, test_dir: []const u8) !void {
-    var progress = std.Progress{};
-    const root_node = progress.start("Memory Allocation Test", cases.len);
+    const root_node = std.Progress.start(.{
+        .disable_printing = false,
+        .root_name = "Memory Allocation Test",
+        .estimated_total_items = cases.len,
+    });
 
     for (cases) |case| {
         const case_name = std.mem.sliceTo(std.fs.path.basename(case), '.');
         var case_node = root_node.start(case_name, 0);
-        case_node.activate();
         defer case_node.end();
-        progress.refresh();
 
         std.testing.checkAllAllocationFailures(std.testing.allocator, testOne, .{ case, test_dir }) catch |er| switch (er) {
             error.SwallowedOutOfMemoryError => {},
@@ -155,8 +156,11 @@ pub fn main() !void {
         return testAllAllocationFailures(cases.items, test_dir);
     }
 
-    var progress = std.Progress{};
-    const root_node = progress.start("Test", cases.items.len);
+    const root_node = std.Progress.start(.{
+        .disable_printing = false,
+        .root_name = "Test",
+        .estimated_total_items = cases.items.len,
+    });
 
     // prepare compiler
     var initial_comp = aro.Compilation.init(gpa);
@@ -200,13 +204,11 @@ pub fn main() !void {
 
         const case = std.mem.sliceTo(std.fs.path.basename(path), '.');
         var case_node = root_node.start(case, 0);
-        case_node.activate();
         defer case_node.end();
-        progress.refresh();
 
         const file = comp.addSourceFromPath(path) catch |err| {
             fail_count += 1;
-            progress.log("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
+            std.debug.print("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
 
@@ -235,7 +237,7 @@ pub fn main() !void {
         _ = try pp.preprocess(user_macros);
         const eof = pp.preprocess(file) catch |err| {
             fail_count += 1;
-            progress.log("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
+            std.debug.print("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
         try pp.addToken(eof);
@@ -243,17 +245,17 @@ pub fn main() !void {
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .pp_num) {
                 fail_count += 1;
-                progress.log("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
+                std.debug.print("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
                 continue;
             }
             const tok_slice = pp.tokSlice(macro.tokens[0]);
             const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
-            progress.log("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
+            std.debug.print("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
             skip_count += tests_skipped;
         }
 
         if (only_preprocess) {
-            if (try checkExpectedErrors(&pp, &progress, &buf)) |some| {
+            if (try checkExpectedErrors(&pp, &buf)) |some| {
                 if (!some) {
                     fail_count += 1;
                     continue;
@@ -272,7 +274,7 @@ pub fn main() !void {
 
                 break :blk std.fs.cwd().readFileAlloc(gpa, expanded_path, std.math.maxInt(u32)) catch |err| {
                     fail_count += 1;
-                    progress.log("could not open expanded file '{s}': {s}\n", .{ path, @errorName(err) });
+                    std.debug.print("could not open expanded file '{s}': {s}\n", .{ path, @errorName(err) });
                     continue;
                 };
             };
@@ -294,7 +296,7 @@ pub fn main() !void {
 
         var tree = aro.Parser.parse(&pp) catch |err| switch (err) {
             error.FatalError => {
-                if (try checkExpectedErrors(&pp, &progress, &buf)) |some| {
+                if (try checkExpectedErrors(&pp, &buf)) |some| {
                     if (some) ok_count += 1 else fail_count += 1;
                 }
                 continue;
@@ -323,7 +325,7 @@ pub fn main() !void {
                 if (tree.nodes.items(.tag)[@intFromEnum(decl)] == .fn_def) break tree.nodes.items(.data)[@intFromEnum(decl)];
             } else {
                 fail_count += 1;
-                progress.log("EXPECTED_TYPES requires a function to be defined\n", .{});
+                std.debug.print("EXPECTED_TYPES requires a function to be defined\n", .{});
                 break;
             };
 
@@ -339,7 +341,7 @@ pub fn main() !void {
                 if (str.id == .macro_ws) continue;
                 if (str.id != .string_literal) {
                     fail_count += 1;
-                    progress.log("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
+                    std.debug.print("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
                     continue :next_test;
                 }
                 defer i += 1;
@@ -349,7 +351,7 @@ pub fn main() !void {
                 const actual_type = actual.types.items[i];
                 if (!std.mem.eql(u8, expected_type, actual_type)) {
                     fail_count += 1;
-                    progress.log("expected type '{s}' did not match actual type '{s}'\n", .{
+                    std.debug.print("expected type '{s}' did not match actual type '{s}'\n", .{
                         expected_type,
                         actual_type,
                     });
@@ -358,7 +360,7 @@ pub fn main() !void {
             }
             if (i != actual.types.items.len) {
                 fail_count += 1;
-                progress.log(
+                std.debug.print(
                     "EXPECTED_TYPES count differs: expected {d} found {d}\n",
                     .{ i, actual.types.items.len },
                 );
@@ -366,7 +368,7 @@ pub fn main() !void {
             }
         }
 
-        if (try checkExpectedErrors(&pp, &progress, &buf)) |some| {
+        if (try checkExpectedErrors(&pp, &buf)) |some| {
             if (some) ok_count += 1 else fail_count += 1;
             continue;
         }
@@ -384,13 +386,13 @@ pub fn main() !void {
 
             if (macro.is_func) {
                 fail_count += 1;
-                progress.log("invalid EXPECTED_OUTPUT {}\n", .{macro});
+                std.debug.print("invalid EXPECTED_OUTPUT {}\n", .{macro});
                 continue;
             }
 
             if (macro.tokens.len != 1 or macro.tokens[0].id != .string_literal) {
                 fail_count += 1;
-                progress.log("EXPECTED_OUTPUT takes exactly one string", .{});
+                std.debug.print("EXPECTED_OUTPUT takes exactly one string", .{});
                 continue;
             }
 
@@ -432,7 +434,7 @@ pub fn main() !void {
 
             if (!std.mem.eql(u8, expected_output, stdout)) {
                 fail_count += 1;
-                progress.log(
+                std.debug.print(
                     \\
                     \\======= expected output =======
                     \\{s}
@@ -464,7 +466,7 @@ pub fn main() !void {
 }
 
 // returns true if passed
-fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std.ArrayList(u8)) !?bool {
+fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
     const macro = pp.defines.get("EXPECTED_ERRORS") orelse return null;
 
     const expected_count = pp.comp.diagnostics.list.items.len;
@@ -473,7 +475,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std
     aro.Diagnostics.renderMessages(pp.comp, &m);
 
     if (macro.is_func) {
-        progress.log("invalid EXPECTED_ERRORS {}\n", .{macro});
+        std.debug.print("invalid EXPECTED_ERRORS {}\n", .{macro});
         return false;
     }
 
@@ -481,7 +483,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std
     for (macro.tokens) |str| {
         if (str.id == .macro_ws) continue;
         if (str.id != .string_literal) {
-            progress.log("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
+            std.debug.print("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
             return false;
         }
         defer count += 1;
@@ -495,7 +497,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std
 
         const index = std.mem.indexOf(u8, m.buf.items, expected_error);
         if (index == null) {
-            progress.log(
+            std.debug.print(
                 \\
                 \\======= expected to find error =======
                 \\{s}
@@ -510,7 +512,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, progress: *std.Progress, buf: *std
     }
 
     if (count != expected_count) {
-        progress.log(
+        std.debug.print(
             \\EXPECTED_ERRORS missing errors, expected {d} found {d},
             \\=== actual output ===
             \\{s}
