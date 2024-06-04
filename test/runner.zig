@@ -109,10 +109,6 @@ fn testAllAllocationFailures(cases: [][]const u8, test_dir: []const u8) !void {
 }
 
 pub fn main() !void {
-    const mode = @import("builtin").mode;
-    if (mode == .ReleaseFast or mode == .ReleaseSmall) {
-        return; // Building the test runner in release modes crashes the Zig compiler.
-    }
     const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
 
