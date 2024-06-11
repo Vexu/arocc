@@ -246,7 +246,7 @@ pub fn main() !void {
             }
             const tok_slice = pp.tokSlice(macro.tokens[0]);
             const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
-            std.debug.print("{d} test{s} skipped\n", .{ tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
+            std.debug.print("{s}: {d} test{s} skipped\n", .{ case, tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
             skip_count += tests_skipped;
         }
 
