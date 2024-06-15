@@ -56,8 +56,6 @@ pub fn build(b: *Build) !void {
     const tracy = b.option([]const u8, "tracy", "Enable Tracy integration. Supply path to Tracy source");
     const tracy_callstack = b.option(bool, "tracy-callstack", "Include callstack information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
     const tracy_allocation = b.option(bool, "tracy-allocation", "Include allocation information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
-    const skip_record_tests = b.option(bool, "skip-record-tests", "Skip record layout tests") orelse false;
-    const skip_integration_tests = b.option(bool, "skip-integration-tests", "Skip integration tests") orelse false;
 
     const system_defaults = b.addOptions();
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
@@ -201,42 +199,59 @@ pub fn build(b: *Build) !void {
     }
     b.installArtifact(exe);
 
+    const unit_tests_step = step: {
+        var unit_tests = b.addTest(.{ .root_source_file = b.path("src/aro.zig") });
+        for (aro_module.import_table.keys(), aro_module.import_table.values()) |name, module| {
+            unit_tests.root_module.addImport(name, module);
+        }
+        const run_test = b.addRunArtifact(unit_tests);
+
+        const unit_tests_step = b.step("test-unit", "Run unit tests");
+        unit_tests_step.dependOn(&run_test.step);
+        break :step unit_tests_step;
+    };
+
+    const integration_tests_step = step: {
+        const integration_tests = b.addExecutable(.{
+            .name = "test-runner",
+            .root_source_file = b.path("test/runner.zig"),
+            .optimize = mode,
+            .target = target,
+        });
+        integration_tests.root_module.addImport("aro", aro_module);
+        const test_runner_options = b.addOptions();
+        integration_tests.root_module.addOptions("build_options", test_runner_options);
+        test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
+
+        const integration_test_runner = b.addRunArtifact(integration_tests);
+        integration_test_runner.addArg(b.pathFromRoot("test/cases"));
+        integration_test_runner.addArg(b.graph.zig_exe);
+
+        const integration_tests_step = b.step("test-integration", "Run integration tests");
+        integration_tests_step.dependOn(&integration_test_runner.step);
+        break :step integration_tests_step;
+    };
+
+    const record_tests_step = step: {
+        const record_tests = b.addExecutable(.{
+            .name = "record-runner",
+            .root_source_file = b.path("test/record_runner.zig"),
+            .optimize = mode,
+            .target = target,
+        });
+        record_tests.root_module.addImport("aro", aro_module);
+        const record_tests_runner = b.addRunArtifact(record_tests);
+        record_tests_runner.addArg(b.pathFromRoot("test/records"));
+
+        const record_tests_step = b.step("test-record", "Run record layout tests");
+        record_tests_step.dependOn(&record_tests_runner.step);
+        break :step record_tests_step;
+    };
+
     const tests_step = b.step("test", "Run all tests");
-
-    var unit_tests = b.addTest(.{ .root_source_file = b.path("src/aro.zig") });
-    for (aro_module.import_table.keys(), aro_module.import_table.values()) |name, module| {
-        unit_tests.root_module.addImport(name, module);
-    }
-    const run_test = b.addRunArtifact(unit_tests);
-    tests_step.dependOn(&run_test.step);
-
-    const integration_tests = b.addExecutable(.{
-        .name = "test-runner",
-        .root_source_file = b.path("test/runner.zig"),
-        .optimize = mode,
-        .target = target,
-    });
-    integration_tests.root_module.addImport("aro", aro_module);
-    const test_runner_options = b.addOptions();
-    integration_tests.root_module.addOptions("build_options", test_runner_options);
-    test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
-
-    const integration_test_runner = b.addRunArtifact(integration_tests);
-    integration_test_runner.addArg(b.pathFromRoot("test/cases"));
-    integration_test_runner.addArg(b.graph.zig_exe);
-
-    const record_tests = b.addExecutable(.{
-        .name = "record-runner",
-        .root_source_file = b.path("test/record_runner.zig"),
-        .optimize = mode,
-        .target = target,
-    });
-    record_tests.root_module.addImport("aro", aro_module);
-    const record_tests_runner = b.addRunArtifact(record_tests);
-    record_tests_runner.addArg(b.pathFromRoot("test/records"));
-
-    if (!skip_integration_tests) tests_step.dependOn(&integration_test_runner.step);
-    if (!skip_record_tests) tests_step.dependOn(&record_tests_runner.step);
+    tests_step.dependOn(unit_tests_step);
+    tests_step.dependOn(integration_tests_step);
+    tests_step.dependOn(record_tests_step);
 
     try addFuzzStep(b, target, afl_clang_lto_path, aro_module);
 }
