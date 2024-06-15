@@ -50,7 +50,7 @@ pub fn create(owner: *std.Build, options: Options) std.Build.Module.Import {
     };
 }
 
-fn make(step: *Step, prog_node: *std.Progress.Node) !void {
+fn make(step: *Step, prog_node: std.Progress.Node) !void {
     _ = prog_node;
     const b = step.owner;
     const self: *GenerateDef = @fieldParentPtr("step", step);
