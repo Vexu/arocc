@@ -474,7 +474,7 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
-pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: Type) ![]const u8 {
+pub fn valueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: Type) ![]const u8 {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
@@ -5605,8 +5605,8 @@ pub const Result = struct {
             .none => return p.errStr(.float_to_int, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
             .out_of_range => return p.errStr(.float_out_of_range, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
             .overflow => return p.errStr(.float_overflow_conversion, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
-            .nonzero_to_zero => return p.errStr(.float_zero_conversion, tok, try p.floatValueChangedStr(res, old_value, int_ty)),
-            .value_changed => return p.errStr(.float_value_changed, tok, try p.floatValueChangedStr(res, old_value, int_ty)),
+            .nonzero_to_zero => return p.errStr(.float_zero_conversion, tok, try p.valueChangedStr(res, old_value, int_ty)),
+            .value_changed => return p.errStr(.float_value_changed, tok, try p.valueChangedStr(res, old_value, int_ty)),
         }
     }
 
