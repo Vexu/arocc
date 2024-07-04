@@ -1658,6 +1658,12 @@ vla
     .kind = .off
     .opt = W("vla")
 
+int_value_changed
+    .msg = "implicit conversion from {s}"
+    .extra = .str
+    .kind = .warning
+    .opt = W("constant-conversion")
+
 float_overflow_conversion
     .msg = "implicit conversion of non-finite value from {s} is undefined"
     .extra = .str

@@ -230,10 +230,20 @@ pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     };
 }
 
+pub const IntCastChangeKind = enum {
+    /// value did not change
+    none,
+    /// This can happen due to various reasons such as:
+    /// 1. Truncation: when casting to a smaller type (e.g., i32 to i16)
+    /// 2. Sign changes: when casting between signed and unsigned types
+    /// 3. Overflow: when the value is too large for the destination type
+    value_changed, //TODO: "Can we divide into more kinds?"
+};
+
 /// Truncates or extends bits based on type.
 /// `.none` value remains unchanged.
-pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
-    if (v.opt_ref == .none) return;
+pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind {
+    if (v.opt_ref == .none) return .none;
     const bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
     var space: BigIntSpace = undefined;
     const big = v.toBigInt(&space, comp);
@@ -246,7 +256,12 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
     result_bigint.truncate(big, dest_ty.signedness(comp), bits);
 
-    v.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
+    const truncated = result_bigint.toConst();
+    const truncation_occurred = !big.eql(truncated);
+
+    v.* = try intern(comp, .{ .int = .{ .big_int = truncated } });
+
+    return if (truncation_occurred) .value_changed else .none;
 }
 
 /// Converts the stored value to a float of the specified type

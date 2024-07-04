@@ -45,7 +45,7 @@ int bar(void) {
     return 1U < 2U;
 }
 
-int baz = 0xFFFFFFFFFF + 1u;
+int baz = 0xFFFFFFFFFFLL + 1u;
 int qux = 1/"foo";
 int quux = "foo"?1:2;
 
@@ -105,6 +105,7 @@ _Static_assert((-10 & -1) == -10, "");
     "binary expressions.c:33:5: error: expected statement" \
     "binary expressions.c:38:5: error: expected expression" \
     "binary expressions.c:39:13: error: expected expression" \
+    "binary expressions.c:48:11: warning: implicit conversion from 'long long' to 'int' changes non-zero value from 1099511627776 to 0 [-Wconstant-conversion]" \
     "binary expressions.c:49:12: error: invalid operands to binary expression ('int' and 'char *')" \
     "binary expressions.c:55:9: error: invalid operands to binary expression ('double' and 'struct S')" \
     "binary expressions.c:56:9: error: invalid operands to binary expression ('double' and 'struct S')" \

@@ -2623,7 +2623,7 @@ fn enumSpec(p: *Parser) Error!Type {
                 continue;
 
             const symbol = p.syms.getPtr(field.name, .vars);
-            try symbol.val.intCast(dest_ty, p.comp);
+            _ = try symbol.val.intCast(dest_ty, p.comp);
             symbol.ty = dest_ty;
             p.nodes.items(.ty)[@intFromEnum(field_nodes[i])] = dest_ty;
             field.ty = dest_ty;
@@ -5574,7 +5574,11 @@ pub const Result = struct {
                 try res.implicitCast(p, .complex_float_to_complex_int);
             }
         } else if (!res.ty.eql(int_ty, p.comp, true)) {
-            try res.val.intCast(int_ty, p.comp);
+            const old_val = res.val;
+            const value_change_kind = try res.val.intCast(int_ty, p.comp);
+            if (value_change_kind == .value_changed and res.ty.makeIntegerUnsigned().specifier != int_ty.makeIntegerUnsigned().specifier)
+                try p.errStr(.int_value_changed, tok, try p.valueChangedStr(res, old_val, int_ty));
+
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();
             if (old_real and new_real) {
@@ -5674,7 +5678,7 @@ pub const Result = struct {
             res.ty = ptr_ty;
             try res.implicitCast(p, .bool_to_pointer);
         } else if (res.ty.isInt()) {
-            try res.val.intCast(ptr_ty, p.comp);
+            _ = try res.val.intCast(ptr_ty, p.comp);
             res.ty = ptr_ty;
             try res.implicitCast(p, .int_to_pointer);
         }
@@ -6007,7 +6011,7 @@ pub const Result = struct {
                     try p.errStr(.cast_to_incomplete_type, l_paren, try p.typeStr(to));
                     return error.ParsingFailed;
                 }
-                try res.val.intCast(to, p.comp);
+                _ = try res.val.intCast(to, p.comp);
             }
         } else if (to.get(.@"union")) |union_ty| {
             if (union_ty.data.record.hasFieldOfType(res.ty, p.comp)) {
@@ -8258,7 +8262,7 @@ fn charLiteral(p: *Parser) Error!Result {
     // > that of the single character or escape sequence is converted to type int.
     // This conversion only matters if `char` is signed and has a high-order bit of `1`
     if (char_kind == .char and !is_multichar and val > 0x7F and p.comp.getCharSignedness() == .signed) {
-        try value.intCast(.{ .specifier = .char }, p.comp);
+        _ = try value.intCast(.{ .specifier = .char }, p.comp);
     }
 
     const res = Result{
