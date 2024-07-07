@@ -1664,6 +1664,12 @@ int_value_changed
     .kind = .warning
     .opt = W("constant-conversion")
 
+sign_conversion
+    .msg = "implicit conversion changes signedness: {s}"
+    .extra = .str
+    .kind = .off
+    .opt = W("sign-conversion")
+
 float_overflow_conversion
     .msg = "implicit conversion of non-finite value from {s} is undefined"
     .extra = .str

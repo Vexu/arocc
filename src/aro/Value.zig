@@ -233,35 +233,48 @@ pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
 pub const IntCastChangeKind = enum {
     /// value did not change
     none,
-    /// This can happen due to various reasons such as:
-    /// 1. Truncation: when casting to a smaller type (e.g., i32 to i16)
-    /// 2. Sign changes: when casting between signed and unsigned types
-    /// 3. Overflow: when the value is too large for the destination type
-    value_changed, //TODO: "Can we divide into more kinds?"
+    /// Truncation occurred (e.g., i32 to i16)
+    truncated,
+    /// Sign conversion occurred (e.g., i32 to u32)
+    sign_changed,
 };
 
 /// Truncates or extends bits based on type.
 /// `.none` value remains unchanged.
 pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind {
     if (v.opt_ref == .none) return .none;
-    const bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
+
+    const dest_bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
+    const dest_signed = dest_ty.signedness(comp) == .signed;
+
     var space: BigIntSpace = undefined;
     const big = v.toBigInt(&space, comp);
+    const value_bits = big.bitCountTwosComp();
+
+    // if big is negative or zero, then is signed.
+    const src_signed = (!big.positive or big.limbs[0] == 0);
+    const signChange = src_signed != dest_signed;
 
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
-        std.math.big.int.calcTwosCompLimbCount(@max(big.bitCountTwosComp(), bits)),
+        std.math.big.int.calcTwosCompLimbCount(@max(value_bits, dest_bits)),
     );
     defer comp.gpa.free(limbs);
+
     var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
-    result_bigint.truncate(big, dest_ty.signedness(comp), bits);
+    result_bigint.truncate(big, dest_ty.signedness(comp), dest_bits);
 
-    const truncated = result_bigint.toConst();
-    const truncation_occurred = !big.eql(truncated);
+    const truncation_occurred = value_bits > dest_bits;
 
-    v.* = try intern(comp, .{ .int = .{ .big_int = truncated } });
+    v.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 
-    return if (truncation_occurred) .value_changed else .none;
+    if (truncation_occurred) {
+        return .truncated;
+    } else if (signChange) {
+        return .sign_changed;
+    } else {
+        return .none;
+    }
 }
 
 /// Converts the stored value to a float of the specified type

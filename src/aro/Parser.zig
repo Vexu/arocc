@@ -5576,8 +5576,11 @@ pub const Result = struct {
         } else if (!res.ty.eql(int_ty, p.comp, true)) {
             const old_val = res.val;
             const value_change_kind = try res.val.intCast(int_ty, p.comp);
-            if (value_change_kind == .value_changed and res.ty.makeIntegerUnsigned().specifier != int_ty.makeIntegerUnsigned().specifier)
-                try p.errStr(.int_value_changed, tok, try p.valueChangedStr(res, old_val, int_ty));
+            switch (value_change_kind) {
+                .none => {},
+                .truncated => try p.errStr(.int_value_changed, tok, try p.valueChangedStr(res, old_val, int_ty)),
+                .sign_changed => try p.errStr(.sign_conversion, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
+            }
 
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();

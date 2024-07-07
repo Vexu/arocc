@@ -215,6 +215,7 @@ pub const Options = struct {
     @"shift-count-negative": Kind = .default,
     @"shift-count-overflow": Kind = .default,
     @"constant-conversion": Kind = .default,
+    @"sign-conversion": Kind = .default,
 };
 
 const Diagnostics = @This();
