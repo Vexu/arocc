@@ -2046,17 +2046,22 @@ bit_int
     .suppress_version = .c23
 
 unsigned_bit_int_too_small
-    .msg = "{s} must have a bit size of at least 1"
+    .msg = "{s}unsigned _BitInt must have a bit size of at least 1"
     .extra = .str
     .kind = .@"error"
 
 signed_bit_int_too_small
-    .msg = "{s} must have a bit size of at least 2"
+    .msg = "{s}signed _BitInt must have a bit size of at least 2"
     .extra = .str
     .kind = .@"error"
 
-bit_int_too_big
-    .msg = "{s} of bit sizes greater than " ++ std.fmt.comptimePrint("{d}", .{Properties.max_bits}) ++ " not supported"
+unsigned_bit_int_too_big
+    .msg = "{s}unsigned _BitInt of bit sizes greater than " ++ std.fmt.comptimePrint("{d}", .{Properties.max_bits}) ++ " not supported"
+    .extra = .str
+    .kind = .@"error"
+
+signed_bit_int_too_big
+    .msg = "{s}signed _BitInt of bit sizes greater than " ++ std.fmt.comptimePrint("{d}", .{Properties.max_bits}) ++ " not supported"
     .extra = .str
     .kind = .@"error"
 

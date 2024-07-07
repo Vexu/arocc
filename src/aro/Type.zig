@@ -1759,19 +1759,20 @@ pub const Builder = struct {
             .complex_uint128 => ty.specifier = .complex_uint128,
             .bit_int, .sbit_int, .ubit_int, .complex_bit_int, .complex_ubit_int, .complex_sbit_int => |bits| {
                 const unsigned = b.specifier == .ubit_int or b.specifier == .complex_ubit_int;
+                const complex_str = if (b.complex_tok != null) "_Complex " else "";
                 if (unsigned) {
                     if (bits < 1) {
-                        try p.errStr(.unsigned_bit_int_too_small, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
+                        try p.errStr(.unsigned_bit_int_too_small, b.bit_int_tok.?, complex_str);
                         return Type.invalid;
                     }
                 } else {
                     if (bits < 2) {
-                        try p.errStr(.signed_bit_int_too_small, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
+                        try p.errStr(.signed_bit_int_too_small, b.bit_int_tok.?, complex_str);
                         return Type.invalid;
                     }
                 }
                 if (bits > Compilation.bit_int_max_bits) {
-                    try p.errStr(.bit_int_too_big, b.bit_int_tok.?, b.specifier.str(p.comp.langopts).?);
+                    try p.errStr(if (unsigned) .unsigned_bit_int_too_big else .signed_bit_int_too_big, b.bit_int_tok.?, complex_str);
                     return Type.invalid;
                 }
                 ty.specifier = if (b.complex_tok != null) .complex_bit_int else .bit_int;
@@ -2485,6 +2486,8 @@ fn printPrologue(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts
             _ = try elem_ty.printPrologue(mapper, langopts, w);
             try w.writeAll("' values)");
         },
+        .bit_int => try w.print("{s}_BitInt({d})", .{ if (ty.data.int.signedness == .unsigned) "unsigned " else "", ty.data.int.bits }),
+        .complex_bit_int => try w.print("_Complex {s}_BitInt({d})", .{ if (ty.data.int.signedness == .unsigned) "unsigned " else "", ty.data.int.bits }),
         else => try w.writeAll(Builder.fromType(ty).str(langopts).?),
     }
     return true;
