@@ -252,8 +252,8 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind 
     const value_bits = big.bitCountTwosComp();
 
     // if big is negative or zero, then is signed.
-    const src_signed = (!big.positive or big.limbs[0] == 0);
-    const signChange = src_signed != dest_signed;
+    const src_signed = (!big.positive or big.eqlZero());
+    const sign_change = src_signed != dest_signed;
 
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
@@ -270,7 +270,7 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind 
 
     if (truncation_occurred) {
         return .truncated;
-    } else if (signChange) {
+    } else if (sign_change) {
         return .sign_changed;
     } else {
         return .none;
