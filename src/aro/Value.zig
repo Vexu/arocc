@@ -251,8 +251,8 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind 
     const big = v.toBigInt(&space, comp);
     const value_bits = big.bitCountTwosComp();
 
-    // if big is negative or zero, then is signed.
-    const src_signed = (!big.positive or big.eqlZero());
+    // if big is negative, then is signed.
+    const src_signed = !big.positive;
     const sign_change = src_signed != dest_signed;
 
     const limbs = try comp.gpa.alloc(
@@ -264,10 +264,9 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind 
     var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
     result_bigint.truncate(big, dest_ty.signedness(comp), dest_bits);
 
-    const truncation_occurred = value_bits > dest_bits;
-
     v.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 
+    const truncation_occurred = value_bits > dest_bits;
     if (truncation_occurred) {
         return .truncated;
     } else if (sign_change) {
