@@ -55,6 +55,7 @@ _Static_assert(sizeof(__CHAR16_TYPE__) == sizeof(u'A'), "");
 _Static_assert(sizeof(__CHAR32_TYPE__) == sizeof(U'A'), "");
 
 #define EXPECTED_ERRORS "wide character constants.c:9:27: error: character too large for enclosing character literal type" \
+    "wide character constants.c:9:20: warning: implicit conversion from 'int' to 'unsigned short' changes non-zero value from 131072 to 0 [-Wconstant-conversion]" \
     "wide character constants.c:10:16: error: wide character literals may not contain multiple characters" \
     "wide character constants.c:11:16: error: Unicode character literals may not contain multiple characters" \
     "wide character constants.c:14:16: warning: multi-character character constant [-Wfour-char-constants]" \
