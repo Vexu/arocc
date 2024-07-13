@@ -163,7 +163,7 @@ pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChang
     };
 
     // The float is reduced in rational.setFloat, so we assert that denominator is equal to one
-    const big_one = std.math.big.int.Const{ .limbs = &.{1}, .positive = true };
+    const big_one = BigIntConst{ .limbs = &.{1}, .positive = true };
     assert(rational.q.toConst().eqlAbs(big_one));
 
     if (is_negative) {
@@ -230,23 +230,50 @@ pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
     };
 }
 
+pub const IntCastChangeKind = enum {
+    /// value did not change
+    none,
+    /// Truncation occurred (e.g., i32 to i16)
+    truncated,
+    /// Sign conversion occurred (e.g., i32 to u32)
+    sign_changed,
+};
+
 /// Truncates or extends bits based on type.
 /// `.none` value remains unchanged.
-pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
-    if (v.opt_ref == .none) return;
-    const bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
+pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind {
+    if (v.opt_ref == .none) return .none;
+
+    const dest_bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
+    const dest_signed = dest_ty.signedness(comp) == .signed;
+
     var space: BigIntSpace = undefined;
     const big = v.toBigInt(&space, comp);
+    const value_bits = big.bitCountTwosComp();
+
+    // if big is negative, then is signed.
+    const src_signed = !big.positive;
+    const sign_change = src_signed != dest_signed;
 
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
-        std.math.big.int.calcTwosCompLimbCount(@max(big.bitCountTwosComp(), bits)),
+        std.math.big.int.calcTwosCompLimbCount(@max(value_bits, dest_bits)),
     );
     defer comp.gpa.free(limbs);
-    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
-    result_bigint.truncate(big, dest_ty.signedness(comp), bits);
+
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+    result_bigint.truncate(big, dest_ty.signedness(comp), dest_bits);
 
     v.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
+
+    const truncation_occurred = value_bits > dest_bits;
+    if (truncation_occurred) {
+        return .truncated;
+    } else if (sign_change) {
+        return .sign_changed;
+    } else {
+        return .none;
+    }
 }
 
 /// Converts the stored value to a float of the specified type
@@ -509,7 +536,7 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
             std.math.big.int.calcTwosCompLimbCount(bits),
         );
         defer comp.gpa.free(limbs);
-        var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+        var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
         const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
         res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
@@ -552,7 +579,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
             std.math.big.int.calcTwosCompLimbCount(bits),
         );
         defer comp.gpa.free(limbs);
-        var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+        var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
         const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
         res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
@@ -736,7 +763,7 @@ pub fn bitOr(lhs: Value, rhs: Value, comp: *Compilation) !Value {
         @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len),
     );
     defer comp.gpa.free(limbs);
-    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.bitOr(lhs_bigint, rhs_bigint);
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
@@ -754,7 +781,7 @@ pub fn bitXor(lhs: Value, rhs: Value, comp: *Compilation) !Value {
         @max(lhs_bigint.limbs.len, rhs_bigint.limbs.len) + extra,
     );
     defer comp.gpa.free(limbs);
-    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.bitXor(lhs_bigint, rhs_bigint);
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
@@ -777,7 +804,7 @@ pub fn bitAnd(lhs: Value, rhs: Value, comp: *Compilation) !Value {
 
     const limbs = try comp.gpa.alloc(std.math.big.Limb, limb_count);
     defer comp.gpa.free(limbs);
-    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.bitAnd(lhs_bigint, rhs_bigint);
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
@@ -793,7 +820,7 @@ pub fn bitNot(val: Value, ty: Type, comp: *Compilation) !Value {
         std.math.big.int.calcTwosCompLimbCount(bits),
     );
     defer comp.gpa.free(limbs);
-    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.bitNotWrap(val_bigint, ty.signedness(comp), bits);
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
@@ -819,7 +846,7 @@ pub fn shl(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         lhs_bigint.limbs.len + (shift / (@sizeOf(std.math.big.Limb) * 8)) + 1,
     );
     defer comp.gpa.free(limbs);
-    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.shiftLeft(lhs_bigint, shift);
     const signedness = ty.signedness(comp);
@@ -853,7 +880,7 @@ pub fn shr(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
         std.math.big.int.calcTwosCompLimbCount(bits),
     );
     defer comp.gpa.free(limbs);
-    var result_bigint = std.math.big.int.Mutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.shiftRight(lhs_bigint, shift);
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });

@@ -26,19 +26,19 @@ const int bar =
 ;
 _Static_assert(bar == 'H', "");
 
-# if __has_embed("include/embed data" foo(1)) != 0
+# if __has_embed("include/embed data" foo(1)) != __STDC_EMBED_NOT_FOUND__
 #error unknown param was accepted
 #endif
 
-# if __has_embed("doesn't exist") != 0
+# if __has_embed("doesn't exist") != __STDC_EMBED_NOT_FOUND__
 #error non-existent embed found
 #endif
 
-# if __has_embed("include/embed data" limit(1)) != 1
+# if __has_embed("include/embed data" limit(1)) != __STDC_EMBED_FOUND__
 #error embed should be found
 #endif
 
-# if __has_embed("include/empty") != 2
+# if __has_embed("include/empty") != __STDC_EMBED_EMPTY__
 #error empty wasn't detected
 #endif
 

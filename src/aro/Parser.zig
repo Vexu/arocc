@@ -474,7 +474,7 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
-pub fn floatValueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: Type) ![]const u8 {
+pub fn valueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: Type) ![]const u8 {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
@@ -2623,7 +2623,7 @@ fn enumSpec(p: *Parser) Error!Type {
                 continue;
 
             const symbol = p.syms.getPtr(field.name, .vars);
-            try symbol.val.intCast(dest_ty, p.comp);
+            _ = try symbol.val.intCast(dest_ty, p.comp);
             symbol.ty = dest_ty;
             p.nodes.items(.ty)[@intFromEnum(field_nodes[i])] = dest_ty;
             field.ty = dest_ty;
@@ -5574,7 +5574,14 @@ pub const Result = struct {
                 try res.implicitCast(p, .complex_float_to_complex_int);
             }
         } else if (!res.ty.eql(int_ty, p.comp, true)) {
-            try res.val.intCast(int_ty, p.comp);
+            const old_val = res.val;
+            const value_change_kind = try res.val.intCast(int_ty, p.comp);
+            switch (value_change_kind) {
+                .none => {},
+                .truncated => try p.errStr(.int_value_changed, tok, try p.valueChangedStr(res, old_val, int_ty)),
+                .sign_changed => try p.errStr(.sign_conversion, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
+            }
+
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();
             if (old_real and new_real) {
@@ -5605,8 +5612,8 @@ pub const Result = struct {
             .none => return p.errStr(.float_to_int, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
             .out_of_range => return p.errStr(.float_out_of_range, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
             .overflow => return p.errStr(.float_overflow_conversion, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
-            .nonzero_to_zero => return p.errStr(.float_zero_conversion, tok, try p.floatValueChangedStr(res, old_value, int_ty)),
-            .value_changed => return p.errStr(.float_value_changed, tok, try p.floatValueChangedStr(res, old_value, int_ty)),
+            .nonzero_to_zero => return p.errStr(.float_zero_conversion, tok, try p.valueChangedStr(res, old_value, int_ty)),
+            .value_changed => return p.errStr(.float_value_changed, tok, try p.valueChangedStr(res, old_value, int_ty)),
         }
     }
 
@@ -5674,7 +5681,7 @@ pub const Result = struct {
             res.ty = ptr_ty;
             try res.implicitCast(p, .bool_to_pointer);
         } else if (res.ty.isInt()) {
-            try res.val.intCast(ptr_ty, p.comp);
+            _ = try res.val.intCast(ptr_ty, p.comp);
             res.ty = ptr_ty;
             try res.implicitCast(p, .int_to_pointer);
         }
@@ -6007,7 +6014,7 @@ pub const Result = struct {
                     try p.errStr(.cast_to_incomplete_type, l_paren, try p.typeStr(to));
                     return error.ParsingFailed;
                 }
-                try res.val.intCast(to, p.comp);
+                _ = try res.val.intCast(to, p.comp);
             }
         } else if (to.get(.@"union")) |union_ty| {
             if (union_ty.data.record.hasFieldOfType(res.ty, p.comp)) {
@@ -8258,7 +8265,7 @@ fn charLiteral(p: *Parser) Error!Result {
     // > that of the single character or escape sequence is converted to type int.
     // This conversion only matters if `char` is signed and has a high-order bit of `1`
     if (char_kind == .char and !is_multichar and val > 0x7F and p.comp.getCharSignedness() == .signed) {
-        try value.intCast(.{ .specifier = .char }, p.comp);
+        _ = try value.intCast(.{ .specifier = .char }, p.comp);
     }
 
     const res = Result{

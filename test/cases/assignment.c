@@ -86,6 +86,16 @@ void different_sign(void) {
     y = &x;
 }
 
+void constant_sign_conversion(void) {
+    unsigned char x = 1000;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wsign-conversion"
+    unsigned int u = -1;
+#pragma GCC diagnostic pop
+}
+
+
 #define EXPECTED_ERRORS "assignment.c:2:7: error: expression is not assignable" \
     "assignment.c:4:7: error: expression is not assignable" \
     "assignment.c:6:7: warning: implicit conversion from 'float' to '_Bool' changes value from 5.5 to true [-Wfloat-conversion]" \
@@ -109,4 +119,8 @@ void different_sign(void) {
     "assignment.c:72:12: error: variable has incomplete type 'enum E'" \
     "assignment.c:79:7: error: expression is not assignable" \
     "assignment.c:86:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *'  converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "assignment.c:90:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
+    "assignment.c:94:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]" \
+    
+
 
