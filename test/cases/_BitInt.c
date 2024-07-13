@@ -36,5 +36,5 @@ _Static_assert(sizeof(_BitInt(65535)) == 8192, "");
     "_BitInt.c:18:25: warning: '_BitInt' suffix for literals is a C23 extension [-Wc23-extensions]" \
     "_BitInt.c:18:25: warning: '_BitInt' suffix for literals is a C23 extension [-Wc23-extensions]" \
     "_BitInt.c:22:10: error: expected ';', found 'a character literal'" \
-    "_BitInt.c:27:5: error: enumerator value is not representable in the underlying type '_BitInt'" \
+    "_BitInt.c:27:5: error: enumerator value is not representable in the underlying type 'signed _BitInt(512)'" \
 

@@ -1616,9 +1616,6 @@ pub const Builder = struct {
                 .int128 => "__int128",
                 .sint128 => "signed __int128",
                 .uint128 => "unsigned __int128",
-                .bit_int => "_BitInt",
-                .sbit_int => "signed _BitInt",
-                .ubit_int => "unsigned _BitInt",
                 .complex_char => "_Complex char",
                 .complex_schar => "_Complex signed char",
                 .complex_uchar => "_Complex unsigned char",
@@ -1648,9 +1645,6 @@ pub const Builder = struct {
                 .complex_int128 => "_Complex __int128",
                 .complex_sint128 => "_Complex signed __int128",
                 .complex_uint128 => "_Complex unsigned __int128",
-                .complex_bit_int => "_Complex _BitInt",
-                .complex_sbit_int => "_Complex signed _BitInt",
-                .complex_ubit_int => "_Complex unsigned _BitInt",
 
                 .fp16 => "__fp16",
                 .float16 => "_Float16",
@@ -2486,8 +2480,8 @@ fn printPrologue(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts
             _ = try elem_ty.printPrologue(mapper, langopts, w);
             try w.writeAll("' values)");
         },
-        .bit_int => try w.print("{s}_BitInt({d})", .{ if (ty.data.int.signedness == .unsigned) "unsigned " else "", ty.data.int.bits }),
-        .complex_bit_int => try w.print("_Complex {s}_BitInt({d})", .{ if (ty.data.int.signedness == .unsigned) "unsigned " else "", ty.data.int.bits }),
+        .bit_int => try w.print("{s} _BitInt({d})", .{ @tagName(ty.data.int.signedness), ty.data.int.bits }),
+        .complex_bit_int => try w.print("_Complex {s} _BitInt({d})", .{ @tagName(ty.data.int.signedness), ty.data.int.bits }),
         else => try w.writeAll(Builder.fromType(ty).str(langopts).?),
     }
     return true;
@@ -2646,12 +2640,9 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
             try ty.data.attributed.base.dump(mapper, langopts, w);
             try w.writeAll(")");
         },
-        else => {
-            try w.writeAll(Builder.fromType(ty).str(langopts).?);
-            if (ty.specifier == .bit_int or ty.specifier == .complex_bit_int) {
-                try w.print("({d})", .{ty.data.int.bits});
-            }
-        },
+        .bit_int => try w.print("{s} _BitInt({d})", .{ @tagName(ty.data.int.signedness), ty.data.int.bits }),
+        .complex_bit_int => try w.print("_Complex {s} _BitInt({d})", .{ @tagName(ty.data.int.signedness), ty.data.int.bits }),
+        else => try w.writeAll(Builder.fromType(ty).str(langopts).?),
     }
 }
 
