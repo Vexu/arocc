@@ -8505,17 +8505,6 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         // value of the constant is positive or was specified in hexadecimal or octal notation.
         const sign_bits = @intFromBool(suffix.isSignedInteger());
         const bits_needed = count + sign_bits;
-        if (bits_needed > Compilation.bit_int_max_bits) {
-            const specifier: Type.Builder.Specifier = switch (suffix) {
-                .WB => .{ .bit_int = 0 },
-                .UWB => .{ .ubit_int = 0 },
-                .IWB => .{ .complex_bit_int = 0 },
-                .IUWB => .{ .complex_ubit_int = 0 },
-                else => unreachable,
-            };
-            try p.errStr(.bit_int_too_big, tok_i, specifier.str(p.comp.langopts).?);
-            return error.ParsingFailed;
-        }
         break :blk @intCast(bits_needed);
     };
 
