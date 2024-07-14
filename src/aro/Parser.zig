@@ -8418,7 +8418,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
     if (suffix.isSignedInteger()) {
         const max_int = try Value.maxInt(p.comp.types.intmax, p.comp);
         if (interned_val.compare(.gt, max_int, p.comp)) {
-            try p.errTok(.implicitly_unsigned_literal, tok_i);
+            try p.errTok(if (p.comp.langopts.emulate == .gcc) .implicitly_unsigned_literal_gcc else .implicitly_unsigned_literal_clang, tok_i);
         }
     }
 
@@ -8448,7 +8448,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         const max_int = try Value.maxInt(res.ty, p.comp);
         if (interned_val.compare(.lte, max_int, p.comp)) break;
     } else {
-        res.ty = .{ .specifier = .ulong_long };
+        res.ty = .{ .specifier = if (p.comp.langopts.emulate == .gcc) .int128 else .ulong_long };
     }
 
     res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
