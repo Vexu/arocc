@@ -6,11 +6,19 @@ const Compilation = @import("Compilation.zig");
 const number_affixes = @import("Tree/number_affixes.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
+const Treap = @import("Treap.zig");
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
 const StringInterner = @import("StringInterner.zig");
 
+const Flags = packed struct(u8) {
+    is_bol: bool = false,
+    space: bool = false,
+    _: u6 = undefined,
+};
+
 pub const Token = struct {
+    flags: Flags,
     id: Id,
     loc: Source.Location,
 
@@ -21,25 +29,36 @@ pub const Token = struct {
 };
 
 pub const TokenWithExpansionLocs = struct {
-    id: Token.Id,
-    flags: packed struct {
-        expansion_disabled: bool = false,
-        is_macro_arg: bool = false,
-    } = .{},
-    /// This location contains the actual token slice which might be generated.
-    /// If it is generated then there is guaranteed to be at least one
-    /// expansion location.
+    const Self = @This();
+
+    flags: Flags = .{},
+    id: Tokenizer.Token.Id,
+    hideset: Treap.Node = null,
     loc: Source.Location,
     expansion_locs: ?[*]Source.Location = null,
 
-    pub fn expansionSlice(tok: TokenWithExpansionLocs) []const Source.Location {
+    pub fn toTreeToken(self: Self) Token {
+        return .{ .flags = self.flags, .id = self.id, .loc = self.loc };
+    }
+
+    pub fn argPosition(self: Self) u32 {
+        std.debug.assert(self.id == .macro_param);
+        return self.loc.byte_offset;
+    }
+
+    pub fn isVarArg(self: Self) bool {
+        std.debug.assert(self.id == .macro_param);
+        return self.loc.line != 0;
+    }
+
+    pub fn expansionSlice(tok: Self) []const Source.Location {
         const locs = tok.expansion_locs orelse return &[0]Source.Location{};
         var i: usize = 0;
         while (locs[i].id != .unused) : (i += 1) {}
         return locs[0..i];
     }
 
-    pub fn addExpansionLocation(tok: *TokenWithExpansionLocs, gpa: std.mem.Allocator, new: []const Source.Location) !void {
+    pub fn addExpansionLocation(tok: *Self, gpa: std.mem.Allocator, new: []const Source.Location) !void {
         if (new.len == 0 or tok.id == .whitespace or tok.id == .macro_ws or tok.id == .placemarker) return;
         var list = std.ArrayList(Source.Location).init(gpa);
         defer {
@@ -80,14 +99,14 @@ pub const TokenWithExpansionLocs = struct {
         gpa.free(locs[0 .. i + 1]);
     }
 
-    pub fn dupe(tok: TokenWithExpansionLocs, gpa: std.mem.Allocator) !TokenWithExpansionLocs {
+    pub fn dupe(tok: Self, gpa: std.mem.Allocator) !Self {
         var copy = tok;
         copy.expansion_locs = null;
         try copy.addExpansionLocation(gpa, tok.expansionSlice());
         return copy;
     }
 
-    pub fn checkMsEof(tok: TokenWithExpansionLocs, source: Source, comp: *Compilation) !void {
+    pub fn checkMsEof(tok: Self, source: Source, comp: *Compilation) !void {
         std.debug.assert(tok.id == .eof);
         if (source.buf.len > tok.loc.byte_offset and source.buf[tok.loc.byte_offset] == 0x1A) {
             try comp.addDiagnostic(.{
@@ -100,6 +119,9 @@ pub const TokenWithExpansionLocs = struct {
             }, &.{});
         }
     }
+
+    pub const one: Self = .{ .id = .one, .loc = .{} };
+    pub const zero: Self = .{ .id = .zero, .loc = .{} };
 };
 
 pub const TokenIndex = u32;
