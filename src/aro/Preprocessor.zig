@@ -1309,9 +1309,39 @@ fn readLine(pp: *Preprocessor) Error!void {
     try pp.expectNewline();
 }
 
-fn readPragma(pp: *Preprocessor) Error!void {
-    // TODO
-    pp.skipToNl();
+fn readPragma(pp: *Preprocessor, pragma_tok: PreprocessorToken) Error!void {
+    const name_tok = pp.getToken();
+    if (name_tok.id == .nl or name_tok.id == .eof) return;
+
+    try pp.addToken(pragma_tok);
+
+    const pragma_start: u32 = @intCast(pp.tokens.len);
+    try pp.addToken(name_tok);
+
+    while (true) {
+        const next_tok = pp.getToken();
+        if (next_tok.id == .eof) {
+            try pp.addToken(.{
+                .id = .nl,
+                .loc = .{ .id = .generated },
+            });
+            break;
+        }
+        try pp.addToken(next_tok);
+        if (next_tok.id == .nl) break;
+    }
+    const name = pp.tokSlice(name_tok);
+    if (pp.comp.getPragma(name)) |prag| unknown: {
+        return prag.preprocessorCB(pp, pragma_start) catch |er| switch (er) {
+            error.UnknownPragma => break :unknown,
+            error.StopPreprocessing => {
+                _ = pp.tokenizers.pop();
+                return;
+            },
+            else => |e| return e,
+        };
+    }
+    return pp.errTok(name_tok, .unknown_pragma);
 }
 
 fn readUndef(pp: *Preprocessor) Error!void {
@@ -1367,6 +1397,7 @@ fn readIncludeExtra(pp: *Preprocessor, include_token: PreprocessorToken, which: 
         }, &.{});
         return error.FatalError;
     }
+    pp.preprocess_count += 1;
     try pp.tokenizers.append(pp.gpa, .{
         .buf = source.buf,
         .langopts = pp.comp.langopts,
@@ -1719,7 +1750,7 @@ fn readDirective(pp: *Preprocessor) Error!void {
         .keyword_include => try pp.readInclude(directive),
         .keyword_include_next => try pp.readIncludeNext(directive),
         .keyword_line => try pp.readLine(),
-        .keyword_pragma => try pp.readPragma(),
+        .keyword_pragma => try pp.readPragma(directive),
         .keyword_undef => try pp.readUndef(),
         .keyword_warning => try pp.readErrorMessage(directive, .warning_directive),
         .keyword_embed => try pp.readEmbed(directive),
@@ -1789,6 +1820,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !PreprocessorToken {
     const guard = pp.findIncludeGuard(source);
     try pp.guard_stack.append(pp.gpa, guard);
 
+    pp.preprocess_count += 1;
     try pp.tokenizers.append(pp.gpa, .{
         .buf = source.buf,
         .langopts = pp.comp.langopts,
@@ -1820,11 +1852,43 @@ const collapse_newlines = 8;
 
 /// Pretty print tokens and try to preserve whitespace.
 pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
-    var i: usize = 0;
+    const tok_ids = pp.tokens.items(.id);
+    var i: u32 = 0;
+    var last_nl = false;
     while (i < pp.tokens.len) : (i += 1) {
-        const tok = pp.tokens.get(i);
-        if (tok.id == .eof) break;
-        try pp.prettyPrintToken(w, tok);
+        var cur: Token = pp.tokens.get(i);
+        switch (cur.id) {
+            .eof => break,
+            .keyword_pragma => {
+                const pragma_name = pp.tokSlice(pp.tokens.get(i + 1));
+                const end_idx = mem.indexOfScalarPos(Token.Id, tok_ids, i, .nl) orelse i + 1;
+                const pragma_len = @as(u32, @intCast(end_idx)) - i;
+
+                if (pp.comp.getPragma(pragma_name)) |prag| {
+                    if (!prag.shouldPreserveTokens(pp, i + 1)) {
+                        try w.writeByte('\n');
+                        i += pragma_len;
+                        cur = pp.tokens.get(i);
+                        continue;
+                    }
+                }
+                try w.writeAll("#pragma");
+                i += 1;
+                while (true) : (i += 1) {
+                    cur = pp.tokens.get(i);
+                    if (cur.id == .nl) {
+                        try w.writeByte('\n');
+                        last_nl = true;
+                        break;
+                    }
+                    try w.writeByte(' ');
+                    const slice = pp.tokSlice(cur);
+                    try w.writeAll(slice);
+                }
+
+            },
+            else => try pp.prettyPrintToken(w, cur),   
+        }
     }
     try w.writeByte('\n');
 }
