@@ -600,10 +600,10 @@ fn stringize(pp: *Preprocessor, tmpl: PreprocessorToken, args_range: MacroArg) !
     const args = args_range.slice(pp.macro_arg_tokens.items);
     for (args, 0..) |tok, i| {
         const slice = pp.tokSlice(tok);
-        if (slice.len > 0 and tok.flags.space and i != 0) {
-            try pp.comp.generated_buf.append(pp.gpa, ' ');
-        }
-        try pp.comp.generated_buf.appendSlice(pp.gpa, slice);
+        const needs_space = slice.len > 0 and tok.flags.space and i != 0;
+        const bytes_needed = slice.len + @intFromBool(needs_space);
+        try pp.comp.generated_buf.ensureUnusedCapacity(pp.gpa, bytes_needed);
+        pp.comp.generated_buf.appendSliceAssumeCapacity(pp.tokSlice(tok));
     }
     try pp.comp.generated_buf.append(pp.gpa, '"');
     var tok = tmpl;
