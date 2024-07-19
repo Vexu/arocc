@@ -595,17 +595,67 @@ fn addHideSet(pp: *Preprocessor, toks: []PreprocessorToken, hideset: Treap.Node)
 }
 
 fn stringize(pp: *Preprocessor, tmpl: PreprocessorToken, args_range: MacroArg) !PreprocessorToken {
+    const char_buf_top = pp.char_buf.items.len;
+    defer pp.char_buf.items.len = char_buf_top;
+
     const start = pp.comp.generated_buf.items.len;
-    try pp.comp.generated_buf.append(pp.gpa, '"');
+    try pp.char_buf.append(pp.gpa, '"');
     const args = args_range.slice(pp.macro_arg_tokens.items);
-    for (args, 0..) |tok, i| {
-        const slice = pp.tokSlice(tok);
-        const needs_space = slice.len > 0 and tok.flags.space and i != 0;
-        const bytes_needed = slice.len + @intFromBool(needs_space);
-        try pp.comp.generated_buf.ensureUnusedCapacity(pp.gpa, bytes_needed);
-        pp.comp.generated_buf.appendSliceAssumeCapacity(pp.tokSlice(tok));
+    for (args) |tok| {
+        if (tok.flags.space and pp.char_buf.items.len - 1 > char_buf_top) {
+            try pp.char_buf.append(pp.gpa, ' ');
+        }
+        // backslashes not inside strings are not escaped
+        const is_str = switch (tok.id) {
+            .string_literal,
+            .string_literal_utf_16,
+            .string_literal_utf_8,
+            .string_literal_utf_32,
+            .string_literal_wide,
+            .char_literal,
+            .char_literal_utf_16,
+            .char_literal_utf_32,
+            .char_literal_wide,
+            => true,
+            else => false,
+        };
+
+        for (pp.tokSlice(tok)) |c| {
+            if (c == '"')
+                try pp.char_buf.appendSlice(pp.gpa, "\\\"")
+            else if (c == '\\' and is_str)
+                try pp.char_buf.appendSlice(pp.gpa, "\\\\")
+            else
+                try pp.char_buf.append(pp.gpa, c);
+        }
     }
-    try pp.comp.generated_buf.append(pp.gpa, '"');
+    try pp.char_buf.ensureUnusedCapacity(pp.gpa, 2);
+    if (pp.char_buf.items[pp.char_buf.items.len - 1] != '\\') {
+        pp.char_buf.appendSliceAssumeCapacity("\"\n");
+    } else {
+        pp.char_buf.appendAssumeCapacity('"');
+        var tokenizer: Tokenizer = .{
+            .buf = pp.char_buf.items,
+            .index = 0,
+            .source = .generated,
+            .langopts = pp.comp.langopts,
+            .line = 0,
+        };
+        const item = tokenizer.next();
+        if (item.id == .unterminated_string_literal) {
+            const tok = args[args.len - 1];
+            try pp.comp.addDiagnostic(.{
+                .tag = .invalid_pp_stringify_escape,
+                .loc = tok.loc,
+            }, tok.expansionSlice());
+            pp.char_buf.items.len -= 2; // erase unpaired backslash and appended end quote
+            pp.char_buf.appendAssumeCapacity('"');
+        }
+        pp.char_buf.appendAssumeCapacity('\n');
+    }
+
+    try pp.comp.generated_buf.appendSlice(pp.gpa, pp.char_buf.items[char_buf_top..]);
+
     var tok = tmpl;
     tok.id = .string_literal;
     tok.loc = .{
@@ -1885,9 +1935,8 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                     const slice = pp.tokSlice(cur);
                     try w.writeAll(slice);
                 }
-
             },
-            else => try pp.prettyPrintToken(w, cur),   
+            else => try pp.prettyPrintToken(w, cur),
         }
     }
     try w.writeByte('\n');
