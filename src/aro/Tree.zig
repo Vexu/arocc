@@ -28,6 +28,8 @@ pub const Token = struct {
     pub const NumberSuffix = number_affixes.Suffix;
 };
 
+const LocList = std.SinglyLinkedList(Source.Location);
+
 pub const TokenWithExpansionLocs = struct {
     const Self = @This();
 
@@ -36,6 +38,7 @@ pub const TokenWithExpansionLocs = struct {
     hideset: Treap.Node = null,
     loc: Source.Location,
     expansion_locs: ?[*]Source.Location = null,
+    loc_list: LocList = .{},
 
     pub fn toTreeToken(self: Self) Token {
         return .{ .flags = self.flags, .id = self.id, .loc = self.loc };
@@ -58,37 +61,35 @@ pub const TokenWithExpansionLocs = struct {
         return locs[0..i];
     }
 
-    pub fn addExpansionLocation(tok: *Self, gpa: std.mem.Allocator, new: []const Source.Location) !void {
-        if (new.len == 0 or tok.id == .whitespace or tok.id == .macro_ws or tok.id == .placemarker) return;
-        var list = std.ArrayList(Source.Location).init(gpa);
-        defer {
-            @memset(list.items.ptr[list.items.len..list.capacity], .{});
-            // Add a sentinel to indicate the end of the list since
-            // the ArrayList's capacity isn't guaranteed to be exactly
-            // what we ask for.
-            if (list.capacity > 0) {
-                list.items.ptr[list.capacity - 1].byte_offset = 1;
-            }
-            tok.expansion_locs = list.items.ptr;
-        }
+    pub fn addExpansionLocationList(tok: *Self, gpa: std.mem.Allocator, list: LocList) !void {
+        const first = tok.loc_list.first orelse return;
+        const new_list = list.first orelse return;
+        const end = first.findLast();
+        // end.insertAfter(new_list);
+        _ = end;
+        _ = new_list;
+        // _ = end;
+        // const last = tok.loc_list.first.?.findLast();
+        // _ = list;
+        // const last = first.findLast();
+        // last.insertAfter(first);
+        _ = gpa;
+        // _ = last;
+        // // var it = list.first;
+        // // while (it) |node| : (it = node.next) {
+        // //     // try r.append(pp.gpa, node.data);
+        // // }
+        // _ = tok;
+        // _ = gpa;
+    }
 
-        if (tok.expansion_locs) |locs| {
-            var i: usize = 0;
-            while (locs[i].id != .unused) : (i += 1) {}
-            list.items = locs[0..i];
-            while (locs[i].byte_offset != 1) : (i += 1) {}
-            list.capacity = i + 1;
-        }
-
-        const min_len = @max(list.items.len + new.len + 1, 4);
-        const wanted_len = std.math.ceilPowerOfTwo(usize, min_len) catch
-            return error.OutOfMemory;
-        try list.ensureTotalCapacity(wanted_len);
-
-        for (new) |new_loc| {
-            if (new_loc.id == .generated) continue;
-            list.appendAssumeCapacity(new_loc);
-        }
+    pub fn addExpansionLocation(tok: *Self, gpa: std.mem.Allocator, loc: Source.Location) !void {
+        _ = tok;
+        _ = gpa;
+        _ = loc;
+        // const node = try gpa.create(LocList.Node);
+        // node.* = .{ .data = loc };
+        // tok.loc_list.prepend(node);
     }
 
     pub fn free(expansion_locs: ?[*]Source.Location, gpa: std.mem.Allocator) void {

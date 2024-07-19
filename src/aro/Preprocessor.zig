@@ -221,14 +221,14 @@ fn handleCounterMacro(pp: *Preprocessor, tok: PreprocessorToken) Error!void {
 }
 
 fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: PreprocessorToken) !PreprocessorToken {
-    const pasted_token = PreprocessorToken{ .id = id, .flags = source.flags, .loc = .{
+    var pasted_token = PreprocessorToken{ .id = id, .flags = source.flags, .loc = .{
         .id = .generated,
         .byte_offset = @intCast(start),
         .line = pp.generated_line,
     } };
     pp.generated_line += 1;
-    // try pasted_token.addExpansionLocation(pp.gpa, &.{source.loc});
-    // try pasted_token.addExpansionLocation(pp.gpa, source.expansionSlice());
+    try pasted_token.addExpansionLocation(pp.gpa, source.loc);
+    // try pasted_token.addExpansionLocation(pp.gpa, source.expansionSlice()); TODO
     return pasted_token;
 }
 
@@ -668,7 +668,6 @@ fn stringize(pp: *Preprocessor, tmpl: PreprocessorToken, args_range: MacroArg) !
 }
 
 fn subst(pp: *Preprocessor, macro: *const Macro, macro_tok: PreprocessorToken, args: MacroArgList, hideset_arg: Treap.Node) ![]PreprocessorToken {
-    _ = macro_tok;
     var hideset = hideset_arg;
     var r: TokenList = .{};
     defer r.deinit(pp.gpa);
@@ -728,6 +727,10 @@ fn subst(pp: *Preprocessor, macro: *const Macro, macro_tok: PreprocessorToken, a
         try r.append(pp.gpa, t0);
     }
     try pp.addHideSet(r.items, hideset);
+    for (r.items) |*tok| {
+        try tok.addExpansionLocation(pp.gpa, macro_tok.loc);
+        try tok.addExpansionLocationList(pp.gpa, macro_tok.loc_list);
+    }
     return r.toOwnedSlice(pp.gpa);
 }
 
@@ -838,6 +841,10 @@ fn readExpandNewline(pp: *Preprocessor) Error!PreprocessorToken {
             const new_hideset = try pp.treap.addNodeTo(tok.hideset, safe_name);
 
             const tokens = try pp.subst(macro, tok, MacroArgList.empty, new_hideset);
+            for (tokens) |*t| {
+                try t.addExpansionLocation(pp.gpa, tok.loc);
+                try t.addExpansionLocationList(pp.gpa, tok.loc_list);
+            }
             defer pp.gpa.free(tokens);
             pp.propagateSpace(tokens, tok);
             try pp.ungetAll(tokens);
@@ -1830,8 +1837,6 @@ fn readEmbed(pp: *Preprocessor, directive_tok: PreprocessorToken) Error!void {
 
     if (embed_bytes.len == 0) return;
 
-    try pp.ensureUnusedTokenCapacity(2 * embed_bytes.len - 1); // N bytes and N-1 commas
-
     // TODO: We currently only support systems with CHAR_BIT == 8
     // If the target's CHAR_BIT is not 8, we need to write out correctly-sized embed_bytes
     // and correctly account for the target's endianness
@@ -1843,14 +1848,14 @@ fn readEmbed(pp: *Preprocessor, directive_tok: PreprocessorToken) Error!void {
         try writer.print("{d}", .{byte});
         var generated = try pp.makeGeneratedToken(start, .embed_byte, directive_tok);
         generated.flags.is_bol = true;
-        pp.addTokenAssumeCapacity(generated);
+        try pp.addToken(generated);
     }
 
     for (embed_bytes[1..]) |byte| {
         const start = pp.comp.generated_buf.items.len;
         try writer.print(",{d}", .{byte});
-        pp.addTokenAssumeCapacity(.{ .id = .comma, .loc = .{ .id = .generated, .byte_offset = @intCast(start) } });
-        pp.addTokenAssumeCapacity(try pp.makeGeneratedToken(start + 1, .embed_byte, directive_tok));
+        try pp.addToken(.{ .id = .comma, .loc = .{ .id = .generated, .byte_offset = @intCast(start) } });
+        try pp.addToken(try pp.makeGeneratedToken(start + 1, .embed_byte, directive_tok));
     }
     try pp.comp.generated_buf.append(pp.gpa, '\n');
 }
@@ -1973,27 +1978,23 @@ pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location
 }
 
 pub fn addToken(pp: *Preprocessor, tok: PreprocessorToken) !void {
-    if (tok.expansion_locs) |expansion_locs| {
-        try pp.expansion_entries.append(pp.gpa, .{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
+    var r: std.ArrayListUnmanaged(Source.Location) = .{};
+    defer r.deinit(pp.gpa);
+
+    var it = tok.loc_list.first;
+    while (it) |node| : (it = node.next) {
+        try r.append(pp.gpa, node.data);
     }
+    if (r.items.len > 0) {
+        // std.debug.print("gottem\n", .{});
+        try r.append(pp.gpa, .{ .id = .unused, .byte_offset = 1 });
+        try pp.expansion_entries.ensureUnusedCapacity(pp.gpa, 1);
+
+        const items = try r.toOwnedSlice(pp.gpa); // TODO: reverse?
+        pp.expansion_entries.appendAssumeCapacity(.{ .idx = @intCast(pp.tokens.len), .locs = items.ptr });
+    }
+
     try pp.tokens.append(pp.gpa, tok.toTreeToken());
-}
-
-pub fn addTokenAssumeCapacity(pp: *Preprocessor, tok: PreprocessorToken) void {
-    if (tok.expansion_locs) |expansion_locs| {
-        pp.expansion_entries.appendAssumeCapacity(.{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
-    }
-    pp.tokens.appendAssumeCapacity(tok.toTreeToken());
-}
-
-pub fn ensureTotalTokenCapacity(pp: *Preprocessor, capacity: usize) !void {
-    try pp.tokens.ensureTotalCapacity(pp.gpa, capacity);
-    try pp.expansion_entries.ensureTotalCapacity(pp.gpa, capacity);
-}
-
-pub fn ensureUnusedTokenCapacity(pp: *Preprocessor, capacity: usize) !void {
-    try pp.tokens.ensureUnusedCapacity(pp.gpa, capacity);
-    try pp.expansion_entries.ensureUnusedCapacity(pp.gpa, capacity);
 }
 
 fn skip(
