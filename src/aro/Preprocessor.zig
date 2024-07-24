@@ -559,9 +559,12 @@ pub fn preprocessSources(pp: *Preprocessor, sources: []const Source) Error!void 
     assert(sources.len > 1);
     const first = sources[0];
 
+    try pp.addIncludeStart(first);
     for (sources[1..]) |header| {
+        try pp.addIncludeStart(header);
         _ = try pp.preprocess(header);
     }
+    try pp.addIncludeResume(first.id, 0, 1);
     const eof = try pp.preprocess(first);
     try pp.addToken(eof);
 }
@@ -1101,6 +1104,24 @@ fn makeMacroToken(position: usize, is_vararg: bool) PreprocessorToken {
     };
 }
 
+pub fn addIncludeStart(pp: *Preprocessor, source: Source) !void {
+    if (pp.linemarkers == .none) return;
+    try pp.addToken(.{ .id = .include_start, .loc = .{
+        .id = source.id,
+        .byte_offset = std.math.maxInt(u32),
+        .line = 1,
+    } });
+}
+
+pub fn addIncludeResume(pp: *Preprocessor, source: Source.Id, offset: u32, line: u32) !void {
+    if (pp.linemarkers == .none) return;
+    try pp.addToken(.{ .id = .include_resume, .loc = .{
+        .id = source,
+        .byte_offset = offset,
+        .line = line,
+    } });
+}
+
 fn next(pp: *Preprocessor, id: Tokenizer.Token.Id) !bool {
     const tok = pp.getToken();
     if (tok.id == id) return true;
@@ -1455,6 +1476,7 @@ fn readIncludeExtra(pp: *Preprocessor, include_token: PreprocessorToken, which: 
         return error.FatalError;
     }
     pp.preprocess_count += 1;
+    try pp.addIncludeStart(source);
     try pp.tokenizers.append(pp.gpa, .{
         .buf = source.buf,
         .langopts = pp.comp.langopts,
@@ -1886,6 +1908,17 @@ pub fn preprocess(pp: *Preprocessor, source: Source) !PreprocessorToken {
         const tok = try pp.readToken();
         if (tok.id == .eof) {
             const tokenizer = pp.tokenizers.pop();
+
+            if (pp.tokenizers.items.len > 0) {
+                var next_tok: RawToken = undefined;
+                var tmp = pp.tokenizers.items[pp.tokenizers.items.len - 1];
+                while (true) {
+                    next_tok = tmp.nextNoWS();
+                    if (next_tok.id != .nl) break;
+                }
+                try pp.addIncludeResume(next_tok.source, next_tok.end, next_tok.line);
+            }
+
             const guard_name = pp.guard_stack.pop();
             if (guard_name) |name| {
                 try pp.include_guards.put(pp.gpa, tokenizer.source, name);
@@ -1910,10 +1943,40 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
     const tok_ids = pp.tokens.items(.id);
     var i: u32 = 0;
     var last_nl = false;
-    while (i < pp.tokens.len) : (i += 1) {
+    outer: while (i < pp.tokens.len) : (i += 1) {
         var cur: Token = pp.tokens.get(i);
         switch (cur.id) {
             .eof => break,
+            .nl => {
+                var newlines: u32 = 0;
+                for (tok_ids[i..], i..) |id, j| {
+                    if (id == .nl) {
+                        newlines += 1;
+                    } else if (id == .eof) {
+                        if (!last_nl) try w.writeByte('\n');
+                        return;
+                    } else if (id != .whitespace) {
+                        if (pp.linemarkers == .none) {
+                            if (newlines < 2) break;
+                        } else if (newlines < collapse_newlines) {
+                            break;
+                        }
+
+                        i = @intCast((j - 1) - @intFromBool(tok_ids[j - 1] == .whitespace));
+                        if (!last_nl) try w.writeAll("\n");
+                        if (pp.linemarkers != .none) {
+                            const next_tok = pp.tokens.get(i);
+                            const source = pp.comp.getSource(next_tok.loc.id);
+                            const line_col = source.lineCol(next_tok.loc);
+                            try pp.printLinemarker(w, line_col.line_no, source, .none);
+                            last_nl = true;
+                        }
+                        continue :outer;
+                    }
+                }
+                last_nl = true;
+                try w.writeAll("\n");
+            },
             .keyword_pragma => {
                 const pragma_name = pp.tokSlice(pp.tokens.get(i + 1));
                 const end_idx = mem.indexOfScalarPos(Token.Id, tok_ids, i, .nl) orelse i + 1;
@@ -1941,11 +2004,67 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                     try w.writeAll(slice);
                 }
             },
+            .include_start => {
+                const source = pp.comp.getSource(cur.loc.id);
+
+                try pp.printLinemarker(w, 1, source, .start);
+                last_nl = true;
+            },
+            .include_resume => {
+                const source = pp.comp.getSource(cur.loc.id);
+                const line_col = source.lineCol(cur.loc);
+                if (!last_nl) try w.writeAll("\n");
+
+                try pp.printLinemarker(w, line_col.line_no, source, .@"resume");
+                last_nl = true;
+            },            
             else => try pp.prettyPrintToken(w, cur),
         }
     }
     try w.writeByte('\n');
 }
+
+fn printLinemarker(
+    pp: *Preprocessor,
+    w: anytype,
+    line_no: u32,
+    source: Source,
+    start_resume: enum(u8) { start, @"resume", none },
+) !void {
+    try w.writeByte('#');
+    if (pp.linemarkers == .line_directives) try w.writeAll("line");
+    try w.print(" {d} \"", .{line_no});
+    for (source.path) |byte| switch (byte) {
+        '\n' => try w.writeAll("\\n"),
+        '\r' => try w.writeAll("\\r"),
+        '\t' => try w.writeAll("\\t"),
+        '\\' => try w.writeAll("\\\\"),
+        '"' => try w.writeAll("\\\""),
+        ' ', '!', '#'...'&', '('...'[', ']'...'~' => try w.writeByte(byte),
+        // Use hex escapes for any non-ASCII/unprintable characters.
+        // This ensures that the parsed version of this string will end up
+        // containing the same bytes as the input regardless of encoding.
+        else => {
+            try w.writeAll("\\x");
+            try std.fmt.formatInt(byte, 16, .lower, .{ .width = 2, .fill = '0' }, w);
+        },
+    };
+    try w.writeByte('"');
+    if (pp.linemarkers == .numeric_directives) {
+        switch (start_resume) {
+            .none => {},
+            .start => try w.writeAll(" 1"),
+            .@"resume" => try w.writeAll(" 2"),
+        }
+        switch (source.kind) {
+            .user => {},
+            .system => try w.writeAll(" 3"),
+            .extern_c_system => try w.writeAll(" 3 4"),
+        }
+    }
+    try w.writeByte('\n');
+}
+
 
 fn prettyPrintToken(pp: *Preprocessor, w: anytype, tok: Token) !void {
     if (tok.flags.is_bol) {
