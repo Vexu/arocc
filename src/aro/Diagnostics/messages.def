@@ -1294,13 +1294,9 @@ invalid_utf8
     .msg = "source file is not valid UTF-8"
     .kind = .@"error"
 
-implicitly_unsigned_literal_clang
+implicitly_unsigned_literal
     .msg = "integer literal is too large to be represented in a signed integer type, interpreting as unsigned"
     .opt = W("implicitly-unsigned-literal")
-    .kind = .warning
-
-implicitly_unsigned_literal_gcc
-    .msg = "integer constant is so large that it is unsigned"
     .kind = .warning
 
 invalid_preproc_operator
