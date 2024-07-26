@@ -854,7 +854,7 @@ fn readExpandNewline(pp: *Preprocessor) Error!PreprocessorToken {
             return pp.readExpand();
         },
         .func => {
-            if (!try pp.next(.l_paren)) return tok;
+            if (!try pp.getMacroLParen()) return tok;
             const arg_tokens_start = pp.macro_arg_tokens.items.len;
             defer pp.macro_arg_tokens.items.len = arg_tokens_start;
             const macro_args_start = pp.macro_args.items.len;
@@ -1127,6 +1127,17 @@ fn next(pp: *Preprocessor, id: Tokenizer.Token.Id) !bool {
     if (tok.id == id) return true;
     try pp.ungetToken(tok);
     return false;
+}
+
+fn getMacroLParen(pp: *Preprocessor) !bool {
+    while (true) {
+        const tok = pp.getToken();
+        if (tok.id == .nl) continue;
+
+        if (tok.id == .l_paren) return true;
+        try pp.ungetToken(tok);
+        return false;
+    }
 }
 
 /// Returns true for vararg function-like macro, false otherwise
@@ -2017,7 +2028,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
 
                 try pp.printLinemarker(w, line_col.line_no, source, .@"resume");
                 last_nl = true;
-            },            
+            },
             else => try pp.prettyPrintToken(w, cur),
         }
     }
@@ -2064,7 +2075,6 @@ fn printLinemarker(
     }
     try w.writeByte('\n');
 }
-
 
 fn prettyPrintToken(pp: *Preprocessor, w: anytype, tok: Token) !void {
     if (tok.flags.is_bol) {
