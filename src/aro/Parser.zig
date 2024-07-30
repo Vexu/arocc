@@ -29,6 +29,7 @@ const StringId = StrInt.StringId;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const evalBuiltin = @import("Builtins/eval.zig").eval;
+const target_util = @import("target.zig");
 
 const Switch = struct {
     default: ?TokenIndex = null,
@@ -8448,7 +8449,17 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         const max_int = try Value.maxInt(res.ty, p.comp);
         if (interned_val.compare(.lte, max_int, p.comp)) break;
     } else {
-        res.ty = .{ .specifier = .ulong_long };
+        res.ty = .{ .specifier = spec: {
+            if (p.comp.langopts.emulate == .gcc) {
+                if (target_util.hasInt128(p.comp.target)) {
+                    break :spec .int128;
+                } else {
+                    break :spec .long_long;
+                }
+            } else {
+                break :spec .ulong_long;
+            }
+        } };
     }
 
     res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
