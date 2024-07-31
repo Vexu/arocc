@@ -7098,6 +7098,10 @@ fn unExpr(p: *Parser) Error!Result {
             return operand;
         },
         .plus_plus => {
+            if (p.in_macro) {
+                try p.err(.invalid_preproc_operator);
+                return error.ParsingFailed;
+            }
             p.tok_i += 1;
 
             var operand = try p.castExpr();
@@ -7124,6 +7128,10 @@ fn unExpr(p: *Parser) Error!Result {
             return operand;
         },
         .minus_minus => {
+            if (p.in_macro) {
+                try p.err(.invalid_preproc_operator);
+                return error.ParsingFailed;
+            }
             p.tok_i += 1;
 
             var operand = try p.castExpr();
@@ -7424,6 +7432,10 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
     switch (p.tok_ids[p.tok_i]) {
         .l_paren => return p.callExpr(lhs),
         .plus_plus => {
+            if (p.in_macro) {
+                try p.err(.invalid_preproc_operator);
+                return error.ParsingFailed;
+            }
             defer p.tok_i += 1;
 
             var operand = lhs;
@@ -7442,6 +7454,10 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             return operand;
         },
         .minus_minus => {
+            if (p.in_macro) {
+                try p.err(.invalid_preproc_operator);
+                return error.ParsingFailed;
+            }
             defer p.tok_i += 1;
 
             var operand = lhs;
@@ -7460,6 +7476,10 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             return operand;
         },
         .l_bracket => {
+            if (p.in_macro) {
+                try p.err(.invalid_preproc_operator);
+                return error.ParsingFailed;
+            }
             const l_bracket = p.tok_i;
             p.tok_i += 1;
             var index = try p.expr();
@@ -7496,11 +7516,19 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             return ptr;
         },
         .period => {
+            if (p.in_macro) {
+                try p.err(.invalid_preproc_operator);
+                return error.ParsingFailed;
+            }
             p.tok_i += 1;
             const name = try p.expectIdentifier();
             return p.fieldAccess(lhs, name, false);
         },
         .arrow => {
+            if (p.in_macro) {
+                try p.err(.invalid_preproc_operator);
+                return error.ParsingFailed;
+            }
             p.tok_i += 1;
             const name = try p.expectIdentifier();
             if (lhs.ty.isArray()) {
@@ -8040,6 +8068,11 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
 }
 
 fn stringLiteral(p: *Parser) Error!Result {
+    if (p.in_macro) {
+        try p.err(.invalid_preproc_expr_start);
+        return error.ParsingFailed;
+    }
+
     var string_end = p.tok_i;
     var string_kind: text_literal.Kind = .char;
     while (text_literal.Kind.classify(p.tok_ids[string_end], .string_literal)) |next| : (string_end += 1) {

@@ -57,8 +57,8 @@ pub fn pasteTokens(pp: *Preprocessor, start_idx: TokenIndex) ![]const u8 {
             .r_paren => rparen_count += 1,
             .string_literal => {
                 if (rparen_count != 0) return error.ExpectedStringLiteral;
-                const str = pp.expandedSlice(tok);
-                try pp.char_buf.appendSlice(str[1 .. str.len - 1]);
+                const str = pp.tokSlice(tok);
+                try pp.char_buf.appendSlice(pp.gpa, str[1 .. str.len - 1]);
             },
             else => return error.ExpectedStringLiteral,
         }

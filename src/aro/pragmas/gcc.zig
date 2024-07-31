@@ -69,7 +69,7 @@ fn diagnosticHandler(self: *GCC, pp: *Preprocessor, start_idx: TokenIndex) Pragm
     const diagnostic_tok = pp.tokens.get(start_idx);
     if (diagnostic_tok.id == .nl) return;
 
-    const diagnostic = std.meta.stringToEnum(Directive.Diagnostics, pp.expandedSlice(diagnostic_tok)) orelse
+    const diagnostic = std.meta.stringToEnum(Directive.Diagnostics, pp.tokSlice(diagnostic_tok)) orelse
         return error.UnknownPragma;
 
     switch (diagnostic) {
@@ -112,7 +112,7 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
     const directive_tok = pp.tokens.get(start_idx + 1);
     if (directive_tok.id == .nl) return;
 
-    const gcc_pragma = std.meta.stringToEnum(Directive, pp.expandedSlice(directive_tok)) orelse
+    const gcc_pragma = std.meta.stringToEnum(Directive, pp.tokSlice(directive_tok)) orelse
         return pp.comp.addDiagnostic(.{
         .tag = .unknown_gcc_pragma,
         .loc = directive_tok.loc,
@@ -159,7 +159,7 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
                         .loc = tok.loc,
                     }, pp.expansionSlice(start_idx + i));
                 }
-                const str = pp.expandedSlice(tok);
+                const str = pp.tokSlice(tok);
                 if (pp.defines.get(str) != null) {
                     try pp.comp.addDiagnostic(.{
                         .tag = .pragma_poison_macro,
@@ -177,7 +177,7 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
     var self: *GCC = @fieldParentPtr("pragma", pragma);
     const directive_tok = p.pp.tokens.get(start_idx + 1);
     if (directive_tok.id == .nl) return;
-    const name = p.pp.expandedSlice(directive_tok);
+    const name = p.pp.tokSlice(directive_tok);
     if (mem.eql(u8, name, "diagnostic")) {
         return self.diagnosticHandler(p.pp, start_idx + 2) catch |err| switch (err) {
             error.UnknownPragma => {}, // handled during preprocessing
@@ -190,7 +190,7 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
 fn preserveTokens(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) bool {
     const next = pp.tokens.get(start_idx + 1);
     if (next.id != .nl) {
-        const name = pp.expandedSlice(next);
+        const name = pp.tokSlice(next);
         if (mem.eql(u8, name, "poison")) {
             return false;
         }

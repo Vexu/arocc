@@ -239,7 +239,7 @@ pub fn main() !void {
         try pp.addToken(eof);
 
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
-            if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .pp_num) {
+            if (macro.kind == .func or macro.tokens.len != 1 or macro.tokens[0].id != .pp_num) {
                 fail_count += 1;
                 std.debug.print("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
                 continue;
@@ -380,7 +380,7 @@ pub fn main() !void {
         if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
             if (comp.diagnostics.errors != 0) break :blk;
 
-            if (macro.is_func) {
+            if (macro.kind == .func) {
                 fail_count += 1;
                 std.debug.print("invalid EXPECTED_OUTPUT {}\n", .{macro});
                 continue;
@@ -470,7 +470,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
     defer m.deinit();
     aro.Diagnostics.renderMessages(pp.comp, &m);
 
-    if (macro.is_func) {
+    if (macro.kind == .func) {
         std.debug.print("invalid EXPECTED_ERRORS {}\n", .{macro});
         return false;
     }

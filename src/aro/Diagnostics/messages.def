@@ -2509,3 +2509,13 @@ auto_type_self_initialized
     .msg = "variable '{s}' declared with deduced type '__auto_type' cannot appear in its own initializer"
     .extra = .str
     .kind = .@"error"
+
+expected_left_angle_bracket
+    .msg = "expected '<' but got '{s}'"
+    .extra = .str
+    .kind = .@"error"
+
+closing_paren_after
+    .msg = "expected '(' after '{s}'"
+    .extra = .str
+    .kind = .@"error"
