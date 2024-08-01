@@ -79,7 +79,13 @@ pub fn lineCol(source: Source, loc: Location) LineCol {
         if (len > slice.len) {
             break;
         }
-        const cp = std.unicode.utf8Decode(source.buf[i..][0..len]) catch {
+        const cp = switch (len) {
+            1 => slice[0],
+            2 => std.unicode.utf8Decode2(slice[0..2].*),
+            3 => std.unicode.utf8Decode3(slice[0..3].*),
+            4 => std.unicode.utf8Decode4(slice[0..4].*),
+            else => unreachable,
+        } catch {
             i += 1;
             continue;
         };
