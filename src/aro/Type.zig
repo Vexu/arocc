@@ -2091,6 +2091,7 @@ pub const Builder = struct {
             },
             .long => b.specifier = switch (b.specifier) {
                 .none => .long,
+                .double => .long_double,
                 .long => .long_long,
                 .unsigned => .ulong,
                 .signed => .long,
@@ -2103,6 +2104,7 @@ pub const Builder = struct {
                 .complex_long => .complex_long_long,
                 .complex_slong => .complex_slong_long,
                 .complex_ulong => .complex_ulong_long,
+                .complex_double => .complex_long_double,
                 else => return b.cannotCombine(p, source_tok),
             },
             .int128 => b.specifier = switch (b.specifier) {
