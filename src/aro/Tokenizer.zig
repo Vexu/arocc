@@ -2150,6 +2150,28 @@ test "C23 keywords" {
     }, .c23);
 }
 
+test "Tokenizer fuzz test" {
+    var comp = Compilation.init(std.testing.allocator);
+    defer comp.deinit();
+
+    const input_bytes = std.testing.fuzzInput(.{});
+    if (input_bytes.len == 0) return;
+
+    const source = try comp.addSourceFromBuffer("fuzz.c", input_bytes);
+
+    var tokenizer: Tokenizer = .{
+        .buf = source.buf,
+        .source = source.id,
+        .langopts = comp.langopts,
+    };
+    while (true) {
+        const prev_index = tokenizer.index;
+        const tok = tokenizer.next();
+        if (tok.id == .eof) break;
+        try std.testing.expect(prev_index < tokenizer.index); // ensure that the tokenizer always makes progress
+    }
+}
+
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {
     var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
