@@ -2151,7 +2151,7 @@ test "C23 keywords" {
 }
 
 test "Tokenizer fuzz test" {
-    var comp = Compilation.init(std.testing.allocator);
+    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
 
     const input_bytes = std.testing.fuzzInput(.{});
@@ -2173,7 +2173,7 @@ test "Tokenizer fuzz test" {
 }
 
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {
-    var comp = Compilation.init(std.testing.allocator);
+    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
     if (standard) |provided| {
         comp.langopts.standard = provided;

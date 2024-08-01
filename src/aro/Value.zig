@@ -67,7 +67,7 @@ test "minUnsignedBits" {
         }
     };
 
-    var comp = Compilation.init(std.testing.allocator);
+    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = "x86_64-linux-gnu" });
     comp.target = try std.zig.system.resolveTargetQuery(target_query);
@@ -102,7 +102,7 @@ test "minSignedBits" {
         }
     };
 
-    var comp = Compilation.init(std.testing.allocator);
+    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = "x86_64-linux-gnu" });
     comp.target = try std.zig.system.resolveTargetQuery(target_query);

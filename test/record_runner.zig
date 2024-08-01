@@ -212,7 +212,7 @@ fn runTestCases(allocator: std.mem.Allocator, test_dir: []const u8, wg: *std.Thr
 fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, stats: *Stats) !void {
     const path = test_case.path;
 
-    var comp = aro.Compilation.init(alloc);
+    var comp = aro.Compilation.init(alloc, std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();

@@ -37,7 +37,7 @@ pub fn main() u8 {
     };
     defer gpa.free(aro_name);
 
-    var comp = Compilation.initDefault(gpa) catch |er| switch (er) {
+    var comp = Compilation.initDefault(gpa, std.fs.cwd()) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) process.exit(1);
