@@ -127,22 +127,27 @@ types: struct {
 } = .{},
 string_interner: StrInt = .{},
 interner: Interner = .{},
+/// If this is not null, the directory containing the specified Source will be searched for includes
+/// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
 ms_cwd_source_id: ?Source.Id = null,
+cwd: std.fs.Dir,
 
-pub fn init(gpa: Allocator) Compilation {
+pub fn init(gpa: Allocator, cwd: std.fs.Dir) Compilation {
     return .{
         .gpa = gpa,
         .diagnostics = Diagnostics.init(gpa),
+        .cwd = cwd,
     };
 }
 
 /// Initialize Compilation with default environment,
 /// pragma handlers and emulation mode set to target.
-pub fn initDefault(gpa: Allocator) !Compilation {
+pub fn initDefault(gpa: Allocator, cwd: std.fs.Dir) !Compilation {
     var comp: Compilation = .{
         .gpa = gpa,
         .environment = try Environment.loadAll(gpa),
         .diagnostics = Diagnostics.init(gpa),
+        .cwd = cwd,
     };
     errdefer comp.deinit();
     try comp.addDefaultPragmaHandlers();
@@ -1090,7 +1095,7 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
 pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8) !void {
     var search_path = aro_dir;
     while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
-        var base_dir = std.fs.cwd().openDir(dirname, .{}) catch continue;
+        var base_dir = comp.cwd.openDir(dirname, .{}) catch continue;
         defer base_dir.close();
 
         base_dir.access("include/stddef.h", .{}) catch continue;
@@ -1296,7 +1301,7 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
         return error.FileNotFound;
     }
 
-    const file = try std.fs.cwd().openFile(path, .{});
+    const file = try comp.cwd.openFile(path, .{});
     defer file.close();
 
     const contents = file.readToEndAlloc(comp.gpa, std.math.maxInt(u32)) catch |err| switch (err) {
@@ -1379,10 +1384,9 @@ pub fn hasInclude(
         return false;
     }
 
-    const cwd = std.fs.cwd();
     if (std.fs.path.isAbsolute(filename)) {
         if (which == .next) return false;
-        return !std.meta.isError(cwd.access(filename, .{}));
+        return !std.meta.isError(comp.cwd.access(filename, .{}));
     }
 
     const cwd_source_id = switch (include_type) {
@@ -1402,7 +1406,7 @@ pub fn hasInclude(
 
     while (try it.nextWithFile(filename, sf_allocator)) |found| {
         defer sf_allocator.free(found.path);
-        if (!std.meta.isError(cwd.access(found.path, .{}))) return true;
+        if (!std.meta.isError(comp.cwd.access(found.path, .{}))) return true;
     }
     return false;
 }
@@ -1422,7 +1426,7 @@ fn getFileContents(comp: *Compilation, path: []const u8, limit: ?u32) ![]const u
         return error.FileNotFound;
     }
 
-    const file = try std.fs.cwd().openFile(path, .{});
+    const file = try comp.cwd.openFile(path, .{});
     defer file.close();
 
     var buf = std.ArrayList(u8).init(comp.gpa);
@@ -1620,7 +1624,7 @@ pub const addDiagnostic = Diagnostics.add;
 test "addSourceFromReader" {
     const Test = struct {
         fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
-            var comp = Compilation.init(std.testing.allocator);
+            var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(str);
@@ -1632,7 +1636,7 @@ test "addSourceFromReader" {
         }
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator);
+            var comp = Compilation.init(allocator, std.fs.cwd());
             defer comp.deinit();
 
             _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
@@ -1674,7 +1678,7 @@ test "addSourceFromReader - exhaustive check for carriage return elimination" {
     const alen = alphabet.len;
     var buf: [alphabet.len]u8 = [1]u8{alphabet[0]} ** alen;
 
-    var comp = Compilation.init(std.testing.allocator);
+    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
 
     var source_count: u32 = 0;
@@ -1702,7 +1706,7 @@ test "ignore BOM at beginning of file" {
 
     const Test = struct {
         fn run(buf: []const u8) !void {
-            var comp = Compilation.init(std.testing.allocator);
+            var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(buf);
