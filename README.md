@@ -24,3 +24,34 @@ $ zig build && ./zig-out/bin/arocc hello.c -o hello
 $ ./hello
 Hello, world!
 ```
+---
+# Using aro as a module
+The following assumes that your package has a `build.zig.zon` file.
+```sh-session
+zig fetch --save git+https://github.com/Vexu/arocc.git
+```
+
+Add the following to your `build.zig`:
+
+```zig
+const aro = b.dependency("aro", .{
+    .target = target,
+    .optimize = optimize,
+});
+
+exe.root_module.addImport("aro", aro.module("aro"));
+
+// Optional; this will make aro's builtin includes (the `include` directory of this repo) available to `Toolchain`
+b.installDirectory(.{
+    .source_dir = aro.path("include"),
+    .install_dir = .prefix,
+    .install_subdir = "include",
+});
+
+```
+
+Now you can do
+```zig
+const aro = @import("aro");
+```
+in your Zig code.
