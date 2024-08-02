@@ -368,7 +368,7 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
             \\#define __sparc_v9__ 1
             \\
         ),
-        .sparc, .sparcel => try w.writeAll(
+        .sparc => try w.writeAll(
             \\#define __sparc__ 1
             \\#define __sparc 1
             \\
