@@ -1,0 +1,19 @@
+.{
+    .name = "aro",
+
+    .version = "0.0.0",
+
+    .dependencies = .{},
+
+    .paths = .{
+        "build",
+        "build.zig",
+        "build.zig.zon",
+        "deps",
+        "include",
+        "src",
+        "LICENSE",
+        "LICENSE-UNICODE",
+        "README.md",
+    },
+}
