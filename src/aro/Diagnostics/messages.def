@@ -446,6 +446,17 @@ expected_arguments
     .extra = .arguments
     .kind = .@"error"
 
+array_argument_too_small
+    .msg = "array argument is too small; contains {d} elements, callee requires at least {d}"
+    .extra = .arguments
+    .kind = .warning
+    .opt = W("array-bounds")
+
+non_null_argument
+    .msg = "null passed to a callee that requires a non-null argument"
+    .kind = .warning
+    .opt = W("nonnull")
+
 expected_arguments_old
     .msg = expected_arguments
     .extra = .arguments

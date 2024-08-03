@@ -3083,6 +3083,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         }
 
         try res_ty.combine(outer);
+        res_ty.statically_sized_array = static != null;
         return res_ty;
     } else if (p.eatToken(.l_paren)) |l_paren| {
         d.func_declarator = l_paren;
@@ -7683,6 +7684,18 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             continue;
         }
         const p_ty = params[arg_count].ty;
+        if (p_ty.statically_sized_array) {
+            if (arg.ty.data == .array and arg.ty.data.array.*.len != p_ty.data.array.*.len) {
+                const extra = Diagnostics.Message.Extra{ .arguments = .{
+                    .expected = @intCast(arg.ty.data.array.*.len),
+                    .actual = @intCast(p_ty.data.array.*.len),
+                } };
+                try p.errExtra(.array_argument_too_small, param_tok, extra);
+            }
+            if (arg.val.isZero(p.comp))
+                try p.errTok(.non_null_argument, param_tok);
+        }
+
         if (call_expr.shouldCoerceArg(arg_count)) {
             try arg.coerce(p, p_ty, param_tok, .{ .arg = params[arg_count].name_tok });
         }

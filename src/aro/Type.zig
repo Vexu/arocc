@@ -408,7 +408,7 @@ pub const Specifier = enum {
 const Type = @This();
 
 /// All fields of Type except data may be mutated
-data: union {
+data: union(enum) {
     sub_type: *Type,
     func: *Func,
     array: *Array,
@@ -425,6 +425,7 @@ data: union {
 specifier: Specifier,
 qual: Qualifiers = .{},
 decayed: bool = false,
+statically_sized_array: bool = false,
 
 pub const int = Type{ .specifier = .int };
 pub const invalid = Type{ .specifier = .invalid };
