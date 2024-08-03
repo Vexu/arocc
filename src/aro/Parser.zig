@@ -7685,7 +7685,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         }
         const p_ty = params[arg_count].ty;
         if (p_ty.statically_sized_array) {
-            if (arg.ty.data == .array and arg.ty.data.array.*.len != p_ty.data.array.*.len) {
+            if (arg.ty.data == .array and arg.ty.data.array.*.len < p_ty.data.array.*.len) {
                 const extra = Diagnostics.Message.Extra{ .arguments = .{
                     .expected = @intCast(arg.ty.data.array.*.len),
                     .actual = @intCast(p_ty.data.array.*.len),
