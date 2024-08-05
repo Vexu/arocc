@@ -7694,9 +7694,12 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                     .actual = @intCast(param_array_len),
                 } };
                 try p.errExtra(.array_argument_too_small, param_tok, extra);
+                try p.errTok(.callee_with_static_array, params[arg_count].name_tok);
             }
-            if (arg.val.isZero(p.comp))
+            if (arg.val.isZero(p.comp)) {
                 try p.errTok(.non_null_argument, param_tok);
+                try p.errTok(.callee_with_static_array, params[arg_count].name_tok);
+            }
         }
 
         if (call_expr.shouldCoerceArg(arg_count)) {

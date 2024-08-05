@@ -12,5 +12,8 @@ void bar(void) {
 
 #define EXPECTED_ERRORS "array argument is null.c:8:9: warning: null passed to a callee that requires a non-null argument [-Wnonnull]"\
                         "stddef.h:17:14: note: expanded from here"\
+                        "array argument is null.c:3:14: note: callee declares array parameter as static here"\
                         "array argument is null.c:9:9: warning: null passed to a callee that requires a non-null argument [-Wnonnull]"\
-                        "array argument is null.c:10:9: warning: null passed to a callee that requires a non-null argument [-Wnonnull]"
+                        "array argument is null.c:3:14: note: callee declares array parameter as static here"\
+                        "array argument is null.c:10:9: warning: null passed to a callee that requires a non-null argument [-Wnonnull]"\
+                        "array argument is null.c:3:14: note: callee declares array parameter as static here"

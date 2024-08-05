@@ -446,6 +446,10 @@ expected_arguments
     .extra = .arguments
     .kind = .@"error"
 
+callee_with_static_array
+    .msg = "callee declares array parameter as static here"
+    .kind = .note
+
 array_argument_too_small
     .msg = "array argument is too small; contains {d} elements, callee requires at least {d}"
     .extra = .arguments
