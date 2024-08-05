@@ -3079,7 +3079,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 arr_ty.len = max_elems;
             }
             res_ty.data = .{ .array = arr_ty };
-            res_ty.specifier = .array;
+            res_ty.specifier = if (static != null) .static_array else .array;
         }
 
         try res_ty.combine(outer);
@@ -7683,6 +7683,23 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             continue;
         }
         const p_ty = params[arg_count].ty;
+        if (p_ty.specifier == .static_array) {
+            const arg_array_len: u64 = arg.ty.arrayLen() orelse std.math.maxInt(u64);
+            const param_array_len: u64 = p_ty.arrayLen().?;
+            if (arg_array_len < param_array_len) {
+                const extra = Diagnostics.Message.Extra{ .arguments = .{
+                    .expected = @intCast(arg_array_len),
+                    .actual = @intCast(param_array_len),
+                } };
+                try p.errExtra(.array_argument_too_small, param_tok, extra);
+                try p.errTok(.callee_with_static_array, params[arg_count].name_tok);
+            }
+            if (arg.val.isZero(p.comp)) {
+                try p.errTok(.non_null_argument, param_tok);
+                try p.errTok(.callee_with_static_array, params[arg_count].name_tok);
+            }
+        }
+
         if (call_expr.shouldCoerceArg(arg_count)) {
             try arg.coerce(p, p_ty, param_tok, .{ .arg = params[arg_count].name_tok });
         }
