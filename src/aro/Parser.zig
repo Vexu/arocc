@@ -3079,12 +3079,10 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
                 arr_ty.len = max_elems;
             }
             res_ty.data = .{ .array = arr_ty };
-            res_ty.specifier = .array;
+            res_ty.specifier = if (static != null) .static_array else .array;
         }
 
         try res_ty.combine(outer);
-        if (static != null)
-            res_ty.specifier = .static_array;
         return res_ty;
     } else if (p.eatToken(.l_paren)) |l_paren| {
         d.func_declarator = l_paren;
