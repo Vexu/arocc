@@ -3083,7 +3083,8 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
         }
 
         try res_ty.combine(outer);
-        res_ty.statically_sized_array = static != null;
+        if (static != null)
+            res_ty.specifier = .static_array;
         return res_ty;
     } else if (p.eatToken(.l_paren)) |l_paren| {
         d.func_declarator = l_paren;
@@ -7684,11 +7685,13 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             continue;
         }
         const p_ty = params[arg_count].ty;
-        if (p_ty.statically_sized_array) {
-            if (arg.ty.data == .array and arg.ty.data.array.*.len < p_ty.data.array.*.len) {
+        if (p_ty.specifier == .static_array) {
+            const arg_array_len: u64 = arg.ty.arrayLen() orelse std.math.maxInt(u64);
+            const param_array_len: u64 = p_ty.arrayLen().?;
+            if (arg_array_len < param_array_len) {
                 const extra = Diagnostics.Message.Extra{ .arguments = .{
-                    .expected = @intCast(arg.ty.data.array.*.len),
-                    .actual = @intCast(p_ty.data.array.*.len),
+                    .expected = @intCast(arg_array_len),
+                    .actual = @intCast(param_array_len),
                 } };
                 try p.errExtra(.array_argument_too_small, param_tok, extra);
             }
