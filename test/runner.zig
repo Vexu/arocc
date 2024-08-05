@@ -10,11 +10,19 @@ const AllocatorError = std.mem.Allocator.Error;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
+const AddCommandLineArgsResult = struct {
+    bool,
+    aro.Preprocessor.Linemarkers,
+    aro.Compilation.SystemDefinesMode,
+    aro.Preprocessor.DumpMode,
+};
+
 /// Returns only_preprocess and line_markers settings if saw -E
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !struct { bool, aro.Preprocessor.Linemarkers, aro.Compilation.SystemDefinesMode } {
+fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !AddCommandLineArgsResult {
     var only_preprocess = false;
     var line_markers: aro.Preprocessor.Linemarkers = .none;
     var system_defines: aro.Compilation.SystemDefinesMode = .include_system_defines;
+    var dump_mode: aro.Preprocessor.DumpMode = .result_only;
     comp.langopts.gnuc_version = 40201; // Set to clang default value since we do not call parseArgs if there are no args
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
         var test_args = std.ArrayList([]const u8).init(comp.gpa);
@@ -28,6 +36,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         _ = try driver.parseArgs(std.io.null_writer, macro_buf, test_args.items);
         only_preprocess = driver.only_preprocess;
         system_defines = driver.system_defines;
+        dump_mode = driver.debug_dump_letters.getPreprocessorDumpMode();
         if (only_preprocess) {
             if (driver.line_commands) {
                 line_markers = if (driver.use_line_directives) .line_directives else .numeric_directives;
@@ -50,7 +59,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         }
     }
 
-    return .{ only_preprocess, line_markers, system_defines };
+    return .{ only_preprocess, line_markers, system_defines, dump_mode };
 }
 
 fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void {
@@ -64,7 +73,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
     defer macro_buf.deinit();
 
-    _, _, const system_defines = try addCommandLineArgs(&comp, file, macro_buf.writer());
+    _, _, const system_defines, _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
     const builtin_macros = try comp.generateBuiltinMacros(system_defines);
@@ -211,7 +220,7 @@ pub fn main() !void {
         var macro_buf = std.ArrayList(u8).init(comp.gpa);
         defer macro_buf.deinit();
 
-        const only_preprocess, const linemarkers, const system_defines = try addCommandLineArgs(&comp, file, macro_buf.writer());
+        const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, macro_buf.writer());
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
         const builtin_macros = try comp.generateBuiltinMacros(system_defines);
@@ -222,6 +231,9 @@ pub fn main() !void {
         if (only_preprocess) {
             pp.preserve_whitespace = true;
             pp.linemarkers = linemarkers;
+            if (dump_mode != .result_only) {
+                pp.store_macro_tokens = true;
+            }
         }
         try pp.addBuiltinMacros();
 
@@ -279,12 +291,26 @@ pub fn main() !void {
             var output = std.ArrayList(u8).init(gpa);
             defer output.deinit();
 
-            try pp.prettyPrintTokens(output.writer());
+            try pp.prettyPrintTokens(output.writer(), dump_mode);
 
-            if (std.testing.expectEqualStrings(expected_output, output.items))
-                ok_count += 1
-            else |_|
-                fail_count += 1;
+            if (pp.defines.contains("CHECK_PARTIAL_MATCH")) {
+                const index = std.mem.indexOf(u8, output.items, expected_output);
+                if (index != null) {
+                    ok_count += 1;
+                } else {
+                    fail_count += 1;
+                    std.debug.print("\n====== expected to find: =========\n", .{});
+                    std.debug.print("{s}", .{expected_output});
+                    std.debug.print("\n======== but did not find it in this: =========\n", .{});
+                    std.debug.print("{s}", .{output.items});
+                    std.debug.print("\n======================================\n", .{});
+                }
+            } else {
+                if (std.testing.expectEqualStrings(expected_output, output.items))
+                    ok_count += 1
+                else |_|
+                    fail_count += 1;
+            }
             continue;
         }
 
