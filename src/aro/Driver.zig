@@ -52,10 +52,11 @@ debug_dump_letters: packed struct(u3) {
     m: bool = false,
     n: bool = false,
 
-    /// Specifying letters whose behavior conflicts is undefined.
+    /// According to GCC, specifying letters whose behavior conflicts is undefined.
+    /// We follow clang in that `-dM` always takes precedence over `-dD`
     pub fn getPreprocessorDumpMode(self: @This()) Preprocessor.DumpMode {
-        if (self.d) return .macros_and_result;
         if (self.m) return .macros_only;
+        if (self.d) return .macros_and_result;
         if (self.n) return .macro_names_and_result;
         return .result_only;
     }
