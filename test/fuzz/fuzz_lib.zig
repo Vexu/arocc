@@ -27,7 +27,7 @@ fn compileSlice(buf: []const u8) !void {
     const aro_dir = try std.fs.selfExePathAlloc(allocator);
     defer allocator.free(aro_dir);
 
-    var comp = Compilation.init(allocator);
+    var comp = Compilation.init(allocator, std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
