@@ -137,8 +137,14 @@ pub const Node = struct {
     tag: Tag,
     ty: Type = .{ .specifier = .void },
     data: Data,
+    loc: Loc = .none,
 
     pub const Range = struct { start: u32, end: u32 };
+
+    pub const Loc = enum(u32) {
+        none = std.math.maxInt(u32),
+        _,
+    };
 
     pub const Data = union {
         decl: struct {
@@ -278,7 +284,8 @@ pub const Tag = enum(u8) {
 
     // ====== Decl ======
 
-    // _Static_assert
+    /// _Static_assert
+    /// loc is token index of _Static_assert
     static_assert,
 
     // function prototype
@@ -304,6 +311,7 @@ pub const Tag = enum(u8) {
     threadlocal_static_var,
 
     /// __asm__("...") at file scope
+    /// loc is token index of __asm__ keyword
     file_scope_asm,
 
     // typedef declaration
@@ -557,6 +565,7 @@ pub const Tag = enum(u8) {
     /// Inserted at the end of a function body if no return stmt is found.
     /// ty is the functions return type
     /// data is return_zero which is true if the function is called "main" and ty is compatible with int
+    /// loc is token index of closing r_brace of function
     implicit_return,
 
     /// Inserted in array_init_expr to represent unspecified elements.

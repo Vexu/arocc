@@ -738,7 +738,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     defer p.syms.popScope();
 
     // NodeIndex 0 must be invalid
-    _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined });
+    _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined, .loc = undefined });
 
     {
         if (p.comp.langopts.hasChar8_T()) {
@@ -1306,6 +1306,7 @@ fn staticAssert(p: *Parser) Error!bool {
             .lhs = res.node,
             .rhs = str.node,
         } },
+        .loc = @enumFromInt(static_assert),
     });
     try p.decl_buf.append(node);
     return true;
@@ -2156,6 +2157,7 @@ fn recordSpec(p: *Parser) Error!Type {
                 .tag = if (is_struct) .struct_forward_decl else .union_forward_decl,
                 .ty = ty,
                 .data = .{ .decl_ref = ident },
+                .loc = @enumFromInt(ident),
             }));
             return ty;
         }
@@ -2286,6 +2288,7 @@ fn recordSpec(p: *Parser) Error!Type {
         .tag = if (is_struct) .struct_decl_two else .union_decl_two,
         .ty = ty,
         .data = .{ .two = .{ .none, .none } },
+        .loc = @enumFromInt(maybe_ident orelse kind_tok),
     };
     switch (record_decls.len) {
         0 => {},
@@ -2413,6 +2416,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                     .tag = .indirect_record_field_decl,
                     .ty = ty,
                     .data = undefined,
+                    .loc = @enumFromInt(first_tok),
                 });
                 try p.decl_buf.append(node);
                 try p.record.addFieldsFromAnonymous(p, ty);
@@ -2432,6 +2436,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
                 .tag = .record_field_decl,
                 .ty = ty,
                 .data = .{ .decl = .{ .name = name_tok, .node = bits_node } },
+                .loc = @enumFromInt(if (name_tok != 0) name_tok else first_tok),
             });
             try p.decl_buf.append(node);
         }
@@ -2542,6 +2547,7 @@ fn enumSpec(p: *Parser) Error!Type {
                 .tag = .enum_forward_decl,
                 .ty = ty,
                 .data = .{ .decl_ref = ident },
+                .loc = @enumFromInt(ident),
             }));
             return ty;
         }
@@ -2652,9 +2658,14 @@ fn enumSpec(p: *Parser) Error!Type {
     }
 
     // finish by creating a node
-    var node: Tree.Node = .{ .tag = .enum_decl_two, .ty = ty, .data = .{
-        .two = .{ .none, .none },
-    } };
+    var node: Tree.Node = .{
+        .tag = .enum_decl_two,
+        .ty = ty,
+        .data = .{
+            .two = .{ .none, .none },
+        },
+        .loc = @enumFromInt(maybe_ident orelse enum_tok),
+    };
     switch (field_nodes.len) {
         0 => {},
         1 => node.data = .{ .two = .{ field_nodes[0], .none } },
@@ -2850,6 +2861,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
             .name = name_tok,
             .node = res.node,
         } },
+        .loc = @enumFromInt(name_tok),
     });
     try p.value_map.put(node, e.res.val);
     return EnumFieldAndNode{ .field = .{
@@ -3322,6 +3334,7 @@ fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
         .tag = .array_init_expr_two,
         .ty = init_ty,
         .data = .{ .two = .{ first.node, second.node } },
+        .loc = @enumFromInt(l_brace),
     };
     var res: Result = .{
         .node = try p.addNode(arr_init_node),
@@ -4005,7 +4018,7 @@ fn asmOperand(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *Node
 ///  | asmStr ':' asmOperand* ':' asmOperand*
 ///  | asmStr ':' asmOperand* ':' asmOperand* : asmStr? (',' asmStr)*
 ///  | asmStr ':' asmOperand* ':' asmOperand* : asmStr? (',' asmStr)* : IDENTIFIER (',' IDENTIFIER)*
-fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, l_paren: TokenIndex) Error!NodeIndex {
+fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex, l_paren: TokenIndex) Error!NodeIndex {
     const asm_str = try p.asmStr();
     try p.checkAsmStr(asm_str.val, l_paren);
 
@@ -4014,6 +4027,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, l_paren: TokenIndex
             .tag = .gnu_asm_simple,
             .ty = .{ .specifier = .void },
             .data = .{ .un = asm_str.node },
+            .loc = @enumFromInt(asm_tok),
         });
     }
 
@@ -4118,6 +4132,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, l_paren: TokenIndex
                 .tag = .addr_of_label,
                 .data = .{ .decl_ref = label },
                 .ty = result_ty,
+                .loc = @enumFromInt(ident),
             });
             try exprs.append(label_addr_node);
 
@@ -4199,9 +4214,10 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
                 .tag = .file_scope_asm,
                 .ty = .{ .specifier = .void },
                 .data = .{ .decl = .{ .name = asm_tok, .node = asm_str.node } },
+                .loc = @enumFromInt(asm_tok),
             });
         },
-        .stmt => result_node = try p.gnuAsmStmt(quals, l_paren),
+        .stmt => result_node = try p.gnuAsmStmt(quals, asm_tok, l_paren),
     }
     try p.expectClosing(l_paren, .r_paren);
 
@@ -4252,7 +4268,7 @@ fn asmStr(p: *Parser) Error!Result {
 fn stmt(p: *Parser) Error!NodeIndex {
     if (try p.labeledStmt()) |some| return some;
     if (try p.compoundStmt(false, null)) |some| return some;
-    if (p.eatToken(.keyword_if)) |_| {
+    if (p.eatToken(.keyword_if)) |kw_if| {
         const l_paren = try p.expectToken(.l_paren);
         const cond_tok = p.tok_i;
         var cond = try p.expr();
@@ -4271,14 +4287,16 @@ fn stmt(p: *Parser) Error!NodeIndex {
             return try p.addNode(.{
                 .tag = .if_then_else_stmt,
                 .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ then, @"else" })).start } },
+                .loc = @enumFromInt(kw_if),
             })
         else
             return try p.addNode(.{
                 .tag = .if_then_stmt,
                 .data = .{ .bin = .{ .lhs = cond.node, .rhs = then } },
+                .loc = @enumFromInt(kw_if),
             });
     }
-    if (p.eatToken(.keyword_switch)) |_| {
+    if (p.eatToken(.keyword_switch)) |kw_switch| {
         const l_paren = try p.expectToken(.l_paren);
         const cond_tok = p.tok_i;
         var cond = try p.expr();
@@ -4308,9 +4326,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
         return try p.addNode(.{
             .tag = .switch_stmt,
             .data = .{ .bin = .{ .lhs = cond.node, .rhs = body } },
+            .loc = @enumFromInt(kw_switch),
         });
     }
-    if (p.eatToken(.keyword_while)) |_| {
+    if (p.eatToken(.keyword_while)) |kw_while| {
         const l_paren = try p.expectToken(.l_paren);
         const cond_tok = p.tok_i;
         var cond = try p.expr();
@@ -4332,9 +4351,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
         return try p.addNode(.{
             .tag = .while_stmt,
             .data = .{ .bin = .{ .lhs = cond.node, .rhs = body } },
+            .loc = @enumFromInt(kw_while),
         });
     }
-    if (p.eatToken(.keyword_do)) |_| {
+    if (p.eatToken(.keyword_do)) |kw_do| {
         const body = body: {
             const old_loop = p.in_loop;
             p.in_loop = true;
@@ -4359,9 +4379,10 @@ fn stmt(p: *Parser) Error!NodeIndex {
         return try p.addNode(.{
             .tag = .do_while_stmt,
             .data = .{ .bin = .{ .lhs = cond.node, .rhs = body } },
+            .loc = @enumFromInt(kw_do),
         });
     }
-    if (p.eatToken(.keyword_for)) |_| {
+    if (p.eatToken(.keyword_for)) |kw_for| {
         try p.syms.pushScope(p);
         defer p.syms.popScope();
         const decl_buf_top = p.decl_buf.items.len;
@@ -4412,16 +4433,22 @@ fn stmt(p: *Parser) Error!NodeIndex {
             return try p.addNode(.{
                 .tag = .for_decl_stmt,
                 .data = .{ .range = .{ .start = start, .end = end } },
+                .loc = @enumFromInt(kw_for),
             });
         } else if (init.node == .none and cond.node == .none and incr.node == .none) {
             return try p.addNode(.{
                 .tag = .forever_stmt,
                 .data = .{ .un = body },
+                .loc = @enumFromInt(kw_for),
             });
-        } else return try p.addNode(.{ .tag = .for_stmt, .data = .{ .if3 = .{
-            .cond = body,
-            .body = (try p.addList(&.{ init.node, cond.node, incr.node })).start,
-        } } });
+        } else return try p.addNode(.{
+            .tag = .for_stmt,
+            .data = .{ .if3 = .{
+                .cond = body,
+                .body = (try p.addList(&.{ init.node, cond.node, incr.node })).start,
+            } },
+            .loc = @enumFromInt(kw_for),
+        });
     }
     if (p.eatToken(.keyword_goto)) |goto_tok| {
         if (p.eatToken(.asterisk)) |_| {
@@ -4462,17 +4489,18 @@ fn stmt(p: *Parser) Error!NodeIndex {
         return try p.addNode(.{
             .tag = .goto_stmt,
             .data = .{ .decl_ref = name_tok },
+            .loc = @enumFromInt(goto_tok),
         });
     }
     if (p.eatToken(.keyword_continue)) |cont| {
         if (!p.in_loop) try p.errTok(.continue_not_in_loop, cont);
         _ = try p.expectToken(.semicolon);
-        return try p.addNode(.{ .tag = .continue_stmt, .data = undefined });
+        return try p.addNode(.{ .tag = .continue_stmt, .data = undefined, .loc = @enumFromInt(cont) });
     }
     if (p.eatToken(.keyword_break)) |br| {
         if (!p.in_loop and p.@"switch" == null) try p.errTok(.break_not_in_loop_or_switch, br);
         _ = try p.expectToken(.semicolon);
-        return try p.addNode(.{ .tag = .break_stmt, .data = undefined });
+        return try p.addNode(.{ .tag = .break_stmt, .data = undefined, .loc = @enumFromInt(br) });
     }
     if (try p.returnStmt()) |some| return some;
     if (try p.assembly(.stmt)) |some| return some;
@@ -4491,8 +4519,8 @@ fn stmt(p: *Parser) Error!NodeIndex {
     defer p.attr_buf.len = attr_buf_top;
     try p.attributeSpecifier();
 
-    if (p.eatToken(.semicolon)) |_| {
-        var null_node: Tree.Node = .{ .tag = .null_stmt, .data = undefined };
+    if (p.eatToken(.semicolon)) |semicolon| {
+        var null_node: Tree.Node = .{ .tag = .null_stmt, .data = undefined, .loc = @enumFromInt(semicolon) };
         null_node.ty = try Attribute.applyStatementAttributes(p, null_node.ty, expr_start, attr_buf_top);
         return p.addNode(null_node);
     }
@@ -4533,6 +4561,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         var labeled_stmt = Tree.Node{
             .tag = .labeled_stmt,
             .data = .{ .decl = .{ .name = name_tok, .node = try p.labelableStmt() } },
+            .loc = @enumFromInt(name_tok),
         };
         labeled_stmt.ty = try Attribute.applyLabelAttributes(p, labeled_stmt.ty, attr_buf_top);
         return try p.addNode(labeled_stmt);
@@ -4575,9 +4604,11 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         if (second_item) |some| return try p.addNode(.{
             .tag = .case_range_stmt,
             .data = .{ .if3 = .{ .cond = s, .body = (try p.addList(&.{ first_item.node, some.node })).start } },
+            .loc = @enumFromInt(case),
         }) else return try p.addNode(.{
             .tag = .case_stmt,
             .data = .{ .bin = .{ .lhs = first_item.node, .rhs = s } },
+            .loc = @enumFromInt(case),
         });
     } else if (p.eatToken(.keyword_default)) |default| {
         _ = try p.expectToken(.colon);
@@ -4585,6 +4616,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
         const node = try p.addNode(.{
             .tag = .default_stmt,
             .data = .{ .un = s },
+            .loc = @enumFromInt(default),
         });
         const @"switch" = p.@"switch" orelse {
             try p.errStr(.case_not_in_switch, default, "default");
@@ -4603,7 +4635,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
 fn labelableStmt(p: *Parser) Error!NodeIndex {
     if (p.tok_ids[p.tok_i] == .r_brace) {
         try p.err(.label_compound_end);
-        return p.addNode(.{ .tag = .null_stmt, .data = undefined });
+        return p.addNode(.{ .tag = .null_stmt, .data = undefined, .loc = @enumFromInt(p.tok_i) });
     }
     return p.stmt();
 }
@@ -4668,6 +4700,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
             else => {},
         }
     }
+    const r_brace = p.tok_i - 1;
 
     if (noreturn_index) |some| {
         // if new labels were defined we cannot be certain that the code is unreachable
@@ -4691,7 +4724,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
                     try p.errStr(.func_does_not_return, p.tok_i - 1, func_name);
                 }
             }
-            try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.func.ty.?.returnType(), .data = .{ .return_zero = return_zero } }));
+            try p.decl_buf.append(try p.addNode(.{ .tag = .implicit_return, .ty = p.func.ty.?.returnType(), .data = .{ .return_zero = return_zero }, .loc = @enumFromInt(r_brace) }));
         }
         if (p.func.ident) |some| try p.decl_buf.insert(decl_buf_top, some.node);
         if (p.func.pretty_ident) |some| try p.decl_buf.insert(decl_buf_top, some.node);
@@ -4700,6 +4733,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
     var node: Tree.Node = .{
         .tag = .compound_stmt_two,
         .data = .{ .two = .{ .none, .none } },
+        .loc = @enumFromInt(l_brace),
     };
     const statements = p.decl_buf.items[decl_buf_top..];
     switch (statements.len) {
@@ -7996,16 +8030,16 @@ fn primaryExpr(p: *Parser) Error!Result {
         .unterminated_char_literal,
         => return p.charLiteral(),
         .zero => {
-            p.tok_i += 1;
+            defer p.tok_i += 1;
             var res: Result = .{ .val = Value.zero, .ty = if (p.in_macro) p.comp.types.intmax else Type.int };
-            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined, .loc = @enumFromInt(p.tok_i) });
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
         },
         .one => {
-            p.tok_i += 1;
+            defer p.tok_i += 1;
             var res: Result = .{ .val = Value.one, .ty = if (p.in_macro) p.comp.types.intmax else Type.int };
-            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined, .loc = @enumFromInt(p.tok_i) });
             if (!p.in_macro) try p.value_map.put(res.node, res.val);
             return res;
         },
@@ -8013,7 +8047,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         .embed_byte => {
             assert(!p.in_macro);
             const loc = p.pp.tokens.items(.loc)[p.tok_i];
-            p.tok_i += 1;
+            defer p.tok_i += 1;
             const buf = p.comp.getSource(.generated).buf[loc.byte_offset..];
             var byte: u8 = buf[0] - '0';
             for (buf[1..]) |c| {
@@ -8022,7 +8056,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                 byte += c - '0';
             }
             var res: Result = .{ .val = try Value.int(byte, p.comp) };
-            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+            res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined, .loc = @enumFromInt(p.tok_i) });
             try p.value_map.put(res.node, res.val);
             return res;
         },
@@ -8041,17 +8075,19 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
     const slice = p.strings.items[strings_top..];
     const val = try Value.intern(p.comp, .{ .bytes = slice });
 
-    const str_lit = try p.addNode(.{ .tag = .string_literal_expr, .ty = ty, .data = undefined });
+    const str_lit = try p.addNode(.{ .tag = .string_literal_expr, .ty = ty, .data = undefined, .loc = @enumFromInt(p.tok_i) });
     if (!p.in_macro) try p.value_map.put(str_lit, val);
 
     return Result{ .ty = ty, .node = try p.addNode(.{
         .tag = .implicit_static_var,
         .ty = ty,
         .data = .{ .decl = .{ .name = p.tok_i, .node = str_lit } },
+        .loc = @enumFromInt(p.tok_i),
     }) };
 }
 
 fn stringLiteral(p: *Parser) Error!Result {
+    const string_start = p.tok_i;
     var string_end = p.tok_i;
     var string_kind: text_literal.Kind = .char;
     while (text_literal.Kind.classify(p.tok_ids[string_end], .string_literal)) |next| : (string_end += 1) {
@@ -8169,7 +8205,7 @@ fn stringLiteral(p: *Parser) Error!Result {
         },
         .val = val,
     };
-    res.node = try p.addNode(.{ .tag = .string_literal_expr, .ty = res.ty, .data = undefined });
+    res.node = try p.addNode(.{ .tag = .string_literal_expr, .ty = res.ty, .data = undefined, .loc = @enumFromInt(string_start) });
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
     return res;
 }
@@ -8186,7 +8222,7 @@ fn charLiteral(p: *Parser) Error!Result {
         return .{
             .ty = Type.int,
             .val = Value.zero,
-            .node = try p.addNode(.{ .tag = .char_literal, .ty = Type.int, .data = undefined }),
+            .node = try p.addNode(.{ .tag = .char_literal, .ty = Type.int, .data = undefined, .loc = @enumFromInt(p.tok_i) }),
         };
     };
     if (char_kind == .utf_8) try p.err(.u8_char_lit);
@@ -8284,13 +8320,13 @@ fn charLiteral(p: *Parser) Error!Result {
     const res = Result{
         .ty = if (p.in_macro) macro_ty else ty,
         .val = value,
-        .node = try p.addNode(.{ .tag = .char_literal, .ty = ty, .data = undefined }),
+        .node = try p.addNode(.{ .tag = .char_literal, .ty = ty, .data = undefined, .loc = @enumFromInt(p.tok_i) }),
     };
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
     return res;
 }
 
-fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
+fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) !Result {
     const ty = Type{ .specifier = switch (suffix) {
         .None, .I => .double,
         .F, .IF => .float,
@@ -8322,7 +8358,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix) !Result {
     });
     var res = Result{
         .ty = ty,
-        .node = try p.addNode(.{ .tag = .float_literal, .ty = ty, .data = undefined }),
+        .node = try p.addNode(.{ .tag = .float_literal, .ty = ty, .data = undefined, .loc = @enumFromInt(tok_i) }),
         .val = val,
     };
     if (suffix.isImaginary()) {
@@ -8423,7 +8459,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
     if (overflow) {
         try p.errTok(.int_literal_too_big, tok_i);
         res.ty = .{ .specifier = .ulong_long };
-        res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+        res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined, .loc = @enumFromInt(tok_i) });
         if (!p.in_macro) try p.value_map.put(res.node, res.val);
         return res;
     }
@@ -8474,7 +8510,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         } };
     }
 
-    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined, .loc = @enumFromInt(tok_i) });
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
     return res;
 }
@@ -8538,7 +8574,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
             .data = .{ .int = .{ .bits = bits_needed, .signedness = suffix.signedness() } },
         },
     };
-    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined });
+    res.node = try p.addNode(.{ .tag = .int_literal, .ty = res.ty, .data = undefined, .loc = @enumFromInt(tok_i) });
     if (!p.in_macro) try p.value_map.put(res.node, res.val);
     return res;
 }
@@ -8623,7 +8659,7 @@ pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
             return error.ParsingFailed;
         }
         const number = buf[0 .. buf.len - suffix_str.len];
-        return p.parseFloat(number, suffix);
+        return p.parseFloat(number, suffix, tok_i);
     } else {
         return p.parseInt(prefix, int_part, suffix, tok_i);
     }
@@ -8659,6 +8695,7 @@ fn parseNoEval(p: *Parser, comptime func: fn (*Parser) Error!Result) Error!Resul
 ///  : typeName ':' assignExpr
 ///  | keyword_default ':' assignExpr
 fn genericSelection(p: *Parser) Error!Result {
+    const kw_generic = p.tok_i;
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     const controlling_tok = p.tok_i;
@@ -8718,6 +8755,7 @@ fn genericSelection(p: *Parser) Error!Result {
                 .tag = .generic_association_expr,
                 .ty = ty,
                 .data = .{ .un = node.node },
+                .loc = @enumFromInt(start),
             }));
             try p.decl_buf.append(@enumFromInt(start));
         } else if (p.eatToken(.keyword_default)) |tok| {
@@ -8741,11 +8779,12 @@ fn genericSelection(p: *Parser) Error!Result {
     try p.expectClosing(l_paren, .r_paren);
 
     if (chosen.node == .none) {
-        if (default_tok != null) {
+        if (default_tok) |tok| {
             try p.list_buf.insert(list_buf_top + 1, try p.addNode(.{
                 .tag = .generic_default_expr,
                 .data = .{ .un = default.node },
                 .ty = default.ty,
+                .loc = @enumFromInt(tok),
             }));
             chosen = default;
         } else {
@@ -8757,12 +8796,14 @@ fn genericSelection(p: *Parser) Error!Result {
             .tag = .generic_association_expr,
             .data = .{ .un = chosen.node },
             .ty = chosen.ty,
+            .loc = @enumFromInt(chosen_tok),
         }));
-        if (default_tok != null) {
+        if (default_tok) |tok| {
             try p.list_buf.append(try p.addNode(.{
                 .tag = .generic_default_expr,
                 .data = .{ .un = default.node },
                 .ty = default.ty,
+                .loc = @enumFromInt(tok),
             }));
         }
     }
@@ -8771,6 +8812,7 @@ fn genericSelection(p: *Parser) Error!Result {
         .tag = .generic_expr_one,
         .ty = chosen.ty,
         .data = .{ .two = .{ controlling.node, chosen.node } },
+        .loc = @enumFromInt(kw_generic),
     };
     const associations = p.list_buf.items[list_buf_top..];
     if (associations.len > 2) { // associations[0] == controlling.node
