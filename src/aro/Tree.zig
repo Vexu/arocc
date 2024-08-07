@@ -553,13 +553,18 @@ pub const Tag = enum(u8) {
     struct_init_expr,
     /// { union_init }
     union_init_expr,
+
     /// (ty){ un }
+    /// loc is token index of l_paren
     compound_literal_expr,
     /// (static ty){ un }
+    /// loc is token index of l_paren
     static_compound_literal_expr,
     /// (thread_local ty){ un }
+    /// loc is token index of l_paren
     thread_local_compound_literal_expr,
     /// (static thread_local ty){ un }
+    /// loc is token index of l_paren
     static_thread_local_compound_literal_expr,
 
     /// Inserted at the end of a function body if no return stmt is found.

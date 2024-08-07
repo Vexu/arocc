@@ -4476,7 +4476,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
                 }
             }
 
-            try e.un(p, .computed_goto_stmt);
+            try e.un(p, .computed_goto_stmt, goto_tok);
             _ = try p.expectToken(.semicolon);
             return e.node;
         }
@@ -5257,29 +5257,31 @@ pub const Result = struct {
         try p.errTok(.unused_value, expr_start);
     }
 
-    fn boolRes(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
+    fn boolRes(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result, tok_i: TokenIndex) !void {
         if (lhs.val.opt_ref == .null) {
             lhs.val = Value.zero;
         }
         if (lhs.ty.specifier != .invalid) {
             lhs.ty = Type.int;
         }
-        return lhs.bin(p, tag, rhs);
+        return lhs.bin(p, tag, rhs, tok_i);
     }
 
-    fn bin(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result) !void {
+    fn bin(lhs: *Result, p: *Parser, tag: Tree.Tag, rhs: Result, tok_i: TokenIndex) !void {
         lhs.node = try p.addNode(.{
             .tag = tag,
             .ty = lhs.ty,
             .data = .{ .bin = .{ .lhs = lhs.node, .rhs = rhs.node } },
+            .loc = @enumFromInt(tok_i),
         });
     }
 
-    fn un(operand: *Result, p: *Parser, tag: Tree.Tag) Error!void {
+    fn un(operand: *Result, p: *Parser, tag: Tree.Tag, tok_i: TokenIndex) Error!void {
         operand.node = try p.addNode(.{
             .tag = tag,
             .ty = operand.ty,
             .data = .{ .un = operand.node },
+            .loc = @enumFromInt(tok_i),
         });
     }
 
@@ -6249,7 +6251,7 @@ fn expr(p: *Parser) Error!Result {
     var err_start = p.comp.diagnostics.list.items.len;
     var lhs = try p.assignExpr();
     if (p.tok_ids[p.tok_i] == .comma) try lhs.expect(p);
-    while (p.eatToken(.comma)) |_| {
+    while (p.eatToken(.comma)) |comma| {
         try lhs.maybeWarnUnused(p, expr_start, err_start);
         expr_start = p.tok_i;
         err_start = p.comp.diagnostics.list.items.len;
@@ -6259,7 +6261,7 @@ fn expr(p: *Parser) Error!Result {
         try rhs.lvalConversion(p);
         lhs.val = rhs.val;
         lhs.ty = rhs.ty;
-        try lhs.bin(p, .comma_expr, rhs);
+        try lhs.bin(p, .comma_expr, rhs, comma);
     }
     return lhs;
 }
@@ -6341,7 +6343,7 @@ fn assignExpr(p: *Parser) Error!Result {
                 }
             }
             _ = try lhs_copy.adjustTypes(tok, &rhs, p, if (tag == .mod_assign_expr) .integer else .arithmetic);
-            try lhs.bin(p, tag, rhs);
+            try lhs.bin(p, tag, rhs, bit_or.?);
             return lhs;
         },
         .sub_assign_expr,
@@ -6352,7 +6354,7 @@ fn assignExpr(p: *Parser) Error!Result {
             } else {
                 _ = try lhs_copy.adjustTypes(tok, &rhs, p, .arithmetic);
             }
-            try lhs.bin(p, tag, rhs);
+            try lhs.bin(p, tag, rhs, bit_or.?);
             return lhs;
         },
         .shl_assign_expr,
@@ -6362,7 +6364,7 @@ fn assignExpr(p: *Parser) Error!Result {
         .bit_or_assign_expr,
         => {
             _ = try lhs_copy.adjustTypes(tok, &rhs, p, .integer);
-            try lhs.bin(p, tag, rhs);
+            try lhs.bin(p, tag, rhs, bit_or.?);
             return lhs;
         },
         else => unreachable,
@@ -6370,7 +6372,7 @@ fn assignExpr(p: *Parser) Error!Result {
 
     try rhs.coerce(p, lhs.ty, tok, .assign);
 
-    try lhs.bin(p, tag, rhs);
+    try lhs.bin(p, tag, rhs, bit_or.?);
     return lhs;
 }
 
@@ -6485,7 +6487,7 @@ fn lorExpr(p: *Parser) Error!Result {
         } else {
             lhs.val.boolCast(p.comp);
         }
-        try lhs.boolRes(p, .bool_or_expr, rhs);
+        try lhs.boolRes(p, .bool_or_expr, rhs, tok);
     }
     return lhs;
 }
@@ -6508,7 +6510,7 @@ fn landExpr(p: *Parser) Error!Result {
         } else {
             lhs.val.boolCast(p.comp);
         }
-        try lhs.boolRes(p, .bool_and_expr, rhs);
+        try lhs.boolRes(p, .bool_and_expr, rhs, tok);
     }
     return lhs;
 }
@@ -6524,7 +6526,7 @@ fn orExpr(p: *Parser) Error!Result {
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = try lhs.val.bitOr(rhs.val, p.comp);
         }
-        try lhs.bin(p, .bit_or_expr, rhs);
+        try lhs.bin(p, .bit_or_expr, rhs, tok);
     }
     return lhs;
 }
@@ -6540,7 +6542,7 @@ fn xorExpr(p: *Parser) Error!Result {
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = try lhs.val.bitXor(rhs.val, p.comp);
         }
-        try lhs.bin(p, .bit_xor_expr, rhs);
+        try lhs.bin(p, .bit_xor_expr, rhs, tok);
     }
     return lhs;
 }
@@ -6556,7 +6558,7 @@ fn andExpr(p: *Parser) Error!Result {
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             lhs.val = try lhs.val.bitAnd(rhs.val, p.comp);
         }
-        try lhs.bin(p, .bit_and_expr, rhs);
+        try lhs.bin(p, .bit_and_expr, rhs, tok);
     }
     return lhs;
 }
@@ -6579,7 +6581,7 @@ fn eqExpr(p: *Parser) Error!Result {
         } else {
             lhs.val.boolCast(p.comp);
         }
-        try lhs.boolRes(p, tag, rhs);
+        try lhs.boolRes(p, tag, rhs, ne.?);
     }
     return lhs;
 }
@@ -6610,7 +6612,7 @@ fn compExpr(p: *Parser) Error!Result {
         } else {
             lhs.val.boolCast(p.comp);
         }
-        try lhs.boolRes(p, tag, rhs);
+        try lhs.boolRes(p, tag, rhs, ge.?);
     }
     return lhs;
 }
@@ -6640,7 +6642,7 @@ fn shiftExpr(p: *Parser) Error!Result {
                 lhs.val = try lhs.val.shr(rhs.val, lhs.ty, p.comp);
             }
         }
-        try lhs.bin(p, tag, rhs);
+        try lhs.bin(p, tag, rhs, shr.?);
     }
     return lhs;
 }
@@ -6670,7 +6672,7 @@ fn addExpr(p: *Parser) Error!Result {
             try p.errStr(.ptr_arithmetic_incomplete, minus.?, try p.typeStr(lhs_ty.elemType()));
             lhs.ty = Type.invalid;
         }
-        try lhs.bin(p, tag, rhs);
+        try lhs.bin(p, tag, rhs, minus.?);
     }
     return lhs;
 }
@@ -6720,7 +6722,7 @@ fn mulExpr(p: *Parser) Error!Result {
             }
         }
 
-        try lhs.bin(p, tag, rhs);
+        try lhs.bin(p, tag, rhs, percent.?);
     }
     return lhs;
 }
@@ -6750,6 +6752,7 @@ fn removeUnusedWarningForTok(p: *Parser, last_expr_tok: TokenIndex) void {
 fn castExpr(p: *Parser) Error!Result {
     if (p.eatToken(.l_paren)) |l_paren| cast_expr: {
         if (p.tok_ids[p.tok_i] == .l_brace) {
+            const tok = p.tok_i;
             try p.err(.gnu_statement_expression);
             if (p.func.ty == null) {
                 try p.err(.stmt_expr_not_allowed_file_scope);
@@ -6765,7 +6768,7 @@ fn castExpr(p: *Parser) Error!Result {
                 .val = stmt_expr_state.last_expr_res.val,
             };
             try p.expectClosing(l_paren, .r_paren);
-            try res.un(p, .stmt_expr);
+            try res.un(p, .stmt_expr, tok);
             while (true) {
                 const suffix = try p.suffixExpr(res);
                 if (suffix.empty(p)) break;
@@ -7001,7 +7004,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
             }
 
             try index.saveValue(p);
-            try ptr.bin(p, .array_access_expr, index);
+            try ptr.bin(p, .array_access_expr, index, l_bracket_tok);
             lhs = ptr;
         },
         else => break,
@@ -7073,7 +7076,7 @@ fn unExpr(p: *Parser) Error!Result {
                 };
             }
             try operand.saveValue(p);
-            try operand.un(p, .addr_of_expr);
+            try operand.un(p, .addr_of_expr, tok);
             return operand;
         },
         .asterisk => {
@@ -7092,7 +7095,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.deref_incomplete_ty_ptr, asterisk_loc, try p.typeStr(operand.ty));
             }
             operand.ty.qual = .{};
-            try operand.un(p, .deref_expr);
+            try operand.un(p, .deref_expr, tok);
             return operand;
         },
         .plus => {
@@ -7123,7 +7126,7 @@ fn unExpr(p: *Parser) Error!Result {
             } else {
                 operand.val = .{};
             }
-            try operand.un(p, .negate_expr);
+            try operand.un(p, .negate_expr, tok);
             return operand;
         },
         .plus_plus => {
@@ -7149,7 +7152,7 @@ fn unExpr(p: *Parser) Error!Result {
                 operand.val = .{};
             }
 
-            try operand.un(p, .pre_inc_expr);
+            try operand.un(p, .pre_inc_expr, tok);
             return operand;
         },
         .minus_minus => {
@@ -7175,7 +7178,7 @@ fn unExpr(p: *Parser) Error!Result {
                 operand.val = .{};
             }
 
-            try operand.un(p, .pre_dec_expr);
+            try operand.un(p, .pre_dec_expr, tok);
             return operand;
         },
         .tilde => {
@@ -7198,7 +7201,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
                 operand.val = .{};
             }
-            try operand.un(p, .bit_not_expr);
+            try operand.un(p, .bit_not_expr, tok);
             return operand;
         },
         .bang => {
@@ -7223,7 +7226,7 @@ fn unExpr(p: *Parser) Error!Result {
                 }
             }
             operand.ty = .{ .specifier = .int };
-            try operand.un(p, .bool_not_expr);
+            try operand.un(p, .bool_not_expr, tok);
             return operand;
         },
         .keyword_sizeof => {
@@ -7267,7 +7270,7 @@ fn unExpr(p: *Parser) Error!Result {
                     res.ty = p.comp.types.size;
                 }
             }
-            try res.un(p, .sizeof_expr);
+            try res.un(p, .sizeof_expr, tok);
             return res;
         },
         .keyword_alignof,
@@ -7305,7 +7308,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errStr(.invalid_alignof, expected_paren, try p.typeStr(res.ty));
                 res.ty = Type.invalid;
             }
-            try res.un(p, .alignof_expr);
+            try res.un(p, .alignof_expr, tok);
             return res;
         },
         .keyword_extension => {
@@ -7346,7 +7349,7 @@ fn unExpr(p: *Parser) Error!Result {
             }
             // convert _Complex T to T
             operand.ty = operand.ty.makeReal();
-            try operand.un(p, .imag_expr);
+            try operand.un(p, .imag_expr, tok);
             return operand;
         },
         .keyword_real1, .keyword_real2 => {
@@ -7363,7 +7366,7 @@ fn unExpr(p: *Parser) Error!Result {
             // convert _Complex T to T
             operand.ty = operand.ty.makeReal();
             operand.val = try operand.val.realPart(p.comp);
-            try operand.un(p, .real_expr);
+            try operand.un(p, .real_expr, tok);
             return operand;
         },
         else => {
@@ -7436,7 +7439,7 @@ fn compoundLiteral(p: *Parser) Error!Result {
     if (d.constexpr) |_| {
         // TODO error if not constexpr
     }
-    try init_list_expr.un(p, tag);
+    try init_list_expr.un(p, tag, l_paren);
     return init_list_expr;
 }
 
@@ -7467,7 +7470,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             }
             try operand.usualUnaryConversion(p, p.tok_i);
 
-            try operand.un(p, .post_inc_expr);
+            try operand.un(p, .post_inc_expr, p.tok_i);
             return operand;
         },
         .minus_minus => {
@@ -7485,7 +7488,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             }
             try operand.usualUnaryConversion(p, p.tok_i);
 
-            try operand.un(p, .post_dec_expr);
+            try operand.un(p, .post_dec_expr, p.tok_i);
             return operand;
         },
         .l_bracket => {
@@ -7521,7 +7524,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
 
             try ptr.saveValue(p);
             try index.saveValue(p);
-            try ptr.bin(p, .array_access_expr, index);
+            try ptr.bin(p, .array_access_expr, index, l_bracket);
             return ptr;
         },
         .period => {
@@ -7820,7 +7823,7 @@ fn primaryExpr(p: *Parser) Error!Result {
         var e = try p.expr();
         try e.expect(p);
         try p.expectClosing(l_paren, .r_paren);
-        try e.un(p, .paren_expr);
+        try e.un(p, .paren_expr, l_paren);
         return e;
     }
     switch (p.tok_ids[p.tok_i]) {
@@ -8380,7 +8383,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix, tok_i: TokenInd
             256 => .{ .complex = .{ .cf128 = .{ 0.0, val.toFloat(f128, p.comp) } } },
             else => unreachable,
         });
-        try res.un(p, .imaginary_literal);
+        try res.un(p, .imaginary_literal, tok_i);
     }
     return res;
 }
@@ -8529,7 +8532,7 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
         try p.errTok(.gnu_imaginary_constant, tok_i);
         res.ty = res.ty.makeComplex();
         res.val = .{};
-        try res.un(p, .imaginary_literal);
+        try res.un(p, .imaginary_literal, tok_i);
     }
     return res;
 }
