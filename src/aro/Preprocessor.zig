@@ -97,6 +97,11 @@ poisoned_identifiers: std.StringHashMap(void),
 /// Map from Source.Id to macro name in the `#ifndef` condition which guards the source, if any
 include_guards: std.AutoHashMapUnmanaged(Source.Id, []const u8) = .{},
 
+/// Store `keyword_define` and `keyword_undef` tokens.
+/// Used to implement preprocessor debug dump options
+/// Must be false unless in -E mode (parser does not handle those token types)
+store_macro_tokens: bool = false,
+
 /// Memory is retained to avoid allocation on every single token.
 top_expansion_buf: ExpandBuf,
 
@@ -622,9 +627,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }
                         if_level -= 1;
                     },
-                    .keyword_define => try pp.define(&tokenizer),
+                    .keyword_define => try pp.define(&tokenizer, directive),
                     .keyword_undef => {
                         const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
+                        if (pp.store_macro_tokens) {
+                            try pp.addToken(tokFromRaw(directive));
+                        }
 
                         _ = pp.defines.remove(macro_name);
                         try pp.expectNl(&tokenizer);
@@ -2508,7 +2516,7 @@ fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: Tok
 }
 
 /// Defines a new macro and warns if it is a duplicate
-fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
+fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macro: Macro) Error!void {
     const name_str = pp.tokSlice(name_tok);
     const gop = try pp.defines.getOrPut(pp.gpa, name_str);
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
@@ -2529,11 +2537,14 @@ fn defineMacro(pp: *Preprocessor, name_tok: RawToken, macro: Macro) Error!void {
     if (pp.verbose) {
         pp.verboseLog(name_tok, "macro {s} defined", .{name_str});
     }
+    if (pp.store_macro_tokens) {
+        try pp.addToken(tokFromRaw(define_tok));
+    }
     gop.value_ptr.* = macro;
 }
 
 /// Handle a #define directive.
-fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
+fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!void {
     // Get macro name and validate it.
     const macro_name = tokenizer.nextNoWS();
     if (macro_name.id == .keyword_defined) {
@@ -2556,7 +2567,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     // Check for function macros and empty defines.
     var first = tokenizer.next();
     switch (first.id) {
-        .nl, .eof => return pp.defineMacro(macro_name, .{
+        .nl, .eof => return pp.defineMacro(define_tok, macro_name, .{
             .params = &.{},
             .tokens = &.{},
             .var_args = false,
@@ -2564,7 +2575,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
             .is_func = false,
         }),
         .whitespace => first = tokenizer.next(),
-        .l_paren => return pp.defineFn(tokenizer, macro_name, first),
+        .l_paren => return pp.defineFn(tokenizer, define_tok, macro_name, first),
         else => try pp.err(first, .whitespace_after_macro_name),
     }
     if (first.id == .hash_hash) {
@@ -2623,7 +2634,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
     }
 
     const list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
-    try pp.defineMacro(macro_name, .{
+    try pp.defineMacro(define_tok, macro_name, .{
         .loc = tokFromRaw(macro_name).loc,
         .tokens = list,
         .params = undefined,
@@ -2633,7 +2644,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
 }
 
 /// Handle a function like #define directive.
-fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_paren: RawToken) Error!void {
+fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macro_name: RawToken, l_paren: RawToken) Error!void {
     assert(macro_name.id.isMacroIdentifier());
     var params = std.ArrayList([]const u8).init(pp.gpa);
     defer params.deinit();
@@ -2810,7 +2821,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, macro_name: RawToken, l_pa
 
     const param_list = try pp.arena.allocator().dupe([]const u8, params.items);
     const token_list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
-    try pp.defineMacro(macro_name, .{
+    try pp.defineMacro(define_tok, macro_name, .{
         .is_func = true,
         .params = param_list,
         .var_args = var_args or gnu_var_args.len != 0,
@@ -3273,8 +3284,78 @@ fn printLinemarker(
 // After how many empty lines are needed to replace them with linemarkers.
 const collapse_newlines = 8;
 
+pub const DumpMode = enum {
+    /// Standard preprocessor output; no macros
+    result_only,
+    /// Output only #define directives for all the macros defined during the execution of the preprocessor
+    /// Only macros which are still defined at the end of preprocessing are printed.
+    /// Only the most recent definition is printed
+    /// Defines are printed in arbitrary order
+    macros_only,
+    /// Standard preprocessor output; but additionally output #define's and #undef's for macros as they are encountered
+    macros_and_result,
+    /// Same as macros_and_result, except only the macro name is printed for #define's
+    macro_names_and_result,
+};
+
+/// Pretty-print the macro define or undef at location `loc`.
+/// We re-tokenize the directive because we are printing a macro that may have the same name as one in
+/// `pp.defines` but a different definition (due to being #undef'ed and then redefined)
+fn prettyPrintMacro(pp: *Preprocessor, w: anytype, loc: Source.Location, parts: enum { name_only, name_and_body }) !void {
+    const source = pp.comp.getSource(loc.id);
+    var tokenizer: Tokenizer = .{
+        .buf = source.buf,
+        .langopts = pp.comp.langopts,
+        .source = source.id,
+        .index = loc.byte_offset,
+    };
+    var prev_ws = false; // avoid printing multiple whitespace if /* */ comments are within the macro def
+    var saw_name = false; // do not print comments before the name token is seen.
+    while (true) {
+        const tok = tokenizer.next();
+        switch (tok.id) {
+            .comment => {
+                if (saw_name) {
+                    prev_ws = false;
+                    try w.print("{s}", .{pp.tokSlice(tok)});
+                }
+            },
+            .nl, .eof => break,
+            .whitespace => {
+                if (!prev_ws) {
+                    try w.writeByte(' ');
+                    prev_ws = true;
+                }
+            },
+            else => {
+                prev_ws = false;
+                try w.print("{s}", .{pp.tokSlice(tok)});
+            },
+        }
+        if (tok.id == .identifier or tok.id == .extended_identifier) {
+            if (parts == .name_only) break;
+            saw_name = true;
+        }
+    }
+}
+
+fn prettyPrintMacrosOnly(pp: *Preprocessor, w: anytype) !void {
+    var it = pp.defines.valueIterator();
+    while (it.next()) |macro| {
+        if (macro.is_builtin) continue;
+
+        try w.writeAll("#define ");
+        try pp.prettyPrintMacro(w, macro.loc, .name_and_body);
+        try w.writeByte('\n');
+    }
+}
+
 /// Pretty print tokens and try to preserve whitespace.
-pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
+pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype, macro_dump_mode: DumpMode) !void {
+    if (macro_dump_mode == .macros_only) {
+        return pp.prettyPrintMacrosOnly(w);
+    }
+
     const tok_ids = pp.tokens.items(.id);
 
     var i: u32 = 0;
@@ -3366,6 +3447,17 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype) !void {
                 try pp.printLinemarker(w, line_col.line_no, source, .@"resume");
                 last_nl = true;
             },
+            .keyword_define, .keyword_undef => {
+                switch (macro_dump_mode) {
+                    .macros_and_result, .macro_names_and_result => {
+                        try w.writeByte('#');
+                        try pp.prettyPrintMacro(w, cur.loc, if (macro_dump_mode == .macros_and_result) .name_and_body else .name_only);
+                        last_nl = false;
+                    },
+                    .result_only => unreachable, // `pp.store_macro_tokens` should be false for standard preprocessor output
+                    .macros_only => unreachable, // handled by prettyPrintMacrosOnly
+                }
+            },
             else => {
                 const slice = pp.expandedSlice(cur);
                 try w.writeAll(slice);
@@ -3396,7 +3488,7 @@ test "Preserve pragma tokens sometimes" {
             const test_runner_macros = try comp.addSourceFromBuffer("<test_runner>", source_text);
             const eof = try pp.preprocess(test_runner_macros);
             try pp.addToken(eof);
-            try pp.prettyPrintTokens(buf.writer());
+            try pp.prettyPrintTokens(buf.writer(), .result_only);
             return allocator.dupe(u8, buf.items);
         }
 
