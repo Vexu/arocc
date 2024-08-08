@@ -8745,6 +8745,7 @@ fn genericSelection(p: *Parser) Error!Result {
             try p.list_buf.insert(list_buf_top + 1, try p.addNode(.{
                 .tag = .generic_default_expr,
                 .data = .{ .un = default.node },
+                .ty = default.ty,
             }));
             chosen = default;
         } else {
@@ -8755,11 +8756,13 @@ fn genericSelection(p: *Parser) Error!Result {
         try p.list_buf.insert(list_buf_top + 1, try p.addNode(.{
             .tag = .generic_association_expr,
             .data = .{ .un = chosen.node },
+            .ty = chosen.ty,
         }));
         if (default_tok != null) {
             try p.list_buf.append(try p.addNode(.{
                 .tag = .generic_default_expr,
-                .data = .{ .un = chosen.node },
+                .data = .{ .un = default.node },
+                .ty = default.ty,
             }));
         }
     }
