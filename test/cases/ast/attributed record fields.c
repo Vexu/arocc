@@ -19,6 +19,7 @@ struct_decl_two: 'struct S5'
   record_field_decl: 'int'
    name: x
    field attr: packed
+
   record_field_decl: 'int'
    name: y
    field attr: packed
@@ -27,6 +28,7 @@ struct_decl_two: 'struct S6'
   record_field_decl: 'int'
    name: x
    field attr: packed
+
   record_field_decl: 'int'
    name: y
    field attr: packed
@@ -35,12 +37,14 @@ struct_decl_two: 'struct S7'
   record_field_decl: 'int'
    name: x
    field attr: packed
+
   record_field_decl: 'int'
    name: y
 
 struct_decl_two: 'struct S8'
   record_field_decl: 'int'
    name: x
+
   record_field_decl: 'int'
    name: y
    field attr: packed

@@ -3,6 +3,7 @@ struct_decl_two: 'struct S'
    name: x
    bits:
     int_literal: 'int' (value: 3)
+
   record_field_decl: 'long'
    name: y
    bits:
@@ -45,6 +46,7 @@ fn_def: 'fn () void'
      init:
       struct_init_expr_two: 'struct S'
         int_literal: 'unsigned int' (value: 1)
+
         int_literal: 'long' (value: 1)
 
     var: 'int'

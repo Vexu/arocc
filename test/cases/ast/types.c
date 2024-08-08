@@ -70,6 +70,7 @@ enum_decl_two: 'enum E: unsigned int'
     implicit_cast: (int_cast) 'int'
       explicit_cast: (int_cast) 'char' (value: 2)
         int_literal: 'int' (value: 2)
+
   enum_field_decl: 'int' (value: 3)
    name: E
    value:
