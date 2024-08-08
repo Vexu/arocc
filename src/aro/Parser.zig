@@ -2285,12 +2285,12 @@ fn recordSpec(p: *Parser) Error!Type {
     var node: Tree.Node = .{
         .tag = if (is_struct) .struct_decl_two else .union_decl_two,
         .ty = ty,
-        .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+        .data = .{ .two = .{ .none, .none } },
     };
     switch (record_decls.len) {
         0 => {},
-        1 => node.data = .{ .bin = .{ .lhs = record_decls[0], .rhs = .none } },
-        2 => node.data = .{ .bin = .{ .lhs = record_decls[0], .rhs = record_decls[1] } },
+        1 => node.data = .{ .two = .{ record_decls[0], .none } },
+        2 => node.data = .{ .two = .{ record_decls[0], record_decls[1] } },
         else => {
             node.tag = if (is_struct) .struct_decl else .union_decl;
             node.data = .{ .range = try p.addList(record_decls) };
@@ -2653,12 +2653,12 @@ fn enumSpec(p: *Parser) Error!Type {
 
     // finish by creating a node
     var node: Tree.Node = .{ .tag = .enum_decl_two, .ty = ty, .data = .{
-        .bin = .{ .lhs = .none, .rhs = .none },
+        .two = .{ .none, .none },
     } };
     switch (field_nodes.len) {
         0 => {},
-        1 => node.data = .{ .bin = .{ .lhs = field_nodes[0], .rhs = .none } },
-        2 => node.data = .{ .bin = .{ .lhs = field_nodes[0], .rhs = field_nodes[1] } },
+        1 => node.data = .{ .two = .{ field_nodes[0], .none } },
+        2 => node.data = .{ .two = .{ field_nodes[0], field_nodes[1] } },
         else => {
             node.tag = .enum_decl;
             node.data = .{ .range = try p.addList(field_nodes) };
@@ -3321,7 +3321,7 @@ fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
     const arr_init_node: Tree.Node = .{
         .tag = .array_init_expr_two,
         .ty = init_ty,
-        .data = .{ .bin = .{ .lhs = first.node, .rhs = second.node } },
+        .data = .{ .two = .{ first.node, second.node } },
     };
     var res: Result = .{
         .node = try p.addNode(arr_init_node),
@@ -3859,7 +3859,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         var arr_init_node: Tree.Node = .{
             .tag = .array_init_expr_two,
             .ty = init_ty,
-            .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+            .data = .{ .two = .{ .none, .none } },
         };
 
         const max_elems = p.comp.maxArrayBytes() / (@max(1, elem_ty.sizeof(p.comp) orelse 1));
@@ -3892,8 +3892,8 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         const items = p.list_buf.items[list_buf_top..];
         switch (items.len) {
             0 => {},
-            1 => arr_init_node.data.bin.lhs = items[0],
-            2 => arr_init_node.data.bin = .{ .lhs = items[0], .rhs = items[1] },
+            1 => arr_init_node.data.two[0] = items[0],
+            2 => arr_init_node.data.two = .{ items[0], items[1] },
             else => {
                 arr_init_node.tag = .array_init_expr;
                 arr_init_node.data = .{ .range = try p.addList(items) };
@@ -3924,13 +3924,13 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
         var struct_init_node: Tree.Node = .{
             .tag = .struct_init_expr_two,
             .ty = init_ty,
-            .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+            .data = .{ .two = .{ .none, .none } },
         };
         const items = p.list_buf.items[list_buf_top..];
         switch (items.len) {
             0 => {},
-            1 => struct_init_node.data.bin.lhs = items[0],
-            2 => struct_init_node.data.bin = .{ .lhs = items[0], .rhs = items[1] },
+            1 => struct_init_node.data.two[0] = items[0],
+            2 => struct_init_node.data.two = .{ items[0], items[1] },
             else => {
                 struct_init_node.tag = .struct_init_expr;
                 struct_init_node.data = .{ .range = try p.addList(items) };
@@ -4699,13 +4699,13 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
 
     var node: Tree.Node = .{
         .tag = .compound_stmt_two,
-        .data = .{ .bin = .{ .lhs = .none, .rhs = .none } },
+        .data = .{ .two = .{ .none, .none } },
     };
     const statements = p.decl_buf.items[decl_buf_top..];
     switch (statements.len) {
         0 => {},
-        1 => node.data = .{ .bin = .{ .lhs = statements[0], .rhs = .none } },
-        2 => node.data = .{ .bin = .{ .lhs = statements[0], .rhs = statements[1] } },
+        1 => node.data = .{ .two = .{ statements[0], .none } },
+        2 => node.data = .{ .two = .{ statements[0], statements[1] } },
         else => {
             node.tag = .compound_stmt;
             node.data = .{ .range = try p.addList(statements) };
@@ -4729,8 +4729,8 @@ fn nodeIsNoreturn(p: *Parser, node: NodeIndex) NoreturnKind {
         },
         .compound_stmt_two => {
             const data = p.nodes.items(.data)[@intFromEnum(node)];
-            const lhs_type = if (data.bin.lhs != .none) p.nodeIsNoreturn(data.bin.lhs) else .no;
-            const rhs_type = if (data.bin.rhs != .none) p.nodeIsNoreturn(data.bin.rhs) else .no;
+            const lhs_type = if (data.two[0] != .none) p.nodeIsNoreturn(data.two[0]) else .no;
+            const rhs_type = if (data.two[1] != .none) p.nodeIsNoreturn(data.two[1]) else .no;
             if (lhs_type == .complex or rhs_type == .complex) return .complex;
             if (lhs_type == .yes or rhs_type == .yes) return .yes;
             return .no;
@@ -5211,8 +5211,8 @@ pub const Result = struct {
                 const body = p.nodes.items(.data)[@intFromEnum(cur_node)].un;
                 switch (p.nodes.items(.tag)[@intFromEnum(body)]) {
                     .compound_stmt_two => {
-                        const body_stmt = p.nodes.items(.data)[@intFromEnum(body)].bin;
-                        cur_node = if (body_stmt.rhs != .none) body_stmt.rhs else body_stmt.lhs;
+                        const body_stmt = p.nodes.items(.data)[@intFromEnum(body)].two;
+                        cur_node = if (body_stmt[1] != .none) body_stmt[1] else body_stmt[0];
                     },
                     .compound_stmt => {
                         const data = p.nodes.items(.data)[@intFromEnum(body)];

@@ -1,6 +1,7 @@
 union_decl_two: 'union U'
   record_field_decl: 'int'
    name: x
+
   record_field_decl: 'float'
    name: y
 

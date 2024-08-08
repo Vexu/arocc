@@ -7,6 +7,7 @@ fn_def: 'fn () void'
      init:
       array_init_expr_two: '_Complex double'
         float_literal: 'double' (value: 1)
+
         float_literal: 'double' (value: 2)
 
     var: '_Complex float'
@@ -14,6 +15,7 @@ fn_def: 'fn () void'
      init:
       array_init_expr_two: '_Complex float'
         float_literal: 'float' (value: 1)
+
         float_literal: 'float' (value: 2)
 
     assign_expr: '_Complex double'
@@ -48,6 +50,7 @@ fn_def: 'fn () void'
          array_init_expr_two: '_Complex double'
            implicit_cast: (float_cast) 'double'
              float_literal: 'float' (value: 1)
+
            implicit_cast: (float_cast) 'double'
              float_literal: 'float' (value: 2)
 
@@ -61,6 +64,7 @@ fn_def: 'fn () void'
          array_init_expr_two: '_Complex float'
            implicit_cast: (float_cast) 'float'
              float_literal: 'double' (value: 1)
+
            implicit_cast: (float_cast) 'float'
              float_literal: 'double' (value: 2)
 
