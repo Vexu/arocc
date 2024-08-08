@@ -5094,12 +5094,12 @@ const CallExpr = union(enum) {
                 var call_node: Tree.Node = .{
                     .tag = .call_expr_one,
                     .ty = ret_ty,
-                    .data = .{ .bin = .{ .lhs = func_node, .rhs = .none } },
+                    .data = .{ .two = .{ func_node, .none } },
                 };
                 const args = p.list_buf.items[list_buf_top..];
                 switch (arg_count) {
                     0 => {},
-                    1 => call_node.data.bin.rhs = args[1], // args[0] == func.node
+                    1 => call_node.data.two[1] = args[1], // args[0] == func.node
                     else => {
                         call_node.tag = .call_expr;
                         call_node.data = .{ .range = try p.addList(args) };
@@ -5193,16 +5193,11 @@ pub const Result = struct {
             .post_inc_expr,
             .post_dec_expr,
             => return,
-            .call_expr_one => {
-                const fn_ptr = p.nodes.items(.data)[@intFromEnum(cur_node)].bin.lhs;
-                const call_info = p.tmpTree().callableResultUsage(fn_ptr) orelse return;
-                if (call_info.nodiscard) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_info.tok));
-                if (call_info.warn_unused_result) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_info.tok));
-                return;
-            },
-            .call_expr => {
-                const fn_ptr = p.data.items[p.nodes.items(.data)[@intFromEnum(cur_node)].range.start];
-                const call_info = p.tmpTree().callableResultUsage(fn_ptr) orelse return;
+            .call_expr, .call_expr_one => {
+                const tmp_tree = p.tmpTree();
+                const child_nodes = tmp_tree.childNodes(cur_node);
+                const fn_ptr = child_nodes[0];
+                const call_info = tmp_tree.callableResultUsage(fn_ptr) orelse return;
                 if (call_info.nodiscard) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_info.tok));
                 if (call_info.warn_unused_result) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_info.tok));
                 return;
@@ -8772,7 +8767,7 @@ fn genericSelection(p: *Parser) Error!Result {
     var generic_node: Tree.Node = .{
         .tag = .generic_expr_one,
         .ty = chosen.ty,
-        .data = .{ .bin = .{ .lhs = controlling.node, .rhs = chosen.node } },
+        .data = .{ .two = .{ controlling.node, chosen.node } },
     };
     const associations = p.list_buf.items[list_buf_top..];
     if (associations.len > 2) { // associations[0] == controlling.node
