@@ -7063,6 +7063,7 @@ fn unExpr(p: *Parser) Error!Result {
                     .tag = .addr_of_label,
                     .data = .{ .decl_ref = name_tok },
                     .ty = result_ty,
+                    .loc = @enumFromInt(address_tok),
                 }),
                 .ty = result_ty,
             };
