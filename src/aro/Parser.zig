@@ -4899,17 +4899,17 @@ fn returnStmt(p: *Parser) Error!?NodeIndex {
 
     if (e.node == .none) {
         if (!ret_ty.is(.void)) try p.errStr(.func_should_return, ret_tok, p.tokSlice(p.func.name));
-        return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
+        return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node }, .loc = @enumFromInt(ret_tok) });
     } else if (ret_ty.is(.void)) {
         try p.errStr(.void_func_returns_value, e_tok, p.tokSlice(p.func.name));
-        return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
+        return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node }, .loc = @enumFromInt(ret_tok) });
     }
 
     try e.lvalConversion(p);
     try e.coerce(p, ret_ty, e_tok, .ret);
 
     try e.saveValue(p);
-    return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node } });
+    return try p.addNode(.{ .tag = .return_stmt, .data = .{ .un = e.node }, .loc = @enumFromInt(ret_tok) });
 }
 
 // ====== expressions ======
