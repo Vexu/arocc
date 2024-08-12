@@ -6450,6 +6450,7 @@ fn condExpr(p: *Parser) Error!Result {
             .tag = .binary_cond_expr,
             .ty = cond.ty,
             .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ cond_then.node, then_expr.node })).start } },
+            .loc = @enumFromInt(cond_tok),
         });
         return cond;
     }
@@ -6475,6 +6476,7 @@ fn condExpr(p: *Parser) Error!Result {
         .tag = .cond_expr,
         .ty = cond.ty,
         .data = .{ .if3 = .{ .cond = cond.node, .body = (try p.addList(&.{ then_expr.node, else_expr.node })).start } },
+        .loc = @enumFromInt(cond_tok),
     });
     return cond;
 }
