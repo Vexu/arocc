@@ -1161,9 +1161,18 @@ fn decl(p: *Parser) Error!bool {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         const tag = try decl_spec.validate(p, &init_d.d.ty, init_d.initializer.node != .none);
 
-        const node = try p.addNode(.{ .ty = init_d.d.ty, .tag = tag, .data = .{
-            .decl = .{ .name = init_d.d.name, .node = init_d.initializer.node },
-        } });
+        const tok = switch (decl_spec.storage_class) {
+            .auto, .@"extern", .register, .static, .typedef => |tok| tok,
+            .none => init_d.d.name,
+        };
+        const node = try p.addNode(.{
+            .ty = init_d.d.ty,
+            .tag = tag,
+            .data = .{
+                .decl = .{ .name = init_d.d.name, .node = init_d.initializer.node },
+            },
+            .loc = @enumFromInt(tok),
+        });
         try p.decl_buf.append(node);
 
         const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
