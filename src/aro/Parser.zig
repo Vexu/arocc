@@ -6087,6 +6087,7 @@ pub const Result = struct {
             .tag = .explicit_cast,
             .ty = res.ty,
             .data = .{ .cast = .{ .operand = res.node, .kind = cast_kind } },
+            .loc = @enumFromInt(l_paren),
         });
     }
 
