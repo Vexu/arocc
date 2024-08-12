@@ -7866,6 +7866,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                             .tag = .decl_ref_expr,
                             .ty = sym.ty,
                             .data = .{ .decl_ref = name_tok },
+                            .loc = @enumFromInt(name_tok),
                         }),
                     };
                 }
@@ -7883,6 +7884,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                         .tag = if (sym.kind == .enumeration) .enumeration_ref else .decl_ref_expr,
                         .ty = sym.ty,
                         .data = .{ .decl_ref = name_tok },
+                        .loc = @enumFromInt(name_tok),
                     }),
                 };
             }
@@ -7909,6 +7911,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                         .tag = .builtin_call_expr_one,
                         .ty = some.ty,
                         .data = .{ .decl = .{ .name = name_tok, .node = .none } },
+                        .loc = @enumFromInt(name_tok),
                     }),
                 };
             }
@@ -7926,6 +7929,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     .ty = ty,
                     .tag = .fn_proto,
                     .data = .{ .decl = .{ .name = name_tok } },
+                    .loc = @enumFromInt(name_tok),
                 });
 
                 try p.decl_buf.append(node);
@@ -7937,6 +7941,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                         .tag = .decl_ref_expr,
                         .ty = ty,
                         .data = .{ .decl_ref = name_tok },
+                        .loc = @enumFromInt(name_tok),
                     }),
                 };
             }
@@ -7944,11 +7949,12 @@ fn primaryExpr(p: *Parser) Error!Result {
             return error.ParsingFailed;
         },
         .keyword_true, .keyword_false => |id| {
+            const tok_i = p.tok_i;
             p.tok_i += 1;
             const res = Result{
                 .val = Value.fromBool(id == .keyword_true),
                 .ty = .{ .specifier = .bool },
-                .node = try p.addNode(.{ .tag = .bool_literal, .ty = .{ .specifier = .bool }, .data = undefined }),
+                .node = try p.addNode(.{ .tag = .bool_literal, .ty = .{ .specifier = .bool }, .data = undefined, .loc = @enumFromInt(tok_i) }),
             };
             std.debug.assert(!p.in_macro); // Should have been replaced with .one / .zero
             try p.value_map.put(res.node, res.val);
@@ -7964,6 +7970,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     .tag = .nullptr_literal,
                     .ty = .{ .specifier = .nullptr_t },
                     .data = undefined,
+                    .loc = @enumFromInt(p.tok_i),
                 }),
             };
         },
@@ -8000,6 +8007,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     .tag = .decl_ref_expr,
                     .ty = ty,
                     .data = .{ .decl_ref = tok },
+                    .loc = @enumFromInt(tok),
                 }),
             };
         },
@@ -8035,6 +8043,7 @@ fn primaryExpr(p: *Parser) Error!Result {
                     .tag = .decl_ref_expr,
                     .ty = ty,
                     .data = .{ .decl_ref = p.tok_i },
+                    .loc = @enumFromInt(p.tok_i),
                 }),
             };
         },
