@@ -6820,23 +6820,26 @@ fn castExpr(p: *Parser) Error!Result {
 }
 
 fn typesCompatible(p: *Parser) Error!Result {
+    const builtin_tok = p.tok_i;
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
 
+    const first_tok = p.tok_i;
     const first = (try p.typeName()) orelse {
         try p.err(.expected_type);
         p.skipTo(.r_paren);
         return error.ParsingFailed;
     };
-    const lhs = try p.addNode(.{ .tag = .invalid, .ty = first, .data = undefined });
+    const lhs = try p.addNode(.{ .tag = .invalid, .ty = first, .data = undefined, .loc = @enumFromInt(first_tok) });
     _ = try p.expectToken(.comma);
 
+    const second_tok = p.tok_i;
     const second = (try p.typeName()) orelse {
         try p.err(.expected_type);
         p.skipTo(.r_paren);
         return error.ParsingFailed;
     };
-    const rhs = try p.addNode(.{ .tag = .invalid, .ty = second, .data = undefined });
+    const rhs = try p.addNode(.{ .tag = .invalid, .ty = second, .data = undefined, .loc = @enumFromInt(second_tok) });
 
     try p.expectClosing(l_paren, .r_paren);
 
@@ -6851,10 +6854,15 @@ fn typesCompatible(p: *Parser) Error!Result {
 
     const res = Result{
         .val = Value.fromBool(compatible),
-        .node = try p.addNode(.{ .tag = .builtin_types_compatible_p, .ty = Type.int, .data = .{ .bin = .{
-            .lhs = lhs,
-            .rhs = rhs,
-        } } }),
+        .node = try p.addNode(.{
+            .tag = .builtin_types_compatible_p,
+            .ty = Type.int,
+            .data = .{ .bin = .{
+                .lhs = lhs,
+                .rhs = rhs,
+            } },
+            .loc = @enumFromInt(builtin_tok),
+        }),
     };
     try p.value_map.put(res.node, res.val);
     return res;
