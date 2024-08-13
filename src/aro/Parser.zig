@@ -1135,6 +1135,7 @@ fn decl(p: *Parser) Error!bool {
             .ty = init_d.d.ty,
             .tag = try decl_spec.validateFnDef(p),
             .data = .{ .decl = .{ .name = init_d.d.name, .node = body } },
+            .loc = @enumFromInt(init_d.d.name),
         });
         try p.decl_buf.append(node);
 
