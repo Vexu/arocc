@@ -786,13 +786,18 @@ pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     return tree.comp.locSlice(loc);
 }
 
-pub fn nodeLoc(tree: *const Tree, node: NodeIndex) ?Source.Location {
+pub fn nodeTok(tree: *const Tree, node: NodeIndex) ?TokenIndex {
     std.debug.assert(node != .none);
     const loc = tree.nodes.items(.loc)[@intFromEnum(node)];
     return switch (loc) {
         .none => null,
-        else => |tok_i| tree.tokens.items(.loc)[@intFromEnum(tok_i)],
+        else => |tok_i| @intFromEnum(tok_i),
     };
+}
+
+pub fn nodeLoc(tree: *const Tree, node: NodeIndex) ?Source.Location {
+    const tok_i = tree.nodeTok(node) orelse return null;
+    return tree.tokens.items(.loc)[@intFromEnum(tok_i)];
 }
 
 pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void {

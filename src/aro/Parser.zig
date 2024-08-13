@@ -8884,8 +8884,8 @@ test "Node locations" {
 
     try std.testing.expectEqual(0, comp.diagnostics.list.items.len);
     for (tree.root_decls, 0..) |node, i| {
-        const loc = tree.nodeLoc(node).?;
-        const slice = tree.comp.locSlice(loc);
+        const tok_i = tree.nodeTok(node).?;
+        const slice = tree.tokSlice(tok_i);
         const expected = switch (i) {
             0 => "foo",
             1 => "bar",
