@@ -783,14 +783,16 @@ pub fn childNodes(tree: *const Tree, node: NodeIndex) []const NodeIndex {
 pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
-    var tmp_tokenizer = Tokenizer{
-        .buf = tree.comp.getSource(loc.id).buf,
-        .langopts = tree.comp.langopts,
-        .index = loc.byte_offset,
-        .source = .generated,
+    return tree.comp.locSlice(loc);
+}
+
+pub fn nodeLoc(tree: *const Tree, node: NodeIndex) ?Source.Location {
+    std.debug.assert(node != .none);
+    const loc = tree.nodes.items(.loc)[@intFromEnum(node)];
+    return switch (loc) {
+        .none => null,
+        else => |tok_i| tree.tokens.items(.loc)[@intFromEnum(tok_i)],
     };
-    const tok = tmp_tokenizer.next();
-    return tmp_tokenizer.buf[tok.start..tok.end];
 }
 
 pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void {

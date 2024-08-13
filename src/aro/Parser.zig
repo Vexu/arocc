@@ -8856,3 +8856,42 @@ fn genericSelection(p: *Parser) Error!Result {
     chosen.node = try p.addNode(generic_node);
     return chosen;
 }
+
+test "Node locations" {
+    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    defer comp.deinit();
+
+    const file = try comp.addSourceFromBuffer("file.c",
+        \\int foo = 5;
+        \\int bar = 10;
+        \\int main(void) {}
+        \\
+    );
+
+    const builtin_macros = try comp.generateBuiltinMacros(.no_system_defines);
+
+    var pp = Preprocessor.init(&comp);
+    defer pp.deinit();
+    try pp.addBuiltinMacros();
+
+    _ = try pp.preprocess(builtin_macros);
+
+    const eof = try pp.preprocess(file);
+    try pp.addToken(eof);
+
+    var tree = try Parser.parse(&pp);
+    defer tree.deinit();
+
+    try std.testing.expectEqual(0, comp.diagnostics.list.items.len);
+    for (tree.root_decls, 0..) |node, i| {
+        const loc = tree.nodeLoc(node).?;
+        const slice = tree.comp.locSlice(loc);
+        const expected = switch (i) {
+            0 => "foo",
+            1 => "bar",
+            2 => "main",
+            else => unreachable,
+        };
+        try std.testing.expectEqualStrings(expected, slice);
+    }
+}
