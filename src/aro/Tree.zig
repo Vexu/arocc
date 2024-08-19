@@ -137,8 +137,14 @@ pub const Node = struct {
     tag: Tag,
     ty: Type = .{ .specifier = .void },
     data: Data,
+    loc: Loc = .none,
 
     pub const Range = struct { start: u32, end: u32 };
+
+    pub const Loc = enum(u32) {
+        none = std.math.maxInt(u32),
+        _,
+    };
 
     pub const Data = union {
         decl: struct {
@@ -278,7 +284,8 @@ pub const Tag = enum(u8) {
 
     // ====== Decl ======
 
-    // _Static_assert
+    /// _Static_assert
+    /// loc is token index of _Static_assert
     static_assert,
 
     // function prototype
@@ -304,6 +311,7 @@ pub const Tag = enum(u8) {
     threadlocal_static_var,
 
     /// __asm__("...") at file scope
+    /// loc is token index of __asm__ keyword
     file_scope_asm,
 
     // typedef declaration
@@ -545,18 +553,24 @@ pub const Tag = enum(u8) {
     struct_init_expr,
     /// { union_init }
     union_init_expr,
+
     /// (ty){ un }
+    /// loc is token index of l_paren
     compound_literal_expr,
     /// (static ty){ un }
+    /// loc is token index of l_paren
     static_compound_literal_expr,
     /// (thread_local ty){ un }
+    /// loc is token index of l_paren
     thread_local_compound_literal_expr,
     /// (static thread_local ty){ un }
+    /// loc is token index of l_paren
     static_thread_local_compound_literal_expr,
 
     /// Inserted at the end of a function body if no return stmt is found.
     /// ty is the functions return type
     /// data is return_zero which is true if the function is called "main" and ty is compatible with int
+    /// loc is token index of closing r_brace of function
     implicit_return,
 
     /// Inserted in array_init_expr to represent unspecified elements.
@@ -769,14 +783,21 @@ pub fn childNodes(tree: *const Tree, node: NodeIndex) []const NodeIndex {
 pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
-    var tmp_tokenizer = Tokenizer{
-        .buf = tree.comp.getSource(loc.id).buf,
-        .langopts = tree.comp.langopts,
-        .index = loc.byte_offset,
-        .source = .generated,
+    return tree.comp.locSlice(loc);
+}
+
+pub fn nodeTok(tree: *const Tree, node: NodeIndex) ?TokenIndex {
+    std.debug.assert(node != .none);
+    const loc = tree.nodes.items(.loc)[@intFromEnum(node)];
+    return switch (loc) {
+        .none => null,
+        else => |tok_i| @intFromEnum(tok_i),
     };
-    const tok = tmp_tokenizer.next();
-    return tmp_tokenizer.buf[tok.start..tok.end];
+}
+
+pub fn nodeLoc(tree: *const Tree, node: NodeIndex) ?Source.Location {
+    const tok_i = tree.nodeTok(node) orelse return null;
+    return tree.tokens.items(.loc)[@intFromEnum(tok_i)];
 }
 
 pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void {

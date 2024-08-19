@@ -1604,6 +1604,17 @@ pub fn hasBuiltinFunction(comp: *const Compilation, builtin: Builtin) bool {
     }
 }
 
+pub fn locSlice(comp: *const Compilation, loc: Source.Location) []const u8 {
+    var tmp_tokenizer = Tokenizer{
+        .buf = comp.getSource(loc.id).buf,
+        .langopts = comp.langopts,
+        .index = loc.byte_offset,
+        .source = .generated,
+    };
+    const tok = tmp_tokenizer.next();
+    return tmp_tokenizer.buf[tok.start..tok.end];
+}
+
 pub const CharUnitSize = enum(u32) {
     @"1" = 1,
     @"2" = 2,
