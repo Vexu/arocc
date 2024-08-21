@@ -132,7 +132,6 @@ pub const Formatting = struct {
                 if (@typeInfo(Unwrapped) != .Enum) unreachable;
 
                 const enum_fields = @typeInfo(Unwrapped).Enum.fields;
-                @setEvalBranchQuota(3000);
                 const quote = comptime quoteChar(@enumFromInt(@intFromEnum(tag)));
                 comptime var values: []const u8 = quote ++ enum_fields[0].name ++ quote;
                 inline for (enum_fields[1..]) |enum_field| {
@@ -265,7 +264,6 @@ fn diagnoseField(
                     @field(@field(arguments, decl.name), field.name) = enum_val;
                     return null;
                 } else {
-                    @setEvalBranchQuota(3000);
                     return .{
                         .tag = .unknown_attr_enum,
                         .extra = .{ .attr_enum = .{ .tag = std.meta.stringToEnum(Tag, decl.name).? } },
