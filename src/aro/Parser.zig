@@ -4986,7 +4986,6 @@ const CallExpr = union(enum) {
     }
 
     fn checkVarArg(self: CallExpr, p: *Parser, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, arg_idx: u32) !void {
-        @setEvalBranchQuota(10_000);
         if (self == .standard) return;
 
         const builtin_tok = p.nodes.items(.data)[@intFromEnum(self.builtin.node)].decl.name;
@@ -5011,7 +5010,6 @@ const CallExpr = union(enum) {
     /// of arguments, `paramCountOverride` is used to tell us how many arguments we should actually expect to see for
     /// these custom-typechecked functions.
     fn paramCountOverride(self: CallExpr) ?u32 {
-        @setEvalBranchQuota(10_000);
         return switch (self) {
             .standard => null,
             .builtin => |builtin| switch (builtin.tag) {
