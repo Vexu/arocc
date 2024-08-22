@@ -305,6 +305,10 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
             \\/// If found, returns the index of the node within the `dafsa` array.
             \\/// Otherwise, returns `null`.
             \\pub fn findInList(first_child_index: u16, char: u8) ?u16 {
+            \\
+        );
+        try writer.print("    @setEvalBranchQuota({d});\n", .{values.count() * 2});
+        try writer.writeAll(
             \\    var index = first_child_index;
             \\    while (true) {
             \\        if (dafsa[index].char == char) return index;
@@ -453,7 +457,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
 
 fn writeData(writer: anytype, values: []const Value) !void {
     try writer.writeAll("pub const data = blk: {\n");
-    try writer.print("    @setEvalBranchQuota({});\n", .{values.len});
+    try writer.print("    @setEvalBranchQuota({d});\n", .{values.len * 7});
     try writer.writeAll("    break :blk [_]@This(){\n");
     for (values, 0..) |value, i| {
         try writer.print("        // {s}\n", .{value.name});
