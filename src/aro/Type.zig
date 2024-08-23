@@ -433,7 +433,7 @@ pub const invalid = Type{ .specifier = .invalid };
 /// types if necessary.
 pub fn is(ty: Type, specifier: Specifier) bool {
     std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
-    return ty.get(specifier) != null;
+    return ty.base() == specifier;
 }
 
 pub fn withAttributes(self: Type, allocator: std.mem.Allocator, attributes: []const Attribute) !Type {
