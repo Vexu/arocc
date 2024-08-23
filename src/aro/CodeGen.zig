@@ -185,12 +185,12 @@ fn genType(c: *CodeGen, base_ty: Type) !Interner.Ref {
 
 fn genFn(c: *CodeGen, decl: NodeIndex) Error!void {
     const name = c.tree.tokSlice(c.node_data[@intFromEnum(decl)].decl.name);
-    const func_ty = c.node_ty[@intFromEnum(decl)].canonicalize(.standard);
+    const func_ty = c.node_ty[@intFromEnum(decl)];
     c.ret_nodes.items.len = 0;
 
     try c.builder.startFn();
 
-    for (func_ty.data.func.params) |param| {
+    for (func_ty.params()) |param| {
         // TODO handle calling convention here
         const arg = try c.builder.addArg(try c.genType(param.ty));
 
