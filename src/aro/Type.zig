@@ -443,22 +443,29 @@ pub fn withAttributes(self: Type, allocator: std.mem.Allocator, attributes: []co
 }
 
 pub fn isCallable(ty: Type) ?Type {
-    return switch (ty.specifier) {
-        .func, .var_args_func, .old_style_func => ty,
-        .pointer => if (ty.data.sub_type.isFunc()) ty.data.sub_type.* else null,
-        .typeof_type => ty.data.sub_type.isCallable(),
-        .typeof_expr => ty.data.expr.ty.isCallable(),
-        .attributed => ty.data.attributed.base.isCallable(),
+    const canon = ty.canonicalize(.standard);
+    return switch (ty.base()) {
+        .func, .var_args_func, .old_style_func => canon,
+        .pointer => {
+            const child_ty = ty.elemType();
+            if (child_ty.isFunc()) {
+                return child_ty;
+            }
+            return null;
+        },
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => null,
     };
 }
 
 pub fn isFunc(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         .func, .var_args_func, .old_style_func => true,
-        .typeof_type => ty.data.sub_type.isFunc(),
-        .typeof_expr => ty.data.expr.ty.isFunc(),
-        .attributed => ty.data.attributed.base.isFunc(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
