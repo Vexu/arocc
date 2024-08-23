@@ -520,7 +520,8 @@ pub fn isDecayed(ty: Type) bool {
 }
 
 pub fn isPtr(ty: Type) bool {
-    return switch (ty.specifier) {
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
         .pointer => true,
 
         .array,
@@ -528,16 +529,16 @@ pub fn isPtr(ty: Type) bool {
         .incomplete_array,
         .variable_len_array,
         .unspecified_variable_len_array,
-        => ty.isDecayed(),
-        .typeof_type => ty.isDecayed() or ty.data.sub_type.isPtr(),
-        .typeof_expr => ty.isDecayed() or ty.data.expr.ty.isPtr(),
-        .attributed => ty.isDecayed() or ty.data.attributed.base.isPtr(),
+        => canon.isDecayed(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
 
 pub fn isInt(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         // zig fmt: off
         .@"enum", .bool, .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong,
         .long_long, .ulong_long, .int128, .uint128, .complex_char, .complex_schar, .complex_uchar,
@@ -545,28 +546,28 @@ pub fn isInt(ty: Type) bool {
         .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
         .bit_int, .complex_bit_int => true,
         // zig fmt: on
-        .typeof_type => ty.data.sub_type.isInt(),
-        .typeof_expr => ty.data.expr.ty.isInt(),
-        .attributed => ty.data.attributed.base.isInt(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
 
 pub fn isFloat(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         // zig fmt: off
         .float, .double, .long_double, .complex_float, .complex_double, .complex_long_double,
         .fp16, .float16, .float128, .complex_float128, .complex_float16 => true,
         // zig fmt: on
-        .typeof_type => ty.data.sub_type.isFloat(),
-        .typeof_expr => ty.data.expr.ty.isFloat(),
-        .attributed => ty.data.attributed.base.isFloat(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
 
 pub fn isReal(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         // zig fmt: off
         .complex_float, .complex_double, .complex_long_double,
         .complex_float128, .complex_char, .complex_schar, .complex_uchar, .complex_short,
@@ -574,15 +575,15 @@ pub fn isReal(ty: Type) bool {
         .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
         .complex_bit_int, .complex_float16 => false,
         // zig fmt: on
-        .typeof_type => ty.data.sub_type.isReal(),
-        .typeof_expr => ty.data.expr.ty.isReal(),
-        .attributed => ty.data.attributed.base.isReal(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => true,
     };
 }
 
 pub fn isComplex(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         // zig fmt: off
         .complex_float, .complex_double, .complex_long_double,
         .complex_float128, .complex_char, .complex_schar, .complex_uchar, .complex_short,
@@ -590,19 +591,19 @@ pub fn isComplex(ty: Type) bool {
         .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128,
         .complex_bit_int, .complex_float16 => true,
         // zig fmt: on
-        .typeof_type => ty.data.sub_type.isComplex(),
-        .typeof_expr => ty.data.expr.ty.isComplex(),
-        .attributed => ty.data.attributed.base.isComplex(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
 
 pub fn isVoidStar(ty: Type) bool {
-    return switch (ty.specifier) {
-        .pointer => ty.data.sub_type.specifier == .void,
-        .typeof_type => ty.data.sub_type.isVoidStar(),
-        .typeof_expr => ty.data.expr.ty.isVoidStar(),
-        .attributed => ty.data.attributed.base.isVoidStar(),
+    return switch (ty.base()) {
+        .pointer => ty.elemType().base() == .void,
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
@@ -615,12 +616,7 @@ pub fn isTypeof(ty: Type) bool {
 }
 
 pub fn isConst(ty: Type) bool {
-    return switch (ty.specifier) {
-        .typeof_type => ty.qual.@"const" or ty.data.sub_type.isConst(),
-        .typeof_expr => ty.qual.@"const" or ty.data.expr.ty.isConst(),
-        .attributed => ty.data.attributed.base.isConst(),
-        else => ty.qual.@"const",
-    };
+    return ty.canonicalize(.standard).qual.@"const";
 }
 
 pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
@@ -628,51 +624,52 @@ pub fn isUnsignedInt(ty: Type, comp: *const Compilation) bool {
 }
 
 pub fn signedness(ty: Type, comp: *const Compilation) std.builtin.Signedness {
-    return switch (ty.specifier) {
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
         // zig fmt: off
         .char, .complex_char => return comp.getCharSignedness(),
         .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128, .bool, .complex_uchar, .complex_ushort,
         .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128 => .unsigned,
         // zig fmt: on
-        .bit_int, .complex_bit_int => ty.data.int.signedness,
-        .typeof_type => ty.data.sub_type.signedness(comp),
-        .typeof_expr => ty.data.expr.ty.signedness(comp),
-        .attributed => ty.data.attributed.base.signedness(comp),
+        .bit_int, .complex_bit_int => canon.data.int.signedness,
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => .signed,
     };
 }
 
 pub fn isEnumOrRecord(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         .@"enum", .@"struct", .@"union" => true,
-        .typeof_type => ty.data.sub_type.isEnumOrRecord(),
-        .typeof_expr => ty.data.expr.ty.isEnumOrRecord(),
-        .attributed => ty.data.attributed.base.isEnumOrRecord(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
 
 pub fn isRecord(ty: Type) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         .@"struct", .@"union" => true,
-        .typeof_type => ty.data.sub_type.isRecord(),
-        .typeof_expr => ty.data.expr.ty.isRecord(),
-        .attributed => ty.data.attributed.base.isRecord(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
 
 pub fn isAnonymousRecord(ty: Type, comp: *const Compilation) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         // anonymous records can be recognized by their names which are in
         // the format "(anonymous TAG at path:line:col)".
         .@"struct", .@"union" => {
             const mapper = comp.string_interner.getSlowTypeMapper();
-            return mapper.lookup(ty.data.record.name)[0] == '(';
+            return mapper.lookup(ty.getRecord().?.name)[0] == '(';
         },
-        .typeof_type => ty.data.sub_type.isAnonymousRecord(comp),
-        .typeof_expr => ty.data.expr.ty.isAnonymousRecord(comp),
-        .attributed => ty.data.attributed.base.isAnonymousRecord(comp),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
@@ -702,22 +699,24 @@ pub fn elemType(ty: Type) Type {
 }
 
 pub fn returnType(ty: Type) Type {
-    return switch (ty.specifier) {
-        .func, .var_args_func, .old_style_func => ty.data.func.return_type,
-        .typeof_type => ty.data.sub_type.returnType(),
-        .typeof_expr => ty.data.expr.ty.returnType(),
-        .attributed => ty.data.attributed.base.returnType(),
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
+        .func, .var_args_func, .old_style_func => canon.data.func.return_type,
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         .invalid => Type.invalid,
         else => unreachable,
     };
 }
 
 pub fn params(ty: Type) []Func.Param {
-    return switch (ty.specifier) {
-        .func, .var_args_func, .old_style_func => ty.data.func.params,
-        .typeof_type => ty.data.sub_type.params(),
-        .typeof_expr => ty.data.expr.ty.params(),
-        .attributed => ty.data.attributed.base.params(),
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
+        .func, .var_args_func, .old_style_func => canon.data.func.params,
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         .invalid => &.{},
         else => unreachable,
     };
@@ -734,11 +733,12 @@ pub fn isInvalidFunc(ty: Type) bool {
 }
 
 pub fn arrayLen(ty: Type) ?u64 {
-    return switch (ty.specifier) {
-        .array, .static_array => ty.data.array.len,
-        .typeof_type => ty.data.sub_type.arrayLen(),
-        .typeof_expr => ty.data.expr.ty.arrayLen(),
-        .attributed => ty.data.attributed.base.arrayLen(),
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
+        .array, .static_array => canon.data.array.len,
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => null,
     };
 }
@@ -766,11 +766,12 @@ pub fn getAttributes(ty: Type) []const Attribute {
 }
 
 pub fn getRecord(ty: Type) ?*const Type.Record {
-    return switch (ty.specifier) {
-        .attributed => ty.data.attributed.base.getRecord(),
-        .typeof_type => ty.data.sub_type.getRecord(),
-        .typeof_expr => ty.data.expr.ty.getRecord(),
-        .@"struct", .@"union" => ty.data.record,
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
+        .@"struct", .@"union" => canon.data.record,
+        .attributed => unreachable,
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
         else => null,
     };
 }
@@ -863,15 +864,16 @@ pub fn integerConversion(a: Type, b: Type, comp: *const Compilation) Type {
 }
 
 pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
-    var specifier = ty.specifier;
+    var canon = ty.canonicalize(.standard);
+    var specifier = canon.specifier;
     switch (specifier) {
         .@"enum" => {
-            if (ty.hasIncompleteSize()) return .{ .specifier = .int };
-            if (ty.data.@"enum".fixed) return ty.data.@"enum".tag_ty.integerPromotion(comp);
+            if (canon.hasIncompleteSize()) return .{ .specifier = .int };
+            if (canon.data.@"enum".fixed) return canon.data.@"enum".tag_ty.integerPromotion(comp);
 
-            specifier = ty.data.@"enum".tag_ty.specifier;
+            specifier = canon.data.@"enum".tag_ty.specifier;
         },
-        .bit_int, .complex_bit_int => return .{ .specifier = specifier, .data = ty.data },
+        .bit_int, .complex_bit_int => return .{ .specifier = specifier, .data = canon.data },
         else => {},
     }
     return switch (specifier) {
@@ -879,15 +881,15 @@ pub fn integerPromotion(ty: Type, comp: *Compilation) Type {
             .specifier = switch (specifier) {
                 // zig fmt: off
                 .bool, .char, .schar, .uchar, .short => .int,
-                .ushort => if (ty.sizeof(comp).? == sizeof(.{ .specifier = .int }, comp)) Specifier.uint else .int,
+                .ushort => if (canon.sizeof(comp).? == sizeof(Type.int, comp)) Specifier.uint else .int,
                 .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128, .complex_char,
                 .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int,
                 .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long,
                 .complex_int128, .complex_uint128 => specifier,
                 // zig fmt: on
-                .typeof_type => return ty.data.sub_type.integerPromotion(comp),
-                .typeof_expr => return ty.data.expr.ty.integerPromotion(comp),
-                .attributed => return ty.data.attributed.base.integerPromotion(comp),
+                .typeof_type => unreachable,
+                .typeof_expr => unreachable,
+                .attributed => unreachable,
                 .invalid => .invalid,
                 else => unreachable, // _BitInt, or not an integer type
             },
@@ -914,22 +916,24 @@ pub fn bitfieldPromotion(ty: Type, comp: *Compilation, width: u32) ?Type {
 }
 
 pub fn hasIncompleteSize(ty: Type) bool {
-    if (ty.isDecayed()) return false;
-    return switch (ty.specifier) {
+    const canon = ty.canonicalize(.standard);
+    if (canon.isDecayed()) return false;
+    return switch (canon.specifier) {
         .void, .incomplete_array => true,
-        .@"enum" => ty.data.@"enum".isIncomplete() and !ty.data.@"enum".fixed,
-        .@"struct", .@"union" => ty.data.record.isIncomplete(),
-        .array, .static_array => ty.data.array.elem.hasIncompleteSize(),
-        .typeof_type => ty.data.sub_type.hasIncompleteSize(),
-        .typeof_expr, .variable_len_array => ty.data.expr.ty.hasIncompleteSize(),
-        .unspecified_variable_len_array => ty.data.sub_type.hasIncompleteSize(),
-        .attributed => ty.data.attributed.base.hasIncompleteSize(),
+        .@"enum" => canon.data.@"enum".isIncomplete() and !canon.data.@"enum".fixed,
+        .@"struct", .@"union" => canon.data.record.isIncomplete(),
+        .array, .static_array => canon.data.array.elem.hasIncompleteSize(),
+        .variable_len_array => canon.data.expr.ty.hasIncompleteSize(),
+        .unspecified_variable_len_array => canon.data.sub_type.hasIncompleteSize(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
 
 pub fn hasUnboundVLA(ty: Type) bool {
-    var cur = ty;
+    var cur = ty.canonicalize(.standard);
     while (true) {
         switch (cur.specifier) {
             .unspecified_variable_len_array => return true,
@@ -938,9 +942,9 @@ pub fn hasUnboundVLA(ty: Type) bool {
             .incomplete_array,
             .variable_len_array,
             => cur = cur.elemType(),
-            .typeof_type => cur = cur.data.sub_type.*,
-            .typeof_expr => cur = cur.data.expr.ty,
-            .attributed => cur = cur.data.attributed.base,
+            .typeof_type => unreachable,
+            .typeof_expr => unreachable,
+            .attributed => unreachable,
             else => return false,
         }
     }
@@ -1028,14 +1032,15 @@ pub fn sizeof(ty: Type, comp: *const Compilation) ?u64 {
 }
 
 pub fn bitSizeof(ty: Type, comp: *const Compilation) ?u64 {
-    return switch (ty.specifier) {
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
         .bool => if (comp.langopts.emulate == .msvc) @as(u64, 8) else 1,
-        .typeof_type => ty.data.sub_type.bitSizeof(comp),
-        .typeof_expr => ty.data.expr.ty.bitSizeof(comp),
-        .attributed => ty.data.attributed.base.bitSizeof(comp),
-        .bit_int => return ty.data.int.bits,
+        .bit_int => canon.data.int.bits,
         .long_double => comp.target.cTypeBitSize(.longdouble),
-        else => 8 * (ty.sizeof(comp) orelse return null),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
+        else => 8 * (canon.sizeof(comp) orelse return null),
     };
 }
 
@@ -1141,15 +1146,13 @@ pub fn base(ty: Type) Type.Specifier {
     var cur = ty;
     while (true) {
         switch (cur.specifier) {
-            .invalid,
-            .auto_type,
-            .c23_auto,
-            => unreachable,
-
             .typeof_type => cur = cur.data.sub_type.*,
             .typeof_expr => cur = cur.data.expr.ty,
             .attributed => cur = cur.data.attributed.base,
 
+            .auto_type,
+            .c23_auto,
+            .invalid,
             .void,
             .bool,
             .char,
