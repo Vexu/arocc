@@ -146,7 +146,7 @@ pub const Attributed = struct {
     attributes: []Attribute,
     base: Type,
 
-    pub fn create(allocator: std.mem.Allocator, base: Type, existing_attributes: []const Attribute, attributes: []const Attribute) !*Attributed {
+    pub fn create(allocator: std.mem.Allocator, base_ty: Type, existing_attributes: []const Attribute, attributes: []const Attribute) !*Attributed {
         const attributed_type = try allocator.create(Attributed);
         errdefer allocator.destroy(attributed_type);
 
@@ -156,7 +156,7 @@ pub const Attributed = struct {
 
         attributed_type.* = .{
             .attributes = all_attrs,
-            .base = base,
+            .base = base_ty,
         };
         return attributed_type;
     }
@@ -825,8 +825,8 @@ fn realIntegerConversion(a: Type, b: Type, comp: *const Compilation) Type {
 
 pub fn makeIntegerUnsigned(ty: Type) Type {
     // TODO discards attributed/typeof
-    var base = ty.canonicalize(.standard);
-    switch (base.specifier) {
+    var base_ty = ty.canonicalize(.standard);
+    switch (base_ty.specifier) {
         // zig fmt: off
         .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128,
         .complex_uchar, .complex_ushort, .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128,
@@ -834,21 +834,21 @@ pub fn makeIntegerUnsigned(ty: Type) Type {
         // zig fmt: on
 
         .char, .complex_char => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 2);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) + 2);
+            return base_ty;
         },
 
         // zig fmt: off
         .schar, .short, .int, .long, .long_long, .int128,
         .complex_schar, .complex_short, .complex_int, .complex_long, .complex_long_long, .complex_int128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 1);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) + 1);
+            return base_ty;
         },
         // zig fmt: on
 
         .bit_int, .complex_bit_int => {
-            base.data.int.signedness = .unsigned;
-            return base;
+            base_ty.data.int.signedness = .unsigned;
+            return base_ty;
         },
         else => unreachable,
     }
@@ -1137,6 +1137,10 @@ pub const QualHandling = enum {
     preserve_quals,
 };
 
+pub fn base(ty: Type) Type.Specifier {
+    return ty.canonicalize(.standard).specifier;
+}
+
 /// Canonicalize a possibly-typeof() type. If the type is not a typeof() type, simply
 /// return it. Otherwise, determine the actual qualified type.
 /// The `qual_handling` parameter can be used to return the full set of qualifiers
@@ -1332,19 +1336,19 @@ pub fn sameRankDifferentSign(a: Type, b: Type, comp: *const Compilation) bool {
 
 pub fn makeReal(ty: Type) Type {
     // TODO discards attributed/typeof
-    var base = ty.canonicalize(.standard);
-    switch (base.specifier) {
+    var base_ty = ty.canonicalize(.standard);
+    switch (base_ty.specifier) {
         .complex_float16, .complex_float, .complex_double, .complex_long_double, .complex_float128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) - 5);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) - 5);
+            return base_ty;
         },
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) - 13);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) - 13);
+            return base_ty;
         },
         .complex_bit_int => {
-            base.specifier = .bit_int;
-            return base;
+            base_ty.specifier = .bit_int;
+            return base_ty;
         },
         else => return ty,
     }
@@ -1352,19 +1356,19 @@ pub fn makeReal(ty: Type) Type {
 
 pub fn makeComplex(ty: Type) Type {
     // TODO discards attributed/typeof
-    var base = ty.canonicalize(.standard);
-    switch (base.specifier) {
+    var base_ty = ty.canonicalize(.standard);
+    switch (base_ty.specifier) {
         .float, .double, .long_double, .float128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 5);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) + 5);
+            return base_ty;
         },
         .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 13);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) + 13);
+            return base_ty;
         },
         .bit_int => {
-            base.specifier = .complex_bit_int;
-            return base;
+            base_ty.specifier = .complex_bit_int;
+            return base_ty;
         },
         else => return ty,
     }

@@ -5795,8 +5795,8 @@ pub const Result = struct {
                 .{ .invalid, .fp16 },
                 .{ .complex_float16, .float16 },
             };
-            const a_spec = a.ty.canonicalize(.standard).specifier;
-            const b_spec = b.ty.canonicalize(.standard).specifier;
+            const a_spec = a.ty.base();
+            const b_spec = b.ty.base();
             if (p.comp.target.cTypeBitSize(.longdouble) == 128) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
