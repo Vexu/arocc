@@ -1363,12 +1363,11 @@ fn dumpNode(
 
             var lhs_ty = tree.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
             if (lhs_ty.isPtr()) lhs_ty = lhs_ty.elemType();
-            lhs_ty = lhs_ty.canonicalize(.standard);
 
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");
             try config.setColor(w, NAME);
-            try w.print("{s}\n", .{mapper.lookup(lhs_ty.data.record.fields[data.member.index].name)});
+            try w.print("{s}\n", .{mapper.lookup(lhs_ty.getRecord().?.fields[data.member.index].name)});
             try config.setColor(w, .reset);
         },
         .array_access_expr => {
