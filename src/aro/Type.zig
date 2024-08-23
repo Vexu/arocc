@@ -471,11 +471,12 @@ pub fn isFunc(ty: Type) bool {
 }
 
 pub fn isArray(ty: Type) bool {
-    return switch (ty.specifier) {
-        .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => !ty.isDecayed(),
-        .typeof_type => !ty.isDecayed() and ty.data.sub_type.isArray(),
-        .typeof_expr => !ty.isDecayed() and ty.data.expr.ty.isArray(),
-        .attributed => !ty.isDecayed() and ty.data.attributed.base.isArray(),
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
+        .array, .static_array, .incomplete_array, .variable_len_array, .unspecified_variable_len_array => !canon.isDecayed(),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
