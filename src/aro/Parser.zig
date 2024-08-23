@@ -981,7 +981,7 @@ fn decl(p: *Parser) Error!bool {
             (decl_spec.ty.isRecord() and !decl_spec.ty.isAnonymousRecord(p.comp) and
             !decl_spec.ty.isTypeof())) // we follow GCC and clang's behavior here
         {
-            const specifier = decl_spec.ty.canonicalize(.standard).specifier;
+            const specifier = decl_spec.ty.base();
             const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
             const toks = p.attr_buf.items(.tok)[attr_buf_top..];
             for (attrs, toks) |attr, tok| {
@@ -1870,7 +1870,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         init_d.d.ty = try Attribute.applyVariableAttributes(p, init_d.d.ty, attr_buf_top, null);
     }
     if (decl_spec.storage_class != .typedef and init_d.d.ty.hasIncompleteSize()) incomplete: {
-        const specifier = init_d.d.ty.canonicalize(.standard).specifier;
+        const specifier = init_d.d.ty.base();
         if (decl_spec.storage_class == .@"extern") switch (specifier) {
             .@"struct", .@"union", .@"enum" => break :incomplete,
             .incomplete_array => {
@@ -3776,8 +3776,8 @@ fn coerceArrayInitExtra(p: *Parser, item: *Result, tok: TokenIndex, target: Type
         return true; // do not do further coercion
     }
 
-    const target_spec = target.elemType().canonicalize(.standard).specifier;
-    const item_spec = item.ty.elemType().canonicalize(.standard).specifier;
+    const target_spec = target.elemType().base();
+    const item_spec = item.ty.elemType().base();
 
     const compatible = target.elemType().eql(item.ty.elemType(), p.comp, false) or
         (is_str_lit and item_spec == .char and (target_spec == .uchar or target_spec == .schar)) or
