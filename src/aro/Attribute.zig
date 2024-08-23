@@ -1014,14 +1014,13 @@ pub fn applyEnumeratorAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !T
 }
 
 fn applyAligned(attr: Attribute, p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !void {
-    const base = ty.canonicalize(.standard);
     if (attr.args.aligned.alignment) |alignment| alignas: {
         if (attr.syntax != .keyword) break :alignas;
 
         const align_tok = attr.args.aligned.__name_tok;
         if (tag) |t| try p.errTok(t, align_tok);
 
-        const default_align = base.alignof(p.comp);
+        const default_align = ty.alignof(p.comp);
         if (ty.isFunc()) {
             try p.errTok(.alignas_on_func, align_tok);
         } else if (alignment.requested < default_align) {
