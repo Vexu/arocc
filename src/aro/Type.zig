@@ -1138,7 +1138,76 @@ pub const QualHandling = enum {
 };
 
 pub fn base(ty: Type) Type.Specifier {
-    return ty.canonicalize(.standard).specifier;
+    var cur = ty;
+    while (true) {
+        switch (cur.specifier) {
+            .invalid,
+            .auto_type,
+            .c23_auto,
+            => unreachable,
+
+            .typeof_type => cur = cur.data.sub_type.*,
+            .typeof_expr => cur = cur.data.expr.ty,
+            .attributed => cur = cur.data.attributed.base,
+
+            .void,
+            .bool,
+            .char,
+            .schar,
+            .uchar,
+            .short,
+            .ushort,
+            .int,
+            .uint,
+            .long,
+            .ulong,
+            .long_long,
+            .ulong_long,
+            .int128,
+            .uint128,
+            .complex_char,
+            .complex_schar,
+            .complex_uchar,
+            .complex_short,
+            .complex_ushort,
+            .complex_int,
+            .complex_uint,
+            .complex_long,
+            .complex_ulong,
+            .complex_long_long,
+            .complex_ulong_long,
+            .complex_int128,
+            .complex_uint128,
+            .bit_int,
+            .complex_bit_int,
+            .fp16,
+            .float16,
+            .float,
+            .double,
+            .long_double,
+            .float128,
+            .complex_float16,
+            .complex_float,
+            .complex_double,
+            .complex_long_double,
+            .complex_float128,
+            .pointer,
+            .unspecified_variable_len_array,
+            .func,
+            .var_args_func,
+            .old_style_func,
+            .array,
+            .static_array,
+            .incomplete_array,
+            .vector,
+            .variable_len_array,
+            .@"struct",
+            .@"union",
+            .@"enum",
+            .nullptr_t,
+            => |s| return s,
+        }
+    }
 }
 
 /// Canonicalize a possibly-typeof() type. If the type is not a typeof() type, simply
