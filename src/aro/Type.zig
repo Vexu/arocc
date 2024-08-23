@@ -1244,13 +1244,14 @@ pub fn canonicalize(ty: Type, qual_handling: QualHandling) Type {
     return cur;
 }
 
-pub fn get(ty: *const Type, specifier: Specifier) ?*const Type {
+pub fn get(ty: Type, specifier: Specifier) ?Type {
     std.debug.assert(specifier != .typeof_type and specifier != .typeof_expr);
-    return switch (ty.specifier) {
-        .typeof_type => ty.data.sub_type.get(specifier),
-        .typeof_expr => ty.data.expr.ty.get(specifier),
-        .attributed => ty.data.attributed.base.get(specifier),
-        else => if (ty.specifier == specifier) ty else null,
+    const canon = ty.canonicalize(.standard);
+    return switch (canon.specifier) {
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
+        else => if (canon.specifier == specifier) canon else null,
     };
 }
 
