@@ -499,16 +499,16 @@ pub fn setIncompleteArrayLen(ty: *Type, len: u64) void {
 
 /// Whether the type is promoted if used as a variadic argument or as an argument to a function with no prototype
 fn undergoesDefaultArgPromotion(ty: Type, comp: *const Compilation) bool {
-    return switch (ty.specifier) {
+    return switch (ty.base()) {
         .bool => true,
         .char, .uchar, .schar => true,
         .short, .ushort => true,
-        .@"enum" => if (comp.langopts.emulate == .clang) ty.data.@"enum".isIncomplete() else false,
+        .@"enum" => if (comp.langopts.emulate == .clang) ty.hasIncompleteSize() else false,
         .float => true,
 
-        .typeof_type => ty.data.sub_type.undergoesDefaultArgPromotion(comp),
-        .typeof_expr => ty.data.expr.ty.undergoesDefaultArgPromotion(comp),
-        .attributed => ty.data.attributed.base.undergoesDefaultArgPromotion(comp),
+        .typeof_type => unreachable,
+        .typeof_expr => unreachable,
+        .attributed => unreachable,
         else => false,
     };
 }
