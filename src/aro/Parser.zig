@@ -167,7 +167,7 @@ record: struct {
     fn addFieldsFromAnonymous(r: @This(), p: *Parser, ty: Type) Error!void {
         for (ty.getRecord().?.fields) |f| {
             if (f.isAnonymousRecord()) {
-                try r.addFieldsFromAnonymous(p, f.ty.canonicalize(.standard));
+                try r.addFieldsFromAnonymous(p, f.ty);
             } else if (f.name_tok != 0) {
                 try r.addField(p, f.name, f.name_tok);
             }
