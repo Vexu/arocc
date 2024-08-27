@@ -7359,7 +7359,7 @@ fn unExpr(p: *Parser) Error!Result {
                     .msvc => {}, // Doesn't support `_Complex` or `__imag` in the first place
                     .gcc => operand.val = Value.zero,
                     .clang => {
-                        if (operand.val.is(.int, p.comp)) {
+                        if (operand.val.is(.int, p.comp) or operand.val.is(.float, p.comp)) {
                             operand.val = Value.zero;
                         } else {
                             operand.val = .{};
