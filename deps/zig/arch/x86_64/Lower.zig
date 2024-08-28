@@ -271,7 +271,7 @@ pub fn lowerMir(lower: *Lower, index: Mir.Inst.Index) Error!struct {
 }
 
 pub fn fail(lower: *Lower, comptime format: []const u8, args: anytype) Error {
-    @setCold(true);
+    @branchHint(.cold);
     assert(lower.err_msg == null);
     lower.err_msg = try std.fmt.allocPrint(lower.gpa, format, args);
     return error.LowerFail;
