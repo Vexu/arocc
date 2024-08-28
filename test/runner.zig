@@ -51,7 +51,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
             var parts = std.mem.splitScalar(u8, some, '=');
             const name = parts.next().?;
             const val = parts.next() orelse "";
-            inline for (@typeInfo(aro.Compilation.Environment).Struct.fields) |field| {
+            inline for (@typeInfo(aro.Compilation.Environment).@"struct".fields) |field| {
                 if (std.ascii.eqlIgnoreCase(name, field.name)) {
                     @field(comp.environment, field.name) = val;
                 }
