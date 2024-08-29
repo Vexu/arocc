@@ -229,14 +229,14 @@ errors: u32 = 0,
 macro_backtrace_limit: u32 = 6,
 
 pub fn warningExists(name: []const u8) bool {
-    inline for (@typeInfo(Options).Struct.fields) |f| {
+    inline for (@typeInfo(Options).@"struct".fields) |f| {
         if (mem.eql(u8, f.name, name)) return true;
     }
     return false;
 }
 
 pub fn set(d: *Diagnostics, name: []const u8, to: Kind) !void {
-    inline for (@typeInfo(Options).Struct.fields) |f| {
+    inline for (@typeInfo(Options).@"struct".fields) |f| {
         if (mem.eql(u8, f.name, name)) {
             @field(d.options, f.name) = to;
             return;
