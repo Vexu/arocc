@@ -1037,10 +1037,8 @@ fn decl(p: *Parser) Error!bool {
 
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null) {
-            const attrs = init_d.d.ty.getAttributes();
-            var base_ty = if (init_d.d.ty.specifier == .attributed) init_d.d.ty.data.attributed.base else init_d.d.ty;
+            var base_ty = init_d.d.ty.base();
             base_ty.specifier = .func;
-            init_d.d.ty = try base_ty.withAttributes(p.arena, attrs);
 
             const param_buf_top = p.param_buf.items.len;
             defer p.param_buf.items.len = param_buf_top;
@@ -3901,8 +3899,6 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
                 .specifier = .array,
                 .data = .{ .array = arr_ty },
             };
-            const attrs = init_ty.getAttributes();
-            arr_init_node.ty = try arr_init_node.ty.withAttributes(p.arena, attrs);
         } else if (start < max_items) {
             const elem = try p.addNode(.{
                 .tag = .array_filler_expr,

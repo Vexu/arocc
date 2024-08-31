@@ -101,7 +101,7 @@ const SysVContext = struct {
         field_attrs: ?[]const Attribute,
         field_layout: TypeLayout,
     ) !FieldLayout {
-        const annotation_alignment_bits = BITS_PER_BYTE * @as(u32, (Type.annotationAlignment(self.comp, field_attrs) orelse 1));
+        const annotation_alignment_bits = BITS_PER_BYTE * @as(u32, (Type.annotationAlignment(self.comp, Attribute.Iterator.initSlice(field_attrs)) orelse 1));
         const is_attr_packed = self.attr_packed or isPacked(field_attrs);
         const ignore_type_alignment = ignoreTypeAlignment(is_attr_packed, field.bit_width, self.ongoing_bitfield, field_layout);
 
@@ -240,7 +240,7 @@ const SysVContext = struct {
 
         // The field alignment can be increased by __attribute__((aligned)) annotations on the
         // field. See test case 0085.
-        if (Type.annotationAlignment(self.comp, fld_attrs)) |anno| {
+        if (Type.annotationAlignment(self.comp, Attribute.Iterator.initSlice(fld_attrs))) |anno| {
             fld_align_bits = @max(fld_align_bits, @as(u32, anno) * BITS_PER_BYTE);
         }
 
@@ -302,7 +302,7 @@ const SysVContext = struct {
         const attr_packed = self.attr_packed or isPacked(fld_attrs);
         const has_packing_annotation = attr_packed or self.max_field_align_bits != null;
 
-        const annotation_alignment = if (Type.annotationAlignment(self.comp, fld_attrs)) |anno| @as(u32, anno) * BITS_PER_BYTE else 1;
+        const annotation_alignment = if (Type.annotationAlignment(self.comp, Attribute.Iterator.initSlice(fld_attrs))) |anno| @as(u32, anno) * BITS_PER_BYTE else 1;
 
         const first_unused_bit: u64 = if (self.is_union) 0 else self.size_bits;
         var field_align_bits: u64 = 1;
@@ -441,7 +441,7 @@ const MsvcContext = struct {
         // underlying type and the __declspec(align) annotation on the field itself.
         // See test case 0028.
         var req_align = type_layout.required_alignment_bits;
-        if (Type.annotationAlignment(self.comp, fld_attrs)) |anno| {
+        if (Type.annotationAlignment(self.comp, Attribute.Iterator.initSlice(fld_attrs))) |anno| {
             req_align = @max(@as(u32, anno) * BITS_PER_BYTE, req_align);
         }
 
