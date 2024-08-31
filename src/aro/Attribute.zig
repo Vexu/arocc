@@ -38,6 +38,57 @@ pub const Kind = enum {
     }
 };
 
+pub const Iterator = struct {
+    source: union(enum) {
+        ty: Type,
+        slice: []const Attribute,
+    },
+    index: usize,
+
+    pub fn initSlice(slice: ?[]const Attribute) Iterator {
+        return .{ .source = .{ .slice = slice orelse &.{} }, .index = 0 };
+    }
+
+    pub fn initType(ty: Type) Iterator {
+        return .{ .source = .{ .ty = ty }, .index = 0 };
+    }
+
+    /// returns the next attribute as well as its index within the slice or current type
+    /// The index can be used to determine when a nested type has been recursed into
+    pub fn next(self: *Iterator) ?struct { Attribute, usize } {
+        switch (self.source) {
+            .slice => |slice| {
+                if (self.index < slice.len) {
+                    defer self.index += 1;
+                    return .{ slice[self.index], self.index };
+                }
+            },
+            .ty => |ty| {
+                switch (ty.specifier) {
+                    .typeof_type => {
+                        self.* = .{ .source = .{ .ty = ty.data.sub_type.* }, .index = 0 };
+                        return self.next();
+                    },
+                    .typeof_expr => {
+                        self.* = .{ .source = .{ .ty = ty.data.expr.ty }, .index = 0 };
+                        return self.next();
+                    },
+                    .attributed => {
+                        if (self.index < ty.data.attributed.attributes.len) {
+                            defer self.index += 1;
+                            return .{ ty.data.attributed.attributes[self.index], self.index };
+                        }
+                        self.* = .{ .source = .{ .ty = ty.data.attributed.base }, .index = 0 };
+                        return self.next();
+                    },
+                    else => {},
+                }
+            },
+        }
+        return null;
+    }
+};
+
 pub const ArgumentType = enum {
     string,
     identifier,
@@ -740,7 +791,6 @@ pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag:
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
     var base_ty = ty;
-    if (base_ty.specifier == .attributed) base_ty = base_ty.data.attributed.base;
     var common = false;
     var nocommon = false;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
@@ -785,12 +835,7 @@ pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag:
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .variables } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "variables"),
     };
-    const existing = ty.getAttributes();
-    if (existing.len == 0 and p.attr_application_buf.items.len == 0) return base_ty;
-    if (existing.len == 0) return base_ty.withAttributes(p.arena, p.attr_application_buf.items);
-
-    const attributed_type = try Type.Attributed.create(p.arena, base_ty, existing, p.attr_application_buf.items);
-    return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type } };
+    return base_ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
 pub fn applyFieldAttributes(p: *Parser, field_ty: *Type, attr_buf_start: usize) ![]const Attribute {
@@ -815,7 +860,6 @@ pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Di
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
     var base_ty = ty;
-    if (base_ty.specifier == .attributed) base_ty = base_ty.data.attributed.base;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
         .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode,
@@ -836,19 +880,7 @@ pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Di
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .types } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "types"),
     };
-
-    const existing = ty.getAttributes();
-    // TODO: the alignment annotation on a type should override
-    // the decl it refers to. This might not be true for others.  Maybe bug.
-
-    // if there are annotations on this type def use those.
-    if (p.attr_application_buf.items.len > 0) {
-        return try base_ty.withAttributes(p.arena, p.attr_application_buf.items);
-    } else if (existing.len > 0) {
-        // else use the ones on the typedef decl we were refering to.
-        return try base_ty.withAttributes(p.arena, existing);
-    }
-    return base_ty;
+    return base_ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
 pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
@@ -856,7 +888,6 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
     var base_ty = ty;
-    if (base_ty.specifier == .attributed) base_ty = base_ty.data.attributed.base;
     var hot = false;
     var cold = false;
     var @"noinline" = false;
@@ -1059,6 +1090,7 @@ fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type)
 }
 
 fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, ty: *Type) !void {
+    const base = ty.base();
     const is_enum = ty.is(.@"enum");
     if (!(ty.isInt() or ty.isFloat()) or !ty.isReal() or (is_enum and p.comp.langopts.emulate == .gcc)) {
         try p.errStr(.invalid_vec_elem_ty, tok, try p.typeStr(ty.*));
@@ -1075,7 +1107,7 @@ fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, ty: *Type) !voi
 
     const arr_ty = try p.arena.create(Type.Array);
     arr_ty.* = .{ .elem = ty.*, .len = vec_size };
-    ty.* = Type{
+    base.* = .{
         .specifier = .vector,
         .data = .{ .array = arr_ty },
     };

@@ -909,7 +909,9 @@ fn dumpNode(
 
     if (ty.specifier == .attributed) {
         try config.setColor(w, ATTRIBUTE);
-        for (ty.data.attributed.attributes) |attr| {
+        var it = Attribute.Iterator.initType(ty);
+        while (it.next()) |item| {
+            const attr, _ = item;
             try w.writeByteNTimes(' ', level + half);
             try w.print("attr: {s}", .{@tagName(attr.tag)});
             try tree.dumpAttribute(attr, w);

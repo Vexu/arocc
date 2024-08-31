@@ -146,17 +146,14 @@ pub const Attributed = struct {
     attributes: []Attribute,
     base: Type,
 
-    pub fn create(allocator: std.mem.Allocator, base: Type, existing_attributes: []const Attribute, attributes: []const Attribute) !*Attributed {
+    pub fn create(allocator: std.mem.Allocator, base_ty: Type, attributes: []const Attribute) !*Attributed {
         const attributed_type = try allocator.create(Attributed);
         errdefer allocator.destroy(attributed_type);
-
-        const all_attrs = try allocator.alloc(Attribute, existing_attributes.len + attributes.len);
-        @memcpy(all_attrs[0..existing_attributes.len], existing_attributes);
-        @memcpy(all_attrs[existing_attributes.len..], attributes);
+        const duped = try allocator.dupe(Attribute, attributes);
 
         attributed_type.* = .{
-            .attributes = all_attrs,
-            .base = base,
+            .attributes = duped,
+            .base = base_ty,
         };
         return attributed_type;
     }
@@ -438,8 +435,8 @@ pub fn is(ty: Type, specifier: Specifier) bool {
 
 pub fn withAttributes(self: Type, allocator: std.mem.Allocator, attributes: []const Attribute) !Type {
     if (attributes.len == 0) return self;
-    const attributed_type = try Type.Attributed.create(allocator, self, self.getAttributes(), attributes);
-    return Type{ .specifier = .attributed, .data = .{ .attributed = attributed_type }, .decayed = self.decayed };
+    const attributed_type = try Type.Attributed.create(allocator, self, attributes);
+    return .{ .specifier = .attributed, .data = .{ .attributed = attributed_type }, .decayed = self.decayed };
 }
 
 pub fn isCallable(ty: Type) ?Type {
@@ -756,15 +753,6 @@ pub fn anyQual(ty: Type) bool {
     };
 }
 
-pub fn getAttributes(ty: Type) []const Attribute {
-    return switch (ty.specifier) {
-        .attributed => ty.data.attributed.attributes,
-        .typeof_type => ty.data.sub_type.getAttributes(),
-        .typeof_expr => ty.data.expr.ty.getAttributes(),
-        else => &.{},
-    };
-}
-
 pub fn getRecord(ty: Type) ?*const Type.Record {
     return switch (ty.specifier) {
         .attributed => ty.data.attributed.base.getRecord(),
@@ -825,8 +813,8 @@ fn realIntegerConversion(a: Type, b: Type, comp: *const Compilation) Type {
 
 pub fn makeIntegerUnsigned(ty: Type) Type {
     // TODO discards attributed/typeof
-    var base = ty.canonicalize(.standard);
-    switch (base.specifier) {
+    var base_ty = ty.canonicalize(.standard);
+    switch (base_ty.specifier) {
         // zig fmt: off
         .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128,
         .complex_uchar, .complex_ushort, .complex_uint, .complex_ulong, .complex_ulong_long, .complex_uint128,
@@ -834,21 +822,21 @@ pub fn makeIntegerUnsigned(ty: Type) Type {
         // zig fmt: on
 
         .char, .complex_char => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 2);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) + 2);
+            return base_ty;
         },
 
         // zig fmt: off
         .schar, .short, .int, .long, .long_long, .int128,
         .complex_schar, .complex_short, .complex_int, .complex_long, .complex_long_long, .complex_int128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 1);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) + 1);
+            return base_ty;
         },
         // zig fmt: on
 
         .bit_int, .complex_bit_int => {
-            base.data.int.signedness = .unsigned;
-            return base;
+            base_ty.data.int.signedness = .unsigned;
+            return base_ty;
         },
         else => unreachable,
     }
@@ -1144,17 +1132,12 @@ pub const QualHandling = enum {
 /// arrays and pointers.
 pub fn canonicalize(ty: Type, qual_handling: QualHandling) Type {
     var cur = ty;
-    if (cur.specifier == .attributed) {
-        cur = cur.data.attributed.base;
-        cur.decayed = ty.decayed;
-    }
-    if (!cur.isTypeof()) return cur;
-
     var qual = cur.qual;
     while (true) {
         switch (cur.specifier) {
             .typeof_type => cur = cur.data.sub_type.*,
             .typeof_expr => cur = cur.data.expr.ty,
+            .attributed => cur = cur.data.attributed.base,
             else => break,
         }
         qual = qual.mergeAll(cur.qual);
@@ -1182,7 +1165,7 @@ pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
     return switch (ty.specifier) {
         .typeof_type => ty.data.sub_type.requestedAlignment(comp),
         .typeof_expr => ty.data.expr.ty.requestedAlignment(comp),
-        .attributed => annotationAlignment(comp, ty.data.attributed.attributes),
+        .attributed => annotationAlignment(comp, Attribute.Iterator.initType(ty)),
         else => null,
     };
 }
@@ -1192,12 +1175,18 @@ pub fn enumIsPacked(ty: Type, comp: *const Compilation) bool {
     return comp.langopts.short_enums or target_util.packAllEnums(comp.target) or ty.hasAttribute(.@"packed");
 }
 
-pub fn annotationAlignment(comp: *const Compilation, attrs: ?[]const Attribute) ?u29 {
-    const a = attrs orelse return null;
-
+pub fn annotationAlignment(comp: *const Compilation, attrs: Attribute.Iterator) ?u29 {
+    var it = attrs;
     var max_requested: ?u29 = null;
-    for (a) |attribute| {
+    var last_aligned_index: ?usize = null;
+    while (it.next()) |item| {
+        const attribute, const index = item;
         if (attribute.tag != .aligned) continue;
+        if (last_aligned_index) |aligned_index| {
+            // once we recurse into a new type, after an `aligned` attribute was found, we're done
+            if (index <= aligned_index) break;
+        }
+        last_aligned_index = index;
         const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else target_util.defaultAlignment(comp.target);
         if (max_requested == null or max_requested.? < requested) {
             max_requested = requested;
@@ -1332,19 +1321,19 @@ pub fn sameRankDifferentSign(a: Type, b: Type, comp: *const Compilation) bool {
 
 pub fn makeReal(ty: Type) Type {
     // TODO discards attributed/typeof
-    var base = ty.canonicalize(.standard);
-    switch (base.specifier) {
+    var base_ty = ty.canonicalize(.standard);
+    switch (base_ty.specifier) {
         .complex_float16, .complex_float, .complex_double, .complex_long_double, .complex_float128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) - 5);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) - 5);
+            return base_ty;
         },
         .complex_char, .complex_schar, .complex_uchar, .complex_short, .complex_ushort, .complex_int, .complex_uint, .complex_long, .complex_ulong, .complex_long_long, .complex_ulong_long, .complex_int128, .complex_uint128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) - 13);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) - 13);
+            return base_ty;
         },
         .complex_bit_int => {
-            base.specifier = .bit_int;
-            return base;
+            base_ty.specifier = .bit_int;
+            return base_ty;
         },
         else => return ty,
     }
@@ -1352,19 +1341,19 @@ pub fn makeReal(ty: Type) Type {
 
 pub fn makeComplex(ty: Type) Type {
     // TODO discards attributed/typeof
-    var base = ty.canonicalize(.standard);
-    switch (base.specifier) {
+    var base_ty = ty.canonicalize(.standard);
+    switch (base_ty.specifier) {
         .float, .double, .long_double, .float128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 5);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) + 5);
+            return base_ty;
         },
         .char, .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long, .int128, .uint128 => {
-            base.specifier = @enumFromInt(@intFromEnum(base.specifier) + 13);
-            return base;
+            base_ty.specifier = @enumFromInt(@intFromEnum(base_ty.specifier) + 13);
+            return base_ty;
         },
         .bit_int => {
-            base.specifier = .complex_bit_int;
-            return base;
+            base_ty.specifier = .complex_bit_int;
+            return base_ty;
         },
         else => return ty,
     }
@@ -2343,22 +2332,29 @@ pub const Builder = struct {
     }
 };
 
+/// Use with caution
+pub fn base(ty: *Type) *Type {
+    return switch (ty.specifier) {
+        .typeof_type => ty.data.sub_type.base(),
+        .typeof_expr => ty.data.expr.ty.base(),
+        .attributed => ty.data.attributed.base.base(),
+        else => ty,
+    };
+}
+
 pub fn getAttribute(ty: Type, comptime tag: Attribute.Tag) ?Attribute.ArgumentsForTag(tag) {
-    switch (ty.specifier) {
-        .typeof_type => return ty.data.sub_type.getAttribute(tag),
-        .typeof_expr => return ty.data.expr.ty.getAttribute(tag),
-        .attributed => {
-            for (ty.data.attributed.attributes) |attribute| {
-                if (attribute.tag == tag) return @field(attribute.args, @tagName(tag));
-            }
-            return null;
-        },
-        else => return null,
+    var it = Attribute.Iterator.initType(ty);
+    while (it.next()) |item| {
+        const attribute, _ = item;
+        if (attribute.tag == tag) return @field(attribute.args, @tagName(tag));
     }
+    return null;
 }
 
 pub fn hasAttribute(ty: Type, tag: Attribute.Tag) bool {
-    for (ty.getAttributes()) |attr| {
+    var it = Attribute.Iterator.initType(ty);
+    while (it.next()) |item| {
+        const attr, _ = item;
         if (attr.tag == tag) return true;
     }
     return false;
@@ -2639,7 +2635,7 @@ pub fn dump(ty: Type, mapper: StringInterner.TypeMapper, langopts: LangOpts, w: 
         .attributed => {
             if (ty.isDecayed()) try w.writeAll("*d:");
             try w.writeAll("attributed(");
-            try ty.data.attributed.base.dump(mapper, langopts, w);
+            try ty.data.attributed.base.canonicalize(.standard).dump(mapper, langopts, w);
             try w.writeAll(")");
         },
         .bit_int => try w.print("{s} _BitInt({d})", .{ @tagName(ty.data.int.signedness), ty.data.int.bits }),
