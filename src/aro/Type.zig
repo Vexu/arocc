@@ -2343,6 +2343,7 @@ pub fn base(ty: *Type) *Type {
 }
 
 pub fn getAttribute(ty: Type, comptime tag: Attribute.Tag) ?Attribute.ArgumentsForTag(tag) {
+    if (tag == .aligned) @compileError("use requestedAlignment");
     var it = Attribute.Iterator.initType(ty);
     while (it.next()) |item| {
         const attribute, _ = item;
