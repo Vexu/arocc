@@ -8,24 +8,24 @@ fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: 'vector(2, float)'
+    var: 'f2v': 'vector(2, float)'
      name: a
 
-    var: 'vector(2, float)'
+    var: 'f2v': 'vector(2, float)'
      name: b
 
-    assign_expr: 'vector(2, float)'
+    assign_expr: 'f2v': 'vector(2, float)'
      lhs:
-      decl_ref_expr: 'vector(2, float)' lvalue
+      decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
        name: a
      rhs:
-      implicit_cast: (lval_to_rval) 'vector(2, float)'
-        decl_ref_expr: 'vector(2, float)' lvalue
+      implicit_cast: (lval_to_rval) 'f2v': 'vector(2, float)'
+        decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
          name: b
 
-    mul_assign_expr: 'vector(2, float)'
+    mul_assign_expr: 'f2v': 'vector(2, float)'
      lhs:
-      decl_ref_expr: 'vector(2, float)' lvalue
+      decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
        name: a
      rhs:
       implicit_cast: (vector_splat) 'float'

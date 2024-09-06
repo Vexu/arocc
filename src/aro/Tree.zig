@@ -881,6 +881,10 @@ fn dumpNode(
     }
     try config.setColor(w, TYPE);
     try w.writeByte('\'');
+    const name = ty.getName();
+    if (name != .empty) {
+        try w.print("{s}': '", .{mapper.lookup(name)});
+    }
     try ty.dump(mapper, tree.comp.langopts, w);
     try w.writeByte('\'');
 
