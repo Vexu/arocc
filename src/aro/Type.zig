@@ -422,6 +422,8 @@ data: union {
 specifier: Specifier,
 qual: Qualifiers = .{},
 decayed: bool = false,
+/// typedef name, if any
+name: StringId = .empty,
 
 pub const int = Type{ .specifier = .int };
 pub const invalid = Type{ .specifier = .invalid };
@@ -1173,6 +1175,15 @@ pub fn requestedAlignment(ty: Type, comp: *const Compilation) ?u29 {
 pub fn enumIsPacked(ty: Type, comp: *const Compilation) bool {
     std.debug.assert(ty.is(.@"enum"));
     return comp.langopts.short_enums or target_util.packAllEnums(comp.target) or ty.hasAttribute(.@"packed");
+}
+
+pub fn getName(ty: Type) StringId {
+    return switch (ty.specifier) {
+        .typeof_type => if (ty.name == .empty) ty.data.sub_type.getName() else ty.name,
+        .typeof_expr => if (ty.name == .empty) ty.data.expr.ty.getName() else ty.name,
+        .attributed => if (ty.name == .empty) ty.data.attributed.base.getName() else ty.name,
+        else => ty.name,
+    };
 }
 
 pub fn annotationAlignment(comp: *const Compilation, attrs: Attribute.Iterator) ?u29 {

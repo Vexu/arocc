@@ -29,13 +29,13 @@ fn_proto: 'attributed(fn () void)'
 typedef: 'int'
  name: A
 
-typedef: 'int'
+typedef: 'A': 'int'
  name: B
 
-typedef: 'int'
+typedef: 'A': 'int'
  name: C
 
-typedef: 'int'
+typedef: 'C': 'int'
  name: B
 
 typedef: '[2]int'
@@ -45,20 +45,20 @@ fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
  name: qux
  body:
   compound_stmt: 'void'
-    add_assign_expr: '*d[2]const int'
+    add_assign_expr: 'I': '*d[2]const int'
      lhs:
-      decl_ref_expr: '*d[2]const int' lvalue
+      decl_ref_expr: 'I': '*d[2]const int' lvalue
        name: b
      rhs:
-      implicit_cast: (int_to_pointer) '*d[2]const int'
+      implicit_cast: (int_to_pointer) 'I': '*d[2]const int'
         int_literal: 'int' (value: 1)
 
-    add_assign_expr: '*d[2]const int'
+    add_assign_expr: 'I': '*d[2]const int'
      lhs:
-      decl_ref_expr: '*d[2]const int' lvalue
+      decl_ref_expr: 'I': '*d[2]const int' lvalue
        name: a
      rhs:
-      implicit_cast: (int_to_pointer) '*d[2]const int'
+      implicit_cast: (int_to_pointer) 'I': '*d[2]const int'
         int_literal: 'int' (value: 1)
 
     implicit_return: 'void'

@@ -1,7 +1,7 @@
-typedef: '[1]struct __va_list_tag'
+typedef: '__builtin_va_list': '[1]struct __va_list_tag'
  name: va_list
 
-typedef: '[1]struct __va_list_tag'
+typedef: '__builtin_va_list': '[1]struct __va_list_tag'
  name: __gnuc_va_list
 
 fn_def: 'fn (x: _Float16, y: _Float16) _Float16'
@@ -24,14 +24,14 @@ fn_def: 'fn (x: int, ...) void'
  name: bar
  body:
   compound_stmt: 'void'
-    var: '[1]struct __va_list_tag'
+    var: 'va_list': '[1]struct __va_list_tag'
      name: va
 
     builtin_call_expr: 'void'
      name: __builtin_va_start
      args:
-      implicit_cast: (array_to_pointer) '*d[1]struct __va_list_tag'
-        decl_ref_expr: '[1]struct __va_list_tag' lvalue
+      implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag'
+        decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
          name: va
       decl_ref_expr: 'int' lvalue
        name: x
@@ -39,8 +39,8 @@ fn_def: 'fn (x: int, ...) void'
     builtin_call_expr_one: 'void'
      name: __builtin_va_end
      arg:
-      implicit_cast: (array_to_pointer) '*d[1]struct __va_list_tag'
-        decl_ref_expr: '[1]struct __va_list_tag' lvalue
+      implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag'
+        decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
          name: va
 
     implicit_return: 'void'

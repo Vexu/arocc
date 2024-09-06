@@ -2,14 +2,14 @@ fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: 'long double'
+    var: '__float80': 'long double'
      name: x
      init:
       float_literal: 'long double' (value: 1)
 
-    assign_expr: 'long double'
+    assign_expr: '__float80': 'long double'
      lhs:
-      decl_ref_expr: 'long double' lvalue
+      decl_ref_expr: '__float80': 'long double' lvalue
        name: x
      rhs:
       float_literal: 'long double' (value: 1)

@@ -196,7 +196,12 @@ pub fn defineTypedef(
         .kind = .typedef,
         .name = name,
         .tok = tok,
-        .ty = ty,
+        .ty = .{
+            .name = name,
+            .specifier = ty.specifier,
+            .qual = ty.qual,
+            .data = ty.data,
+        },
         .node = node,
         .val = .{},
     });
