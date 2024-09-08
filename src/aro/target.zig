@@ -2,6 +2,7 @@ const std = @import("std");
 const LangOpts = @import("LangOpts.zig");
 const Type = @import("Type.zig");
 const TargetSet = @import("Builtins/Properties.zig").TargetSet;
+const backend = @import("backend");
 
 /// intmax_t for this target
 pub fn intMaxType(target: std.Target) Type {
@@ -720,6 +721,12 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
     };
     writer.writeAll(llvm_abi) catch unreachable;
     return stream.getWritten();
+}
+
+/// This currently just returns the desired settings without considering target defaults / requirements
+pub fn getPICMode(target: std.Target, desired_pic_level: ?backend.CodeGenOptions.PicLevel, wants_pie: ?bool) struct { backend.CodeGenOptions.PicLevel, bool } {
+    _ = target;
+    return .{ desired_pic_level orelse .none, wants_pie orelse false };
 }
 
 test "alignment functions - smoke test" {

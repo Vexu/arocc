@@ -3,7 +3,9 @@ const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 const EpochSeconds = std.time.epoch.EpochSeconds;
 const mem = std.mem;
-const Interner = @import("backend").Interner;
+const backend = @import("backend");
+const Interner = backend.Interner;
+const CodeGenOptions = backend.CodeGenOptions;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Diagnostics = @import("Diagnostics.zig");
@@ -92,6 +94,7 @@ const Compilation = @This();
 gpa: Allocator,
 diagnostics: Diagnostics,
 
+code_gen_options: CodeGenOptions = .default,
 environment: Environment = .{},
 sources: std.StringArrayHashMapUnmanaged(Source) = .{},
 include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
@@ -527,6 +530,24 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
         \\#define __DECIMAL_DIG__ __LDBL_DECIMAL_DIG__
         \\
     );
+
+    switch (comp.code_gen_options.pic_level) {
+        .none => {},
+        .one, .two => {
+            try w.print(
+                \\#define __pic__ {0d}
+                \\#define __PIC__ {0d}
+                \\
+            , .{@intFromEnum(comp.code_gen_options.pic_level)});
+            if (comp.code_gen_options.is_pie) {
+                try w.print(
+                    \\#define __pie__ {0d}
+                    \\#define __PIE__ {0d}
+                    \\
+                , .{@intFromEnum(comp.code_gen_options.pic_level)});
+            }
+        },
+    }
 }
 
 /// Generate builtin macros that will be available to each source file.

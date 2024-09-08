@@ -47,6 +47,8 @@ color: ?bool = null,
 nobuiltininc: bool = false,
 nostdinc: bool = false,
 nostdlibinc: bool = false,
+desired_pic_level: ?backend.CodeGenOptions.PicLevel = null,
+desired_pie_level: ?backend.CodeGenOptions.PicLevel = null,
 debug_dump_letters: packed struct(u3) {
     d: bool = false,
     m: bool = false,
@@ -115,6 +117,8 @@ pub const usage =
     \\  -fno-char8_t            Disable char8_t (disabled by default for pre-C23)
     \\  -fcolor-diagnostics     Enable colors in diagnostics
     \\  -fno-color-diagnostics  Disable colors in diagnostics
+    \\  -fcommon                Place uninitialized global variables in a common block
+    \\  -fno-common             Place uninitialized global variables in the BSS section of the object file
     \\  -fdeclspec              Enable support for __declspec attributes
     \\  -fgnuc-version=<value>  Controls value of __GNUC__ and related macros. Set to 0 or empty to disable them.
     \\  -fno-declspec           Disable support for __declspec attributes
@@ -135,6 +139,10 @@ pub const usage =
     \\  -fnative-half-type      Use the native half type for __fp16 instead of promoting to float
     \\  -fnative-half-arguments-and-returns
     \\                          Allow half-precision function arguments and return values
+    \\  -fpic                   Generate position-independent code (PIC) suitable for use in a shared library, if supported for the target machine
+    \\  -fPIC                   Similar to -fpic but avoid any limit on the size of the global offset table
+    \\  -fpie                   Similar to -fpic, but the generated position-independent code can only be linked into executables
+    \\  -fPIE                   Similar to -fPIC, but the generated position-independent code can only be linked into executables
     \\  -fshort-enums           Use the narrowest possible integer type for enums
     \\  -fno-short-enums        Use "int" as the tag type for enums
     \\  -fsigned-char           "char" is signed
@@ -273,6 +281,10 @@ pub fn parseArgs(
                 d.color = true;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
                 d.color = false;
+            } else if (mem.eql(u8, arg, "-fcommon")) {
+                d.comp.code_gen_options.common = true;
+            } else if (mem.eql(u8, arg, "-fno-common")) {
+                d.comp.code_gen_options.common = false;
             } else if (mem.eql(u8, arg, "-fdollars-in-identifiers")) {
                 d.comp.langopts.dollars_in_identifiers = true;
             } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
@@ -297,6 +309,21 @@ pub fn parseArgs(
                 d.comp.langopts.use_native_half_type = true;
             } else if (mem.eql(u8, arg, "-fnative-half-arguments-and-returns")) {
                 d.comp.langopts.allow_half_args_and_returns = true;
+            } else if (mem.eql(u8, arg, "-fno-pic") or mem.eql(u8, arg, "-fno-PIC") or mem.eql(u8, arg, "-fno-pie") or mem.eql(u8, arg, "-fno-PIE")) {
+                d.desired_pic_level = .none;
+                d.desired_pie_level = .none;
+            } else if (mem.eql(u8, arg, "-fpic")) {
+                d.desired_pic_level = .one;
+                d.desired_pie_level = .none;
+            } else if (mem.eql(u8, arg, "-fPIC")) {
+                d.desired_pic_level = .two;
+                d.desired_pie_level = .none;
+            } else if (mem.eql(u8, arg, "-fpie")) {
+                d.desired_pic_level = .one;
+                d.desired_pie_level = .one;
+            } else if (mem.eql(u8, arg, "-fPIE")) {
+                d.desired_pic_level = .two;
+                d.desired_pie_level = .two;
             } else if (mem.eql(u8, arg, "-fshort-enums")) {
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {
@@ -507,6 +534,10 @@ pub fn parseArgs(
         return d.fatal("invalid value '{0s}' in '-fgnuc-version={0s}'", .{gnuc_version});
     }
     d.comp.langopts.gnuc_version = version.toUnsigned();
+    const wants_pie: ?bool = if (d.desired_pie_level) |level| level != .none else null;
+    const pic_level, const is_pie = target_util.getPICMode(d.comp.target, d.desired_pic_level, wants_pie);
+    d.comp.code_gen_options.pic_level = pic_level;
+    d.comp.code_gen_options.is_pie = is_pie;
     return false;
 }
 
