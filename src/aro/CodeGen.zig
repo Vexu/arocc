@@ -316,18 +316,13 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             try c.builder.startBlock(label);
             try c.genStmt(data.decl.node);
         },
-        .compound_stmt_two => {
+        .compound_stmt_two, .compound_stmt => {
+            const child_nodes = c.tree.childNodes(node);
+
             const old_sym_len = c.symbols.items.len;
             c.symbols.items.len = old_sym_len;
 
-            if (data.bin.lhs != .none) try c.genStmt(data.bin.lhs);
-            if (data.bin.rhs != .none) try c.genStmt(data.bin.rhs);
-        },
-        .compound_stmt => {
-            const old_sym_len = c.symbols.items.len;
-            c.symbols.items.len = old_sym_len;
-
-            for (c.tree.data[data.range.start..data.range.end]) |stmt| try c.genStmt(stmt);
+            for (child_nodes) |stmt| try c.genStmt(stmt);
         },
         .if_then_else_stmt => {
             const then_label = try c.builder.makeLabel("if.then");
@@ -820,13 +815,9 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             };
             return c.builder.addPhi(&phi_buf, try c.genType(ty));
         },
-        .call_expr_one => if (data.bin.rhs == .none) {
-            return c.genCall(data.bin.lhs, &.{}, ty);
-        } else {
-            return c.genCall(data.bin.lhs, &.{data.bin.rhs}, ty);
-        },
-        .call_expr => {
-            return c.genCall(c.tree.data[data.range.start], c.tree.data[data.range.start + 1 .. data.range.end], ty);
+        .call_expr_one, .call_expr => {
+            const child_nodes = c.tree.childNodes(node);
+            return c.genCall(child_nodes[0], child_nodes[1..], ty);
         },
         .bool_or_expr => {
             if (c.tree.value_map.get(data.bin.lhs)) |lhs| {
@@ -912,22 +903,14 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
         },
         .generic_association_expr, .generic_default_expr => unreachable,
         .stmt_expr => switch (c.node_tag[@intFromEnum(data.un)]) {
-            .compound_stmt_two => {
+            .compound_stmt_two, .compound_stmt => {
+                const child_nodes = c.tree.childNodes(data.un);
+
                 const old_sym_len = c.symbols.items.len;
                 c.symbols.items.len = old_sym_len;
 
-                const stmt_data = c.node_data[@intFromEnum(data.un)];
-                if (stmt_data.bin.rhs == .none) return c.genExpr(stmt_data.bin.lhs);
-                try c.genStmt(stmt_data.bin.lhs);
-                return c.genExpr(stmt_data.bin.rhs);
-            },
-            .compound_stmt => {
-                const old_sym_len = c.symbols.items.len;
-                c.symbols.items.len = old_sym_len;
-
-                const stmt_data = c.node_data[@intFromEnum(data.un)];
-                for (c.tree.data[stmt_data.range.start .. stmt_data.range.end - 1]) |stmt| try c.genStmt(stmt);
-                return c.genExpr(c.tree.data[stmt_data.range.end]);
+                for (child_nodes[0 .. child_nodes.len - 1]) |stmt| try c.genStmt(stmt);
+                return c.genExpr(child_nodes[child_nodes.len - 1]);
             },
             else => unreachable,
         },
