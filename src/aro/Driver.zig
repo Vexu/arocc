@@ -153,6 +153,7 @@ pub const usage =
     \\                          Allow '$' in identifiers
     \\  -fno-dollars-in-identifiers
     \\                          Disallow '$' in identifiers
+    \\  -g                      Generate debug information
     \\  -fmacro-backtrace-limit=<limit>
     \\                          Set limit on how many macro expansion traces are shown in errors (default 6)
     \\  -fnative-half-type      Use the native half type for __fp16 instead of promoting to float
@@ -283,6 +284,11 @@ pub fn parseArgs(
                     macro = args[i];
                 }
                 try macro_buf.print("#undef {s}\n", .{macro});
+            } else if (mem.startsWith(u8, arg, "-O")) {
+                d.comp.code_gen_options.optimization_level = backend.CodeGenOptions.OptimizationLevel.fromString(arg["-O".len..]) orelse {
+                    try d.comp.addDiagnostic(.{ .tag = .cli_invalid_optimization, .extra = .{ .str = arg } }, &.{});
+                    continue;
+                };
             } else if (mem.eql(u8, arg, "-undef")) {
                 d.system_defines = .no_system_defines;
             } else if (mem.eql(u8, arg, "-c") or mem.eql(u8, arg, "--compile")) {
@@ -330,6 +336,10 @@ pub fn parseArgs(
                 d.comp.langopts.dollars_in_identifiers = true;
             } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
                 d.comp.langopts.dollars_in_identifiers = false;
+            } else if (mem.eql(u8, arg, "-g")) {
+                d.comp.code_gen_options.debug = true;
+            } else if (mem.eql(u8, arg, "-g0")) {
+                d.comp.code_gen_options.debug = false;
             } else if (mem.eql(u8, arg, "-fdigraphs")) {
                 d.comp.langopts.digraphs = true;
             } else if (mem.eql(u8, arg, "-fgnu-inline-asm")) {
@@ -665,7 +675,7 @@ pub fn errorDescription(e: anyerror) []const u8 {
 
 /// The entry point of the Aro compiler.
 /// **MAY call `exit` if `fast_exit` is set.**
-pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool) !void {
+pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: anytype) !void {
     var macro_buf = std.ArrayList(u8).init(d.comp.gpa);
     defer macro_buf.deinit();
 
@@ -694,7 +704,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
 
     if (fast_exit and d.inputs.items.len == 1) {
         const builtin = try d.comp.generateBuiltinMacrosFromPath(d.system_defines, d.inputs.items[0].path);
-        d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit) catch |e| switch (e) {
+        d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit, asm_gen_fn) catch |e| switch (e) {
             error.FatalError => {
                 d.renderErrors();
                 d.exitWithCleanup(1);
@@ -706,7 +716,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
 
     for (d.inputs.items) |source| {
         const builtin = try d.comp.generateBuiltinMacrosFromPath(d.system_defines, source.path);
-        d.processSource(tc, source, builtin, user_macros, fast_exit) catch |e| switch (e) {
+        d.processSource(tc, source, builtin, user_macros, fast_exit, asm_gen_fn) catch |e| switch (e) {
             error.FatalError => {
                 d.renderErrors();
             },
@@ -723,6 +733,65 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     if (fast_exit) std.process.exit(0);
 }
 
+fn getRandomFilename(d: *Driver, buf: *[std.fs.max_name_bytes]u8, extension: []const u8) ![]const u8 {
+    const random_bytes_count = 12;
+    const sub_path_len = comptime std.fs.base64_encoder.calcSize(random_bytes_count);
+
+    var random_bytes: [random_bytes_count]u8 = undefined;
+    std.crypto.random.bytes(&random_bytes);
+    var random_name: [sub_path_len]u8 = undefined;
+    _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
+
+    const fmt_template = "/tmp/{s}{s}";
+    const fmt_args = .{
+        random_name,
+        extension,
+    };
+    return std.fmt.bufPrint(buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
+}
+
+/// If it's used, buf will either hold a filename or `/tmp/<12 random bytes with base-64 encoding>.<extension>`
+/// both of which should fit into max_name_bytes for all systems
+fn getOutFileName(d: *Driver, source: Source, buf: *[std.fs.max_name_bytes]u8) ![]const u8 {
+    if (d.only_compile or d.only_preprocess_and_compile) {
+        const fmt_template = "{s}{s}";
+        const fmt_args = .{
+            std.fs.path.stem(source.path),
+            if (d.only_preprocess_and_compile) ".s" else d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
+        };
+        return d.output_name orelse
+            std.fmt.bufPrint(buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
+    }
+
+    return d.getRandomFilename(buf, d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch));
+}
+
+fn invokeAssembler(d: *Driver, tc: *Toolchain, input_path: []const u8, output_path: []const u8) !void {
+    var assembler_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const assembler_path = try tc.getAssemblerPath(&assembler_path_buf);
+    const argv = [_][]const u8{ assembler_path, input_path, "-o", output_path };
+
+    var child = std.process.Child.init(&argv, d.comp.gpa);
+    // TODO handle better
+    child.stdin_behavior = .Inherit;
+    child.stdout_behavior = .Inherit;
+    child.stderr_behavior = .Inherit;
+
+    const term = child.spawnAndWait() catch |er| {
+        return d.fatal("unable to spawn linker: {s}", .{errorDescription(er)});
+    };
+    switch (term) {
+        .Exited => |code| if (code != 0) {
+            const e = d.fatal("assembler exited with an error code", .{});
+            return e;
+        },
+        else => {
+            const e = d.fatal("assembler crashed", .{});
+            return e;
+        },
+    }
+}
+
 fn processSource(
     d: *Driver,
     tc: *Toolchain,
@@ -730,6 +799,7 @@ fn processSource(
     builtin: Source,
     user_macros: Source,
     comptime fast_exit: bool,
+    asm_gen_fn: anytype,
 ) !void {
     d.comp.generated_buf.items.len = 0;
     var pp = try Preprocessor.initDefault(d.comp);
@@ -809,70 +879,81 @@ fn processSource(
         );
     }
 
-    var ir = try tree.genIr();
-    defer ir.deinit(d.comp.gpa);
-
-    if (d.verbose_ir) {
-        const stdout = std.io.getStdOut();
-        var buf_writer = std.io.bufferedWriter(stdout.writer());
-        ir.dump(d.comp.gpa, d.detectConfig(stdout), buf_writer.writer()) catch {};
-        buf_writer.flush() catch {};
-    }
-
-    var render_errors: Ir.Renderer.ErrorList = .{};
-    defer {
-        for (render_errors.values()) |msg| d.comp.gpa.free(msg);
-        render_errors.deinit(d.comp.gpa);
-    }
-
-    var obj = ir.render(d.comp.gpa, d.comp.target, &render_errors) catch |e| switch (e) {
-        error.OutOfMemory => return error.OutOfMemory,
-        error.LowerFail => {
-            return d.fatal(
-                "unable to render Ir to machine code: {s}",
-                .{render_errors.values()[0]},
-            );
-        },
-    };
-    defer obj.deinit();
-
-    // If it's used, name_buf will either hold a filename or `/tmp/<12 random bytes with base-64 encoding>.<extension>`
-    // both of which should fit into max_name_bytes for all systems
     var name_buf: [std.fs.max_name_bytes]u8 = undefined;
+    const out_file_name = try d.getOutFileName(source, &name_buf);
 
-    const out_file_name = if (d.only_compile) blk: {
-        const fmt_template = "{s}{s}";
-        const fmt_args = .{
-            std.fs.path.stem(source.path),
-            d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
+    if (d.comp.code_gen_options.optimization_level == .@"0") {
+        const assembly = asm_gen_fn(d.comp.target, tree) catch |er| switch (er) {
+            error.CodegenFailed => {
+                d.renderErrors();
+                d.exitWithCleanup(1);
+            },
+            else => |e| return e,
         };
-        break :blk d.output_name orelse
-            std.fmt.bufPrint(&name_buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
-    } else blk: {
-        const random_bytes_count = 12;
-        const sub_path_len = comptime std.fs.base64_encoder.calcSize(random_bytes_count);
+        defer assembly.deinit(d.comp.gpa);
 
-        var random_bytes: [random_bytes_count]u8 = undefined;
-        std.crypto.random.bytes(&random_bytes);
-        var random_name: [sub_path_len]u8 = undefined;
-        _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
+        if (d.only_preprocess_and_compile) {
+            const out_file = d.comp.cwd.createFile(out_file_name, .{}) catch |er|
+                return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
+            defer out_file.close();
 
-        const fmt_template = "/tmp/{s}{s}";
-        const fmt_args = .{
-            random_name,
-            d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
+            assembly.writeToFile(out_file) catch |er|
+                return d.fatal("unable to write to output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
+            if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
+            return;
+        }
+
+        // write to assembly_out_file_name
+        // then assemble to out_file_name
+        var assembly_name_buf: [std.fs.max_name_bytes]u8 = undefined;
+        const assembly_out_file_name = try d.getRandomFilename(&assembly_name_buf, ".s");
+        const out_file = d.comp.cwd.createFile(assembly_out_file_name, .{}) catch |er|
+            return d.fatal("unable to create output file '{s}': {s}", .{ assembly_out_file_name, errorDescription(er) });
+        defer out_file.close();
+        assembly.writeToFile(out_file) catch |er|
+            return d.fatal("unable to write to output file '{s}': {s}", .{ assembly_out_file_name, errorDescription(er) });
+        try d.invokeAssembler(tc, assembly_out_file_name, out_file_name);
+        if (d.only_compile) {
+            if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
+            return;
+        }
+    } else {
+        var ir = try tree.genIr();
+        defer ir.deinit(d.comp.gpa);
+
+        if (d.verbose_ir) {
+            const stdout = std.io.getStdOut();
+            var buf_writer = std.io.bufferedWriter(stdout.writer());
+            ir.dump(d.comp.gpa, d.detectConfig(stdout), buf_writer.writer()) catch {};
+            buf_writer.flush() catch {};
+        }
+
+        var render_errors: Ir.Renderer.ErrorList = .{};
+        defer {
+            for (render_errors.values()) |msg| d.comp.gpa.free(msg);
+            render_errors.deinit(d.comp.gpa);
+        }
+
+        var obj = ir.render(d.comp.gpa, d.comp.target, &render_errors) catch |e| switch (e) {
+            error.OutOfMemory => return error.OutOfMemory,
+            error.LowerFail => {
+                return d.fatal(
+                    "unable to render Ir to machine code: {s}",
+                    .{render_errors.values()[0]},
+                );
+            },
         };
-        break :blk std.fmt.bufPrint(&name_buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
-    };
+        defer obj.deinit();
 
-    const out_file = d.comp.cwd.createFile(out_file_name, .{}) catch |er|
-        return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
-    defer out_file.close();
+        const out_file = d.comp.cwd.createFile(out_file_name, .{}) catch |er|
+            return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
+        defer out_file.close();
 
-    obj.finish(out_file) catch |er|
-        return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, errorDescription(er) });
+        obj.finish(out_file) catch |er|
+            return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, errorDescription(er) });
+    }
 
-    if (d.only_compile) {
+    if (d.only_compile or d.only_preprocess_and_compile) {
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
     }

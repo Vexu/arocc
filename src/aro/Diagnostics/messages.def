@@ -1477,6 +1477,11 @@ cli_invalid_emulate
     .extra = .str
     .kind = .@"error"
 
+cli_invalid_optimization
+    .msg = "invalid optimization level '{s}'"
+    .extra = .str
+    .kind = .@"error"
+
 cli_unknown_arg
     .msg = "unknown argument '{s}'"
     .extra = .str

@@ -1,3 +1,4 @@
+pub const Assembly = @import("backend/Assembly.zig");
 pub const CodeGenOptions = @import("backend/CodeGenOptions.zig");
 pub const Interner = @import("backend/Interner.zig");
 pub const Ir = @import("backend/Ir.zig");
