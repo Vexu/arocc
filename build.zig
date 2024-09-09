@@ -156,6 +156,15 @@ pub fn build(b: *Build) !void {
             GenerateDef.create(b, .{ .name = "Diagnostics/messages.def", .kind = .named }),
         },
     });
+    const assembly_backend = b.addModule("assembly_backend", .{
+        .root_source_file = b.path("src/assembly_backend.zig"),
+        .imports = &.{
+            .{
+                .name = "aro",
+                .module = aro_module,
+            },
+        },
+    });
 
     b.installDirectory(.{
         .source_dir = b.path("include"),
@@ -173,6 +182,7 @@ pub fn build(b: *Build) !void {
         .use_lld = use_llvm,
     });
     exe.root_module.addImport("aro", aro_module);
+    exe.root_module.addImport("assembly_backend", assembly_backend);
 
     // tracy integration
     if (tracy) |tracy_path| {

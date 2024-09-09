@@ -6,6 +6,7 @@ const aro = @import("aro");
 const Compilation = aro.Compilation;
 const Driver = aro.Driver;
 const Toolchain = aro.Toolchain;
+const assembly_backend = @import("assembly_backend");
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -52,7 +53,7 @@ pub fn main() u8 {
     var toolchain: Toolchain = .{ .driver = &driver, .arena = arena, .filesystem = .{ .real = comp.cwd } };
     defer toolchain.deinit();
 
-    driver.main(&toolchain, args, fast_exit) catch |er| switch (er) {
+    driver.main(&toolchain, args, fast_exit, assembly_backend.genAsm) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) process.exit(1);

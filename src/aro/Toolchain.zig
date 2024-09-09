@@ -115,6 +115,11 @@ pub fn deinit(tc: *Toolchain) void {
     tc.program_paths.deinit(gpa);
 }
 
+/// Write assembler path to `buf` and return a slice of it
+pub fn getAssemblerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
+    return tc.getProgramPath("as", buf);
+}
+
 /// Write linker path to `buf` and return a slice of it
 pub fn getLinkerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
     // --ld-path= takes precedence over -fuse-ld= and specifies the executable

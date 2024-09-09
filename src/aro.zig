@@ -18,6 +18,7 @@ pub const Interner = backend.Interner;
 pub const Ir = backend.Ir;
 pub const Object = backend.Object;
 pub const CallingConvention = backend.CallingConvention;
+pub const Assembly = backend.Assembly;
 
 pub const version_str = backend.version_str;
 pub const version = backend.version;

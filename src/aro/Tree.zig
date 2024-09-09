@@ -799,7 +799,7 @@ pub fn nodeTok(tree: *const Tree, node: NodeIndex) ?TokenIndex {
 
 pub fn nodeLoc(tree: *const Tree, node: NodeIndex) ?Source.Location {
     const tok_i = tree.nodeTok(node) orelse return null;
-    return tree.tokens.items(.loc)[@intFromEnum(tok_i)];
+    return tree.tokens.items(.loc)[tok_i];
 }
 
 pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void {
