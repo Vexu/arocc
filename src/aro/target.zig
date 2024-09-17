@@ -713,6 +713,82 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
     return stream.getWritten();
 }
 
+fn isPIEDefault(d: *const Driver) bool {
+    const target = d.comp.target;
+    return switch (target.os.tag) {
+        .aix,
+        .haiku,
+
+        .macos,
+        .ios,
+        .tvos,
+        .watchos,
+        .visionos,
+        .driverkit,
+
+        .dragonfly,
+        .netbsd,
+        .freebsd,
+        .solaris,
+
+        .cuda,
+        .amdhsa,
+        .amdpal,
+        .mesa3d,
+
+        .ps4,
+        .ps5,
+
+        .hurd,
+        .zos,
+        .shadermodel,
+        => false,
+
+        .openbsd,
+        .fuchsia,
+        => true,
+
+        .linux,
+        .elfiamcu,
+        => {
+            if (target.abi == .ohos)
+                return true;
+
+            switch (target.cpu.arch) {
+                .ve => return false,
+                else => return target.os.tag == .linux or target.isAndroid() or target.isMusl(),
+            }
+        },
+
+        .windows => {
+            if (target.isMinGW())
+                return false;
+
+            if (target.abi == .itanium)
+                return target.cpu.arch == .x86_64;
+
+            if (target.abi == .msvc or target.abi == .none) {
+                if (std.mem.eql(u8, d.use_linker.?, "bfd"))
+                    return target.cpu.arch == .x86_64 // CrossWindows
+                else
+                    return false; //MSVC
+            }
+
+            return false;
+        },
+
+        else => {
+            switch (target.cpu.arch) {
+                .hexagon => {
+                    // CLANG_DEFAULT_PIE_ON_LINUX
+                    return target.os.tag == .linux or target.isAndroid() or target.isMusl();
+                },
+
+                else => return false,
+            }
+        },
+    };
+}
 /// This currently just returns the desired settings without considering target defaults / requirements
 pub fn getPICMode(target: std.Target, desired_pic_level: ?backend.CodeGenOptions.PicLevel, wants_pie: ?bool) struct { backend.CodeGenOptions.PicLevel, bool } {
     _ = target;
