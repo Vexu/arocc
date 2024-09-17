@@ -2,6 +2,7 @@ const std = @import("std");
 const LangOpts = @import("LangOpts.zig");
 const Type = @import("Type.zig");
 const TargetSet = @import("Builtins/Properties.zig").TargetSet;
+const Driver = @import("Driver.zig");
 const backend = @import("backend");
 
 /// intmax_t for this target
@@ -786,6 +787,92 @@ fn isPIEDefault(d: *const Driver) bool {
 
                 else => return false,
             }
+        },
+    };
+}
+fn isPICdefault(d: *const Driver) bool {
+    const target = d.comp.target;
+    return switch (target.os.tag) {
+        .aix,
+        .haiku,
+
+        .macos,
+        .ios,
+        .tvos,
+        .watchos,
+        .visionos,
+        .driverkit,
+
+        .amdhsa,
+        .amdpal,
+        .mesa3d,
+
+        .ps4,
+        .ps5,
+        => true,
+
+        .fuchsia,
+        .cuda,
+        .zos,
+        .shadermodel,
+        => false,
+
+        .dragonfly,
+        .openbsd,
+        .netbsd,
+        .freebsd,
+        .solaris,
+        .hurd,
+        => {
+            return switch (target.cpu.arch) {
+                .mips64, .mips64el => true,
+                else => false,
+            };
+        },
+
+        .linux,
+        .elfiamcu,
+        => {
+            if (target.abi == .ohos)
+                return false;
+
+            return switch (target.cpu.arch) {
+                .mips64, .mips64el => true,
+                else => false,
+            };
+        },
+
+        .windows => {
+            if (target.isMinGW())
+                return (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64);
+
+            if (target.abi == .itanium)
+                return target.cpu.arch == .x86_64;
+
+            if (target.abi == .msvc or target.abi == .none) {
+                if (std.mem.eql(u8, d.use_linker.?, "bfd"))
+                    return target.cpu.arch == .x86_64
+                else
+                    return (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64);
+            }
+
+            if (target.ofmt == .macho)
+                return true;
+
+            return switch (target.cpu.arch) {
+                .x86_64, .mips64, .mips64el => true,
+                else => false,
+            };
+        },
+
+        else => {
+            if (target.ofmt == .macho)
+                return true;
+
+            return switch (target.cpu.arch) {
+                .mips64, .mips64el => true,
+                else => false,
+            };
         },
     };
 }
