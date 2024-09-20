@@ -2151,11 +2151,12 @@ test "C23 keywords" {
 }
 
 test "Tokenizer fuzz test" {
+    return std.testing.fuzz(testTokenizerFuzz, .{});
+}
+
+fn testTokenizerFuzz(input_bytes: []const u8) anyerror!void {
     var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
-
-    const input_bytes = std.testing.fuzzInput(.{});
-    if (input_bytes.len == 0) return;
 
     const source = try comp.addSourceFromBuffer("fuzz.c", input_bytes);
 
