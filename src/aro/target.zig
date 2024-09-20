@@ -2,7 +2,6 @@ const std = @import("std");
 const LangOpts = @import("LangOpts.zig");
 const Type = @import("Type.zig");
 const TargetSet = @import("Builtins/Properties.zig").TargetSet;
-const Driver = @import("Driver.zig");
 const backend = @import("backend");
 
 /// intmax_t for this target
@@ -714,8 +713,9 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
     return stream.getWritten();
 }
 
-fn isPIEDefault(d: *const Driver) bool {
-    const target = d.comp.target;
+pub const DefaultPIStatus = enum { yes, no, depends_on_linker };
+
+pub fn isPIEDefault(target: std.Target) DefaultPIStatus {
     return switch (target.os.tag) {
         .aix,
         .haiku,
@@ -743,55 +743,51 @@ fn isPIEDefault(d: *const Driver) bool {
         .hurd,
         .zos,
         .shadermodel,
-        => false,
+        => .no,
 
         .openbsd,
         .fuchsia,
-        => true,
+        => .yes,
 
         .linux,
         .elfiamcu,
         => {
             if (target.abi == .ohos)
-                return true;
+                return .yes;
 
             switch (target.cpu.arch) {
-                .ve => return false,
-                else => return target.os.tag == .linux or target.isAndroid() or target.isMusl(),
+                .ve => return .no,
+                else => return if (target.os.tag == .linux or target.isAndroid() or target.isMusl()) .yes else .no,
             }
         },
 
         .windows => {
             if (target.isMinGW())
-                return false;
+                return .no;
 
             if (target.abi == .itanium)
-                return target.cpu.arch == .x86_64;
+                return if (target.cpu.arch == .x86_64) .yes else .no;
 
-            if (target.abi == .msvc or target.abi == .none) {
-                if (std.mem.eql(u8, d.use_linker.?, "bfd"))
-                    return target.cpu.arch == .x86_64 // CrossWindows
-                else
-                    return false; //MSVC
-            }
+            if (target.abi == .msvc or target.abi == .none)
+                return .depends_on_linker;
 
-            return false;
+            return .no;
         },
 
         else => {
             switch (target.cpu.arch) {
                 .hexagon => {
                     // CLANG_DEFAULT_PIE_ON_LINUX
-                    return target.os.tag == .linux or target.isAndroid() or target.isMusl();
+                    return if (target.os.tag == .linux or target.isAndroid() or target.isMusl()) .yes else .no;
                 },
 
-                else => return false,
+                else => return .no,
             }
         },
     };
 }
-fn isPICdefault(d: *const Driver) bool {
-    const target = d.comp.target;
+
+pub fn isPICdefault(target: std.Target) DefaultPIStatus {
     return switch (target.os.tag) {
         .aix,
         .haiku,
@@ -809,13 +805,13 @@ fn isPICdefault(d: *const Driver) bool {
 
         .ps4,
         .ps5,
-        => true,
+        => .yes,
 
         .fuchsia,
         .cuda,
         .zos,
         .shadermodel,
-        => false,
+        => .no,
 
         .dragonfly,
         .openbsd,
@@ -825,8 +821,8 @@ fn isPICdefault(d: *const Driver) bool {
         .hurd,
         => {
             return switch (target.cpu.arch) {
-                .mips64, .mips64el => true,
-                else => false,
+                .mips64, .mips64el => .yes,
+                else => .no,
             };
         },
 
@@ -834,53 +830,45 @@ fn isPICdefault(d: *const Driver) bool {
         .elfiamcu,
         => {
             if (target.abi == .ohos)
-                return false;
+                return .no;
 
             return switch (target.cpu.arch) {
-                .mips64, .mips64el => true,
-                else => false,
+                .mips64, .mips64el => .yes,
+                else => .no,
             };
         },
 
         .windows => {
             if (target.isMinGW())
-                return (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64);
+                return if (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64) .yes else .no;
 
             if (target.abi == .itanium)
-                return target.cpu.arch == .x86_64;
+                return if (target.cpu.arch == .x86_64) .yes else .no;
 
-            if (target.abi == .msvc or target.abi == .none) {
-                if (std.mem.eql(u8, d.use_linker.?, "bfd"))
-                    return target.cpu.arch == .x86_64
-                else
-                    return (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64);
-            }
+            if (target.abi == .msvc or target.abi == .none)
+                return .depends_on_linker;
 
             if (target.ofmt == .macho)
-                return true;
+                return .yes;
 
             return switch (target.cpu.arch) {
-                .x86_64, .mips64, .mips64el => true,
-                else => false,
+                .x86_64, .mips64, .mips64el => .yes,
+                else => .no,
             };
         },
 
         else => {
             if (target.ofmt == .macho)
-                return true;
+                return .yes;
 
             return switch (target.cpu.arch) {
-                .mips64, .mips64el => true,
-                else => false,
+                .mips64, .mips64el => .yes,
+                else => .no,
             };
         },
     };
 }
-/// This currently just returns the desired settings without considering target defaults / requirements
-pub fn getPICMode(target: std.Target, desired_pic_level: ?backend.CodeGenOptions.PicLevel, wants_pie: ?bool) struct { backend.CodeGenOptions.PicLevel, bool } {
-    _ = target;
-    return .{ desired_pic_level orelse .none, wants_pie orelse false };
-}
+
 
 test "alignment functions - smoke test" {
     var target: std.Target = undefined;

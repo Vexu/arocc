@@ -534,8 +534,7 @@ pub fn parseArgs(
         return d.fatal("invalid value '{0s}' in '-fgnuc-version={0s}'", .{gnuc_version});
     }
     d.comp.langopts.gnuc_version = version.toUnsigned();
-    const wants_pie: ?bool = if (d.desired_pie_level) |level| level != .none else null;
-    const pic_level, const is_pie = target_util.getPICMode(d.comp.target, d.desired_pic_level, wants_pie);
+    const pic_level, const is_pie = d.getPICMode();
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
     return false;
@@ -891,4 +890,36 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
         std.fs.deleteFileAbsolute(obj) catch {};
     }
     std.process.exit(code);
+}
+
+/// This currently just returns the desired settings without considering target defaults / requirements
+pub fn getPICMode(d: *Driver) struct { backend.CodeGenOptions.PicLevel, bool } {
+    const eqlIgnoreCase = std.ascii.eqlIgnoreCase;
+
+    const target = d.comp.target;
+    const linker = d.use_linker orelse @import("system_defaults").linker;
+    const is_bfd_linker = eqlIgnoreCase(linker, "bfd");
+    const wants_pie: ?bool = if (d.desired_pie_level) |level| level != .none else null;
+
+    const is_pie = switch (target_util.isPIEDefault(target)) {
+        .yes => true,
+        .no => false,
+        .depends_on_linker => if (is_bfd_linker)
+            target.cpu.arch == .x86_64 // CrossWindows
+        else
+            false, //MSVC
+    };
+    const is_pic = switch (target_util.isPICdefault(target)) {
+        .yes => true,
+        .no => false,
+        .depends_on_linker => if (is_bfd_linker)
+            target.cpu.arch == .x86_64
+        else
+            (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64),
+    };
+
+    _ = is_pic;
+    _ = is_pie;
+
+    return .{ d.desired_pic_level orelse .none, wants_pie orelse false };
 }
