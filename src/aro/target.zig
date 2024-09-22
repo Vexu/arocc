@@ -869,6 +869,79 @@ pub fn isPICdefault(target: std.Target) DefaultPIStatus {
     };
 }
 
+pub fn isPICDefaultForced(target: std.Target) DefaultPIStatus {
+    return switch (target.os.tag) {
+        .aix, .amdhsa, .amdpal, .mesa3d => .yes,
+
+        .haiku,
+        .dragonfly,
+        .openbsd,
+        .netbsd,
+        .freebsd,
+        .solaris,
+        .cuda,
+        .ps4,
+        .ps5,
+        .hurd,
+        .linux,
+        .elfiamcu,
+        .fuchsia,
+        .zos,
+        .shadermodel,
+        => .no,
+
+        .windows => {
+            if (target.isMinGW())
+                return .yes;
+
+            if (target.abi == .itanium)
+                return if (target.cpu.arch == .x86_64) .yes else .no;
+
+            // if (bfd) return target.cpu.arch == .x86_64 else target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64;
+            if (target.abi == .msvc or target.abi == .none)
+                return .depends_on_linker;
+
+            if (target.ofmt == .macho)
+                return if (target.cpu.arch == .aarch64 or target.cpu.arch == .x86_64) .yes else .no;
+
+            return if (target.cpu.arch == .x86_64) .yes else .no;
+        },
+
+        .macos,
+        .ios,
+        .tvos,
+        .watchos,
+        .visionos,
+        .driverkit,
+        => if (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64) .yes else .no,
+
+        else => {
+            switch (target.cpu.arch) {
+                .hexagon,
+                .lanai,
+                .avr,
+                .riscv32,
+                .riscv64,
+                .csky,
+                .xcore,
+                .wasm32,
+                .wasm64,
+                .ve,
+                .spirv32,
+                .spirv64,
+                => .no,
+
+                .msp430 => .yes,
+
+                else => {
+                    if (target.ofmt == .macho)
+                        return if (target.cpu.arch == .aarch64 or target.cpu.arch == .x86_64) .yes else .no;
+                    return .no;
+                },
+            }
+        },
+    };
+}
 
 test "alignment functions - smoke test" {
     var target: std.Target = undefined;
