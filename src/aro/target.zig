@@ -664,6 +664,7 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .vulkan,
         .plan9,
         .other,
+        .bridgeos,
         => "unknown",
     };
     writer.writeAll(llvm_os) catch unreachable;
