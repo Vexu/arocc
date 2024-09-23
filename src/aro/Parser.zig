@@ -486,9 +486,9 @@ pub fn valueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: Type)
     try w.writeAll(" changes ");
     if (res.val.isZero(p.comp)) try w.writeAll("non-zero ");
     try w.writeAll("value from ");
-    try old_value.print(res.ty, p.comp, w);
+    try old_value.print(res.ty, p.comp, p.comp.string_interner.getSlowTypeMapper(), w);
     try w.writeAll(" to ");
-    try res.val.print(int_ty, p.comp, w);
+    try res.val.print(int_ty, p.comp, p.comp.string_interner.getSlowTypeMapper(), w);
 
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -1284,16 +1284,11 @@ fn staticAssert(p: *Parser) Error!bool {
         try p.errStr(.pre_c23_compat, static_assert, "'_Static_assert' with no message");
     }
 
-    // Array will never be zero; a value of zero for a pointer is a null pointer constant
-    if ((res.ty.isArray() or res.ty.isPtr()) and !res.val.isZero(p.comp)) {
-        const err_start = p.comp.diagnostics.list.items.len;
-        try p.errTok(.const_decl_folded, res_token);
-        if (res.ty.isPtr() and err_start != p.comp.diagnostics.list.items.len) {
-            // Don't show the note if the .const_decl_folded diagnostic was not added
-            try p.errTok(.constant_expression_conversion_not_allowed, res_token);
-        }
-    }
+    const is_int_expr = res.ty.isInt();
     try res.boolCast(p, .{ .specifier = .bool }, res_token);
+    if (!is_int_expr) {
+        res.val = .{};
+    }
     if (res.val.opt_ref == .none) {
         if (res.ty.specifier != .invalid) {
             try p.errTok(.static_assert_not_constant, res_token);
@@ -5183,7 +5178,7 @@ pub const Result = struct {
         const strings_top = p.strings.items.len;
         defer p.strings.items.len = strings_top;
 
-        try res.val.print(res.ty, p.comp, p.strings.writer());
+        try res.val.print(res.ty, p.comp, p.comp.string_interner.getSlowTypeMapper(), p.strings.writer());
         return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     }
 
@@ -6589,8 +6584,8 @@ fn eqExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const op: std.math.CompareOperator = if (tag == .equal_expr) .eq else .neq;
-            const res = lhs.val.compare(op, rhs.val, p.comp);
-            lhs.val = Value.fromBool(res);
+            const res = lhs.val.compareExtra(op, rhs.val, p.comp);
+            lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
         }
@@ -6620,8 +6615,8 @@ fn compExpr(p: *Parser) Error!Result {
                 .greater_than_equal_expr => .gte,
                 else => unreachable,
             };
-            const res = lhs.val.compare(op, rhs.val, p.comp);
-            lhs.val = Value.fromBool(res);
+            const res = lhs.val.compareExtra(op, rhs.val, p.comp);
+            lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
         }
@@ -6677,7 +6672,7 @@ fn addExpr(p: *Parser) Error!Result {
                 if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp) and
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(plus.?, lhs);
             } else {
-                if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp) and
+                if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, rhs.ty, p.comp) and
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(minus.?, lhs);
             }
         }
@@ -7034,6 +7029,54 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
+const Reloc = struct {
+    global: StringId,
+    offset: i64,
+};
+
+fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !Reloc {
+    const tys = p.nodes.items(.ty);
+    const tags = p.nodes.items(.tag);
+    const data = p.nodes.items(.data);
+    const tag = tags[@intFromEnum(node)];
+
+    switch (tag) {
+        .implicit_cast => {
+            const cast_data = data[@intFromEnum(node)].cast;
+            return switch (cast_data.kind) {
+                .array_to_pointer => p.computeOffsetExtra(cast_data.operand, offset_so_far),
+                else => unreachable,
+            };
+        },
+        .paren_expr => return p.computeOffsetExtra(data[@intFromEnum(node)].un, offset_so_far),
+        .decl_ref_expr => {
+            const var_name = try p.comp.internString(p.tokSlice(data[@intFromEnum(node)].decl_ref));
+            return .{ .global = var_name, .offset = offset_so_far };
+        },
+        .array_access_expr => {
+            const bin_data = data[@intFromEnum(node)].bin;
+            const ty = tys[@intFromEnum(node)];
+
+            const index_val = p.value_map.get(bin_data.rhs) orelse return error.InvalidReloc;
+            const as_int = index_val.toInt(i64, p.comp).?;
+            const size = ty.sizeof(p.comp).?;
+            const this_offset = @as(i64, @intCast(size)) * as_int;
+            return p.computeOffsetExtra(bin_data.lhs, this_offset + offset_so_far);
+        },
+        .member_access_expr => {
+            const member = data[@intFromEnum(node)].member;
+            const record = tys[@intFromEnum(member.lhs)].getRecord().?;
+            const field_offset: i64 = @intCast(@divExact(record.fields[member.index].layout.offset_bits, 8));
+            return p.computeOffsetExtra(member.lhs, offset_so_far + field_offset);
+        },
+        else => return error.InvalidReloc,
+    }
+}
+
+fn computeOffset(p: *Parser, node: NodeIndex) !Reloc {
+    return p.computeOffsetExtra(node, 0);
+}
+
 /// unExpr
 ///  : (compoundLiteral | primaryExpr) suffixExpr*
 ///  | '&&' IDENTIFIER
@@ -7074,9 +7117,11 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.err(.invalid_preproc_operator);
                 return error.ParsingFailed;
             }
+            const ampersand_tok = p.tok_i;
             p.tok_i += 1;
             var operand = try p.castExpr();
             try operand.expect(p);
+            var addr_val: Value = .{};
 
             const tree = p.tmpTree();
             if (p.getNode(operand.node, .member_access_expr) orelse
@@ -7084,12 +7129,23 @@ fn unExpr(p: *Parser) Error!Result {
             {
                 if (tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
             }
-            if (!tree.isLval(operand.node) and !operand.ty.is(.invalid)) {
+            const operand_ty_valid = !operand.ty.is(.invalid);
+            if (!tree.isLval(operand.node) and operand_ty_valid) {
                 try p.errTok(.addr_of_rvalue, tok);
+            } else if (operand_ty_valid and p.func.ty == null) {
+                // address of global
+                const reloc: Reloc = p.computeOffset(operand.node) catch |e| switch (e) {
+                    error.InvalidReloc => blk: {
+                        try p.errTok(.non_constant_initializer, ampersand_tok);
+                        break :blk .{ .global = .empty, .offset = 0 };
+                    },
+                    else => |er| return er,
+                };
+                addr_val = try Value.reloc(reloc.global, reloc.offset, p.comp);
             }
             if (operand.ty.qual.register) try p.errTok(.addr_of_register, tok);
 
-            if (!operand.ty.is(.invalid)) {
+            if (operand_ty_valid) {
                 const elem_ty = try p.arena.create(Type);
                 elem_ty.* = operand.ty;
                 operand.ty = Type{
@@ -7099,6 +7155,7 @@ fn unExpr(p: *Parser) Error!Result {
             }
             try operand.saveValue(p);
             try operand.un(p, .addr_of_expr, tok);
+            operand.val = addr_val;
             return operand;
         },
         .asterisk => {
@@ -7144,7 +7201,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             try operand.usualUnaryConversion(p, tok);
             if (operand.val.isArithmetic(p.comp)) {
-                _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p.comp);
+                _ = try operand.val.negate(operand.val, operand.ty, p.comp);
             } else {
                 operand.val = .{};
             }
@@ -7198,7 +7255,7 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
-                if (try operand.val.sub(operand.val, Value.one, operand.ty, p.comp))
+                if (try operand.val.decrement(operand.val, operand.ty, p.comp))
                     try p.errOverflow(tok, operand);
             } else {
                 operand.val = .{};

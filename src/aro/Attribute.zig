@@ -340,6 +340,7 @@ fn diagnoseField(
         .array_ty,
         .vector_ty,
         .record_ty,
+        .global_var_offset,
         => unreachable,
     });
 }

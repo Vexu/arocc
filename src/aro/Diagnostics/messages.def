@@ -2535,3 +2535,7 @@ auto_type_self_initialized
     .msg = "variable '{s}' declared with deduced type '__auto_type' cannot appear in its own initializer"
     .extra = .str
     .kind = .@"error"
+
+non_constant_initializer
+    .msg = "initializer element is not a compile-time constant"
+    .kind = .@"error"

@@ -899,7 +899,7 @@ fn dumpNode(
     if (tree.value_map.get(node)) |val| {
         try config.setColor(w, LITERAL);
         try w.writeAll(" (value: ");
-        try val.print(ty, tree.comp, w);
+        try val.print(ty, tree.comp, mapper, w);
         try w.writeByte(')');
     }
     if (tag == .implicit_return and data.return_zero) {

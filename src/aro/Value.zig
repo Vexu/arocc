@@ -4,6 +4,8 @@ const BigIntConst = std.math.big.int.Const;
 const BigIntMutable = std.math.big.int.Mutable;
 const backend = @import("backend");
 const Interner = backend.Interner;
+const StringInterner = backend.StringInterner;
+const StringId = StringInterner.StringId;
 const BigIntSpace = Interner.Tag.Int.BigIntSpace;
 const Compilation = @import("Compilation.zig");
 const Type = @import("Type.zig");
@@ -30,6 +32,10 @@ pub fn int(i: anytype, comp: *Compilation) !Value {
     } else {
         return intern(comp, .{ .int = .{ .i64 = i } });
     }
+}
+
+pub fn reloc(name: StringId, offset: i64, comp: *Compilation) !Value {
+    return intern(comp, .{ .global_var_offset = .{ .name = name, .offset = offset } });
 }
 
 pub fn ref(v: Value) Interner.Ref {
@@ -407,6 +413,7 @@ pub fn isZero(v: Value, comp: *const Compilation) bool {
             inline else => |data| return data[0] == 0.0 and data[1] == 0.0,
         },
         .bytes => return false,
+        .global_var_offset => return false,
         else => unreachable,
     }
 }
@@ -503,6 +510,21 @@ fn complexAddSub(lhs: Value, rhs: Value, comptime T: type, op: ComplexOp, comp: 
 
 pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
+    if (ty.isPtr()) blk: {
+        const lhs_key = comp.interner.get(lhs.ref());
+        const rhs_key = comp.interner.get(rhs.ref());
+        const rel, const delta = if (lhs_key == .global_var_offset)
+            .{ lhs_key.global_var_offset, rhs.toInt(i64, comp).? }
+        else if (rhs_key == .global_var_offset)
+            .{ rhs_key.global_var_offset, lhs.toInt(i64, comp).? }
+        else
+            break :blk;
+
+        const elem_size: i64 = @intCast(ty.elemType().sizeof(comp) orelse 1);
+        const total_offset = rel.offset + elem_size * delta;
+        res.* = try reloc(rel.name, total_offset, comp);
+        return false;
+    }
     if (ty.isFloat()) {
         if (ty.isComplex()) {
             res.* = switch (bits) {
@@ -544,8 +566,28 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     }
 }
 
-pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
+pub fn negate(res: *Value, val: Value, ty: Type, comp: *Compilation) !bool {
+    return res.sub(zero, val, ty, Type.int, comp);
+}
+
+pub fn decrement(res: *Value, val: Value, ty: Type, comp: *Compilation) !bool {
+    return res.sub(val, one, ty, Type.int, comp);
+}
+
+pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
+    if (ty.isPtr()) {
+        const maybe_rel = comp.interner.get(lhs.ref());
+        if (maybe_rel == .global_var_offset) {
+            const rel = maybe_rel.global_var_offset;
+            const delta = rhs.toInt(i64, comp).?;
+
+            const elem_size: i64 = @intCast(ty.elemType().sizeof(comp) orelse 1);
+            const total_offset = rel.offset - elem_size * delta;
+            res.* = try reloc(rel.name, total_offset, comp);
+            return false;
+        }
+    }
     if (ty.isFloat()) {
         if (ty.isComplex()) {
             res.* = switch (bits) {
@@ -569,6 +611,22 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         res.* = try intern(comp, .{ .float = f });
         return false;
     } else {
+        if (rhs_ty.isPtr()) {
+            const maybe_lhs_reloc = comp.interner.get(lhs.ref());
+            const maybe_rhs_reloc = comp.interner.get(rhs.ref());
+            if (maybe_lhs_reloc == .global_var_offset and maybe_rhs_reloc == .global_var_offset) {
+                const lhs_reloc = maybe_lhs_reloc.global_var_offset;
+                const rhs_reloc = maybe_rhs_reloc.global_var_offset;
+                if (lhs_reloc.name != rhs_reloc.name) {
+                    res.* = .{};
+                    return false;
+                }
+                const difference, const overflowed = @subWithOverflow(lhs_reloc.offset, rhs_reloc.offset);
+                const rhs_size: i64 = @intCast(rhs_ty.elemType().sizeof(comp) orelse 1);
+                res.* = try int(@divTrunc(difference, rhs_size), comp);
+                return overflowed != 0;
+            }
+        }
         var lhs_space: BigIntSpace = undefined;
         var rhs_space: BigIntSpace = undefined;
         const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
@@ -723,7 +781,7 @@ pub fn rem(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
             var tmp: Value = undefined;
             _ = try tmp.div(lhs, rhs, ty, comp);
             _ = try tmp.mul(tmp, rhs, ty, comp);
-            _ = try tmp.sub(lhs, tmp, ty, comp);
+            _ = try tmp.sub(lhs, tmp, ty, Type.int, comp);
             return tmp;
         }
     }
@@ -899,7 +957,7 @@ pub fn complexConj(val: Value, ty: Type, comp: *Compilation) !Value {
     return intern(comp, .{ .complex = cf });
 }
 
-pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) bool {
+pub fn compareExtra(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) ?bool {
     if (op == .eq) {
         return lhs.opt_ref == rhs.opt_ref;
     } else if (lhs.opt_ref == rhs.opt_ref) {
@@ -919,12 +977,29 @@ pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *cons
         const imag_equal = std.math.compare(lhs.imag(f128, comp), .eq, rhs.imag(f128, comp));
         return !real_equal or !imag_equal;
     }
+    if (lhs_key == .global_var_offset and rhs_key == .global_var_offset) {
+        const lhs_reloc = lhs_key.global_var_offset;
+        const rhs_reloc = rhs_key.global_var_offset;
+        switch (op) {
+            .eq => if (lhs_reloc.name != rhs_reloc.name) return false,
+            .neq => if (lhs_reloc.name != rhs_reloc.name) return true,
+            else => if (lhs_reloc.name != rhs_reloc.name) return null,
+        }
+
+        return std.math.compare(lhs_reloc.offset, op, rhs_reloc.offset);
+    } else if (lhs_key == .global_var_offset or rhs_key == .global_var_offset) {
+        return null;
+    }
 
     var lhs_bigint_space: BigIntSpace = undefined;
     var rhs_bigint_space: BigIntSpace = undefined;
     const lhs_bigint = lhs.toBigInt(&lhs_bigint_space, comp);
     const rhs_bigint = rhs.toBigInt(&rhs_bigint_space, comp);
     return lhs_bigint.order(rhs_bigint).compare(op);
+}
+
+pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) bool {
+    return lhs.compareExtra(op, rhs, comp).?;
 }
 
 fn twosCompIntLimit(limit: std.math.big.int.TwosCompIntLimit, ty: Type, comp: *Compilation) !Value {
@@ -963,7 +1038,7 @@ pub fn maxInt(ty: Type, comp: *Compilation) !Value {
     return twosCompIntLimit(.max, ty, comp);
 }
 
-pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+pub fn print(v: Value, ty: Type, comp: *const Compilation, mapper: StringInterner.TypeMapper, w: anytype) @TypeOf(w).Error!void {
     if (ty.is(.bool)) {
         return w.writeAll(if (v.isZero(comp)) "false" else "true");
     }
@@ -982,6 +1057,16 @@ pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w
         .complex => |repr| switch (repr) {
             .cf32 => |components| return w.print("{d} + {d}i", .{ @round(@as(f64, @floatCast(components[0])) * 1000000) / 1000000, @round(@as(f64, @floatCast(components[1])) * 1000000) / 1000000 }),
             inline else => |components| return w.print("{d} + {d}i", .{ @as(f64, @floatCast(components[0])), @as(f64, @floatCast(components[1])) }),
+        },
+        .global_var_offset => |rel| {
+            const name = mapper.lookup(rel.name);
+            try w.print("&{s}", .{name});
+            if (rel.offset == 0) return;
+            if (rel.offset == std.math.minInt(i64)) {
+                return w.print(" - {d}", .{std.math.maxInt(i64) + 1});
+            }
+            const sign: u8 = if (rel.offset < 0) '-' else '+';
+            return w.print(" {c} {d}", .{ sign, @abs(rel.offset) });
         },
         else => unreachable, // not a value
     }

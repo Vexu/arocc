@@ -1,4 +1,5 @@
 const std = @import("std");
+const StringId = @import("StringInterner.zig").StringId;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const BigIntConst = std.math.big.int.Const;
@@ -65,6 +66,7 @@ pub const Key = union(enum) {
     float: Float,
     complex: Complex,
     bytes: []const u8,
+    global_var_offset: GlobalVarOffset,
 
     pub const Float = union(enum) {
         f16: f16,
@@ -79,6 +81,11 @@ pub const Key = union(enum) {
         cf64: [2]f64,
         cf80: [2]f80,
         cf128: [2]f128,
+    };
+    pub const GlobalVarOffset = struct {
+        name: StringId,
+        /// Offset in bytes
+        offset: i64,
     };
 
     pub fn hash(key: Key) u32 {
@@ -303,6 +310,8 @@ pub const Tag = enum(u8) {
     bytes,
     /// `data` is `Record`
     record_ty,
+    /// `data` is GlobalVarOffset
+    global_var_offset,
 
     pub const Array = struct {
         len0: u32,
@@ -537,6 +546,29 @@ pub const Tag = enum(u8) {
         // trailing
         // [elements_len]Ref
     };
+
+    pub const GlobalVarOffset = struct {
+        name: u32,
+        piece0: u32,
+        piece1: u32,
+
+        pub fn get(self: GlobalVarOffset) Key.GlobalVarOffset {
+            const offset = @as(u64, self.piece0) | (@as(u64, self.piece1) << 32);
+            return .{
+                .name = @enumFromInt(self.name),
+                .offset = @bitCast(offset),
+            };
+        }
+
+        fn pack(val: Key.GlobalVarOffset) GlobalVarOffset {
+            const bits: u64 = @bitCast(val.offset);
+            return .{
+                .name = @intFromEnum(val.name),
+                .piece0 = @truncate(bits),
+                .piece1 = @truncate(bits >> 32),
+            };
+        }
+    };
 };
 
 pub const PackedU64 = packed struct(u64) {
@@ -716,6 +748,12 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
             });
             i.extra.appendSliceAssumeCapacity(@ptrCast(elems));
         },
+        .global_var_offset => |reloc| {
+            i.items.appendAssumeCapacity(.{
+                .tag = .global_var_offset,
+                .data = try i.addExtra(gpa, Tag.GlobalVarOffset.pack(reloc)),
+            });
+        },
         .ptr_ty,
         .noreturn_ty,
         .void_ty,
@@ -847,6 +885,10 @@ pub fn get(i: *const Interner, ref: Ref) Key {
             return .{
                 .record_ty = @ptrCast(i.extra.items[extra.end..][0..extra.data.elements_len]),
             };
+        },
+        .global_var_offset => {
+            const components = i.extraData(Tag.GlobalVarOffset, data);
+            return .{ .global_var_offset = components.get() };
         },
     };
 }
