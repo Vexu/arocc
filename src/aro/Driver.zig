@@ -534,7 +534,7 @@ pub fn parseArgs(
         return d.fatal("invalid value '{0s}' in '-fgnuc-version={0s}'", .{gnuc_version});
     }
     d.comp.langopts.gnuc_version = version.toUnsigned();
-    const pic_level, const is_pie = d.getPICMode();
+    const pic_level, const is_pie = d.getPICMode(args);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
     return false;
@@ -893,15 +893,14 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
 }
 
 /// This currently just returns the desired settings without considering target defaults / requirements
-pub fn getPICMode(d: *Driver) struct { backend.CodeGenOptions.PicLevel, bool } {
+pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGenOptions.PicLevel, bool } {
     const eqlIgnoreCase = std.ascii.eqlIgnoreCase;
 
     const target = d.comp.target;
     const linker = d.use_linker orelse @import("system_defaults").linker;
     const is_bfd_linker = eqlIgnoreCase(linker, "bfd");
-    const wants_pie: ?bool = if (d.desired_pie_level) |level| level != .none else null;
 
-    const is_pie = switch (target_util.isPIEDefault(target)) {
+    const is_pie_default = switch (target_util.isPIEDefault(target)) {
         .yes => true,
         .no => false,
         .depends_on_linker => if (is_bfd_linker)
@@ -909,7 +908,7 @@ pub fn getPICMode(d: *Driver) struct { backend.CodeGenOptions.PicLevel, bool } {
         else
             false, //MSVC
     };
-    const is_pic = switch (target_util.isPICdefault(target)) {
+    const is_pic_default = switch (target_util.isPICdefault(target)) {
         .yes => true,
         .no => false,
         .depends_on_linker => if (is_bfd_linker)
@@ -918,8 +917,205 @@ pub fn getPICMode(d: *Driver) struct { backend.CodeGenOptions.PicLevel, bool } {
             (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64),
     };
 
-    _ = is_pic;
-    _ = is_pie;
+    var pie: bool = is_pie_default;
+    var pic: bool = pie or is_pic_default;
+    // The Darwin/MachO default to use PIC does not apply when using -static.
+    if (target.ofmt == .macho and d.static) {
+        pic, pie = .{ false, false };
+    }
+    var is_piclevel_two = pic;
 
-    return .{ d.desired_pic_level orelse .none, wants_pie orelse false };
+    const kernel_or_next: bool = d.hasArg(args, .{ "-mkernel", "-fapple_kext" });
+
+    // Android-specific defaults for PIC/PIE
+    if (target.isAndroid()) {
+        switch (target.cpu.arch) {
+            .arm,
+            .armeb,
+            .thumb,
+            .thumbeb,
+            .aarch64,
+            .mips,
+            .mipsel,
+            .mips64,
+            .mips64el,
+            => pic = true, // "-fpic"
+
+            .x86, .x86_64 => {
+                pic = true; // "-fPIC"
+                is_piclevel_two = true;
+            },
+            else => {},
+        }
+    }
+
+    // OHOS-specific defaults for PIC/PIE
+    if (target.abi == .ohos and target.cpu.arch == .aarch64)
+        pic = true;
+
+    // OpenBSD-specific defaults for PIE
+    if (target.os.tag == .openbsd) {
+        switch (target.cpu.arch) {
+            .arm, .aarch64, .mips64, .mips64el, .x86, .x86_64 => is_piclevel_two = false, // "-fpie"
+            .powerpc, .sparc64 => is_piclevel_two = true, // "-fPIE"
+            else => {},
+        }
+    }
+
+    // The last argument relating to either PIC or PIE wins, and no
+    // other argument is used. If the last argument is any flavor of the
+    // '-fno-...' arguments, both PIC and PIE are disabled. Any PIE
+    // option implicitly enables PIC at the same level.
+    const lastpic_arg_idx = d.getLastArg(
+        args,
+        .{ "-fpic", "-fno-pic", "-fPIC", "-fno-PIC", "-fpie", "-fno-pie", "-fPIE", "-fno-PIE" },
+    );
+    if (target.os.tag == .windows and
+        !target_util.isCygwinMinGW(target) and
+        lastpic_arg_idx != null and
+        lastpic_arg_idx == d.getLastArg(args, .{ "-fPIC", "-fpic", "-fpie", "-fPIE" }))
+    {
+        if (target.cpu.arch == .x86_64)
+            return .{ .two, false };
+        return .{ .none, false };
+    }
+
+    // Check whether the tool chain trumps the PIC-ness decision. If the PIC-ness
+    // is forced, then neither PIC nor PIE flags will have no effect.
+    const forced = switch (target_util.isPICDefaultForced(target)) {
+        .yes => true,
+        .no => false,
+        .depends_on_linker => if (is_bfd_linker) target.cpu.arch == .x86_64 else target.cpu.arch == .aarch64 or target.cpu.arch == .x86_64,
+    };
+    if (!forced) {
+        if (lastpic_arg_idx) |idx| {
+            const arg = args[idx];
+            if (isOneOf(arg, .{ "-fPIC", "-fpic", "-fpie", "-fPIE" })) {
+                pie = isOneOf(arg, .{ "-fpie", "-fPIE" });
+                pic = pie or isOneOf(arg, .{ "-fpic", "-fPIC" });
+                is_piclevel_two = isOneOf(arg, .{ "-fPIE", "-fPIC" });
+            } else {
+                pic, pie = .{ false, false };
+                if (target_util.isPS(target)) {
+                    const model_arg = getLastArgValue(args, "-mcmodel=");
+                    const model = model_arg orelse "";
+                    if (!std.mem.eql(u8, model, "kernel")) {
+                        pic = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if (pic and (target.isDarwin() or target_util.isPS(target))) {
+        const val = @intFromBool(is_piclevel_two) | @intFromBool(is_pic_default);
+        is_piclevel_two = @as(bool, val != 0);
+    }
+
+    // This kernel flags are a trump-card: they will disable PIC/PIE
+    // generation, independent of the argument order.
+    if (kernel_or_next and
+        (!(target.os.tag != .ios) or (target.os.isAtLeast(.ios, .{ .major = 6, .minor = 0, .patch = 0 }) orelse false)) and
+        !(target.os.tag != .watchos) and
+        !(target.os.tag != .driverkit))
+    {
+        pie, pic = .{ false, false };
+    }
+
+    const arg_idx = d.getLastArg(args, .{"-mdynamic-no-pic"});
+    if (arg_idx) |_| {
+        if (!target.isDarwin()) {
+            // diag error
+        }
+        pic = is_pic_default or forced;
+        return .{ if (pic) .two else .none, false };
+    }
+
+    var embedded_pi_supported: bool = undefined;
+    switch (target.cpu.arch) {
+        .arm, .armeb, .thumb, .thumbeb => embedded_pi_supported = true,
+        else => embedded_pi_supported = false,
+    }
+
+    var ropi = false;
+    const last_ropi_arg = d.getLastArg(args, .{ "-fropi", "-fno-ropi" });
+    if (last_ropi_arg) |idx| {
+        if (std.mem.eql(u8, args[idx], "-fropi")) {
+            if (!embedded_pi_supported) {
+                //TODO: diag error
+            }
+            ropi = true;
+        }
+    }
+
+    var rwpi = false;
+    const last_rwpi_arg = d.getLastArg(args, .{ "-frwpi", "-fno-rwpi" });
+    if (last_rwpi_arg) |idx| {
+        if (std.mem.eql(u8, args[idx], "-frwpi")) {
+            if (!embedded_pi_supported) {
+                //TODO: diag error
+            }
+            rwpi = true;
+        }
+    }
+
+    // ROPI and RWPI are not compatible with PIC or PIE.
+    if ((ropi or rwpi) and (pic or pie)) {
+        //TODO: diag error
+    }
+
+    if (target_util.isMIPS(target)) {
+        // When targeting the N64 ABI, PIC is the default, except in the case
+        // when the -mno-abicalls option is used. In that case we exit
+        // at next check regardless of PIC being set below.
+        // TODO: implement incomplete!!
+        if (target.cpu.arch == .mips64 or target.cpu.arch == .mips64el)
+            pic = true;
+
+        // When targettng MIPS with -mno-abicalls, it's always static.
+        if (d.hasArg(args, .{"-mno-abicalls"}))
+            return .{ .none, false };
+
+        // Unlike other architectures, MIPS, even with -fPIC/-mxgot/multigot,
+        // does not use PIC level 2 for historical reasons.
+        is_piclevel_two = false;
+    }
+
+    if (pic) return .{ if (is_piclevel_two) .two else .one, pie };
+    return .{ .none, false };
+}
+
+fn hasArg(d: *Driver, args: []const []const u8, options: anytype) bool {
+    return d.getLastArg(args, options) != null;
+}
+
+fn getLastArgValue(args: []const []const u8, option_name: []const u8) ?[]const u8 {
+    var option_value: ?[]const u8 = null;
+    for (args) |arg| {
+        option_value = option(arg, option_name);
+    }
+    return option_value;
+}
+
+fn getLastArg(d: *Driver, args: []const []const u8, options: anytype) ?usize {
+    var indexs = std.ArrayList(usize).init(d.comp.gpa);
+    defer indexs.deinit();
+
+    for (args, 0..) |arg, i| {
+        inline for (options) |opt| {
+            if (std.mem.eql(u8, opt, arg)) {
+                indexs.append(i) catch unreachable;
+            }
+        }
+    }
+
+    return indexs.getLastOrNull();
+}
+
+fn isOneOf(arg: []const u8, options: anytype) bool {
+    inline for (options) |opt| {
+        if (std.mem.eql(u8, arg, opt))
+            return true;
+    }
+    return false;
 }

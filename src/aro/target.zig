@@ -371,6 +371,17 @@ pub fn isCygwinMinGW(target: std.Target) bool {
     return target.os.tag == .windows and (target.abi == .gnu or target.abi == .cygnus);
 }
 
+pub fn isPS(target: std.Target) bool {
+    return (target.os.tag == .ps4 or target.os.tag == .ps5) and target.cpu.arch == .x86_64;
+}
+
+pub fn isMIPS(target: std.Target) bool {
+    return switch (target.cpu.arch) {
+        .mips, .mipsel, .mips64, .mips64el => true,
+        else => false,
+    };
+}
+
 pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
     var it = enabled_for.iterator();
     while (it.next()) |val| {
@@ -916,7 +927,7 @@ pub fn isPICDefaultForced(target: std.Target) DefaultPIStatus {
         => if (target.cpu.arch == .x86_64 or target.cpu.arch == .aarch64) .yes else .no,
 
         else => {
-            switch (target.cpu.arch) {
+            return switch (target.cpu.arch) {
                 .hexagon,
                 .lanai,
                 .avr,
@@ -938,7 +949,7 @@ pub fn isPICDefaultForced(target: std.Target) DefaultPIStatus {
                         return if (target.cpu.arch == .aarch64 or target.cpu.arch == .x86_64) .yes else .no;
                     return .no;
                 },
-            }
+            };
         },
     };
 }
