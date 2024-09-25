@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
+const StaticStringSet = std.StaticStringMap(void);
 const backend = @import("backend");
 const Ir = backend.Ir;
 const Object = backend.Object;
@@ -925,7 +926,10 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     }
     var is_piclevel_two = pic;
 
-    const kernel_or_next: bool = d.hasArg(args, .{ "-mkernel", "-fapple_kext" });
+    const kernel_or_kext: bool = hasArg(args, StaticStringSet.initComptime(.{
+        .{"-mkernel"},
+        .{"-fapple_kext"},
+    }));
 
     // Android-specific defaults for PIC/PIE
     if (target.isAndroid()) {
@@ -966,14 +970,20 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     // other argument is used. If the last argument is any flavor of the
     // '-fno-...' arguments, both PIC and PIE are disabled. Any PIE
     // option implicitly enables PIC at the same level.
-    const lastpic_arg_idx = d.getLastArg(
-        args,
-        .{ "-fpic", "-fno-pic", "-fPIC", "-fno-PIC", "-fpie", "-fno-pie", "-fPIE", "-fno-PIE" },
-    );
+    const lastpic_arg_idx = getLastArg(args, StaticStringSet.initComptime(.{
+        .{"-fpic"},
+        .{"-fno-pic"},
+        .{"-fPIC"},
+        .{"-fno-PIC"},
+        .{"-fpie"},
+        .{"-fno-pie"},
+        .{"-fPIE"},
+        .{"-fno-PIE"},
+    }));
     if (target.os.tag == .windows and
         !target_util.isCygwinMinGW(target) and
         lastpic_arg_idx != null and
-        lastpic_arg_idx == d.getLastArg(args, .{ "-fPIC", "-fpic", "-fpie", "-fPIE" }))
+        lastpic_arg_idx == getLastArg(args, StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} })))
     {
         if (target.cpu.arch == .x86_64)
             return .{ .two, false };
@@ -990,10 +1000,10 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     if (!forced) {
         if (lastpic_arg_idx) |idx| {
             const arg = args[idx];
-            if (isOneOf(arg, .{ "-fPIC", "-fpic", "-fpie", "-fPIE" })) {
-                pie = isOneOf(arg, .{ "-fpie", "-fPIE" });
-                pic = pie or isOneOf(arg, .{ "-fpic", "-fPIC" });
-                is_piclevel_two = isOneOf(arg, .{ "-fPIE", "-fPIC" });
+            if (isOneOf(arg, StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} }))) {
+                pie = isOneOf(arg, StaticStringSet.initComptime(.{ .{"-fpie"}, .{"-fPIE"} }));
+                pic = pie or isOneOf(arg, StaticStringSet.initComptime(.{ .{"-fpic"}, .{"-fPIC"} }));
+                is_piclevel_two = isOneOf(arg, StaticStringSet.initComptime(.{ .{"-fPIE"}, .{"-fPIC"} }));
             } else {
                 pic, pie = .{ false, false };
                 if (target_util.isPS(target)) {
@@ -1014,7 +1024,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
 
     // This kernel flags are a trump-card: they will disable PIC/PIE
     // generation, independent of the argument order.
-    if (kernel_or_next and
+    if (kernel_or_kext and
         (!(target.os.tag != .ios) or (target.os.isAtLeast(.ios, .{ .major = 6, .minor = 0, .patch = 0 }) orelse false)) and
         !(target.os.tag != .watchos) and
         !(target.os.tag != .driverkit))
@@ -1022,7 +1032,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
         pie, pic = .{ false, false };
     }
 
-    const arg_idx = d.getLastArg(args, .{"-mdynamic-no-pic"});
+    const arg_idx = getLastArg(args, StaticStringSet.initComptime(.{.{"-mdynamic-no-pic"}}));
     if (arg_idx) |_| {
         if (!target.isDarwin()) {
             // diag error
@@ -1038,7 +1048,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     }
 
     var ropi = false;
-    const last_ropi_arg = d.getLastArg(args, .{ "-fropi", "-fno-ropi" });
+    const last_ropi_arg = getLastArg(args, StaticStringSet.initComptime(.{ .{"-fropi"}, .{"-fno-ropi"} }));
     if (last_ropi_arg) |idx| {
         if (std.mem.eql(u8, args[idx], "-fropi")) {
             if (!embedded_pi_supported) {
@@ -1049,7 +1059,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     }
 
     var rwpi = false;
-    const last_rwpi_arg = d.getLastArg(args, .{ "-frwpi", "-fno-rwpi" });
+    const last_rwpi_arg = getLastArg(args, StaticStringSet.initComptime(.{ .{"-frwpi"}, .{"-fno-rwpi"} }));
     if (last_rwpi_arg) |idx| {
         if (std.mem.eql(u8, args[idx], "-frwpi")) {
             if (!embedded_pi_supported) {
@@ -1073,7 +1083,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
             pic = true;
 
         // When targettng MIPS with -mno-abicalls, it's always static.
-        if (d.hasArg(args, .{"-mno-abicalls"}))
+        if (hasArg(args, StaticStringSet.initComptime(.{.{"-mno-abicalls"}})))
             return .{ .none, false };
 
         // Unlike other architectures, MIPS, even with -fPIC/-mxgot/multigot,
@@ -1085,8 +1095,8 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     return .{ .none, false };
 }
 
-fn hasArg(d: *Driver, args: []const []const u8, options: anytype) bool {
-    return d.getLastArg(args, options) != null;
+fn hasArg(args: []const []const u8, options: StaticStringSet) bool {
+    return getLastArg(args, options) != null;
 }
 
 fn getLastArgValue(args: []const []const u8, option_name: []const u8) ?[]const u8 {
@@ -1097,25 +1107,14 @@ fn getLastArgValue(args: []const []const u8, option_name: []const u8) ?[]const u
     return option_value;
 }
 
-fn getLastArg(d: *Driver, args: []const []const u8, options: anytype) ?usize {
-    var indexs = std.ArrayList(usize).init(d.comp.gpa);
-    defer indexs.deinit();
-
+fn getLastArg(args: []const []const u8, options: StaticStringSet) ?usize {
+    var last_index: ?usize = null;
     for (args, 0..) |arg, i| {
-        inline for (options) |opt| {
-            if (std.mem.eql(u8, opt, arg)) {
-                indexs.append(i) catch unreachable;
-            }
-        }
+        if (options.has(arg)) last_index = i;
     }
-
-    return indexs.getLastOrNull();
+    return last_index;
 }
 
-fn isOneOf(arg: []const u8, options: anytype) bool {
-    inline for (options) |opt| {
-        if (std.mem.eql(u8, arg, opt))
-            return true;
-    }
-    return false;
+fn isOneOf(arg: []const u8, options: StaticStringSet) bool {
+    return options.has(arg);
 }
