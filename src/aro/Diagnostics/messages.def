@@ -1481,6 +1481,11 @@ cli_error
     .extra = .str
     .kind = .@"error"
 
+cli_warn
+    .msg = "{s}"
+    .extra = .str
+    .kind = .warning
+
 cli_unused_link_object
     .msg = "{s}: linker input file unused because linking not done"
     .extra = .str

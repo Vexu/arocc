@@ -535,7 +535,7 @@ pub fn parseArgs(
         return d.fatal("invalid value '{0s}' in '-fgnuc-version={0s}'", .{gnuc_version});
     }
     d.comp.langopts.gnuc_version = version.toUnsigned();
-    const pic_level, const is_pie = d.getPICMode(args);
+    const pic_level, const is_pie = try d.getPICMode(args);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
     return false;
@@ -560,6 +560,18 @@ fn addSource(d: *Driver, path: []const u8) !Source {
 
 pub fn err(d: *Driver, msg: []const u8) !void {
     try d.comp.addDiagnostic(.{ .tag = .cli_error, .extra = .{ .str = msg } }, &.{});
+}
+
+pub fn warn(d: *Driver, msg: []const u8) !void {
+    try d.comp.addDiagnostic(.{ .tag = .cli_warn, .extra = .{ .str = msg } }, &.{});
+}
+
+pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) !void {
+    try d.err(try std.fmt.allocPrint(
+        d.comp.diagnostics.arena.allocator(),
+        "unsupported option '{s}' for target '{s}'",
+        .{ opt, try target.linuxTriple(d.comp.diagnostics.arena.allocator()) },
+    ));
 }
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
@@ -894,7 +906,7 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
 }
 
 /// This currently just returns the desired settings without considering target defaults / requirements
-pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGenOptions.PicLevel, bool } {
+pub fn getPICMode(d: *Driver, args: []const []const u8) !struct { backend.CodeGenOptions.PicLevel, bool } {
     const eqlIgnoreCase = std.ascii.eqlIgnoreCase;
 
     const target = d.comp.target;
@@ -985,6 +997,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
         lastpic_arg_idx != null and
         lastpic_arg_idx == getLastArg(args, StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} })))
     {
+        try d.unsupportedOptionForTarget(target, args[lastpic_arg_idx.?]);
         if (target.cpu.arch == .x86_64)
             return .{ .two, false };
         return .{ .none, false };
@@ -1011,6 +1024,11 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
                     const model = model_arg orelse "";
                     if (!std.mem.eql(u8, model, "kernel")) {
                         pic = true;
+                        try d.warn(try std.fmt.allocPrint(
+                            d.comp.diagnostics.arena.allocator(),
+                            "option '{s}' was ignored by the {s} toolchain, using '-fPIC'",
+                            .{ arg, if (target.os.tag == .ps4) "PS4" else "PS5" },
+                        ));
                     }
                 }
             }
@@ -1033,9 +1051,9 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     }
 
     const arg_idx = getLastArg(args, StaticStringSet.initComptime(.{.{"-mdynamic-no-pic"}}));
-    if (arg_idx) |_| {
+    if (arg_idx) |idx| {
         if (!target.isDarwin()) {
-            // diag error
+            try d.unsupportedOptionForTarget(target, args[idx]);
         }
         pic = is_pic_default or forced;
         return .{ if (pic) .two else .none, false };
@@ -1052,7 +1070,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     if (last_ropi_arg) |idx| {
         if (std.mem.eql(u8, args[idx], "-fropi")) {
             if (!embedded_pi_supported) {
-                //TODO: diag error
+                try d.unsupportedOptionForTarget(target, args[idx]);
             }
             ropi = true;
         }
@@ -1063,7 +1081,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) struct { backend.CodeGen
     if (last_rwpi_arg) |idx| {
         if (std.mem.eql(u8, args[idx], "-frwpi")) {
             if (!embedded_pi_supported) {
-                //TODO: diag error
+                try d.unsupportedOptionForTarget(target, args[idx]);
             }
             rwpi = true;
         }
