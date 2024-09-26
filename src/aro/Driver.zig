@@ -48,8 +48,6 @@ color: ?bool = null,
 nobuiltininc: bool = false,
 nostdinc: bool = false,
 nostdlibinc: bool = false,
-desired_pic_level: ?backend.CodeGenOptions.PicLevel = null,
-desired_pie_level: ?backend.CodeGenOptions.PicLevel = null,
 debug_dump_letters: packed struct(u3) {
     d: bool = false,
     m: bool = false,
@@ -311,20 +309,15 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fnative-half-arguments-and-returns")) {
                 d.comp.langopts.allow_half_args_and_returns = true;
             } else if (mem.eql(u8, arg, "-fno-pic") or mem.eql(u8, arg, "-fno-PIC") or mem.eql(u8, arg, "-fno-pie") or mem.eql(u8, arg, "-fno-PIE")) {
-                d.desired_pic_level = .none;
-                d.desired_pie_level = .none;
+                //
             } else if (mem.eql(u8, arg, "-fpic")) {
-                d.desired_pic_level = .one;
-                d.desired_pie_level = .none;
+                //
             } else if (mem.eql(u8, arg, "-fPIC")) {
-                d.desired_pic_level = .two;
-                d.desired_pie_level = .none;
+                //
             } else if (mem.eql(u8, arg, "-fpie")) {
-                d.desired_pic_level = .one;
-                d.desired_pie_level = .one;
+                //
             } else if (mem.eql(u8, arg, "-fPIE")) {
-                d.desired_pic_level = .two;
-                d.desired_pie_level = .two;
+                //
             } else if (mem.eql(u8, arg, "-fshort-enums")) {
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {
