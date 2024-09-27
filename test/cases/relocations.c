@@ -38,6 +38,10 @@ struct __attribute__((packed)) Packed {
 struct Packed packed;
 _Static_assert(&packed.x - &packed.y == -1);
 
+char *p = (char*)(&x + 100);
+
+_Static_assert((char*)(&x+100) - (char*)&x == 400,"");
+
 #define EXPECTED_ERRORS "relocations.c:24:1: error: static assertion failed" \
     "relocations.c:29:16: error: static_assert expression is not an integral constant expression" \
     "relocations.c:30:16: error: static_assert expression is not an integral constant expression" \

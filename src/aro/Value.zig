@@ -34,8 +34,8 @@ pub fn int(i: anytype, comp: *Compilation) !Value {
     }
 }
 
-pub fn reloc(name: StringId, offset: i64, comp: *Compilation) !Value {
-    return intern(comp, .{ .global_var_offset = .{ .name = name, .offset = offset } });
+pub fn reloc(r: Interner.Key.GlobalVarOffset, comp: *Compilation) !Value {
+    return intern(comp, .{ .global_var_offset = r });
 }
 
 pub fn ref(v: Value) Interner.Ref {
@@ -249,12 +249,14 @@ pub const IntCastChangeKind = enum {
 /// `.none` value remains unchanged.
 pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind {
     if (v.opt_ref == .none) return .none;
+    const key = comp.interner.get(v.ref());
+    if (key == .global_var_offset) return .none;
 
     const dest_bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
     const dest_signed = dest_ty.signedness(comp) == .signed;
 
     var space: BigIntSpace = undefined;
-    const big = v.toBigInt(&space, comp);
+    const big = keyToBigInt(key, &space);
     const value_bits = big.bitCountTwosComp();
 
     // if big is negative, then is signed.
@@ -385,11 +387,12 @@ fn bigIntToFloat(limbs: []const std.math.big.Limb, positive: bool) f128 {
     }
 }
 
-pub fn toBigInt(val: Value, space: *BigIntSpace, comp: *const Compilation) BigIntConst {
-    return switch (comp.interner.get(val.ref()).int) {
-        inline .u64, .i64 => |x| BigIntMutable.init(&space.limbs, x).toConst(),
-        .big_int => |b| b,
-    };
+fn keyToBigInt(key: Interner.Key, space: *BigIntSpace) BigIntConst {
+    return key.int.toBigInt(space);
+}
+
+fn toBigInt(val: Value, space: *BigIntSpace, comp: *const Compilation) BigIntConst {
+    return keyToBigInt(comp.interner.get(val.ref()), space);
 }
 
 pub fn isZero(v: Value, comp: *const Compilation) bool {
@@ -477,9 +480,10 @@ pub fn toBool(v: Value, comp: *const Compilation) bool {
 
 pub fn toInt(v: Value, comptime T: type, comp: *const Compilation) ?T {
     if (v.opt_ref == .none) return null;
-    if (comp.interner.get(v.ref()) != .int) return null;
+    const key = comp.interner.get(v.ref());
+    if (key != .int) return null;
     var space: BigIntSpace = undefined;
-    const big_int = v.toBigInt(&space, comp);
+    const big_int = keyToBigInt(key, &space);
     return big_int.to(T) catch null;
 }
 
@@ -510,21 +514,6 @@ fn complexAddSub(lhs: Value, rhs: Value, comptime T: type, op: ComplexOp, comp: 
 
 pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isPtr()) blk: {
-        const lhs_key = comp.interner.get(lhs.ref());
-        const rhs_key = comp.interner.get(rhs.ref());
-        const rel, const delta = if (lhs_key == .global_var_offset)
-            .{ lhs_key.global_var_offset, rhs.toInt(i64, comp).? }
-        else if (rhs_key == .global_var_offset)
-            .{ rhs_key.global_var_offset, lhs.toInt(i64, comp).? }
-        else
-            break :blk;
-
-        const elem_size: i64 = @intCast(ty.elemType().sizeof(comp) orelse 1);
-        const total_offset = rel.offset + elem_size * delta;
-        res.* = try reloc(rel.name, total_offset, comp);
-        return false;
-    }
     if (ty.isFloat()) {
         if (ty.isComplex()) {
             res.* = switch (bits) {
@@ -547,47 +536,53 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         };
         res.* = try intern(comp, .{ .float = f });
         return false;
-    } else {
-        var lhs_space: BigIntSpace = undefined;
-        var rhs_space: BigIntSpace = undefined;
-        const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
-        const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
-
-        const limbs = try comp.gpa.alloc(
-            std.math.big.Limb,
-            std.math.big.int.calcTwosCompLimbCount(bits),
-        );
-        defer comp.gpa.free(limbs);
-        var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
-
-        const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
-        res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
-        return overflowed;
     }
+    const lhs_key = comp.interner.get(lhs.ref());
+    const rhs_key = comp.interner.get(rhs.ref());
+    if (lhs_key == .global_var_offset or rhs_key == .global_var_offset) {
+        const rel, const index = if (lhs_key == .global_var_offset)
+            .{ lhs_key.global_var_offset, rhs }
+        else
+            .{ rhs_key.global_var_offset, lhs };
+
+        const elem_size = try int(ty.elemType().sizeof(comp) orelse 1, comp);
+        var total_offset: Value = undefined;
+        const mul_overflow = try total_offset.mul(elem_size, index, comp.types.ptrdiff, comp);
+        const old_offset = try int(rel.offset, comp);
+        const add_overflow = try total_offset.add(total_offset, old_offset, comp.types.ptrdiff, comp);
+        _ = try total_offset.intCast(comp.types.ptrdiff, comp);
+        res.* = try reloc(.{ .name = rel.name, .offset = total_offset.toInt(i64, comp).? }, comp);
+        return mul_overflow or add_overflow;
+    }
+
+    var lhs_space: BigIntSpace = undefined;
+    var rhs_space: BigIntSpace = undefined;
+    const lhs_bigint = keyToBigInt(lhs_key, &lhs_space);
+    const rhs_bigint = keyToBigInt(rhs_key, &rhs_space);
+
+    const limbs = try comp.gpa.alloc(
+        std.math.big.Limb,
+        std.math.big.int.calcTwosCompLimbCount(bits),
+    );
+    defer comp.gpa.free(limbs);
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+
+    const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
+    res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
+    return overflowed;
 }
 
 pub fn negate(res: *Value, val: Value, ty: Type, comp: *Compilation) !bool {
-    return res.sub(zero, val, ty, Type.int, comp);
+    return res.sub(zero, val, ty, undefined, comp);
 }
 
 pub fn decrement(res: *Value, val: Value, ty: Type, comp: *Compilation) !bool {
-    return res.sub(val, one, ty, Type.int, comp);
+    return res.sub(val, one, ty, undefined, comp);
 }
 
+/// rhs_ty is only used when subtracting two pointers, so we can scale the result by the size of the element type
 pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isPtr()) {
-        const maybe_rel = comp.interner.get(lhs.ref());
-        if (maybe_rel == .global_var_offset) {
-            const rel = maybe_rel.global_var_offset;
-            const delta = rhs.toInt(i64, comp).?;
-
-            const elem_size: i64 = @intCast(ty.elemType().sizeof(comp) orelse 1);
-            const total_offset = rel.offset - elem_size * delta;
-            res.* = try reloc(rel.name, total_offset, comp);
-            return false;
-        }
-    }
     if (ty.isFloat()) {
         if (ty.isComplex()) {
             res.* = switch (bits) {
@@ -610,39 +605,48 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *C
         };
         res.* = try intern(comp, .{ .float = f });
         return false;
-    } else {
-        if (rhs_ty.isPtr()) {
-            const maybe_lhs_reloc = comp.interner.get(lhs.ref());
-            const maybe_rhs_reloc = comp.interner.get(rhs.ref());
-            if (maybe_lhs_reloc == .global_var_offset and maybe_rhs_reloc == .global_var_offset) {
-                const lhs_reloc = maybe_lhs_reloc.global_var_offset;
-                const rhs_reloc = maybe_rhs_reloc.global_var_offset;
-                if (lhs_reloc.name != rhs_reloc.name) {
-                    res.* = .{};
-                    return false;
-                }
-                const difference, const overflowed = @subWithOverflow(lhs_reloc.offset, rhs_reloc.offset);
-                const rhs_size: i64 = @intCast(rhs_ty.elemType().sizeof(comp) orelse 1);
-                res.* = try int(@divTrunc(difference, rhs_size), comp);
-                return overflowed != 0;
-            }
-        }
-        var lhs_space: BigIntSpace = undefined;
-        var rhs_space: BigIntSpace = undefined;
-        const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
-        const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
-
-        const limbs = try comp.gpa.alloc(
-            std.math.big.Limb,
-            std.math.big.int.calcTwosCompLimbCount(bits),
-        );
-        defer comp.gpa.free(limbs);
-        var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
-
-        const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
-        res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
-        return overflowed;
     }
+    const lhs_key = comp.interner.get(lhs.ref());
+    const rhs_key = comp.interner.get(rhs.ref());
+    if (lhs_key == .global_var_offset and rhs_key == .global_var_offset) {
+        const lhs_reloc = lhs_key.global_var_offset;
+        const rhs_reloc = rhs_key.global_var_offset;
+        if (lhs_reloc.name != rhs_reloc.name) {
+            res.* = .{};
+            return false;
+        }
+        const difference, const overflowed = @subWithOverflow(lhs_reloc.offset, rhs_reloc.offset);
+        const rhs_size: i64 = @intCast(rhs_ty.elemType().sizeof(comp) orelse 1);
+        res.* = try int(@divTrunc(difference, rhs_size), comp);
+        return overflowed != 0;
+    } else if (lhs_key == .global_var_offset) {
+        const rel = lhs_key.global_var_offset;
+
+        const elem_size = try int(ty.elemType().sizeof(comp) orelse 1, comp);
+        var total_offset: Value = undefined;
+        const mul_overflow = try total_offset.mul(elem_size, rhs, comp.types.ptrdiff, comp);
+        const old_offset = try int(rel.offset, comp);
+        const add_overflow = try total_offset.sub(total_offset, old_offset, comp.types.ptrdiff, undefined, comp);
+        _ = try total_offset.intCast(comp.types.ptrdiff, comp);
+        res.* = try reloc(.{ .name = rel.name, .offset = total_offset.toInt(i64, comp).? }, comp);
+        return mul_overflow or add_overflow;
+    }
+
+    var lhs_space: BigIntSpace = undefined;
+    var rhs_space: BigIntSpace = undefined;
+    const lhs_bigint = keyToBigInt(lhs_key, &lhs_space);
+    const rhs_bigint = keyToBigInt(rhs_key, &rhs_space);
+
+    const limbs = try comp.gpa.alloc(
+        std.math.big.Limb,
+        std.math.big.int.calcTwosCompLimbCount(bits),
+    );
+    defer comp.gpa.free(limbs);
+    var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
+
+    const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
+    res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
+    return overflowed;
 }
 
 pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
@@ -957,6 +961,7 @@ pub fn complexConj(val: Value, ty: Type, comp: *Compilation) !Value {
     return intern(comp, .{ .complex = cf });
 }
 
+/// Returns null for values that cannot be compared at compile time (e.g. `&x < &y`) for globals `x` and `y`.
 pub fn compareExtra(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) ?bool {
     if (op == .eq) {
         return lhs.opt_ref == rhs.opt_ref;

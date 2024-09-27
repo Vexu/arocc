@@ -527,6 +527,12 @@ unknown_warning
     .opt = W("unknown-warning-option")
     .kind = .warning
 
+array_overflow
+    .msg = "{s}"
+    .extra = .str
+    .opt = W("array-bounds")
+    .kind = .warning
+
 overflow
     .msg = "overflow in expression; result is '{s}'"
     .extra = .str

@@ -26,6 +26,7 @@ const Symbol = SymbolStack.Symbol;
 const record_layout = @import("record_layout.zig");
 const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
+const GlobalVarOffset = @import("backend").Interner.Key.GlobalVarOffset;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const evalBuiltin = @import("Builtins/eval.zig").eval;
@@ -375,6 +376,24 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
 
 fn errOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
     try p.errStr(.overflow, op_tok, try res.str(p));
+}
+
+fn errArrayOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    const w = p.strings.writer();
+    const format =
+        \\The pointer incremented by {s} refers past the last possible element in {d}-bit address space containing {d}-bit ({d}-byte) elements (max possible {d} elements)
+    ;
+    const increment = try res.str(p);
+    const ptr_bits = p.comp.types.intptr.bitSizeof(p.comp).?;
+    const element_size = res.ty.elemType().sizeof(p.comp) orelse 1;
+    const max_elems = p.comp.maxArrayBytes() / element_size;
+
+    try w.print(format, .{ increment, ptr_bits, element_size * 8, element_size, max_elems });
+    const duped = try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    return p.errStr(.array_overflow, op_tok, duped);
 }
 
 fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
@@ -6669,8 +6688,13 @@ fn addExpr(p: *Parser) Error!Result {
         const lhs_ty = lhs.ty;
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
-                if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp) and
-                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(plus.?, lhs);
+                if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp)) {
+                    if (lhs.ty.isPtr()) {
+                        try p.errArrayOverflow(plus.?, lhs);
+                    } else if (lhs.ty.signedness(p.comp) != .unsigned) {
+                        try p.errOverflow(plus.?, lhs);
+                    }
+                }
             } else {
                 if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, rhs.ty, p.comp) and
                     lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(minus.?, lhs);
@@ -7029,12 +7053,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
-const Reloc = struct {
-    global: StringId,
-    offset: i64,
-};
-
-fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !Reloc {
+fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !GlobalVarOffset {
     const tys = p.nodes.items(.ty);
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
@@ -7051,7 +7070,7 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !Reloc {
         .paren_expr => return p.computeOffsetExtra(data[@intFromEnum(node)].un, offset_so_far),
         .decl_ref_expr => {
             const var_name = try p.comp.internString(p.tokSlice(data[@intFromEnum(node)].decl_ref));
-            return .{ .global = var_name, .offset = offset_so_far };
+            return .{ .name = var_name, .offset = offset_so_far };
         },
         .array_access_expr => {
             const bin_data = data[@intFromEnum(node)].bin;
@@ -7073,7 +7092,8 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !Reloc {
     }
 }
 
-fn computeOffset(p: *Parser, node: NodeIndex) !Reloc {
+/// Compute the offset (in bytes) of an expression from a base pointer.
+fn computeOffset(p: *Parser, node: NodeIndex) !GlobalVarOffset {
     return p.computeOffsetExtra(node, 0);
 }
 
@@ -7134,14 +7154,14 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.addr_of_rvalue, tok);
             } else if (operand_ty_valid and p.func.ty == null) {
                 // address of global
-                const reloc: Reloc = p.computeOffset(operand.node) catch |e| switch (e) {
+                const reloc: GlobalVarOffset = p.computeOffset(operand.node) catch |e| switch (e) {
                     error.InvalidReloc => blk: {
                         try p.errTok(.non_constant_initializer, ampersand_tok);
-                        break :blk .{ .global = .empty, .offset = 0 };
+                        break :blk .{ .name = .empty, .offset = 0 };
                     },
                     else => |er| return er,
                 };
-                addr_val = try Value.reloc(reloc.global, reloc.offset, p.comp);
+                addr_val = try Value.reloc(reloc, p.comp);
             }
             if (operand.ty.qual.register) try p.errTok(.addr_of_register, tok);
 
