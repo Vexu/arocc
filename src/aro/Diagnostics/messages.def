@@ -2165,6 +2165,12 @@ auto_type_extension
     .kind = .off
     .pedantic = true
 
+gnu_pointer_arith
+    .msg = "arithmetic on pointers to void is a GNU extension"
+    .opt = W("gnu-pointer-arith")
+    .kind = .off
+    .pedantic = true
+
 auto_type_not_allowed
     .msg = "'__auto_type' not allowed in {s}"
     .kind = .@"error"
