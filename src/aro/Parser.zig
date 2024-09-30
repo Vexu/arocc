@@ -5504,8 +5504,7 @@ pub const Result = struct {
                 // if both aren't arithmetic then either both should be pointers or just a
                 if (!a_ptr or !(b_ptr or b_int)) return a.invalidBinTy(tok, b, p);
 
-                if ((a.ty.isVoidStar() or b.ty.isVoidStar()) and
-                    (p.comp.diagnostics.options.@"gnu-pointer-arith" == .warning or p.comp.diagnostics.options.pedantic == .warning))
+                if (a.ty.isVoidStar() or b.ty.isVoidStar())
                     try p.errTok(.gnu_pointer_arith, tok);
 
                 if (a_ptr and b_ptr) {
