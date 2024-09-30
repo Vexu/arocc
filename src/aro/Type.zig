@@ -535,13 +535,6 @@ pub fn isPtr(ty: Type) bool {
     };
 }
 
-pub fn isPtrTo(ty: Type, specifier: Specifier) bool {
-    return switch (ty.specifier) {
-        .pointer => ty.data.sub_type.specifier == specifier,
-        else => false,
-    };
-}
-
 pub fn isInt(ty: Type) bool {
     return switch (ty.specifier) {
         // zig fmt: off
