@@ -196,6 +196,7 @@ pub const Options = struct {
     @"pointer-bool-conversion": Kind = .default,
     @"string-conversion": Kind = .default,
     @"gnu-auto-type": Kind = .default,
+    @"gnu-pointer-arith": Kind = .default,
     @"gnu-union-cast": Kind = .default,
     @"pointer-sign": Kind = .default,
     @"fuse-ld-path": Kind = .default,

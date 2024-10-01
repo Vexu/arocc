@@ -5492,6 +5492,9 @@ pub const Result = struct {
                 // if both aren't arithmetic one should be pointer and the other an integer
                 if (a_ptr == b_ptr or a_int == b_int) return a.invalidBinTy(tok, b, p);
 
+                if (a.ty.isVoidStar() or b.ty.isVoidStar())
+                    try p.errTok(.gnu_pointer_arith, tok);
+
                 // Do integer promotions but nothing else
                 if (a_int) try a.intCast(p, a.ty.integerPromotion(p.comp), tok);
                 if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp), tok);
@@ -5503,6 +5506,9 @@ pub const Result = struct {
             .sub => {
                 // if both aren't arithmetic then either both should be pointers or just a
                 if (!a_ptr or !(b_ptr or b_int)) return a.invalidBinTy(tok, b, p);
+
+                if (a.ty.isVoidStar())
+                    try p.errTok(.gnu_pointer_arith, tok);
 
                 if (a_ptr and b_ptr) {
                     if (!a.ty.eql(b.ty, p.comp, false)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.ty, b.ty));
@@ -7150,6 +7156,8 @@ fn unExpr(p: *Parser) Error!Result {
 
             var operand = try p.castExpr();
             try operand.expect(p);
+            if (operand.ty.isVoidStar())
+                try p.errTok(.gnu_pointer_arith, tok);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
             if (operand.ty.isComplex())
@@ -7176,6 +7184,8 @@ fn unExpr(p: *Parser) Error!Result {
 
             var operand = try p.castExpr();
             try operand.expect(p);
+            if (operand.ty.isVoidStar())
+                try p.errTok(.gnu_pointer_arith, tok);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
             if (operand.ty.isComplex())
@@ -7475,6 +7485,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             defer p.tok_i += 1;
 
             var operand = lhs;
+            if (operand.ty.isVoidStar())
+                try p.errTok(.gnu_pointer_arith, p.tok_i);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
             if (operand.ty.isComplex())
@@ -7493,6 +7505,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             defer p.tok_i += 1;
 
             var operand = lhs;
+            if (operand.ty.isVoidStar())
+                try p.errTok(.gnu_pointer_arith, p.tok_i);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, p.tok_i, try p.typeStr(operand.ty));
             if (operand.ty.isComplex())
