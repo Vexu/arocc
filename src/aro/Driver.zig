@@ -23,6 +23,17 @@ pub const Linker = enum {
     mold,
 };
 
+const pic_related_options = StaticStringSet.initComptime(.{
+    .{"-fpic"},
+    .{"-fno-pic"},
+    .{"-fPIC"},
+    .{"-fno-PIC"},
+    .{"-fpie"},
+    .{"-fno-pie"},
+    .{"-fPIE"},
+    .{"-fno-PIE"},
+});
+
 const Driver = @This();
 
 comp: *Compilation,
@@ -48,6 +59,9 @@ color: ?bool = null,
 nobuiltininc: bool = false,
 nostdinc: bool = false,
 nostdlibinc: bool = false,
+apple_kext: bool = false,
+mkernel: bool = false,
+mabicalls: ?bool = null,
 debug_dump_letters: packed struct(u3) {
     d: bool = false,
     m: bool = false,
@@ -112,6 +126,7 @@ pub const usage =
     \\  -dN                     Like -dD, but emit only the macro names, not their expansions.
     \\  -D <macro>=<value>      Define <macro> to <value> (defaults to 1)
     \\  -E                      Only run the preprocessor
+    \\  -fapple-kext            Use Apple's kernel extensions ABI
     \\  -fchar8_t               Enable char8_t (enabled by default in C23 and later)
     \\  -fno-char8_t            Disable char8_t (disabled by default for pre-C23)
     \\  -fcolor-diagnostics     Enable colors in diagnostics
@@ -156,6 +171,9 @@ pub const usage =
     \\  -isystem                Add directory to SYSTEM include search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
+    \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
+    \\  -mno-abicalls           Disable SVR4-style position-independent code (Mips only)
+    \\  -mkernel                Enable kernel development mode
     \\  -nobuiltininc           Do not search the compiler's builtin directory for include files
     \\  -nostdinc, --no-standard-includes
     \\                          Do not search the standard system directories or compiler builtin directories for include files.
@@ -214,6 +232,7 @@ pub fn parseArgs(
     var comment_arg: []const u8 = "";
     var hosted: ?bool = null;
     var gnuc_version: []const u8 = "4.2.1"; // default value set by clang
+    var lastpic_pos: ?usize = null;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
@@ -272,6 +291,14 @@ pub fn parseArgs(
                 d.use_line_directives = true;
             } else if (mem.eql(u8, arg, "-fno-use-line-directives")) {
                 d.use_line_directives = false;
+            } else if (mem.eql(u8, arg, "-fapple-kext")) {
+                d.apple_kext = true;
+            } else if (mem.eql(u8, arg, "-mkernel")) {
+                d.mkernel = true;
+            } else if (mem.eql(u8, arg, "-mabicalls")) {
+                d.mabicalls = true;
+            } else if (mem.eql(u8, arg, "-mno-abicalls")) {
+                d.mabicalls = false;
             } else if (mem.eql(u8, arg, "-fchar8_t")) {
                 d.comp.langopts.has_char8_t_override = true;
             } else if (mem.eql(u8, arg, "-fno-char8_t")) {
@@ -308,16 +335,8 @@ pub fn parseArgs(
                 d.comp.langopts.use_native_half_type = true;
             } else if (mem.eql(u8, arg, "-fnative-half-arguments-and-returns")) {
                 d.comp.langopts.allow_half_args_and_returns = true;
-            } else if (mem.eql(u8, arg, "-fno-pic") or mem.eql(u8, arg, "-fno-PIC") or mem.eql(u8, arg, "-fno-pie") or mem.eql(u8, arg, "-fno-PIE")) {
-                //
-            } else if (mem.eql(u8, arg, "-fpic")) {
-                //
-            } else if (mem.eql(u8, arg, "-fPIC")) {
-                //
-            } else if (mem.eql(u8, arg, "-fpie")) {
-                //
-            } else if (mem.eql(u8, arg, "-fPIE")) {
-                //
+            } else if (pic_related_options.has(arg)) {
+                lastpic_pos = i;
             } else if (mem.eql(u8, arg, "-fshort-enums")) {
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {
@@ -528,7 +547,7 @@ pub fn parseArgs(
         return d.fatal("invalid value '{0s}' in '-fgnuc-version={0s}'", .{gnuc_version});
     }
     d.comp.langopts.gnuc_version = version.toUnsigned();
-    const pic_level, const is_pie = try d.getPICMode(args);
+    const pic_level, const is_pie = try d.getPICMode(args, if (lastpic_pos != null) args[lastpic_pos.?] else "");
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
     return false;
@@ -562,7 +581,7 @@ pub fn warn(d: *Driver, msg: []const u8) !void {
 pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) !void {
     try d.err(try std.fmt.allocPrint(
         d.comp.diagnostics.arena.allocator(),
-        "unsupported option '{s}' for target '{s}'",
+        "unsupported option '{s}' for target '{s}'\n",
         .{ opt, try target.linuxTriple(d.comp.diagnostics.arena.allocator()) },
     ));
 }
@@ -898,8 +917,11 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
     std.process.exit(code);
 }
 
-/// This currently just returns the desired settings without considering target defaults / requirements
-pub fn getPICMode(d: *Driver, args: []const []const u8) !struct { backend.CodeGenOptions.PicLevel, bool } {
+/// Parses the various -fpic/-fPIC/-fpie/-fPIE arguments.
+/// Then, smooshes them together with platform defaults, to decide whether
+/// this compile should be using PIC mode or not.
+/// Returns a tuple of ( backend.CodeGenOptions.PicLevel, IsPIE).
+pub fn getPICMode(d: *Driver, args: []const []const u8, lastpic: []const u8) !struct { backend.CodeGenOptions.PicLevel, bool } {
     const eqlIgnoreCase = std.ascii.eqlIgnoreCase;
 
     const target = d.comp.target;
@@ -931,10 +953,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) !struct { backend.CodeGe
     }
     var is_piclevel_two = pic;
 
-    const kernel_or_kext: bool = hasArg(args, StaticStringSet.initComptime(.{
-        .{"-mkernel"},
-        .{"-fapple_kext"},
-    }));
+    const kernel_or_kext: bool = d.mkernel or d.apple_kext;
 
     // Android-specific defaults for PIC/PIE
     if (target.isAndroid()) {
@@ -975,22 +994,12 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) !struct { backend.CodeGe
     // other argument is used. If the last argument is any flavor of the
     // '-fno-...' arguments, both PIC and PIE are disabled. Any PIE
     // option implicitly enables PIC at the same level.
-    const lastpic_arg_idx = getLastArg(args, StaticStringSet.initComptime(.{
-        .{"-fpic"},
-        .{"-fno-pic"},
-        .{"-fPIC"},
-        .{"-fno-PIC"},
-        .{"-fpie"},
-        .{"-fno-pie"},
-        .{"-fPIE"},
-        .{"-fno-PIE"},
-    }));
     if (target.os.tag == .windows and
         !target_util.isCygwinMinGW(target) and
-        lastpic_arg_idx != null and
-        lastpic_arg_idx == getLastArg(args, StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} })))
+        // d.lastpic_pos != null and
+        StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} }).has(lastpic))
     {
-        try d.unsupportedOptionForTarget(target, args[lastpic_arg_idx.?]);
+        try d.unsupportedOptionForTarget(target, lastpic);
         if (target.cpu.arch == .x86_64)
             return .{ .two, false };
         return .{ .none, false };
@@ -1004,25 +1013,22 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) !struct { backend.CodeGe
         .depends_on_linker => if (is_bfd_linker) target.cpu.arch == .x86_64 else target.cpu.arch == .aarch64 or target.cpu.arch == .x86_64,
     };
     if (!forced) {
-        if (lastpic_arg_idx) |idx| {
-            const arg = args[idx];
-            if (isOneOf(arg, StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} }))) {
-                pie = isOneOf(arg, StaticStringSet.initComptime(.{ .{"-fpie"}, .{"-fPIE"} }));
-                pic = pie or isOneOf(arg, StaticStringSet.initComptime(.{ .{"-fpic"}, .{"-fPIC"} }));
-                is_piclevel_two = isOneOf(arg, StaticStringSet.initComptime(.{ .{"-fPIE"}, .{"-fPIC"} }));
-            } else {
-                pic, pie = .{ false, false };
-                if (target_util.isPS(target)) {
-                    const model_arg = getLastArgValue(args, "-mcmodel=");
-                    const model = model_arg orelse "";
-                    if (!std.mem.eql(u8, model, "kernel")) {
-                        pic = true;
-                        try d.warn(try std.fmt.allocPrint(
-                            d.comp.diagnostics.arena.allocator(),
-                            "option '{s}' was ignored by the {s} toolchain, using '-fPIC'",
-                            .{ arg, if (target.os.tag == .ps4) "PS4" else "PS5" },
-                        ));
-                    }
+        if (StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} }).has(lastpic)) {
+            pie = StaticStringSet.initComptime(.{ .{"-fpie"}, .{"-fPIE"} }).has(lastpic);
+            pic = pie or StaticStringSet.initComptime(.{ .{"-fpic"}, .{"-fPIC"} }).has(lastpic);
+            is_piclevel_two = StaticStringSet.initComptime(.{ .{"-fPIE"}, .{"-fPIC"} }).has(lastpic);
+        } else {
+            pic, pie = .{ false, false };
+            if (target_util.isPS(target)) {
+                const model_arg = getLastArgValue(args, "-mcmodel=");
+                const model = model_arg orelse "";
+                if (!std.mem.eql(u8, model, "kernel")) {
+                    pic = true;
+                    try d.warn(try std.fmt.allocPrint(
+                        d.comp.diagnostics.arena.allocator(),
+                        "option '{s}' was ignored by the {s} toolchain, using '-fPIC'\n",
+                        .{ lastpic, if (target.os.tag == .ps4) "PS4" else "PS5" },
+                    ));
                 }
             }
         }
@@ -1094,7 +1100,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) !struct { backend.CodeGe
             pic = true;
 
         // When targettng MIPS with -mno-abicalls, it's always static.
-        if (hasArg(args, StaticStringSet.initComptime(.{.{"-mno-abicalls"}})))
+        if (!d.mabicalls.?)
             return .{ .none, false };
 
         // Unlike other architectures, MIPS, even with -fPIC/-mxgot/multigot,
@@ -1104,10 +1110,6 @@ pub fn getPICMode(d: *Driver, args: []const []const u8) !struct { backend.CodeGe
 
     if (pic) return .{ if (is_piclevel_two) .two else .one, pie };
     return .{ .none, false };
-}
-
-fn hasArg(args: []const []const u8, options: StaticStringSet) bool {
-    return getLastArg(args, options) != null;
 }
 
 fn getLastArgValue(args: []const []const u8, option_name: []const u8) ?[]const u8 {
@@ -1124,8 +1126,4 @@ fn getLastArg(args: []const []const u8, options: StaticStringSet) ?usize {
         if (options.has(arg)) last_index = i;
     }
     return last_index;
-}
-
-fn isOneOf(arg: []const u8, options: StaticStringSet) bool {
-    return options.has(arg);
 }
