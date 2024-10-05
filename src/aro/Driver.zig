@@ -602,7 +602,7 @@ pub fn warn(d: *Driver, msg: []const u8) !void {
 pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) !void {
     try d.err(try std.fmt.allocPrint(
         d.comp.diagnostics.arena.allocator(),
-        "unsupported option '{s}' for target '{s}'\n",
+        "unsupported option '{s}' for target '{s}'",
         .{ opt, try target.linuxTriple(d.comp.diagnostics.arena.allocator()) },
     ));
 }
@@ -1045,7 +1045,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOpti
                     pic = true;
                     try d.warn(try std.fmt.allocPrint(
                         d.comp.diagnostics.arena.allocator(),
-                        "option '{s}' was ignored by the {s} toolchain, using '-fPIC'\n",
+                        "option '{s}' was ignored by the {s} toolchain, using '-fPIC'",
                         .{ lastpic, if (target.os.tag == .ps4) "PS4" else "PS5" },
                     ));
                 }
@@ -1096,7 +1096,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOpti
 
     // ROPI and RWPI are not compatible with PIC or PIE.
     if ((ropi or rwpi) and (pic or pie)) {
-        //TODO: diag error
+        try d.err("embedded and GOT-based position independence are incompatible");
     }
 
     if (target_util.isMIPS(target)) {
