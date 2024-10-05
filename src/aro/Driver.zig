@@ -232,7 +232,7 @@ pub fn parseArgs(
     var comment_arg: []const u8 = "";
     var hosted: ?bool = null;
     var gnuc_version: []const u8 = "4.2.1"; // default value set by clang
-    var lastpic_pos: ?usize = null;
+    var pic_arg: []const u8 = "";
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
@@ -336,7 +336,7 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fnative-half-arguments-and-returns")) {
                 d.comp.langopts.allow_half_args_and_returns = true;
             } else if (pic_related_options.has(arg)) {
-                lastpic_pos = i;
+                pic_arg = arg;
             } else if (mem.eql(u8, arg, "-fshort-enums")) {
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {
@@ -547,7 +547,7 @@ pub fn parseArgs(
         return d.fatal("invalid value '{0s}' in '-fgnuc-version={0s}'", .{gnuc_version});
     }
     d.comp.langopts.gnuc_version = version.toUnsigned();
-    const pic_level, const is_pie = try d.getPICMode(args, if (lastpic_pos != null) args[lastpic_pos.?] else "");
+    const pic_level, const is_pie = try d.getPICMode(args, pic_arg);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
     return false;
@@ -996,8 +996,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8, lastpic: []const u8) !st
     // option implicitly enables PIC at the same level.
     if (target.os.tag == .windows and
         !target_util.isCygwinMinGW(target) and
-        // d.lastpic_pos != null and
-        StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} }).has(lastpic))
+        (eqlIgnoreCase(lastpic, "-fpic") or eqlIgnoreCase(lastpic, "-fpie"))) // -fpic/-fPIC, -fpie/-fPIE
     {
         try d.unsupportedOptionForTarget(target, lastpic);
         if (target.cpu.arch == .x86_64)
@@ -1013,10 +1012,11 @@ pub fn getPICMode(d: *Driver, args: []const []const u8, lastpic: []const u8) !st
         .depends_on_linker => if (is_bfd_linker) target.cpu.arch == .x86_64 else target.cpu.arch == .aarch64 or target.cpu.arch == .x86_64,
     };
     if (!forced) {
-        if (StaticStringSet.initComptime(.{ .{"-fPIC"}, .{"-fpic"}, .{"-fpie"}, .{"-fPIE"} }).has(lastpic)) {
-            pie = StaticStringSet.initComptime(.{ .{"-fpie"}, .{"-fPIE"} }).has(lastpic);
-            pic = pie or StaticStringSet.initComptime(.{ .{"-fpic"}, .{"-fPIC"} }).has(lastpic);
-            is_piclevel_two = StaticStringSet.initComptime(.{ .{"-fPIE"}, .{"-fPIC"} }).has(lastpic);
+        // -fpic/-fPIC, -fpie/-fPIE
+        if (eqlIgnoreCase(lastpic, "-fpic") or eqlIgnoreCase(lastpic, "-fpie")) {
+            pie = eqlIgnoreCase(lastpic, "-fpie");
+            pic = pie or eqlIgnoreCase(lastpic, "-fpic");
+            is_piclevel_two = mem.eql(u8, lastpic, "-fPIE") or mem.eql(u8, lastpic, "-fPIC");
         } else {
             pic, pie = .{ false, false };
             if (target_util.isPS(target)) {
