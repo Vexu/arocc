@@ -8506,7 +8506,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         return res;
     }
     const interned_val = try Value.int(val, p.comp);
-    if (suffix.isSignedInteger()) {
+    if (suffix.isSignedInteger() and base == 10) {
         const max_int = try Value.maxInt(p.comp.types.intmax, p.comp);
         if (interned_val.compare(.gt, max_int, p.comp)) {
             try p.errTok(.implicitly_unsigned_literal, tok_i);
