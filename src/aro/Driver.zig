@@ -62,6 +62,7 @@ nostdlibinc: bool = false,
 apple_kext: bool = false,
 mkernel: bool = false,
 mabicalls: ?bool = null,
+dynamic_nopic: ?bool = null,
 debug_dump_letters: packed struct(u3) {
     d: bool = false,
     m: bool = false,
@@ -295,6 +296,8 @@ pub fn parseArgs(
                 d.apple_kext = true;
             } else if (mem.eql(u8, arg, "-mkernel")) {
                 d.mkernel = true;
+            } else if (mem.eql(u8, arg, "-mdynamic-no-pic")) {
+                d.dynamic_nopic = true;
             } else if (mem.eql(u8, arg, "-mabicalls")) {
                 d.mabicalls = true;
             } else if (mem.eql(u8, arg, "-mno-abicalls")) {
@@ -1049,10 +1052,9 @@ pub fn getPICMode(d: *Driver, args: []const []const u8, lastpic: []const u8) !st
         pie, pic = .{ false, false };
     }
 
-    const arg_idx = getLastArg(args, StaticStringSet.initComptime(.{.{"-mdynamic-no-pic"}}));
-    if (arg_idx) |idx| {
+    if (d.dynamic_nopic) |_| {
         if (!target.isDarwin()) {
-            try d.unsupportedOptionForTarget(target, args[idx]);
+            try d.unsupportedOptionForTarget(target, "-mdynamic-no-pic");
         }
         pic = is_pic_default or forced;
         return .{ if (pic) .two else .none, false };
