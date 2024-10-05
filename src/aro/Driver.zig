@@ -65,6 +65,7 @@ mabicalls: ?bool = null,
 dynamic_nopic: ?bool = null,
 ropi: ?bool = null,
 rwpi: ?bool = null,
+cmodel: []const u8 = "",
 debug_dump_letters: packed struct(u3) {
     d: bool = false,
     m: bool = false,
@@ -180,6 +181,7 @@ pub const usage =
     \\                          Select which C compiler to emulate (default clang)
     \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
     \\  -mno-abicalls           Disable SVR4-style position-independent code (Mips only)
+    \\  -mcmodel=<code-model>   Generate code for the given code model
     \\  -mkernel                Enable kernel development mode
     \\  -nobuiltininc           Do not search the compiler's builtin directory for include files
     \\  -nostdinc, --no-standard-includes
@@ -300,6 +302,8 @@ pub fn parseArgs(
                 d.use_line_directives = false;
             } else if (mem.eql(u8, arg, "-fapple-kext")) {
                 d.apple_kext = true;
+            } else if (option(arg, "-mcmodel=")) |cmodel| {
+                d.cmodel = cmodel;
             } else if (mem.eql(u8, arg, "-mkernel")) {
                 d.mkernel = true;
             } else if (mem.eql(u8, arg, "-mdynamic-no-pic")) {
@@ -564,7 +568,7 @@ pub fn parseArgs(
         return d.fatal("invalid value '{0s}' in '-fgnuc-version={0s}'", .{gnuc_version});
     }
     d.comp.langopts.gnuc_version = version.toUnsigned();
-    const pic_level, const is_pie = try d.getPICMode(args, pic_arg);
+    const pic_level, const is_pie = try d.getPICMode(pic_arg);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
     return false;
@@ -938,7 +942,7 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
 /// Then, smooshes them together with platform defaults, to decide whether
 /// this compile should be using PIC mode or not.
 /// Returns a tuple of ( backend.CodeGenOptions.PicLevel, IsPIE).
-pub fn getPICMode(d: *Driver, args: []const []const u8, lastpic: []const u8) !struct { backend.CodeGenOptions.PicLevel, bool } {
+pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOptions.PicLevel, bool } {
     const eqlIgnoreCase = std.ascii.eqlIgnoreCase;
 
     const target = d.comp.target;
@@ -1037,9 +1041,7 @@ pub fn getPICMode(d: *Driver, args: []const []const u8, lastpic: []const u8) !st
         } else {
             pic, pie = .{ false, false };
             if (target_util.isPS(target)) {
-                const model_arg = getLastArgValue(args, "-mcmodel=");
-                const model = model_arg orelse "";
-                if (!std.mem.eql(u8, model, "kernel")) {
+                if (!mem.eql(u8, d.cmodel, "kernel")) {
                     pic = true;
                     try d.warn(try std.fmt.allocPrint(
                         d.comp.diagnostics.arena.allocator(),
@@ -1116,12 +1118,4 @@ pub fn getPICMode(d: *Driver, args: []const []const u8, lastpic: []const u8) !st
 
     if (pic) return .{ if (is_piclevel_two) .two else .one, pie };
     return .{ .none, false };
-}
-
-fn getLastArgValue(args: []const []const u8, option_name: []const u8) ?[]const u8 {
-    var option_value: ?[]const u8 = null;
-    for (args) |arg| {
-        option_value = option(arg, option_name);
-    }
-    return option_value;
 }
