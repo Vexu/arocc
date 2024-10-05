@@ -63,6 +63,8 @@ apple_kext: bool = false,
 mkernel: bool = false,
 mabicalls: ?bool = null,
 dynamic_nopic: ?bool = null,
+ropi: ?bool = null,
+rwpi: ?bool = null,
 debug_dump_letters: packed struct(u3) {
     d: bool = false,
     m: bool = false,
@@ -158,6 +160,10 @@ pub const usage =
     \\  -fPIC                   Similar to -fpic but avoid any limit on the size of the global offset table
     \\  -fpie                   Similar to -fpic, but the generated position-independent code can only be linked into executables
     \\  -fPIE                   Similar to -fPIC, but the generated position-independent code can only be linked into executables
+    \\  -frwpi                  Generate read-write position independent code (ARM only)  
+    \\  -fno-rwpi               Disable generate read-write position independent code (ARM only). 
+    \\  -fropi                  Generate read-only position independent code (ARM only)  
+    \\  -fno-ropi               Disable generate read-only position independent code (ARM only). 
     \\  -fshort-enums           Use the narrowest possible integer type for enums
     \\  -fno-short-enums        Use "int" as the tag type for enums
     \\  -fsigned-char           "char" is signed
@@ -340,6 +346,14 @@ pub fn parseArgs(
                 d.comp.langopts.allow_half_args_and_returns = true;
             } else if (pic_related_options.has(arg)) {
                 pic_arg = arg;
+            } else if (mem.eql(u8, arg, "-fropi")) {
+                d.ropi = true;
+            } else if (mem.eql(u8, arg, "-fno-ropi")) {
+                d.ropi = false;
+            } else if (mem.eql(u8, arg, "-frwpi")) {
+                d.rwpi = true;
+            } else if (mem.eql(u8, arg, "-fno-rwpi")) {
+                d.rwpi = false;
             } else if (mem.eql(u8, arg, "-fshort-enums")) {
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {
@@ -1067,25 +1081,15 @@ pub fn getPICMode(d: *Driver, args: []const []const u8, lastpic: []const u8) !st
     }
 
     var ropi = false;
-    const last_ropi_arg = getLastArg(args, StaticStringSet.initComptime(.{ .{"-fropi"}, .{"-fno-ropi"} }));
-    if (last_ropi_arg) |idx| {
-        if (std.mem.eql(u8, args[idx], "-fropi")) {
-            if (!embedded_pi_supported) {
-                try d.unsupportedOptionForTarget(target, args[idx]);
-            }
-            ropi = true;
-        }
+    if (d.ropi) |_| {
+        if (!embedded_pi_supported) try d.unsupportedOptionForTarget(target, "-fropi");
+        ropi = true;
     }
 
     var rwpi = false;
-    const last_rwpi_arg = getLastArg(args, StaticStringSet.initComptime(.{ .{"-frwpi"}, .{"-fno-rwpi"} }));
-    if (last_rwpi_arg) |idx| {
-        if (std.mem.eql(u8, args[idx], "-frwpi")) {
-            if (!embedded_pi_supported) {
-                try d.unsupportedOptionForTarget(target, args[idx]);
-            }
-            rwpi = true;
-        }
+    if (d.rwpi) |_| {
+        if (!embedded_pi_supported) try d.unsupportedOptionForTarget(target, "-frwpi");
+        rwpi = true;
     }
 
     // ROPI and RWPI are not compatible with PIC or PIE.
@@ -1120,12 +1124,4 @@ fn getLastArgValue(args: []const []const u8, option_name: []const u8) ?[]const u
         option_value = option(arg, option_name);
     }
     return option_value;
-}
-
-fn getLastArg(args: []const []const u8, options: StaticStringSet) ?usize {
-    var last_index: ?usize = null;
-    for (args, 0..) |arg, i| {
-        if (options.has(arg)) last_index = i;
-    }
-    return last_index;
 }
