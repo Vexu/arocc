@@ -484,6 +484,8 @@ pub fn get32BitArchVariant(target: std.Target) ?std.Target {
         .spirv32,
         .loongarch32,
         .xtensa,
+        .propeller1,
+        .propeller2,
         => {}, // Already 32 bit
 
         .aarch64 => copy.cpu.arch = .arm,
@@ -517,6 +519,8 @@ pub fn get64BitArchVariant(target: std.Target) ?std.Target {
         .spu_2,
         .xcore,
         .xtensa,
+        .propeller1,
+        .propeller2,
         => return null,
 
         .aarch64,
@@ -614,6 +618,9 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .ve => "ve",
         // Note: spu_2 is not supported in LLVM; this is the Zig arch name
         .spu_2 => "spu_2",
+        // Note: propeller1 and propeller2 are not supported in LLVM; this is the Zig arch name
+        .propeller1 => "propeller1",
+        .propeller2 => "propeller2",
     };
     writer.writeAll(llvm_arch) catch unreachable;
     writer.writeByte('-') catch unreachable;
