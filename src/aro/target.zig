@@ -753,7 +753,6 @@ pub fn isPIEDefault(target: std.Target) DefaultPIStatus {
 
         .hurd,
         .zos,
-        .shadermodel,
         => .no,
 
         .openbsd,
@@ -821,7 +820,6 @@ pub fn isPICdefault(target: std.Target) DefaultPIStatus {
         .fuchsia,
         .cuda,
         .zos,
-        .shadermodel,
         => .no,
 
         .dragonfly,
@@ -898,7 +896,6 @@ pub fn isPICDefaultForced(target: std.Target) DefaultPIStatus {
         .elfiamcu,
         .fuchsia,
         .zos,
-        .shadermodel,
         => .no,
 
         .windows => {
