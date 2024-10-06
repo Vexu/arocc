@@ -6603,7 +6603,11 @@ fn eqExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const op: std.math.CompareOperator = if (tag == .equal_expr) .eq else .neq;
-            const res = lhs.val.compareExtra(op, rhs.val, p.comp);
+            const res: ?bool = if (lhs.ty.isPtr() or rhs.ty.isPtr())
+                lhs.val.comparePointers(op, rhs.val, p.comp)
+            else
+                lhs.val.compare(op, rhs.val, p.comp);
+
             lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
@@ -6634,7 +6638,10 @@ fn compExpr(p: *Parser) Error!Result {
                 .greater_than_equal_expr => .gte,
                 else => unreachable,
             };
-            const res = lhs.val.compareExtra(op, rhs.val, p.comp);
+            const res: ?bool = if (lhs.ty.isPtr() or rhs.ty.isPtr())
+                lhs.val.comparePointers(op, rhs.val, p.comp)
+            else
+                lhs.val.compare(op, rhs.val, p.comp);
             lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);

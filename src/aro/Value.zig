@@ -626,7 +626,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *C
         var total_offset: Value = undefined;
         const mul_overflow = try total_offset.mul(elem_size, rhs, comp.types.ptrdiff, comp);
         const old_offset = try int(rel.offset, comp);
-        const add_overflow = try total_offset.sub(total_offset, old_offset, comp.types.ptrdiff, undefined, comp);
+        const add_overflow = try total_offset.sub(old_offset, total_offset, comp.types.ptrdiff, undefined, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
         res.* = try reloc(.{ .name = rel.name, .offset = total_offset.toInt(i64, comp).? }, comp);
         return mul_overflow or add_overflow;
@@ -961,13 +961,17 @@ pub fn complexConj(val: Value, ty: Type, comp: *Compilation) !Value {
     return intern(comp, .{ .complex = cf });
 }
 
-/// Returns null for values that cannot be compared at compile time (e.g. `&x < &y`) for globals `x` and `y`.
-pub fn compareExtra(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) ?bool {
+fn shallowCompare(lhs: Value, op: std.math.CompareOperator, rhs: Value) ?bool {
     if (op == .eq) {
         return lhs.opt_ref == rhs.opt_ref;
     } else if (lhs.opt_ref == rhs.opt_ref) {
         return std.math.Order.eq.compare(op);
     }
+    return null;
+}
+
+pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) bool {
+    if (lhs.shallowCompare(op, rhs)) |val| return val;
 
     const lhs_key = comp.interner.get(lhs.ref());
     const rhs_key = comp.interner.get(rhs.ref());
@@ -982,6 +986,21 @@ pub fn compareExtra(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: 
         const imag_equal = std.math.compare(lhs.imag(f128, comp), .eq, rhs.imag(f128, comp));
         return !real_equal or !imag_equal;
     }
+
+    var lhs_bigint_space: BigIntSpace = undefined;
+    var rhs_bigint_space: BigIntSpace = undefined;
+    const lhs_bigint = lhs.toBigInt(&lhs_bigint_space, comp);
+    const rhs_bigint = rhs.toBigInt(&rhs_bigint_space, comp);
+    return lhs_bigint.order(rhs_bigint).compare(op);
+}
+
+/// Returns null for values that cannot be compared at compile time (e.g. `&x < &y`) for globals `x` and `y`.
+pub fn comparePointers(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) ?bool {
+    if (lhs.shallowCompare(op, rhs)) |val| return val;
+
+    const lhs_key = comp.interner.get(lhs.ref());
+    const rhs_key = comp.interner.get(rhs.ref());
+
     if (lhs_key == .global_var_offset and rhs_key == .global_var_offset) {
         const lhs_reloc = lhs_key.global_var_offset;
         const rhs_reloc = rhs_key.global_var_offset;
@@ -992,19 +1011,8 @@ pub fn compareExtra(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: 
         }
 
         return std.math.compare(lhs_reloc.offset, op, rhs_reloc.offset);
-    } else if (lhs_key == .global_var_offset or rhs_key == .global_var_offset) {
-        return null;
     }
-
-    var lhs_bigint_space: BigIntSpace = undefined;
-    var rhs_bigint_space: BigIntSpace = undefined;
-    const lhs_bigint = lhs.toBigInt(&lhs_bigint_space, comp);
-    const rhs_bigint = rhs.toBigInt(&rhs_bigint_space, comp);
-    return lhs_bigint.order(rhs_bigint).compare(op);
-}
-
-pub fn compare(lhs: Value, op: std.math.CompareOperator, rhs: Value, comp: *const Compilation) bool {
-    return lhs.compareExtra(op, rhs, comp).?;
+    return null;
 }
 
 fn twosCompIntLimit(limit: std.math.big.int.TwosCompIntLimit, ty: Type, comp: *Compilation) !Value {
