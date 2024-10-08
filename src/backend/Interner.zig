@@ -1,5 +1,4 @@
 const std = @import("std");
-const StringId = @import("StringInterner.zig").StringId;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const BigIntConst = std.math.big.int.Const;
@@ -66,7 +65,7 @@ pub const Key = union(enum) {
     float: Float,
     complex: Complex,
     bytes: []const u8,
-    global_var_offset: GlobalVarOffset,
+    pointer: Pointer,
 
     pub const Float = union(enum) {
         f16: f16,
@@ -82,8 +81,9 @@ pub const Key = union(enum) {
         cf80: [2]f80,
         cf128: [2]f128,
     };
-    pub const GlobalVarOffset = struct {
-        name: StringId,
+    pub const Pointer = struct {
+        /// NodeIndex of decl whose address we are offsetting from
+        decl: u32,
         /// Offset in bytes
         offset: i64,
     };
@@ -310,8 +310,8 @@ pub const Tag = enum(u8) {
     bytes,
     /// `data` is `Record`
     record_ty,
-    /// `data` is GlobalVarOffset
-    global_var_offset,
+    /// `data` is Pointer
+    pointer,
 
     pub const Array = struct {
         len0: u32,
@@ -547,23 +547,23 @@ pub const Tag = enum(u8) {
         // [elements_len]Ref
     };
 
-    pub const GlobalVarOffset = struct {
-        name: u32,
+    pub const Pointer = struct {
+        decl: u32,
         piece0: u32,
         piece1: u32,
 
-        pub fn get(self: GlobalVarOffset) Key.GlobalVarOffset {
+        pub fn get(self: Pointer) Key.Pointer {
             const offset = @as(u64, self.piece0) | (@as(u64, self.piece1) << 32);
             return .{
-                .name = @enumFromInt(self.name),
+                .decl = self.decl,
                 .offset = @bitCast(offset),
             };
         }
 
-        fn pack(val: Key.GlobalVarOffset) GlobalVarOffset {
+        fn pack(val: Key.Pointer) Pointer {
             const bits: u64 = @bitCast(val.offset);
             return .{
-                .name = @intFromEnum(val.name),
+                .decl = val.decl,
                 .piece0 = @truncate(bits),
                 .piece1 = @truncate(bits >> 32),
             };
@@ -748,10 +748,10 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
             });
             i.extra.appendSliceAssumeCapacity(@ptrCast(elems));
         },
-        .global_var_offset => |reloc| {
+        .pointer => |reloc| {
             i.items.appendAssumeCapacity(.{
-                .tag = .global_var_offset,
-                .data = try i.addExtra(gpa, Tag.GlobalVarOffset.pack(reloc)),
+                .tag = .pointer,
+                .data = try i.addExtra(gpa, Tag.Pointer.pack(reloc)),
             });
         },
         .ptr_ty,
@@ -886,9 +886,9 @@ pub fn get(i: *const Interner, ref: Ref) Key {
                 .record_ty = @ptrCast(i.extra.items[extra.end..][0..extra.data.elements_len]),
             };
         },
-        .global_var_offset => {
-            const components = i.extraData(Tag.GlobalVarOffset, data);
-            return .{ .global_var_offset = components.get() };
+        .pointer => {
+            const components = i.extraData(Tag.Pointer, data);
+            return .{ .pointer = components.get() };
         },
     };
 }

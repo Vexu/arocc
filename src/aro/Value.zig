@@ -2,11 +2,10 @@ const std = @import("std");
 const assert = std.debug.assert;
 const BigIntConst = std.math.big.int.Const;
 const BigIntMutable = std.math.big.int.Mutable;
-const backend = @import("backend");
-const Interner = backend.Interner;
-const StringInterner = backend.StringInterner;
-const StringId = StringInterner.StringId;
+const Interner = @import("backend").Interner;
 const BigIntSpace = Interner.Tag.Int.BigIntSpace;
+const StringInterner = @import("StringInterner.zig");
+const StringId = StringInterner.StringId;
 const Compilation = @import("Compilation.zig");
 const Type = @import("Type.zig");
 const target_util = @import("target.zig");
@@ -34,8 +33,8 @@ pub fn int(i: anytype, comp: *Compilation) !Value {
     }
 }
 
-pub fn reloc(r: Interner.Key.GlobalVarOffset, comp: *Compilation) !Value {
-    return intern(comp, .{ .global_var_offset = r });
+pub fn reloc(r: Interner.Key.Pointer, comp: *Compilation) !Value {
+    return intern(comp, .{ .pointer = r });
 }
 
 pub fn ref(v: Value) Interner.Ref {
@@ -250,7 +249,7 @@ pub const IntCastChangeKind = enum {
 pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind {
     if (v.opt_ref == .none) return .none;
     const key = comp.interner.get(v.ref());
-    if (key == .global_var_offset) return .none;
+    if (key == .pointer) return .none;
 
     const dest_bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
     const dest_signed = dest_ty.signedness(comp) == .signed;
@@ -416,7 +415,7 @@ pub fn isZero(v: Value, comp: *const Compilation) bool {
             inline else => |data| return data[0] == 0.0 and data[1] == 0.0,
         },
         .bytes => return false,
-        .global_var_offset => return false,
+        .pointer => return false,
         else => unreachable,
     }
 }
@@ -539,11 +538,11 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     }
     const lhs_key = comp.interner.get(lhs.ref());
     const rhs_key = comp.interner.get(rhs.ref());
-    if (lhs_key == .global_var_offset or rhs_key == .global_var_offset) {
-        const rel, const index = if (lhs_key == .global_var_offset)
-            .{ lhs_key.global_var_offset, rhs }
+    if (lhs_key == .pointer or rhs_key == .pointer) {
+        const rel, const index = if (lhs_key == .pointer)
+            .{ lhs_key.pointer, rhs }
         else
-            .{ rhs_key.global_var_offset, lhs };
+            .{ rhs_key.pointer, lhs };
 
         const elem_size = try int(ty.elemType().sizeof(comp) orelse 1, comp);
         var total_offset: Value = undefined;
@@ -551,7 +550,7 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         const old_offset = try int(rel.offset, comp);
         const add_overflow = try total_offset.add(total_offset, old_offset, comp.types.ptrdiff, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try reloc(.{ .name = rel.name, .offset = total_offset.toInt(i64, comp).? }, comp);
+        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.toInt(i64, comp).? }, comp);
         return mul_overflow or add_overflow;
     }
 
@@ -608,10 +607,10 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *C
     }
     const lhs_key = comp.interner.get(lhs.ref());
     const rhs_key = comp.interner.get(rhs.ref());
-    if (lhs_key == .global_var_offset and rhs_key == .global_var_offset) {
-        const lhs_reloc = lhs_key.global_var_offset;
-        const rhs_reloc = rhs_key.global_var_offset;
-        if (lhs_reloc.name != rhs_reloc.name) {
+    if (lhs_key == .pointer and rhs_key == .pointer) {
+        const lhs_reloc = lhs_key.pointer;
+        const rhs_reloc = rhs_key.pointer;
+        if (lhs_reloc.decl != rhs_reloc.decl) {
             res.* = .{};
             return false;
         }
@@ -619,8 +618,8 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *C
         const rhs_size: i64 = @intCast(rhs_ty.elemType().sizeof(comp) orelse 1);
         res.* = try int(@divTrunc(difference, rhs_size), comp);
         return overflowed != 0;
-    } else if (lhs_key == .global_var_offset) {
-        const rel = lhs_key.global_var_offset;
+    } else if (lhs_key == .pointer) {
+        const rel = lhs_key.pointer;
 
         const elem_size = try int(ty.elemType().sizeof(comp) orelse 1, comp);
         var total_offset: Value = undefined;
@@ -628,7 +627,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *C
         const old_offset = try int(rel.offset, comp);
         const add_overflow = try total_offset.sub(old_offset, total_offset, comp.types.ptrdiff, undefined, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try reloc(.{ .name = rel.name, .offset = total_offset.toInt(i64, comp).? }, comp);
+        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.toInt(i64, comp).? }, comp);
         return mul_overflow or add_overflow;
     }
 
@@ -1001,13 +1000,13 @@ pub fn comparePointers(lhs: Value, op: std.math.CompareOperator, rhs: Value, com
     const lhs_key = comp.interner.get(lhs.ref());
     const rhs_key = comp.interner.get(rhs.ref());
 
-    if (lhs_key == .global_var_offset and rhs_key == .global_var_offset) {
-        const lhs_reloc = lhs_key.global_var_offset;
-        const rhs_reloc = rhs_key.global_var_offset;
+    if (lhs_key == .pointer and rhs_key == .pointer) {
+        const lhs_reloc = lhs_key.pointer;
+        const rhs_reloc = rhs_key.pointer;
         switch (op) {
-            .eq => if (lhs_reloc.name != rhs_reloc.name) return false,
-            .neq => if (lhs_reloc.name != rhs_reloc.name) return true,
-            else => if (lhs_reloc.name != rhs_reloc.name) return null,
+            .eq => if (lhs_reloc.decl != rhs_reloc.decl) return false,
+            .neq => if (lhs_reloc.decl != rhs_reloc.decl) return true,
+            else => if (lhs_reloc.decl != rhs_reloc.decl) return null,
         }
 
         return std.math.compare(lhs_reloc.offset, op, rhs_reloc.offset);
@@ -1051,7 +1050,7 @@ pub fn maxInt(ty: Type, comp: *Compilation) !Value {
     return twosCompIntLimit(.max, ty, comp);
 }
 
-pub fn print(v: Value, ty: Type, comp: *const Compilation, mapper: StringInterner.TypeMapper, w: anytype) @TypeOf(w).Error!void {
+pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
     if (ty.is(.bool)) {
         return w.writeAll(if (v.isZero(comp)) "false" else "true");
     }
@@ -1071,16 +1070,7 @@ pub fn print(v: Value, ty: Type, comp: *const Compilation, mapper: StringInterne
             .cf32 => |components| return w.print("{d} + {d}i", .{ @round(@as(f64, @floatCast(components[0])) * 1000000) / 1000000, @round(@as(f64, @floatCast(components[1])) * 1000000) / 1000000 }),
             inline else => |components| return w.print("{d} + {d}i", .{ @as(f64, @floatCast(components[0])), @as(f64, @floatCast(components[1])) }),
         },
-        .global_var_offset => |rel| {
-            const name = mapper.lookup(rel.name);
-            try w.print("&{s}", .{name});
-            if (rel.offset == 0) return;
-            if (rel.offset == std.math.minInt(i64)) {
-                return w.print(" - {d}", .{std.math.maxInt(i64) + 1});
-            }
-            const sign: u8 = if (rel.offset < 0) '-' else '+';
-            return w.print(" {c} {d}", .{ sign, @abs(rel.offset) });
-        },
+        .pointer => {},
         else => unreachable, // not a value
     }
 }

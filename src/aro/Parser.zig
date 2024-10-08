@@ -26,7 +26,7 @@ const Symbol = SymbolStack.Symbol;
 const record_layout = @import("record_layout.zig");
 const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
-const GlobalVarOffset = @import("backend").Interner.Key.GlobalVarOffset;
+const Pointer = @import("backend").Interner.Key.Pointer;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const evalBuiltin = @import("Builtins/eval.zig").eval;
@@ -505,9 +505,9 @@ pub fn valueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: Type)
     try w.writeAll(" changes ");
     if (res.val.isZero(p.comp)) try w.writeAll("non-zero ");
     try w.writeAll("value from ");
-    try old_value.print(res.ty, p.comp, p.comp.string_interner.getSlowTypeMapper(), w);
+    try old_value.print(res.ty, p.comp, w);
     try w.writeAll(" to ");
-    try res.val.print(int_ty, p.comp, p.comp.string_interner.getSlowTypeMapper(), w);
+    try res.val.print(int_ty, p.comp, w);
 
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -5197,7 +5197,7 @@ pub const Result = struct {
         const strings_top = p.strings.items.len;
         defer p.strings.items.len = strings_top;
 
-        try res.val.print(res.ty, p.comp, p.comp.string_interner.getSlowTypeMapper(), p.strings.writer());
+        try res.val.print(res.ty, p.comp, p.strings.writer());
         return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     }
 
@@ -7060,7 +7060,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
-fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !GlobalVarOffset {
+fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !Pointer {
     const tys = p.nodes.items(.ty);
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
@@ -7077,7 +7077,8 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !GlobalVa
         .paren_expr => return p.computeOffsetExtra(data[@intFromEnum(node)].un, offset_so_far),
         .decl_ref_expr => {
             const var_name = try p.comp.internString(p.tokSlice(data[@intFromEnum(node)].decl_ref));
-            return .{ .name = var_name, .offset = offset_so_far };
+            const sym = p.syms.findSymbol(var_name).?; // symbol must exist if we get here; otherwise it's a syntax error
+            return .{ .decl = @intFromEnum(sym.node), .offset = offset_so_far };
         },
         .array_access_expr => {
             const bin_data = data[@intFromEnum(node)].bin;
@@ -7100,7 +7101,7 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !GlobalVa
 }
 
 /// Compute the offset (in bytes) of an expression from a base pointer.
-fn computeOffset(p: *Parser, node: NodeIndex) !GlobalVarOffset {
+fn computeOffset(p: *Parser, node: NodeIndex) !Pointer {
     return p.computeOffsetExtra(node, 0);
 }
 
@@ -7161,10 +7162,10 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.errTok(.addr_of_rvalue, tok);
             } else if (operand_ty_valid and p.func.ty == null) {
                 // address of global
-                const reloc: GlobalVarOffset = p.computeOffset(operand.node) catch |e| switch (e) {
+                const reloc: Pointer = p.computeOffset(operand.node) catch |e| switch (e) {
                     error.InvalidReloc => blk: {
                         try p.errTok(.non_constant_initializer, ampersand_tok);
-                        break :blk .{ .name = .empty, .offset = 0 };
+                        break :blk .{ .decl = @intFromEnum(NodeIndex.none), .offset = 0 };
                     },
                     else => |er| return er,
                 };

@@ -753,6 +753,10 @@ pub fn float80Type(comp: *const Compilation) ?Type {
     return target_util.float80Type(comp.target);
 }
 
+pub fn internString(comp: *Compilation, str: []const u8) !StrInt.StringId {
+    return comp.string_interner.internExtra(comp.gpa, str);
+}
+
 /// Smallest integer type with at least N bits
 pub fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) Type {
     if (bits == 64 and (comp.target.isDarwin() or comp.target.isWasm())) {
