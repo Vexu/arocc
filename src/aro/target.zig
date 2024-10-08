@@ -375,13 +375,6 @@ pub fn isPS(target: std.Target) bool {
     return (target.os.tag == .ps4 or target.os.tag == .ps5) and target.cpu.arch == .x86_64;
 }
 
-pub fn isMIPS(target: std.Target) bool {
-    return switch (target.cpu.arch) {
-        .mips, .mipsel, .mips64, .mips64el => true,
-        else => false,
-    };
-}
-
 pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
     var it = enabled_for.iterator();
     while (it.next()) |val| {
@@ -718,7 +711,8 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .cygnus => "cygnus",
         .simulator => "simulator",
         .macabi => "macabi",
-        .ohos => "openhos",
+        .ohos => "ohos",
+        .ohoseabi => "ohoseabi",
     };
     writer.writeAll(llvm_abi) catch unreachable;
     return stream.getWritten();

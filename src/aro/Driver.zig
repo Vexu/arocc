@@ -63,9 +63,9 @@ apple_kext: bool = false,
 mkernel: bool = false,
 mabicalls: ?bool = null,
 dynamic_nopic: ?bool = null,
-ropi: ?bool = null,
-rwpi: ?bool = null,
-cmodel: []const u8 = "",
+ropi: bool = false,
+rwpi: bool = false,
+cmodel: std.builtin.CodeModel = .default,
 debug_dump_letters: packed struct(u3) {
     d: bool = false,
     m: bool = false,
@@ -148,9 +148,9 @@ pub const usage =
     \\  -fhosted                Compilation in a hosted environment
     \\  -fms-extensions         Enable support for Microsoft extensions
     \\  -fno-ms-extensions      Disable support for Microsoft extensions
-    \\  -fdollars-in-identifiers        
+    \\  -fdollars-in-identifiers
     \\                          Allow '$' in identifiers
-    \\  -fno-dollars-in-identifiers     
+    \\  -fno-dollars-in-identifiers
     \\                          Disallow '$' in identifiers
     \\  -fmacro-backtrace-limit=<limit>
     \\                          Set limit on how many macro expansion traces are shown in errors (default 6)
@@ -161,10 +161,10 @@ pub const usage =
     \\  -fPIC                   Similar to -fpic but avoid any limit on the size of the global offset table
     \\  -fpie                   Similar to -fpic, but the generated position-independent code can only be linked into executables
     \\  -fPIE                   Similar to -fPIC, but the generated position-independent code can only be linked into executables
-    \\  -frwpi                  Generate read-write position independent code (ARM only)  
-    \\  -fno-rwpi               Disable generate read-write position independent code (ARM only). 
-    \\  -fropi                  Generate read-only position independent code (ARM only)  
-    \\  -fno-ropi               Disable generate read-only position independent code (ARM only). 
+    \\  -frwpi                  Generate read-write position independent code (ARM only)
+    \\  -fno-rwpi               Disable generate read-write position independent code (ARM only).
+    \\  -fropi                  Generate read-only position independent code (ARM only)
+    \\  -fno-ropi               Disable generate read-only position independent code (ARM only).
     \\  -fshort-enums           Use the narrowest possible integer type for enums
     \\  -fno-short-enums        Use "int" as the tag type for enums
     \\  -fsigned-char           "char" is signed
@@ -303,7 +303,8 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fapple-kext")) {
                 d.apple_kext = true;
             } else if (option(arg, "-mcmodel=")) |cmodel| {
-                d.cmodel = cmodel;
+                d.cmodel = std.meta.stringToEnum(std.builtin.CodeModel, cmodel) orelse
+                    return d.fatal("unsupported machine code model: '{s}'", .{arg});
             } else if (mem.eql(u8, arg, "-mkernel")) {
                 d.mkernel = true;
             } else if (mem.eql(u8, arg, "-mdynamic-no-pic")) {
@@ -1041,7 +1042,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOpti
         } else {
             pic, pie = .{ false, false };
             if (target_util.isPS(target)) {
-                if (!mem.eql(u8, d.cmodel, "kernel")) {
+                if (d.cmodel != .kernel) {
                     pic = true;
                     try d.warn(try std.fmt.allocPrint(
                         d.comp.diagnostics.arena.allocator(),
@@ -1054,8 +1055,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOpti
     }
 
     if (pic and (target.isDarwin() or target_util.isPS(target))) {
-        const val = @intFromBool(is_piclevel_two) | @intFromBool(is_pic_default);
-        is_piclevel_two = @as(bool, val != 0);
+        is_piclevel_two = is_piclevel_two or is_pic_default;
     }
 
     // This kernel flags are a trump-card: they will disable PIC/PIE
@@ -1068,7 +1068,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOpti
         pie, pic = .{ false, false };
     }
 
-    if (d.dynamic_nopic) |_| {
+    if (d.dynamic_nopic == true) {
         if (!target.isDarwin()) {
             try d.unsupportedOptionForTarget(target, "-mdynamic-no-pic");
         }
@@ -1076,39 +1076,27 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOpti
         return .{ if (pic) .two else .none, false };
     }
 
-    var embedded_pi_supported: bool = undefined;
-    switch (target.cpu.arch) {
-        .arm, .armeb, .thumb, .thumbeb => embedded_pi_supported = true,
-        else => embedded_pi_supported = false,
-    }
-
-    var ropi = false;
-    if (d.ropi) |_| {
-        if (!embedded_pi_supported) try d.unsupportedOptionForTarget(target, "-fropi");
-        ropi = true;
-    }
-
-    var rwpi = false;
-    if (d.rwpi) |_| {
-        if (!embedded_pi_supported) try d.unsupportedOptionForTarget(target, "-frwpi");
-        rwpi = true;
+    const embedded_pi_supported = target.cpu.arch.isArmOrThumb();
+    if (!embedded_pi_supported) {
+        if (d.ropi) try d.unsupportedOptionForTarget(target, "-fropi");
+        if (d.rwpi) try d.unsupportedOptionForTarget(target, "-frwpi");
     }
 
     // ROPI and RWPI are not compatible with PIC or PIE.
-    if ((ropi or rwpi) and (pic or pie)) {
+    if ((d.ropi or d.rwpi) and (pic or pie)) {
         try d.err("embedded and GOT-based position independence are incompatible");
     }
 
-    if (target_util.isMIPS(target)) {
+    if (target.cpu.arch.isMIPS()) {
         // When targeting the N64 ABI, PIC is the default, except in the case
         // when the -mno-abicalls option is used. In that case we exit
         // at next check regardless of PIC being set below.
         // TODO: implement incomplete!!
-        if (target.cpu.arch == .mips64 or target.cpu.arch == .mips64el)
+        if (target.cpu.arch.isMIPS64())
             pic = true;
 
         // When targettng MIPS with -mno-abicalls, it's always static.
-        if (!d.mabicalls.?)
+        if (d.mabicalls == false)
             return .{ .none, false };
 
         // Unlike other architectures, MIPS, even with -fPIC/-mxgot/multigot,
