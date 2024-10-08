@@ -5526,6 +5526,7 @@ pub const Result = struct {
 
                 if (a_ptr and b_ptr) {
                     if (!a.ty.eql(b.ty, p.comp, false)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.ty, b.ty));
+                    if (a.ty.elemType().sizeof(p.comp) orelse 1 == 0) try p.errStr(.subtract_pointers_zero_elem_size, tok, try p.typeStr(a.ty.elemType()));
                     a.ty = p.comp.types.ptrdiff;
                 }
 
@@ -6703,8 +6704,13 @@ fn addExpr(p: *Parser) Error!Result {
                     }
                 }
             } else {
-                if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, rhs.ty, p.comp) and
-                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(minus.?, lhs);
+                const elem_size = if (lhs_ty.isPtr()) lhs_ty.elemType().sizeof(p.comp) orelse 1 else 1;
+                if (elem_size == 0 and rhs.ty.isPtr()) {
+                    lhs.val = .{};
+                } else {
+                    if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, elem_size, p.comp) and
+                        lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(minus.?, lhs);
+                }
             }
         }
         if (lhs.ty.specifier != .invalid and lhs_ty.isPtr() and !lhs_ty.isVoidStar() and lhs_ty.elemType().hasIncompleteSize()) {

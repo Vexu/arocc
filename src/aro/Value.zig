@@ -583,8 +583,8 @@ pub fn decrement(res: *Value, val: Value, ty: Type, comp: *Compilation) !bool {
     return res.sub(val, one, ty, undefined, comp);
 }
 
-/// rhs_ty is only used when subtracting two pointers, so we can scale the result by the size of the element type
-pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *Compilation) !bool {
+/// elem_size is only used when subtracting two pointers, so we can scale the result by the size of the element type
+pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: *Compilation) !bool {
     const bits: usize = @intCast(ty.bitSizeof(comp).?);
     if (ty.isFloat()) {
         if (ty.isComplex()) {
@@ -621,15 +621,15 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *C
         const lhs_offset = fromRef(lhs_reloc.offset);
         const rhs_offset = fromRef(rhs_reloc.offset);
         const overflowed = try res.sub(lhs_offset, rhs_offset, comp.types.ptrdiff, undefined, comp);
-        const rhs_size = try int(rhs_ty.elemType().sizeof(comp) orelse 1, comp);
+        const rhs_size = try int(elem_size, comp);
         _ = try res.div(res.*, rhs_size, comp.types.ptrdiff, comp);
         return overflowed;
     } else if (lhs_key == .pointer) {
         const rel = lhs_key.pointer;
 
-        const elem_size = try int(ty.elemType().sizeof(comp) orelse 1, comp);
+        const lhs_size = try int(elem_size, comp);
         var total_offset: Value = undefined;
-        const mul_overflow = try total_offset.mul(elem_size, rhs, comp.types.ptrdiff, comp);
+        const mul_overflow = try total_offset.mul(lhs_size, rhs, comp.types.ptrdiff, comp);
         const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.sub(old_offset, total_offset, comp.types.ptrdiff, undefined, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
@@ -790,7 +790,7 @@ pub fn rem(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
             var tmp: Value = undefined;
             _ = try tmp.div(lhs, rhs, ty, comp);
             _ = try tmp.mul(tmp, rhs, ty, comp);
-            _ = try tmp.sub(lhs, tmp, ty, Type.int, comp);
+            _ = try tmp.sub(lhs, tmp, ty, undefined, comp);
             return tmp;
         }
     }

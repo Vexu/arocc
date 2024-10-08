@@ -44,7 +44,15 @@ _Static_assert((char*)(&x+100) - (char*)&x == 400,"");
 _Static_assert(&x - 2 != &x + 2, "");
 _Static_assert(&x - 2 == -2 + &x, "");
 
+union Empty {};
+
+union Empty empty[10];
+_Static_assert(&empty[4] - &empty[0] == 0, "");
+_Static_assert(&empty[4] >= &empty[0], "");
+
 #define EXPECTED_ERRORS "relocations.c:24:1: error: static assertion failed" \
     "relocations.c:29:16: error: static_assert expression is not an integral constant expression" \
     "relocations.c:30:16: error: static_assert expression is not an integral constant expression" \
+    "relocations.c:50:26: warning: subtraction of pointers to type 'union Empty' of zero size has undefined behavior [-Wpointer-arith]" \
+    "relocations.c:50:16: error: static_assert expression is not an integral constant expression" \
 

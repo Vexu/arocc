@@ -2545,3 +2545,9 @@ auto_type_self_initialized
 non_constant_initializer
     .msg = "initializer element is not a compile-time constant"
     .kind = .@"error"
+
+subtract_pointers_zero_elem_size
+    .msg = "subtraction of pointers to type '{s}' of zero size has undefined behavior"
+    .kind = .warning
+    .opt = W("pointer-arith")
+    .extra = .str
