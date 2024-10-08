@@ -42,6 +42,10 @@ pub fn ref(v: Value) Interner.Ref {
     return @enumFromInt(@intFromEnum(v.opt_ref));
 }
 
+pub fn fromRef(r: Interner.Ref) Value {
+    return .{ .opt_ref = @enumFromInt(@intFromEnum(r)) };
+}
+
 pub fn is(v: Value, tag: std.meta.Tag(Interner.Key), comp: *const Compilation) bool {
     if (v.opt_ref == .none) return false;
     return comp.interner.get(v.ref()) == tag;
@@ -547,10 +551,10 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         const elem_size = try int(ty.elemType().sizeof(comp) orelse 1, comp);
         var total_offset: Value = undefined;
         const mul_overflow = try total_offset.mul(elem_size, index, comp.types.ptrdiff, comp);
-        const old_offset = try int(rel.offset, comp);
+        const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.add(total_offset, old_offset, comp.types.ptrdiff, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.toInt(i64, comp).? }, comp);
+        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
 
@@ -614,20 +618,22 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, rhs_ty: Type, comp: *C
             res.* = .{};
             return false;
         }
-        const difference, const overflowed = @subWithOverflow(lhs_reloc.offset, rhs_reloc.offset);
-        const rhs_size: i64 = @intCast(rhs_ty.elemType().sizeof(comp) orelse 1);
-        res.* = try int(@divTrunc(difference, rhs_size), comp);
-        return overflowed != 0;
+        const lhs_offset = fromRef(lhs_reloc.offset);
+        const rhs_offset = fromRef(rhs_reloc.offset);
+        const overflowed = try res.sub(lhs_offset, rhs_offset, comp.types.ptrdiff, undefined, comp);
+        const rhs_size = try int(rhs_ty.elemType().sizeof(comp) orelse 1, comp);
+        _ = try res.div(res.*, rhs_size, comp.types.ptrdiff, comp);
+        return overflowed;
     } else if (lhs_key == .pointer) {
         const rel = lhs_key.pointer;
 
         const elem_size = try int(ty.elemType().sizeof(comp) orelse 1, comp);
         var total_offset: Value = undefined;
         const mul_overflow = try total_offset.mul(elem_size, rhs, comp.types.ptrdiff, comp);
-        const old_offset = try int(rel.offset, comp);
+        const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.sub(old_offset, total_offset, comp.types.ptrdiff, undefined, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.toInt(i64, comp).? }, comp);
+        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
 
@@ -1009,7 +1015,9 @@ pub fn comparePointers(lhs: Value, op: std.math.CompareOperator, rhs: Value, com
             else => if (lhs_reloc.decl != rhs_reloc.decl) return null,
         }
 
-        return std.math.compare(lhs_reloc.offset, op, rhs_reloc.offset);
+        const lhs_offset = fromRef(lhs_reloc.offset);
+        const rhs_offset = fromRef(rhs_reloc.offset);
+        return lhs_offset.compare(op, rhs_offset, comp);
     }
     return null;
 }

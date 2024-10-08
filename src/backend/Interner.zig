@@ -85,7 +85,7 @@ pub const Key = union(enum) {
         /// NodeIndex of decl whose address we are offsetting from
         decl: u32,
         /// Offset in bytes
-        offset: i64,
+        offset: Ref,
     };
 
     pub fn hash(key: Key) u32 {
@@ -331,6 +331,11 @@ pub const Tag = enum(u8) {
         child: Ref,
     };
 
+    pub const Pointer = struct {
+        decl: u32,
+        offset: Ref,
+    };
+
     pub const Int = struct {
         limbs_index: u32,
         limbs_len: u32,
@@ -546,29 +551,6 @@ pub const Tag = enum(u8) {
         // trailing
         // [elements_len]Ref
     };
-
-    pub const Pointer = struct {
-        decl: u32,
-        piece0: u32,
-        piece1: u32,
-
-        pub fn get(self: Pointer) Key.Pointer {
-            const offset = @as(u64, self.piece0) | (@as(u64, self.piece1) << 32);
-            return .{
-                .decl = self.decl,
-                .offset = @bitCast(offset),
-            };
-        }
-
-        fn pack(val: Key.Pointer) Pointer {
-            const bits: u64 = @bitCast(val.offset);
-            return .{
-                .decl = val.decl,
-                .piece0 = @truncate(bits),
-                .piece1 = @truncate(bits >> 32),
-            };
-        }
-    };
 };
 
 pub const PackedU64 = packed struct(u64) {
@@ -635,6 +617,15 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
                 .data = try i.addExtra(gpa, Tag.Vector{
                     .len = info.len,
                     .child = info.child,
+                }),
+            });
+        },
+        .pointer => |info| {
+            i.items.appendAssumeCapacity(.{
+                .tag = .pointer,
+                .data = try i.addExtra(gpa, Tag.Pointer{
+                    .decl = info.decl,
+                    .offset = info.offset,
                 }),
             });
         },
@@ -748,12 +739,6 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
             });
             i.extra.appendSliceAssumeCapacity(@ptrCast(elems));
         },
-        .pointer => |reloc| {
-            i.items.appendAssumeCapacity(.{
-                .tag = .pointer,
-                .data = try i.addExtra(gpa, Tag.Pointer.pack(reloc)),
-            });
-        },
         .ptr_ty,
         .noreturn_ty,
         .void_ty,
@@ -830,6 +815,13 @@ pub fn get(i: *const Interner, ref: Ref) Key {
                 .child = vector_ty.child,
             } };
         },
+        .pointer => {
+            const pointer = i.extraData(Tag.Pointer, data);
+            return .{ .pointer = .{
+                .decl = pointer.decl,
+                .offset = pointer.offset,
+            } };
+        },
         .u32 => .{ .int = .{ .u64 = data } },
         .i32 => .{ .int = .{ .i64 = @as(i32, @bitCast(data)) } },
         .int_positive, .int_negative => {
@@ -885,10 +877,6 @@ pub fn get(i: *const Interner, ref: Ref) Key {
             return .{
                 .record_ty = @ptrCast(i.extra.items[extra.end..][0..extra.data.elements_len]),
             };
-        },
-        .pointer => {
-            const components = i.extraData(Tag.Pointer, data);
-            return .{ .pointer = components.get() };
         },
     };
 }

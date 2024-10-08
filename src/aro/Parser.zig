@@ -7060,7 +7060,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
-fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !Pointer {
+fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Pointer {
     const tys = p.nodes.items(.ty);
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
@@ -7078,23 +7078,28 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !Pointer 
         .decl_ref_expr => {
             const var_name = try p.comp.internString(p.tokSlice(data[@intFromEnum(node)].decl_ref));
             const sym = p.syms.findSymbol(var_name).?; // symbol must exist if we get here; otherwise it's a syntax error
-            return .{ .decl = @intFromEnum(sym.node), .offset = offset_so_far };
+            return .{ .decl = @intFromEnum(sym.node), .offset = offset_so_far.ref() };
         },
         .array_access_expr => {
             const bin_data = data[@intFromEnum(node)].bin;
             const ty = tys[@intFromEnum(node)];
 
             const index_val = p.value_map.get(bin_data.rhs) orelse return error.InvalidReloc;
-            const as_int = index_val.toInt(i64, p.comp).?;
-            const size = ty.sizeof(p.comp).?;
-            const this_offset = @as(i64, @intCast(size)) * as_int;
-            return p.computeOffsetExtra(bin_data.lhs, this_offset + offset_so_far);
+            var size = try Value.int(ty.sizeof(p.comp).?, p.comp);
+            const mul_overflow = try size.mul(size, index_val, p.comp.types.ptrdiff, p.comp);
+
+            const add_overflow = try offset_so_far.add(size, offset_so_far.*, p.comp.types.ptrdiff, p.comp);
+            _ = mul_overflow;
+            _ = add_overflow;
+            return p.computeOffsetExtra(bin_data.lhs, offset_so_far);
         },
         .member_access_expr => {
             const member = data[@intFromEnum(node)].member;
             const record = tys[@intFromEnum(member.lhs)].getRecord().?;
-            const field_offset: i64 = @intCast(@divExact(record.fields[member.index].layout.offset_bits, 8));
-            return p.computeOffsetExtra(member.lhs, offset_so_far + field_offset);
+            // const field_offset: i64 = @intCast(@divExact(record.fields[member.index].layout.offset_bits, 8));
+            const field_offset = try Value.int(@divExact(record.fields[member.index].layout.offset_bits, 8), p.comp);
+            _ = try offset_so_far.add(field_offset, offset_so_far.*, p.comp.types.ptrdiff, p.comp);
+            return p.computeOffsetExtra(member.lhs, offset_so_far);
         },
         else => return error.InvalidReloc,
     }
@@ -7102,7 +7107,8 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: i64) !Pointer 
 
 /// Compute the offset (in bytes) of an expression from a base pointer.
 fn computeOffset(p: *Parser, node: NodeIndex) !Pointer {
-    return p.computeOffsetExtra(node, 0);
+    var val: Value = .zero;
+    return p.computeOffsetExtra(node, &val);
 }
 
 /// unExpr
@@ -7165,7 +7171,7 @@ fn unExpr(p: *Parser) Error!Result {
                 const reloc: Pointer = p.computeOffset(operand.node) catch |e| switch (e) {
                     error.InvalidReloc => blk: {
                         try p.errTok(.non_constant_initializer, ampersand_tok);
-                        break :blk .{ .decl = @intFromEnum(NodeIndex.none), .offset = 0 };
+                        break :blk .{ .decl = @intFromEnum(NodeIndex.none), .offset = .zero };
                     },
                     else => |er| return er,
                 };
