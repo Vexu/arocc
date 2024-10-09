@@ -5818,11 +5818,11 @@ pub const Result = struct {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[1])) return;
-            if (p.comp.target.cTypeBitSize(.longdouble) == 80) {
+            if (p.comp.target.cTypeBitSize(.longdouble) >= p.comp.target.cTypeBitSize(.double)) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[2])) return;
-            if (p.comp.target.cTypeBitSize(.longdouble) == 64) {
+            if (p.comp.target.cTypeBitSize(.longdouble) >= p.comp.target.cTypeBitSize(.float)) {
                 if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
             }
             if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
