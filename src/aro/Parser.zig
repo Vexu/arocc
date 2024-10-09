@@ -5804,8 +5804,8 @@ pub const Result = struct {
         // if either is a float cast to that type
         if (a.ty.isFloat() or b.ty.isFloat()) {
             const float_types = [6][2]Type.Specifier{
-                .{ .complex_long_double, .long_double },
                 .{ .complex_float128, .float128 },
+                .{ .complex_long_double, .long_double },
                 .{ .complex_double, .double },
                 .{ .complex_float, .float },
                 // No `_Complex __fp16` type
@@ -5814,20 +5814,9 @@ pub const Result = struct {
             };
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
-            if (p.comp.target.cTypeBitSize(.longdouble) == 128) {
-                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
+            for (float_types) |ft| {
+                if (try a.floatConversion(b, a_spec, b_spec, p, ft)) return;
             }
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[1])) return;
-            if (p.comp.target.cTypeBitSize(.longdouble) >= p.comp.target.cTypeBitSize(.double)) {
-                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
-            }
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[2])) return;
-            if (p.comp.target.cTypeBitSize(.longdouble) >= p.comp.target.cTypeBitSize(.float)) {
-                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
-            }
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[4])) return;
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
             unreachable;
         }
 
