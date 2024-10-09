@@ -527,6 +527,12 @@ unknown_warning
     .opt = W("unknown-warning-option")
     .kind = .warning
 
+array_overflow
+    .msg = "{s}"
+    .extra = .str
+    .opt = W("array-bounds")
+    .kind = .warning
+
 overflow
     .msg = "overflow in expression; result is '{s}'"
     .extra = .str
@@ -2535,3 +2541,13 @@ auto_type_self_initialized
     .msg = "variable '{s}' declared with deduced type '__auto_type' cannot appear in its own initializer"
     .extra = .str
     .kind = .@"error"
+
+non_constant_initializer
+    .msg = "initializer element is not a compile-time constant"
+    .kind = .@"error"
+
+subtract_pointers_zero_elem_size
+    .msg = "subtraction of pointers to type '{s}' of zero size has undefined behavior"
+    .kind = .warning
+    .opt = W("pointer-arith")
+    .extra = .str

@@ -26,6 +26,7 @@ const Symbol = SymbolStack.Symbol;
 const record_layout = @import("record_layout.zig");
 const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
+const Pointer = @import("backend").Interner.Key.Pointer;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const evalBuiltin = @import("Builtins/eval.zig").eval;
@@ -375,6 +376,24 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
 
 fn errOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
     try p.errStr(.overflow, op_tok, try res.str(p));
+}
+
+fn errArrayOverflow(p: *Parser, op_tok: TokenIndex, res: Result) !void {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    const w = p.strings.writer();
+    const format =
+        \\The pointer incremented by {s} refers past the last possible element in {d}-bit address space containing {d}-bit ({d}-byte) elements (max possible {d} elements)
+    ;
+    const increment = try res.str(p);
+    const ptr_bits = p.comp.types.intptr.bitSizeof(p.comp).?;
+    const element_size = res.ty.elemType().sizeof(p.comp) orelse 1;
+    const max_elems = p.comp.maxArrayBytes() / element_size;
+
+    try w.print(format, .{ increment, ptr_bits, element_size * 8, element_size, max_elems });
+    const duped = try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+    return p.errStr(.array_overflow, op_tok, duped);
 }
 
 fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
@@ -1284,16 +1303,11 @@ fn staticAssert(p: *Parser) Error!bool {
         try p.errStr(.pre_c23_compat, static_assert, "'_Static_assert' with no message");
     }
 
-    // Array will never be zero; a value of zero for a pointer is a null pointer constant
-    if ((res.ty.isArray() or res.ty.isPtr()) and !res.val.isZero(p.comp)) {
-        const err_start = p.comp.diagnostics.list.items.len;
-        try p.errTok(.const_decl_folded, res_token);
-        if (res.ty.isPtr() and err_start != p.comp.diagnostics.list.items.len) {
-            // Don't show the note if the .const_decl_folded diagnostic was not added
-            try p.errTok(.constant_expression_conversion_not_allowed, res_token);
-        }
-    }
+    const is_int_expr = res.ty.isInt();
     try res.boolCast(p, .{ .specifier = .bool }, res_token);
+    if (!is_int_expr) {
+        res.val = .{};
+    }
     if (res.val.opt_ref == .none) {
         if (res.ty.specifier != .invalid) {
             try p.errTok(.static_assert_not_constant, res_token);
@@ -5512,6 +5526,7 @@ pub const Result = struct {
 
                 if (a_ptr and b_ptr) {
                     if (!a.ty.eql(b.ty, p.comp, false)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.ty, b.ty));
+                    if (a.ty.elemType().sizeof(p.comp) orelse 1 == 0) try p.errStr(.subtract_pointers_zero_elem_size, tok, try p.typeStr(a.ty.elemType()));
                     a.ty = p.comp.types.ptrdiff;
                 }
 
@@ -6589,8 +6604,12 @@ fn eqExpr(p: *Parser) Error!Result {
 
         if (try lhs.adjustTypes(ne.?, &rhs, p, .equality)) {
             const op: std.math.CompareOperator = if (tag == .equal_expr) .eq else .neq;
-            const res = lhs.val.compare(op, rhs.val, p.comp);
-            lhs.val = Value.fromBool(res);
+            const res: ?bool = if (lhs.ty.isPtr() or rhs.ty.isPtr())
+                lhs.val.comparePointers(op, rhs.val, p.comp)
+            else
+                lhs.val.compare(op, rhs.val, p.comp);
+
+            lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
         }
@@ -6620,8 +6639,11 @@ fn compExpr(p: *Parser) Error!Result {
                 .greater_than_equal_expr => .gte,
                 else => unreachable,
             };
-            const res = lhs.val.compare(op, rhs.val, p.comp);
-            lhs.val = Value.fromBool(res);
+            const res: ?bool = if (lhs.ty.isPtr() or rhs.ty.isPtr())
+                lhs.val.comparePointers(op, rhs.val, p.comp)
+            else
+                lhs.val.compare(op, rhs.val, p.comp);
+            lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
         }
@@ -6674,11 +6696,21 @@ fn addExpr(p: *Parser) Error!Result {
         const lhs_ty = lhs.ty;
         if (try lhs.adjustTypes(minus.?, &rhs, p, if (plus != null) .add else .sub)) {
             if (plus != null) {
-                if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp) and
-                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(plus.?, lhs);
+                if (try lhs.val.add(lhs.val, rhs.val, lhs.ty, p.comp)) {
+                    if (lhs.ty.isPtr()) {
+                        try p.errArrayOverflow(plus.?, lhs);
+                    } else if (lhs.ty.signedness(p.comp) != .unsigned) {
+                        try p.errOverflow(plus.?, lhs);
+                    }
+                }
             } else {
-                if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, p.comp) and
-                    lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(minus.?, lhs);
+                const elem_size = if (lhs_ty.isPtr()) lhs_ty.elemType().sizeof(p.comp) orelse 1 else 1;
+                if (elem_size == 0 and rhs.ty.isPtr()) {
+                    lhs.val = .{};
+                } else {
+                    if (try lhs.val.sub(lhs.val, rhs.val, lhs.ty, elem_size, p.comp) and
+                        lhs.ty.signedness(p.comp) != .unsigned) try p.errOverflow(minus.?, lhs);
+                }
             }
         }
         if (lhs.ty.specifier != .invalid and lhs_ty.isPtr() and !lhs_ty.isVoidStar() and lhs_ty.elemType().hasIncompleteSize()) {
@@ -7034,6 +7066,57 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
+fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Pointer {
+    const tys = p.nodes.items(.ty);
+    const tags = p.nodes.items(.tag);
+    const data = p.nodes.items(.data);
+    const tag = tags[@intFromEnum(node)];
+
+    switch (tag) {
+        .implicit_cast => {
+            const cast_data = data[@intFromEnum(node)].cast;
+            return switch (cast_data.kind) {
+                .array_to_pointer => p.computeOffsetExtra(cast_data.operand, offset_so_far),
+                else => unreachable,
+            };
+        },
+        .paren_expr => return p.computeOffsetExtra(data[@intFromEnum(node)].un, offset_so_far),
+        .decl_ref_expr => {
+            const var_name = try p.comp.internString(p.tokSlice(data[@intFromEnum(node)].decl_ref));
+            const sym = p.syms.findSymbol(var_name).?; // symbol must exist if we get here; otherwise it's a syntax error
+            return .{ .decl = @intFromEnum(sym.node), .offset = offset_so_far.ref() };
+        },
+        .array_access_expr => {
+            const bin_data = data[@intFromEnum(node)].bin;
+            const ty = tys[@intFromEnum(node)];
+
+            const index_val = p.value_map.get(bin_data.rhs) orelse return error.InvalidReloc;
+            var size = try Value.int(ty.sizeof(p.comp).?, p.comp);
+            const mul_overflow = try size.mul(size, index_val, p.comp.types.ptrdiff, p.comp);
+
+            const add_overflow = try offset_so_far.add(size, offset_so_far.*, p.comp.types.ptrdiff, p.comp);
+            _ = mul_overflow;
+            _ = add_overflow;
+            return p.computeOffsetExtra(bin_data.lhs, offset_so_far);
+        },
+        .member_access_expr => {
+            const member = data[@intFromEnum(node)].member;
+            const record = tys[@intFromEnum(member.lhs)].getRecord().?;
+            // const field_offset: i64 = @intCast(@divExact(record.fields[member.index].layout.offset_bits, 8));
+            const field_offset = try Value.int(@divExact(record.fields[member.index].layout.offset_bits, 8), p.comp);
+            _ = try offset_so_far.add(field_offset, offset_so_far.*, p.comp.types.ptrdiff, p.comp);
+            return p.computeOffsetExtra(member.lhs, offset_so_far);
+        },
+        else => return error.InvalidReloc,
+    }
+}
+
+/// Compute the offset (in bytes) of an expression from a base pointer.
+fn computeOffset(p: *Parser, node: NodeIndex) !Pointer {
+    var val: Value = .zero;
+    return p.computeOffsetExtra(node, &val);
+}
+
 /// unExpr
 ///  : (compoundLiteral | primaryExpr) suffixExpr*
 ///  | '&&' IDENTIFIER
@@ -7074,9 +7157,11 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.err(.invalid_preproc_operator);
                 return error.ParsingFailed;
             }
+            const ampersand_tok = p.tok_i;
             p.tok_i += 1;
             var operand = try p.castExpr();
             try operand.expect(p);
+            var addr_val: Value = .{};
 
             const tree = p.tmpTree();
             if (p.getNode(operand.node, .member_access_expr) orelse
@@ -7084,12 +7169,23 @@ fn unExpr(p: *Parser) Error!Result {
             {
                 if (tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
             }
-            if (!tree.isLval(operand.node) and !operand.ty.is(.invalid)) {
+            const operand_ty_valid = !operand.ty.is(.invalid);
+            if (!tree.isLval(operand.node) and operand_ty_valid) {
                 try p.errTok(.addr_of_rvalue, tok);
+            } else if (operand_ty_valid and p.func.ty == null) {
+                // address of global
+                const reloc: Pointer = p.computeOffset(operand.node) catch |e| switch (e) {
+                    error.InvalidReloc => blk: {
+                        try p.errTok(.non_constant_initializer, ampersand_tok);
+                        break :blk .{ .decl = @intFromEnum(NodeIndex.none), .offset = .zero };
+                    },
+                    else => |er| return er,
+                };
+                addr_val = try Value.reloc(reloc, p.comp);
             }
             if (operand.ty.qual.register) try p.errTok(.addr_of_register, tok);
 
-            if (!operand.ty.is(.invalid)) {
+            if (operand_ty_valid) {
                 const elem_ty = try p.arena.create(Type);
                 elem_ty.* = operand.ty;
                 operand.ty = Type{
@@ -7099,6 +7195,7 @@ fn unExpr(p: *Parser) Error!Result {
             }
             try operand.saveValue(p);
             try operand.un(p, .addr_of_expr, tok);
+            operand.val = addr_val;
             return operand;
         },
         .asterisk => {
@@ -7144,7 +7241,7 @@ fn unExpr(p: *Parser) Error!Result {
 
             try operand.usualUnaryConversion(p, tok);
             if (operand.val.isArithmetic(p.comp)) {
-                _ = try operand.val.sub(Value.zero, operand.val, operand.ty, p.comp);
+                _ = try operand.val.negate(operand.val, operand.ty, p.comp);
             } else {
                 operand.val = .{};
             }
@@ -7198,7 +7295,7 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
-                if (try operand.val.sub(operand.val, Value.one, operand.ty, p.comp))
+                if (try operand.val.decrement(operand.val, operand.ty, p.comp))
                     try p.errOverflow(tok, operand);
             } else {
                 operand.val = .{};

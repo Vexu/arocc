@@ -67,14 +67,14 @@ _Static_assert(4.2, "");
     "const decl folding.c:27:14: note: previous case defined here" \
     "const decl folding.c:34:27: error: '__builtin_choose_expr' requires a constant expression" \
     "const decl folding.c:38:15: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]" \
-    "const decl folding.c:43:16: warning: expression is not an integer constant expression; folding it to a constant is a GNU extension [-Wgnu-folding-constant]" \
     "const decl folding.c:43:16: warning: implicit conversion turns string literal into bool: 'char [1]' to '_Bool' [-Wstring-conversion]" \
+    "const decl folding.c:43:16: error: static_assert expression is not an integral constant expression" \
     "const decl folding.c:44:1: error: static assertion failed \"\"" \
-    "const decl folding.c:46:1: error: static assertion failed \"\"" \
-    "const decl folding.c:47:16: warning: expression is not an integer constant expression; folding it to a constant is a GNU extension [-Wgnu-folding-constant]" \
-    "const decl folding.c:47:16: note: this conversion is not allowed in a constant expression" \
-    "const decl folding.c:50:16: warning: expression is not an integer constant expression; folding it to a constant is a GNU extension [-Wgnu-folding-constant]" \
+    "const decl folding.c:46:16: error: static_assert expression is not an integral constant expression" \
+    "const decl folding.c:47:16: error: static_assert expression is not an integral constant expression" \
     "const decl folding.c:50:16: warning: address of array 'arr' will always evaluate to 'true' [-Wpointer-bool-conversion]" \
+    "const decl folding.c:50:16: error: static_assert expression is not an integral constant expression" \
     "const decl folding.c:51:1: error: static assertion failed \"\"" \
     "const decl folding.c:53:16: warning: implicit conversion from 'double' to '_Bool' changes value from 4.2 to true [-Wfloat-conversion]" \
+    "const decl folding.c:53:16: error: static_assert expression is not an integral constant expression" \
 
