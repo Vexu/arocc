@@ -5,13 +5,13 @@ fn_def: 'fn () void'
     var: '__fp16'
      name: x
      init:
-      implicit_cast: (float_cast) '__fp16'
+      implicit_cast: (float_cast) '__fp16' (value: 1)
         float_literal: 'float' (value: 1)
 
     var: '__fp16'
      name: y
      init:
-      implicit_cast: (float_cast) '__fp16'
+      implicit_cast: (float_cast) '__fp16' (value: 2)
         float_literal: 'float' (value: 2)
 
     assign_expr: '__fp16'

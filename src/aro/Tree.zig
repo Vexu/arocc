@@ -901,9 +901,17 @@ fn dumpNode(
         try w.writeAll(" (value: ");
         if (try val.print(ty, tree.comp, w)) |nested| switch (nested) {
             .pointer => |ptr| {
-                const decl = tree.nodes.items(.data)[ptr.decl].decl;
-                const decl_name = tree.tokSlice(decl.name);
-                try ptr.offset.printPointer(decl_name, tree.comp, w);
+                switch (tree.nodes.items(.tag)[ptr.node]) {
+                    .compound_literal_expr => {
+                        try w.writeAll("(compound literal) ");
+                        _ = try ptr.offset.print(tree.comp.types.ptrdiff, tree.comp, w);
+                    },
+                    else => {
+                        const decl = tree.nodes.items(.data)[ptr.node].decl;
+                        const decl_name = tree.tokSlice(decl.name);
+                        try ptr.offset.printPointer(decl_name, tree.comp, w);
+                    },
+                }
             },
         };
         try w.writeByte(')');

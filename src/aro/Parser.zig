@@ -63,6 +63,15 @@ const Label = union(enum) {
     label: TokenIndex,
 };
 
+const InitContext = enum {
+    /// inits do not need to be compile-time constants
+    runtime,
+    /// constexpr variable, could be any scope but inits must be compile-time constants
+    constexpr,
+    /// static and global variables, inits must be compile-time constants
+    static,
+};
+
 pub const Error = Compilation.Error || error{ParsingFailed};
 
 /// An attribute that has been parsed but not yet validated in its context
@@ -134,6 +143,8 @@ computed_goto_tok: ?TokenIndex = null,
 /// __auto_type may only be used with a single declarator. Keep track of the name
 /// so that it is not used in its own initializer.
 auto_type_decl_name: StringId = .empty,
+
+init_context: InitContext = .runtime,
 
 /// Various variables that are different for each function.
 func: struct {
@@ -1434,6 +1445,12 @@ pub const DeclSpec = struct {
             }
         }
     }
+
+    fn initContext(d: DeclSpec, p: *Parser) InitContext {
+        if (d.constexpr != null) return .constexpr;
+        if (p.func.ty == null or d.storage_class == .static) return .static;
+        return .runtime;
+    }
 };
 
 /// typeof
@@ -1857,6 +1874,9 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         }
         defer p.auto_type_decl_name = .empty;
 
+        const init_context = p.init_context;
+        defer p.init_context = init_context;
+        p.init_context = decl_spec.initContext(p);
         var init_list_expr = try p.initializer(init_d.d.ty);
         init_d.initializer = init_list_expr;
         if (!init_list_expr.ty.isArray()) break :init;
@@ -3329,10 +3349,12 @@ fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
         .ty = real_ty,
         .val = Value.zero,
     };
+    var has_second_init = false;
     if (p.eatToken(.comma)) |_| {
         const second_tok = p.tok_i;
         const maybe_second = try p.assignExpr();
         if (!maybe_second.empty(p)) {
+            has_second_init = true;
             second = maybe_second;
             try p.coerceInit(&second, second_tok, real_ty);
         }
@@ -3365,15 +3387,17 @@ fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
         .node = try p.addNode(arr_init_node),
         .ty = init_ty,
     };
-    if (first.val.opt_ref != .none and second.val.opt_ref != .none) {
-        res.val = try Value.intern(p.comp, switch (real_ty.bitSizeof(p.comp).?) {
-            32 => .{ .complex = .{ .cf32 = .{ first.val.toFloat(f32, p.comp), second.val.toFloat(f32, p.comp) } } },
-            64 => .{ .complex = .{ .cf64 = .{ first.val.toFloat(f64, p.comp), second.val.toFloat(f64, p.comp) } } },
-            80 => .{ .complex = .{ .cf80 = .{ first.val.toFloat(f80, p.comp), second.val.toFloat(f80, p.comp) } } },
-            128 => .{ .complex = .{ .cf128 = .{ first.val.toFloat(f128, p.comp), second.val.toFloat(f128, p.comp) } } },
-            else => unreachable,
-        });
-    }
+    const first_val = p.value_map.get(first.node) orelse return res;
+    const second_val = if (has_second_init) p.value_map.get(second.node) orelse return res else Value.zero;
+    res.val = try Value.intern(p.comp, switch (real_ty.bitSizeof(p.comp).?) {
+        32 => .{ .complex = .{ .cf32 = .{ first_val.toFloat(f32, p.comp), second_val.toFloat(f32, p.comp) } } },
+        64 => .{ .complex = .{ .cf64 = .{ first_val.toFloat(f64, p.comp), second_val.toFloat(f64, p.comp) } } },
+        80 => .{ .complex = .{ .cf80 = .{ first_val.toFloat(f80, p.comp), second_val.toFloat(f80, p.comp) } } },
+        128 => .{ .complex = .{ .cf128 = .{ first_val.toFloat(f128, p.comp), second_val.toFloat(f128, p.comp) } } },
+        else => unreachable,
+    });
+    var copy = res;
+    try copy.saveValue(p);
     return res;
 }
 
@@ -3839,6 +3863,20 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     }
 
     try item.coerce(p, target, tok, .init);
+    if (item.val.opt_ref == .none) runtime: {
+        const tag: Diagnostics.Tag = switch (p.init_context) {
+            .runtime => break :runtime,
+            .constexpr => .constexpr_requires_const,
+            .static => break :runtime, // TODO: set this to .non_constant_initializer once we are capable of saving all valid values
+        };
+        p.init_context = .runtime; // Suppress further "non-constant initializer" errors
+        try p.errTok(tag, tok);
+    }
+    if (target.isConst() or p.init_context == .constexpr) {
+        var copy = item.*;
+        return copy.saveValue(p);
+    }
+    return item.saveValue(p);
 }
 
 fn isStringInit(p: *Parser, ty: Type) bool {
@@ -4773,11 +4811,16 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
 
 fn pointerValue(p: *Parser, node: NodeIndex, offset: Value) !Value {
     const tag = p.nodes.items(.tag)[@intFromEnum(node)];
-    if (tag != .decl_ref_expr) return .{};
-    const decl_ref = p.nodes.items(.data)[@intFromEnum(node)].decl_ref;
-    const var_name = try p.comp.internString(p.tokSlice(decl_ref));
-    const sym = p.syms.findSymbol(var_name) orelse return .{};
-    return Value.pointer(.{ .decl = @intFromEnum(sym.node), .offset = offset.ref() }, p.comp);
+    switch (tag) {
+        .decl_ref_expr => {
+            const decl_ref = p.nodes.items(.data)[@intFromEnum(node)].decl_ref;
+            const var_name = try p.comp.internString(p.tokSlice(decl_ref));
+            const sym = p.syms.findSymbol(var_name) orelse return .{};
+            return Value.pointer(.{ .node = @intFromEnum(sym.node), .offset = offset.ref() }, p.comp);
+        },
+        .string_literal_expr => return p.value_map.get(node).?,
+        else => return .{},
+    }
 }
 
 const NoreturnKind = enum { no, yes, complex };
@@ -5211,7 +5254,7 @@ pub const Result = struct {
 
         if (try res.val.print(res.ty, p.comp, p.strings.writer())) |nested| switch (nested) {
             .pointer => |ptr| {
-                const decl_data = p.nodes.items(.data)[ptr.decl].decl;
+                const decl_data = p.nodes.items(.data)[ptr.node].decl;
                 const decl_name = p.tokSlice(decl_data.name);
                 try ptr.offset.printPointer(decl_name, p.comp, p.strings.writer());
             },
@@ -5567,6 +5610,7 @@ pub const Result = struct {
                 res.ty.specifier = .pointer;
                 res.ty.data = .{ .sub_type = elem_ty };
             }
+            res.val = try p.pointerValue(res.node, .zero);
             try res.implicitCast(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
             res.val = try p.pointerValue(res.node, .zero);
@@ -5620,6 +5664,7 @@ pub const Result = struct {
                 try res.implicitCast(p, .real_to_complex_int);
             }
         } else if (res.ty.isPtr()) {
+            res.val = .{};
             res.ty = int_ty.makeReal();
             try res.implicitCast(p, .pointer_to_int);
             if (!int_ty.isReal()) {
@@ -5987,6 +6032,7 @@ pub const Result = struct {
                         cast_kind = .real_to_complex_int;
                     } else {
                         cast_kind = .pointer_to_int;
+                        res.val = .{};
                     }
                 } else if (old_real and new_real) {
                     cast_kind = .float_to_int;
@@ -7557,6 +7603,9 @@ fn compoundLiteral(p: *Parser) Error!Result {
         try p.errStr(.variable_incomplete_ty, p.tok_i, try p.typeStr(ty));
         return error.ParsingFailed;
     }
+    const init_context = p.init_context;
+    defer p.init_context = init_context;
+    p.init_context = d.initContext(p);
     var init_list_expr = try p.initializer(ty);
     if (d.constexpr) |_| {
         // TODO error if not constexpr
@@ -8216,7 +8265,7 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
     const str_lit = try p.addNode(.{ .tag = .string_literal_expr, .ty = ty, .data = undefined, .loc = @enumFromInt(p.tok_i) });
     if (!p.in_macro) try p.value_map.put(str_lit, val);
 
-    return Result{ .ty = ty, .node = try p.addNode(.{
+    return .{ .ty = ty, .node = try p.addNode(.{
         .tag = .implicit_static_var,
         .ty = ty,
         .data = .{ .decl = .{ .name = p.tok_i, .node = str_lit } },

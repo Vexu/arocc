@@ -5,13 +5,13 @@ fn_def: 'fn () void'
     var: 'char'
      name: x
      init:
-      implicit_cast: (int_cast) 'char'
+      implicit_cast: (int_cast) 'char' (value: 0)
         int_literal: 'int' (value: 0)
 
     var: 'unsigned int'
      name: y
      init:
-      implicit_cast: (int_cast) 'unsigned int'
+      implicit_cast: (int_cast) 'unsigned int' (value: 2)
         int_literal: 'int' (value: 2)
 
     var: '_Bool'
