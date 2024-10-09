@@ -253,6 +253,7 @@ pub fn main() !void {
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .pp_num) {
                 fail_count += 1;
+                std.debug.print("{s}:\n", .{case});
                 std.debug.print("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
                 continue;
             }
@@ -265,12 +266,14 @@ pub fn main() !void {
         if (only_preprocess) {
             if (try checkExpectedErrors(&pp, &buf)) |some| {
                 if (!some) {
+                    std.debug.print("in case {s}\n", .{case});
                     fail_count += 1;
                     continue;
                 }
             } else {
                 aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
                 if (comp.diagnostics.errors != 0) {
+                    std.debug.print("in case {s}\n", .{case});
                     fail_count += 1;
                     continue;
                 }
@@ -299,6 +302,7 @@ pub fn main() !void {
                     ok_count += 1;
                 } else {
                     fail_count += 1;
+                    std.debug.print("{s}:\n", .{case});
                     std.debug.print("\n====== expected to find: =========\n", .{});
                     std.debug.print("{s}", .{expected_output});
                     std.debug.print("\n======== but did not find it in this: =========\n", .{});
@@ -319,7 +323,10 @@ pub fn main() !void {
         var tree = aro.Parser.parse(&pp) catch |err| switch (err) {
             error.FatalError => {
                 if (try checkExpectedErrors(&pp, &buf)) |some| {
-                    if (some) ok_count += 1 else fail_count += 1;
+                    if (some) ok_count += 1 else {
+                        std.debug.print("in case {s}\n", .{case});
+                        fail_count += 1;
+                    }
                 }
                 continue;
             },
@@ -337,6 +344,7 @@ pub fn main() !void {
 
             try tree.dump(.no_color, actual_ast.writer());
             std.testing.expectEqualStrings(expected_ast, actual_ast.items) catch {
+                std.debug.print("in case {s}\n", .{case});
                 fail_count += 1;
                 break;
             };
@@ -347,6 +355,7 @@ pub fn main() !void {
                 if (tree.nodes.items(.tag)[@intFromEnum(decl)] == .fn_def) break tree.nodes.items(.data)[@intFromEnum(decl)];
             } else {
                 fail_count += 1;
+                std.debug.print("{s}:\n", .{case});
                 std.debug.print("EXPECTED_TYPES requires a function to be defined\n", .{});
                 break;
             };
@@ -363,6 +372,7 @@ pub fn main() !void {
                 if (str.id == .macro_ws) continue;
                 if (str.id != .string_literal) {
                     fail_count += 1;
+                    std.debug.print("{s}:\n", .{case});
                     std.debug.print("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
                     continue :next_test;
                 }
@@ -373,6 +383,7 @@ pub fn main() !void {
                 const actual_type = actual.types.items[i];
                 if (!std.mem.eql(u8, expected_type, actual_type)) {
                     fail_count += 1;
+                    std.debug.print("{s}:\n", .{case});
                     std.debug.print("expected type '{s}' did not match actual type '{s}'\n", .{
                         expected_type,
                         actual_type,
@@ -382,6 +393,7 @@ pub fn main() !void {
             }
             if (i != actual.types.items.len) {
                 fail_count += 1;
+                std.debug.print("{s}:\n", .{case});
                 std.debug.print(
                     "EXPECTED_TYPES count differs: expected {d} found {d}\n",
                     .{ i, actual.types.items.len },
@@ -391,7 +403,10 @@ pub fn main() !void {
         }
 
         if (try checkExpectedErrors(&pp, &buf)) |some| {
-            if (some) ok_count += 1 else fail_count += 1;
+            if (some) ok_count += 1 else {
+                std.debug.print("in case {s}\n", .{case});
+                fail_count += 1;
+            }
             continue;
         }
 
@@ -408,12 +423,14 @@ pub fn main() !void {
 
             if (macro.is_func) {
                 fail_count += 1;
+                std.debug.print("{s}:\n", .{case});
                 std.debug.print("invalid EXPECTED_OUTPUT {}\n", .{macro});
                 continue;
             }
 
             if (macro.tokens.len != 1 or macro.tokens[0].id != .string_literal) {
                 fail_count += 1;
+                std.debug.print("{s}:\n", .{case});
                 std.debug.print("EXPECTED_OUTPUT takes exactly one string", .{});
                 continue;
             }
@@ -456,6 +473,7 @@ pub fn main() !void {
 
             if (!std.mem.eql(u8, expected_output, stdout)) {
                 fail_count += 1;
+                std.debug.print("{s}:\n", .{case});
                 std.debug.print(
                     \\
                     \\======= expected output =======
