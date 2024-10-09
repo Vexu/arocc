@@ -31,7 +31,7 @@ fn_def: 'fn () void'
     var: '_Complex float'
      name: ca
      init:
-      implicit_cast: (real_to_complex_float) '_Complex float'
+      implicit_cast: (real_to_complex_float) '_Complex float' (value: 0 + 0i)
         float_literal: 'float' (value: 0)
 
     assign_expr: '_Complex float'

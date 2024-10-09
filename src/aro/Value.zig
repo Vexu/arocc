@@ -550,7 +550,7 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.add(total_offset, old_offset, comp.types.ptrdiff, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try pointer(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
+        res.* = try pointer(.{ .node = rel.node, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
 
@@ -610,7 +610,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
     if (lhs_key == .pointer and rhs_key == .pointer) {
         const lhs_pointer = lhs_key.pointer;
         const rhs_pointer = rhs_key.pointer;
-        if (lhs_pointer.decl != rhs_pointer.decl) {
+        if (lhs_pointer.node != rhs_pointer.node) {
             res.* = .{};
             return false;
         }
@@ -629,7 +629,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
         const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.sub(old_offset, total_offset, comp.types.ptrdiff, undefined, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try pointer(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
+        res.* = try pointer(.{ .node = rel.node, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
 
@@ -1006,9 +1006,9 @@ pub fn comparePointers(lhs: Value, op: std.math.CompareOperator, rhs: Value, com
         const lhs_pointer = lhs_key.pointer;
         const rhs_pointer = rhs_key.pointer;
         switch (op) {
-            .eq => if (lhs_pointer.decl != rhs_pointer.decl) return false,
-            .neq => if (lhs_pointer.decl != rhs_pointer.decl) return true,
-            else => if (lhs_pointer.decl != rhs_pointer.decl) return null,
+            .eq => if (lhs_pointer.node != rhs_pointer.node) return false,
+            .neq => if (lhs_pointer.node != rhs_pointer.node) return true,
+            else => if (lhs_pointer.node != rhs_pointer.node) return null,
         }
 
         const lhs_offset = fromRef(lhs_pointer.offset);
@@ -1056,7 +1056,7 @@ pub fn maxInt(ty: Type, comp: *Compilation) !Value {
 
 const NestedPrint = union(enum) {
     pointer: struct {
-        decl: u32,
+        node: u32,
         offset: Value,
     },
 };
@@ -1091,7 +1091,7 @@ pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w
             .cf32 => |components| try w.print("{d} + {d}i", .{ @round(@as(f64, @floatCast(components[0])) * 1000000) / 1000000, @round(@as(f64, @floatCast(components[1])) * 1000000) / 1000000 }),
             inline else => |components| try w.print("{d} + {d}i", .{ @as(f64, @floatCast(components[0])), @as(f64, @floatCast(components[1])) }),
         },
-        .pointer => |ptr| return .{ .pointer = .{ .decl = ptr.decl, .offset = fromRef(ptr.offset) } },
+        .pointer => |ptr| return .{ .pointer = .{ .node = ptr.node, .offset = fromRef(ptr.offset) } },
         else => unreachable, // not a value
     }
     return null;

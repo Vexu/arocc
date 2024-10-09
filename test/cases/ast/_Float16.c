@@ -84,7 +84,7 @@ fn_def: 'fn () void'
     var: '__fp16'
      name: fp16
      init:
-      implicit_cast: (int_to_float) '__fp16'
+      implicit_cast: (int_to_float) '__fp16' (value: 0)
         int_literal: 'int' (value: 0)
 
     assign_expr: 'double'

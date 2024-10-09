@@ -8,7 +8,7 @@ var: 'attributed([1]int)'
 var: '*int'
  name: ptr
  init:
-  implicit_cast: (array_to_pointer) '*d:attributed([1]int)'
+  implicit_cast: (array_to_pointer) '*d:attributed([1]int)' (value: &arr)
    attr: aligned alignment: null
     decl_ref_expr: 'attributed([1]int)' lvalue
      attr: aligned alignment: null
@@ -25,7 +25,7 @@ fn_def: 'fn () void'
     var: '*char'
      name: y
      init:
-      addr_of_expr: '*char'
+      addr_of_expr: '*char' (value: &x)
        operand:
         array_access_expr: 'char' lvalue
          lhs:

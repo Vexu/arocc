@@ -82,8 +82,8 @@ pub const Key = union(enum) {
         cf128: [2]f128,
     };
     pub const Pointer = struct {
-        /// NodeIndex of decl whose address we are offsetting from
-        decl: u32,
+        /// NodeIndex of decl or compound literal whose address we are offsetting from
+        node: u32,
         /// Offset in bytes
         offset: Ref,
     };
@@ -336,7 +336,7 @@ pub const Tag = enum(u8) {
     };
 
     pub const Pointer = struct {
-        decl: u32,
+        node: u32,
         offset: Ref,
     };
 
@@ -628,7 +628,7 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
             i.items.appendAssumeCapacity(.{
                 .tag = .pointer,
                 .data = try i.addExtra(gpa, Tag.Pointer{
-                    .decl = info.decl,
+                    .node = info.node,
                     .offset = info.offset,
                 }),
             });
@@ -822,7 +822,7 @@ pub fn get(i: *const Interner, ref: Ref) Key {
         .pointer => {
             const pointer = i.extraData(Tag.Pointer, data);
             return .{ .pointer = .{
-                .decl = pointer.decl,
+                .node = pointer.node,
                 .offset = pointer.offset,
             } };
         },
