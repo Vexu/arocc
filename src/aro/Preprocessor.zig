@@ -25,6 +25,40 @@ const max_include_depth = 200;
 /// it is handled there and doesn't escape that function
 const MacroError = Error || error{StopPreprocessing};
 
+const IfContext = struct {
+    const Backing = u2;
+    const Nesting = enum(Backing) {
+        until_else,
+        until_endif,
+        until_endif_seen_else,
+    };
+
+    const buf_size_bits = @bitSizeOf(Backing) * 256;
+    kind: [buf_size_bits / std.mem.byte_size_in_bits]u8,
+    level: u8,
+
+    fn get(self: *const IfContext) Nesting {
+        return @enumFromInt(std.mem.readPackedIntNative(Backing, &self.kind, @as(usize, self.level) * 2));
+    }
+
+    fn set(self: *IfContext, context: Nesting) void {
+        std.mem.writePackedIntNative(Backing, &self.kind, @as(usize, self.level) * 2, @intFromEnum(context));
+    }
+
+    fn increment(self: *IfContext) bool {
+        self.level, const overflowed = @addWithOverflow(self.level, 1);
+        return overflowed != 0;
+    }
+
+    fn decrement(self: *IfContext) void {
+        self.level -= 1;
+    }
+
+    /// Initialize `kind` to an invalid value since it is an error to read the kind before setting it.
+    /// Doing so will trigger safety-checked undefined behavior in `IfContext.get`
+    const default: IfContext = .{ .kind = @splat(0xFF), .level = 0 };
+};
+
 const Macro = struct {
     /// Parameters of the function type macro
     params: []const []const u8,
@@ -388,11 +422,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
     const estimated_token_count = source.buf.len / 8;
     try pp.ensureTotalTokenCapacity(pp.tokens.len + estimated_token_count);
 
-    var if_level: u8 = 0;
-    var if_kind = std.PackedIntArray(u2, 256).init([1]u2{0} ** 256);
-    const until_else = 0;
-    const until_endif = 1;
-    const until_endif_seen_else = 2;
+    var if_context: IfContext = .default;
 
     var start_of_line = true;
     while (true) {
@@ -424,18 +454,17 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }, &.{});
                     },
                     .keyword_if => {
-                        const sum, const overflowed = @addWithOverflow(if_level, 1);
-                        if (overflowed != 0)
+                        const overflowed = if_context.increment();
+                        if (overflowed)
                             return pp.fatal(directive, "too many #if nestings", .{});
-                        if_level = sum;
 
                         if (try pp.expr(&tokenizer)) {
-                            if_kind.set(if_level, until_endif);
+                            if_context.set(.until_endif);
                             if (pp.verbose) {
                                 pp.verboseLog(directive, "entering then branch of #if", .{});
                             }
                         } else {
-                            if_kind.set(if_level, until_else);
+                            if_context.set(.until_else);
                             try pp.skip(&tokenizer, .until_else);
                             if (pp.verbose) {
                                 pp.verboseLog(directive, "entering else branch of #if", .{});
@@ -443,20 +472,19 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }
                     },
                     .keyword_ifdef => {
-                        const sum, const overflowed = @addWithOverflow(if_level, 1);
-                        if (overflowed != 0)
+                        const overflowed = if_context.increment();
+                        if (overflowed)
                             return pp.fatal(directive, "too many #if nestings", .{});
-                        if_level = sum;
 
                         const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
                         try pp.expectNl(&tokenizer);
                         if (pp.defines.get(macro_name) != null) {
-                            if_kind.set(if_level, until_endif);
+                            if_context.set(.until_endif);
                             if (pp.verbose) {
                                 pp.verboseLog(directive, "entering then branch of #ifdef", .{});
                             }
                         } else {
-                            if_kind.set(if_level, until_else);
+                            if_context.set(.until_else);
                             try pp.skip(&tokenizer, .until_else);
                             if (pp.verbose) {
                                 pp.verboseLog(directive, "entering else branch of #ifdef", .{});
@@ -464,31 +492,30 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }
                     },
                     .keyword_ifndef => {
-                        const sum, const overflowed = @addWithOverflow(if_level, 1);
-                        if (overflowed != 0)
+                        const overflowed = if_context.increment();
+                        if (overflowed)
                             return pp.fatal(directive, "too many #if nestings", .{});
-                        if_level = sum;
 
                         const macro_name = (try pp.expectMacroName(&tokenizer)) orelse continue;
                         try pp.expectNl(&tokenizer);
                         if (pp.defines.get(macro_name) == null) {
-                            if_kind.set(if_level, until_endif);
+                            if_context.set(.until_endif);
                         } else {
-                            if_kind.set(if_level, until_else);
+                            if_context.set(.until_else);
                             try pp.skip(&tokenizer, .until_else);
                         }
                     },
                     .keyword_elif => {
-                        if (if_level == 0) {
+                        if (if_context.level == 0) {
                             try pp.err(directive, .elif_without_if);
-                            if_level += 1;
-                            if_kind.set(if_level, until_else);
-                        } else if (if_level == 1) {
+                            _ = if_context.increment();
+                            if_context.set(.until_else);
+                        } else if (if_context.level == 1) {
                             guard_name = null;
                         }
-                        switch (if_kind.get(if_level)) {
-                            until_else => if (try pp.expr(&tokenizer)) {
-                                if_kind.set(if_level, until_endif);
+                        switch (if_context.get()) {
+                            .until_else => if (try pp.expr(&tokenizer)) {
+                                if_context.set(.until_endif);
                                 if (pp.verbose) {
                                     pp.verboseLog(directive, "entering then branch of #elif", .{});
                                 }
@@ -498,27 +525,26 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                                     pp.verboseLog(directive, "entering else branch of #elif", .{});
                                 }
                             },
-                            until_endif => try pp.skip(&tokenizer, .until_endif),
-                            until_endif_seen_else => {
+                            .until_endif => try pp.skip(&tokenizer, .until_endif),
+                            .until_endif_seen_else => {
                                 try pp.err(directive, .elif_after_else);
                                 skipToNl(&tokenizer);
                             },
-                            else => unreachable,
                         }
                     },
                     .keyword_elifdef => {
-                        if (if_level == 0) {
+                        if (if_context.level == 0) {
                             try pp.err(directive, .elifdef_without_if);
-                            if_level += 1;
-                            if_kind.set(if_level, until_else);
-                        } else if (if_level == 1) {
+                            _ = if_context.increment();
+                            if_context.set(.until_else);
+                        } else if (if_context.level == 1) {
                             guard_name = null;
                         }
-                        switch (if_kind.get(if_level)) {
-                            until_else => {
+                        switch (if_context.get()) {
+                            .until_else => {
                                 const macro_name = try pp.expectMacroName(&tokenizer);
                                 if (macro_name == null) {
-                                    if_kind.set(if_level, until_else);
+                                    if_context.set(.until_else);
                                     try pp.skip(&tokenizer, .until_else);
                                     if (pp.verbose) {
                                         pp.verboseLog(directive, "entering else branch of #elifdef", .{});
@@ -526,12 +552,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                                 } else {
                                     try pp.expectNl(&tokenizer);
                                     if (pp.defines.get(macro_name.?) != null) {
-                                        if_kind.set(if_level, until_endif);
+                                        if_context.set(.until_endif);
                                         if (pp.verbose) {
                                             pp.verboseLog(directive, "entering then branch of #elifdef", .{});
                                         }
                                     } else {
-                                        if_kind.set(if_level, until_else);
+                                        if_context.set(.until_else);
                                         try pp.skip(&tokenizer, .until_else);
                                         if (pp.verbose) {
                                             pp.verboseLog(directive, "entering else branch of #elifdef", .{});
@@ -539,27 +565,26 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                                     }
                                 }
                             },
-                            until_endif => try pp.skip(&tokenizer, .until_endif),
-                            until_endif_seen_else => {
+                            .until_endif => try pp.skip(&tokenizer, .until_endif),
+                            .until_endif_seen_else => {
                                 try pp.err(directive, .elifdef_after_else);
                                 skipToNl(&tokenizer);
                             },
-                            else => unreachable,
                         }
                     },
                     .keyword_elifndef => {
-                        if (if_level == 0) {
+                        if (if_context.level == 0) {
                             try pp.err(directive, .elifdef_without_if);
-                            if_level += 1;
-                            if_kind.set(if_level, until_else);
-                        } else if (if_level == 1) {
+                            _ = if_context.increment();
+                            if_context.set(.until_else);
+                        } else if (if_context.level == 1) {
                             guard_name = null;
                         }
-                        switch (if_kind.get(if_level)) {
-                            until_else => {
+                        switch (if_context.get()) {
+                            .until_else => {
                                 const macro_name = try pp.expectMacroName(&tokenizer);
                                 if (macro_name == null) {
-                                    if_kind.set(if_level, until_else);
+                                    if_context.set(.until_else);
                                     try pp.skip(&tokenizer, .until_else);
                                     if (pp.verbose) {
                                         pp.verboseLog(directive, "entering else branch of #elifndef", .{});
@@ -567,12 +592,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                                 } else {
                                     try pp.expectNl(&tokenizer);
                                     if (pp.defines.get(macro_name.?) == null) {
-                                        if_kind.set(if_level, until_endif);
+                                        if_context.set(.until_endif);
                                         if (pp.verbose) {
                                             pp.verboseLog(directive, "entering then branch of #elifndef", .{});
                                         }
                                     } else {
-                                        if_kind.set(if_level, until_else);
+                                        if_context.set(.until_else);
                                         try pp.skip(&tokenizer, .until_else);
                                         if (pp.verbose) {
                                             pp.verboseLog(directive, "entering else branch of #elifndef", .{});
@@ -580,44 +605,42 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                                     }
                                 }
                             },
-                            until_endif => try pp.skip(&tokenizer, .until_endif),
-                            until_endif_seen_else => {
+                            .until_endif => try pp.skip(&tokenizer, .until_endif),
+                            .until_endif_seen_else => {
                                 try pp.err(directive, .elifdef_after_else);
                                 skipToNl(&tokenizer);
                             },
-                            else => unreachable,
                         }
                     },
                     .keyword_else => {
                         try pp.expectNl(&tokenizer);
-                        if (if_level == 0) {
+                        if (if_context.level == 0) {
                             try pp.err(directive, .else_without_if);
                             continue;
-                        } else if (if_level == 1) {
+                        } else if (if_context.level == 1) {
                             guard_name = null;
                         }
-                        switch (if_kind.get(if_level)) {
-                            until_else => {
-                                if_kind.set(if_level, until_endif_seen_else);
+                        switch (if_context.get()) {
+                            .until_else => {
+                                if_context.set(.until_endif_seen_else);
                                 if (pp.verbose) {
                                     pp.verboseLog(directive, "#else branch here", .{});
                                 }
                             },
-                            until_endif => try pp.skip(&tokenizer, .until_endif_seen_else),
-                            until_endif_seen_else => {
+                            .until_endif => try pp.skip(&tokenizer, .until_endif_seen_else),
+                            .until_endif_seen_else => {
                                 try pp.err(directive, .else_after_else);
                                 skipToNl(&tokenizer);
                             },
-                            else => unreachable,
                         }
                     },
                     .keyword_endif => {
                         try pp.expectNl(&tokenizer);
-                        if (if_level == 0) {
+                        if (if_context.level == 0) {
                             guard_name = null;
                             try pp.err(directive, .endif_without_if);
                             continue;
-                        } else if (if_level == 1) {
+                        } else if (if_context.level == 1) {
                             const saved_tokenizer = tokenizer;
                             defer tokenizer = saved_tokenizer;
 
@@ -625,7 +648,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             while (next.id == .nl) : (next = tokenizer.nextNoWS()) {}
                             if (next.id != .eof) guard_name = null;
                         }
-                        if_level -= 1;
+                        if_context.decrement();
                     },
                     .keyword_define => try pp.define(&tokenizer, directive),
                     .keyword_undef => {
@@ -693,7 +716,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                     },
                     .nl => {},
                     .eof => {
-                        if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
+                        if (if_context.level != 0) try pp.err(tok, .unterminated_conditional_directive);
                         return tokFromRaw(directive);
                     },
                     else => {
@@ -712,7 +735,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                 if (pp.preserve_whitespace) try pp.addToken(tokFromRaw(tok));
             },
             .eof => {
-                if (if_level != 0) try pp.err(tok, .unterminated_conditional_directive);
+                if (if_context.level != 0) try pp.err(tok, .unterminated_conditional_directive);
                 // The following check needs to occur here and not at the top of the function
                 // because a pragma may change the level during preprocessing
                 if (source.buf.len > 0 and source.buf[source.buf.len - 1] != '\n') {
