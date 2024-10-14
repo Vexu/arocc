@@ -174,7 +174,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
     var buf_writer = std.io.bufferedWriter(file.writer());
     const w = buf_writer.writer();
 
-    var num_sections: std.elf.Elf64_Half = additional_sections;
+    var num_sections: std.elf.Half = additional_sections;
     var relocations_len: std.elf.Elf64_Off = 0;
     var sections_len: std.elf.Elf64_Off = 0;
     {

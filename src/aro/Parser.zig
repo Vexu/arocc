@@ -5804,8 +5804,8 @@ pub const Result = struct {
         // if either is a float cast to that type
         if (a.ty.isFloat() or b.ty.isFloat()) {
             const float_types = [6][2]Type.Specifier{
-                .{ .complex_long_double, .long_double },
                 .{ .complex_float128, .float128 },
+                .{ .complex_long_double, .long_double },
                 .{ .complex_double, .double },
                 .{ .complex_float, .float },
                 // No `_Complex __fp16` type
@@ -5814,20 +5814,9 @@ pub const Result = struct {
             };
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
-            if (p.comp.target.cTypeBitSize(.longdouble) == 128) {
-                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
+            for (float_types) |ft| {
+                if (try a.floatConversion(b, a_spec, b_spec, p, ft)) return;
             }
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[1])) return;
-            if (p.comp.target.cTypeBitSize(.longdouble) >= p.comp.target.cTypeBitSize(.double)) {
-                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
-            }
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[2])) return;
-            if (p.comp.target.cTypeBitSize(.longdouble) >= p.comp.target.cTypeBitSize(.float)) {
-                if (try a.floatConversion(b, a_spec, b_spec, p, float_types[0])) return;
-            }
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[3])) return;
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[4])) return;
-            if (try a.floatConversion(b, a_spec, b_spec, p, float_types[5])) return;
             unreachable;
         }
 
@@ -6843,8 +6832,8 @@ fn castExpr(p: *Parser) Error!Result {
     switch (p.tok_ids[p.tok_i]) {
         .builtin_choose_expr => return p.builtinChooseExpr(),
         .builtin_va_arg => return p.builtinVaArg(),
-        .builtin_offsetof => return p.builtinOffsetof(false),
-        .builtin_bitoffsetof => return p.builtinOffsetof(true),
+        .builtin_offsetof => return p.builtinOffsetof(.bytes),
+        .builtin_bitoffsetof => return p.builtinOffsetof(.bits),
         .builtin_types_compatible_p => return p.typesCompatible(),
         // TODO: other special-cased builtins
         else => {},
@@ -6968,7 +6957,9 @@ fn builtinVaArg(p: *Parser) Error!Result {
     }) };
 }
 
-fn builtinOffsetof(p: *Parser, want_bits: bool) Error!Result {
+const OffsetKind = enum { bits, bytes };
+
+fn builtinOffsetof(p: *Parser, offset_kind: OffsetKind) Error!Result {
     const builtin_tok = p.tok_i;
     p.tok_i += 1;
 
@@ -6993,7 +6984,7 @@ fn builtinOffsetof(p: *Parser, want_bits: bool) Error!Result {
 
     _ = try p.expectToken(.comma);
 
-    const offsetof_expr = try p.offsetofMemberDesignator(ty, want_bits);
+    const offsetof_expr = try p.offsetofMemberDesignator(ty, offset_kind);
 
     try p.expectClosing(l_paren, .r_paren);
 
@@ -7009,7 +7000,7 @@ fn builtinOffsetof(p: *Parser, want_bits: bool) Error!Result {
 }
 
 /// offsetofMemberDesignator: IDENTIFIER ('.' IDENTIFIER | '[' expr ']' )*
-fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Result {
+fn offsetofMemberDesignator(p: *Parser, base_ty: Type, offset_kind: OffsetKind) Error!Result {
     errdefer p.skipTo(.r_paren);
     const base_field_name_tok = try p.expectIdentifier();
     const base_field_name = try StrInt.intern(p.comp, p.tokSlice(base_field_name_tok));
@@ -7062,7 +7053,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, want_bits: bool) Error!Re
         },
         else => break,
     };
-    const val = try Value.int(if (want_bits) total_offset else total_offset / 8, p.comp);
+    const val = try Value.int(if (offset_kind == .bits) total_offset else total_offset / 8, p.comp);
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
