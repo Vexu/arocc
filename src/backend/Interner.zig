@@ -82,7 +82,7 @@ pub const Key = union(enum) {
         cf128: [2]f128,
     };
     pub const Pointer = struct {
-        /// NodeIndex of decl or compound literal whose address we are offsetting from
+        /// NodeIndex of decl whose address we are offsetting from
         decl: u32,
         /// Offset in bytes
         offset: Ref,

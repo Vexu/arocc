@@ -33,7 +33,7 @@ pub fn int(i: anytype, comp: *Compilation) !Value {
     }
 }
 
-pub fn reloc(r: Interner.Key.Pointer, comp: *Compilation) !Value {
+pub fn pointer(r: Interner.Key.Pointer, comp: *Compilation) !Value {
     return intern(comp, .{ .pointer = r });
 }
 
@@ -554,7 +554,7 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.add(total_offset, old_offset, comp.types.ptrdiff, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
+        res.* = try pointer(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
 
@@ -612,14 +612,14 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
     const lhs_key = comp.interner.get(lhs.ref());
     const rhs_key = comp.interner.get(rhs.ref());
     if (lhs_key == .pointer and rhs_key == .pointer) {
-        const lhs_reloc = lhs_key.pointer;
-        const rhs_reloc = rhs_key.pointer;
-        if (lhs_reloc.decl != rhs_reloc.decl) {
+        const lhs_pointer = lhs_key.pointer;
+        const rhs_pointer = rhs_key.pointer;
+        if (lhs_pointer.decl != rhs_pointer.decl) {
             res.* = .{};
             return false;
         }
-        const lhs_offset = fromRef(lhs_reloc.offset);
-        const rhs_offset = fromRef(rhs_reloc.offset);
+        const lhs_offset = fromRef(lhs_pointer.offset);
+        const rhs_offset = fromRef(rhs_pointer.offset);
         const overflowed = try res.sub(lhs_offset, rhs_offset, comp.types.ptrdiff, undefined, comp);
         const rhs_size = try int(elem_size, comp);
         _ = try res.div(res.*, rhs_size, comp.types.ptrdiff, comp);
@@ -633,7 +633,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
         const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.sub(old_offset, total_offset, comp.types.ptrdiff, undefined, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
+        res.* = try pointer(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
 
@@ -1007,16 +1007,16 @@ pub fn comparePointers(lhs: Value, op: std.math.CompareOperator, rhs: Value, com
     const rhs_key = comp.interner.get(rhs.ref());
 
     if (lhs_key == .pointer and rhs_key == .pointer) {
-        const lhs_reloc = lhs_key.pointer;
-        const rhs_reloc = rhs_key.pointer;
+        const lhs_pointer = lhs_key.pointer;
+        const rhs_pointer = rhs_key.pointer;
         switch (op) {
-            .eq => if (lhs_reloc.decl != rhs_reloc.decl) return false,
-            .neq => if (lhs_reloc.decl != rhs_reloc.decl) return true,
-            else => if (lhs_reloc.decl != rhs_reloc.decl) return null,
+            .eq => if (lhs_pointer.decl != rhs_pointer.decl) return false,
+            .neq => if (lhs_pointer.decl != rhs_pointer.decl) return true,
+            else => if (lhs_pointer.decl != rhs_pointer.decl) return null,
         }
 
-        const lhs_offset = fromRef(lhs_reloc.offset);
-        const rhs_offset = fromRef(rhs_reloc.offset);
+        const lhs_offset = fromRef(lhs_pointer.offset);
+        const rhs_offset = fromRef(rhs_pointer.offset);
         return lhs_offset.compare(op, rhs_offset, comp);
     }
     return null;

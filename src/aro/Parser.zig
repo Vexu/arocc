@@ -4773,7 +4773,7 @@ fn pointerValue(p: *Parser, node: NodeIndex, offset: Value) !Value {
     const decl_ref = p.nodes.items(.data)[@intFromEnum(node)].decl_ref;
     const var_name = try p.comp.internString(p.tokSlice(decl_ref));
     const sym = p.syms.findSymbol(var_name) orelse return .{};
-    return Value.reloc(.{ .decl = @intFromEnum(sym.node), .offset = offset.ref() }, p.comp);
+    return Value.pointer(.{ .decl = @intFromEnum(sym.node), .offset = offset.ref() }, p.comp);
 }
 
 const NoreturnKind = enum { no, yes, complex };
@@ -7104,11 +7104,6 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Value
             return p.computeOffsetExtra(member.lhs, offset_so_far);
         },
         .deref_expr, .addr_of_expr => return offset_so_far.*,
-        .compound_literal_expr,
-        .static_compound_literal_expr,
-        .thread_local_compound_literal_expr,
-        .static_thread_local_compound_literal_expr,
-        => return Value.reloc(.{ .decl = @intFromEnum(node), .offset = .zero }, p.comp),
         else => return .{},
     }
 }
