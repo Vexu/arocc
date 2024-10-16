@@ -259,7 +259,7 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind 
     const dest_signed = dest_ty.signedness(comp) == .signed;
 
     var space: BigIntSpace = undefined;
-    const big = keyToBigInt(key, &space);
+    const big = key.toBigInt(&space);
     const value_bits = big.bitCountTwosComp();
 
     // if big is negative, then is signed.
@@ -390,12 +390,8 @@ fn bigIntToFloat(limbs: []const std.math.big.Limb, positive: bool) f128 {
     }
 }
 
-fn keyToBigInt(key: Interner.Key, space: *BigIntSpace) BigIntConst {
-    return key.int.toBigInt(space);
-}
-
 fn toBigInt(val: Value, space: *BigIntSpace, comp: *const Compilation) BigIntConst {
-    return keyToBigInt(comp.interner.get(val.ref()), space);
+    return comp.interner.get(val.ref()).toBigInt(space);
 }
 
 pub fn isZero(v: Value, comp: *const Compilation) bool {
@@ -486,7 +482,7 @@ pub fn toInt(v: Value, comptime T: type, comp: *const Compilation) ?T {
     const key = comp.interner.get(v.ref());
     if (key != .int) return null;
     var space: BigIntSpace = undefined;
-    const big_int = keyToBigInt(key, &space);
+    const big_int = key.toBigInt(&space);
     return big_int.to(T) catch null;
 }
 
@@ -560,8 +556,8 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
-    const lhs_bigint = keyToBigInt(lhs_key, &lhs_space);
-    const rhs_bigint = keyToBigInt(rhs_key, &rhs_space);
+    const lhs_bigint = lhs_key.toBigInt(&lhs_space);
+    const rhs_bigint = rhs_key.toBigInt(&rhs_space);
 
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
@@ -639,8 +635,8 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
 
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
-    const lhs_bigint = keyToBigInt(lhs_key, &lhs_space);
-    const rhs_bigint = keyToBigInt(rhs_key, &rhs_space);
+    const lhs_bigint = lhs_key.toBigInt(&lhs_space);
+    const rhs_bigint = rhs_key.toBigInt(&rhs_space);
 
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,

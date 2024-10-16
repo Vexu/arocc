@@ -206,6 +206,10 @@ pub const Key = union(enum) {
         }
         return null;
     }
+
+    pub fn toBigInt(key: Key, space: *Tag.Int.BigIntSpace) BigIntConst {
+        return key.int.toBigInt(space);
+    }
 };
 
 pub const Ref = enum(u32) {
