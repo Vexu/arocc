@@ -50,9 +50,19 @@ union Empty empty[10];
 _Static_assert(&empty[4] - &empty[0] == 0, "");
 _Static_assert(&empty[4] >= &empty[0], "");
 
+_Static_assert(arr == arr, "");
+_Static_assert(arr + 1 < arr + 2, "");
+_Static_assert(arr != &x, "");
+
+void foo(void) {
+    int local;
+    _Static_assert(&local < &local + 1, "");
+    _Static_assert(&(int){5} != &(int){5}, "");
+}
 #define EXPECTED_ERRORS "relocations.c:24:1: error: static assertion failed" \
     "relocations.c:29:16: error: static_assert expression is not an integral constant expression" \
     "relocations.c:30:16: error: static_assert expression is not an integral constant expression" \
     "relocations.c:50:26: warning: subtraction of pointers to type 'union Empty' of zero size has undefined behavior [-Wpointer-arith]" \
     "relocations.c:50:16: error: static_assert expression is not an integral constant expression" \
+    "relocations.c:60:20: error: static_assert expression is not an integral constant expression" \
 

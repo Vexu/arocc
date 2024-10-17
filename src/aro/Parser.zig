@@ -26,7 +26,6 @@ const Symbol = SymbolStack.Symbol;
 const record_layout = @import("record_layout.zig");
 const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
-const Pointer = @import("backend").Interner.Key.Pointer;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const evalBuiltin = @import("Builtins/eval.zig").eval;
@@ -505,9 +504,13 @@ pub fn valueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: Type)
     try w.writeAll(" changes ");
     if (res.val.isZero(p.comp)) try w.writeAll("non-zero ");
     try w.writeAll("value from ");
-    try old_value.print(res.ty, p.comp, w);
+    if (try old_value.print(res.ty, p.comp, w)) |nested| switch (nested) {
+        .pointer => unreachable,
+    };
     try w.writeAll(" to ");
-    try res.val.print(int_ty, p.comp, w);
+    if (try res.val.print(int_ty, p.comp, w)) |nested| switch (nested) {
+        .pointer => unreachable,
+    };
 
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -4768,6 +4771,15 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
     return try p.addNode(node);
 }
 
+fn pointerValue(p: *Parser, node: NodeIndex, offset: Value) !Value {
+    const tag = p.nodes.items(.tag)[@intFromEnum(node)];
+    if (tag != .decl_ref_expr) return .{};
+    const decl_ref = p.nodes.items(.data)[@intFromEnum(node)].decl_ref;
+    const var_name = try p.comp.internString(p.tokSlice(decl_ref));
+    const sym = p.syms.findSymbol(var_name) orelse return .{};
+    return Value.pointer(.{ .decl = @intFromEnum(sym.node), .offset = offset.ref() }, p.comp);
+}
+
 const NoreturnKind = enum { no, yes, complex };
 
 fn nodeIsNoreturn(p: *Parser, node: NodeIndex) NoreturnKind {
@@ -5197,7 +5209,14 @@ pub const Result = struct {
         const strings_top = p.strings.items.len;
         defer p.strings.items.len = strings_top;
 
-        try res.val.print(res.ty, p.comp, p.strings.writer());
+        if (try res.val.print(res.ty, p.comp, p.strings.writer())) |nested| switch (nested) {
+            .pointer => |ptr| {
+                const decl_data = p.nodes.items(.data)[ptr.decl].decl;
+                const decl_name = p.tokSlice(decl_data.name);
+                try ptr.offset.printPointer(decl_name, p.comp, p.strings.writer());
+            },
+        };
+
         return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     }
 
@@ -5550,7 +5569,7 @@ pub const Result = struct {
             }
             try res.implicitCast(p, .function_to_pointer);
         } else if (res.ty.isArray()) {
-            res.val = .{};
+            res.val = try p.pointerValue(res.node, .zero);
             res.ty.decayArray();
             try res.implicitCast(p, .array_to_pointer);
         } else if (!p.in_macro and p.tmpTree().isLval(res.node)) {
@@ -7057,7 +7076,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, offset_kind: OffsetKind) 
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
-fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Pointer {
+fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Value {
     const tys = p.nodes.items(.ty);
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
@@ -7072,16 +7091,12 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Point
             };
         },
         .paren_expr => return p.computeOffsetExtra(data[@intFromEnum(node)].un, offset_so_far),
-        .decl_ref_expr => {
-            const var_name = try p.comp.internString(p.tokSlice(data[@intFromEnum(node)].decl_ref));
-            const sym = p.syms.findSymbol(var_name).?; // symbol must exist if we get here; otherwise it's a syntax error
-            return .{ .decl = @intFromEnum(sym.node), .offset = offset_so_far.ref() };
-        },
+        .decl_ref_expr => return p.pointerValue(node, offset_so_far.*),
         .array_access_expr => {
             const bin_data = data[@intFromEnum(node)].bin;
             const ty = tys[@intFromEnum(node)];
 
-            const index_val = p.value_map.get(bin_data.rhs) orelse return error.InvalidReloc;
+            const index_val = p.value_map.get(bin_data.rhs) orelse return .{};
             var size = try Value.int(ty.sizeof(p.comp).?, p.comp);
             const mul_overflow = try size.mul(size, index_val, p.comp.types.ptrdiff, p.comp);
 
@@ -7090,22 +7105,23 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Point
             _ = add_overflow;
             return p.computeOffsetExtra(bin_data.lhs, offset_so_far);
         },
-        .member_access_expr => {
+        .member_access_expr, .member_access_ptr_expr => {
             const member = data[@intFromEnum(node)].member;
-            const record = tys[@intFromEnum(member.lhs)].getRecord().?;
-            // const field_offset: i64 = @intCast(@divExact(record.fields[member.index].layout.offset_bits, 8));
+            var ty = tys[@intFromEnum(member.lhs)];
+            if (ty.isPtr()) ty = ty.elemType();
+            const record = ty.getRecord().?;
             const field_offset = try Value.int(@divExact(record.fields[member.index].layout.offset_bits, 8), p.comp);
             _ = try offset_so_far.add(field_offset, offset_so_far.*, p.comp.types.ptrdiff, p.comp);
             return p.computeOffsetExtra(member.lhs, offset_so_far);
         },
-        else => return error.InvalidReloc,
+        else => return .{},
     }
 }
 
 /// Compute the offset (in bytes) of an expression from a base pointer.
-fn computeOffset(p: *Parser, node: NodeIndex) !Pointer {
-    var val: Value = .zero;
-    return p.computeOffsetExtra(node, &val);
+fn computeOffset(p: *Parser, res: Result) !Value {
+    var val: Value = if (res.val.opt_ref == .none) .zero else res.val;
+    return p.computeOffsetExtra(res.node, &val);
 }
 
 /// unExpr
@@ -7148,7 +7164,6 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.err(.invalid_preproc_operator);
                 return error.ParsingFailed;
             }
-            const ampersand_tok = p.tok_i;
             p.tok_i += 1;
             var operand = try p.castExpr();
             try operand.expect(p);
@@ -7163,16 +7178,8 @@ fn unExpr(p: *Parser) Error!Result {
             const operand_ty_valid = !operand.ty.is(.invalid);
             if (!tree.isLval(operand.node) and operand_ty_valid) {
                 try p.errTok(.addr_of_rvalue, tok);
-            } else if (operand_ty_valid and p.func.ty == null) {
-                // address of global
-                const reloc: Pointer = p.computeOffset(operand.node) catch |e| switch (e) {
-                    error.InvalidReloc => blk: {
-                        try p.errTok(.non_constant_initializer, ampersand_tok);
-                        break :blk .{ .decl = @intFromEnum(NodeIndex.none), .offset = .zero };
-                    },
-                    else => |er| return er,
-                };
-                addr_val = try Value.reloc(reloc, p.comp);
+            } else if (operand_ty_valid) {
+                addr_val = try p.computeOffset(operand);
             }
             if (operand.ty.qual.register) try p.errTok(.addr_of_register, tok);
 
@@ -7198,6 +7205,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (operand.ty.isArray() or operand.ty.isPtr() or operand.ty.isFunc()) {
                 try operand.lvalConversion(p);
                 operand.ty = operand.ty.elemType();
+                operand.val = .{};
             } else {
                 try p.errTok(.indirection_ptr, tok);
             }

@@ -899,7 +899,13 @@ fn dumpNode(
     if (tree.value_map.get(node)) |val| {
         try config.setColor(w, LITERAL);
         try w.writeAll(" (value: ");
-        try val.print(ty, tree.comp, w);
+        if (try val.print(ty, tree.comp, w)) |nested| switch (nested) {
+            .pointer => |ptr| {
+                const decl = tree.nodes.items(.data)[ptr.decl].decl;
+                const decl_name = tree.tokSlice(decl.name);
+                try ptr.offset.printPointer(decl_name, tree.comp, w);
+            },
+        };
         try w.writeByte(')');
     }
     if (tag == .implicit_return and data.return_zero) {

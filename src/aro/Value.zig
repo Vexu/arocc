@@ -33,7 +33,7 @@ pub fn int(i: anytype, comp: *Compilation) !Value {
     }
 }
 
-pub fn reloc(r: Interner.Key.Pointer, comp: *Compilation) !Value {
+pub fn pointer(r: Interner.Key.Pointer, comp: *Compilation) !Value {
     return intern(comp, .{ .pointer = r });
 }
 
@@ -259,7 +259,7 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind 
     const dest_signed = dest_ty.signedness(comp) == .signed;
 
     var space: BigIntSpace = undefined;
-    const big = keyToBigInt(key, &space);
+    const big = key.toBigInt(&space);
     const value_bits = big.bitCountTwosComp();
 
     // if big is negative, then is signed.
@@ -390,12 +390,8 @@ fn bigIntToFloat(limbs: []const std.math.big.Limb, positive: bool) f128 {
     }
 }
 
-fn keyToBigInt(key: Interner.Key, space: *BigIntSpace) BigIntConst {
-    return key.int.toBigInt(space);
-}
-
 fn toBigInt(val: Value, space: *BigIntSpace, comp: *const Compilation) BigIntConst {
-    return keyToBigInt(comp.interner.get(val.ref()), space);
+    return comp.interner.get(val.ref()).toBigInt(space);
 }
 
 pub fn isZero(v: Value, comp: *const Compilation) bool {
@@ -486,7 +482,7 @@ pub fn toInt(v: Value, comptime T: type, comp: *const Compilation) ?T {
     const key = comp.interner.get(v.ref());
     if (key != .int) return null;
     var space: BigIntSpace = undefined;
-    const big_int = keyToBigInt(key, &space);
+    const big_int = key.toBigInt(&space);
     return big_int.to(T) catch null;
 }
 
@@ -554,14 +550,14 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.add(total_offset, old_offset, comp.types.ptrdiff, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
+        res.* = try pointer(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
 
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
-    const lhs_bigint = keyToBigInt(lhs_key, &lhs_space);
-    const rhs_bigint = keyToBigInt(rhs_key, &rhs_space);
+    const lhs_bigint = lhs_key.toBigInt(&lhs_space);
+    const rhs_bigint = rhs_key.toBigInt(&rhs_space);
 
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
@@ -612,14 +608,14 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
     const lhs_key = comp.interner.get(lhs.ref());
     const rhs_key = comp.interner.get(rhs.ref());
     if (lhs_key == .pointer and rhs_key == .pointer) {
-        const lhs_reloc = lhs_key.pointer;
-        const rhs_reloc = rhs_key.pointer;
-        if (lhs_reloc.decl != rhs_reloc.decl) {
+        const lhs_pointer = lhs_key.pointer;
+        const rhs_pointer = rhs_key.pointer;
+        if (lhs_pointer.decl != rhs_pointer.decl) {
             res.* = .{};
             return false;
         }
-        const lhs_offset = fromRef(lhs_reloc.offset);
-        const rhs_offset = fromRef(rhs_reloc.offset);
+        const lhs_offset = fromRef(lhs_pointer.offset);
+        const rhs_offset = fromRef(rhs_pointer.offset);
         const overflowed = try res.sub(lhs_offset, rhs_offset, comp.types.ptrdiff, undefined, comp);
         const rhs_size = try int(elem_size, comp);
         _ = try res.div(res.*, rhs_size, comp.types.ptrdiff, comp);
@@ -633,14 +629,14 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
         const old_offset = fromRef(rel.offset);
         const add_overflow = try total_offset.sub(old_offset, total_offset, comp.types.ptrdiff, undefined, comp);
         _ = try total_offset.intCast(comp.types.ptrdiff, comp);
-        res.* = try reloc(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
+        res.* = try pointer(.{ .decl = rel.decl, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
 
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
-    const lhs_bigint = keyToBigInt(lhs_key, &lhs_space);
-    const rhs_bigint = keyToBigInt(rhs_key, &rhs_space);
+    const lhs_bigint = lhs_key.toBigInt(&lhs_space);
+    const rhs_bigint = rhs_key.toBigInt(&rhs_space);
 
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
@@ -1007,16 +1003,16 @@ pub fn comparePointers(lhs: Value, op: std.math.CompareOperator, rhs: Value, com
     const rhs_key = comp.interner.get(rhs.ref());
 
     if (lhs_key == .pointer and rhs_key == .pointer) {
-        const lhs_reloc = lhs_key.pointer;
-        const rhs_reloc = rhs_key.pointer;
+        const lhs_pointer = lhs_key.pointer;
+        const rhs_pointer = rhs_key.pointer;
         switch (op) {
-            .eq => if (lhs_reloc.decl != rhs_reloc.decl) return false,
-            .neq => if (lhs_reloc.decl != rhs_reloc.decl) return true,
-            else => if (lhs_reloc.decl != rhs_reloc.decl) return null,
+            .eq => if (lhs_pointer.decl != rhs_pointer.decl) return false,
+            .neq => if (lhs_pointer.decl != rhs_pointer.decl) return true,
+            else => if (lhs_pointer.decl != rhs_pointer.decl) return null,
         }
 
-        const lhs_offset = fromRef(lhs_reloc.offset);
-        const rhs_offset = fromRef(rhs_reloc.offset);
+        const lhs_offset = fromRef(lhs_pointer.offset);
+        const rhs_offset = fromRef(rhs_pointer.offset);
         return lhs_offset.compare(op, rhs_offset, comp);
     }
     return null;
@@ -1058,29 +1054,47 @@ pub fn maxInt(ty: Type, comp: *Compilation) !Value {
     return twosCompIntLimit(.max, ty, comp);
 }
 
-pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+const NestedPrint = union(enum) {
+    pointer: struct {
+        decl: u32,
+        offset: Value,
+    },
+};
+
+pub fn printPointer(offset: Value, base: []const u8, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+    try w.writeByte('&');
+    try w.writeAll(base);
+    if (!offset.isZero(comp)) {
+        const maybe_nested = try offset.print(comp.types.ptrdiff, comp, w);
+        std.debug.assert(maybe_nested == null);
+    }
+}
+
+pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!?NestedPrint {
     if (ty.is(.bool)) {
-        return w.writeAll(if (v.isZero(comp)) "false" else "true");
+        try w.writeAll(if (v.isZero(comp)) "false" else "true");
+        return null;
     }
     const key = comp.interner.get(v.ref());
     switch (key) {
-        .null => return w.writeAll("nullptr_t"),
+        .null => try w.writeAll("nullptr_t"),
         .int => |repr| switch (repr) {
-            inline else => |x| return w.print("{d}", .{x}),
+            inline else => |x| try w.print("{d}", .{x}),
         },
         .float => |repr| switch (repr) {
-            .f16 => |x| return w.print("{d}", .{@round(@as(f64, @floatCast(x)) * 1000) / 1000}),
-            .f32 => |x| return w.print("{d}", .{@round(@as(f64, @floatCast(x)) * 1000000) / 1000000}),
-            inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
+            .f16 => |x| try w.print("{d}", .{@round(@as(f64, @floatCast(x)) * 1000) / 1000}),
+            .f32 => |x| try w.print("{d}", .{@round(@as(f64, @floatCast(x)) * 1000000) / 1000000}),
+            inline else => |x| try w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| return printString(b, ty, comp, w),
+        .bytes => |b| try printString(b, ty, comp, w),
         .complex => |repr| switch (repr) {
-            .cf32 => |components| return w.print("{d} + {d}i", .{ @round(@as(f64, @floatCast(components[0])) * 1000000) / 1000000, @round(@as(f64, @floatCast(components[1])) * 1000000) / 1000000 }),
-            inline else => |components| return w.print("{d} + {d}i", .{ @as(f64, @floatCast(components[0])), @as(f64, @floatCast(components[1])) }),
+            .cf32 => |components| try w.print("{d} + {d}i", .{ @round(@as(f64, @floatCast(components[0])) * 1000000) / 1000000, @round(@as(f64, @floatCast(components[1])) * 1000000) / 1000000 }),
+            inline else => |components| try w.print("{d} + {d}i", .{ @as(f64, @floatCast(components[0])), @as(f64, @floatCast(components[1])) }),
         },
-        .pointer => {},
+        .pointer => |ptr| return .{ .pointer = .{ .decl = ptr.decl, .offset = fromRef(ptr.offset) } },
         else => unreachable, // not a value
     }
+    return null;
 }
 
 pub fn printString(bytes: []const u8, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {

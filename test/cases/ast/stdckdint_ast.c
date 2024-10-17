@@ -34,7 +34,7 @@ fn_def: 'fn () void'
         implicit_cast: (lval_to_rval) 'unsigned int'
           decl_ref_expr: 'unsigned int' lvalue
            name: y
-        addr_of_expr: '*long'
+        addr_of_expr: '*long' (value: &res)
          operand:
           decl_ref_expr: 'long' lvalue
            name: res
@@ -53,7 +53,7 @@ fn_def: 'fn () void'
         implicit_cast: (lval_to_rval) 'unsigned int'
           decl_ref_expr: 'unsigned int' lvalue
            name: y
-        addr_of_expr: '*long'
+        addr_of_expr: '*long' (value: &res)
          operand:
           decl_ref_expr: 'long' lvalue
            name: res
@@ -72,7 +72,7 @@ fn_def: 'fn () void'
         implicit_cast: (lval_to_rval) 'unsigned int'
           decl_ref_expr: 'unsigned int' lvalue
            name: y
-        addr_of_expr: '*long'
+        addr_of_expr: '*long' (value: &res)
          operand:
           decl_ref_expr: 'long' lvalue
            name: res
