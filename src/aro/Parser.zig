@@ -504,9 +504,13 @@ pub fn valueChangedStr(p: *Parser, res: *Result, old_value: Value, int_ty: Type)
     try w.writeAll(" changes ");
     if (res.val.isZero(p.comp)) try w.writeAll("non-zero ");
     try w.writeAll("value from ");
-    try old_value.print(res.ty, p.comp, w);
+    if (try old_value.print(res.ty, p.comp, w)) |nested| switch (nested) {
+        .pointer => unreachable,
+    };
     try w.writeAll(" to ");
-    try res.val.print(int_ty, p.comp, w);
+    if (try res.val.print(int_ty, p.comp, w)) |nested| switch (nested) {
+        .pointer => unreachable,
+    };
 
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -5205,7 +5209,14 @@ pub const Result = struct {
         const strings_top = p.strings.items.len;
         defer p.strings.items.len = strings_top;
 
-        try res.val.print(res.ty, p.comp, p.strings.writer());
+        if (try res.val.print(res.ty, p.comp, p.strings.writer())) |nested| switch (nested) {
+            .pointer => |ptr| {
+                const decl_data = p.nodes.items(.data)[ptr.decl].decl;
+                const decl_name = p.tokSlice(decl_data.name);
+                try ptr.offset.printPointer(decl_name, p.comp, p.strings.writer());
+            },
+        };
+
         return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
     }
 

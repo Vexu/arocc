@@ -30,7 +30,7 @@ fn_def: 'fn (x: int, ...) void'
     builtin_call_expr: 'void'
      name: __builtin_va_start
      args:
-      implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: )
+      implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
         decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
          name: va
       decl_ref_expr: 'int' lvalue
@@ -39,7 +39,7 @@ fn_def: 'fn (x: int, ...) void'
     builtin_call_expr_one: 'void'
      name: __builtin_va_end
      arg:
-      implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: )
+      implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
         decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
          name: va
 
