@@ -7103,7 +7103,6 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Value
             _ = try offset_so_far.add(field_offset, offset_so_far.*, p.comp.types.ptrdiff, p.comp);
             return p.computeOffsetExtra(member.lhs, offset_so_far);
         },
-        .deref_expr, .addr_of_expr => return offset_so_far.*,
         else => return .{},
     }
 }
@@ -7195,6 +7194,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (operand.ty.isArray() or operand.ty.isPtr() or operand.ty.isFunc()) {
                 try operand.lvalConversion(p);
                 operand.ty = operand.ty.elemType();
+                operand.val = .{};
             } else {
                 try p.errTok(.indirection_ptr, tok);
             }
