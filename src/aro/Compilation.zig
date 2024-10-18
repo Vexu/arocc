@@ -180,55 +180,55 @@ pub fn deinit(comp: *Compilation) void {
     comp.environment.deinit(comp.gpa);
 }
 
-pub fn getSourceEpoch(self: *const Compilation, max: i64) !?i64 {
+pub fn getSourceEpoch(self: *const Compilation, max: i64) !?u47 {
     const provided = self.environment.source_date_epoch orelse return null;
     const parsed = std.fmt.parseInt(i64, provided, 10) catch return error.InvalidEpoch;
     if (parsed < 0 or parsed > max) return error.InvalidEpoch;
-    return parsed;
+    return @intCast(std.math.clamp(parsed, 0, max_timestamp));
 }
 
 /// Dec 31 9999 23:59:59
 const max_timestamp = 253402300799;
 
-fn generateDateAndTime(w: anytype, timestamp: ?u47) !void {
-    if (timestamp) |t| {
-        const epoch_seconds = EpochSeconds{ .secs = t };
-        const epoch_day = epoch_seconds.getEpochDay();
-        const day_seconds = epoch_seconds.getDaySeconds();
-        const year_day = epoch_day.calculateYearDay();
-        const month_day = year_day.calculateMonthDay();
-
-        const month_names = [_][]const u8{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-        std.debug.assert(std.time.epoch.Month.jan.numeric() == 1);
-
-        const month_name = month_names[month_day.month.numeric() - 1];
-        try w.print("#define __DATE__ \"{s} {d: >2} {d}\"\n", .{
-            month_name,
-            month_day.day_index + 1,
-            year_day.year,
-        });
-        try w.print("#define __TIME__ \"{d:0>2}:{d:0>2}:{d:0>2}\"\n", .{
-            day_seconds.getHoursIntoDay(),
-            day_seconds.getMinutesIntoHour(),
-            day_seconds.getSecondsIntoMinute(),
-        });
-
-        const day_names = [_][]const u8{ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-        const day_name = day_names[@intCast((epoch_day.day + 3) % 7)];
-        try w.print("#define __TIMESTAMP__ \"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"\n", .{
-            day_name,
-            month_name,
-            month_day.day_index + 1,
-            day_seconds.getHoursIntoDay(),
-            day_seconds.getMinutesIntoHour(),
-            day_seconds.getSecondsIntoMinute(),
-            year_day.year,
-        });
-    } else {
+fn generateDateAndTime(w: anytype, opt_timestamp: ?u47) !void {
+    const timestamp = opt_timestamp orelse {
         try w.print("#define __DATE__ \"??? ?? ????\"\n", .{});
         try w.print("#define __TIME__ \"??:??:??\"\n", .{});
         try w.print("#define __TIMESTAMP__ \"??? ??? ?? ??:??:?? ????\"\n", .{});
-    }
+        return;
+    };
+    const epoch_seconds = EpochSeconds{ .secs = timestamp };
+    const epoch_day = epoch_seconds.getEpochDay();
+    const day_seconds = epoch_seconds.getDaySeconds();
+    const year_day = epoch_day.calculateYearDay();
+    const month_day = year_day.calculateMonthDay();
+
+    const month_names = [_][]const u8{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    std.debug.assert(std.time.epoch.Month.jan.numeric() == 1);
+
+    const month_name = month_names[month_day.month.numeric() - 1];
+    try w.print("#define __DATE__ \"{s} {d: >2} {d}\"\n", .{
+        month_name,
+        month_day.day_index + 1,
+        year_day.year,
+    });
+    try w.print("#define __TIME__ \"{d:0>2}:{d:0>2}:{d:0>2}\"\n", .{
+        day_seconds.getHoursIntoDay(),
+        day_seconds.getMinutesIntoHour(),
+        day_seconds.getSecondsIntoMinute(),
+    });
+
+    const day_names = [_][]const u8{ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    const day_name = day_names[@intCast((epoch_day.day + 3) % 7)];
+    try w.print("#define __TIMESTAMP__ \"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"\n", .{
+        day_name,
+        month_name,
+        month_day.day_index + 1,
+        day_seconds.getHoursIntoDay(),
+        day_seconds.getMinutesIntoHour(),
+        day_seconds.getSecondsIntoMinute(),
+        year_day.year,
+    });
 }
 
 /// Which set of system defines to generate via generateBuiltinMacros
@@ -588,7 +588,7 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         try buf.append('\n');
     }
 
-    const provided: ?i64 = comp.getSourceEpoch(max_timestamp) catch blk: {
+    const provided: ?u47 = comp.getSourceEpoch(max_timestamp) catch blk: {
         try comp.addDiagnostic(.{
             .tag = .invalid_source_epoch,
             .loc = .{ .id = .unused, .byte_offset = 0, .line = 0 },
@@ -596,7 +596,7 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         break :blk null;
     };
     if (provided) |epoch| {
-        try generateDateAndTime(buf.writer(), @intCast(std.math.clamp(epoch, 0, max_timestamp)));
+        try generateDateAndTime(buf.writer(), epoch);
     } else {
         try generateDateAndTime(buf.writer(), timestamp);
     }
