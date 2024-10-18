@@ -261,7 +261,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     }
 
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
-    const builtin_macros = try comp.generateBuiltinMacros(.include_system_defines);
+    const builtin_macros = try comp.generateBuiltinMacrosFromPath(.include_system_defines, file.path);
 
     var pp = aro.Preprocessor.init(&comp);
     defer pp.deinit();

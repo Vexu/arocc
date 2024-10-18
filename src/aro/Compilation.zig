@@ -180,29 +180,23 @@ pub fn deinit(comp: *Compilation) void {
     comp.environment.deinit(comp.gpa);
 }
 
-pub fn getSourceEpoch(self: *const Compilation, max: i64) !?i64 {
+pub fn getSourceEpoch(self: *const Compilation, max: i64) !?u47 {
     const provided = self.environment.source_date_epoch orelse return null;
     const parsed = std.fmt.parseInt(i64, provided, 10) catch return error.InvalidEpoch;
     if (parsed < 0 or parsed > max) return error.InvalidEpoch;
-    return parsed;
+    return @intCast(std.math.clamp(parsed, 0, max_timestamp));
 }
 
 /// Dec 31 9999 23:59:59
 const max_timestamp = 253402300799;
 
-fn getTimestamp(comp: *Compilation) !u47 {
-    const provided: ?i64 = comp.getSourceEpoch(max_timestamp) catch blk: {
-        try comp.addDiagnostic(.{
-            .tag = .invalid_source_epoch,
-            .loc = .{ .id = .unused, .byte_offset = 0, .line = 0 },
-        }, &.{});
-        break :blk null;
+fn generateDateAndTime(w: anytype, opt_timestamp: ?u47) !void {
+    const timestamp = opt_timestamp orelse {
+        try w.print("#define __DATE__ \"??? ?? ????\"\n", .{});
+        try w.print("#define __TIME__ \"??:??:??\"\n", .{});
+        try w.print("#define __TIMESTAMP__ \"??? ??? ?? ??:??:?? ????\"\n", .{});
+        return;
     };
-    const timestamp = provided orelse std.time.timestamp();
-    return @intCast(std.math.clamp(timestamp, 0, max_timestamp));
-}
-
-fn generateDateAndTime(w: anytype, timestamp: u47) !void {
     const epoch_seconds = EpochSeconds{ .secs = timestamp };
     const epoch_day = epoch_seconds.getEpochDay();
     const day_seconds = epoch_seconds.getDaySeconds();
@@ -550,8 +544,15 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     }
 }
 
+/// Generate builtin macros trying to use mtime as timestamp
+pub fn generateBuiltinMacrosFromPath(comp: *Compilation, system_defines_mode: SystemDefinesMode, path: []const u8) !Source {
+    const stat = comp.cwd.statFile(path) catch return try generateBuiltinMacros(comp, system_defines_mode, null);
+    const timestamp: i64 = @intCast(@divTrunc(stat.mtime, std.time.ns_per_s));
+    return try generateBuiltinMacros(comp, system_defines_mode, @intCast(std.math.clamp(timestamp, 0, max_timestamp)));
+}
+
 /// Generate builtin macros that will be available to each source file.
-pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) !Source {
+pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode, timestamp: ?u47) !Source {
     try comp.generateBuiltinTypes();
 
     var buf = std.ArrayList(u8).init(comp.gpa);
@@ -587,9 +588,18 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         try buf.append('\n');
     }
 
-    // timestamps
-    const timestamp = try comp.getTimestamp();
-    try generateDateAndTime(buf.writer(), timestamp);
+    const provided: ?u47 = comp.getSourceEpoch(max_timestamp) catch blk: {
+        try comp.addDiagnostic(.{
+            .tag = .invalid_source_epoch,
+            .loc = .{ .id = .unused, .byte_offset = 0, .line = 0 },
+        }, &.{});
+        break :blk null;
+    };
+    if (provided) |epoch| {
+        try generateDateAndTime(buf.writer(), epoch);
+    } else {
+        try generateDateAndTime(buf.writer(), timestamp);
+    }
 
     if (system_defines_mode == .include_system_defines) {
         try comp.generateSystemDefines(buf.writer());
