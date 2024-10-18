@@ -689,10 +689,10 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         error.AroIncludeNotFound => return d.fatal("unable to find Aro builtin headers", .{}),
     };
 
-    const builtin = try d.comp.generateBuiltinMacros(d.system_defines);
     const user_macros = try d.comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
     if (fast_exit and d.inputs.items.len == 1) {
+        const builtin = try d.comp.generateBuiltinMacrosFromPath(d.system_defines, d.inputs.items[0].path);
         d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit) catch |e| switch (e) {
             error.FatalError => {
                 d.renderErrors();
@@ -704,6 +704,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     }
 
     for (d.inputs.items) |source| {
+        const builtin = try d.comp.generateBuiltinMacrosFromPath(d.system_defines, source.path);
         d.processSource(tc, source, builtin, user_macros, fast_exit) catch |e| switch (e) {
             error.FatalError => {
                 d.renderErrors();

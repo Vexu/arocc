@@ -33,7 +33,7 @@ fn compileSlice(buf: []const u8) !void {
     try comp.addDefaultPragmaHandlers();
     try comp.addSystemIncludeDir(aro_dir);
 
-    const builtin = try comp.generateBuiltinMacros(.include_system_defines);
+    const builtin = try comp.generateBuiltinMacrosFromPath(.include_system_defines, user_source.path);
     const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
 
     try processSource(&comp, builtin, user_source);
