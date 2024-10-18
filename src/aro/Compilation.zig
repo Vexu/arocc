@@ -546,8 +546,8 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
 
 /// Generate builtin macros trying to use mtime as timestamp
 pub fn generateBuiltinMacrosFromPath(comp: *Compilation, system_defines_mode: SystemDefinesMode, path: []const u8) !Source {
-    const stat = std.fs.cwd().statFile(path) catch return try generateBuiltinMacros(comp, system_defines_mode, null);
-    const timestamp: i64 = @intCast(@divTrunc(stat.mtime, 1000000000));
+    const stat = comp.cwd.statFile(path) catch return try generateBuiltinMacros(comp, system_defines_mode, null);
+    const timestamp: i64 = @intCast(@divTrunc(stat.mtime, std.time.ns_per_s));
     return try generateBuiltinMacros(comp, system_defines_mode, @intCast(std.math.clamp(timestamp, 0, max_timestamp)));
 }
 

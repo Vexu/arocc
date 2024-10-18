@@ -761,7 +761,7 @@ fn processSource(
         }
 
         const file = if (d.output_name) |some|
-            std.fs.cwd().createFile(some, .{}) catch |er|
+            d.comp.cwd.createFile(some, .{}) catch |er|
                 return d.fatal("unable to create output file '{s}': {s}", .{ some, errorDescription(er) })
         else
             std.io.getStdOut();
@@ -864,7 +864,7 @@ fn processSource(
         break :blk std.fmt.bufPrint(&name_buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
     };
 
-    const out_file = std.fs.cwd().createFile(out_file_name, .{}) catch |er|
+    const out_file = d.comp.cwd.createFile(out_file_name, .{}) catch |er|
         return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
     defer out_file.close();
 
