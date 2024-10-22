@@ -49,7 +49,7 @@ pub fn main() u8 {
     var driver: Driver = .{ .comp = &comp, .aro_name = aro_name };
     defer driver.deinit();
 
-    var toolchain: Toolchain = .{ .driver = &driver, .arena = arena };
+    var toolchain: Toolchain = .{ .driver = &driver, .arena = arena, .filesystem = .{ .real = comp.cwd } };
     defer toolchain.deinit();
 
     driver.main(&toolchain, args, fast_exit) catch |er| switch (er) {

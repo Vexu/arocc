@@ -48,7 +48,7 @@ const Inner = union(enum) {
 
 const Toolchain = @This();
 
-filesystem: Filesystem = .{ .real = {} },
+filesystem: Filesystem,
 driver: *Driver,
 arena: mem.Allocator,
 
