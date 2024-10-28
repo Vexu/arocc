@@ -56,6 +56,7 @@ pub fn build(b: *Build) !void {
     const tracy = b.option([]const u8, "tracy", "Enable Tracy integration. Supply path to Tracy source");
     const tracy_callstack = b.option(bool, "tracy-callstack", "Include callstack information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
     const tracy_allocation = b.option(bool, "tracy-allocation", "Include allocation information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
+    const use_llvm = b.option(bool, "llvm", "Use LLVM backend to generate aro executable");
 
     const system_defaults = b.addOptions();
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
@@ -168,6 +169,8 @@ pub fn build(b: *Build) !void {
         .optimize = mode,
         .target = target,
         .single_threaded = true,
+        .use_llvm = use_llvm,
+        .use_lld = use_llvm,
     });
     exe.root_module.addImport("aro", aro_module);
 
@@ -217,6 +220,8 @@ pub fn build(b: *Build) !void {
             .root_source_file = b.path("test/runner.zig"),
             .optimize = mode,
             .target = target,
+            .use_llvm = use_llvm,
+            .use_lld = use_llvm,
         });
         integration_tests.root_module.addImport("aro", aro_module);
         const test_runner_options = b.addOptions();
@@ -238,6 +243,8 @@ pub fn build(b: *Build) !void {
             .root_source_file = b.path("test/record_runner.zig"),
             .optimize = mode,
             .target = target,
+            .use_llvm = use_llvm,
+            .use_lld = use_llvm,
         });
         record_tests.root_module.addImport("aro", aro_module);
         const record_tests_runner = b.addRunArtifact(record_tests);
