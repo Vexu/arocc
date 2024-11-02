@@ -405,7 +405,7 @@ fn parseTargetsFromCode(cases: *TestCase.List, path: []const u8, source: []const
 
 const compErr = blk: {
     @setEvalBranchQuota(100_000);
-    break :blk std.StaticStringMap(ExpectedFailure).initComptime(.{
+    break :blk std.StaticStringMap(ExpectedFailure).initComptime(&[_]struct { []const u8, ExpectedFailure }{
         .{
             "aarch64-generic-windows-msvc:Msvc|0018",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
