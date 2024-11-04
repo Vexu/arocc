@@ -1,6 +1,7 @@
 const std = @import("std");
-const DiagnosticTag = @import("Diagnostics.zig").Tag;
+
 const char_info = @import("char_info.zig");
+const DiagnosticTag = @import("Diagnostics.zig").Tag;
 
 pub const Compiler = enum {
     clang,

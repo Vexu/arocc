@@ -3,14 +3,14 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const testing = std.testing;
+
+const Diagnostics = @import("Diagnostics.zig");
+const Parser = @import("Parser.zig");
 const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
-const Diagnostics = @import("Diagnostics.zig");
-const NodeList = std.ArrayList(NodeIndex);
-const Parser = @import("Parser.zig");
 
 const Item = struct {
     list: InitList = .{},

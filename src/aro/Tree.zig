@@ -1,14 +1,16 @@
 const std = @import("std");
+
 const Interner = @import("backend").Interner;
+
 const Attribute = @import("Attribute.zig");
 const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
 const number_affixes = @import("Tree/number_affixes.zig");
 const Source = @import("Source.zig");
+const StringInterner = @import("StringInterner.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
-const StringInterner = @import("StringInterner.zig");
 
 pub const Token = struct {
     id: Id,

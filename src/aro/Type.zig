@@ -1,14 +1,15 @@
 const std = @import("std");
-const Tree = @import("Tree.zig");
-const TokenIndex = Tree.TokenIndex;
-const NodeIndex = Tree.NodeIndex;
-const Parser = @import("Parser.zig");
-const Compilation = @import("Compilation.zig");
+
 const Attribute = @import("Attribute.zig");
+const Compilation = @import("Compilation.zig");
+const LangOpts = @import("LangOpts.zig");
+const Parser = @import("Parser.zig");
 const StringInterner = @import("StringInterner.zig");
 const StringId = StringInterner.StringId;
 const target_util = @import("target.zig");
-const LangOpts = @import("LangOpts.zig");
+const Tree = @import("Tree.zig");
+const TokenIndex = Tree.TokenIndex;
+const NodeIndex = Tree.NodeIndex;
 
 pub const Qualifiers = packed struct {
     @"const": bool = false,

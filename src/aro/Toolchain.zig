@@ -1,12 +1,14 @@
 const std = @import("std");
-const Driver = @import("Driver.zig");
-const Compilation = @import("Compilation.zig");
 const mem = std.mem;
+
 const system_defaults = @import("system_defaults");
+
+const Compilation = @import("Compilation.zig");
+const Driver = @import("Driver.zig");
+const Filesystem = @import("Driver/Filesystem.zig").Filesystem;
+const Multilib = @import("Driver/Multilib.zig");
 const target_util = @import("target.zig");
 const Linux = @import("toolchains/Linux.zig");
-const Multilib = @import("Driver/Multilib.zig");
-const Filesystem = @import("Driver/Filesystem.zig").Filesystem;
 
 pub const PathList = std.ArrayListUnmanaged([]const u8);
 

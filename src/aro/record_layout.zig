@@ -2,15 +2,16 @@
 //! Licensed under MIT license: https://github.com/mahkoh/repr-c/tree/master/repc/facade
 
 const std = @import("std");
-const Type = @import("Type.zig");
+
 const Attribute = @import("Attribute.zig");
 const Compilation = @import("Compilation.zig");
 const Parser = @import("Parser.zig");
+const target_util = @import("target.zig");
+const Type = @import("Type.zig");
 const Record = Type.Record;
 const Field = Record.Field;
 const TypeLayout = Type.TypeLayout;
 const FieldLayout = Type.FieldLayout;
-const target_util = @import("target.zig");
 
 const BITS_PER_BYTE = 8;
 

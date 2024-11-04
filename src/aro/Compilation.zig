@@ -1,23 +1,25 @@
 const std = @import("std");
-const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 const EpochSeconds = std.time.epoch.EpochSeconds;
 const mem = std.mem;
+const Allocator = mem.Allocator;
+
 const backend = @import("backend");
 const Interner = backend.Interner;
 const CodeGenOptions = backend.CodeGenOptions;
+
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Diagnostics = @import("Diagnostics.zig");
 const LangOpts = @import("LangOpts.zig");
+const Pragma = @import("Pragma.zig");
+const record_layout = @import("record_layout.zig");
 const Source = @import("Source.zig");
+const StrInt = @import("StringInterner.zig");
+const target_util = @import("target.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const Type = @import("Type.zig");
-const Pragma = @import("Pragma.zig");
-const StrInt = @import("StringInterner.zig");
-const record_layout = @import("record_layout.zig");
-const target_util = @import("target.zig");
 
 pub const Error = error{
     /// A fatal error has ocurred and compilation has stopped.

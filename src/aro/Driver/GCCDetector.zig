@@ -1,9 +1,11 @@
 const std = @import("std");
-const Toolchain = @import("../Toolchain.zig");
-const target_util = @import("../target.zig");
+
 const system_defaults = @import("system_defaults");
+
 const GCCVersion = @import("GCCVersion.zig");
 const Multilib = @import("Multilib.zig");
+const target_util = @import("../target.zig");
+const Toolchain = @import("../Toolchain.zig");
 
 const GCCDetector = @This();
 

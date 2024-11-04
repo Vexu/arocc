@@ -10,8 +10,9 @@
 const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
-const Source = @import("Source.zig");
+
 const Compilation = @import("Compilation.zig");
+const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
 
 pub const Hideset = @This();

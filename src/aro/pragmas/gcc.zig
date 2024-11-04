@@ -1,10 +1,11 @@
 const std = @import("std");
 const mem = std.mem;
+
 const Compilation = @import("../Compilation.zig");
-const Pragma = @import("../Pragma.zig");
 const Diagnostics = @import("../Diagnostics.zig");
-const Preprocessor = @import("../Preprocessor.zig");
 const Parser = @import("../Parser.zig");
+const Pragma = @import("../Pragma.zig");
+const Preprocessor = @import("../Preprocessor.zig");
 const TokenIndex = @import("../Tree.zig").TokenIndex;
 
 const GCC = @This();

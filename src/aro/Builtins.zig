@@ -1,11 +1,12 @@
 const std = @import("std");
+
 const Compilation = @import("Compilation.zig");
-const Type = @import("Type.zig");
-const TypeDescription = @import("Builtins/TypeDescription.zig");
-const target_util = @import("target.zig");
-const StringId = @import("StringInterner.zig").StringId;
 const LangOpts = @import("LangOpts.zig");
 const Parser = @import("Parser.zig");
+const StringId = @import("StringInterner.zig").StringId;
+const target_util = @import("target.zig");
+const Type = @import("Type.zig");
+const TypeDescription = @import("Builtins/TypeDescription.zig");
 
 const Properties = @import("Builtins/Properties.zig");
 pub const Builtin = @import("Builtins/Builtin.def").with(Properties);

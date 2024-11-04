@@ -2,14 +2,15 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const assert = std.debug.assert;
+
+const Parser = @import("Parser.zig");
+const StringId = @import("StringInterner.zig").StringId;
 const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenIndex = Tree.TokenIndex;
 const NodeIndex = Tree.NodeIndex;
 const Type = @import("Type.zig");
-const Parser = @import("Parser.zig");
 const Value = @import("Value.zig");
-const StringId = @import("StringInterner.zig").StringId;
 
 const SymbolStack = @This();
 

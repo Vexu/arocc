@@ -1,7 +1,8 @@
 const std = @import("std");
+
 const Compilation = @import("Compilation.zig");
-const Preprocessor = @import("Preprocessor.zig");
 const Parser = @import("Parser.zig");
+const Preprocessor = @import("Preprocessor.zig");
 const TokenIndex = @import("Tree.zig").TokenIndex;
 
 pub const Error = Compilation.Error || error{ UnknownPragma, StopPreprocessing };

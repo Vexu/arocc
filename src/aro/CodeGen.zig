@@ -1,13 +1,15 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
+
 const backend = @import("backend");
 const Interner = backend.Interner;
 const Ir = backend.Ir;
+const Builder = Ir.Builder;
+
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Compilation = @import("Compilation.zig");
-const Builder = Ir.Builder;
 const StrInt = @import("StringInterner.zig");
 const StringId = StrInt.StringId;
 const Tree = @import("Tree.zig");

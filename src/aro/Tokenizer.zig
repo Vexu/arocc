@@ -1,8 +1,9 @@
 const std = @import("std");
 const assert = std.debug.assert;
+
 const Compilation = @import("Compilation.zig");
-const Source = @import("Source.zig");
 const LangOpts = @import("LangOpts.zig");
+const Source = @import("Source.zig");
 
 pub const Token = struct {
     id: Id,

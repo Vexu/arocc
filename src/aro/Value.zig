@@ -2,14 +2,16 @@ const std = @import("std");
 const assert = std.debug.assert;
 const BigIntConst = std.math.big.int.Const;
 const BigIntMutable = std.math.big.int.Mutable;
+
 const Interner = @import("backend").Interner;
 const BigIntSpace = Interner.Tag.Int.BigIntSpace;
+
+const annex_g = @import("annex_g.zig");
+const Compilation = @import("Compilation.zig");
 const StringInterner = @import("StringInterner.zig");
 const StringId = StringInterner.StringId;
-const Compilation = @import("Compilation.zig");
-const Type = @import("Type.zig");
 const target_util = @import("target.zig");
-const annex_g = @import("annex_g.zig");
+const Type = @import("Type.zig");
 
 const Value = @This();
 

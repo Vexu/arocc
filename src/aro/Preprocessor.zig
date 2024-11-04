@@ -2,19 +2,20 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const assert = std.debug.assert;
+
+const Attribute = @import("Attribute.zig");
 const Compilation = @import("Compilation.zig");
 const Error = Compilation.Error;
+const Diagnostics = @import("Diagnostics.zig");
+const features = @import("features.zig");
+const Hideset = @import("Hideset.zig");
+const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const RawToken = Tokenizer.Token;
-const Parser = @import("Parser.zig");
-const Diagnostics = @import("Diagnostics.zig");
 const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenWithExpansionLocs = Tree.TokenWithExpansionLocs;
-const Attribute = @import("Attribute.zig");
-const features = @import("features.zig");
-const Hideset = @import("Hideset.zig");
 
 const DefineMap = std.StringHashMapUnmanaged(Macro);
 const RawTokenList = std.ArrayList(RawToken);

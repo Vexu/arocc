@@ -1,15 +1,17 @@
 const std = @import("std");
-const Allocator = mem.Allocator;
 const mem = std.mem;
-const Source = @import("Source.zig");
-const Compilation = @import("Compilation.zig");
+const Allocator = mem.Allocator;
+
 const Attribute = @import("Attribute.zig");
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Header = @import("Builtins/Properties.zig").Header;
-const Tree = @import("Tree.zig");
-const is_windows = @import("builtin").os.tag == .windows;
+const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
+const Source = @import("Source.zig");
+const Tree = @import("Tree.zig");
+
+const is_windows = @import("builtin").os.tag == .windows;
 
 pub const Message = struct {
     tag: Tag,

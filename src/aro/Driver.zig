@@ -2,18 +2,19 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
-const StaticStringSet = std.StaticStringMap(void);
+
 const backend = @import("backend");
 const Ir = backend.Ir;
 const Object = backend.Object;
+
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
+const GCCVersion = @import("Driver/GCCVersion.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Source = @import("Source.zig");
-const Toolchain = @import("Toolchain.zig");
 const target_util = @import("target.zig");
-const GCCVersion = @import("Driver/GCCVersion.zig");
+const Toolchain = @import("Toolchain.zig");
 
 pub const Linker = enum {
     ld,
@@ -23,7 +24,7 @@ pub const Linker = enum {
     mold,
 };
 
-const pic_related_options = StaticStringSet.initComptime(.{
+const pic_related_options = std.StaticStringMap(void).initComptime(.{
     .{"-fpic"},
     .{"-fno-pic"},
     .{"-fPIC"},

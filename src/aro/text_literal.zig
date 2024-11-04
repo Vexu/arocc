@@ -1,11 +1,12 @@
 //! Parsing and classification of string and character literals
 
 const std = @import("std");
+const mem = std.mem;
+
 const Compilation = @import("Compilation.zig");
-const Type = @import("Type.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Tokenizer = @import("Tokenizer.zig");
-const mem = std.mem;
+const Type = @import("Type.zig");
 
 pub const Item = union(enum) {
     /// decoded hex or character escape
