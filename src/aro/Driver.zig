@@ -1077,7 +1077,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOpti
         return .{ if (pic) .two else .none, false };
     }
 
-    const embedded_pi_supported = target.cpu.arch.isArmOrThumb();
+    const embedded_pi_supported = target.cpu.arch.isArm();
     if (!embedded_pi_supported) {
         if (d.ropi) try d.unsupportedOptionForTarget(target, "-fropi");
         if (d.rwpi) try d.unsupportedOptionForTarget(target, "-frwpi");
