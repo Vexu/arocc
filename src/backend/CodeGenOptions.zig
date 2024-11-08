@@ -24,7 +24,6 @@ pub const PicLevel = enum(u8) {
 };
 
 pub const OptimizationLevel = enum {
-    unspecified,
     @"0",
     @"1",
     @"2",
@@ -60,6 +59,6 @@ pub const default: @This() = .{
     .data_sections = false,
     .pic_level = .none,
     .is_pie = false,
-    .optimization_level = .unspecified,
+    .optimization_level = .@"0",
     .debug = false,
 };
