@@ -14,7 +14,7 @@ const Type = aro.Type;
 const Value = aro.Value;
 
 const AsmCodeGen = @This();
-const Error = @import("../assembly_backend.zig").Error;
+const Error = aro.Compilation.Error;
 const Writer = std.ArrayListUnmanaged(u8).Writer;
 
 tree: Tree,
@@ -81,7 +81,7 @@ pub fn todo(c: *AsmCodeGen, msg: []const u8, node: NodeIndex) Error {
         .loc = loc,
         .extra = .{ .str = msg },
     }, &.{});
-    return error.CodegenFailed;
+    return error.FatalError;
 }
 
 fn emitAggregate(c: *AsmCodeGen, ty: Type, node: NodeIndex) !void {

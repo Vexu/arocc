@@ -4,6 +4,7 @@ const Allocator = mem.Allocator;
 const process = std.process;
 
 const backend = @import("backend");
+const Assembly = backend.Assembly;
 const Ir = backend.Ir;
 const Object = backend.Object;
 
@@ -15,6 +16,9 @@ const Preprocessor = @import("Preprocessor.zig");
 const Source = @import("Source.zig");
 const target_util = @import("target.zig");
 const Toolchain = @import("Toolchain.zig");
+const Tree = @import("Tree.zig");
+
+const AsmCodeGenFn = fn (target: std.Target, tree: Tree) Compilation.Error!Assembly;
 
 pub const Linker = enum {
     ld,
@@ -681,7 +685,7 @@ pub fn errorDescription(e: anyerror) []const u8 {
 
 /// The entry point of the Aro compiler.
 /// **MAY call `exit` if `fast_exit` is set.**
-pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: anytype) !void {
+pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) !void {
     var macro_buf = std.ArrayList(u8).init(d.comp.gpa);
     defer macro_buf.deinit();
 
@@ -805,7 +809,7 @@ fn processSource(
     builtin: Source,
     user_macros: Source,
     comptime fast_exit: bool,
-    asm_gen_fn: anytype,
+    asm_gen_fn: ?AsmCodeGenFn,
 ) !void {
     d.comp.generated_buf.items.len = 0;
     var pp = try Preprocessor.initDefault(d.comp);
@@ -889,13 +893,12 @@ fn processSource(
     const out_file_name = try d.getOutFileName(source, &name_buf);
 
     if (d.use_assembly_backend) {
-        const assembly = asm_gen_fn(d.comp.target, tree) catch |er| switch (er) {
-            error.CodegenFailed => {
-                d.renderErrors();
-                d.exitWithCleanup(1);
-            },
-            else => |e| return e,
-        };
+        const asm_fn = asm_gen_fn orelse return d.fatal(
+            "Assembly codegen not supported",
+            .{},
+        );
+
+        const assembly = try asm_fn(d.comp.target, tree);
         defer assembly.deinit(d.comp.gpa);
 
         if (d.only_preprocess_and_compile) {
