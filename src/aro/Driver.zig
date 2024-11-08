@@ -88,6 +88,9 @@ aro_name: []const u8 = "",
 /// Value of --triple= passed via CLI
 raw_target_triple: ?[]const u8 = null,
 
+/// Non-optimizing assembly backend is currently selected by passing `-O0`
+use_assembly_backend: bool = false,
+
 // linker options
 use_linker: ?[]const u8 = null,
 linker_path: ?[]const u8 = null,
@@ -284,11 +287,14 @@ pub fn parseArgs(
                     macro = args[i];
                 }
                 try macro_buf.print("#undef {s}\n", .{macro});
+            } else if (mem.eql(u8, arg, "-O")) {
+                d.comp.code_gen_options.optimization_level = .@"0";
             } else if (mem.startsWith(u8, arg, "-O")) {
                 d.comp.code_gen_options.optimization_level = backend.CodeGenOptions.OptimizationLevel.fromString(arg["-O".len..]) orelse {
                     try d.comp.addDiagnostic(.{ .tag = .cli_invalid_optimization, .extra = .{ .str = arg } }, &.{});
                     continue;
                 };
+                d.use_assembly_backend = d.comp.code_gen_options.optimization_level == .@"0";
             } else if (mem.eql(u8, arg, "-undef")) {
                 d.system_defines = .no_system_defines;
             } else if (mem.eql(u8, arg, "-c") or mem.eql(u8, arg, "--compile")) {
@@ -882,7 +888,7 @@ fn processSource(
     var name_buf: [std.fs.max_name_bytes]u8 = undefined;
     const out_file_name = try d.getOutFileName(source, &name_buf);
 
-    if (d.comp.code_gen_options.optimization_level == .@"0") {
+    if (d.use_assembly_backend) {
         const assembly = asm_gen_fn(d.comp.target, tree) catch |er| switch (er) {
             error.CodegenFailed => {
                 d.renderErrors();
