@@ -7211,6 +7211,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.err(.invalid_preproc_operator);
                 return error.ParsingFailed;
             }
+            const orig_tok_i = p.tok_i;
             p.tok_i += 1;
             var operand = try p.castExpr();
             try operand.expect(p);
@@ -7221,6 +7222,14 @@ fn unExpr(p: *Parser) Error!Result {
                 p.getNode(operand.node, .member_access_ptr_expr)) |member_node|
             {
                 if (tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
+                const data = p.nodes.items(.data)[@intFromEnum(member_node)];
+                const lhs_ty = p.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
+                if (lhs_ty.getAttribute(.@"packed") != null) {
+                    const record = lhs_ty.getRecord().?;
+                    const mapper = p.comp.string_interner.getSlowTypeMapper();
+                    const extra = Diagnostics.Message.Extra{ .record_member = .{ .record = mapper.lookup(record.name), .member = mapper.lookup(record.fields[data.member.index].name) } };
+                    try p.errExtra(.packed_member_address, orig_tok_i, extra);
+                }
             }
             const operand_ty_valid = !operand.ty.is(.invalid);
             if (!tree.isLval(operand.node) and operand_ty_valid) {
