@@ -21,10 +21,6 @@ pub const Message = struct {
 
     pub const Extra = union {
         str: []const u8,
-        record_member: struct {
-            record: []const u8,
-            member: []const u8,
-        },
         tok_id: struct {
             expected: Tree.Token.Id,
             actual: Tree.Token.Id,
@@ -397,7 +393,6 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
     const prop = msg.tag.property();
     switch (prop.extra) {
         .str => printRt(m, prop.msg, .{"{s}"}, .{msg.extra.str}),
-        .record_member => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{ msg.extra.record_member.member, msg.extra.record_member.record }),
         .tok_id => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
             msg.extra.tok_id.expected.symbol(),
             msg.extra.tok_id.actual.symbol(),

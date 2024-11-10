@@ -2562,7 +2562,7 @@ subtract_pointers_zero_elem_size
     .extra = .str
 
 packed_member_address
-    .msg = "taking address of packed member '{s}' of class or structure '{s}' may result in an unaligned pointer value"
+    .msg = "taking address of packed member '{s}"
     .opt = W("address-of-packed-member")
     .kind = .warning
-    .extra = .record_member
+    .extra = .str

@@ -7171,6 +7171,21 @@ fn computeOffset(p: *Parser, res: Result) !Value {
     return p.computeOffsetExtra(res.node, &val);
 }
 
+fn packedMemberAccessStr(p: *Parser, record: StringId, member: StringId) ![]const u8 {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    var w = p.strings.writer();
+    const mapper = p.comp.string_interner.getSlowTypeMapper();
+
+    try w.writeAll(mapper.lookup(member));
+    try w.writeAll("' of class or structure '");
+    try w.writeAll(mapper.lookup(record));
+    try w.writeAll("' may result in an unaligned pointer value");
+
+    return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+}
+
 /// unExpr
 ///  : (compoundLiteral | primaryExpr) suffixExpr*
 ///  | '&&' IDENTIFIER
@@ -7226,8 +7241,7 @@ fn unExpr(p: *Parser) Error!Result {
                 const lhs_ty = p.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
                 if (lhs_ty.hasAttribute(.@"packed")) {
                     const record = lhs_ty.getRecord().?;
-                    const mapper = p.comp.string_interner.getSlowTypeMapper();
-                    const extra = Diagnostics.Message.Extra{ .record_member = .{ .record = mapper.lookup(record.name), .member = mapper.lookup(record.fields[data.member.index].name) } };
+                    const extra = Diagnostics.Message.Extra{ .str = try p.packedMemberAccessStr(record.name, record.fields[data.member.index].name) };
                     try p.errExtra(.packed_member_address, orig_tok_i, extra);
                 }
             }
