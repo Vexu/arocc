@@ -7241,8 +7241,7 @@ fn unExpr(p: *Parser) Error!Result {
                 const lhs_ty = p.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
                 if (lhs_ty.hasAttribute(.@"packed")) {
                     const record = lhs_ty.getRecord().?;
-                    const extra = Diagnostics.Message.Extra{ .str = try p.packedMemberAccessStr(record.name, record.fields[data.member.index].name) };
-                    try p.errExtra(.packed_member_address, orig_tok_i, extra);
+                    try p.errStr(.packed_member_address, orig_tok_i, try p.packedMemberAccessStr(record.name, record.fields[data.member.index].name));
                 }
             }
             const operand_ty_valid = !operand.ty.is(.invalid);
