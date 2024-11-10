@@ -7224,7 +7224,7 @@ fn unExpr(p: *Parser) Error!Result {
                 if (tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
                 const data = p.nodes.items(.data)[@intFromEnum(member_node)];
                 const lhs_ty = p.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
-                if (lhs_ty.getAttribute(.@"packed") != null) {
+                if (lhs_ty.hasAttribute(.@"packed")) {
                     const record = lhs_ty.getRecord().?;
                     const mapper = p.comp.string_interner.getSlowTypeMapper();
                     const extra = Diagnostics.Message.Extra{ .record_member = .{ .record = mapper.lookup(record.name), .member = mapper.lookup(record.fields[data.member.index].name) } };
