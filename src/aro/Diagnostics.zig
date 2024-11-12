@@ -219,6 +219,7 @@ pub const Options = struct {
     @"shift-count-overflow": Kind = .default,
     @"constant-conversion": Kind = .default,
     @"sign-conversion": Kind = .default,
+    @"address-of-packed-member": Kind = .default,
     nonnull: Kind = .default,
 };
 

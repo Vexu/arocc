@@ -2560,3 +2560,9 @@ subtract_pointers_zero_elem_size
     .kind = .warning
     .opt = W("pointer-arith")
     .extra = .str
+
+packed_member_address
+    .msg = "taking address of packed member '{s}"
+    .opt = W("address-of-packed-member")
+    .kind = .warning
+    .extra = .str

@@ -62,6 +62,8 @@ void foo(void) {
 #define EXPECTED_ERRORS "relocations.c:24:1: error: static assertion failed" \
     "relocations.c:29:16: error: static_assert expression is not an integral constant expression" \
     "relocations.c:30:16: error: static_assert expression is not an integral constant expression" \
+    "relocations.c:39:16: warning: taking address of packed member 'x' of class or structure 'Packed' may result in an unaligned pointer value [-Waddress-of-packed-member]" \
+    "relocations.c:39:28: warning: taking address of packed member 'y' of class or structure 'Packed' may result in an unaligned pointer value [-Waddress-of-packed-member]" \
     "relocations.c:50:26: warning: subtraction of pointers to type 'union Empty' of zero size has undefined behavior [-Wpointer-arith]" \
     "relocations.c:50:16: error: static_assert expression is not an integral constant expression" \
     "relocations.c:60:20: error: static_assert expression is not an integral constant expression" \

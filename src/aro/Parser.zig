@@ -7171,6 +7171,21 @@ fn computeOffset(p: *Parser, res: Result) !Value {
     return p.computeOffsetExtra(res.node, &val);
 }
 
+fn packedMemberAccessStr(p: *Parser, record: StringId, member: StringId) ![]const u8 {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    var w = p.strings.writer();
+    const mapper = p.comp.string_interner.getSlowTypeMapper();
+
+    try w.writeAll(mapper.lookup(member));
+    try w.writeAll("' of class or structure '");
+    try w.writeAll(mapper.lookup(record));
+    try w.writeAll("' may result in an unaligned pointer value");
+
+    return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+}
+
 /// unExpr
 ///  : (compoundLiteral | primaryExpr) suffixExpr*
 ///  | '&&' IDENTIFIER
@@ -7211,6 +7226,7 @@ fn unExpr(p: *Parser) Error!Result {
                 try p.err(.invalid_preproc_operator);
                 return error.ParsingFailed;
             }
+            const orig_tok_i = p.tok_i;
             p.tok_i += 1;
             var operand = try p.castExpr();
             try operand.expect(p);
@@ -7221,6 +7237,12 @@ fn unExpr(p: *Parser) Error!Result {
                 p.getNode(operand.node, .member_access_ptr_expr)) |member_node|
             {
                 if (tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
+                const data = p.nodes.items(.data)[@intFromEnum(member_node)];
+                const lhs_ty = p.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
+                if (lhs_ty.hasAttribute(.@"packed")) {
+                    const record = lhs_ty.getRecord().?;
+                    try p.errStr(.packed_member_address, orig_tok_i, try p.packedMemberAccessStr(record.name, record.fields[data.member.index].name));
+                }
             }
             const operand_ty_valid = !operand.ty.is(.invalid);
             if (!tree.isLval(operand.node) and operand_ty_valid) {
