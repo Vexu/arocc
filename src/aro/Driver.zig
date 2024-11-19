@@ -812,6 +812,8 @@ fn processSource(
     asm_gen_fn: ?AsmCodeGenFn,
 ) !void {
     d.comp.generated_buf.items.len = 0;
+    const prev_errors = d.comp.diagnostics.errors;
+
     var pp = try Preprocessor.initDefault(d.comp);
     defer pp.deinit();
 
@@ -836,7 +838,7 @@ fn processSource(
     if (d.only_preprocess) {
         d.renderErrors();
 
-        if (d.comp.diagnostics.errors != 0) {
+        if (d.comp.diagnostics.errors != prev_errors) {
             if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
             return;
         }
@@ -869,7 +871,6 @@ fn processSource(
         buf_writer.flush() catch {};
     }
 
-    const prev_errors = d.comp.diagnostics.errors;
     d.renderErrors();
 
     if (d.comp.diagnostics.errors != prev_errors) {

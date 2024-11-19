@@ -281,6 +281,8 @@ pub fn addExtra(
 
     if (expansion_locs.len != 0) copy.loc = expansion_locs[expansion_locs.len - 1];
     try d.list.append(d.arena.child_allocator, copy);
+    if (kind == .@"error" or kind == .@"fatal error") d.errors += 1;
+
     if (expansion_locs.len != 0) {
         // Add macro backtrace notes in reverse order omitting from the middle if needed.
         var i = expansion_locs.len - 1;
@@ -359,7 +361,6 @@ pub fn renderMessages(comp: *Compilation, m: anytype) void {
     }
 
     comp.diagnostics.list.items.len = 0;
-    comp.diagnostics.errors += errors;
 }
 
 pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
