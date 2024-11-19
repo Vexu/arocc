@@ -245,7 +245,7 @@ pub fn parseArgs(
     std_out: anytype,
     macro_buf: anytype,
     args: []const []const u8,
-) !bool {
+) Compilation.Error!bool {
     var i: usize = 1;
     var comment_arg: []const u8 = "";
     var hosted: ?bool = null;
@@ -613,15 +613,15 @@ fn addSource(d: *Driver, path: []const u8) !Source {
     return d.comp.addSourceFromPath(path);
 }
 
-pub fn err(d: *Driver, msg: []const u8) !void {
+pub fn err(d: *Driver, msg: []const u8) Compilation.Error!void {
     try d.comp.addDiagnostic(.{ .tag = .cli_error, .extra = .{ .str = msg } }, &.{});
 }
 
-pub fn warn(d: *Driver, msg: []const u8) !void {
+pub fn warn(d: *Driver, msg: []const u8) Compilation.Error!void {
     try d.comp.addDiagnostic(.{ .tag = .cli_warn, .extra = .{ .str = msg } }, &.{});
 }
 
-pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) !void {
+pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) Compilation.Error!void {
     try d.err(try std.fmt.allocPrint(
         d.comp.diagnostics.arena.allocator(),
         "unsupported option '{s}' for target '{s}'",
@@ -685,7 +685,7 @@ pub fn errorDescription(e: anyerror) []const u8 {
 
 /// The entry point of the Aro compiler.
 /// **MAY call `exit` if `fast_exit` is set.**
-pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) !void {
+pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) Compilation.Error!void {
     var macro_buf = std.ArrayList(u8).init(d.comp.gpa);
     defer macro_buf.deinit();
 
@@ -704,16 +704,25 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         try d.comp.addDiagnostic(.{ .tag = .cli_unused_link_object, .extra = .{ .str = obj } }, &.{});
     };
 
-    try tc.discover();
+    tc.discover() catch |er| switch (er) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.TooManyMultilibs => return d.fatal("found more than one multilib with the same priority", .{}),
+    };
     tc.defineSystemIncludes() catch |er| switch (er) {
         error.OutOfMemory => return error.OutOfMemory,
         error.AroIncludeNotFound => return d.fatal("unable to find Aro builtin headers", .{}),
     };
 
-    const user_macros = try d.comp.addSourceFromBuffer("<command line>", macro_buf.items);
+    const user_macros = d.comp.addSourceFromBuffer("<command line>", macro_buf.items) catch |er| switch (er) {
+        error.StreamTooLong => return d.fatal("user provided macro source exceeded max size", .{}),
+        else => |e| return e,
+    };
 
     if (fast_exit and d.inputs.items.len == 1) {
-        const builtin = try d.comp.generateBuiltinMacrosFromPath(d.system_defines, d.inputs.items[0].path);
+        const builtin = d.comp.generateBuiltinMacrosFromPath(d.system_defines, d.inputs.items[0].path) catch |er| switch (er) {
+            error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
+            else => |e| return e,
+        };
         d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit, asm_gen_fn) catch |e| switch (e) {
             error.FatalError => {
                 d.renderErrors();
@@ -725,7 +734,10 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     }
 
     for (d.inputs.items) |source| {
-        const builtin = try d.comp.generateBuiltinMacrosFromPath(d.system_defines, source.path);
+        const builtin = d.comp.generateBuiltinMacrosFromPath(d.system_defines, source.path) catch |er| switch (er) {
+            error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
+            else => |e| return e,
+        };
         d.processSource(tc, source, builtin, user_macros, fast_exit, asm_gen_fn) catch |e| switch (e) {
             error.FatalError => {
                 d.renderErrors();
@@ -986,7 +998,7 @@ fn dumpLinkerArgs(items: []const []const u8) !void {
 
 /// The entry point of the Aro compiler.
 /// **MAY call `exit` if `fast_exit` is set.**
-pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) !void {
+pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) Compilation.Error!void {
     var argv = std.ArrayList([]const u8).init(d.comp.gpa);
     defer argv.deinit();
 
@@ -1036,7 +1048,7 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
 /// Then, smooshes them together with platform defaults, to decide whether
 /// this compile should be using PIC mode or not.
 /// Returns a tuple of ( backend.CodeGenOptions.PicLevel, IsPIE).
-pub fn getPICMode(d: *Driver, lastpic: []const u8) !struct { backend.CodeGenOptions.PicLevel, bool } {
+pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { backend.CodeGenOptions.PicLevel, bool } {
     const eqlIgnoreCase = std.ascii.eqlIgnoreCase;
 
     const target = d.comp.target;

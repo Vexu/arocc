@@ -59,18 +59,8 @@ pub fn main() u8 {
             if (fast_exit) process.exit(1);
             return 1;
         },
-        error.StreamTooLong => {
-            std.debug.print("maximum file size exceeded\n", .{});
-            if (fast_exit) process.exit(1);
-            return 1;
-        },
         error.FatalError => {
             driver.renderErrors();
-            if (fast_exit) process.exit(1);
-            return 1;
-        },
-        error.TooManyMultilibs => {
-            std.debug.print("found more than one multilib with the same priority\n", .{});
             if (fast_exit) process.exit(1);
             return 1;
         },
