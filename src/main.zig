@@ -74,7 +74,6 @@ pub fn main() u8 {
             if (fast_exit) process.exit(1);
             return 1;
         },
-        else => |err| return err,
     };
     if (fast_exit) process.exit(@intFromBool(comp.diagnostics.errors != 0));
     return @intFromBool(comp.diagnostics.errors != 0);

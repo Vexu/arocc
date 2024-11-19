@@ -269,7 +269,7 @@ pub fn parseArgs(
                 if (macro.len == 0) {
                     i += 1;
                     if (i >= args.len) {
-                        try d.err("expected argument after -I");
+                        try d.err("expected argument after -D");
                         continue;
                     }
                     macro = args[i];
@@ -285,7 +285,7 @@ pub fn parseArgs(
                 if (macro.len == 0) {
                     i += 1;
                     if (i >= args.len) {
-                        try d.err("expected argument after -I");
+                        try d.err("expected argument after -U");
                         continue;
                     }
                     macro = args[i];
