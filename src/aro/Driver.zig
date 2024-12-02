@@ -723,13 +723,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
             error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
             else => |e| return e,
         };
-        d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit, asm_gen_fn) catch |e| switch (e) {
-            error.FatalError => {
-                d.renderErrors();
-                d.exitWithCleanup(1);
-            },
-            else => |er| return er,
-        };
+        try d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit, asm_gen_fn);
         unreachable;
     }
 
@@ -738,12 +732,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
             error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
             else => |e| return e,
         };
-        d.processSource(tc, source, builtin, user_macros, fast_exit, asm_gen_fn) catch |e| switch (e) {
-            error.FatalError => {
-                d.renderErrors();
-            },
-            else => |er| return er,
-        };
+        try d.processSource(tc, source, builtin, user_macros, fast_exit, asm_gen_fn);
     }
     if (d.comp.diagnostics.errors != 0) {
         if (fast_exit) d.exitWithCleanup(1);
