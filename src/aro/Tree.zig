@@ -778,6 +778,16 @@ pub fn childNodes(tree: *const Tree, node: NodeIndex) []const NodeIndex {
             const range = data[@intFromEnum(node)].range;
             return tree.data[range.start..range.end];
         },
+        .builtin_call_expr => {
+            const range = data[@intFromEnum(node)].range;
+            return tree.data[range.start + 1 .. range.end];
+        },
+        .builtin_call_expr_one => {
+            const ptr: [*]const NodeIndex = @ptrCast(&data[@intFromEnum(node)].decl.node);
+            const slice = ptr[0..1];
+            const end = std.mem.indexOfScalar(NodeIndex, slice, .none) orelse 1;
+            return slice[0..end];
+        },
         else => unreachable,
     }
 }
@@ -1273,7 +1283,10 @@ fn dumpNode(
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("args:\n");
-            for (tree.data[data.range.start + 1 .. data.range.end]) |arg| try tree.dumpNode(arg, level + delta, mapper, config, w);
+            const child_nodes = tree.childNodes(node);
+            for (child_nodes) |arg| {
+                try tree.dumpNode(arg, level + delta, mapper, config, w);
+            }
         },
         .builtin_call_expr_one => {
             try w.writeByteNTimes(' ', level + half);
@@ -1281,10 +1294,11 @@ fn dumpNode(
             try config.setColor(w, NAME);
             try w.print("{s}\n", .{tree.tokSlice(data.decl.name)});
             try config.setColor(w, .reset);
-            if (data.decl.node != .none) {
+            const child_nodes = tree.childNodes(node);
+            for (child_nodes) |arg| {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("arg:\n");
-                try tree.dumpNode(data.decl.node, level + delta, mapper, config, w);
+                try tree.dumpNode(arg, level + delta, mapper, config, w);
             }
         },
         .special_builtin_call_one => {
