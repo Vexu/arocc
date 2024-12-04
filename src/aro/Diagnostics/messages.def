@@ -2566,3 +2566,17 @@ packed_member_address
     .opt = W("address-of-packed-member")
     .kind = .warning
     .extra = .str
+
+alloc_align_requires_ptr_return
+    .msg = "'alloc_align' attribute only applies to return values that are pointers"
+    .opt = W("ignored-attributes")
+    .kind = .warning
+
+attribute_param_out_of_bounds
+    .msg = "'{s}' attribute parameter {d} is out of bounds"
+    .kind = .@"error"
+    .extra = .attr_arg_count
+
+alloc_align_required_int_param
+    .msg = "'alloc_align' attribute argument may only refer to a function parameter of integer type"
+    .kind = .@"error"

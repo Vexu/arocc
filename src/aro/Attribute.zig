@@ -945,8 +945,21 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
                 try ignoredAttrErr(p, tok, attr.tag, "functions that do not return pointers");
             }
         },
+        .alloc_align => {
+            if (base_ty.returnType().isPtr()) {
+                const params = base_ty.params();
+                if (attr.args.alloc_align.position == 0 or attr.args.alloc_align.position > params.len) {
+                    try p.errExtra(.attribute_param_out_of_bounds, tok, .{ .attr_arg_count = .{ .attribute = .alloc_align, .expected = 1 } });
+                } else if (!params[attr.args.alloc_align.position - 1].ty.isInt()) {
+                    try p.errTok(.alloc_align_required_int_param, tok);
+                } else {
+                    try p.attr_application_buf.append(p.gpa, attr);
+                }
+            } else {
+                try p.errTok(.alloc_align_requires_ptr_return, tok);
+            }
+        },
         .access,
-        .alloc_align,
         .alloc_size,
         .artificial,
         .assume_aligned,
