@@ -454,7 +454,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const old_continue_label = c.continue_label;
             defer c.continue_label = old_continue_label;
 
-            const for_decl = data.forDecl(&c.tree);
+            const for_decl = data.forDecl(c.tree.data);
             for (for_decl.decls) |decl| try c.genStmt(decl);
 
             const then_label = try c.builder.makeLabel("for.then");
@@ -502,7 +502,7 @@ fn genExpr(c: *CodeGen, node: NodeIndex) Error!Ir.Ref {
             const old_continue_label = c.continue_label;
             defer c.continue_label = old_continue_label;
 
-            const for_stmt = data.forStmt(&c.tree);
+            const for_stmt = data.forStmt(c.tree.data);
             if (for_stmt.init != .none) _ = try c.genExpr(for_stmt.init);
 
             const then_label = try c.builder.makeLabel("for.then");

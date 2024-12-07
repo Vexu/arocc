@@ -117,6 +117,19 @@ fn testAllAllocationFailures(cases: [][]const u8, test_dir: []const u8) !void {
     root_node.end();
 }
 
+fn iterateChildNodes(tree: *const Tree, node: NodeIndex) void {
+    var it = tree.iterator(node);
+    while (it.next()) |child| {
+        iterateChildNodes(tree, child);
+    }
+}
+
+fn iterateRootDecls(tree: *const Tree) void {
+    for (tree.root_decls) |node| {
+        iterateChildNodes(tree, node);
+    }
+}
+
 pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
@@ -349,6 +362,7 @@ pub fn main() !void {
                 break;
             };
         } else tree.dump(.no_color, std.io.null_writer) catch {};
+        iterateRootDecls(&tree);
 
         if (expected_types) |types| {
             const test_fn = for (tree.root_decls) |decl| {
