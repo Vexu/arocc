@@ -7134,6 +7134,7 @@ fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Value
             const cast_data = data[@intFromEnum(node)].cast;
             return switch (cast_data.kind) {
                 .array_to_pointer => p.computeOffsetExtra(cast_data.operand, offset_so_far),
+                .lval_to_rval => .{},
                 else => unreachable,
             };
         },
