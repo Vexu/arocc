@@ -20,7 +20,6 @@ pub const Token = struct {
     pub const Id = Tokenizer.Token.Id;
     pub const NumberPrefix = number_affixes.Prefix;
     pub const NumberSuffix = number_affixes.Suffix;
-    pub const Index = enum(u32) { _ };
 };
 
 pub const TokenWithExpansionLocs = struct {
@@ -105,6 +104,7 @@ pub const TokenWithExpansionLocs = struct {
     }
 };
 
+pub const TokenIndex = u32;
 pub const ValueMap = std.AutoHashMapUnmanaged(Node.Index, Value);
 
 pub const TypeHashContext = struct {
@@ -225,7 +225,7 @@ pub const GNUAssemblyQualifiers = struct {
 
 pub const Node = union(enum) {
     fn_proto: struct {
-        name_tok: Token.Index,
+        name_tok: TokenIndex,
         type: Type,
         static: bool,
         @"inline": bool,
@@ -233,14 +233,14 @@ pub const Node = union(enum) {
         definition: ?Node.Index,
     },
     fn_def: struct {
-        name_tok: Token.Index,
+        name_tok: TokenIndex,
         type: Type,
         static: bool,
         @"inline": bool,
         body: Node.Index,
     },
     variable: struct {
-        name_tok: Token.Index,
+        name_tok: TokenIndex,
         type: Type,
         @"extern": bool,
         static: bool,
@@ -251,7 +251,7 @@ pub const Node = union(enum) {
         initializer: ?Node.Index,
     },
     typedef: struct {
-        name_tok: Token.Index,
+        name_tok: TokenIndex,
         type: Type,
     },
     global_asm: SimpleAsm,
@@ -264,57 +264,57 @@ pub const Node = union(enum) {
     enum_forward_decl: ContainerForwardDecl,
 
     enum_field: struct {
-        name_tok: Token.Index,
+        name_tok: TokenIndex,
         type: Type,
     },
     record_field: struct {
-        name_or_first_tok: Token.Index,
+        name_or_first_tok: TokenIndex,
         type: Type,
         bit_width: ?Node.Index,
     },
 
     labeled_stmt: struct {
-        label_tok: Token.Index,
+        label_tok: TokenIndex,
         body: Node.Index,
         type: Type,
     },
     compound_stmt: struct {
-        l_brace_tok: Token.Index,
+        l_brace_tok: TokenIndex,
         body: []const Node.Index,
     },
     if_stmt: struct {
-        if_tok: Token.Index,
+        if_tok: TokenIndex,
         cond: Node.Index,
         then_body: Node.Index,
         else_body: ?Node.Index,
     },
     switch_stmt: struct {
-        switch_tok: Token.Index,
+        switch_tok: TokenIndex,
         cond: Node.Index,
         body: Node.Index,
     },
     case_stmt: struct {
-        case_tok: Token.Index,
+        case_tok: TokenIndex,
         start: Node.Index,
         end: ?Node.Index,
         body: Node.Index,
     },
     default_stmt: struct {
-        default_tok: Token.Index,
+        default_tok: TokenIndex,
         body: Node.Index,
     },
     while_stmt: struct {
-        while_tok: Token.Index,
+        while_tok: TokenIndex,
         cond: Node.Index,
         body: Node.Index,
     },
     do_while_stmt: struct {
-        do_tok: Token.Index,
+        do_tok: TokenIndex,
         cond: Node.Index,
         body: Node.Index,
     },
     for_stmt: struct {
-        for_tok: Token.Index,
+        for_tok: TokenIndex,
         init: union(enum) {
             decls: []const Node.Index,
             expr: ?Node.Index,
@@ -324,30 +324,30 @@ pub const Node = union(enum) {
         body: Node.Index,
     },
     goto_stmt: struct {
-        label_tok: Token.Index,
+        label_tok: TokenIndex,
     },
     computed_goto_stmt: struct {
-        goto_tok: Token.Index,
+        goto_tok: TokenIndex,
         expr: Node.Index,
     },
     continue_stmt: struct {
-        continue_tok: Token.Index,
+        continue_tok: TokenIndex,
     },
     break_stmt: struct {
-        break_tok: Token.Index,
+        break_tok: TokenIndex,
     },
     null_stmt: struct {
-        semicolon_or_r_brace_tok: Token.Index,
+        semicolon_or_r_brace_tok: TokenIndex,
         type: Type,
     },
     return_stmt: struct {
-        return_tok: Token.Index,
+        return_tok: TokenIndex,
         return_type: Type,
         expr: ?Node.Index,
     },
     /// Inserted at the end of a function body if no return stmt is found.
     implicit_return: struct {
-        r_brace_tok: Token.Index,
+        r_brace_tok: TokenIndex,
         return_type: Type,
         /// True if the function is called "main" and return_type is compatible with int
         zero: bool,
@@ -404,24 +404,24 @@ pub const Node = union(enum) {
     stmt_expr: UnaryExpr,
 
     addr_of_label: struct {
-        label_tok: Token.Index,
+        label_tok: TokenIndex,
         type: Type,
     },
 
     array_access_expr: struct {
-        l_bracket_tok: Token.Index,
+        l_bracket_tok: TokenIndex,
         type: Type,
         base: Node.Index,
         index: Node.Index,
     },
     call_expr: struct {
-        l_paren_tok: Token.Index,
+        l_paren_tok: TokenIndex,
         type: Type,
         callee: Node.Index,
         args: []const Node.Index,
     },
     builtin_call_expr: struct {
-        builtin_tok: Token.Index,
+        builtin_tok: TokenIndex,
         type: Type,
         args: []const Node.Index,
     },
@@ -448,19 +448,19 @@ pub const Node = union(enum) {
     alignof_expr: TypeInfo,
 
     generic_expr: struct {
-        generic_tok: Token.Index,
+        generic_tok: TokenIndex,
         type: Type,
         controlling: Node.Index,
         chosen: Node.Index,
         rest: []const Node.Index,
     },
     generic_association_expr: struct {
-        colon_tok: Token.Index,
+        colon_tok: TokenIndex,
         association_type: Type,
         expr: Node.Index,
     },
     generic_default_expr: struct {
-        default_tok: Token.Index,
+        default_tok: TokenIndex,
         expr: Node.Index,
     },
 
@@ -470,7 +470,7 @@ pub const Node = union(enum) {
     cond_expr: Conditional,
     builtin_choose_expr: Conditional,
     builtin_types_compatible_p: struct {
-        builtin_tok: Token.Index,
+        builtin_tok: TokenIndex,
         lhs: Type,
         rhs: Type,
     },
@@ -478,7 +478,7 @@ pub const Node = union(enum) {
     array_init_expr: ContainerInit,
     struct_init_expr: ContainerInit,
     union_init_expr: struct {
-        l_brace_tok: Token.Index,
+        l_brace_tok: TokenIndex,
         union_type: Type,
         field_index: u32,
         initializer: ?Node.Index,
@@ -486,18 +486,18 @@ pub const Node = union(enum) {
     /// Inserted in array_init_expr to represent unspecified elements.
     /// data.int contains the amount of elements.
     array_filler_expr: struct {
-        last_tok: Token.Index,
+        last_tok: TokenIndex,
         type: Type,
         count: u64,
     },
     /// Inserted in record and scalar initializers for unspecified elements.
     default_init_expr: struct {
-        last_tok: Token.Index,
+        last_tok: TokenIndex,
         type: Type,
     },
 
     compound_literal_expr: struct {
-        l_paren_tok: Token.Index,
+        l_paren_tok: TokenIndex,
         type: Type,
         static: bool,
         thread_local: bool,
@@ -505,18 +505,18 @@ pub const Node = union(enum) {
     },
 
     pub const SimpleAsm = struct {
-        asm_tok: Token.Index,
+        asm_tok: TokenIndex,
         asm_str: Node.Index,
     };
 
     pub const ContainerDecl = struct {
-        name_or_kind_tok: Token.Index,
+        name_or_kind_tok: TokenIndex,
         container_type: Type,
         fields: []const Node.Index,
     };
 
     pub const ContainerForwardDecl = struct {
-        name_or_kind_tok: Token.Index,
+        name_or_kind_tok: TokenIndex,
         container_type: Type,
         /// The definition for this forward declaration if one exists.
         definition: ?Node.Index,
@@ -525,13 +525,13 @@ pub const Node = union(enum) {
     pub const BinaryExpr = struct {
         type: Type,
         lhs: Node.Index,
-        op_tok: Token.Index,
+        op_tok: TokenIndex,
         rhs: Node.Index,
     };
 
     pub const Cast = struct {
         type: Type,
-        l_paren: Token.Index,
+        l_paren: TokenIndex,
         kind: Kind,
         operand: Node.Index,
 
@@ -600,24 +600,24 @@ pub const Node = union(enum) {
 
     pub const UnaryExpr = struct {
         type: Type,
-        op_tok: Token.Index,
+        op_tok: TokenIndex,
         operand: Node.Index,
     };
 
     pub const MemberAccess = struct {
         type: Type,
         base: Node.Index,
-        access_tok: Token.Index,
+        access_tok: TokenIndex,
         member_index: u32,
     };
 
     pub const DeclRef = struct {
-        name_tok: Token.Index,
+        name_tok: TokenIndex,
         type: Type,
     };
 
     pub const Conditional = struct {
-        cond_tok: Token.Index,
+        cond_tok: TokenIndex,
         type: Type,
         cond: Node.Index,
         then_expr: Node.Index,
@@ -625,19 +625,19 @@ pub const Node = union(enum) {
     };
 
     pub const ContainerInit = struct {
-        l_brace_tok: Token.Index,
+        l_brace_tok: TokenIndex,
         container_type: Type,
         items: []const Node.Index,
     };
 
     pub const Literal = struct {
-        literal_tok: Token.Index,
+        literal_tok: TokenIndex,
         type: Type,
     };
 
     pub const TypeInfo = struct {
         type: Type,
-        op_tok: Token.Index,
+        op_tok: TokenIndex,
         expr: ?Node.Index,
     };
 
@@ -1529,7 +1529,7 @@ pub const Node = union(enum) {
             };
         }
 
-        pub fn tok(index: Index, tree: *const Tree) Token.Index {
+        pub fn tok(index: Index, tree: *const Tree) TokenIndex {
             return tree.nodes.items(.tok)[@intFromEnum(index)];
         }
 
@@ -1552,7 +1552,7 @@ pub const Node = union(enum) {
         tag: Tag,
         /// If a node is typed the type is stored in data[0]
         data: [3]u32,
-        tok: Token.Index,
+        tok: TokenIndex,
 
         pub const DeclAttr = packed struct(u32) {
             @"extern": bool = false,
@@ -2551,7 +2551,7 @@ pub fn bitfieldWidth(tree: *const Tree, node: Node.Index, inspect_lval: bool) ?u
 
 const CallableResultUsage = struct {
     /// name token of the thing being called, for diagnostics
-    tok: Token.Index,
+    tok: TokenIndex,
     /// true if `nodiscard` attribute present
     nodiscard: bool,
     /// true if `warn_unused_result` attribute present
@@ -2654,7 +2654,7 @@ pub fn isLvalExtra(tree: *const Tree, node: Node.Index, is_const: *bool) bool {
     }
 }
 
-pub fn tokSlice(tree: *const Tree, tok_i: Token.Index) []const u8 {
+pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
     return tree.comp.locSlice(loc);
