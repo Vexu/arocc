@@ -200,7 +200,7 @@ nodes: std.MultiArrayList(Node.Repr) = .empty,
 extra: std.ArrayListUnmanaged(u32) = .empty,
 root_decls: std.ArrayListUnmanaged(Node.Index) = .empty,
 value_map: ValueMap = .empty,
-type_map: std.ArrayHashMapUnmanaged(Type, void, struct {}, false) = .empty,
+type_map: std.ArrayHashMapUnmanaged(Type, void, TypeHashContext, false) = .empty,
 
 /// Arena allocator used for types.
 arena: std.heap.ArenaAllocator,
@@ -268,19 +268,20 @@ pub const Node = union(enum) {
         type: Type,
     },
     record_field: struct {
-        name_tok: Token.Index,
+        name_or_first_tok: Token.Index,
         type: Type,
         bit_width: ?Node.Index,
     },
+
     labeled_stmt: struct {
         label_tok: Token.Index,
-        stmt: ?Node.Index,
+        body: Node.Index,
+        type: Type,
     },
     compound_stmt: struct {
         l_brace_tok: Token.Index,
         body: []const Node.Index,
     },
-
     if_stmt: struct {
         if_tok: Token.Index,
         cond: Node.Index,
@@ -294,12 +295,13 @@ pub const Node = union(enum) {
     },
     case_stmt: struct {
         case_tok: Token.Index,
-        items: []const Node.Index,
+        start: Node.Index,
+        end: ?Node.Index,
         body: Node.Index,
     },
     default_stmt: struct {
-        case_tok: Token.Index,
-        items: []const Node.Index,
+        default_tok: Token.Index,
+        body: Node.Index,
     },
     while_stmt: struct {
         while_tok: Token.Index,
@@ -312,11 +314,11 @@ pub const Node = union(enum) {
         body: Node.Index,
     },
     for_stmt: struct {
-        do_tok: Token.Index,
-        /// If decls.len != 0 then init == null.
-        decls: []const Node.Index,
-        /// If init != null then decls.len == 0.
-        init: ?Node.Index,
+        for_tok: Token.Index,
+        init: union(enum) {
+            decls: []const Node.Index,
+            expr: ?Node.Index,
+        },
         cond: ?Node.Index,
         incr: ?Node.Index,
         body: Node.Index,
@@ -335,7 +337,8 @@ pub const Node = union(enum) {
         break_tok: Token.Index,
     },
     null_stmt: struct {
-        semicolon_tok: Token.Index,
+        semicolon_or_r_brace_tok: Token.Index,
+        type: Type,
     },
     return_stmt: struct {
         return_tok: Token.Index,
@@ -343,14 +346,14 @@ pub const Node = union(enum) {
         expr: ?Node.Index,
     },
     /// Inserted at the end of a function body if no return stmt is found.
-    /// ty is the functions return type
-    /// data is return_zero which is true if the function is called "main" and ty is compatible with int
-    /// loc is token index of closing r_brace of function
     implicit_return: struct {
-        return_tok: Token.Index,
+        r_brace_tok: Token.Index,
         return_type: Type,
+        /// True if the function is called "main" and return_type is compatible with int
+        zero: bool,
     },
     gnu_asm_simple: SimpleAsm,
+
     comma_expr: BinaryExpr,
     assign_expr: BinaryExpr,
     mul_assign_expr: BinaryExpr,
@@ -408,11 +411,12 @@ pub const Node = union(enum) {
     array_access_expr: struct {
         l_bracket_tok: Token.Index,
         type: Type,
-        index: Node.Index,
         base: Node.Index,
+        index: Node.Index,
     },
     call_expr: struct {
         l_paren_tok: Token.Index,
+        type: Type,
         callee: Node.Index,
         args: []const Node.Index,
     },
@@ -477,7 +481,7 @@ pub const Node = union(enum) {
         l_brace_tok: Token.Index,
         union_type: Type,
         field_index: u32,
-        initializer: Node.Index,
+        initializer: ?Node.Index,
     },
     /// Inserted in array_init_expr to represent unspecified elements.
     /// data.int contains the amount of elements.
@@ -493,8 +497,8 @@ pub const Node = union(enum) {
     },
 
     compound_literal_expr: struct {
-        ty: Type,
         l_paren_tok: Token.Index,
+        type: Type,
         static: bool,
         thread_local: bool,
         initializer: Node.Index,
@@ -506,13 +510,14 @@ pub const Node = union(enum) {
     };
 
     pub const ContainerDecl = struct {
-        container_type: Type,
         name_or_kind_tok: Token.Index,
+        container_type: Type,
         fields: []const Node.Index,
     };
 
     pub const ContainerForwardDecl = struct {
         name_or_kind_tok: Token.Index,
+        container_type: Type,
         /// The definition for this forward declaration if one exists.
         definition: ?Node.Index,
     };
@@ -607,31 +612,32 @@ pub const Node = union(enum) {
     };
 
     pub const DeclRef = struct {
-        type: Type,
         name_tok: Token.Index,
+        type: Type,
     };
 
     pub const Conditional = struct {
         cond_tok: Token.Index,
         type: Type,
-        condition: Node.Index,
+        cond: Node.Index,
         then_expr: Node.Index,
         else_expr: Node.Index,
     };
 
     pub const ContainerInit = struct {
         l_brace_tok: Token.Index,
-        union_type: Type,
+        container_type: Type,
         items: []const Node.Index,
     };
 
     pub const Literal = struct {
         literal_tok: Token.Index,
+        type: Type,
     };
 
     pub const TypeInfo = struct {
         type: Type,
-        operator_tok: Token.Index,
+        op_tok: Token.Index,
         expr: ?Node.Index,
     };
 
@@ -639,9 +645,887 @@ pub const Node = union(enum) {
         _,
 
         pub fn get(index: Index, tree: *const Tree) Node {
-            const repr = tree.nodes.get(@intFromEnum(index));
-            return switch (repr.tag) {
-                // TODO unpack
+            const node_tok = tree.nodes.items(.tok)[@intFromEnum(index)];
+            const node_data = &tree.nodes.items(.data)[@intFromEnum(index)];
+            return switch (tree.nodes.items(.tag)[@intFromEnum(index)]) {
+                .static_assert => .{
+                    .static_assert = .{
+                        .assert_tok = node_tok,
+                        .cond = @enumFromInt(node_data[0]),
+                        .message = @enumFromInt(node_data[1]),
+                    },
+                },
+                .fn_proto => {
+                    const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
+                    return .{
+                        .fn_proto = .{
+                            .name_tok = node_tok,
+                            .type = tree.type_map.keys()[node_data[0]],
+                            .static = attr.static,
+                            .@"inline" = attr.@"inline",
+                            // TODO decide how to handle definition
+                            .definition = null,
+                        },
+                    };
+                },
+                .fn_def => {
+                    const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
+                    return .{
+                        .fn_def = .{
+                            .name_tok = node_tok,
+                            .type = tree.type_map.keys()[node_data[0]],
+                            .static = attr.static,
+                            .@"inline" = attr.@"inline",
+                            .body = @enumFromInt(node_data[2]),
+                        },
+                    };
+                },
+                .variable => {
+                    const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
+                    return .{
+                        .variable = .{
+                            .name_tok = node_tok,
+                            .type = tree.type_map.keys()[node_data[0]],
+                            .@"extern" = attr.@"extern",
+                            .static = attr.static,
+                            .thread_local = attr.thread_local,
+                            .implicit = attr.implicit,
+                            .initializer = @enumFromInt(node_data[2]),
+                        },
+                    };
+                },
+                .typedef => .{
+                    .typedef = .{
+                        .name_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .global_asm => .{
+                    .global_asm = .{
+                        .asm_tok = node_tok,
+                        .asm_str = @enumFromInt(node_data[0]),
+                    },
+                },
+                .struct_decl => .{
+                    .struct_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .fields = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
+                    },
+                },
+                .struct_decl_two => .{
+                    .struct_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .fields = @ptrCast(std.mem.sliceTo(node_data[1..], @intFromEnum(Repr.Index.none))),
+                    },
+                },
+                .union_decl => .{
+                    .union_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .fields = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
+                    },
+                },
+                .union_decl_two => .{
+                    .union_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .fields = @ptrCast(std.mem.sliceTo(node_data[1..], @intFromEnum(Repr.Index.none))),
+                    },
+                },
+                .enum_decl => .{
+                    .enum_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .fields = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
+                    },
+                },
+                .enum_decl_two => .{
+                    .enum_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .fields = @ptrCast(std.mem.sliceTo(node_data[1..], @intFromEnum(Repr.Index.none))),
+                    },
+                },
+                .struct_forward_decl => .{
+                    .struct_forward_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .definition = null,
+                    },
+                },
+                .union_forward_decl => .{
+                    .union_forward_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .definition = null,
+                    },
+                },
+                .enum_forward_decl => .{
+                    .enum_forward_decl = .{
+                        .name_or_kind_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .definition = null,
+                    },
+                },
+                .enum_field => .{
+                    .enum_field = .{
+                        .name_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .record_field => .{
+                    .record_field = .{
+                        .name_or_first_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .bit_width = unpackOptIndex(node_data[1]),
+                    },
+                },
+                .labeled_stmt => .{
+                    .labeled_stmt = .{
+                        .label_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .body = @enumFromInt(node_data[1]),
+                    },
+                },
+                .compound_stmt => .{
+                    .compound_stmt = .{
+                        .l_brace_tok = node_tok,
+                        .body = @ptrCast(tree.extra.items[node_data[0]..][0..node_data[1]]),
+                    },
+                },
+                .compound_stmt_three => .{
+                    .compound_stmt = .{
+                        .l_brace_tok = node_tok,
+                        .body = @ptrCast(std.mem.sliceTo(node_data, @intFromEnum(Repr.Index.none))),
+                    },
+                },
+                .if_stmt => .{
+                    .if_stmt = .{
+                        .if_tok = node_tok,
+                        .cond = @enumFromInt(node_data[0]),
+                        .then_body = @enumFromInt(node_data[1]),
+                        .else_body = unpackOptIndex(node_data[2]),
+                    },
+                },
+                .switch_stmt => .{
+                    .switch_stmt = .{
+                        .switch_tok = node_tok,
+                        .cond = @enumFromInt(node_data[0]),
+                        .body = @enumFromInt(node_data[1]),
+                    },
+                },
+                .case_stmt => .{
+                    .case_stmt = .{
+                        .case_tok = node_tok,
+                        .start = @enumFromInt(node_data[0]),
+                        .end = unpackOptIndex(node_data[1]),
+                        .body = @enumFromInt(node_data[2]),
+                    },
+                },
+                .default_stmt => .{
+                    .default_stmt = .{
+                        .default_tok = node_tok,
+                        .body = @enumFromInt(node_data[0]),
+                    },
+                },
+                .while_stmt => .{
+                    .while_stmt = .{
+                        .while_tok = node_tok,
+                        .cond = @enumFromInt(node_data[0]),
+                        .body = @enumFromInt(node_data[1]),
+                    },
+                },
+                .do_while_stmt => .{
+                    .do_while_stmt = .{
+                        .do_tok = node_tok,
+                        .cond = @enumFromInt(node_data[0]),
+                        .body = @enumFromInt(node_data[1]),
+                    },
+                },
+                .for_decl => .{
+                    .for_stmt = .{
+                        .for_tok = node_tok,
+                        .init = .{ .decls = @ptrCast(tree.extra.items[node_data[0]..][0 .. node_data[1] - 2]) },
+                        .cond = unpackOptIndex(tree.extra.items[node_data[0] + node_data[1]]),
+                        .incr = unpackOptIndex(tree.extra.items[node_data[0] + node_data[1] + 1]),
+                        .body = @enumFromInt(node_data[1]),
+                    },
+                },
+                .for_expr => .{
+                    .for_stmt = .{
+                        .for_tok = node_tok,
+                        .init = .{ .expr = unpackOptIndex(node_data[0]) },
+                        .cond = unpackOptIndex(tree.extra.items[node_data[1]]),
+                        .incr = unpackOptIndex(tree.extra.items[node_data[1] + 1]),
+                        .body = @enumFromInt(node_data[2]),
+                    },
+                },
+                .goto_stmt => .{
+                    .goto_stmt = .{
+                        .label_tok = node_tok,
+                    },
+                },
+                .computed_goto_stmt => .{
+                    .computed_goto_stmt = .{
+                        .goto_tok = node_tok,
+                        .expr = @enumFromInt(node_data[0]),
+                    },
+                },
+                .continue_stmt => .{
+                    .continue_stmt = .{
+                        .continue_tok = node_tok,
+                    },
+                },
+                .break_stmt => .{
+                    .break_stmt = .{
+                        .break_tok = node_tok,
+                    },
+                },
+                .null_stmt => .{
+                    .null_stmt = .{
+                        .semicolon_or_r_brace_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .return_stmt => .{
+                    .return_stmt = .{
+                        .return_tok = node_tok,
+                        .return_type = tree.type_map.keys()[node_data[0]],
+                        .expr = unpackOptIndex(node_data[0]),
+                    },
+                },
+                .implicit_return => .{
+                    .implicit_return = .{
+                        .r_brace_tok = node_tok,
+                        .return_type = tree.type_map.keys()[node_data[0]],
+                        .zero = node_data[1] != 0,
+                    },
+                },
+                .gnu_asm_simple => .{
+                    .gnu_asm_simple = .{
+                        .asm_tok = node_tok,
+                        .asm_str = @enumFromInt(node_data[0]),
+                    },
+                },
+                .comma_expr => .{
+                    .comma_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .assign_expr => .{
+                    .assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .mul_assign_expr => .{
+                    .mul_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .div_assign_expr => .{
+                    .div_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .mod_assign_expr => .{
+                    .mod_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .add_assign_expr => .{
+                    .add_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .sub_assign_expr => .{
+                    .sub_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .shl_assign_expr => .{
+                    .shl_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .shr_assign_expr => .{
+                    .shr_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .bit_and_assign_expr => .{
+                    .bit_and_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .bit_xor_assign_expr => .{
+                    .bit_xor_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .bit_or_assign_expr => .{
+                    .bit_or_assign_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .bool_or_expr => .{
+                    .bool_or_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .bool_and_expr => .{
+                    .bool_and_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .bit_or_expr => .{
+                    .bit_or_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .bit_xor_expr => .{
+                    .bit_xor_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .bit_and_expr => .{
+                    .bit_and_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .equal_expr => .{
+                    .equal_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .not_equal_expr => .{
+                    .not_equal_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .less_than_expr => .{
+                    .less_than_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .less_than_equal_expr => .{
+                    .less_than_equal_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .greater_than_expr => .{
+                    .greater_than_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .greater_than_equal_expr => .{
+                    .greater_than_equal_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .shl_expr => .{
+                    .shl_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .shr_expr => .{
+                    .shr_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .add_expr => .{
+                    .add_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .sub_expr => .{
+                    .sub_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .mul_expr => .{
+                    .mul_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .div_expr => .{
+                    .div_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .mod_expr => .{
+                    .mod_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .explicit_cast => .{
+                    .explicit_cast = .{
+                        .l_paren = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .kind = @enumFromInt(node_data[1]),
+                        .operand = @enumFromInt(node_data[2]),
+                    },
+                },
+                .implicit_cast => .{
+                    .implicit_cast = .{
+                        .l_paren = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .kind = @enumFromInt(node_data[1]),
+                        .operand = @enumFromInt(node_data[2]),
+                    },
+                },
+                .addr_of_expr => .{
+                    .addr_of_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .deref_expr => .{
+                    .deref_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .plus_expr => .{
+                    .plus_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .negate_expr => .{
+                    .negate_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .bit_not_expr => .{
+                    .bit_not_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .bool_not_expr => .{
+                    .bool_not_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .pre_inc_expr => .{
+                    .pre_inc_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .pre_dec_expr => .{
+                    .pre_dec_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .imag_expr => .{
+                    .imag_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .real_expr => .{
+                    .real_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .post_inc_expr => .{
+                    .post_inc_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .post_dec_expr => .{
+                    .post_dec_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .paren_expr => .{
+                    .paren_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .stmt_expr => .{
+                    .stmt_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .cond_dummy_expr => .{
+                    .cond_dummy_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .addr_of_label => .{
+                    .addr_of_label = .{
+                        .label_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .array_access_expr => .{
+                    .array_access_expr = .{
+                        .l_bracket_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .base = @enumFromInt(node_data[1]),
+                        .index = @enumFromInt(node_data[2]),
+                    },
+                },
+                .call_expr => .{
+                    .call_expr = .{
+                        .l_paren_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .callee = @enumFromInt(tree.extra.items[node_data[1]]),
+                        .args = @ptrCast(tree.extra.items[node_data[1] + 1 ..][0 .. node_data[2] - 1]),
+                    },
+                },
+                .call_expr_one => .{
+                    .call_expr = .{
+                        .l_paren_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .callee = @enumFromInt(node_data[1]),
+                        .args = @ptrCast(node_data[2..2]),
+                    },
+                },
+                .builtin_call_expr => .{
+                    .builtin_call_expr = .{
+                        .builtin_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .args = @ptrCast(tree.extra.items[node_data[1] + 1 ..][0 .. node_data[2] - 1]),
+                    },
+                },
+                .builtin_call_expr_two => .{
+                    .builtin_call_expr = .{
+                        .builtin_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .args = @ptrCast(node_data[1..]),
+                    },
+                },
+                .member_access_expr => .{
+                    .member_access_expr = .{
+                        .access_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .base = @enumFromInt(node_data[1]),
+                        .member_index = node_data[2],
+                    },
+                },
+                .member_access_ptr_expr => .{
+                    .member_access_ptr_expr = .{
+                        .access_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .base = @enumFromInt(node_data[1]),
+                        .member_index = node_data[2],
+                    },
+                },
+                .decl_ref_expr => .{
+                    .decl_ref_expr = .{
+                        .name_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .enumeration_ref => .{
+                    .enumeration_ref = .{
+                        .name_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .bool_literal => .{
+                    .bool_literal = .{
+                        .literal_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .nullptr_literal => .{
+                    .nullptr_literal = .{
+                        .literal_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .int_literal => .{
+                    .int_literal = .{
+                        .literal_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .char_literal => .{
+                    .char_literal = .{
+                        .literal_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .float_literal => .{
+                    .float_literal = .{
+                        .literal_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .string_literal_expr => .{
+                    .string_literal_expr = .{
+                        .literal_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .imaginary_literal => .{
+                    .imaginary_literal = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .sizeof_expr => .{
+                    .sizeof_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .expr = unpackOptIndex(node_data[1]),
+                    },
+                },
+                .alignof_expr => .{
+                    .alignof_expr = .{
+                        .op_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .expr = unpackOptIndex(node_data[1]),
+                    },
+                },
+
+                .generic_expr_zero => .{
+                    .generic_expr = .{
+                        .generic_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .controlling = @enumFromInt(node_data[1]),
+                        .chosen = @enumFromInt(node_data[2]),
+                        .rest = &.{},
+                    },
+                },
+                .generic_expr => .{
+                    .generic_expr = .{
+                        .generic_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .controlling = @enumFromInt(tree.extra.items[node_data[1]]),
+                        .chosen = @enumFromInt(tree.extra.items[node_data[1] + 1]),
+                        .rest = @ptrCast(tree.extra.items[node_data[1] + 2 ..][0 .. node_data[2] - 2]),
+                    },
+                },
+                .generic_association_expr => .{
+                    .generic_association_expr = .{
+                        .colon_tok = node_tok,
+                        .association_type = tree.type_map.keys()[node_data[0]],
+                        .expr = @enumFromInt(node_data[1]),
+                    },
+                },
+                .generic_default_expr => .{
+                    .generic_default_expr = .{
+                        .default_tok = node_tok,
+                        .expr = @enumFromInt(node_data[0]),
+                    },
+                },
+                .binary_cond_expr => .{
+                    .binary_cond_expr = .{
+                        .cond_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .cond = @enumFromInt(node_data[1]),
+                        .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
+                        .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
+                    },
+                },
+                .cond_expr => .{
+                    .cond_expr = .{
+                        .cond_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .cond = @enumFromInt(node_data[1]),
+                        .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
+                        .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
+                    },
+                },
+                .builtin_choose_expr => .{
+                    .builtin_choose_expr = .{
+                        .cond_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .cond = @enumFromInt(node_data[1]),
+                        .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
+                        .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
+                    },
+                },
+                .builtin_types_compatible_p => .{
+                    .builtin_types_compatible_p = .{
+                        .builtin_tok = node_tok,
+                        .lhs = tree.type_map.keys()[node_data[0]],
+                        .rhs = tree.type_map.keys()[node_data[1]],
+                    },
+                },
+                .array_init_expr_two => .{
+                    .array_init_expr = .{
+                        .l_brace_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .items = @ptrCast(std.mem.sliceTo(node_data[1..], @intFromEnum(Repr.Index.none))),
+                    },
+                },
+                .array_init_expr => .{
+                    .array_init_expr = .{
+                        .l_brace_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .items = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
+                    },
+                },
+                .struct_init_expr_two => .{
+                    .struct_init_expr = .{
+                        .l_brace_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .items = @ptrCast(std.mem.sliceTo(node_data[1..], @intFromEnum(Repr.Index.none))),
+                    },
+                },
+                .struct_init_expr => .{
+                    .struct_init_expr = .{
+                        .l_brace_tok = node_tok,
+                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .items = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
+                    },
+                },
+                .union_init_expr => .{
+                    .union_init_expr = .{
+                        .l_brace_tok = node_tok,
+                        .union_type = tree.type_map.keys()[node_data[0]],
+                        .field_index = node_data[1],
+                        .initializer = unpackOptIndex(node_data[2]),
+                    },
+                },
+                .array_filler_expr => .{
+                    .array_filler_expr = .{
+                        .last_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .count = @bitCast(node_data[1..].*),
+                    },
+                },
+                .default_init_expr => .{
+                    .default_init_expr = .{
+                        .last_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                    },
+                },
+                .compound_literal_expr => {
+                    const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
+                    return .{
+                        .compound_literal_expr = .{
+                            .l_paren_tok = node_tok,
+                            .type = tree.type_map.keys()[node_data[0]],
+                            .static = attr.static,
+                            .thread_local = attr.thread_local,
+                            .initializer = @enumFromInt(node_data[2]),
+                        },
+                    };
+                },
             };
         }
 
@@ -656,27 +1540,174 @@ pub const Node = union(enum) {
 
         pub fn @"type"(index: Index, tree: *const Tree) Type {
             if (std.debug.runtime_safety) {
-                std.debug.assert(tree.nodes.items(.tag)[@intFromEnum(index)].istTyped());
+                std.debug.assert(tree.nodes.items(.tag)[@intFromEnum(index)].isTyped());
             }
-            // If a node is typed the type is stored in data[0];
+            // If a node is typed the type is stored in data[0].
             const type_index = tree.nodes.items(.data)[@intFromEnum(index)][0];
-            return tree.type_map.values()[type_index];
+            return tree.type_map.keys()[type_index];
         }
     };
 
     pub const Repr = struct {
         tag: Tag,
+        /// If a node is typed the type is stored in data[0]
         data: [3]u32,
         tok: Token.Index,
 
+        pub const DeclAttr = packed struct(u32) {
+            @"extern": bool = false,
+            static: bool = false,
+            @"inline": bool = false,
+            thread_local: bool = false,
+            implicit: bool = false,
+            _: u27 = 0,
+        };
+
         pub const Tag = enum(u8) {
+            fn_proto,
+            fn_def,
+            variable,
+            typedef,
+            global_asm,
+            struct_decl,
+            union_decl,
+            enum_decl,
+            struct_decl_two,
+            union_decl_two,
+            enum_decl_two,
+            struct_forward_decl,
+            union_forward_decl,
+            enum_forward_decl,
+            enum_field,
+            record_field,
+            labeled_stmt,
+            compound_stmt,
+            compound_stmt_three,
+            if_stmt,
+            switch_stmt,
+            case_stmt,
+            default_stmt,
+            while_stmt,
+            do_while_stmt,
+            for_expr,
+            for_decl,
+            goto_stmt,
+            computed_goto_stmt,
+            continue_stmt,
+            break_stmt,
+            null_stmt,
+            return_stmt,
+            implicit_return,
+            gnu_asm_simple,
+            comma_expr,
+            assign_expr,
+            mul_assign_expr,
+            div_assign_expr,
+            mod_assign_expr,
+            add_assign_expr,
+            sub_assign_expr,
+            shl_assign_expr,
+            shr_assign_expr,
+            bit_and_assign_expr,
+            bit_xor_assign_expr,
+            bit_or_assign_expr,
+            bool_or_expr,
+            bool_and_expr,
+            bit_or_expr,
+            bit_xor_expr,
+            bit_and_expr,
+            equal_expr,
+            not_equal_expr,
+            less_than_expr,
+            less_than_equal_expr,
+            greater_than_expr,
+            greater_than_equal_expr,
+            shl_expr,
+            shr_expr,
+            add_expr,
+            sub_expr,
+            mul_expr,
+            div_expr,
+            mod_expr,
+            explicit_cast,
+            implicit_cast,
+            addr_of_expr,
+            deref_expr,
+            plus_expr,
+            negate_expr,
+            bit_not_expr,
+            bool_not_expr,
+            pre_inc_expr,
+            pre_dec_expr,
+            imag_expr,
+            real_expr,
+            post_inc_expr,
+            post_dec_expr,
+            paren_expr,
+            stmt_expr,
+            addr_of_label,
+            array_access_expr,
+            call_expr_one,
+            call_expr,
+            builtin_call_expr,
+            builtin_call_expr_two,
+            member_access_expr,
+            member_access_ptr_expr,
+            decl_ref_expr,
+            enumeration_ref,
+            bool_literal,
+            nullptr_literal,
+            int_literal,
+            char_literal,
+            float_literal,
+            string_literal_expr,
+            imaginary_literal,
+            sizeof_expr,
+            alignof_expr,
+            generic_expr,
+            generic_expr_zero,
+            generic_association_expr,
+            generic_default_expr,
+            binary_cond_expr,
+            cond_dummy_expr,
+            cond_expr,
+            builtin_choose_expr,
+            builtin_types_compatible_p,
+            array_init_expr,
+            array_init_expr_two,
+            struct_init_expr,
+            struct_init_expr_two,
+            union_init_expr,
+            array_filler_expr,
+            default_init_expr,
+            compound_literal_expr,
+
             pub fn isTyped(tag: Tag) bool {
                 return switch (tag) {
-                    // TODO stmts etc..
-                    // => false,
+                    .compound_stmt,
+                    .if_stmt,
+                    .switch_stmt,
+                    .case_stmt,
+                    .default_stmt,
+                    .while_stmt,
+                    .do_while_stmt,
+                    .for_decl,
+                    .for_expr,
+                    .goto_stmt,
+                    .computed_goto_stmt,
+                    .continue_stmt,
+                    .break_stmt,
+                    .gnu_asm_simple,
+                    .global_asm,
+                    => false,
                     else => true,
                 };
             }
+        };
+
+        pub const Index = enum(u32) {
+            none = std.math.maxInt(u32),
+            _,
         };
     };
 
@@ -693,6 +1724,802 @@ pub const Node = union(enum) {
         };
     }
 };
+
+pub fn addNode(tree: *Tree, node: Node) !Node.Index {
+    var repr: Node.Repr = undefined;
+    switch (node) {
+        .fn_proto => |proto| {
+            repr.tag = .fn_proto;
+            repr.data[0] = try tree.addType(proto.type);
+            repr.data[1] = @bitCast(Node.Repr.DeclAttr{
+                .static = proto.static,
+                .@"inline" = proto.@"inline",
+            });
+            // TODO decide how to handle definition
+            // repr.data[2] = proto.definition;
+            repr.tok = proto.name_tok;
+        },
+        .fn_def => |def| {
+            repr.tag = .fn_def;
+            repr.data[0] = try tree.addType(def.type);
+            repr.data[1] = @bitCast(Node.Repr.DeclAttr{
+                .static = def.static,
+                .@"inline" = def.@"inline",
+            });
+            repr.data[2] = @intFromEnum(def.body);
+            repr.tok = def.name_tok;
+        },
+        .variable => |variable| {
+            repr.tag = .variable;
+            repr.data[0] = try tree.addType(variable.type);
+            repr.data[1] = @bitCast(Node.Repr.DeclAttr{
+                .@"extern" = variable.@"extern",
+                .static = variable.static,
+                .thread_local = variable.thread_local,
+                .implicit = variable.implicit,
+            });
+            repr.data[2] = packOptIndex(variable.initializer);
+            repr.tok = variable.name_tok;
+        },
+        .typedef => |typedef| {
+            repr.tag = .typedef;
+            repr.data[0] = try tree.addType(typedef.type);
+            repr.tok = typedef.name_tok;
+        },
+        .global_asm => |global_asm| {
+            repr.tag = .global_asm;
+            repr.data[0] = @intFromEnum(global_asm.asm_str);
+            repr.tok = global_asm.asm_tok;
+        },
+        .struct_decl => |decl| {
+            repr.data[0] = try tree.addType(decl.container_type);
+            if (decl.fields.len > 2) {
+                repr.tag = .struct_decl;
+                repr.data[1], repr.data[2] = try tree.addExtra(decl.fields);
+            } else {
+                repr.tag = .struct_decl_two;
+                repr.data[1] = packElem(decl.fields, 0);
+                repr.data[2] = packElem(decl.fields, 1);
+            }
+            repr.tok = decl.name_or_kind_tok;
+        },
+        .union_decl => |decl| {
+            repr.data[0] = try tree.addType(decl.container_type);
+            if (decl.fields.len > 2) {
+                repr.tag = .union_decl;
+                repr.data[1], repr.data[2] = try tree.addExtra(decl.fields);
+            } else {
+                repr.tag = .union_decl_two;
+                repr.data[1] = packElem(decl.fields, 0);
+                repr.data[2] = packElem(decl.fields, 1);
+            }
+            repr.tok = decl.name_or_kind_tok;
+        },
+        .enum_decl => |decl| {
+            repr.data[0] = try tree.addType(decl.container_type);
+            if (decl.fields.len > 2) {
+                repr.tag = .enum_decl;
+                repr.data[1], repr.data[2] = try tree.addExtra(decl.fields);
+            } else {
+                repr.tag = .enum_decl_two;
+                repr.data[1] = packElem(decl.fields, 0);
+                repr.data[2] = packElem(decl.fields, 1);
+            }
+            repr.tok = decl.name_or_kind_tok;
+        },
+        .struct_forward_decl => |decl| {
+            repr.tag = .struct_forward_decl;
+            repr.data[0] = try tree.addType(decl.container_type);
+            // TODO decide how to handle definition
+            // repr.data[1] = decl.definition;
+            repr.tok = decl.name_or_kind_tok;
+        },
+        .union_forward_decl => |decl| {
+            repr.tag = .union_forward_decl;
+            repr.data[0] = try tree.addType(decl.container_type);
+            // TODO decide how to handle definition
+            // repr.data[1] = decl.definition;
+            repr.tok = decl.name_or_kind_tok;
+        },
+        .enum_forward_decl => |decl| {
+            repr.tag = .enum_forward_decl;
+            repr.data[0] = try tree.addType(decl.container_type);
+            // TODO decide how to handle definition
+            // repr.data[1] = decl.definition;
+            repr.tok = decl.name_or_kind_tok;
+        },
+        .enum_field => |field| {
+            repr.tag = .enum_field;
+            repr.data[0] = try tree.addType(field.type);
+            repr.tok = field.name_tok;
+        },
+        .record_field => |field| {
+            repr.tag = .record_field;
+            repr.data[0] = try tree.addType(field.type);
+            repr.data[1] = packOptIndex(field.bit_width);
+            repr.tok = field.name_or_first_tok;
+        },
+        .labeled_stmt => |labeled| {
+            repr.tag = .labeled_stmt;
+            repr.data[0] = try tree.addType(labeled.type);
+            repr.data[1] = @intFromEnum(labeled.body);
+            repr.tok = labeled.label_tok;
+        },
+        .compound_stmt => |compound| {
+            if (compound.body.len > 3) {
+                repr.tag = .compound_stmt;
+                repr.data[0], repr.data[1] = try tree.addExtra(compound.body);
+            } else {
+                repr.tag = .compound_stmt_three;
+                for (&repr.data, 0..) |*data, idx|
+                    data.* = packElem(compound.body, idx);
+            }
+            repr.tok = compound.l_brace_tok;
+        },
+        .if_stmt => |@"if"| {
+            repr.tag = .if_stmt;
+            repr.data[0] = @intFromEnum(@"if".cond);
+            repr.data[1] = @intFromEnum(@"if".then_body);
+            repr.data[2] = packOptIndex(@"if".else_body);
+            repr.tok = @"if".if_tok;
+        },
+        .switch_stmt => |@"switch"| {
+            repr.tag = .switch_stmt;
+            repr.data[0] = @intFromEnum(@"switch".cond);
+            repr.data[1] = @intFromEnum(@"switch".body);
+            repr.tok = @"switch".switch_tok;
+        },
+        .case_stmt => |case| {
+            repr.tag = .case_stmt;
+            repr.data[0] = @intFromEnum(case.start);
+            repr.data[1] = packOptIndex(case.end);
+            repr.data[2] = packOptIndex(case.body);
+            repr.tok = case.case_tok;
+        },
+        .default_stmt => |default| {
+            repr.tag = .default_stmt;
+            repr.data[0] = @intFromEnum(default.body);
+            repr.tok = default.default_tok;
+        },
+        .while_stmt => |@"while"| {
+            repr.tag = .while_stmt;
+            repr.data[0] = @intFromEnum(@"while".cond);
+            repr.data[1] = @intFromEnum(@"while".body);
+            repr.tok = @"while".while_tok;
+        },
+        .do_while_stmt => |do_while| {
+            repr.tag = .do_while_stmt;
+            repr.data[0] = @intFromEnum(do_while.cond);
+            repr.data[1] = @intFromEnum(do_while.body);
+            repr.tok = do_while.do_tok;
+        },
+        .for_stmt => |@"for"| {
+            switch (@"for".init) {
+                .decls => |decls| {
+                    repr.tag = .for_decl;
+                    repr.data[0] = @intCast(tree.extra.items.len);
+                    const len: u32 = @intCast(decls.len + 2);
+                    try tree.extra.ensureUnusedCapacity(tree.comp.gpa, len);
+                    repr.data[1] = len;
+                    tree.extra.appendSliceAssumeCapacity(@ptrCast(decls));
+                    tree.extra.appendAssumeCapacity(packOptIndex(@"for".cond));
+                    tree.extra.appendAssumeCapacity(packOptIndex(@"for".incr));
+                },
+                .expr => |expr| {
+                    repr.tag = .for_expr;
+                    repr.data[0] = packOptIndex(expr);
+                    repr.data[1] = @intCast(tree.extra.items.len);
+                    try tree.extra.ensureUnusedCapacity(tree.comp.gpa, 2);
+                    tree.extra.appendAssumeCapacity(packOptIndex(@"for".cond));
+                    tree.extra.appendAssumeCapacity(packOptIndex(@"for".incr));
+                },
+            }
+            repr.data[2] = @intFromEnum(@"for".body);
+            repr.tok = @"for".for_tok;
+        },
+        .goto_stmt => |goto| {
+            repr.tag = .goto_stmt;
+            repr.tok = goto.label_tok;
+        },
+        .computed_goto_stmt => |computed_goto| {
+            repr.tag = .computed_goto_stmt;
+            repr.data[0] = @intFromEnum(computed_goto.expr);
+            repr.tok = computed_goto.goto_tok;
+        },
+        .continue_stmt => |@"continue"| {
+            repr.tag = .continue_stmt;
+            repr.tok = @"continue".continue_tok;
+        },
+        .break_stmt => |@"break"| {
+            repr.tag = .break_stmt;
+            repr.tok = @"break".break_tok;
+        },
+        .null_stmt => |@"null"| {
+            repr.tag = .null_stmt;
+            repr.data[0] = try tree.addType(@"null".type);
+            repr.tok = @"null".semicolon_or_r_brace_tok;
+        },
+        .return_stmt => |@"return"| {
+            repr.tag = .return_stmt;
+            repr.data[0] = try tree.addType(@"return".return_type);
+            repr.data[1] = packOptIndex(@"return".expr);
+            repr.tok = @"return".return_tok;
+        },
+        .implicit_return => |implicit_return| {
+            repr.tag = .implicit_return;
+            repr.data[0] = try tree.addType(implicit_return.return_type);
+            repr.data[1] = @intFromBool(implicit_return.zero);
+            repr.tok = implicit_return.r_brace_tok;
+        },
+        .gnu_asm_simple => |gnu_asm_simple| {
+            repr.tag = .gnu_asm_simple;
+            repr.data[0] = @intFromEnum(gnu_asm_simple.asm_str);
+            repr.tok = gnu_asm_simple.asm_tok;
+        },
+        .comma_expr => |bin| {
+            repr.tag = .comma_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .assign_expr => |bin| {
+            repr.tag = .assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .mul_assign_expr => |bin| {
+            repr.tag = .mul_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .div_assign_expr => |bin| {
+            repr.tag = .div_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .mod_assign_expr => |bin| {
+            repr.tag = .mod_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .add_assign_expr => |bin| {
+            repr.tag = .add_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .sub_assign_expr => |bin| {
+            repr.tag = .sub_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .shl_assign_expr => |bin| {
+            repr.tag = .shl_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .shr_assign_expr => |bin| {
+            repr.tag = .shr_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .bit_and_assign_expr => |bin| {
+            repr.tag = .bit_and_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .bit_xor_assign_expr => |bin| {
+            repr.tag = .bit_xor_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .bit_or_assign_expr => |bin| {
+            repr.tag = .bit_or_assign_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .bool_or_expr => |bin| {
+            repr.tag = .bool_or_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .bool_and_expr => |bin| {
+            repr.tag = .bool_and_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .bit_or_expr => |bin| {
+            repr.tag = .bit_or_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .bit_xor_expr => |bin| {
+            repr.tag = .bit_xor_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .bit_and_expr => |bin| {
+            repr.tag = .bit_and_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .equal_expr => |bin| {
+            repr.tag = .equal_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .not_equal_expr => |bin| {
+            repr.tag = .not_equal_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .less_than_expr => |bin| {
+            repr.tag = .less_than_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .less_than_equal_expr => |bin| {
+            repr.tag = .less_than_equal_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .greater_than_expr => |bin| {
+            repr.tag = .greater_than_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .greater_than_equal_expr => |bin| {
+            repr.tag = .greater_than_equal_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .shl_expr => |bin| {
+            repr.tag = .shl_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .shr_expr => |bin| {
+            repr.tag = .shr_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .add_expr => |bin| {
+            repr.tag = .add_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .sub_expr => |bin| {
+            repr.tag = .sub_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .mul_expr => |bin| {
+            repr.tag = .mul_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .div_expr => |bin| {
+            repr.tag = .div_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .mod_expr => |bin| {
+            repr.tag = .mod_expr;
+            repr.data[0] = try tree.addType(bin.type);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .explicit_cast => |cast| {
+            repr.tag = .explicit_cast;
+            repr.data[0] = try tree.addType(cast.type);
+            repr.data[1] = @intFromEnum(cast.kind);
+            repr.data[2] = @intFromEnum(cast.operand);
+            repr.tok = cast.l_paren;
+        },
+        .implicit_cast => |cast| {
+            repr.tag = .implicit_cast;
+            repr.data[0] = try tree.addType(cast.type);
+            repr.data[1] = @intFromEnum(cast.kind);
+            repr.data[2] = @intFromEnum(cast.operand);
+            repr.tok = cast.l_paren;
+        },
+        .addr_of_expr => |un| {
+            repr.tag = .addr_of_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .deref_expr => |un| {
+            repr.tag = .deref_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .plus_expr => |un| {
+            repr.tag = .plus_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .negate_expr => |un| {
+            repr.tag = .negate_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .bit_not_expr => |un| {
+            repr.tag = .bit_not_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .bool_not_expr => |un| {
+            repr.tag = .bool_not_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .pre_inc_expr => |un| {
+            repr.tag = .pre_inc_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .pre_dec_expr => |un| {
+            repr.tag = .pre_dec_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .imag_expr => |un| {
+            repr.tag = .imag_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .real_expr => |un| {
+            repr.tag = .real_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .post_inc_expr => |un| {
+            repr.tag = .post_inc_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .post_dec_expr => |un| {
+            repr.tag = .post_dec_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .paren_expr => |un| {
+            repr.tag = .paren_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .stmt_expr => |un| {
+            repr.tag = .stmt_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .cond_dummy_expr => |un| {
+            repr.tag = .cond_dummy_expr;
+            repr.data[0] = try tree.addType(un.type);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .addr_of_label => |addr_of| {
+            repr.tag = .addr_of_label;
+            repr.data[0] = try tree.addType(addr_of.type);
+            repr.tok = addr_of.label_tok;
+        },
+        .array_access_expr => |access| {
+            repr.tag = .array_access_expr;
+            repr.data[0] = try tree.addType(access.type);
+            repr.data[1] = @intFromEnum(access.base);
+            repr.data[2] = @intFromEnum(access.index);
+            repr.tok = access.l_bracket_tok;
+        },
+        .call_expr => |call| {
+            repr.data[0] = try tree.addType(call.type);
+            if (call.args.len > 1) {
+                repr.tag = .call_expr;
+                repr.data[1] = @intCast(tree.extra.items.len);
+                const len: u32 = @intCast(call.args.len + 1);
+                repr.data[2] = len;
+                try tree.extra.ensureUnusedCapacity(tree.comp.gpa, len);
+                tree.extra.appendAssumeCapacity(@intFromEnum(call.callee));
+                tree.extra.appendSliceAssumeCapacity(@ptrCast(call.args));
+            } else {
+                repr.tag = .call_expr_one;
+                repr.data[1] = @intFromEnum(call.callee);
+                repr.data[2] = packElem(call.args, 0);
+            }
+            repr.tok = call.l_paren_tok;
+        },
+        .builtin_call_expr => |call| {
+            repr.data[0] = try tree.addType(call.type);
+            if (call.args.len > 2) {
+                repr.tag = .builtin_call_expr;
+                repr.data[1], repr.data[2] = try tree.addExtra(call.args);
+            } else {
+                repr.tag = .builtin_call_expr_two;
+                repr.data[1] = packElem(call.args, 0);
+                repr.data[2] = packElem(call.args, 1);
+            }
+            repr.tok = call.builtin_tok;
+        },
+        .member_access_expr => |access| {
+            repr.tag = .member_access_expr;
+            repr.data[0] = try tree.addType(access.type);
+            repr.data[1] = @intFromEnum(access.base);
+            repr.data[2] = access.member_index;
+            repr.tok = access.access_tok;
+        },
+        .member_access_ptr_expr => |access| {
+            repr.tag = .member_access_ptr_expr;
+            repr.data[0] = try tree.addType(access.type);
+            repr.data[1] = @intFromEnum(access.base);
+            repr.data[2] = access.member_index;
+            repr.tok = access.access_tok;
+        },
+        .decl_ref_expr => |decl_ref| {
+            repr.tag = .decl_ref_expr;
+            repr.data[0] = try tree.addType(decl_ref.type);
+            repr.tok = decl_ref.name_tok;
+        },
+        .enumeration_ref => |decl_ref| {
+            repr.tag = .enumeration_ref;
+            repr.data[0] = try tree.addType(decl_ref.type);
+            repr.tok = decl_ref.name_tok;
+        },
+        .bool_literal => |literal| {
+            repr.tag = .bool_literal;
+            repr.data[0] = try tree.addType(literal.type);
+            repr.tok = literal.literal_tok;
+        },
+        .nullptr_literal => |literal| {
+            repr.tag = .nullptr_literal;
+            repr.data[0] = try tree.addType(literal.type);
+            repr.tok = literal.literal_tok;
+        },
+        .int_literal => |literal| {
+            repr.tag = .int_literal;
+            repr.data[0] = try tree.addType(literal.type);
+            repr.tok = literal.literal_tok;
+        },
+        .char_literal => |literal| {
+            repr.tag = .char_literal;
+            repr.data[0] = try tree.addType(literal.type);
+            repr.tok = literal.literal_tok;
+        },
+        .float_literal => |literal| {
+            repr.tag = .float_literal;
+            repr.data[0] = try tree.addType(literal.type);
+            repr.tok = literal.literal_tok;
+        },
+        .string_literal_expr => |literal| {
+            repr.tag = .string_literal_expr;
+            repr.data[0] = try tree.addType(literal.type);
+            repr.tok = literal.literal_tok;
+        },
+        .imaginary_literal => |un| {
+            repr.tag = .imaginary_literal;
+            repr.data[0] = try tree.addType(un.type);
+            repr.tok = un.op_tok;
+        },
+        .sizeof_expr => |type_info| {
+            repr.tag = .sizeof_expr;
+            repr.data[0] = try tree.addType(type_info.type);
+            repr.data[1] = packOptIndex(type_info.expr);
+            repr.tok = type_info.op_tok;
+        },
+        .alignof_expr => |type_info| {
+            repr.tag = .alignof_expr;
+            repr.data[0] = try tree.addType(type_info.type);
+            repr.data[1] = packOptIndex(type_info.expr);
+            repr.tok = type_info.op_tok;
+        },
+        .generic_expr => |generic| {
+            repr.data[0] = try tree.addType(generic.type);
+            if (generic.rest.len > 0) {
+                repr.tag = .generic_expr;
+                repr.data[1] = @intCast(tree.extra.items.len);
+                const len: u32 = @intCast(generic.rest.len + 2);
+                repr.data[2] = len;
+                try tree.extra.ensureUnusedCapacity(tree.comp.gpa, len);
+                tree.extra.appendAssumeCapacity(@intFromEnum(generic.controlling));
+                tree.extra.appendAssumeCapacity(@intFromEnum(generic.chosen));
+                tree.extra.appendSliceAssumeCapacity(@ptrCast(generic.rest));
+            } else {
+                repr.tag = .generic_expr_zero;
+                repr.data[1] = @intFromEnum(generic.controlling);
+                repr.data[2] = @intFromEnum(generic.chosen);
+            }
+            repr.tok = generic.generic_tok;
+        },
+        .generic_association_expr => |association| {
+            repr.tag = .generic_association_expr;
+            repr.data[0] = try tree.addType(association.association_type);
+            repr.data[1] = @intFromEnum(association.expr);
+            repr.tok = association.colon_tok;
+        },
+        .generic_default_expr => |default| {
+            repr.tag = .generic_default_expr;
+            repr.data[0] = @intFromEnum(default.expr);
+            repr.tok = default.default_tok;
+        },
+        .binary_cond_expr => |cond| {
+            repr.tag = .binary_cond_expr;
+            repr.data[0] = try tree.addType(cond.type);
+            repr.data[1] = @intFromEnum(cond.cond);
+            repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
+            repr.tok = cond.cond_tok;
+        },
+        .cond_expr => |cond| {
+            repr.tag = .cond_expr;
+            repr.data[0] = try tree.addType(cond.type);
+            repr.data[1] = @intFromEnum(cond.cond);
+            repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
+            repr.tok = cond.cond_tok;
+        },
+        .builtin_choose_expr => |cond| {
+            repr.tag = .builtin_choose_expr;
+            repr.data[0] = try tree.addType(cond.type);
+            repr.data[1] = @intFromEnum(cond.cond);
+            repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
+            repr.tok = cond.cond_tok;
+        },
+        .builtin_types_compatible_p => |builtin| {
+            repr.tag = .builtin_types_compatible_p;
+            repr.data[0] = try tree.addType(builtin.lhs);
+            repr.data[1] = try tree.addType(builtin.rhs);
+            repr.tok = builtin.builtin_tok;
+        },
+        .array_init_expr => |init| {
+            repr.data[0] = try tree.addType(init.container_type);
+            if (init.items.len > 2) {
+                repr.tag = .array_init_expr;
+                repr.data[1], repr.data[2] = try tree.addExtra(init.items);
+            } else {
+                repr.tag = .array_init_expr_two;
+                repr.data[1] = packElem(init.items, 0);
+                repr.data[2] = packElem(init.items, 1);
+            }
+            repr.tok = init.l_brace_tok;
+        },
+        .struct_init_expr => |init| {
+            repr.data[0] = try tree.addType(init.container_type);
+            if (init.items.len > 2) {
+                repr.tag = .struct_init_expr;
+                repr.data[1], repr.data[2] = try tree.addExtra(init.items);
+            } else {
+                repr.tag = .struct_init_expr_two;
+                repr.data[1] = packElem(init.items, 0);
+                repr.data[2] = packElem(init.items, 1);
+            }
+            repr.tok = init.l_brace_tok;
+        },
+        .union_init_expr => |init| {
+            repr.tag = .union_init_expr;
+            repr.data[0] = try tree.addType(init.union_type);
+            repr.data[1] = init.field_index;
+            repr.data[2] = packOptIndex(init.initializer);
+            repr.tok = init.l_brace_tok;
+        },
+        .array_filler_expr => |filler| {
+            repr.tag = .array_filler_expr;
+            repr.data[0] = try tree.addType(filler.type);
+            repr.data[1], repr.data[2] = @as([2]u32, @bitCast(filler.count));
+            repr.tok = filler.last_tok;
+        },
+        .default_init_expr => |default| {
+            repr.tag = .default_init_expr;
+            repr.data[0] = try tree.addType(default.type);
+            repr.tok = default.last_tok;
+        },
+        .compound_literal_expr => |literal| {
+            repr.tag = .compound_literal_expr;
+            repr.data[0] = try tree.addType(literal.type);
+            repr.data[1] = @bitCast(Node.Repr.DeclAttr{
+                .static = literal.static,
+                .thread_local = literal.thread_local,
+            });
+            repr.data[2] = @intFromEnum(literal.initializer);
+            repr.tok = literal.l_paren_tok;
+        },
+    }
+    const index = tree.nodes.len;
+    try tree.nodes.append(tree.comp.gpa, repr);
+    return @enumFromInt(index);
+}
+
+fn packOptIndex(opt: ?Node.Index) u32 {
+    return if (opt) |some| @intFromEnum(some) else @intFromEnum(Node.Repr.Index.none);
+}
+
+fn unpackOptIndex(idx: u32) ?Node.Index {
+    if (idx == @intFromEnum(Node.Repr.Index.none)) return null;
+    return @enumFromInt(idx);
+}
+
+fn packElem(nodes: []const Node.Index, index: usize) u32 {
+    return if (nodes.len > index) @intFromEnum(nodes[index]) else @intFromEnum(Node.Repr.Index.none);
+}
+
+fn addType(tree: *Tree, ty: Type) !u32 {
+    const gop = try tree.type_map.getOrPut(tree.comp.gpa, ty);
+    return @intCast(gop.index);
+}
+
+/// Returns index to `tree.extra` and length of data
+fn addExtra(tree: *Tree, data: []const Node.Index) !struct { u32, u32 } {
+    const index: u32 = @intCast(tree.extra.items.len);
+    try tree.extra.appendSlice(tree.comp.gpa, @ptrCast(data));
+    return .{ index, @intCast(data.len) };
+}
 
 pub fn isBitfield(tree: *const Tree, node: Node.Index) bool {
     return tree.bitfieldWidth(node, false) != null;
