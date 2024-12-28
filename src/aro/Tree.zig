@@ -20,6 +20,7 @@ pub const Token = struct {
     pub const Id = Tokenizer.Token.Id;
     pub const NumberPrefix = number_affixes.Prefix;
     pub const NumberSuffix = number_affixes.Suffix;
+    pub const Index = enum(u32) { _ };
 };
 
 pub const TokenWithExpansionLocs = struct {
@@ -104,29 +105,116 @@ pub const TokenWithExpansionLocs = struct {
     }
 };
 
-pub const TokenIndex = u32;
-pub const NodeIndex = enum(u32) { none, _ };
-pub const ValueMap = std.AutoHashMap(NodeIndex, Value);
+pub const ValueMap = std.AutoHashMapUnmanaged(Node.Index, Value);
+
+pub const TypeHashContext = struct {
+    pub fn hash(_: TypeHashContext, ty: Type) u32 {
+        var hasher = std.hash.Wyhash.init(0);
+
+        std.hash.autoHash(&hasher, ty.specifier);
+        std.hash.autoHash(&hasher, @as(u5, @bitCast(ty.qual)));
+        std.hash.autoHash(&hasher, ty.decayed);
+        std.hash.autoHash(&hasher, ty.name);
+
+        switch (ty.specifier) {
+            .bit_int, .complex_bit_int => std.hash.autoHash(&hasher, ty.data.int),
+            .pointer,
+            .unspecified_variable_len_array,
+            .typeof_type,
+            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.sub_type)),
+            .func,
+            .var_args_func,
+            .old_style_func,
+            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.func)),
+            .array,
+            .static_array,
+            .incomplete_array,
+            .vector,
+            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.array)),
+            .variable_len_array,
+            .typeof_expr,
+            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.expr)),
+            .@"struct",
+            .@"union",
+            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.record)),
+            .@"enum",
+            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.@"enum")),
+            .attributed,
+            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.attributed)),
+            else => {},
+        }
+
+        return @as(u32, @truncate(hasher.final()));
+    }
+
+    pub fn eql(_: TypeHashContext, a: Type, b: Type, _: usize) bool {
+        if (a.specifier != b.specifier) return false;
+        if (a.qual != b.qual) return false;
+        if (a.decayed != b.decayed) return false;
+        if (a.name != b.name) return false;
+
+        switch (a.specifier) {
+            .bit_int, .complex_bit_int => {
+                if (a.data.int.bits != b.data.int.bits) return false;
+                if (a.data.int.signedness != b.data.int.signedness) return false;
+            },
+            .pointer,
+            .unspecified_variable_len_array,
+            .typeof_type,
+            => if (a.data.sub_type != b.data.sub_type) return false,
+            .func,
+            .var_args_func,
+            .old_style_func,
+            => if (a.data.func != b.data.func) return false,
+            .array,
+            .static_array,
+            .incomplete_array,
+            .vector,
+            => if (a.data.array != b.data.array) return false,
+            .variable_len_array,
+            .typeof_expr,
+            => if (a.data.expr != b.data.expr) return false,
+            .@"struct",
+            .@"union",
+            => if (a.data.record != b.data.record) return false,
+            .@"enum",
+            => if (a.data.@"enum" != b.data.@"enum") return false,
+            .attributed,
+            => if (a.data.attributed != b.data.attributed) return false,
+            else => {},
+        }
+        return true;
+    }
+};
 
 const Tree = @This();
 
 comp: *Compilation,
-arena: std.heap.ArenaAllocator,
+
+// Values from Preprocessor.
 generated: []const u8,
 tokens: Token.List.Slice,
-nodes: Node.List.Slice,
-data: []const NodeIndex,
-root_decls: []const NodeIndex,
-value_map: ValueMap,
+
+// Values owned by this Tree
+nodes: std.MultiArrayList(Node.Repr) = .empty,
+extra: std.ArrayListUnmanaged(u32) = .empty,
+root_decls: std.ArrayListUnmanaged(Node.Index) = .empty,
+value_map: ValueMap = .empty,
+type_map: std.ArrayHashMapUnmanaged(Type, void, struct {}, false) = .empty,
+
+/// Arena allocator used for types.
+arena: std.heap.ArenaAllocator,
 
 pub const genIr = CodeGen.genIr;
 
 pub fn deinit(tree: *Tree) void {
-    tree.comp.gpa.free(tree.root_decls);
-    tree.comp.gpa.free(tree.data);
-    tree.nodes.deinit(tree.comp.gpa);
+    tree.nodes.deinit(tree.gpa);
+    tree.extra.deinit(tree.gpa);
+    tree.root_decls.deinit(tree.gpa);
+    tree.value_map.deinit(tree.gpa);
+    tree.type_map.deinit(tree.gpa);
     tree.arena.deinit();
-    tree.value_map.deinit();
+    tree.* = undefined;
 }
 
 pub const GNUAssemblyQualifiers = struct {
@@ -135,489 +223,498 @@ pub const GNUAssemblyQualifiers = struct {
     goto: bool = false,
 };
 
-pub const Node = struct {
-    tag: Tag,
-    ty: Type = .{ .specifier = .void },
-    data: Data,
-    loc: Loc = .none,
+pub const Node = union(enum) {
+    fn_proto: struct {
+        name_tok: Token.Index,
+        type: Type,
+        static: bool,
+        @"inline": bool,
+        /// The definition for this prototype if one exists.
+        definition: ?Node.Index,
+    },
+    fn_def: struct {
+        name_tok: Token.Index,
+        type: Type,
+        static: bool,
+        @"inline": bool,
+        body: Node.Index,
+    },
+    variable: struct {
+        name_tok: Token.Index,
+        type: Type,
+        @"extern": bool,
+        static: bool,
+        thread_local: bool,
+        /// From predefined macro  __func__, __FUNCTION__ or __PRETTY_FUNCTION__.
+        /// Implies `static == true`.
+        implicit: bool,
+        initializer: ?Node.Index,
+    },
+    typedef: struct {
+        name_tok: Token.Index,
+        type: Type,
+    },
+    global_asm: SimpleAsm,
 
-    pub const Range = struct { start: u32, end: u32 };
+    struct_decl: ContainerDecl,
+    union_decl: ContainerDecl,
+    enum_decl: ContainerDecl,
+    struct_forward_decl: ContainerForwardDecl,
+    union_forward_decl: ContainerForwardDecl,
+    enum_forward_decl: ContainerForwardDecl,
 
-    pub const Loc = enum(u32) {
-        none = std.math.maxInt(u32),
-        _,
-    };
+    enum_field: struct {
+        name_tok: Token.Index,
+        type: Type,
+    },
+    record_field: struct {
+        name_tok: Token.Index,
+        type: Type,
+        bit_width: ?Node.Index,
+    },
+    labeled_stmt: struct {
+        label_tok: Token.Index,
+        stmt: ?Node.Index,
+    },
+    compound_stmt: struct {
+        l_brace_tok: Token.Index,
+        body: []const Node.Index,
+    },
 
-    pub const Data = union {
-        decl: struct {
-            name: TokenIndex,
-            node: NodeIndex = .none,
-        },
-        decl_ref: TokenIndex,
-        two: [2]NodeIndex,
-        range: Range,
-        if3: struct {
-            cond: NodeIndex,
-            body: u32,
-        },
-        un: NodeIndex,
-        bin: struct {
-            lhs: NodeIndex,
-            rhs: NodeIndex,
-        },
-        member: struct {
-            lhs: NodeIndex,
-            index: u32,
-        },
-        union_init: struct {
-            field_index: u32,
-            node: NodeIndex,
-        },
-        cast: struct {
-            operand: NodeIndex,
-            kind: CastKind,
-        },
-        int: u64,
-        return_zero: bool,
-
-        pub fn forDecl(data: Data, extra: []const NodeIndex) struct {
-            decls: []const NodeIndex,
-            cond: NodeIndex,
-            incr: NodeIndex,
-            body: NodeIndex,
-        } {
-            const items = extra[data.range.start..data.range.end];
-            const decls = items[0 .. items.len - 3];
-
-            return .{
-                .decls = decls,
-                .cond = items[items.len - 3],
-                .incr = items[items.len - 2],
-                .body = items[items.len - 1],
-            };
-        }
-
-        pub fn forStmt(data: Data, extra: []const NodeIndex) struct {
-            init: NodeIndex,
-            cond: NodeIndex,
-            incr: NodeIndex,
-            body: NodeIndex,
-        } {
-            const items = extra[data.if3.body..];
-
-            return .{
-                .init = items[0],
-                .cond = items[1],
-                .incr = items[2],
-                .body = data.if3.cond,
-            };
-        }
-    };
-
-    pub const List = std.MultiArrayList(Node);
-};
-
-pub const CastKind = enum(u8) {
-    /// Does nothing except possibly add qualifiers
-    no_op,
-    /// Interpret one bit pattern as another. Used for operands which have the same
-    /// size and unrelated types, e.g. casting one pointer type to another
-    bitcast,
-    /// Convert T[] to T *
-    array_to_pointer,
-    /// Converts an lvalue to an rvalue
-    lval_to_rval,
-    /// Convert a function type to a pointer to a function
-    function_to_pointer,
-    /// Convert a pointer type to a _Bool
-    pointer_to_bool,
-    /// Convert a pointer type to an integer type
-    pointer_to_int,
-    /// Convert _Bool to an integer type
-    bool_to_int,
-    /// Convert _Bool to a floating type
-    bool_to_float,
-    /// Convert a _Bool to a pointer; will cause a  warning
-    bool_to_pointer,
-    /// Convert an integer type to _Bool
-    int_to_bool,
-    /// Convert an integer to a floating type
-    int_to_float,
-    /// Convert a complex integer to a complex floating type
-    complex_int_to_complex_float,
-    /// Convert an integer type to a pointer type
-    int_to_pointer,
-    /// Convert a floating type to a _Bool
-    float_to_bool,
-    /// Convert a floating type to an integer
-    float_to_int,
-    /// Convert a complex floating type to a complex integer
-    complex_float_to_complex_int,
-    /// Convert one integer type to another
-    int_cast,
-    /// Convert one complex integer type to another
-    complex_int_cast,
-    /// Convert real part of complex integer to a integer
-    complex_int_to_real,
-    /// Create a complex integer type using operand as the real part
-    real_to_complex_int,
-    /// Convert one floating type to another
-    float_cast,
-    /// Convert one complex floating type to another
-    complex_float_cast,
-    /// Convert real part of complex float to a float
-    complex_float_to_real,
-    /// Create a complex floating type using operand as the real part
-    real_to_complex_float,
-    /// Convert type to void
-    to_void,
-    /// Convert a literal 0 to a null pointer
-    null_to_pointer,
-    /// GNU cast-to-union extension
-    union_cast,
-    /// Create vector where each value is same as the input scalar.
-    vector_splat,
-};
-
-pub const Tag = enum(u8) {
-    /// Must appear at index 0. Also used as the tag for __builtin_types_compatible_p arguments, since the arguments are types
-    /// Reaching it is always the result of a bug.
-    invalid,
-
-    // ====== Decl ======
-
-    /// _Static_assert
-    /// loc is token index of _Static_assert
-    static_assert,
-
-    // function prototype
-    fn_proto,
-    static_fn_proto,
-    inline_fn_proto,
-    inline_static_fn_proto,
-
-    // function definition
-    fn_def,
-    static_fn_def,
-    inline_fn_def,
-    inline_static_fn_def,
-
-    // variable declaration
-    @"var",
-    extern_var,
-    static_var,
-    // same as static_var, used for __func__, __FUNCTION__ and __PRETTY_FUNCTION__
-    implicit_static_var,
-    threadlocal_var,
-    threadlocal_extern_var,
-    threadlocal_static_var,
-
-    /// __asm__("...") at file scope
-    /// loc is token index of __asm__ keyword
-    file_scope_asm,
-
-    // typedef declaration
-    typedef,
-
-    // container declarations
-    /// { two[0]; two[1]; }
-    struct_decl_two,
-    /// { two[0]; two[1]; }
-    union_decl_two,
-    /// { two[0], two[1], }
-    enum_decl_two,
-    /// { range }
-    struct_decl,
-    /// { range }
-    union_decl,
-    /// { range }
-    enum_decl,
-    /// struct decl_ref;
-    struct_forward_decl,
-    /// union decl_ref;
-    union_forward_decl,
-    /// enum decl_ref;
-    enum_forward_decl,
-
-    /// name = node
-    enum_field_decl,
-    /// ty name : node
-    /// name == 0 means unnamed
-    record_field_decl,
-    /// Used when a record has an unnamed record as a field
-    indirect_record_field_decl,
-
-    // ====== Stmt ======
-
-    labeled_stmt,
-    /// { two[0]; two[1]; } first and second may be null
-    compound_stmt_two,
-    /// { data }
-    compound_stmt,
-    /// if (first) data[second] else data[second+1];
-    if_then_else_stmt,
-    /// if (first) second; second may be null
-    if_then_stmt,
-    /// switch (first) second
-    switch_stmt,
-    /// case first: second
-    case_stmt,
-    /// case data[body]...data[body+1]: cond
-    case_range_stmt,
-    /// default: first
-    default_stmt,
-    /// while (first) second
-    while_stmt,
-    /// do second while(first);
-    do_while_stmt,
-    /// for (data[..]; data[len-3]; data[len-2]) data[len-1]
-    for_decl_stmt,
-    /// for (;;;) first
-    forever_stmt,
-    /// for (data[first]; data[first+1]; data[first+2]) second
-    for_stmt,
-    /// goto first;
-    goto_stmt,
-    /// goto *un;
-    computed_goto_stmt,
-    // continue; first and second unused
-    continue_stmt,
-    // break; first and second unused
-    break_stmt,
-    // null statement (just a semicolon); first and second unused
-    null_stmt,
-    /// return first; first may be null
-    return_stmt,
-    /// Assembly statement of the form __asm__("string literal")
-    gnu_asm_simple,
-
-    // ====== Expr ======
-
-    /// lhs , rhs
-    comma_expr,
-    /// lhs ? data[0] : data[1]
-    binary_cond_expr,
-    /// Used as the base for casts of the lhs in `binary_cond_expr`.
-    cond_dummy_expr,
-    /// lhs ? data[0] : data[1]
-    cond_expr,
-    /// lhs = rhs
-    assign_expr,
-    /// lhs *= rhs
-    mul_assign_expr,
-    /// lhs /= rhs
-    div_assign_expr,
-    /// lhs %= rhs
-    mod_assign_expr,
-    /// lhs += rhs
-    add_assign_expr,
-    /// lhs -= rhs
-    sub_assign_expr,
-    /// lhs <<= rhs
-    shl_assign_expr,
-    /// lhs >>= rhs
-    shr_assign_expr,
-    /// lhs &= rhs
-    bit_and_assign_expr,
-    /// lhs ^= rhs
-    bit_xor_assign_expr,
-    /// lhs |= rhs
-    bit_or_assign_expr,
-    /// lhs || rhs
-    bool_or_expr,
-    /// lhs && rhs
-    bool_and_expr,
-    /// lhs | rhs
-    bit_or_expr,
-    /// lhs ^ rhs
-    bit_xor_expr,
-    /// lhs & rhs
-    bit_and_expr,
-    /// lhs == rhs
-    equal_expr,
-    /// lhs != rhs
-    not_equal_expr,
-    /// lhs < rhs
-    less_than_expr,
-    /// lhs <= rhs
-    less_than_equal_expr,
-    /// lhs > rhs
-    greater_than_expr,
-    /// lhs >= rhs
-    greater_than_equal_expr,
-    /// lhs << rhs
-    shl_expr,
-    /// lhs >> rhs
-    shr_expr,
-    /// lhs + rhs
-    add_expr,
-    /// lhs - rhs
-    sub_expr,
-    /// lhs * rhs
-    mul_expr,
-    /// lhs / rhs
-    div_expr,
-    /// lhs % rhs
-    mod_expr,
-    /// Explicit: (type) cast
-    explicit_cast,
-    /// Implicit: cast
-    implicit_cast,
-    /// &un
-    addr_of_expr,
-    /// &&decl_ref
-    addr_of_label,
-    /// *un
-    deref_expr,
-    /// +un
-    plus_expr,
-    /// -un
-    negate_expr,
-    /// ~un
-    bit_not_expr,
-    /// !un
-    bool_not_expr,
-    /// ++un
-    pre_inc_expr,
-    /// --un
-    pre_dec_expr,
-    /// __imag un
-    imag_expr,
-    /// __real un
-    real_expr,
-    /// lhs[rhs]  lhs is pointer/array type, rhs is integer type
-    array_access_expr,
-    /// two[0](two[1]) two[1] may be 0
-    call_expr_one,
-    /// data[0](data[1..])
-    call_expr,
-    /// decl
-    builtin_call_expr_one,
-    builtin_call_expr,
-    /// lhs.member
-    member_access_expr,
-    /// lhs->member
-    member_access_ptr_expr,
-    /// un++
-    post_inc_expr,
-    /// un--
-    post_dec_expr,
-    /// (un)
-    paren_expr,
-    /// decl_ref
-    decl_ref_expr,
-    /// decl_ref
-    enumeration_ref,
-    /// C23 bool literal `true` / `false`
-    bool_literal,
-    /// C23 nullptr literal
-    nullptr_literal,
-    /// integer literal, always unsigned
-    int_literal,
-    /// Same as int_literal, but originates from a char literal
-    char_literal,
-    /// a floating point literal
-    float_literal,
-    /// wraps a float or double literal: un
-    imaginary_literal,
-    /// tree.str[index..][0..len]
-    string_literal_expr,
-    /// sizeof(un?)
-    sizeof_expr,
-    /// _Alignof(un?)
-    alignof_expr,
-    /// _Generic(controlling two[0], chosen two[1])
-    generic_expr_one,
-    /// _Generic(controlling range[0], chosen range[1], rest range[2..])
-    generic_expr,
-    /// ty: un
-    generic_association_expr,
-    // default: un
-    generic_default_expr,
-    /// __builtin_choose_expr(lhs, data[0], data[1])
-    builtin_choose_expr,
-    /// __builtin_types_compatible_p(lhs, rhs)
-    builtin_types_compatible_p,
-    /// decl - special builtins require custom parsing
-    special_builtin_call_one,
-    /// ({ un })
-    stmt_expr,
-
-    // ====== Initializer expressions ======
-
-    /// { two[0], two[1] }
-    array_init_expr_two,
-    /// { range }
-    array_init_expr,
-    /// { two[0], two[1] }
-    struct_init_expr_two,
-    /// { range }
-    struct_init_expr,
-    /// { union_init }
-    union_init_expr,
-
-    /// (ty){ un }
-    /// loc is token index of l_paren
-    compound_literal_expr,
-    /// (static ty){ un }
-    /// loc is token index of l_paren
-    static_compound_literal_expr,
-    /// (thread_local ty){ un }
-    /// loc is token index of l_paren
-    thread_local_compound_literal_expr,
-    /// (static thread_local ty){ un }
-    /// loc is token index of l_paren
-    static_thread_local_compound_literal_expr,
-
+    if_stmt: struct {
+        if_tok: Token.Index,
+        cond: Node.Index,
+        then_body: Node.Index,
+        else_body: ?Node.Index,
+    },
+    switch_stmt: struct {
+        switch_tok: Token.Index,
+        cond: Node.Index,
+        body: Node.Index,
+    },
+    case_stmt: struct {
+        case_tok: Token.Index,
+        items: []const Node.Index,
+        body: Node.Index,
+    },
+    default_stmt: struct {
+        case_tok: Token.Index,
+        items: []const Node.Index,
+    },
+    while_stmt: struct {
+        while_tok: Token.Index,
+        cond: Node.Index,
+        body: Node.Index,
+    },
+    do_while_stmt: struct {
+        do_tok: Token.Index,
+        cond: Node.Index,
+        body: Node.Index,
+    },
+    for_stmt: struct {
+        do_tok: Token.Index,
+        /// If decls.len != 0 then init == null.
+        decls: []const Node.Index,
+        /// If init != null then decls.len == 0.
+        init: ?Node.Index,
+        cond: ?Node.Index,
+        incr: ?Node.Index,
+        body: Node.Index,
+    },
+    goto_stmt: struct {
+        label_tok: Token.Index,
+    },
+    computed_goto_stmt: struct {
+        goto_tok: Token.Index,
+        expr: Node.Index,
+    },
+    continue_stmt: struct {
+        continue_tok: Token.Index,
+    },
+    break_stmt: struct {
+        break_tok: Token.Index,
+    },
+    null_stmt: struct {
+        semicolon_tok: Token.Index,
+    },
+    return_stmt: struct {
+        return_tok: Token.Index,
+        return_type: Type,
+        expr: ?Node.Index,
+    },
     /// Inserted at the end of a function body if no return stmt is found.
     /// ty is the functions return type
     /// data is return_zero which is true if the function is called "main" and ty is compatible with int
     /// loc is token index of closing r_brace of function
-    implicit_return,
+    implicit_return: struct {
+        return_tok: Token.Index,
+        return_type: Type,
+    },
+    gnu_asm_simple: SimpleAsm,
+    comma_expr: BinaryExpr,
+    assign_expr: BinaryExpr,
+    mul_assign_expr: BinaryExpr,
+    div_assign_expr: BinaryExpr,
+    mod_assign_expr: BinaryExpr,
+    add_assign_expr: BinaryExpr,
+    sub_assign_expr: BinaryExpr,
+    shl_assign_expr: BinaryExpr,
+    shr_assign_expr: BinaryExpr,
+    bit_and_assign_expr: BinaryExpr,
+    bit_xor_assign_expr: BinaryExpr,
+    bit_or_assign_expr: BinaryExpr,
+    bool_or_expr: BinaryExpr,
+    bool_and_expr: BinaryExpr,
+    bit_or_expr: BinaryExpr,
+    bit_xor_expr: BinaryExpr,
+    bit_and_expr: BinaryExpr,
+    equal_expr: BinaryExpr,
+    not_equal_expr: BinaryExpr,
+    less_than_expr: BinaryExpr,
+    less_than_equal_expr: BinaryExpr,
+    greater_than_expr: BinaryExpr,
+    greater_than_equal_expr: BinaryExpr,
+    shl_expr: BinaryExpr,
+    shr_expr: BinaryExpr,
+    add_expr: BinaryExpr,
+    sub_expr: BinaryExpr,
+    mul_expr: BinaryExpr,
+    div_expr: BinaryExpr,
+    mod_expr: BinaryExpr,
 
+    explicit_cast: Cast,
+    implicit_cast: Cast,
+
+    addr_of_expr: UnaryExpr,
+    deref_expr: UnaryExpr,
+    plus_expr: UnaryExpr,
+    negate_expr: UnaryExpr,
+    bit_not_expr: UnaryExpr,
+    bool_not_expr: UnaryExpr,
+    pre_inc_expr: UnaryExpr,
+    pre_dec_expr: UnaryExpr,
+    imag_expr: UnaryExpr,
+    real_expr: UnaryExpr,
+    post_inc_expr: UnaryExpr,
+    post_dec_expr: UnaryExpr,
+    paren_expr: UnaryExpr,
+    stmt_expr: UnaryExpr,
+
+    addr_of_label: struct {
+        label_tok: Token.Index,
+        type: Type,
+    },
+
+    array_access_expr: struct {
+        l_bracket_tok: Token.Index,
+        type: Type,
+        index: Node.Index,
+        base: Node.Index,
+    },
+    call_expr: struct {
+        l_paren_tok: Token.Index,
+        callee: Node.Index,
+        args: []const Node.Index,
+    },
+    builtin_call_expr: struct {
+        builtin_tok: Token.Index,
+        type: Type,
+        args: []const Node.Index,
+    },
+    member_access_expr: MemberAccess,
+    member_access_ptr_expr: MemberAccess,
+    decl_ref_expr: DeclRef,
+    enumeration_ref: DeclRef,
+
+    /// C23 bool literal `true` / `false`
+    bool_literal: Literal,
+    /// C23 nullptr literal
+    nullptr_literal: Literal,
+    /// integer literal, always unsigned
+    int_literal: Literal,
+    /// Same as int_literal, but originates from a char literal
+    char_literal: Literal,
+    /// a floating point literal
+    float_literal: Literal,
+    string_literal_expr: Literal,
+    /// wraps a float or double literal: un
+    imaginary_literal: UnaryExpr,
+
+    sizeof_expr: TypeInfo,
+    alignof_expr: TypeInfo,
+
+    generic_expr: struct {
+        generic_tok: Token.Index,
+        type: Type,
+        controlling: Node.Index,
+        chosen: Node.Index,
+        rest: []const Node.Index,
+    },
+    generic_association_expr: struct {
+        colon_tok: Token.Index,
+        association_type: Type,
+        expr: Node.Index,
+    },
+    generic_default_expr: struct {
+        default_tok: Token.Index,
+        expr: Node.Index,
+    },
+
+    binary_cond_expr: Conditional,
+    /// Used as the base for casts of the lhs in `binary_cond_expr`.
+    cond_dummy_expr: UnaryExpr,
+    cond_expr: Conditional,
+    builtin_choose_expr: Conditional,
+    builtin_types_compatible_p: struct {
+        builtin_tok: Token.Index,
+        lhs: Type,
+        rhs: Type,
+    },
+
+    array_init_expr: ContainerInit,
+    struct_init_expr: ContainerInit,
+    union_init_expr: struct {
+        l_brace_tok: Token.Index,
+        union_type: Type,
+        field_index: u32,
+        initializer: Node.Index,
+    },
     /// Inserted in array_init_expr to represent unspecified elements.
     /// data.int contains the amount of elements.
-    array_filler_expr,
+    array_filler_expr: struct {
+        last_tok: Token.Index,
+        type: Type,
+        count: u64,
+    },
     /// Inserted in record and scalar initializers for unspecified elements.
-    default_init_expr,
+    default_init_expr: struct {
+        last_tok: Token.Index,
+        type: Type,
+    },
 
-    pub fn isImplicit(tag: Tag) bool {
-        return switch (tag) {
+    compound_literal_expr: struct {
+        ty: Type,
+        l_paren_tok: Token.Index,
+        static: bool,
+        thread_local: bool,
+        initializer: Node.Index,
+    },
+
+    pub const SimpleAsm = struct {
+        asm_tok: Token.Index,
+        asm_str: Node.Index,
+    };
+
+    pub const ContainerDecl = struct {
+        container_type: Type,
+        name_or_kind_tok: Token.Index,
+        fields: []const Node.Index,
+    };
+
+    pub const ContainerForwardDecl = struct {
+        name_or_kind_tok: Token.Index,
+        /// The definition for this forward declaration if one exists.
+        definition: ?Node.Index,
+    };
+
+    pub const BinaryExpr = struct {
+        type: Type,
+        lhs: Node.Index,
+        op_tok: Token.Index,
+        rhs: Node.Index,
+    };
+
+    pub const Cast = struct {
+        type: Type,
+        l_paren: Token.Index,
+        kind: Kind,
+        operand: Node.Index,
+
+        pub const Kind = enum {
+            /// Does nothing except possibly add qualifiers
+            no_op,
+            /// Interpret one bit pattern as another. Used for operands which have the same
+            /// size and unrelated types, e.g. casting one pointer type to another
+            bitcast,
+            /// Convert T[] to T *
+            array_to_pointer,
+            /// Converts an lvalue to an rvalue
+            lval_to_rval,
+            /// Convert a function type to a pointer to a function
+            function_to_pointer,
+            /// Convert a pointer type to a _Bool
+            pointer_to_bool,
+            /// Convert a pointer type to an integer type
+            pointer_to_int,
+            /// Convert _Bool to an integer type
+            bool_to_int,
+            /// Convert _Bool to a floating type
+            bool_to_float,
+            /// Convert a _Bool to a pointer; will cause a  warning
+            bool_to_pointer,
+            /// Convert an integer type to _Bool
+            int_to_bool,
+            /// Convert an integer to a floating type
+            int_to_float,
+            /// Convert a complex integer to a complex floating type
+            complex_int_to_complex_float,
+            /// Convert an integer type to a pointer type
+            int_to_pointer,
+            /// Convert a floating type to a _Bool
+            float_to_bool,
+            /// Convert a floating type to an integer
+            float_to_int,
+            /// Convert a complex floating type to a complex integer
+            complex_float_to_complex_int,
+            /// Convert one integer type to another
+            int_cast,
+            /// Convert one complex integer type to another
+            complex_int_cast,
+            /// Convert real part of complex integer to a integer
+            complex_int_to_real,
+            /// Create a complex integer type using operand as the real part
+            real_to_complex_int,
+            /// Convert one floating type to another
+            float_cast,
+            /// Convert one complex floating type to another
+            complex_float_cast,
+            /// Convert real part of complex float to a float
+            complex_float_to_real,
+            /// Create a complex floating type using operand as the real part
+            real_to_complex_float,
+            /// Convert type to void
+            to_void,
+            /// Convert a literal 0 to a null pointer
+            null_to_pointer,
+            /// GNU cast-to-union extension
+            union_cast,
+            /// Create vector where each value is same as the input scalar.
+            vector_splat,
+        };
+    };
+
+    pub const UnaryExpr = struct {
+        type: Type,
+        op_tok: Token.Index,
+        operand: Node.Index,
+    };
+
+    pub const MemberAccess = struct {
+        type: Type,
+        base: Node.Index,
+        access_tok: Token.Index,
+        member_index: u32,
+    };
+
+    pub const DeclRef = struct {
+        type: Type,
+        name_tok: Token.Index,
+    };
+
+    pub const Conditional = struct {
+        cond_tok: Token.Index,
+        type: Type,
+        condition: Node.Index,
+        then_expr: Node.Index,
+        else_expr: Node.Index,
+    };
+
+    pub const ContainerInit = struct {
+        l_brace_tok: Token.Index,
+        union_type: Type,
+        items: []const Node.Index,
+    };
+
+    pub const Literal = struct {
+        literal_tok: Token.Index,
+    };
+
+    pub const TypeInfo = struct {
+        type: Type,
+        operator_tok: Token.Index,
+        expr: ?Node.Index,
+    };
+
+    pub const Index = enum(u32) {
+        _,
+
+        pub fn get(index: Index, tree: *const Tree) Node {
+            const repr = tree.nodes.get(@intFromEnum(index));
+            return switch (repr.tag) {
+                // TODO unpack
+            };
+        }
+
+        pub fn tok(index: Index, tree: *const Tree) Token.Index {
+            return tree.nodes.items(.tok)[@intFromEnum(index)];
+        }
+
+        pub fn loc(index: Index, tree: *const Tree) ?Source.Location {
+            const tok_i = index.tok(tree);
+            return tree.tokens.items(.loc)[@intFromEnum(tok_i)];
+        }
+
+        pub fn @"type"(index: Index, tree: *const Tree) Type {
+            if (std.debug.runtime_safety) {
+                std.debug.assert(tree.nodes.items(.tag)[@intFromEnum(index)].istTyped());
+            }
+            // If a node is typed the type is stored in data[0];
+            const type_index = tree.nodes.items(.data)[@intFromEnum(index)][0];
+            return tree.type_map.values()[type_index];
+        }
+    };
+
+    pub const Repr = struct {
+        tag: Tag,
+        data: [3]u32,
+        tok: Token.Index,
+
+        pub const Tag = enum(u8) {
+            pub fn isTyped(tag: Tag) bool {
+                return switch (tag) {
+                    // TODO stmts etc..
+                    // => false,
+                    else => true,
+                };
+            }
+        };
+    };
+
+    pub fn isImplicit(node: Node) bool {
+        return switch (node) {
             .implicit_cast,
             .implicit_return,
             .array_filler_expr,
             .default_init_expr,
-            .implicit_static_var,
             .cond_dummy_expr,
             => true,
+            .variable => |info| info.implicit,
             else => false,
         };
     }
 };
 
-pub fn isBitfield(tree: *const Tree, node: NodeIndex) bool {
+pub fn isBitfield(tree: *const Tree, node: Node.Index) bool {
     return tree.bitfieldWidth(node, false) != null;
 }
 
 /// Returns null if node is not a bitfield. If inspect_lval is true, this function will
 /// recurse into implicit lval_to_rval casts (useful for arithmetic conversions)
-pub fn bitfieldWidth(tree: *const Tree, node: NodeIndex, inspect_lval: bool) ?u32 {
+pub fn bitfieldWidth(tree: *const Tree, node: Node.Index, inspect_lval: bool) ?u32 {
     if (node == .none) return null;
-    switch (tree.nodes.items(.tag)[@intFromEnum(node)]) {
-        .member_access_expr, .member_access_ptr_expr => {
-            const member = tree.nodes.items(.data)[@intFromEnum(node)].member;
-            var ty = tree.nodes.items(.ty)[@intFromEnum(member.lhs)];
+    switch (node.get(tree)) {
+        .member_access_expr, .member_access_ptr_expr => |access| {
+            var ty = access.base.type();
             if (ty.isPtr()) ty = ty.elemType();
             const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return null;
-            const field = record_ty.data.record.fields[member.index];
+            const field = record_ty.data.record.fields[access.member_index];
             return field.bit_width;
         },
-        .implicit_cast => {
+        .implicit_cast => |cast| {
             if (!inspect_lval) return null;
 
-            const data = tree.nodes.items(.data)[@intFromEnum(node)];
-            return switch (data.cast.kind) {
-                .lval_to_rval => tree.bitfieldWidth(data.cast.operand, false),
+            return switch (cast.kind) {
+                .lval_to_rval => tree.bitfieldWidth(cast.operand, false),
                 else => null,
             };
         },
@@ -627,37 +724,34 @@ pub fn bitfieldWidth(tree: *const Tree, node: NodeIndex, inspect_lval: bool) ?u3
 
 const CallableResultUsage = struct {
     /// name token of the thing being called, for diagnostics
-    tok: TokenIndex,
+    tok: Token.Index,
     /// true if `nodiscard` attribute present
     nodiscard: bool,
     /// true if `warn_unused_result` attribute present
     warn_unused_result: bool,
 };
 
-pub fn callableResultUsage(tree: *const Tree, node: NodeIndex) ?CallableResultUsage {
+pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultUsage {
     const data = tree.nodes.items(.data);
 
     var cur_node = node;
-    while (true) switch (tree.nodes.items(.tag)[@intFromEnum(cur_node)]) {
-        .decl_ref_expr => {
-            const tok = data[@intFromEnum(cur_node)].decl_ref;
-            const fn_ty = tree.nodes.items(.ty)[@intFromEnum(node)].elemType();
+    while (true) switch (cur_node.get(tree)) {
+        .decl_ref_expr => |decl_ref| {
+            const fn_ty = decl_ref.type.elemType();
             return .{
-                .tok = tok,
+                .tok = decl_ref.name_tok,
                 .nodiscard = fn_ty.hasAttribute(.nodiscard),
                 .warn_unused_result = fn_ty.hasAttribute(.warn_unused_result),
             };
         },
-        .paren_expr => cur_node = data[@intFromEnum(cur_node)].un,
-        .comma_expr => cur_node = data[@intFromEnum(cur_node)].bin.rhs,
 
-        .explicit_cast, .implicit_cast => cur_node = data[@intFromEnum(cur_node)].cast.operand,
-        .addr_of_expr, .deref_expr => cur_node = data[@intFromEnum(cur_node)].un,
-        .call_expr_one => cur_node = data[@intFromEnum(cur_node)].two[0],
-        .call_expr => cur_node = tree.data[data[@intFromEnum(cur_node)].range.start],
-        .member_access_expr, .member_access_ptr_expr => {
+        .paren_expr, .addr_of_expr, .deref_expr => |un| cur_node = un.operand,
+        .comma_expr => |bin| cur_node = bin.rhs,
+        .explicit_cast, .implicit_cast => |cast| cur_node = cast.operand,
+        .call_expr => |call| cur_node = call.callee,
+        .member_access_expr, .member_access_ptr_expr => |access| {
             const member = data[@intFromEnum(cur_node)].member;
-            var ty = tree.nodes.items(.ty)[@intFromEnum(member.lhs)];
+            var ty = access.base.type(tree);
             if (ty.isPtr()) ty = ty.elemType();
             const record = ty.getRecord().?;
             const field = record.fields[member.index];
@@ -676,35 +770,28 @@ pub fn callableResultUsage(tree: *const Tree, node: NodeIndex) ?CallableResultUs
     };
 }
 
-pub fn isLval(tree: *const Tree, node: NodeIndex) bool {
+pub fn isLval(tree: *const Tree, node: Node.Index) bool {
     var is_const: bool = undefined;
     return tree.isLvalExtra(node, &is_const);
 }
 
-pub fn isLvalExtra(tree: *const Tree, node: NodeIndex, is_const: *bool) bool {
+pub fn isLvalExtra(tree: *const Tree, node: Node.Index, is_const: *bool) bool {
     is_const.* = false;
-    switch (tree.nodes.items(.tag)[@intFromEnum(node)]) {
-        .compound_literal_expr,
-        .static_compound_literal_expr,
-        .thread_local_compound_literal_expr,
-        .static_thread_local_compound_literal_expr,
-        => {
-            is_const.* = tree.nodes.items(.ty)[@intFromEnum(node)].isConst();
+    var cur_node = node;
+    switch (cur_node.get(tree)) {
+        .compound_literal_expr => |literal| {
+            is_const.* = literal.type.isConst();
             return true;
         },
         .string_literal_expr => return true,
-        .member_access_ptr_expr => {
-            const lhs_expr = tree.nodes.items(.data)[@intFromEnum(node)].member.lhs;
-            const ptr_ty = tree.nodes.items(.ty)[@intFromEnum(lhs_expr)];
+        .member_access_ptr_expr => |access| {
+            const ptr_ty = access.base.type(tree);
             if (ptr_ty.isPtr()) is_const.* = ptr_ty.elemType().isConst();
             return true;
         },
-        .array_access_expr => {
-            const lhs_expr = tree.nodes.items(.data)[@intFromEnum(node)].bin.lhs;
-            if (lhs_expr != .none) {
-                const array_ty = tree.nodes.items(.ty)[@intFromEnum(lhs_expr)];
-                if (array_ty.isPtr() or array_ty.isArray()) is_const.* = array_ty.elemType().isConst();
-            }
+        .array_access_expr => |access| {
+            const array_ty = access.base.type(tree);
+            if (array_ty.isPtr() or array_ty.isArray()) is_const.* = array_ty.elemType().isConst();
             return true;
         },
         .decl_ref_expr => {
@@ -740,76 +827,10 @@ pub fn isLvalExtra(tree: *const Tree, node: NodeIndex, is_const: *bool) bool {
     }
 }
 
-/// This should only be used for node tags that represent AST nodes which have an arbitrary number of children
-/// It particular it should *not* be used for nodes with .un or .bin data types
-///
-/// For call expressions, child_nodes[0] is the function pointer being called and child_nodes[1..]
-/// are the arguments
-///
-/// For generic selection expressions, child_nodes[0] is the controlling expression,
-/// child_nodes[1] is the chosen expression (it is a syntax error for there to be no chosen expression),
-/// and child_nodes[2..] are the remaining expressions.
-pub fn childNodes(tree: *const Tree, node: NodeIndex) []const NodeIndex {
-    const tags = tree.nodes.items(.tag);
-    const data = tree.nodes.items(.data);
-    switch (tags[@intFromEnum(node)]) {
-        .compound_stmt_two,
-        .array_init_expr_two,
-        .struct_init_expr_two,
-        .enum_decl_two,
-        .struct_decl_two,
-        .union_decl_two,
-        .call_expr_one,
-        .generic_expr_one,
-        => {
-            const index: u32 = @intFromEnum(node);
-            const end = std.mem.indexOfScalar(NodeIndex, &data[index].two, .none) orelse 2;
-            return data[index].two[0..end];
-        },
-        .compound_stmt,
-        .array_init_expr,
-        .struct_init_expr,
-        .enum_decl,
-        .struct_decl,
-        .union_decl,
-        .call_expr,
-        .generic_expr,
-        => {
-            const range = data[@intFromEnum(node)].range;
-            return tree.data[range.start..range.end];
-        },
-        .builtin_call_expr => {
-            const range = data[@intFromEnum(node)].range;
-            return tree.data[range.start + 1 .. range.end];
-        },
-        .builtin_call_expr_one => {
-            const ptr: [*]const NodeIndex = @ptrCast(&data[@intFromEnum(node)].decl.node);
-            const slice = ptr[0..1];
-            const end = std.mem.indexOfScalar(NodeIndex, slice, .none) orelse 1;
-            return slice[0..end];
-        },
-        else => unreachable,
-    }
-}
-
-pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
+pub fn tokSlice(tree: *const Tree, tok_i: Token.Index) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
     return tree.comp.locSlice(loc);
-}
-
-pub fn nodeTok(tree: *const Tree, node: NodeIndex) ?TokenIndex {
-    std.debug.assert(node != .none);
-    const loc = tree.nodes.items(.loc)[@intFromEnum(node)];
-    return switch (loc) {
-        .none => null,
-        else => |tok_i| @intFromEnum(tok_i),
-    };
-}
-
-pub fn nodeLoc(tree: *const Tree, node: NodeIndex) ?Source.Location {
-    const tok_i = tree.nodeTok(node) orelse return null;
-    return tree.tokens.items(.loc)[tok_i];
 }
 
 pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void {
@@ -864,7 +885,7 @@ fn dumpAttribute(tree: *const Tree, attr: Attribute, writer: anytype) !void {
 
 fn dumpNode(
     tree: *const Tree,
-    node: NodeIndex,
+    node: Node.Index,
     level: u32,
     mapper: StringInterner.TypeMapper,
     config: std.io.tty.Config,
