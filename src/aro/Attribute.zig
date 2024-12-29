@@ -281,8 +281,8 @@ fn diagnoseField(
     p: *Parser,
 ) !?Diagnostics.Message {
     if (res.val.opt_ref == .none) {
-        if (Wanted == Identifier and node.tag == .decl_ref_expr) {
-            @field(@field(arguments, decl.name), field.name) = Identifier{ .tok = node.data.decl_ref };
+        if (Wanted == Identifier and node == .decl_ref_expr) {
+            @field(@field(arguments, decl.name), field.name) = .{ .tok = node.decl_ref_expr.name_tok };
             return null;
         }
         return invalidArgMsg(Wanted, .expression);
@@ -300,7 +300,9 @@ fn diagnoseField(
         },
         .bytes => |bytes| {
             if (Wanted == Value) {
-                if (node.tag != .string_literal_expr or (!node.ty.elemType().is(.char) and !node.ty.elemType().is(.uchar))) {
+                if (node != .string_literal_expr or (!node.string_literal_expr.type.elemType().is(.char) and
+                    !node.string_literal_expr.type.elemType().is(.uchar)))
+                {
                     return .{
                         .tag = .attribute_requires_string,
                         .extra = .{ .str = decl.name },
@@ -1002,7 +1004,8 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
     return ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub fn applyLabelAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+pub fn applyLabelAttributes(p: *Parser, attr_buf_start: usize) !Type {
+    const ty: Type = .{ .specifier = .void };
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
@@ -1027,7 +1030,8 @@ pub fn applyLabelAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
     return ty.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub fn applyStatementAttributes(p: *Parser, ty: Type, expr_start: TokenIndex, attr_buf_start: usize) !Type {
+pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_start: usize) !Type {
+    const ty: Type = .{ .specifier = .void };
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;

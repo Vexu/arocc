@@ -347,8 +347,8 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             c.builder.instructions.items(.data)[switch_index] = .{ .@"switch" = switch_data };
         },
         .case_stmt => |case| {
-            if (case.items.len > 1) return c.fail("TODO CodeGen.genStmt case range\n", .{});
-            const val = c.tree.value_map.get(case.items[0]).?;
+            if (case.end != null) return c.fail("TODO CodeGen.genStmt case range\n", .{});
+            const val = c.tree.value_map.get(case.start).?;
             const label = try c.builder.makeLabel("case");
             try c.builder.startBlock(label);
             try c.wip_switch.cases.append(c.builder.gpa, .{

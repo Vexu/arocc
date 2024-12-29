@@ -227,7 +227,7 @@ pub const Node = union(enum) {
     static_assert: struct {
         assert_tok: TokenIndex,
         cond: Node.Index,
-        message: Node.Index,
+        message: ?Node.Index,
     },
     fn_proto: struct {
         name_tok: TokenIndex,
@@ -255,6 +255,7 @@ pub const Node = union(enum) {
     enum_field: struct {
         name_tok: TokenIndex,
         type: Type,
+        init: ?Node.Index,
     },
     record_field: struct {
         name_or_first_tok: TokenIndex,
@@ -620,6 +621,14 @@ pub const Node = union(enum) {
         base: Node.Index,
         access_tok: TokenIndex,
         member_index: u32,
+
+        pub fn isBitFieldWidth(access: MemberAccess, tree: *const Tree) ?u32 {
+            var ty = access.base.type(tree);
+            if (ty.isPtr()) ty = ty.elemType();
+            const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return null;
+            const field = record_ty.data.record.fields[access.member_index];
+            return field.bit_width;
+        }
     };
 
     pub const DeclRef = struct {
@@ -663,7 +672,7 @@ pub const Node = union(enum) {
                     .static_assert = .{
                         .assert_tok = node_tok,
                         .cond = @enumFromInt(node_data[0]),
-                        .message = @enumFromInt(node_data[1]),
+                        .message = unpackOptIndex(node_data[1]),
                     },
                 },
                 .fn_proto => {
@@ -784,6 +793,7 @@ pub const Node = union(enum) {
                     .enum_field = .{
                         .name_tok = node_tok,
                         .type = tree.type_map.keys()[node_data[0]],
+                        .init = unpackOptIndex(node_data[1]),
                     },
                 },
                 .record_field => .{
@@ -1550,8 +1560,8 @@ pub const Node = union(enum) {
         }
 
         pub fn @"type"(index: Index, tree: *const Tree) Type {
-            if (std.debug.runtime_safety) {
-                std.debug.assert(tree.nodes.items(.tag)[@intFromEnum(index)].isTyped());
+            if (!tree.nodes.items(.tag)[@intFromEnum(index)].isTyped()) {
+                return .{ .specifier = .void };
             }
             // If a node is typed the type is stored in data[0].
             const type_index = tree.nodes.items(.data)[@intFromEnum(index)][0];
@@ -1735,15 +1745,141 @@ pub const Node = union(enum) {
             else => false,
         };
     }
+
+    // TODO this would be unnecessary if Preprocessor didn't use Parser
+    pub fn tok(node: Node) TokenIndex {
+        return switch (node) {
+            .static_assert => |assert| assert.assert_tok,
+            .fn_proto => |fn_proto| fn_proto.name_tok,
+            .fn_def => |fn_def| fn_def.name_tok,
+            .variable => |variable| variable.name_tok,
+            .typedef => |typedef| typedef.name_tok,
+            .gnu_asm_simple, .global_asm => |ga| ga.asm_tok,
+            .struct_decl,
+            .union_decl,
+            .enum_decl,
+            => |cd| cd.name_or_kind_tok,
+            .struct_forward_decl,
+            .union_forward_decl,
+            .enum_forward_decl,
+            => |fd| fd.name_or_kind_tok,
+            .enum_field => |field| field.name_tok,
+            .record_field => |field| field.name_or_first_tok,
+            .labeled_stmt => |labeled| labeled.label_tok,
+            .compound_stmt => |compound| compound.l_brace_tok,
+            .if_stmt => |if_stmt| if_stmt.if_tok,
+            .switch_stmt => |switch_stmt| switch_stmt.switch_tok,
+            .case_stmt => |case| case.case_tok,
+            .default_stmt => |default| default.default_tok,
+            .while_stmt => |while_stmt| while_stmt.while_tok,
+            .do_while_stmt => |do_stmt| do_stmt.do_tok,
+            .for_stmt => |for_stmt| for_stmt.for_tok,
+            .goto_stmt => |goto| goto.label_tok,
+            .computed_goto_stmt => |goto| goto.goto_tok,
+            .continue_stmt => |cont| cont.continue_tok,
+            .break_stmt => |brk| brk.break_tok,
+            .null_stmt => |nll| nll.semicolon_or_r_brace_tok,
+            .return_stmt => |ret| ret.return_tok,
+            .implicit_return => |ret| ret.r_brace_tok,
+            .comma_expr,
+            .assign_expr,
+            .mul_assign_expr,
+            .div_assign_expr,
+            .mod_assign_expr,
+            .add_assign_expr,
+            .sub_assign_expr,
+            .shl_assign_expr,
+            .shr_assign_expr,
+            .bit_and_assign_expr,
+            .bit_xor_assign_expr,
+            .bit_or_assign_expr,
+            .bool_or_expr,
+            .bool_and_expr,
+            .bit_or_expr,
+            .bit_xor_expr,
+            .bit_and_expr,
+            .equal_expr,
+            .not_equal_expr,
+            .less_than_expr,
+            .less_than_equal_expr,
+            .greater_than_expr,
+            .greater_than_equal_expr,
+            .shl_expr,
+            .shr_expr,
+            .add_expr,
+            .sub_expr,
+            .mul_expr,
+            .div_expr,
+            .mod_expr,
+            => |bin| bin.op_tok,
+            .explicit_cast,
+            .implicit_cast,
+            => |cast| cast.l_paren,
+            .addr_of_expr,
+            .deref_expr,
+            .plus_expr,
+            .negate_expr,
+            .bit_not_expr,
+            .bool_not_expr,
+            .pre_inc_expr,
+            .pre_dec_expr,
+            .imag_expr,
+            .real_expr,
+            .post_inc_expr,
+            .post_dec_expr,
+            .paren_expr,
+            .stmt_expr,
+            .imaginary_literal,
+            .cond_dummy_expr,
+            => |un| un.op_tok,
+            .addr_of_label => |addr| addr.label_tok,
+            .array_access_expr => |access| access.l_bracket_tok,
+            .call_expr => |call| call.l_paren_tok,
+            .builtin_call_expr => |call| call.builtin_tok,
+            .member_access_expr,
+            .member_access_ptr_expr,
+            => |access| access.access_tok,
+            .decl_ref_expr, .enumeration_ref => |dr| dr.name_tok,
+            .bool_literal,
+            .nullptr_literal,
+            .int_literal,
+            .char_literal,
+            .float_literal,
+            .string_literal_expr,
+            => |literal| literal.literal_tok,
+            .sizeof_expr, .alignof_expr => |type_info| type_info.op_tok,
+            .generic_expr => |generic| generic.generic_tok,
+            .generic_association_expr => |assoc| assoc.colon_tok,
+            .generic_default_expr => |default| default.default_tok,
+            .binary_cond_expr,
+            .cond_expr,
+            .builtin_choose_expr,
+            => |cond| cond.cond_tok,
+            .builtin_types_compatible_p => |call| call.builtin_tok,
+            .array_init_expr,
+            .struct_init_expr,
+            => |init| init.l_brace_tok,
+            .union_init_expr => |init| init.l_brace_tok,
+            .array_filler_expr => |filler| filler.last_tok,
+            .default_init_expr => |default| default.last_tok,
+            .compound_literal_expr => |compound| compound.l_paren_tok,
+        };
+    }
 };
 
 pub fn addNode(tree: *Tree, node: Node) !Node.Index {
+    const index = try tree.nodes.addOne(tree.comp.gpa);
+    try tree.addNodeExtra(node, index);
+    return @enumFromInt(index);
+}
+
+pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
     var repr: Node.Repr = undefined;
     switch (node) {
         .static_assert => |assert| {
             repr.tag = .static_assert;
             repr.data[0] = @intFromEnum(assert.cond);
-            repr.data[1] = @intFromEnum(assert.message);
+            repr.data[1] = packOptIndex(assert.message);
             repr.tok = assert.assert_tok;
         },
         .fn_proto => |proto| {
@@ -1849,6 +1985,7 @@ pub fn addNode(tree: *Tree, node: Node) !Node.Index {
         .enum_field => |field| {
             repr.tag = .enum_field;
             repr.data[0] = try tree.addType(field.type);
+            repr.data[1] = packOptIndex(field.init);
             repr.tok = field.name_tok;
         },
         .record_field => |field| {
@@ -2509,9 +2646,7 @@ pub fn addNode(tree: *Tree, node: Node) !Node.Index {
             repr.tok = literal.l_paren_tok;
         },
     }
-    const index = tree.nodes.len;
-    try tree.nodes.append(tree.comp.gpa, repr);
-    return @enumFromInt(index);
+    tree.nodes.set(index, repr);
 }
 
 fn packOptIndex(opt: ?Node.Index) u32 {
@@ -2546,15 +2681,8 @@ pub fn isBitfield(tree: *const Tree, node: Node.Index) bool {
 /// Returns null if node is not a bitfield. If inspect_lval is true, this function will
 /// recurse into implicit lval_to_rval casts (useful for arithmetic conversions)
 pub fn bitfieldWidth(tree: *const Tree, node: Node.Index, inspect_lval: bool) ?u32 {
-    if (node == .none) return null;
     switch (node.get(tree)) {
-        .member_access_expr, .member_access_ptr_expr => |access| {
-            var ty = access.base.type();
-            if (ty.isPtr()) ty = ty.elemType();
-            const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return null;
-            const field = record_ty.data.record.fields[access.member_index];
-            return field.bit_width;
-        },
+        .member_access_expr, .member_access_ptr_expr => |access| return access.isBitFieldWidth(tree),
         .implicit_cast => |cast| {
             if (!inspect_lval) return null;
 
@@ -2577,8 +2705,6 @@ const CallableResultUsage = struct {
 };
 
 pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultUsage {
-    const data = tree.nodes.items(.data);
-
     var cur_node = node;
     while (true) switch (cur_node.get(tree)) {
         .decl_ref_expr => |decl_ref| {
@@ -2595,12 +2721,11 @@ pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultU
         .explicit_cast, .implicit_cast => |cast| cur_node = cast.operand,
         .call_expr => |call| cur_node = call.callee,
         .member_access_expr, .member_access_ptr_expr => |access| {
-            const member = data[@intFromEnum(cur_node)].member;
             var ty = access.base.type(tree);
             if (ty.isPtr()) ty = ty.elemType();
             const record = ty.getRecord().?;
-            const field = record.fields[member.index];
-            const attributes = if (record.field_attributes) |attrs| attrs[member.index] else &.{};
+            const field = record.fields[access.member_index];
+            const attributes = if (record.field_attributes) |attrs| attrs[access.member_index] else &.{};
             return .{
                 .tok = field.name_tok,
                 .nodiscard = for (attributes) |attr| {

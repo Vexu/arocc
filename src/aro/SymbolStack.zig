@@ -18,7 +18,7 @@ pub const Symbol = struct {
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: Node.Index,
+    node: ?Node.Index = null,
     kind: Kind,
     val: Value,
 };
@@ -174,7 +174,7 @@ pub fn defineTypedef(
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: Node.Index,
+    node: ?Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
@@ -267,7 +267,7 @@ pub fn declareSymbol(
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: Node.Index,
+    node: ?Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
@@ -329,6 +329,7 @@ pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: T
         .tok = tok,
         .ty = ty,
         .val = .{},
+        .node = null,
     });
 }
 
