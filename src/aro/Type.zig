@@ -1905,6 +1905,8 @@ pub const Builder = struct {
     /// Try to combine type from typedef, returns true if successful.
     pub fn combineTypedef(b: *Builder, p: *Parser, typedef_ty: Type, name_tok: TokenIndex) bool {
         if (typedef_ty.is(.invalid)) return false;
+        if (b.specifier != .none) return false;
+
         b.error_on_invalid = true;
         defer b.error_on_invalid = false;
 
