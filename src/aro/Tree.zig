@@ -208,11 +208,11 @@ arena: std.heap.ArenaAllocator,
 pub const genIr = CodeGen.genIr;
 
 pub fn deinit(tree: *Tree) void {
-    tree.nodes.deinit(tree.gpa);
-    tree.extra.deinit(tree.gpa);
-    tree.root_decls.deinit(tree.gpa);
-    tree.value_map.deinit(tree.gpa);
-    tree.type_map.deinit(tree.gpa);
+    tree.nodes.deinit(tree.comp.gpa);
+    tree.extra.deinit(tree.comp.gpa);
+    tree.root_decls.deinit(tree.comp.gpa);
+    tree.value_map.deinit(tree.comp.gpa);
+    tree.type_map.deinit(tree.comp.gpa);
     tree.arena.deinit();
     tree.* = undefined;
 }
@@ -224,6 +224,11 @@ pub const GNUAssemblyQualifiers = struct {
 };
 
 pub const Node = union(enum) {
+    static_assert: struct {
+        assert_tok: TokenIndex,
+        cond: Node.Index,
+        message: Node.Index,
+    },
     fn_proto: struct {
         name_tok: TokenIndex,
         type: Type,
@@ -232,24 +237,8 @@ pub const Node = union(enum) {
         /// The definition for this prototype if one exists.
         definition: ?Node.Index,
     },
-    fn_def: struct {
-        name_tok: TokenIndex,
-        type: Type,
-        static: bool,
-        @"inline": bool,
-        body: Node.Index,
-    },
-    variable: struct {
-        name_tok: TokenIndex,
-        type: Type,
-        @"extern": bool,
-        static: bool,
-        thread_local: bool,
-        /// From predefined macro  __func__, __FUNCTION__ or __PRETTY_FUNCTION__.
-        /// Implies `static == true`.
-        implicit: bool,
-        initializer: ?Node.Index,
-    },
+    fn_def: FnDef,
+    variable: Variable,
     typedef: struct {
         name_tok: TokenIndex,
         type: Type,
@@ -414,12 +403,7 @@ pub const Node = union(enum) {
         base: Node.Index,
         index: Node.Index,
     },
-    call_expr: struct {
-        l_paren_tok: TokenIndex,
-        type: Type,
-        callee: Node.Index,
-        args: []const Node.Index,
-    },
+    call_expr: Call,
     builtin_call_expr: struct {
         builtin_tok: TokenIndex,
         type: Type,
@@ -503,6 +487,26 @@ pub const Node = union(enum) {
         thread_local: bool,
         initializer: Node.Index,
     },
+
+    pub const FnDef = struct {
+        name_tok: TokenIndex,
+        type: Type,
+        static: bool,
+        @"inline": bool,
+        body: Node.Index,
+    };
+
+    pub const Variable = struct {
+        name_tok: TokenIndex,
+        type: Type,
+        @"extern": bool,
+        static: bool,
+        thread_local: bool,
+        /// From predefined macro  __func__, __FUNCTION__ or __PRETTY_FUNCTION__.
+        /// Implies `static == true`.
+        implicit: bool,
+        initializer: ?Node.Index,
+    };
 
     pub const SimpleAsm = struct {
         asm_tok: TokenIndex,
@@ -602,6 +606,13 @@ pub const Node = union(enum) {
         type: Type,
         op_tok: TokenIndex,
         operand: Node.Index,
+    };
+
+    pub const Call = struct {
+        l_paren_tok: TokenIndex,
+        type: Type,
+        callee: Node.Index,
+        args: []const Node.Index,
     };
 
     pub const MemberAccess = struct {
@@ -1564,6 +1575,7 @@ pub const Node = union(enum) {
         };
 
         pub const Tag = enum(u8) {
+            static_assert,
             fn_proto,
             fn_def,
             variable,
@@ -1728,6 +1740,12 @@ pub const Node = union(enum) {
 pub fn addNode(tree: *Tree, node: Node) !Node.Index {
     var repr: Node.Repr = undefined;
     switch (node) {
+        .static_assert => |assert| {
+            repr.tag = .static_assert;
+            repr.data[0] = @intFromEnum(assert.cond);
+            repr.data[1] = @intFromEnum(assert.message);
+            repr.tok = assert.assert_tok;
+        },
         .fn_proto => |proto| {
             repr.tag = .fn_proto;
             repr.data[0] = try tree.addType(proto.type);
@@ -2621,32 +2639,29 @@ pub fn isLvalExtra(tree: *const Tree, node: Node.Index, is_const: *bool) bool {
             if (array_ty.isPtr() or array_ty.isArray()) is_const.* = array_ty.elemType().isConst();
             return true;
         },
-        .decl_ref_expr => {
-            const decl_ty = tree.nodes.items(.ty)[@intFromEnum(node)];
-            is_const.* = decl_ty.isConst();
+        .decl_ref_expr => |decl_ref| {
+            is_const.* = decl_ref.type.isConst();
             return true;
         },
-        .deref_expr => {
-            const data = tree.nodes.items(.data)[@intFromEnum(node)];
-            const operand_ty = tree.nodes.items(.ty)[@intFromEnum(data.un)];
+        .deref_expr => |un| {
+            const operand_ty = un.operand.type(tree);
             if (operand_ty.isFunc()) return false;
             if (operand_ty.isPtr() or operand_ty.isArray()) is_const.* = operand_ty.elemType().isConst();
             return true;
         },
-        .member_access_expr => {
-            const data = tree.nodes.items(.data)[@intFromEnum(node)];
-            return tree.isLvalExtra(data.member.lhs, is_const);
+        .member_access_expr => |access| {
+            return tree.isLvalExtra(access.base, is_const);
         },
-        .paren_expr => {
-            const data = tree.nodes.items(.data)[@intFromEnum(node)];
-            return tree.isLvalExtra(data.un, is_const);
+        .paren_expr => |un| {
+            return tree.isLvalExtra(un.operand, is_const);
         },
-        .builtin_choose_expr => {
-            const data = tree.nodes.items(.data)[@intFromEnum(node)];
-
-            if (tree.value_map.get(data.if3.cond)) |val| {
-                const offset = @intFromBool(val.isZero(tree.comp));
-                return tree.isLvalExtra(tree.data[data.if3.body + offset], is_const);
+        .builtin_choose_expr => |conditional| {
+            if (tree.value_map.get(conditional.cond)) |val| {
+                if (val.isZero(tree.comp)) {
+                    return tree.isLvalExtra(conditional.then_expr, is_const);
+                } else {
+                    return tree.isLvalExtra(conditional.else_expr, is_const);
+                }
             }
             return false;
         },
@@ -2664,7 +2679,7 @@ pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void
     const mapper = tree.comp.string_interner.getFastTypeMapper(tree.comp.gpa) catch tree.comp.string_interner.getSlowTypeMapper();
     defer mapper.deinit(tree.comp.gpa);
 
-    for (tree.root_decls) |i| {
+    for (tree.root_decls.items) |i| {
         try tree.dumpNode(i, 0, mapper, config, writer);
         try writer.writeByte('\n');
     }
@@ -2712,7 +2727,7 @@ fn dumpAttribute(tree: *const Tree, attr: Attribute, writer: anytype) !void {
 
 fn dumpNode(
     tree: *const Tree,
-    node: Node.Index,
+    node_index: Node.Index,
     level: u32,
     mapper: StringInterner.TypeMapper,
     config: std.io.tty.Config,
@@ -2726,8 +2741,9 @@ fn dumpNode(
     const NAME = std.io.tty.Color.bright_red;
     const LITERAL = std.io.tty.Color.bright_green;
     const ATTRIBUTE = std.io.tty.Color.bright_yellow;
-    std.debug.assert(node != .none);
+    if (true) return;
 
+    const node = node_index.get(tree);
     const tag = tree.nodes.items(.tag)[@intFromEnum(node)];
     const data = tree.nodes.items(.data)[@intFromEnum(node)];
     const ty = tree.nodes.items(.ty)[@intFromEnum(node)];

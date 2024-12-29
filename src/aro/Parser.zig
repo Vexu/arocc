@@ -27,11 +27,11 @@ const Token = Tree.Token;
 const NumberPrefix = Token.NumberPrefix;
 const NumberSuffix = Token.NumberSuffix;
 const TokenIndex = Tree.TokenIndex;
-const NodeIndex = Tree.NodeIndex;
+const Node = Tree.Node;
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
 
-const NodeList = std.ArrayList(NodeIndex);
+const NodeList = std.ArrayList(Node.Index);
 const Switch = struct {
     default: ?TokenIndex = null,
     ranges: std.ArrayList(Range),
@@ -103,11 +103,9 @@ gpa: mem.Allocator,
 tok_ids: []const Token.Id,
 tok_i: TokenIndex = 0,
 
-// values of the incomplete Tree
+tree: Tree,
+// references tree.arena
 arena: Allocator,
-nodes: Tree.Node.List = .{},
-data: NodeList,
-value_map: Tree.ValueMap,
 
 // buffers used during compilation
 syms: SymbolStack = .{},
@@ -582,14 +580,12 @@ fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Valu
     return p.errStr(tag, tok_i, str);
 }
 
-fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!NodeIndex {
+fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!Node.Index {
     if (p.in_macro) return .none;
-    const res = p.nodes.len;
-    try p.nodes.append(p.gpa, node);
-    return @enumFromInt(res);
+    return p.tree.addNode(node);
 }
 
-fn addList(p: *Parser, nodes: []const NodeIndex) Allocator.Error!Tree.Node.Range {
+fn addList(p: *Parser, nodes: []const Node.Index) Allocator.Error!Tree.Node.Range {
     if (p.in_macro) return Tree.Node.Range{ .start = 0, .end = 0 };
     const start: u32 = @intCast(p.data.items.len);
     try p.data.appendSlice(nodes);
@@ -607,11 +603,11 @@ fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
     return null;
 }
 
-fn nodeIs(p: *Parser, node: NodeIndex, tag: Tree.Tag) bool {
+fn nodeIs(p: *Parser, node: Node.Index, tag: Tree.Tag) bool {
     return p.getNode(node, tag) != null;
 }
 
-pub fn getDecayedStringLiteral(p: *Parser, node: NodeIndex) ?Value {
+pub fn getDecayedStringLiteral(p: *Parser, node: Node.Index) ?Value {
     const cast_node = p.getNode(node, .implicit_cast) orelse return null;
     const data = p.nodes.items(.data)[@intFromEnum(cast_node)];
     if (data.cast.kind != .array_to_pointer) return null;
@@ -619,7 +615,7 @@ pub fn getDecayedStringLiteral(p: *Parser, node: NodeIndex) ?Value {
     return p.value_map.get(literal_node);
 }
 
-fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
+fn getNode(p: *Parser, node: Node.Index, tag: Tree.Tag) ?Node.Index {
     var cur = node;
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
@@ -635,7 +631,7 @@ fn getNode(p: *Parser, node: NodeIndex, tag: Tree.Tag) ?NodeIndex {
     }
 }
 
-fn nodeIsCompoundLiteral(p: *Parser, node: NodeIndex) bool {
+fn nodeIsCompoundLiteral(p: *Parser, node: Node.Index) bool {
     var cur = node;
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
@@ -650,19 +646,6 @@ fn nodeIsCompoundLiteral(p: *Parser, node: NodeIndex) bool {
             else => return false,
         }
     }
-}
-
-fn tmpTree(p: *Parser) Tree {
-    return .{
-        .nodes = p.nodes.slice(),
-        .data = p.data.items,
-        .value_map = p.value_map,
-        .comp = p.comp,
-        .arena = undefined,
-        .generated = undefined,
-        .tokens = undefined,
-        .root_decls = undefined,
-    };
 }
 
 fn pragma(p: *Parser) Compilation.Error!bool {
@@ -721,15 +704,19 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
     var arena = std.heap.ArenaAllocator.init(pp.comp.gpa);
     errdefer arena.deinit();
-    var p = Parser{
+    var p: Parser = .{
         .pp = pp,
         .comp = pp.comp,
         .gpa = pp.comp.gpa,
-        .arena = arena.allocator(),
+        .tree = .{
+            .comp = pp.comp,
+            .generated = pp.comp.generated_buf.items,
+            .tokens = pp.tokens.slice(),
+            .arena = .init(pp.comp.gpa),
+        },
+        .arena = undefined, // set later
         .tok_ids = pp.tokens.items(.id),
         .strings = std.ArrayListAligned(u8, 4).init(pp.comp.gpa),
-        .value_map = Tree.ValueMap.init(pp.comp.gpa),
-        .data = NodeList.init(pp.comp.gpa),
         .labels = std.ArrayList(Label).init(pp.comp.gpa),
         .list_buf = NodeList.init(pp.comp.gpa),
         .decl_buf = NodeList.init(pp.comp.gpa),
@@ -746,12 +733,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             .ucontext_t = try StrInt.intern(pp.comp, "ucontext_t"),
         },
     };
-    errdefer {
-        p.nodes.deinit(pp.comp.gpa);
-        p.value_map.deinit();
-    }
+    p.arena = p.tree.arena.allocator();
+    errdefer p.tree.deinit();
     defer {
-        p.data.deinit();
         p.labels.deinit();
         p.strings.deinit();
         p.syms.deinit(pp.comp.gpa);
@@ -771,8 +755,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     try p.syms.pushScope(&p);
     defer p.syms.popScope();
 
-    // NodeIndex 0 must be invalid
-    _ = try p.addNode(.{ .tag = .invalid, .ty = undefined, .data = undefined, .loc = undefined });
+    if (true) @panic("TODO");
 
     {
         if (p.comp.langopts.hasChar8_T()) {
@@ -854,16 +837,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
     const data = try p.data.toOwnedSlice();
     errdefer pp.comp.gpa.free(data);
-    return Tree{
-        .comp = pp.comp,
-        .tokens = pp.tokens.slice(),
-        .arena = arena,
-        .generated = pp.comp.generated_buf.items,
-        .nodes = p.nodes.toOwnedSlice(),
-        .data = data,
-        .root_decls = root_decls,
-        .value_map = p.value_map,
-    };
+    return p.tree;
 }
 
 fn skipToPragmaSentinel(p: *Parser) void {
@@ -1252,7 +1226,7 @@ fn decl(p: *Parser) Error!bool {
     return true;
 }
 
-fn staticAssertMessage(p: *Parser, cond_node: NodeIndex, message: Result) !?[]const u8 {
+fn staticAssertMessage(p: *Parser, cond_node: Node.Index, message: Result) !?[]const u8 {
     const cond_tag = p.nodes.items(.tag)[@intFromEnum(cond_node)];
     if (cond_tag != .builtin_types_compatible_p and message.node == .none) return null;
 
@@ -2394,7 +2368,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
             try p.errStr(.auto_type_not_allowed, p.tok_i, if (p.record.kind == .keyword_struct) "struct member" else "union member");
             ty = Type.invalid;
         }
-        var bits_node: NodeIndex = .none;
+        var bits_node: Node.Index = .none;
         var bits: ?u32 = null;
         const first_tok = p.tok_i;
         if (try p.declarator(ty, .record)) |d| {
@@ -2846,7 +2820,7 @@ const Enumerator = struct {
     }
 };
 
-const EnumFieldAndNode = struct { field: Type.Enum.Field, node: NodeIndex };
+const EnumFieldAndNode = struct { field: Type.Enum.Field, node: Node.Index };
 
 /// enumerator : IDENTIFIER ('=' integerConstExpr)
 fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
@@ -3856,7 +3830,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     try item.lvalConversion(p);
     if (target.is(.auto_type)) {
         if (p.getNode(node, .member_access_expr) orelse p.getNode(node, .member_access_ptr_expr)) |member_node| {
-            if (p.tmpTree().isBitfield(member_node)) try p.errTok(.auto_type_from_bitfield, tok);
+            if (p.tree.isBitfield(member_node)) try p.errTok(.auto_type_from_bitfield, tok);
         }
         return;
     } else if (target.is(.c23_auto)) {
@@ -3898,7 +3872,7 @@ fn isStringInit(p: *Parser, ty: Type) bool {
 }
 
 /// Convert InitList into an AST
-fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
+fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!Node.Index {
     const is_complex = init_ty.isComplex();
     if (init_ty.isScalar() and !is_complex) {
         if (il.node == .none) {
@@ -4045,7 +4019,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!NodeIndex {
     }
 }
 
-fn msvcAsmStmt(p: *Parser) Error!?NodeIndex {
+fn msvcAsmStmt(p: *Parser) Error!?Node.Index {
     return p.todo("MSVC assembly statements");
 }
 
@@ -4080,7 +4054,7 @@ fn asmOperand(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *Node
 ///  | asmStr ':' asmOperand* ':' asmOperand*
 ///  | asmStr ':' asmOperand* ':' asmOperand* : asmStr? (',' asmStr)*
 ///  | asmStr ':' asmOperand* ':' asmOperand* : asmStr? (',' asmStr)* : IDENTIFIER (',' IDENTIFIER)*
-fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex, l_paren: TokenIndex) Error!NodeIndex {
+fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex, l_paren: TokenIndex) Error!Node.Index {
     const asm_str = try p.asmStr();
     try p.checkAsmStr(asm_str.val, l_paren);
 
@@ -4094,7 +4068,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
     }
 
     const expected_items = 8; // arbitrarily chosen, most assembly will have fewer than 8 inputs/outputs/constraints/names
-    const bytes_needed = expected_items * @sizeOf(?TokenIndex) + expected_items * 3 * @sizeOf(NodeIndex);
+    const bytes_needed = expected_items * @sizeOf(?TokenIndex) + expected_items * 3 * @sizeOf(Node.Index);
 
     var stack_fallback = std.heap.stackFallback(bytes_needed, p.gpa);
     const allocator = stack_fallback.get();
@@ -4224,7 +4198,7 @@ fn checkAsmStr(p: *Parser, asm_str: Value, tok: TokenIndex) !void {
 ///  : keyword_asm asmQual* '(' asmStr ')'
 ///  | keyword_asm asmQual* '(' gnuAsmStmt ')'
 ///  | keyword_asm msvcAsmStmt
-fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeIndex {
+fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?Node.Index {
     const asm_tok = p.tok_i;
     switch (p.tok_ids[p.tok_i]) {
         .keyword_asm => {
@@ -4260,7 +4234,7 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?NodeInde
     };
 
     const l_paren = try p.expectToken(.l_paren);
-    var result_node: NodeIndex = .none;
+    var result_node: Node.Index = .none;
     switch (kind) {
         .decl_label => {
             const asm_str = try p.asmStr();
@@ -4327,7 +4301,7 @@ fn asmStr(p: *Parser) Error!Result {
 ///  | keyword_return expr? ';'
 ///  | assembly ';'
 ///  | expr? ';'
-fn stmt(p: *Parser) Error!NodeIndex {
+fn stmt(p: *Parser) Error!Node.Index {
     if (try p.labeledStmt()) |some| return some;
     if (try p.compoundStmt(false, null)) |some| return some;
     if (p.eatToken(.keyword_if)) |kw_if| {
@@ -4595,7 +4569,7 @@ fn stmt(p: *Parser) Error!NodeIndex {
 /// : IDENTIFIER ':' stmt
 /// | keyword_case integerConstExpr ':' stmt
 /// | keyword_default ':' stmt
-fn labeledStmt(p: *Parser) Error!?NodeIndex {
+fn labeledStmt(p: *Parser) Error!?Node.Index {
     if ((p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) and p.tok_ids[p.tok_i + 1] == .colon) {
         const name_tok = try p.expectIdentifier();
         const str = p.tokSlice(name_tok);
@@ -4694,7 +4668,7 @@ fn labeledStmt(p: *Parser) Error!?NodeIndex {
     } else return null;
 }
 
-fn labelableStmt(p: *Parser) Error!NodeIndex {
+fn labelableStmt(p: *Parser) Error!Node.Index {
     if (p.tok_ids[p.tok_i] == .r_brace) {
         try p.err(.label_compound_end);
         return p.addNode(.{ .tag = .null_stmt, .data = undefined, .loc = @enumFromInt(p.tok_i) });
@@ -4708,7 +4682,7 @@ const StmtExprState = struct {
 };
 
 /// compoundStmt : '{' ( decl | keyword_extension decl | staticAssert | stmt)* '}'
-fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) Error!?NodeIndex {
+fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) Error!?Node.Index {
     const l_brace = p.eatToken(.l_brace) orelse return null;
 
     const decl_buf_top = p.decl_buf.items.len;
@@ -4810,7 +4784,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
     return try p.addNode(node);
 }
 
-fn pointerValue(p: *Parser, node: NodeIndex, offset: Value) !Value {
+fn pointerValue(p: *Parser, node: Node.Index, offset: Value) !Value {
     const tag = p.nodes.items(.tag)[@intFromEnum(node)];
     switch (tag) {
         .decl_ref_expr => {
@@ -4826,7 +4800,7 @@ fn pointerValue(p: *Parser, node: NodeIndex, offset: Value) !Value {
 
 const NoreturnKind = enum { no, yes, complex };
 
-fn nodeIsNoreturn(p: *Parser, node: NodeIndex) NoreturnKind {
+fn nodeIsNoreturn(p: *Parser, node: Node.Index) NoreturnKind {
     switch (p.nodes.items(.tag)[@intFromEnum(node)]) {
         .break_stmt, .continue_stmt, .return_stmt => return .yes,
         .if_then_else_stmt => {
@@ -4952,7 +4926,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
     unreachable;
 }
 
-fn returnStmt(p: *Parser) Error!?NodeIndex {
+fn returnStmt(p: *Parser) Error!?Node.Index {
     const ret_tok = p.eatToken(.keyword_return) orelse return null;
 
     const e_tok = p.tok_i;
@@ -4995,13 +4969,13 @@ pub fn macroExpr(p: *Parser) Compilation.Error!bool {
 }
 
 const CallExpr = union(enum) {
-    standard: NodeIndex,
+    standard: Node.Index,
     builtin: struct {
-        node: NodeIndex,
+        node: Node.Index,
         tag: Builtin.Tag,
     },
 
-    fn init(p: *Parser, call_node: NodeIndex, func_node: NodeIndex) CallExpr {
+    fn init(p: *Parser, call_node: Node.Index, func_node: Node.Index) CallExpr {
         if (p.getNode(call_node, .builtin_call_expr_one)) |node| {
             const data = p.nodes.items(.data)[@intFromEnum(node)];
             const name = p.tokSlice(data.decl.name);
@@ -5238,7 +5212,7 @@ const CallExpr = union(enum) {
 };
 
 pub const Result = struct {
-    node: NodeIndex = .none,
+    node: ?Node.Index = null,
     ty: Type = .{ .specifier = .int },
     val: Value = .{},
 
@@ -5309,10 +5283,9 @@ pub const Result = struct {
             .post_dec_expr,
             => return,
             .call_expr, .call_expr_one => {
-                const tmp_tree = p.tmpTree();
-                const child_nodes = tmp_tree.childNodes(cur_node);
+                const child_nodes = p.tree.childNodes(cur_node);
                 const fn_ptr = child_nodes[0];
-                const call_info = tmp_tree.callableResultUsage(fn_ptr) orelse return;
+                const call_info = p.tree.callableResultUsage(fn_ptr) orelse return;
                 if (call_info.nodiscard) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_info.tok));
                 if (call_info.warn_unused_result) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_info.tok));
                 return;
@@ -5617,7 +5590,7 @@ pub const Result = struct {
             res.val = try p.pointerValue(res.node, .zero);
             res.ty.decayArray();
             try res.implicitCast(p, .array_to_pointer);
-        } else if (!p.in_macro and p.tmpTree().isLval(res.node)) {
+        } else if (!p.in_macro and p.tree.isLval(res.node)) {
             res.ty.qual = .{};
             try res.implicitCast(p, .lval_to_rval);
         }
@@ -5853,7 +5826,7 @@ pub const Result = struct {
             return res.floatCast(p, .{ .specifier = .float });
         }
         if (res.ty.isInt()) {
-            if (p.tmpTree().bitfieldWidth(res.node, true)) |width| {
+            if (p.tree.bitfieldWidth(res.node, true)) |width| {
                 if (res.ty.bitfieldPromotion(p.comp, width)) |promotion_ty| {
                     return res.intCast(p, promotion_ty, tok);
                 }
@@ -6403,7 +6376,7 @@ fn assignExpr(p: *Parser) Error!Result {
     try rhs.lvalConversion(p);
 
     var is_const: bool = undefined;
-    if (!p.tmpTree().isLvalExtra(lhs.node, &is_const) or is_const) {
+    if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
         try p.errTok(.not_assignable, tok);
         return error.ParsingFailed;
     }
@@ -7123,7 +7096,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, offset_kind: OffsetKind) 
     return Result{ .ty = base_ty, .val = val, .node = lhs.node };
 }
 
-fn computeOffsetExtra(p: *Parser, node: NodeIndex, offset_so_far: *Value) !Value {
+fn computeOffsetExtra(p: *Parser, node: Node.Index, offset_so_far: *Value) !Value {
     const tys = p.nodes.items(.ty);
     const tags = p.nodes.items(.tag);
     const data = p.nodes.items(.data);
@@ -7233,11 +7206,10 @@ fn unExpr(p: *Parser) Error!Result {
             try operand.expect(p);
             var addr_val: Value = .{};
 
-            const tree = p.tmpTree();
             if (p.getNode(operand.node, .member_access_expr) orelse
                 p.getNode(operand.node, .member_access_ptr_expr)) |member_node|
             {
-                if (tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
+                if (p.tree.isBitfield(member_node)) try p.errTok(.addr_of_bitfield, tok);
                 const data = p.nodes.items(.data)[@intFromEnum(member_node)];
                 const lhs_ty = p.nodes.items(.ty)[@intFromEnum(data.member.lhs)];
                 if (lhs_ty.hasAttribute(.@"packed")) {
@@ -7246,7 +7218,7 @@ fn unExpr(p: *Parser) Error!Result {
                 }
             }
             const operand_ty_valid = !operand.ty.is(.invalid);
-            if (!tree.isLval(operand.node) and operand_ty_valid) {
+            if (!p.tree.isLval(operand.node) and operand_ty_valid) {
                 try p.errTok(.addr_of_rvalue, tok);
             } else if (operand_ty_valid) {
                 addr_val = try p.computeOffset(operand);
@@ -7329,7 +7301,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (operand.ty.isComplex())
                 try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!p.tmpTree().isLval(operand.node) or operand.ty.isConst()) {
+            if (!p.tree.isLval(operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
@@ -7357,7 +7329,7 @@ fn unExpr(p: *Parser) Error!Result {
             if (operand.ty.isComplex())
                 try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!p.tmpTree().isLval(operand.node) or operand.ty.isConst()) {
+            if (!p.tree.isLval(operand.node) or operand.ty.isConst()) {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
@@ -7661,7 +7633,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (operand.ty.isComplex())
                 try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!p.tmpTree().isLval(operand.node) or operand.ty.isConst()) {
+            if (!p.tree.isLval(operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
@@ -7681,7 +7653,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!Result {
             if (operand.ty.isComplex())
                 try p.errStr(.complex_prefix_postfix_op, p.tok_i, try p.typeStr(operand.ty));
 
-            if (!p.tmpTree().isLval(operand.node) or operand.ty.isConst()) {
+            if (!p.tree.isLval(operand.node) or operand.ty.isConst()) {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
@@ -7788,7 +7760,7 @@ fn validateFieldAccess(p: *Parser, record_ty: *const Type.Record, expr_ty: Type,
     return error.ParsingFailed;
 }
 
-fn fieldAccessExtra(p: *Parser, lhs: NodeIndex, record_ty: *const Type.Record, field_name: StringId, is_arrow: bool, offset_bits: *u64) Error!Result {
+fn fieldAccessExtra(p: *Parser, lhs: Node.Index, record_ty: *const Type.Record, field_name: StringId, is_arrow: bool, offset_bits: *u64) Error!Result {
     for (record_ty.fields, 0..) |f, i| {
         if (f.isAnonymousRecord()) {
             if (!f.ty.hasField(field_name)) continue;
@@ -8836,6 +8808,7 @@ fn getExponent(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIn
 /// Using an explicit `tok_i` parameter instead of `p.tok_i` makes it easier
 /// to parse numbers in pragma handlers.
 pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
+    if (true) @panic("TODO");
     const buf = p.tokSlice(tok_i);
     const prefix = NumberPrefix.fromString(buf);
     const after_prefix = buf[prefix.stringLen()..];

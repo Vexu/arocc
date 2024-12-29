@@ -6,7 +6,6 @@ const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
 const Tree = @import("Tree.zig");
-const NodeIndex = Tree.NodeIndex;
 const TokenIndex = Tree.TokenIndex;
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
@@ -387,7 +386,6 @@ const EnumTypes = enum {
     identifier,
 };
 pub const Alignment = struct {
-    node: NodeIndex = .none,
     requested: u29,
 };
 pub const Identifier = struct {
