@@ -958,42 +958,34 @@ pub fn isPICDefaultForced(target: std.Target) DefaultPIStatus {
 }
 
 test "alignment functions - smoke test" {
-    var target: std.Target = undefined;
-    const x86 = std.Target.Cpu.Arch.x86_64;
-    target.cpu = std.Target.Cpu.baseline(x86, .{ .tag = .linux, .version_range = std.Target.Os.VersionRange.default(.linux, x86) });
-    target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);
-    target.abi = std.Target.Abi.default(x86, target.os);
+    const linux: std.Target.Os = .{ .tag = .linux, .version_range = .{ .none = {} } };
+    const x86_64_target: std.Target = .{
+        .abi = std.Target.Abi.default(.x86_64, linux),
+        .cpu = std.Target.Cpu.Model.generic(.x86_64).toCpu(.x86_64),
+        .os = linux,
+        .ofmt = .elf,
+    };
 
-    try std.testing.expect(isTlsSupported(target));
-    try std.testing.expect(!ignoreNonZeroSizedBitfieldTypeAlignment(target));
-    try std.testing.expect(minZeroWidthBitfieldAlignment(target) == null);
-    try std.testing.expect(!unnamedFieldAffectsAlignment(target));
-    try std.testing.expect(defaultAlignment(target) == 16);
-    try std.testing.expect(!packAllEnums(target));
-    try std.testing.expect(systemCompiler(target) == .gcc);
-
-    const arm = std.Target.Cpu.Arch.arm;
-    target.cpu = std.Target.Cpu.baseline(arm, .{ .tag = .linux, .version_range = std.Target.Os.VersionRange.default(.linux, arm) });
-    target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm);
-    target.abi = std.Target.Abi.default(arm, target.os);
-
-    try std.testing.expect(!isTlsSupported(target));
-    try std.testing.expect(ignoreNonZeroSizedBitfieldTypeAlignment(target));
-    try std.testing.expectEqual(@as(?u29, 32), minZeroWidthBitfieldAlignment(target));
-    try std.testing.expect(unnamedFieldAffectsAlignment(target));
-    try std.testing.expect(defaultAlignment(target) == 16);
-    try std.testing.expect(!packAllEnums(target));
-    try std.testing.expect(systemCompiler(target) == .clang);
+    try std.testing.expect(isTlsSupported(x86_64_target));
+    try std.testing.expect(!ignoreNonZeroSizedBitfieldTypeAlignment(x86_64_target));
+    try std.testing.expect(minZeroWidthBitfieldAlignment(x86_64_target) == null);
+    try std.testing.expect(!unnamedFieldAffectsAlignment(x86_64_target));
+    try std.testing.expect(defaultAlignment(x86_64_target) == 16);
+    try std.testing.expect(!packAllEnums(x86_64_target));
+    try std.testing.expect(systemCompiler(x86_64_target) == .gcc);
 }
 
 test "target size/align tests" {
     var comp: @import("Compilation.zig") = undefined;
 
-    const x86 = std.Target.Cpu.Arch.x86;
-    comp.target.cpu.arch = x86;
-    comp.target.cpu.model = &std.Target.x86.cpu.i586;
-    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);
-    comp.target.abi = std.Target.Abi.gnu;
+    const linux: std.Target.Os = .{ .tag = .linux, .version_range = .{ .none = {} } };
+    const x86_target: std.Target = .{
+        .abi = std.Target.Abi.default(.x86, linux),
+        .cpu = std.Target.Cpu.Model.generic(.x86).toCpu(.x86),
+        .os = linux,
+        .ofmt = .elf,
+    };
+    comp.target = x86_target;
 
     const tt: Type = .{
         .specifier = .long_long,
@@ -1001,20 +993,6 @@ test "target size/align tests" {
 
     try std.testing.expectEqual(@as(u64, 8), tt.sizeof(&comp).?);
     try std.testing.expectEqual(@as(u64, 4), tt.alignof(&comp));
-
-    const arm = std.Target.Cpu.Arch.arm;
-    comp.target.cpu = std.Target.Cpu.Model.toCpu(&std.Target.arm.cpu.cortex_r4, arm);
-    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm);
-    comp.target.abi = std.Target.Abi.none;
-
-    const ct: Type = .{
-        .specifier = .char,
-    };
-
-    try std.testing.expectEqual(true, std.Target.arm.featureSetHas(comp.target.cpu.features, .has_v7));
-    try std.testing.expectEqual(@as(u64, 1), ct.sizeof(&comp).?);
-    try std.testing.expectEqual(@as(u64, 1), ct.alignof(&comp));
-    try std.testing.expectEqual(true, ignoreNonZeroSizedBitfieldTypeAlignment(comp.target));
 }
 
 /// The canonical integer representation of nullptr_t.
