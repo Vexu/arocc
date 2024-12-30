@@ -1,17 +1,17 @@
-typedef: 'float'
+variable: 'float'
  name: invalid2
 
-typedef: 'vector(2, float)'
+variable: 'vector(2, float)'
  name: f2v
 
 fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: 'f2v': 'vector(2, float)'
+    variable: 'f2v': 'vector(2, float)'
      name: a
 
-    var: 'f2v': 'vector(2, float)'
+    variable: 'f2v': 'vector(2, float)'
      name: b
 
     assign_expr: 'f2v': 'vector(2, float)'

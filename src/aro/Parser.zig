@@ -581,7 +581,7 @@ fn errDeprecated(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, msg: ?Valu
 }
 
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!Node.Index {
-    if (p.in_macro) return @enumFromInt(node.tok());
+    if (p.in_macro) return undefined;
     return p.tree.addNode(node);
 }
 
@@ -1174,9 +1174,7 @@ fn decl(p: *Parser) Error!bool {
         if (decl_spec.storage_class == .typedef) {
             try p.syms.defineTypedef(p, interned_name, init_d.d.ty, init_d.d.name, node);
             p.typedefDefined(interned_name, init_d.d.ty);
-        } else if (init_d.initializer != null or
-            (p.func.ty != null and decl_spec.storage_class != .@"extern"))
-        {
+        } else if (init_d.initializer) |init| {
             // TODO validate global variable/constexpr initializer comptime known
             try p.syms.defineSymbol(
                 p,
@@ -1184,9 +1182,11 @@ fn decl(p: *Parser) Error!bool {
                 init_d.d.ty,
                 init_d.d.name,
                 node,
-                if (init_d.d.ty.isConst() or decl_spec.constexpr != null) init_d.initializer.?.val else .{},
+                if (init_d.d.ty.isConst() or decl_spec.constexpr != null) init.val else .{},
                 decl_spec.constexpr != null,
             );
+        } else if (p.func.ty != null and decl_spec.storage_class != .@"extern") {
+            try p.syms.defineSymbol(p, interned_name, init_d.d.ty, init_d.d.name, node, .{}, false);
         } else {
             try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, node);
         }
@@ -1232,7 +1232,8 @@ fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result
         try rhs_ty.print(mapper, p.comp.langopts, buf.writer());
 
         try buf.appendSlice(")'");
-    }
+    } else if (maybe_message == null) return null;
+
     if (maybe_message) |message| {
         assert(message.node.get(&p.tree) == .string_literal_expr);
         if (buf.items.len > 0) {
@@ -1278,7 +1279,7 @@ fn staticAssert(p: *Parser) Error!bool {
     }
 
     const is_int_expr = res.ty.isInt();
-    try res.boolCast(p, .{ .specifier = .bool });
+    try res.boolCast(p, .{ .specifier = .bool }, res_token);
     if (!is_int_expr) {
         res.val = .{};
     }
@@ -2612,7 +2613,7 @@ fn enumSpec(p: *Parser) Error!Type {
 
             if (field.init) |some| {
                 res.node = some;
-                try res.implicitCast(p, .int_cast);
+                try res.implicitCast(p, .int_cast, some.tok(&p.tree));
                 field.init = res.node;
                 new_field_node.enum_field.init = res.node;
             }
@@ -2719,10 +2720,12 @@ const Enumerator = struct {
                 return error.ParsingFailed;
             }
             res.ty = e.ty;
-            try res.implicitCast(p, .int_cast);
+            try res.implicitCast(p, .int_cast, tok);
             e.val = res.val;
         } else {
-            try res.intCast(p, e.ty.integerPromotion(p.comp));
+            try res.intCast(p, res.ty.integerPromotion(p.comp), tok);
+            e.ty = res.ty;
+            e.val = res.val;
         }
     }
 
@@ -3286,7 +3289,7 @@ fn complexInitializer(p: *Parser, init_ty: Type) Error!Result {
     while (p.eatToken(.comma)) |_| {
         if (p.tok_ids[p.tok_i] == .r_brace) break;
         extra_tok = p.tok_i;
-        if ((try p.assignExpr()) != null) {
+        if ((try p.assignExpr()) == null) {
             try p.errTok(.expected_expr, p.tok_i);
             p.skipTo(.r_brace);
             return error.ParsingFailed;
@@ -3508,6 +3511,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 saw = false;
                 break :single_item;
             };
+            saw = true;
 
             excess: {
                 if (index_hint) |*hint| {
@@ -3772,7 +3776,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
     if (target.is(.void)) return; // Do not do type coercion on excess items
 
     const node = item.node;
-    try item.lvalConversion(p);
+    try item.lvalConversion(p, tok);
     if (target.is(.auto_type)) {
         if (p.getNode(node, .member_access_expr) orelse p.getNode(node, .member_access_ptr_expr)) |access| {
             if (access.isBitFieldWidth(&p.tree) != null) try p.errTok(.auto_type_from_bitfield, tok);
@@ -3782,7 +3786,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: Type) !void {
         return;
     }
 
-    try item.coerce(p, target, .init);
+    try item.coerce(p, target, tok, .init);
     if (item.val.opt_ref == .none) runtime: {
         const tag: Diagnostics.Tag = switch (p.init_context) {
             .runtime => break :runtime,
@@ -3980,7 +3984,7 @@ fn asmOperand(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *Node
 ///  | asmStr ':' asmOperand* ':' asmOperand*
 ///  | asmStr ':' asmOperand* ':' asmOperand* : asmStr? (',' asmStr)*
 ///  | asmStr ':' asmOperand* ':' asmOperand* : asmStr? (',' asmStr)* : IDENTIFIER (',' IDENTIFIER)*
-fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex, l_paren: TokenIndex) Error!?Node.Index {
+fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex, l_paren: TokenIndex) Error!Node.Index {
     const asm_str = try p.asmStr();
     try p.checkAsmStr(asm_str.val, l_paren);
 
@@ -4106,7 +4110,10 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
     }
 
     // TODO: validate and insert into AST
-    return null;
+    return p.addNode(.{ .null_stmt = .{
+        .semicolon_or_r_brace_tok = asm_tok,
+        .type = .{ .specifier = .void },
+    } });
 }
 
 fn checkAsmStr(p: *Parser, asm_str: Value, tok: TokenIndex) !void {
@@ -4231,12 +4238,15 @@ fn stmt(p: *Parser) Error!Node.Index {
     if (try p.compoundStmt(false, null)) |some| return some;
     if (p.eatToken(.keyword_if)) |kw_if| {
         const l_paren = try p.expectToken(.l_paren);
+
+        const cond_tok = p.tok_i;
         var cond = try p.expect(expr);
-        try cond.lvalConversion(p);
-        try cond.usualUnaryConversion(p);
+        try cond.lvalConversion(p, cond_tok);
+        try cond.usualUnaryConversion(p, cond_tok);
         if (!cond.ty.isScalar())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
+
         try p.expectClosing(l_paren, .r_paren);
 
         const then_body = try p.stmt();
@@ -4251,9 +4261,10 @@ fn stmt(p: *Parser) Error!Node.Index {
     }
     if (p.eatToken(.keyword_switch)) |kw_switch| {
         const l_paren = try p.expectToken(.l_paren);
+        const cond_tok = p.tok_i;
         var cond = try p.expect(expr);
-        try cond.lvalConversion(p);
-        try cond.usualUnaryConversion(p);
+        try cond.lvalConversion(p, cond_tok);
+        try cond.usualUnaryConversion(p, cond_tok);
 
         if (!cond.ty.isInt())
             try p.errStr(.statement_int, l_paren + 1, try p.typeStr(cond.ty));
@@ -4282,12 +4293,15 @@ fn stmt(p: *Parser) Error!Node.Index {
     }
     if (p.eatToken(.keyword_while)) |kw_while| {
         const l_paren = try p.expectToken(.l_paren);
+
+        const cond_tok = p.tok_i;
         var cond = try p.expect(expr);
-        try cond.lvalConversion(p);
-        try cond.usualUnaryConversion(p);
+        try cond.lvalConversion(p, cond_tok);
+        try cond.usualUnaryConversion(p, cond_tok);
         if (!cond.ty.isScalar())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
         try cond.saveValue(p);
+
         try p.expectClosing(l_paren, .r_paren);
 
         const body = body: {
@@ -4313,9 +4327,11 @@ fn stmt(p: *Parser) Error!Node.Index {
 
         _ = try p.expectToken(.keyword_while);
         const l_paren = try p.expectToken(.l_paren);
+
+        const cond_tok = p.tok_i;
         var cond = try p.expect(expr);
-        try cond.lvalConversion(p);
-        try cond.usualUnaryConversion(p);
+        try cond.lvalConversion(p, cond_tok);
+        try cond.usualUnaryConversion(p, cond_tok);
 
         if (!cond.ty.isScalar())
             try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
@@ -4355,10 +4371,11 @@ fn stmt(p: *Parser) Error!Node.Index {
         // for (init; cond
         const cond = cond: {
             if (got_decl) break :cond null;
+            const cond_tok = p.tok_i;
             var cond = (try p.expr()) orelse break :cond null;
 
-            try cond.lvalConversion(p);
-            try cond.usualUnaryConversion(p);
+            try cond.lvalConversion(p, cond_tok);
+            try cond.usualUnaryConversion(p, cond_tok);
             if (!cond.ty.isScalar())
                 try p.errStr(.statement_scalar, l_paren + 1, try p.typeStr(cond.ty));
             try cond.saveValue(p);
@@ -4400,7 +4417,7 @@ fn stmt(p: *Parser) Error!Node.Index {
         if (p.eatToken(.asterisk)) |_| {
             const expr_tok = p.tok_i;
             var goto_expr = try p.expect(expr);
-            try goto_expr.lvalConversion(p);
+            try goto_expr.lvalConversion(p, expr_tok);
             p.computed_goto_tok = p.computed_goto_tok orelse goto_tok;
             if (!goto_expr.ty.isPtr()) {
                 const elem_ty = try p.arena.create(Type);
@@ -4414,15 +4431,14 @@ fn stmt(p: *Parser) Error!Node.Index {
                     return error.ParsingFailed;
                 }
                 if (goto_expr.val.isZero(p.comp)) {
-                    try goto_expr.nullCast(p, result_ty);
+                    try goto_expr.nullCast(p, result_ty, expr_tok);
                 } else {
                     try p.errStr(.implicit_int_to_ptr, expr_tok, try p.typePairStrExtra(goto_expr.ty, " to ", result_ty));
-                    try goto_expr.ptrCast(p, result_ty);
+                    try goto_expr.ptrCast(p, result_ty, expr_tok);
                 }
             }
 
-            try goto_expr.un(p, .computed_goto_stmt, goto_tok);
-            return goto_expr.node;
+            return p.addNode(.{ .computed_goto_stmt = .{ .goto_tok = goto_tok, .expr = goto_expr.node } });
         }
         const name_tok = try p.expectIdentifier();
         const str = p.tokSlice(name_tok);
@@ -4578,7 +4594,7 @@ fn labelableStmt(p: *Parser) Error!Node.Index {
 
 const StmtExprState = struct {
     last_expr_tok: TokenIndex = 0,
-    last_expr_type: Type = .invalid,
+    last_expr_type: Type = .{ .specifier = .void },
 };
 
 /// compoundStmt : '{' ( decl | keyword_extension decl | staticAssert | stmt)* '}'
@@ -4678,7 +4694,8 @@ fn pointerValue(p: *Parser, node: Node.Index, offset: Value) !Value {
         .decl_ref_expr => |decl_ref| {
             const var_name = try p.comp.internString(p.tokSlice(decl_ref.name_tok));
             const sym = p.syms.findSymbol(var_name) orelse return .{};
-            return Value.pointer(.{ .node = @intFromEnum(sym.node.?), .offset = offset.ref() }, p.comp);
+            const sym_node = sym.node orelse return .{};
+            return Value.pointer(.{ .node = @intFromEnum(sym_node), .offset = offset.ref() }, p.comp);
         },
         .string_literal_expr => return p.tree.value_map.get(node).?,
         else => return .{},
@@ -4815,8 +4832,8 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
         if (ret_ty.is(.void)) {
             try p.errStr(.void_func_returns_value, e_tok, p.tokSlice(p.func.name));
         } else {
-            try some.lvalConversion(p);
-            try some.coerce(p, ret_ty, .ret);
+            try some.lvalConversion(p, e_tok);
+            try some.coerce(p, ret_ty, e_tok, .ret);
 
             try some.saveValue(p);
         }
@@ -4834,15 +4851,11 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
 // ====== expressions ======
 
 pub fn macroExpr(p: *Parser) Compilation.Error!bool {
-    const res = p.condExpr() catch |e| switch (e) {
+    const res = p.expect(condExpr) catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
         error.FatalError => return error.FatalError,
         error.ParsingFailed => return false,
     };
-    if (res.val.opt_ref == .none) {
-        try p.errTok(.expected_expr, p.tok_i);
-        return false;
-    }
     return res.val.toBool(p.comp);
 }
 
@@ -5050,6 +5063,7 @@ const CallExpr = union(enum) {
 
     fn finish(self: CallExpr, p: *Parser, ty: Type, list_buf_top: usize, l_paren: TokenIndex) Error!?Result {
         const ret_ty = self.returnType(p, ty);
+        const args = p.list_buf.items[list_buf_top..];
         switch (self) {
             .standard => |func_node| return .{
                 .ty = ret_ty,
@@ -5057,15 +5071,16 @@ const CallExpr = union(enum) {
                     .l_paren_tok = l_paren,
                     .type = ret_ty,
                     .callee = func_node,
-                    .args = p.list_buf.items[list_buf_top..],
+                    .args = args,
                 } }),
             },
             .builtin => |builtin| return .{
+                .val = try evalBuiltin(builtin.tag, p, args),
                 .ty = ret_ty,
                 .node = try p.addNode(.{ .builtin_call_expr = .{
                     .builtin_tok = builtin.builtin_tok,
                     .type = ret_ty,
-                    .args = p.list_buf.items[list_buf_top..],
+                    .args = args,
                 } }),
             },
         }
@@ -5089,19 +5104,13 @@ pub const Result = struct {
 
         if (try res.val.print(res.ty, p.comp, p.strings.writer())) |nested| switch (nested) {
             .pointer => |ptr| {
-                const decl_ref_node: Node.Index = @enumFromInt(ptr.node);
-                const decl_ref = decl_ref_node.get(&p.tree).decl_ref_expr;
-                const decl_name = p.tokSlice(decl_ref.name_tok);
+                const ptr_node: Node.Index = @enumFromInt(ptr.node);
+                const decl_name = p.tree.tokSlice(ptr_node.tok(&p.tree));
                 try ptr.offset.printPointer(decl_name, p.comp, p.strings.writer());
             },
         };
 
         return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
-    }
-
-    fn tok(res: Result, p: *Parser) TokenIndex {
-        if (p.in_macro) return @intFromEnum(res.node);
-        return res.node.tok(&p.tree);
     }
 
     fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex, err_start: usize) Error!void {
@@ -5132,6 +5141,13 @@ pub const Result = struct {
                 const call_info = p.tree.callableResultUsage(call.callee) orelse return;
                 if (call_info.nodiscard) try p.errStr(.nodiscard_unused, expr_start, p.tokSlice(call_info.tok));
                 if (call_info.warn_unused_result) try p.errStr(.warn_unused_result, expr_start, p.tokSlice(call_info.tok));
+                return;
+            },
+            .builtin_call_expr => |call| {
+                const expanded = p.comp.builtins.lookup(p.tokSlice(call.builtin_tok));
+                const attributes = expanded.builtin.properties.attributes;
+                if (attributes.pure) try p.errStr(.builtin_unused, call.builtin_tok, "pure");
+                if (attributes.@"const") try p.errStr(.builtin_unused, call.builtin_tok, "const");
                 return;
             },
             .stmt_expr => |stmt_expr| {
@@ -5189,17 +5205,17 @@ pub const Result = struct {
             inline .addr_of_expr, .deref_expr, .plus_expr, .negate_expr,
             .bit_not_expr, .bool_not_expr, .pre_inc_expr, .pre_dec_expr,
             .imag_expr, .real_expr, .post_inc_expr,.post_dec_expr,
-            .paren_expr, .stmt_expr,
+            .paren_expr, .stmt_expr, .imaginary_literal,
             // zig fmt: on
             => |tag| operand.node = try p.addNode(@unionInit(Node, @tagName(tag), un_data)),
             else => unreachable,
         }
     }
 
-    fn implicitCast(operand: *Result, p: *Parser, kind: Node.Cast.Kind) Error!void {
+    fn implicitCast(operand: *Result, p: *Parser, kind: Node.Cast.Kind, tok: TokenIndex) Error!void {
         operand.node = try p.addNode(.{
             .implicit_cast = .{
-                .l_paren = operand.tok(p),
+                .l_paren = tok,
                 .kind = kind,
                 .operand = operand.node,
                 .type = operand.ty,
@@ -5207,7 +5223,7 @@ pub const Result = struct {
         });
     }
 
-    fn adjustCondExprPtrs(a: *Result, op_tok: TokenIndex, b: *Result, p: *Parser) !bool {
+    fn adjustCondExprPtrs(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) !bool {
         assert(a.ty.isPtr() and b.ty.isPtr());
 
         const a_elem = a.ty.elemType();
@@ -5223,7 +5239,7 @@ pub const Result = struct {
 
         if (!pointers_compatible or has_void_star_branch) {
             if (!pointers_compatible) {
-                try p.errStr(.pointer_mismatch, op_tok, try p.typePairStrExtra(a.ty, " and ", b.ty));
+                try p.errStr(.pointer_mismatch, tok, try p.typePairStrExtra(a.ty, " and ", b.ty));
             }
             adjusted_elem_ty.* = .{ .specifier = .void };
         }
@@ -5235,20 +5251,20 @@ pub const Result = struct {
                 .data = .{ .sub_type = adjusted_elem_ty },
                 .specifier = .pointer,
             };
-            try a.implicitCast(p, .bitcast);
+            try a.implicitCast(p, .bitcast, tok);
         }
         if (!adjusted_elem_ty.eql(b_elem, p.comp, true)) {
             b.ty = .{
                 .data = .{ .sub_type = adjusted_elem_ty },
                 .specifier = .pointer,
             };
-            try b.implicitCast(p, .bitcast);
+            try b.implicitCast(p, .bitcast, tok);
         }
         return true;
     }
 
     /// Adjust types for binary operation, returns true if the result can and should be evaluated.
-    fn adjustTypes(a: *Result, op_tok: TokenIndex, b: *Result, p: *Parser, kind: enum {
+    fn adjustTypes(a: *Result, tok: TokenIndex, b: *Result, p: *Parser, kind: enum {
         integer,
         arithmetic,
         boolean_logic,
@@ -5265,8 +5281,8 @@ pub const Result = struct {
         if (a.ty.specifier == .invalid) {
             return false;
         }
-        try a.lvalConversion(p);
-        try b.lvalConversion(p);
+        try a.lvalConversion(p, tok);
+        try b.lvalConversion(p, tok);
 
         const a_vec = a.ty.is(.vector);
         const b_vec = b.ty.is(.vector);
@@ -5274,23 +5290,23 @@ pub const Result = struct {
             if (a.ty.eql(b.ty, p.comp, false)) {
                 return a.shouldEval(b, p);
             }
-            return a.invalidBinTy(op_tok, b, p);
+            return a.invalidBinTy(tok, b, p);
         } else if (a_vec) {
-            if (b.coerceExtra(p, a.ty.elemType(), .test_coerce)) {
+            if (b.coerceExtra(p, a.ty.elemType(), tok, .test_coerce)) {
                 try b.saveValue(p);
-                try b.implicitCast(p, .vector_splat);
+                try b.implicitCast(p, .vector_splat, tok);
                 return a.shouldEval(b, p);
             } else |er| switch (er) {
-                error.CoercionFailed => return a.invalidBinTy(op_tok, b, p),
+                error.CoercionFailed => return a.invalidBinTy(tok, b, p),
                 else => |e| return e,
             }
         } else if (b_vec) {
-            if (a.coerceExtra(p, b.ty.elemType(), .test_coerce)) {
+            if (a.coerceExtra(p, b.ty.elemType(), tok, .test_coerce)) {
                 try a.saveValue(p);
-                try a.implicitCast(p, .vector_splat);
+                try a.implicitCast(p, .vector_splat, tok);
                 return a.shouldEval(b, p);
             } else |er| switch (er) {
-                error.CoercionFailed => return a.invalidBinTy(op_tok, b, p),
+                error.CoercionFailed => return a.invalidBinTy(tok, b, p),
                 else => |e| return e,
             }
         }
@@ -5298,10 +5314,10 @@ pub const Result = struct {
         const a_int = a.ty.isInt();
         const b_int = b.ty.isInt();
         if (a_int and b_int) {
-            try a.usualArithmeticConversion(b, p);
+            try a.usualArithmeticConversion(b, p, tok);
             return a.shouldEval(b, p);
         }
-        if (kind == .integer) return a.invalidBinTy(op_tok, b, p);
+        if (kind == .integer) return a.invalidBinTy(tok, b, p);
 
         const a_float = a.ty.isFloat();
         const b_float = b.ty.isFloat();
@@ -5310,12 +5326,12 @@ pub const Result = struct {
         if (a_arithmetic and b_arithmetic) {
             // <, <=, >, >= only work on real types
             if (kind == .relational and (!a.ty.isReal() or !b.ty.isReal()))
-                return a.invalidBinTy(op_tok, b, p);
+                return a.invalidBinTy(tok, b, p);
 
-            try a.usualArithmeticConversion(b, p);
+            try a.usualArithmeticConversion(b, p, tok);
             return a.shouldEval(b, p);
         }
-        if (kind == .arithmetic) return a.invalidBinTy(op_tok, b, p);
+        if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
 
         const a_nullptr = a.ty.is(.nullptr_t);
         const b_nullptr = b.ty.is(.nullptr_t);
@@ -5325,11 +5341,11 @@ pub const Result = struct {
         const b_scalar = b_arithmetic or b_ptr;
         switch (kind) {
             .boolean_logic => {
-                if (!(a_scalar or a_nullptr) or !(b_scalar or b_nullptr)) return a.invalidBinTy(op_tok, b, p);
+                if (!(a_scalar or a_nullptr) or !(b_scalar or b_nullptr)) return a.invalidBinTy(tok, b, p);
 
                 // Do integer promotions but nothing else
-                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.comp));
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp));
+                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.comp), tok);
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp), tok);
                 return a.shouldEval(b, p);
             },
             .relational, .equality => {
@@ -5338,29 +5354,29 @@ pub const Result = struct {
                     const nullptr_res = if (a_nullptr) a else b;
                     const other_res = if (a_nullptr) b else a;
                     if (other_res.ty.isPtr()) {
-                        try nullptr_res.nullCast(p, other_res.ty);
+                        try nullptr_res.nullCast(p, other_res.ty, tok);
                         return other_res.shouldEval(nullptr_res, p);
                     } else if (other_res.val.isZero(p.comp)) {
                         other_res.val = Value.null;
-                        try other_res.nullCast(p, nullptr_res.ty);
+                        try other_res.nullCast(p, nullptr_res.ty, tok);
                         return other_res.shouldEval(nullptr_res, p);
                     }
-                    return a.invalidBinTy(op_tok, b, p);
+                    return a.invalidBinTy(tok, b, p);
                 }
                 // comparisons between floats and pointes not allowed
                 if (!a_scalar or !b_scalar or (a_float and b_ptr) or (b_float and a_ptr))
-                    return a.invalidBinTy(op_tok, b, p);
+                    return a.invalidBinTy(tok, b, p);
 
                 if ((a_int or b_int) and !(a.val.isZero(p.comp) or b.val.isZero(p.comp))) {
-                    try p.errStr(.comparison_ptr_int, op_tok, try p.typePairStr(a.ty, b.ty));
+                    try p.errStr(.comparison_ptr_int, tok, try p.typePairStr(a.ty, b.ty));
                 } else if (a_ptr and b_ptr) {
                     if (!a.ty.isVoidStar() and !b.ty.isVoidStar() and !a.ty.eql(b.ty, p.comp, false))
-                        try p.errStr(.comparison_distinct_ptr, op_tok, try p.typePairStr(a.ty, b.ty));
+                        try p.errStr(.comparison_distinct_ptr, tok, try p.typePairStr(a.ty, b.ty));
                 } else if (a_ptr) {
-                    try b.ptrCast(p, a.ty);
+                    try b.ptrCast(p, a.ty, tok);
                 } else {
                     assert(b_ptr);
-                    try a.ptrCast(p, b.ty);
+                    try a.ptrCast(p, b.ty, tok);
                 }
 
                 return a.shouldEval(b, p);
@@ -5368,46 +5384,46 @@ pub const Result = struct {
             .conditional => {
                 // doesn't matter what we return here, as the result is ignored
                 if (a.ty.is(.void) or b.ty.is(.void)) {
-                    try a.toVoid(p);
-                    try b.toVoid(p);
+                    try a.toVoid(p, tok);
+                    try b.toVoid(p, tok);
                     return true;
                 }
                 if (a_nullptr and b_nullptr) return true;
                 if ((a_ptr and b_int) or (a_int and b_ptr)) {
                     if (a.val.isZero(p.comp) or b.val.isZero(p.comp)) {
-                        try a.nullCast(p, b.ty);
-                        try b.nullCast(p, a.ty);
+                        try a.nullCast(p, b.ty, tok);
+                        try b.nullCast(p, a.ty, tok);
                         return true;
                     }
                     const int_ty = if (a_int) a else b;
                     const ptr_ty = if (a_ptr) a else b;
-                    try p.errStr(.implicit_int_to_ptr, op_tok, try p.typePairStrExtra(int_ty.ty, " to ", ptr_ty.ty));
-                    try int_ty.ptrCast(p, ptr_ty.ty);
+                    try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(int_ty.ty, " to ", ptr_ty.ty));
+                    try int_ty.ptrCast(p, ptr_ty.ty, tok);
 
                     return true;
                 }
-                if (a_ptr and b_ptr) return a.adjustCondExprPtrs(op_tok, b, p);
+                if (a_ptr and b_ptr) return a.adjustCondExprPtrs(tok, b, p);
                 if ((a_ptr and b_nullptr) or (a_nullptr and b_ptr)) {
                     const nullptr_res = if (a_nullptr) a else b;
                     const ptr_res = if (a_nullptr) b else a;
-                    try nullptr_res.nullCast(p, ptr_res.ty);
+                    try nullptr_res.nullCast(p, ptr_res.ty, tok);
                     return true;
                 }
                 if (a.ty.isRecord() and b.ty.isRecord() and a.ty.eql(b.ty, p.comp, false)) {
                     return true;
                 }
-                return a.invalidBinTy(op_tok, b, p);
+                return a.invalidBinTy(tok, b, p);
             },
             .add => {
                 // if both aren't arithmetic one should be pointer and the other an integer
-                if (a_ptr == b_ptr or a_int == b_int) return a.invalidBinTy(op_tok, b, p);
+                if (a_ptr == b_ptr or a_int == b_int) return a.invalidBinTy(tok, b, p);
 
                 if (a.ty.isVoidStar() or b.ty.isVoidStar())
-                    try p.errTok(.gnu_pointer_arith, op_tok);
+                    try p.errTok(.gnu_pointer_arith, tok);
 
                 // Do integer promotions but nothing else
-                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.comp));
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp));
+                if (a_int) try a.intCast(p, a.ty.integerPromotion(p.comp), tok);
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp), tok);
 
                 // The result type is the type of the pointer operand
                 if (a_int) a.ty = b.ty else b.ty = a.ty;
@@ -5415,26 +5431,26 @@ pub const Result = struct {
             },
             .sub => {
                 // if both aren't arithmetic then either both should be pointers or just a
-                if (!a_ptr or !(b_ptr or b_int)) return a.invalidBinTy(op_tok, b, p);
+                if (!a_ptr or !(b_ptr or b_int)) return a.invalidBinTy(tok, b, p);
 
                 if (a.ty.isVoidStar())
-                    try p.errTok(.gnu_pointer_arith, op_tok);
+                    try p.errTok(.gnu_pointer_arith, tok);
 
                 if (a_ptr and b_ptr) {
-                    if (!a.ty.eql(b.ty, p.comp, false)) try p.errStr(.incompatible_pointers, op_tok, try p.typePairStr(a.ty, b.ty));
-                    if (a.ty.elemType().sizeof(p.comp) orelse 1 == 0) try p.errStr(.subtract_pointers_zero_elem_size, op_tok, try p.typeStr(a.ty.elemType()));
+                    if (!a.ty.eql(b.ty, p.comp, false)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.ty, b.ty));
+                    if (a.ty.elemType().sizeof(p.comp) orelse 1 == 0) try p.errStr(.subtract_pointers_zero_elem_size, tok, try p.typeStr(a.ty.elemType()));
                     a.ty = p.comp.types.ptrdiff;
                 }
 
                 // Do integer promotion on b if needed
-                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp));
+                if (b_int) try b.intCast(p, b.ty.integerPromotion(p.comp), tok);
                 return a.shouldEval(b, p);
             },
-            else => return a.invalidBinTy(op_tok, b, p),
+            else => return a.invalidBinTy(tok, b, p),
         }
     }
 
-    fn lvalConversion(res: *Result, p: *Parser) Error!void {
+    fn lvalConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
         if (res.ty.isFunc()) {
             if (res.ty.isInvalidFunc()) {
                 res.ty = .{ .specifier = .invalid };
@@ -5445,143 +5461,148 @@ pub const Result = struct {
                 res.ty.data = .{ .sub_type = elem_ty };
             }
             res.val = try p.pointerValue(res.node, .zero);
-            try res.implicitCast(p, .function_to_pointer);
+            try res.implicitCast(p, .function_to_pointer, tok);
         } else if (res.ty.isArray()) {
             res.val = try p.pointerValue(res.node, .zero);
             res.ty.decayArray();
-            try res.implicitCast(p, .array_to_pointer);
+            try res.implicitCast(p, .array_to_pointer, tok);
         } else if (!p.in_macro and p.tree.isLval(res.node)) {
             res.ty.qual = .{};
-            try res.implicitCast(p, .lval_to_rval);
+            try res.implicitCast(p, .lval_to_rval, tok);
         }
     }
 
-    fn boolCast(res: *Result, p: *Parser, bool_ty: Type) Error!void {
+    fn boolCast(res: *Result, p: *Parser, bool_ty: Type, tok: TokenIndex) Error!void {
         if (res.ty.isArray()) {
-            const err_tok = res.tok(p);
             if (res.val.is(.bytes, p.comp)) {
-                try p.errStr(.string_literal_to_bool, err_tok, try p.typePairStrExtra(res.ty, " to ", bool_ty));
+                try p.errStr(.string_literal_to_bool, tok, try p.typePairStrExtra(res.ty, " to ", bool_ty));
             } else {
-                try p.errStr(.array_address_to_bool, err_tok, p.tokSlice(err_tok));
+                try p.errStr(.array_address_to_bool, tok, p.tokSlice(tok));
             }
-            try res.lvalConversion(p);
+            try res.lvalConversion(p, tok);
             res.val = Value.one;
             res.ty = bool_ty;
-            try res.implicitCast(p, .pointer_to_bool);
+            try res.implicitCast(p, .pointer_to_bool, tok);
         } else if (res.ty.isPtr()) {
             res.val.boolCast(p.comp);
             res.ty = bool_ty;
-            try res.implicitCast(p, .pointer_to_bool);
+            try res.implicitCast(p, .pointer_to_bool, tok);
         } else if (res.ty.isInt() and !res.ty.is(.bool)) {
             res.val.boolCast(p.comp);
             res.ty = bool_ty;
-            try res.implicitCast(p, .int_to_bool);
+            try res.implicitCast(p, .int_to_bool, tok);
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
             const value_change_kind = try res.val.floatToInt(bool_ty, p.comp);
-            try res.floatToIntWarning(p, bool_ty, old_value, value_change_kind);
+            try res.floatToIntWarning(p, bool_ty, old_value, value_change_kind, tok);
             if (!res.ty.isReal()) {
                 res.ty = res.ty.makeReal();
-                try res.implicitCast(p, .complex_float_to_real);
+                try res.implicitCast(p, .complex_float_to_real, tok);
             }
             res.ty = bool_ty;
-            try res.implicitCast(p, .float_to_bool);
+            try res.implicitCast(p, .float_to_bool, tok);
         }
     }
 
-    fn intCast(res: *Result, p: *Parser, int_ty: Type) Error!void {
+    fn intCast(res: *Result, p: *Parser, int_ty: Type, tok: TokenIndex) Error!void {
         if (int_ty.hasIncompleteSize()) return error.ParsingFailed; // Diagnostic already issued
         if (res.ty.is(.bool)) {
             res.ty = int_ty.makeReal();
-            try res.implicitCast(p, .bool_to_int);
+            try res.implicitCast(p, .bool_to_int, tok);
             if (!int_ty.isReal()) {
                 res.ty = int_ty;
-                try res.implicitCast(p, .real_to_complex_int);
+                try res.implicitCast(p, .real_to_complex_int, tok);
             }
         } else if (res.ty.isPtr()) {
             res.val = .{};
             res.ty = int_ty.makeReal();
-            try res.implicitCast(p, .pointer_to_int);
+            try res.implicitCast(p, .pointer_to_int, tok);
             if (!int_ty.isReal()) {
                 res.ty = int_ty;
-                try res.implicitCast(p, .real_to_complex_int);
+                try res.implicitCast(p, .real_to_complex_int, tok);
             }
         } else if (res.ty.isFloat()) {
             const old_value = res.val;
             const value_change_kind = try res.val.floatToInt(int_ty, p.comp);
-            try res.floatToIntWarning(p, int_ty, old_value, value_change_kind);
+            try res.floatToIntWarning(p, int_ty, old_value, value_change_kind, tok);
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();
             if (old_real and new_real) {
                 res.ty = int_ty;
-                try res.implicitCast(p, .float_to_int);
+                try res.implicitCast(p, .float_to_int, tok);
             } else if (old_real) {
                 res.ty = int_ty.makeReal();
-                try res.implicitCast(p, .float_to_int);
+                try res.implicitCast(p, .float_to_int, tok);
                 res.ty = int_ty;
-                try res.implicitCast(p, .real_to_complex_int);
+                try res.implicitCast(p, .real_to_complex_int, tok);
             } else if (new_real) {
                 res.ty = res.ty.makeReal();
-                try res.implicitCast(p, .complex_float_to_real);
+                try res.implicitCast(p, .complex_float_to_real, tok);
                 res.ty = int_ty;
-                try res.implicitCast(p, .float_to_int);
+                try res.implicitCast(p, .float_to_int, tok);
             } else {
                 res.ty = int_ty;
-                try res.implicitCast(p, .complex_float_to_complex_int);
+                try res.implicitCast(p, .complex_float_to_complex_int, tok);
             }
         } else if (!res.ty.eql(int_ty, p.comp, true)) {
             const old_val = res.val;
             const value_change_kind = try res.val.intCast(int_ty, p.comp);
             switch (value_change_kind) {
                 .none => {},
-                .truncated => try p.errStr(.int_value_changed, res.tok(p), try p.valueChangedStr(res, old_val, int_ty)),
-                .sign_changed => try p.errStr(.sign_conversion, res.tok(p), try p.typePairStrExtra(res.ty, " to ", int_ty)),
+                .truncated => try p.errStr(.int_value_changed, tok, try p.valueChangedStr(res, old_val, int_ty)),
+                .sign_changed => try p.errStr(.sign_conversion, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
             }
 
             const old_real = res.ty.isReal();
             const new_real = int_ty.isReal();
             if (old_real and new_real) {
                 res.ty = int_ty;
-                try res.implicitCast(p, .int_cast);
+                try res.implicitCast(p, .int_cast, tok);
             } else if (old_real) {
                 const real_int_ty = int_ty.makeReal();
                 if (!res.ty.eql(real_int_ty, p.comp, false)) {
                     res.ty = real_int_ty;
-                    try res.implicitCast(p, .int_cast);
+                    try res.implicitCast(p, .int_cast, tok);
                 }
                 res.ty = int_ty;
-                try res.implicitCast(p, .real_to_complex_int);
+                try res.implicitCast(p, .real_to_complex_int, tok);
             } else if (new_real) {
                 res.ty = res.ty.makeReal();
-                try res.implicitCast(p, .complex_int_to_real);
+                try res.implicitCast(p, .complex_int_to_real, tok);
                 res.ty = int_ty;
-                try res.implicitCast(p, .int_cast);
+                try res.implicitCast(p, .int_cast, tok);
             } else {
                 res.ty = int_ty;
-                try res.implicitCast(p, .complex_int_cast);
+                try res.implicitCast(p, .complex_int_cast, tok);
             }
         }
     }
 
-    fn floatToIntWarning(res: *Result, p: *Parser, int_ty: Type, old_value: Value, change_kind: Value.FloatToIntChangeKind) !void {
-        const err_tok = res.tok(p);
+    fn floatToIntWarning(
+        res: *Result,
+        p: *Parser,
+        int_ty: Type,
+        old_value: Value,
+        change_kind: Value.FloatToIntChangeKind,
+        tok: TokenIndex,
+    ) !void {
         switch (change_kind) {
-            .none => return p.errStr(.float_to_int, err_tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
-            .out_of_range => return p.errStr(.float_out_of_range, err_tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
-            .overflow => return p.errStr(.float_overflow_conversion, err_tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
-            .nonzero_to_zero => return p.errStr(.float_zero_conversion, err_tok, try p.valueChangedStr(res, old_value, int_ty)),
-            .value_changed => return p.errStr(.float_value_changed, err_tok, try p.valueChangedStr(res, old_value, int_ty)),
+            .none => return p.errStr(.float_to_int, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
+            .out_of_range => return p.errStr(.float_out_of_range, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
+            .overflow => return p.errStr(.float_overflow_conversion, tok, try p.typePairStrExtra(res.ty, " to ", int_ty)),
+            .nonzero_to_zero => return p.errStr(.float_zero_conversion, tok, try p.valueChangedStr(res, old_value, int_ty)),
+            .value_changed => return p.errStr(.float_value_changed, tok, try p.valueChangedStr(res, old_value, int_ty)),
         }
     }
 
-    fn floatCast(res: *Result, p: *Parser, float_ty: Type) Error!void {
+    fn floatCast(res: *Result, p: *Parser, float_ty: Type, tok: TokenIndex) Error!void {
         if (res.ty.is(.bool)) {
             try res.val.intToFloat(float_ty, p.comp);
             res.ty = float_ty.makeReal();
-            try res.implicitCast(p, .bool_to_float);
+            try res.implicitCast(p, .bool_to_float, tok);
             if (!float_ty.isReal()) {
                 res.ty = float_ty;
-                try res.implicitCast(p, .real_to_complex_float);
+                try res.implicitCast(p, .real_to_complex_float, tok);
             }
         } else if (res.ty.isInt()) {
             try res.val.intToFloat(float_ty, p.comp);
@@ -5589,20 +5610,20 @@ pub const Result = struct {
             const new_real = float_ty.isReal();
             if (old_real and new_real) {
                 res.ty = float_ty;
-                try res.implicitCast(p, .int_to_float);
+                try res.implicitCast(p, .int_to_float, tok);
             } else if (old_real) {
                 res.ty = float_ty.makeReal();
-                try res.implicitCast(p, .int_to_float);
+                try res.implicitCast(p, .int_to_float, tok);
                 res.ty = float_ty;
-                try res.implicitCast(p, .real_to_complex_float);
+                try res.implicitCast(p, .real_to_complex_float, tok);
             } else if (new_real) {
                 res.ty = res.ty.makeReal();
-                try res.implicitCast(p, .complex_int_to_real);
+                try res.implicitCast(p, .complex_int_to_real, tok);
                 res.ty = float_ty;
-                try res.implicitCast(p, .int_to_float);
+                try res.implicitCast(p, .int_to_float, tok);
             } else {
                 res.ty = float_ty;
-                try res.implicitCast(p, .complex_int_to_complex_float);
+                try res.implicitCast(p, .complex_int_to_complex_float, tok);
             }
         } else if (!res.ty.eql(float_ty, p.comp, true)) {
             try res.val.floatCast(float_ty, p.comp);
@@ -5610,60 +5631,60 @@ pub const Result = struct {
             const new_real = float_ty.isReal();
             if (old_real and new_real) {
                 res.ty = float_ty;
-                try res.implicitCast(p, .float_cast);
+                try res.implicitCast(p, .float_cast, tok);
             } else if (old_real) {
                 if (res.ty.floatRank() != float_ty.floatRank()) {
                     res.ty = float_ty.makeReal();
-                    try res.implicitCast(p, .float_cast);
+                    try res.implicitCast(p, .float_cast, tok);
                 }
                 res.ty = float_ty;
-                try res.implicitCast(p, .real_to_complex_float);
+                try res.implicitCast(p, .real_to_complex_float, tok);
             } else if (new_real) {
                 res.ty = res.ty.makeReal();
-                try res.implicitCast(p, .complex_float_to_real);
+                try res.implicitCast(p, .complex_float_to_real, tok);
                 if (res.ty.floatRank() != float_ty.floatRank()) {
                     res.ty = float_ty;
-                    try res.implicitCast(p, .float_cast);
+                    try res.implicitCast(p, .float_cast, tok);
                 }
             } else {
                 res.ty = float_ty;
-                try res.implicitCast(p, .complex_float_cast);
+                try res.implicitCast(p, .complex_float_cast, tok);
             }
         }
     }
 
     /// Converts a bool or integer to a pointer
-    fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
+    fn ptrCast(res: *Result, p: *Parser, ptr_ty: Type, tok: TokenIndex) Error!void {
         if (res.ty.is(.bool)) {
             res.ty = ptr_ty;
-            try res.implicitCast(p, .bool_to_pointer);
+            try res.implicitCast(p, .bool_to_pointer, tok);
         } else if (res.ty.isInt()) {
             _ = try res.val.intCast(ptr_ty, p.comp);
             res.ty = ptr_ty;
-            try res.implicitCast(p, .int_to_pointer);
+            try res.implicitCast(p, .int_to_pointer, tok);
         }
     }
 
     /// Convert pointer to one with a different child type
-    fn ptrChildTypeCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
+    fn ptrChildTypeCast(res: *Result, p: *Parser, ptr_ty: Type, tok: TokenIndex) Error!void {
         res.ty = ptr_ty;
-        return res.implicitCast(p, .bitcast);
+        return res.implicitCast(p, .bitcast, tok);
     }
 
-    fn toVoid(res: *Result, p: *Parser) Error!void {
+    fn toVoid(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
         if (!res.ty.is(.void)) {
             res.ty = .{ .specifier = .void };
-            try res.implicitCast(p, .to_void);
+            try res.implicitCast(p, .to_void, tok);
         }
     }
 
-    fn nullCast(res: *Result, p: *Parser, ptr_ty: Type) Error!void {
+    fn nullCast(res: *Result, p: *Parser, ptr_ty: Type, tok: TokenIndex) Error!void {
         if (!res.ty.is(.nullptr_t) and !res.val.isZero(p.comp)) return;
         res.ty = ptr_ty;
-        try res.implicitCast(p, .null_to_pointer);
+        try res.implicitCast(p, .null_to_pointer, tok);
     }
 
-    fn usualUnaryConversion(res: *Result, p: *Parser) Error!void {
+    fn usualUnaryConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
         if (res.ty.isFloat()) fp_eval: {
             const eval_method = p.comp.langopts.fp_eval_method orelse break :fp_eval;
             switch (eval_method) {
@@ -5672,34 +5693,34 @@ pub const Result = struct {
                 .double => {
                     if (res.ty.floatRank() < (Type{ .specifier = .double }).floatRank()) {
                         const spec: Type.Specifier = if (res.ty.isReal()) .double else .complex_double;
-                        return res.floatCast(p, .{ .specifier = spec });
+                        return res.floatCast(p, .{ .specifier = spec }, tok);
                     }
                 },
                 .extended => {
                     if (res.ty.floatRank() < (Type{ .specifier = .long_double }).floatRank()) {
                         const spec: Type.Specifier = if (res.ty.isReal()) .long_double else .complex_long_double;
-                        return res.floatCast(p, .{ .specifier = spec });
+                        return res.floatCast(p, .{ .specifier = spec }, tok);
                     }
                 },
             }
         }
 
         if (res.ty.is(.fp16) and !p.comp.langopts.use_native_half_type) {
-            return res.floatCast(p, .{ .specifier = .float });
+            return res.floatCast(p, .{ .specifier = .float }, tok);
         }
-        if (res.ty.isInt()) {
+        if (res.ty.isInt() and !p.in_macro) {
             if (p.tree.bitfieldWidth(res.node, true)) |width| {
                 if (res.ty.bitfieldPromotion(p.comp, width)) |promotion_ty| {
-                    return res.intCast(p, promotion_ty);
+                    return res.intCast(p, promotion_ty, tok);
                 }
             }
-            return res.intCast(p, res.ty.integerPromotion(p.comp));
+            return res.intCast(p, res.ty.integerPromotion(p.comp), tok);
         }
     }
 
-    fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser) Error!void {
-        try a.usualUnaryConversion(p);
-        try b.usualUnaryConversion(p);
+    fn usualArithmeticConversion(a: *Result, b: *Result, p: *Parser, tok: TokenIndex) Error!void {
+        try a.usualUnaryConversion(p, tok);
+        try b.usualUnaryConversion(p, tok);
 
         // if either is a float cast to that type
         if (a.ty.isFloat() or b.ty.isFloat()) {
@@ -5715,15 +5736,15 @@ pub const Result = struct {
             const a_spec = a.ty.canonicalize(.standard).specifier;
             const b_spec = b.ty.canonicalize(.standard).specifier;
             for (float_types) |ft| {
-                if (try a.floatConversion(b, a_spec, b_spec, p, ft)) return;
+                if (try a.floatConversion(b, a_spec, b_spec, p, ft, tok)) return;
             }
             unreachable;
         }
 
         if (a.ty.eql(b.ty, p.comp, true)) {
             // cast to promoted type
-            try a.intCast(p, a.ty);
-            try b.intCast(p, b.ty);
+            try a.intCast(p, a.ty, tok);
+            try b.intCast(p, b.ty, tok);
             return;
         }
 
@@ -5732,26 +5753,34 @@ pub const Result = struct {
             try a.saveValue(p);
             try b.saveValue(p);
         }
-        try a.intCast(p, target);
-        try b.intCast(p, target);
+        try a.intCast(p, target, tok);
+        try b.intCast(p, target, tok);
     }
 
-    fn floatConversion(a: *Result, b: *Result, a_spec: Type.Specifier, b_spec: Type.Specifier, p: *Parser, pair: [2]Type.Specifier) !bool {
+    fn floatConversion(
+        a: *Result,
+        b: *Result,
+        a_spec: Type.Specifier,
+        b_spec: Type.Specifier,
+        p: *Parser,
+        pair: [2]Type.Specifier,
+        tok: TokenIndex,
+    ) !bool {
         if (a_spec == pair[0] or a_spec == pair[1] or
             b_spec == pair[0] or b_spec == pair[1])
         {
             const both_real = a.ty.isReal() and b.ty.isReal();
             const res_spec = pair[@intFromBool(both_real)];
             const ty = Type{ .specifier = res_spec };
-            try a.floatCast(p, ty);
-            try b.floatCast(p, ty);
+            try a.floatCast(p, ty, tok);
+            try b.floatCast(p, ty, tok);
             return true;
         }
         return false;
     }
 
-    fn invalidBinTy(a: *Result, err_tok: TokenIndex, b: *Result, p: *Parser) Error!bool {
-        try p.errStr(.invalid_bin_types, err_tok, try p.typePairStr(a.ty, b.ty));
+    fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!bool {
+        try p.errStr(.invalid_bin_types, tok, try p.typePairStr(a.ty, b.ty));
         a.val = .{};
         b.val = .{};
         a.ty = Type.invalid;
@@ -5798,13 +5827,13 @@ pub const Result = struct {
             }
         } else if (res.ty.is(.nullptr_t)) {
             if (to.is(.bool)) {
-                try res.nullCast(p, res.ty);
+                try res.nullCast(p, res.ty, l_paren);
                 res.val.boolCast(p.comp);
                 res.ty = .{ .specifier = .bool };
-                try res.implicitCast(p, .pointer_to_bool);
+                try res.implicitCast(p, .pointer_to_bool, l_paren);
                 try res.saveValue(p);
             } else if (to.isPtr()) {
-                try res.nullCast(p, to);
+                try res.nullCast(p, to, l_paren);
             } else {
                 try p.errStr(.invalid_object_cast, l_paren, try p.typePairStrExtra(res.ty, " to ", to));
                 return error.ParsingFailed;
@@ -5834,13 +5863,13 @@ pub const Result = struct {
                 } else if (res.ty.isInt()) {
                     if (!old_real) {
                         res.ty = res.ty.makeReal();
-                        try res.implicitCast(p, .complex_int_to_real);
+                        try res.implicitCast(p, .complex_int_to_real, l_paren);
                     }
                     cast_kind = .int_to_bool;
                 } else if (old_float) {
                     if (!old_real) {
                         res.ty = res.ty.makeReal();
-                        try res.implicitCast(p, .complex_float_to_real);
+                        try res.implicitCast(p, .complex_float_to_real, l_paren);
                     }
                     cast_kind = .float_to_bool;
                 }
@@ -5848,7 +5877,7 @@ pub const Result = struct {
                 if (res.ty.is(.bool)) {
                     if (!new_real) {
                         res.ty = to.makeReal();
-                        try res.implicitCast(p, .bool_to_int);
+                        try res.implicitCast(p, .bool_to_int, l_paren);
                         cast_kind = .real_to_complex_int;
                     } else {
                         cast_kind = .bool_to_int;
@@ -5858,11 +5887,11 @@ pub const Result = struct {
                         cast_kind = .int_cast;
                     } else if (old_real) {
                         res.ty = to.makeReal();
-                        try res.implicitCast(p, .int_cast);
+                        try res.implicitCast(p, .int_cast, l_paren);
                         cast_kind = .real_to_complex_int;
                     } else if (new_real) {
                         res.ty = res.ty.makeReal();
-                        try res.implicitCast(p, .complex_int_to_real);
+                        try res.implicitCast(p, .complex_int_to_real, l_paren);
                         cast_kind = .int_cast;
                     } else {
                         cast_kind = .complex_int_cast;
@@ -5870,7 +5899,7 @@ pub const Result = struct {
                 } else if (res.ty.isPtr()) {
                     if (!new_real) {
                         res.ty = to.makeReal();
-                        try res.implicitCast(p, .pointer_to_int);
+                        try res.implicitCast(p, .pointer_to_int, l_paren);
                         cast_kind = .real_to_complex_int;
                     } else {
                         cast_kind = .pointer_to_int;
@@ -5880,11 +5909,11 @@ pub const Result = struct {
                     cast_kind = .float_to_int;
                 } else if (old_real) {
                     res.ty = to.makeReal();
-                    try res.implicitCast(p, .float_to_int);
+                    try res.implicitCast(p, .float_to_int, l_paren);
                     cast_kind = .real_to_complex_int;
                 } else if (new_real) {
                     res.ty = res.ty.makeReal();
-                    try res.implicitCast(p, .complex_float_to_real);
+                    try res.implicitCast(p, .complex_float_to_real, l_paren);
                     cast_kind = .float_to_int;
                 } else {
                     cast_kind = .complex_float_to_complex_int;
@@ -5901,7 +5930,7 @@ pub const Result = struct {
                 else if (res.ty.isInt()) {
                     if (!old_real) {
                         res.ty = res.ty.makeReal();
-                        try res.implicitCast(p, .complex_int_to_real);
+                        try res.implicitCast(p, .complex_int_to_real, l_paren);
                     }
                     cast_kind = .int_to_pointer;
                 } else {
@@ -5912,7 +5941,7 @@ pub const Result = struct {
                 if (res.ty.is(.bool)) {
                     if (!new_real) {
                         res.ty = to.makeReal();
-                        try res.implicitCast(p, .bool_to_float);
+                        try res.implicitCast(p, .bool_to_float, l_paren);
                         cast_kind = .real_to_complex_float;
                     } else {
                         cast_kind = .bool_to_float;
@@ -5922,11 +5951,11 @@ pub const Result = struct {
                         cast_kind = .int_to_float;
                     } else if (old_real) {
                         res.ty = to.makeReal();
-                        try res.implicitCast(p, .int_to_float);
+                        try res.implicitCast(p, .int_to_float, l_paren);
                         cast_kind = .real_to_complex_float;
                     } else if (new_real) {
                         res.ty = res.ty.makeReal();
-                        try res.implicitCast(p, .complex_int_to_real);
+                        try res.implicitCast(p, .complex_int_to_real, l_paren);
                         cast_kind = .int_to_float;
                     } else {
                         cast_kind = .complex_int_to_complex_float;
@@ -5935,11 +5964,11 @@ pub const Result = struct {
                     cast_kind = .float_cast;
                 } else if (old_real) {
                     res.ty = to.makeReal();
-                    try res.implicitCast(p, .float_cast);
+                    try res.implicitCast(p, .float_cast, l_paren);
                     cast_kind = .real_to_complex_float;
                 } else if (new_real) {
                     res.ty = res.ty.makeReal();
-                    try res.implicitCast(p, .complex_float_to_real);
+                    try res.implicitCast(p, .complex_float_to_real, l_paren);
                     cast_kind = .float_cast;
                 } else {
                     cast_kind = .complex_float_cast;
@@ -6021,7 +6050,7 @@ pub const Result = struct {
 
         fn note(c: CoerceContext, p: *Parser) !void {
             switch (c) {
-                .arg => |param_tok| try p.errTok(.parameter_here, param_tok),
+                .arg => |tok| try p.errTok(.parameter_here, tok),
                 .test_coerce => unreachable,
                 else => {},
             }
@@ -6038,12 +6067,12 @@ pub const Result = struct {
     };
 
     /// Perform assignment-like coercion to `dest_ty`.
-    fn coerce(res: *Result, p: *Parser, dest_ty: Type, c: CoerceContext) Error!void {
+    fn coerce(res: *Result, p: *Parser, dest_ty: Type, tok: TokenIndex, c: CoerceContext) Error!void {
         if (res.ty.specifier == .invalid or dest_ty.specifier == .invalid) {
             res.ty = Type.invalid;
             return;
         }
-        return res.coerceExtra(p, dest_ty, c) catch |er| switch (er) {
+        return res.coerceExtra(p, dest_ty, tok, c) catch |er| switch (er) {
             error.CoercionFailed => unreachable,
             else => |e| return e,
         };
@@ -6053,6 +6082,7 @@ pub const Result = struct {
         res: *Result,
         p: *Parser,
         dest_ty: Type,
+        tok: TokenIndex,
         c: CoerceContext,
     ) (Error || error{CoercionFailed})!void {
         // Subject of the coercion does not need to be qualified.
@@ -6063,34 +6093,34 @@ pub const Result = struct {
         } else if (unqual_ty.is(.bool)) {
             if (res.ty.isScalar() and !res.ty.is(.nullptr_t)) {
                 // this is ridiculous but it's what clang does
-                try res.boolCast(p, unqual_ty);
+                try res.boolCast(p, unqual_ty, tok);
                 return;
             }
         } else if (unqual_ty.isInt()) {
             if (res.ty.isInt() or res.ty.isFloat()) {
-                try res.intCast(p, unqual_ty);
+                try res.intCast(p, unqual_ty, tok);
                 return;
             } else if (res.ty.isPtr()) {
                 if (c == .test_coerce) return error.CoercionFailed;
-                try p.errStr(.implicit_ptr_to_int, res.tok(p), try p.typePairStrExtra(res.ty, " to ", dest_ty));
+                try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
                 try c.note(p);
-                try res.intCast(p, unqual_ty);
+                try res.intCast(p, unqual_ty, tok);
                 return;
             }
         } else if (unqual_ty.isFloat()) {
             if (res.ty.isInt() or res.ty.isFloat()) {
-                try res.floatCast(p, unqual_ty);
+                try res.floatCast(p, unqual_ty, tok);
                 return;
             }
         } else if (unqual_ty.isPtr()) {
             if (res.ty.is(.nullptr_t) or res.val.isZero(p.comp)) {
-                try res.nullCast(p, dest_ty);
+                try res.nullCast(p, dest_ty, tok);
                 return;
             } else if (res.ty.isInt() and res.ty.isReal()) {
                 if (c == .test_coerce) return error.CoercionFailed;
-                try p.errStr(.implicit_int_to_ptr, res.tok(p), try p.typePairStrExtra(res.ty, " to ", dest_ty));
+                try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(res.ty, " to ", dest_ty));
                 try c.note(p);
-                try res.ptrCast(p, unqual_ty);
+                try res.ptrCast(p, unqual_ty, tok);
                 return;
             } else if (res.ty.isVoidStar() or unqual_ty.eql(res.ty, p.comp, true)) {
                 return; // ok
@@ -6104,9 +6134,9 @@ pub const Result = struct {
                         .ret => .ptr_ret_discards_quals,
                         .arg => .ptr_arg_discards_quals,
                         .test_coerce => return error.CoercionFailed,
-                    }, res.tok(p), try c.typePairStr(p, dest_ty, res.ty));
+                    }, tok, try c.typePairStr(p, dest_ty, res.ty));
                 }
-                try res.ptrCast(p, unqual_ty);
+                try res.ptrCast(p, unqual_ty, tok);
                 return;
             } else if (res.ty.isPtr()) {
                 const different_sign_only = unqual_ty.elemType().sameRankDifferentSign(res.ty.elemType(), p.comp);
@@ -6116,9 +6146,9 @@ pub const Result = struct {
                     .ret => ([2]Diagnostics.Tag{ .incompatible_return, .incompatible_return_sign })[@intFromBool(different_sign_only)],
                     .arg => ([2]Diagnostics.Tag{ .incompatible_ptr_arg, .incompatible_ptr_arg_sign })[@intFromBool(different_sign_only)],
                     .test_coerce => return error.CoercionFailed,
-                }, res.tok(p), try c.typePairStr(p, dest_ty, res.ty));
+                }, tok, try c.typePairStr(p, dest_ty, res.ty));
                 try c.note(p);
-                try res.ptrChildTypeCast(p, unqual_ty);
+                try res.ptrChildTypeCast(p, unqual_ty, tok);
                 return;
             }
         } else if (unqual_ty.isRecord()) {
@@ -6128,15 +6158,14 @@ pub const Result = struct {
 
             if (c == .arg) if (unqual_ty.get(.@"union")) |union_ty| {
                 if (dest_ty.hasAttribute(.transparent_union)) transparent_union: {
-                    res.coerceExtra(p, union_ty.data.record.fields[0].ty, .test_coerce) catch |er| switch (er) {
+                    res.coerceExtra(p, union_ty.data.record.fields[0].ty, tok, .test_coerce) catch |er| switch (er) {
                         error.CoercionFailed => break :transparent_union,
                         else => |e| return e,
                     };
-
                     res.node = try p.addNode(.{ .union_init_expr = .{
                         .field_index = 0,
                         .initializer = res.node,
-                        .l_brace_tok = res.tok(p),
+                        .l_brace_tok = tok,
                         .union_type = dest_ty,
                     } });
                     res.ty = dest_ty;
@@ -6149,7 +6178,7 @@ pub const Result = struct {
             }
         } else {
             if (c == .assign and (unqual_ty.isArray() or unqual_ty.isFunc())) {
-                try p.errTok(.not_assignable, res.tok(p));
+                try p.errTok(.not_assignable, tok);
                 return;
             } else if (c == .test_coerce) {
                 return error.CoercionFailed;
@@ -6165,7 +6194,7 @@ pub const Result = struct {
             .ret => .incompatible_return,
             .arg => .incompatible_arg,
             .test_coerce => return error.CoercionFailed,
-        }, res.tok(p), try c.typePairStr(p, dest_ty, res.ty));
+        }, tok, try c.typePairStr(p, dest_ty, res.ty));
         try c.note(p);
     }
 };
@@ -6195,7 +6224,7 @@ fn expr(p: *Parser) Error!?Result {
         err_start = p.comp.diagnostics.list.items.len;
 
         var rhs = try p.expect(assignExpr);
-        try rhs.lvalConversion(p);
+        try rhs.lvalConversion(p, expr_start);
         lhs.val = rhs.val;
         lhs.ty = rhs.ty;
         try lhs.bin(p, .comma_expr, rhs, comma);
@@ -6253,7 +6282,7 @@ fn assignExpr(p: *Parser) Error!?Result {
         p.eatTag(.pipe_equal) orelse return lhs;
 
     var rhs = try p.expect(assignExpr);
-    try rhs.lvalConversion(p);
+    try rhs.lvalConversion(p, tok);
 
     var is_const: bool = undefined;
     if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
@@ -6284,7 +6313,7 @@ fn assignExpr(p: *Parser) Error!?Result {
         .add_assign_expr,
         => {
             if (lhs.ty.isPtr() and rhs.ty.isInt()) {
-                try rhs.ptrCast(p, lhs.ty);
+                try rhs.ptrCast(p, lhs.ty, tok);
             } else {
                 _ = try lhs_copy.adjustTypes(tok, &rhs, p, .arithmetic);
             }
@@ -6304,7 +6333,7 @@ fn assignExpr(p: *Parser) Error!?Result {
         else => unreachable,
     }
 
-    try rhs.coerce(p, lhs.ty, .assign);
+    try rhs.coerce(p, lhs.ty, tok, .assign);
 
     try lhs.bin(p, tag, rhs, tok);
     return lhs;
@@ -6344,7 +6373,7 @@ fn condExpr(p: *Parser) Error!?Result {
     const cond_tok = p.tok_i;
     var cond = (try p.lorExpr()) orelse return null;
     if (p.eatToken(.question_mark) == null) return cond;
-    try cond.lvalConversion(p);
+    try cond.lvalConversion(p, cond_tok);
     const saved_eval = p.no_eval;
 
     if (!cond.ty.isScalar()) {
@@ -6730,7 +6759,7 @@ fn castExpr(p: *Parser) Error!?Result {
 
         const operand_tok = p.tok_i;
         var operand = try p.expect(castExpr);
-        try operand.lvalConversion(p);
+        try operand.lvalConversion(p, operand_tok);
         try operand.castType(p, ty, operand_tok, l_paren);
         return operand;
     }
@@ -6842,7 +6871,7 @@ fn builtinVaArg(p: *Parser) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
     const va_list_tok = p.tok_i;
     var va_list = try p.expect(assignExpr);
-    try va_list.lvalConversion(p);
+    try va_list.lvalConversion(p, va_list_tok);
 
     _ = try p.expectToken(.comma);
 
@@ -6954,8 +6983,8 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, offset_kind: OffsetKind, 
                 return error.ParsingFailed;
             }
             var ptr = lhs;
-            try ptr.lvalConversion(p);
-            try index.lvalConversion(p);
+            try ptr.lvalConversion(p, l_bracket_tok);
+            try index.lvalConversion(p, l_bracket_tok);
 
             if (index.ty.isInt()) {
                 try p.checkArrayBounds(index, lhs, l_bracket_tok);
@@ -6995,7 +7024,7 @@ fn computeOffsetExtra(p: *Parser, node: Node.Index, offset_so_far: *Value) !Valu
             return p.computeOffsetExtra(access.base, offset_so_far);
         },
         .member_access_expr, .member_access_ptr_expr => |access| {
-            var ty = access.type;
+            var ty = access.base.type(&p.tree);
             if (ty.isPtr()) ty = ty.elemType();
             const record = ty.getRecord().?;
             const field_offset = try Value.int(@divExact(record.fields[access.member_index].layout.offset_bits, 8), p.comp);
@@ -7104,19 +7133,18 @@ fn unExpr(p: *Parser) Error!?Result {
             return operand;
         },
         .asterisk => {
-            const asterisk_loc = p.tok_i;
             p.tok_i += 1;
             var operand = try p.expect(castExpr);
 
             if (operand.ty.isArray() or operand.ty.isPtr() or operand.ty.isFunc()) {
-                try operand.lvalConversion(p);
+                try operand.lvalConversion(p, tok);
                 operand.ty = operand.ty.elemType();
                 operand.val = .{};
             } else {
                 try p.errTok(.indirection_ptr, tok);
             }
             if (operand.ty.hasIncompleteSize() and !operand.ty.is(.void)) {
-                try p.errStr(.deref_incomplete_ty_ptr, asterisk_loc, try p.typeStr(operand.ty));
+                try p.errStr(.deref_incomplete_ty_ptr, tok, try p.typeStr(operand.ty));
             }
             operand.ty.qual = .{};
             try operand.un(p, .deref_expr, tok);
@@ -7126,11 +7154,11 @@ fn unExpr(p: *Parser) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expect(castExpr);
-            try operand.lvalConversion(p);
+            try operand.lvalConversion(p, tok);
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            try operand.usualUnaryConversion(p);
+            try operand.usualUnaryConversion(p, tok);
 
             return operand;
         },
@@ -7138,11 +7166,11 @@ fn unExpr(p: *Parser) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expect(castExpr);
-            try operand.lvalConversion(p);
+            try operand.lvalConversion(p, tok);
             if (!operand.ty.isInt() and !operand.ty.isFloat())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            try operand.usualUnaryConversion(p);
+            try operand.usualUnaryConversion(p, tok);
             if (operand.val.isArithmetic(p.comp)) {
                 _ = try operand.val.negate(operand.val, operand.ty, p.comp);
             } else {
@@ -7166,7 +7194,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
-            try operand.usualUnaryConversion(p);
+            try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
                 if (try operand.val.add(operand.val, Value.one, operand.ty, p.comp))
@@ -7193,7 +7221,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 try p.errTok(.not_assignable, tok);
                 return error.ParsingFailed;
             }
-            try operand.usualUnaryConversion(p);
+            try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
                 if (try operand.val.decrement(operand.val, operand.ty, p.comp))
@@ -7209,8 +7237,8 @@ fn unExpr(p: *Parser) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expect(castExpr);
-            try operand.lvalConversion(p);
-            try operand.usualUnaryConversion(p);
+            try operand.lvalConversion(p, tok);
+            try operand.usualUnaryConversion(p, tok);
             if (operand.ty.isInt()) {
                 if (operand.val.is(.int, p.comp)) {
                     operand.val = try operand.val.bitNot(operand.ty, p.comp);
@@ -7231,11 +7259,11 @@ fn unExpr(p: *Parser) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expect(castExpr);
-            try operand.lvalConversion(p);
+            try operand.lvalConversion(p, tok);
             if (!operand.ty.isScalar())
                 try p.errStr(.invalid_argument_un, tok, try p.typeStr(operand.ty));
 
-            try operand.usualUnaryConversion(p);
+            try operand.usualUnaryConversion(p, tok);
             if (operand.val.is(.int, p.comp)) {
                 operand.val = Value.fromBool(!operand.val.toBool(p.comp));
             } else if (operand.val.opt_ref == .null) {
@@ -7372,7 +7400,7 @@ fn unExpr(p: *Parser) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expect(castExpr);
-            try operand.lvalConversion(p);
+            try operand.lvalConversion(p, tok);
             if (operand.ty.is(.invalid)) return operand;
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_imag, imag_tok, try p.typeStr(operand.ty));
@@ -7402,7 +7430,7 @@ fn unExpr(p: *Parser) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expect(castExpr);
-            try operand.lvalConversion(p);
+            try operand.lvalConversion(p, tok);
             if (operand.ty.is(.invalid)) return operand;
             if (!operand.ty.isInt() and !operand.ty.isFloat()) {
                 try p.errStr(.invalid_real, real_tok, try p.typeStr(operand.ty));
@@ -7510,7 +7538,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            try operand.usualUnaryConversion(p);
+            try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_inc_expr, p.tok_i);
             return operand;
@@ -7530,7 +7558,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(.not_assignable);
                 return error.ParsingFailed;
             }
-            try operand.usualUnaryConversion(p);
+            try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_dec_expr, p.tok_i);
             return operand;
@@ -7544,8 +7572,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             const array_before_conversion = lhs;
             const index_before_conversion = index;
             var ptr = lhs;
-            try ptr.lvalConversion(p);
-            try index.lvalConversion(p);
+            try ptr.lvalConversion(p, l_bracket);
+            try index.lvalConversion(p, l_bracket);
             if (ptr.ty.isPtr()) {
                 ptr.ty = ptr.ty.elemType();
                 if (index.ty.isInt()) {
@@ -7567,7 +7595,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
 
             try ptr.saveValue(p);
             try index.saveValue(p);
-            try ptr.bin(p, .array_access_expr, index, l_bracket);
+            ptr.node = try p.addNode(.{ .array_access_expr = .{
+                .l_bracket_tok = l_bracket,
+                .base = ptr.node,
+                .index = index.node,
+                .type = ptr.ty,
+            } });
             return ptr;
         },
         .period => {
@@ -7583,7 +7616,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (lhs.ty.isArray()) {
                 var copy = lhs;
                 copy.ty.decayArray();
-                try copy.implicitCast(p, .array_to_pointer);
+                try copy.implicitCast(p, .array_to_pointer, arrow);
                 return try p.fieldAccess(copy, name, true, arrow);
             }
             return try p.fieldAccess(lhs, name, true, arrow);
@@ -7741,11 +7774,10 @@ fn callExpr(p: *Parser, lhs: Result) Error!?Result {
     };
     const params = ty.params();
     var func = lhs;
-    try func.lvalConversion(p);
+    try func.lvalConversion(p, l_paren);
 
     const list_buf_top = p.list_buf.items.len;
     defer p.list_buf.items.len = list_buf_top;
-    try p.list_buf.append(func.node);
     var arg_count: u32 = 0;
     var first_after = l_paren;
 
@@ -7757,14 +7789,14 @@ fn callExpr(p: *Parser, lhs: Result) Error!?Result {
         var arg = try p.expect(assignExpr);
 
         if (call_expr.shouldPerformLvalConversion(arg_count)) {
-            try arg.lvalConversion(p);
+            try arg.lvalConversion(p, param_tok);
         }
         if (arg.ty.hasIncompleteSize() and !arg.ty.is(.void)) return error.ParsingFailed;
 
         if (arg_count >= params.len) {
             if (call_expr.shouldPromoteVarArg(arg_count)) {
-                if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.comp));
-                if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double });
+                if (arg.ty.isInt()) try arg.intCast(p, arg.ty.integerPromotion(p.comp), param_tok);
+                if (arg.ty.is(.float)) try arg.floatCast(p, .{ .specifier = .double }, param_tok);
             }
             try call_expr.checkVarArg(p, first_after, param_tok, &arg, arg_count);
             try arg.saveValue(p);
@@ -7796,7 +7828,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!?Result {
         }
 
         if (call_expr.shouldCoerceArg(arg_count)) {
-            try arg.coerce(p, p_ty, .{ .arg = params[arg_count].name_tok });
+            try arg.coerce(p, p_ty, param_tok, .{ .arg = params[arg_count].name_tok });
         }
         try arg.saveValue(p);
         try p.list_buf.append(arg.node);
@@ -8855,21 +8887,19 @@ fn genericSelection(p: *Parser) Error!?Result {
                 },
             });
             try p.list_buf.append(res.node);
-            try p.param_buf.append(.{ .name = undefined, .ty = res.ty, .name_tok = start });
+            try p.param_buf.append(.{ .name = undefined, .ty = ty, .name_tok = start });
 
             if (ty.eql(controlling_ty, p.comp, false)) {
-                if (chosen_tok) |prev| {
-                    try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
-                    try p.errStr(.generic_duplicate_here, prev, try p.typeStr(ty));
+                if (chosen_tok == null) {
+                    chosen = res;
+                    chosen_tok = start;
+                    break :blk;
                 }
-                chosen = res;
-                chosen_tok = start;
-                break :blk;
             }
 
             const previous_items = p.param_buf.items[0 .. p.param_buf.items.len - 1][param_buf_top..];
             for (previous_items) |prev_item| {
-                if (prev_item.ty.eql(res.ty, p.comp, true)) {
+                if (prev_item.ty.eql(ty, p.comp, true)) {
                     try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
                     try p.errStr(.generic_duplicate_here, prev_item.name_tok, try p.typeStr(ty));
                 }
@@ -8891,7 +8921,7 @@ fn genericSelection(p: *Parser) Error!?Result {
             default = res;
             default_tok = tok;
         } else {
-            if (p.list_buf.items.len == list_buf_top + 1) {
+            if (p.list_buf.items.len == list_buf_top) {
                 try p.err(.expected_type);
                 return error.ParsingFailed;
             }
@@ -8919,15 +8949,19 @@ fn genericSelection(p: *Parser) Error!?Result {
         }
     }
 
-    return .{ .ty = chosen.ty, .node = try p.addNode(.{
-        .generic_expr = .{
-            .generic_tok = kw_generic,
-            .controlling = controlling.node,
-            .chosen = chosen.node,
-            .type = chosen.ty,
-            .rest = p.list_buf.items[list_buf_top..],
-        },
-    }) };
+    return .{
+        .ty = chosen.ty,
+        .val = chosen.val,
+        .node = try p.addNode(.{
+            .generic_expr = .{
+                .generic_tok = kw_generic,
+                .controlling = controlling.node,
+                .chosen = chosen.node,
+                .type = chosen.ty,
+                .rest = p.list_buf.items[list_buf_top..],
+            },
+        }),
+    };
 }
 
 test "Node locations" {
@@ -8956,9 +8990,8 @@ test "Node locations" {
     defer tree.deinit();
 
     try std.testing.expectEqual(0, comp.diagnostics.list.items.len);
-    for (tree.root_decls, 0..) |node, i| {
-        const tok_i = tree.nodeTok(node).?;
-        const slice = tree.tokSlice(tok_i);
+    for (tree.root_decls.items, 0..) |node, i| {
+        const slice = tree.tokSlice(node.tok(&tree));
         const expected = switch (i) {
             0 => "foo",
             1 => "bar",

@@ -1,15 +1,15 @@
-union_decl_two: 'union U'
-  record_field_decl: 'int'
+union_decl: 'union U'
+  record_field: 'int'
    name: x
 
-  record_field_decl: 'float'
+  record_field: 'float'
    name: y
 
 fn_def: 'fn () int'
  name: bar
  body:
-  compound_stmt_two: 'void'
-    return_stmt: 'void'
+  compound_stmt: 'void'
+    return_stmt: 'int'
      expr:
       int_literal: 'int' (value: 42)
 
@@ -17,19 +17,19 @@ fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: 'int'
+    variable: 'int'
      name: x
 
-    var: 'float'
+    variable: 'float'
      name: f
 
-    var: 'double'
+    variable: 'double'
      name: d
 
-    var: '[2]int'
+    variable: '[2]int'
      name: arr
 
-    var: '*int'
+    variable: '*int'
      name: p
 
     assign_expr: '*int'
@@ -57,13 +57,13 @@ fn_def: 'fn () void'
       decl_ref_expr: 'int' lvalue
        name: x
      rhs:
-      call_expr_one: 'int'
-       lhs:
+      call_expr: 'int'
+       callee:
         implicit_cast: (function_to_pointer) '*fn () int'
           decl_ref_expr: 'fn () int' lvalue
            name: bar
 
-    var: '_Bool'
+    variable: '_Bool'
      name: b
      init:
       implicit_cast: (pointer_to_bool) '_Bool'
@@ -202,7 +202,7 @@ fn_def: 'fn () void'
         decl_ref_expr: '*int' lvalue
          name: p
 
-    var: 'union U'
+    variable: 'union U'
      name: u
 
     assign_expr: 'union U'

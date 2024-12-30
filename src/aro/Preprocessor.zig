@@ -998,8 +998,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .loc = tokFromRaw(eof).loc,
     });
 
-    if (true) @panic("TODO");
-
     // Actually parse it.
     var parser: Parser = .{
         .pp = pp,

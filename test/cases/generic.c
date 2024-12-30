@@ -24,4 +24,3 @@ void foo(void) {
     "generic.c:8:32: warning: generic association array type cannot be matched with [-Wgeneric-qual-type]" \
     "generic.c:8:43: warning: generic association function type cannot be matched with [-Wgeneric-qual-type]" \
     "generic.c:11:31: error: call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]" \
-

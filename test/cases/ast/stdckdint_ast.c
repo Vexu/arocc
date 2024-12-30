@@ -2,22 +2,22 @@ fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: 'char'
+    variable: 'char'
      name: x
      init:
       implicit_cast: (int_cast) 'char' (value: 0)
         int_literal: 'int' (value: 0)
 
-    var: 'unsigned int'
+    variable: 'unsigned int'
      name: y
      init:
       implicit_cast: (int_cast) 'unsigned int' (value: 2)
         int_literal: 'int' (value: 2)
 
-    var: '_Bool'
+    variable: '_Bool'
      name: overflowed
 
-    var: 'long'
+    variable: 'long'
      name: res
 
     assign_expr: '_Bool'

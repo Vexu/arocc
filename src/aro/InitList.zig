@@ -121,7 +121,7 @@ test "basic usage" {
     {
         var i: usize = 0;
         while (i < 5) : (i += 1) {
-            const prev = try il.put(gpa, i, null, 0);
+            const prev = try il.put(gpa, i, undefined, 0);
             try testing.expect(prev == null);
         }
     }

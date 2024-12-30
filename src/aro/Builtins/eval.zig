@@ -5,7 +5,6 @@ const Builtins = @import("../Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Parser = @import("../Parser.zig");
 const Tree = @import("../Tree.zig");
-const NodeIndex = Tree.NodeIndex;
 const Type = @import("../Type.zig");
 const Value = @import("../Value.zig");
 
@@ -22,7 +21,7 @@ fn makeNan(comptime T: type, str: []const u8) T {
     return @bitCast(@as(UnsignedSameSize, bits) | @as(UnsignedSameSize, @bitCast(std.math.nan(T))));
 }
 
-pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const NodeIndex) !Value {
+pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const Tree.Node.Index) !Value {
     const builtin = Builtin.fromTag(tag);
     if (!builtin.properties.attributes.const_evaluable) return .{};
 
@@ -48,12 +47,12 @@ pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const NodeIndex) !Value {
         },
         Builtin.tagFromName("__builtin_isinf").? => blk: {
             if (args.len == 0) break :blk;
-            const val = p.value_map.get(args[0]) orelse break :blk;
+            const val = p.tree.value_map.get(args[0]) orelse break :blk;
             return Value.fromBool(val.isInf(p.comp));
         },
         Builtin.tagFromName("__builtin_isinf_sign").? => blk: {
             if (args.len == 0) break :blk;
-            const val = p.value_map.get(args[0]) orelse break :blk;
+            const val = p.tree.value_map.get(args[0]) orelse break :blk;
             switch (val.isInfSign(p.comp)) {
                 .unknown => {},
                 .finite => return Value.zero,
@@ -63,7 +62,7 @@ pub fn eval(tag: Builtin.Tag, p: *Parser, args: []const NodeIndex) !Value {
         },
         Builtin.tagFromName("__builtin_isnan").? => blk: {
             if (args.len == 0) break :blk;
-            const val = p.value_map.get(args[0]) orelse break :blk;
+            const val = p.tree.value_map.get(args[0]) orelse break :blk;
             return Value.fromBool(val.isNan(p.comp));
         },
         Builtin.tagFromName("__builtin_nan").? => blk: {
