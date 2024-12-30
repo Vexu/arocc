@@ -960,9 +960,9 @@ pub fn isPICDefaultForced(target: std.Target) DefaultPIStatus {
 test "alignment functions - smoke test" {
     var target: std.Target = undefined;
     const x86 = std.Target.Cpu.Arch.x86_64;
-    target.cpu = std.Target.Cpu.baseline(x86, .{ .tag = .linux, .version_range = std.Target.Os.VersionRange.default(.linux, x86) });
-    target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);
-    target.abi = std.Target.Abi.default(x86, target.os);
+    target.abi = .gnu;
+    target.cpu = std.Target.Cpu.baseline(x86, .{ .tag = .linux, .version_range = std.Target.Os.VersionRange.default(x86, .linux, target.abi) });
+    target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86, target.abi);
 
     try std.testing.expect(isTlsSupported(target));
     try std.testing.expect(!ignoreNonZeroSizedBitfieldTypeAlignment(target));
@@ -973,9 +973,9 @@ test "alignment functions - smoke test" {
     try std.testing.expect(systemCompiler(target) == .gcc);
 
     const arm = std.Target.Cpu.Arch.arm;
-    target.cpu = std.Target.Cpu.baseline(arm, .{ .tag = .linux, .version_range = std.Target.Os.VersionRange.default(.linux, arm) });
-    target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm);
     target.abi = std.Target.Abi.default(arm, target.os);
+    target.cpu = std.Target.Cpu.baseline(arm, .{ .tag = .linux, .version_range = std.Target.Os.VersionRange.default(arm, .linux, target.abi) });
+    target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm, target.abi);
 
     try std.testing.expect(!isTlsSupported(target));
     try std.testing.expect(ignoreNonZeroSizedBitfieldTypeAlignment(target));
@@ -992,8 +992,8 @@ test "target size/align tests" {
     const x86 = std.Target.Cpu.Arch.x86;
     comp.target.cpu.arch = x86;
     comp.target.cpu.model = &std.Target.x86.cpu.i586;
-    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86);
     comp.target.abi = std.Target.Abi.gnu;
+    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.linux, x86, comp.target.abi);
 
     const tt: Type = .{
         .specifier = .long_long,
@@ -1004,8 +1004,8 @@ test "target size/align tests" {
 
     const arm = std.Target.Cpu.Arch.arm;
     comp.target.cpu = std.Target.Cpu.Model.toCpu(&std.Target.arm.cpu.cortex_r4, arm);
-    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm);
     comp.target.abi = std.Target.Abi.none;
+    comp.target.os = std.Target.Os.Tag.defaultVersionRange(.ios, arm, comp.target.abi);
 
     const ct: Type = .{
         .specifier = .char,
