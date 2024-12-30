@@ -804,9 +804,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.diagnoseIncompleteDefinitions();
     }
 
-    const root_decls = try p.decl_buf.toOwnedSlice();
-    errdefer pp.comp.gpa.free(root_decls);
-    if (root_decls.len == 0) {
+    p.tree.root_decls = p.decl_buf.moveToUnmanaged();
+    if (p.tree.root_decls.items.len == 0) {
         try p.errTok(.empty_translation_unit, p.tok_i - 1);
     }
     pp.comp.pragmaEvent(.after_parse);
