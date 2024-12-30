@@ -8825,9 +8825,9 @@ fn genericSelection(p: *Parser) Error!?Result {
     const list_buf_top = p.list_buf.items.len;
     defer p.list_buf.items.len = list_buf_top;
 
-    // Use decl_buf to store the token indexes of previous cases
-    const decl_buf_top = p.decl_buf.items.len;
-    defer p.decl_buf.items.len = decl_buf_top;
+    // Use param_buf to store the token indexes of previous cases
+    const param_buf_top = p.param_buf.items.len;
+    defer p.param_buf.items.len = param_buf_top;
 
     var default_tok: ?TokenIndex = null;
     var default: Result = undefined;
@@ -8854,6 +8854,8 @@ fn genericSelection(p: *Parser) Error!?Result {
                     .expr = res.node,
                 },
             });
+            try p.list_buf.append(res.node);
+            try p.param_buf.append(.{ .name = undefined, .ty = res.ty, .name_tok = start });
 
             if (ty.eql(controlling_ty, p.comp, false)) {
                 if (chosen_tok) |prev| {
@@ -8865,17 +8867,13 @@ fn genericSelection(p: *Parser) Error!?Result {
                 break :blk;
             }
 
-            const items = p.list_buf.items[list_buf_top..];
-            const previous_toks = p.decl_buf.items[decl_buf_top..];
-            for (items, previous_toks) |item, prev_tok| {
-                if (item.type(&p.tree).eql(ty, p.comp, true)) {
+            const previous_items = p.param_buf.items[0 .. p.param_buf.items.len - 1][param_buf_top..];
+            for (previous_items) |prev_item| {
+                if (prev_item.ty.eql(res.ty, p.comp, true)) {
                     try p.errStr(.generic_duplicate, start, try p.typeStr(ty));
-                    try p.errStr(.generic_duplicate_here, @intFromEnum(prev_tok), try p.typeStr(ty));
+                    try p.errStr(.generic_duplicate_here, prev_item.name_tok, try p.typeStr(ty));
                 }
             }
-
-            try p.list_buf.append(res.node);
-            try p.decl_buf.append(@enumFromInt(start));
         } else if (p.eatToken(.keyword_default)) |tok| {
             _ = try p.expectToken(.colon);
             var res = try p.expect(assignExpr);
@@ -8914,13 +8912,19 @@ fn genericSelection(p: *Parser) Error!?Result {
         try p.list_buf.append(default.node);
     }
 
-    const res_ty = chosen.node.type(&p.tree);
-    return .{ .ty = res_ty, .node = try p.addNode(.{
+    for (p.list_buf.items[list_buf_top..], list_buf_top..) |item, i| {
+        if (item == chosen.node) {
+            _ = p.list_buf.orderedRemove(i);
+            break;
+        }
+    }
+
+    return .{ .ty = chosen.ty, .node = try p.addNode(.{
         .generic_expr = .{
             .generic_tok = kw_generic,
             .controlling = controlling.node,
             .chosen = chosen.node,
-            .type = res_ty,
+            .type = chosen.ty,
             .rest = p.list_buf.items[list_buf_top..],
         },
     }) };
