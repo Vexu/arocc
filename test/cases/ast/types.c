@@ -1,7 +1,7 @@
 variable: 'attributed(int)'
- attr: aligned alignment: aro.Attribute.Alignment{ .requested = 4 }
- attr: aligned alignment: aro.Attribute.Alignment{ .requested = 4 }
- attr: aligned alignment: aro.Attribute.Alignment{ .requested = 16 }
+ attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex.null, .requested = 4 }
+ attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex.null, .requested = 4 }
+ attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(0), .requested = 16 }
  name: a
 
 variable: 'const volatile int'

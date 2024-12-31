@@ -1974,8 +1974,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                             p.skipTo(.r_paren);
                             return error.ParsingFailed;
                         }
-                        // TODO this looks unused?
-                        // args.aligned.alignment.?.node = res.node;
+                        args.aligned.alignment.?.node = .pack(res.node);
                         try p.attr_buf.append(p.gpa, .{
                             .attr = .{ .tag = .aligned, .args = args, .syntax = .keyword },
                             .tok = align_tok,
@@ -2258,16 +2257,12 @@ fn recordSpec(p: *Parser) Error!Type {
     }
 
     // finish by creating a node
-    const node: Node = if (is_struct) .{ .struct_decl = .{
+    const cd: Node.ContainerDecl = .{
         .name_or_kind_tok = maybe_ident orelse kind_tok,
         .container_type = ty,
         .fields = record_decls,
-    } } else .{ .union_decl = .{
-        .name_or_kind_tok = maybe_ident orelse kind_tok,
-        .container_type = ty,
-        .fields = record_decls,
-    } };
-    p.decl_buf.items[decl_buf_top - 1] = try p.addNode(node);
+    };
+    p.decl_buf.items[decl_buf_top - 1] = try p.addNode(if (is_struct) .{ .struct_decl = cd } else .{ .union_decl = cd });
     if (p.func.ty == null) {
         _ = p.tentative_defs.remove(record_ty.name);
     }
@@ -3907,7 +3902,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!Node.Index {
             } else {
                 const item = try p.addNode(.{
                     .default_init_expr = .{
-                        .last_tok = il.tok, // TODO could be better
+                        .last_tok = il.tok,
                         .type = f.ty,
                     },
                 });
@@ -5088,7 +5083,6 @@ const CallExpr = union(enum) {
 };
 
 pub const Result = struct {
-    /// TokenIndex when p.in_macro == true
     node: Node.Index,
     ty: Type = .{ .specifier = .int },
     val: Value = .{},

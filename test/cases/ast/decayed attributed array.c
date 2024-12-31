@@ -19,7 +19,7 @@ fn_def: 'fn () void'
  body:
   compound_stmt: 'void'
     variable: 'attributed([64]char)'
-     attr: aligned alignment: aro.Attribute.Alignment{ .requested = 8 }
+     attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(8), .requested = 8 }
      name: x
 
     variable: '*char'
@@ -30,12 +30,12 @@ fn_def: 'fn () void'
         array_access_expr: 'char' lvalue
          base:
           implicit_cast: (array_to_pointer) '*d:attributed([64]char)'
-           attr: aligned alignment: aro.Attribute.Alignment{ .requested = 8 }
+           attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(8), .requested = 8 }
             paren_expr: 'attributed([64]char)' lvalue
-             attr: aligned alignment: aro.Attribute.Alignment{ .requested = 8 }
+             attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(8), .requested = 8 }
              operand:
               decl_ref_expr: 'attributed([64]char)' lvalue
-               attr: aligned alignment: aro.Attribute.Alignment{ .requested = 8 }
+               attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(8), .requested = 8 }
                name: x
          index:
           int_literal: 'int' (value: 0)
