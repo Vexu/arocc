@@ -2,17 +2,17 @@ fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: 'float'
+    variable: 'float'
      name: a
      init:
       float_literal: 'float' (value: 1)
 
-    var: 'float'
+    variable: 'float'
      name: b
      init:
       float_literal: 'float' (value: 2)
 
-    var: 'float'
+    variable: 'float'
      name: c
      init:
       implicit_cast: (float_cast) 'float'
@@ -28,7 +28,7 @@ fn_def: 'fn () void'
               decl_ref_expr: 'float' lvalue
                name: b
 
-    var: '_Complex float'
+    variable: '_Complex float'
      name: ca
      init:
       implicit_cast: (real_to_complex_float) '_Complex float' (value: 0 + 0i)

@@ -18,7 +18,7 @@ const target_util = @import("target.zig");
 const Toolchain = @import("Toolchain.zig");
 const Tree = @import("Tree.zig");
 
-const AsmCodeGenFn = fn (target: std.Target, tree: Tree) Compilation.Error!Assembly;
+const AsmCodeGenFn = fn (target: std.Target, tree: *const Tree) Compilation.Error!Assembly;
 
 pub const Linker = enum {
     ld,
@@ -900,7 +900,7 @@ fn processSource(
             .{},
         );
 
-        const assembly = try asm_fn(d.comp.target, tree);
+        const assembly = try asm_fn(d.comp.target, &tree);
         defer assembly.deinit(d.comp.gpa);
 
         if (d.only_preprocess_and_compile) {

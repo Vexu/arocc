@@ -2,13 +2,13 @@ fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: '__fp16'
+    variable: '__fp16'
      name: x
      init:
       implicit_cast: (float_cast) '__fp16' (value: 1)
         float_literal: 'float' (value: 1)
 
-    var: '__fp16'
+    variable: '__fp16'
      name: y
      init:
       implicit_cast: (float_cast) '__fp16' (value: 2)

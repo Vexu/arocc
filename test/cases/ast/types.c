@@ -1,16 +1,16 @@
-var: 'attributed(int)'
- attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.NodeIndex.none, .requested = 4 }
- attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.NodeIndex.none, .requested = 4 }
- attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.NodeIndex(1), .requested = 16 }
+variable: 'attributed(int)'
+ attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex.null, .requested = 4 }
+ attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex.null, .requested = 4 }
+ attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(0), .requested = 16 }
  name: a
 
-var: 'const volatile int'
+variable: 'const volatile int'
  name: b
 
-var: 'const volatile int'
+variable: 'const volatile int'
  name: c
 
-var: 'const volatile int'
+variable: 'const volatile int'
  name: d
 
 fn_proto: 'fn (a: restrict *int, b: restrict *int, c: restrict *int) int'
@@ -19,26 +19,26 @@ fn_proto: 'fn (a: restrict *int, b: restrict *int, c: restrict *int) int'
 fn_proto: 'fn (n: int, bar: *d[<expr>]int) int'
  name: bar
 
-typedef: 'void'
+variable: 'void'
  name: baz
 
 fn_proto: 'attributed(fn () void)'
  attr: noreturn
  name: abort
 
-typedef: 'int'
+variable: 'int'
  name: A
 
-typedef: 'A': 'int'
+variable: 'A': 'int'
  name: B
 
-typedef: 'A': 'int'
+variable: 'A': 'int'
  name: C
 
-typedef: 'C': 'int'
+variable: 'C': 'int'
  name: B
 
-typedef: '[2]int'
+variable: '[2]int'
  name: I
 
 fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
@@ -63,17 +63,17 @@ fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
 
     implicit_return: 'void'
 
-enum_decl_two: 'enum E: unsigned int'
-  enum_field_decl: 'int' (value: 2)
+enum_decl: 'enum E: unsigned int'
+  enum_field: 'int' (value: 2)
    name: D
-   value:
+   init:
     implicit_cast: (int_cast) 'int'
       explicit_cast: (int_cast) 'char' (value: 2)
         int_literal: 'int' (value: 2)
 
-  enum_field_decl: 'int' (value: 3)
+  enum_field: 'int' (value: 3)
    name: E
-   value:
+   init:
     implicit_cast: (int_cast) 'int'
       explicit_cast: (int_cast) 'long' (value: 3)
         int_literal: 'int' (value: 3)

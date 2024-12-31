@@ -57,6 +57,7 @@ pub fn build(b: *Build) !void {
     const tracy_callstack = b.option(bool, "tracy-callstack", "Include callstack information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
     const tracy_allocation = b.option(bool, "tracy-allocation", "Include allocation information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
     const use_llvm = b.option(bool, "llvm", "Use LLVM backend to generate aro executable");
+    const no_bin = b.option(bool, "no-bin", "skip emitting compiler binary") orelse false;
 
     const system_defaults = b.addOptions();
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
@@ -210,7 +211,12 @@ pub fn build(b: *Build) !void {
     if (link_libc) {
         exe.linkLibC();
     }
-    b.installArtifact(exe);
+
+    if (no_bin) {
+        b.getInstallStep().dependOn(&exe.step);
+    } else {
+        b.installArtifact(exe);
+    }
 
     const unit_tests_step = step: {
         var unit_tests = b.addTest(.{ .root_source_file = b.path("src/aro.zig") });

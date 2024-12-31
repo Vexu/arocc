@@ -8,7 +8,7 @@ const StringId = @import("StringInterner.zig").StringId;
 const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenIndex = Tree.TokenIndex;
-const NodeIndex = Tree.NodeIndex;
+const Node = Tree.Node;
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
 
@@ -18,7 +18,7 @@ pub const Symbol = struct {
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: NodeIndex = .none,
+    node: Node.OptIndex = .null,
     kind: Kind,
     val: Value,
 };
@@ -174,7 +174,7 @@ pub fn defineTypedef(
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: NodeIndex,
+    node: ?Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
@@ -203,7 +203,7 @@ pub fn defineTypedef(
             .qual = ty.qual,
             .data = ty.data,
         },
-        .node = node,
+        .node = .packOpt(node),
         .val = .{},
     });
 }
@@ -214,7 +214,7 @@ pub fn defineSymbol(
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: NodeIndex,
+    node: Node.Index,
     val: Value,
     constexpr: bool,
 ) !void {
@@ -247,7 +247,7 @@ pub fn defineSymbol(
         .name = name,
         .tok = tok,
         .ty = ty,
-        .node = node,
+        .node = .pack(node),
         .val = val,
     });
 }
@@ -267,7 +267,7 @@ pub fn declareSymbol(
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: NodeIndex,
+    node: ?Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
@@ -301,7 +301,7 @@ pub fn declareSymbol(
         .name = name,
         .tok = tok,
         .ty = ty,
-        .node = node,
+        .node = .packOpt(node),
         .val = .{},
     });
 }

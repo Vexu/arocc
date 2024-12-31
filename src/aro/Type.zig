@@ -9,7 +9,7 @@ const StringId = StringInterner.StringId;
 const target_util = @import("target.zig");
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
-const NodeIndex = Tree.NodeIndex;
+const Node = Tree.Node;
 
 pub const Qualifiers = packed struct {
     @"const": bool = false,
@@ -139,7 +139,7 @@ pub const Array = struct {
 };
 
 pub const Expr = struct {
-    node: NodeIndex,
+    node: Node.Index,
     ty: Type,
 };
 
@@ -171,7 +171,7 @@ pub const Enum = struct {
         ty: Type,
         name: StringId,
         name_tok: TokenIndex,
-        node: NodeIndex,
+        init: Node.OptIndex,
     };
 
     pub fn isIncomplete(e: Enum) bool {

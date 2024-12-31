@@ -1,10 +1,10 @@
-struct_decl_two: 'struct S'
-  record_field_decl: 'unsigned int'
+struct_decl: 'struct S'
+  record_field: 'unsigned int'
    name: x
    bits:
     int_literal: 'int' (value: 3)
 
-  record_field_decl: 'long'
+  record_field: 'long'
    name: y
    bits:
     int_literal: 'int' (value: 5)
@@ -13,13 +13,13 @@ fn_def: 'fn () void'
  name: foo
  body:
   compound_stmt: 'void'
-    var: 'char'
+    variable: 'char'
      name: c
      init:
       implicit_cast: (int_cast) 'char' (value: 0)
         int_literal: 'int' (value: 0)
 
-    var: 'double'
+    variable: 'double'
      name: d
      init:
       float_literal: 'double' (value: 2)
@@ -41,15 +41,15 @@ fn_def: 'fn () void'
               decl_ref_expr: 'char' lvalue
                name: c
 
-    var: 'struct S'
+    variable: 'struct S'
      name: s
      init:
-      struct_init_expr_two: 'struct S'
+      struct_init_expr: 'struct S'
         int_literal: 'unsigned int' (value: 1)
 
         int_literal: 'long' (value: 1)
 
-    var: 'int'
+    variable: 'int'
      name: x
      init:
       add_expr: 'int'
@@ -64,7 +64,7 @@ fn_def: 'fn () void'
        rhs:
         int_literal: 'int' (value: 1)
 
-    var: 'int'
+    variable: 'int'
      name: y
      init:
       add_expr: 'int'
@@ -79,7 +79,7 @@ fn_def: 'fn () void'
        rhs:
         int_literal: 'int' (value: 1)
 
-    var: '__fp16'
+    variable: '__fp16'
      name: fp16
      init:
       implicit_cast: (float_cast) '__fp16' (value: 0)

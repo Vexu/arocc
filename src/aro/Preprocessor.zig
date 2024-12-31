@@ -999,18 +999,17 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     });
 
     // Actually parse it.
-    var parser = Parser{
+    var parser: Parser = .{
         .pp = pp,
         .comp = pp.comp,
         .gpa = pp.gpa,
         .tok_ids = pp.tokens.items(.id),
         .tok_i = @intCast(token_state.tokens_len),
-        .arena = pp.arena.allocator(),
         .in_macro = true,
         .strings = std.ArrayListAligned(u8, 4).init(pp.comp.gpa),
 
-        .data = undefined,
-        .value_map = undefined,
+        .tree = undefined,
+        .arena = undefined,
         .labels = undefined,
         .decl_buf = undefined,
         .list_buf = undefined,

@@ -1984,6 +1984,12 @@ warn_unused_result
     .kind = .warning
     .opt = W("unused-result")
 
+builtin_unused
+    .msg = "ignoring return value of function declared with {s} attribute"
+    .extra = .str
+    .kind = .warning
+    .opt = W("unused-value")
+
 invalid_vec_elem_ty
     .msg = "invalid vector element type '{s}'"
     .extra = .str

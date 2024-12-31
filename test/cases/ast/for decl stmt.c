@@ -1,15 +1,15 @@
 fn_def: 'fn () int'
  name: main
  body:
-  compound_stmt_two: 'void'
-    for_decl_stmt: 'void'
+  compound_stmt: 'void'
+    for_stmt: 'void'
      decl:
-      var: 'int'
+      variable: 'int'
        name: x
        init:
         int_literal: 'int' (value: 0)
 
-      var: 'int'
+      variable: 'int'
        name: y
        init:
         int_literal: 'int' (value: 1)

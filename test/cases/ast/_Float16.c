@@ -1,14 +1,14 @@
-typedef: '__builtin_va_list': '[1]struct __va_list_tag'
+variable: '__builtin_va_list': '[1]struct __va_list_tag'
  name: va_list
 
-typedef: '__builtin_va_list': '[1]struct __va_list_tag'
+variable: '__builtin_va_list': '[1]struct __va_list_tag'
  name: __gnuc_va_list
 
 fn_def: 'fn (x: _Float16, y: _Float16) _Float16'
  name: foo
  body:
-  compound_stmt_two: 'void'
-    return_stmt: 'void'
+  compound_stmt: 'void'
+    return_stmt: '_Float16'
      expr:
       add_expr: '_Float16'
        lhs:
@@ -24,7 +24,7 @@ fn_def: 'fn (x: int, ...) void'
  name: bar
  body:
   compound_stmt: 'void'
-    var: 'va_list': '[1]struct __va_list_tag'
+    variable: 'va_list': '[1]struct __va_list_tag'
      name: va
 
     builtin_call_expr: 'void'
@@ -36,9 +36,9 @@ fn_def: 'fn (x: int, ...) void'
       decl_ref_expr: 'int' lvalue
        name: x
 
-    builtin_call_expr_one: 'void'
+    builtin_call_expr: 'void'
      name: __builtin_va_end
-     arg:
+     args:
       implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
         decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
          name: va
@@ -49,13 +49,13 @@ fn_def: 'fn () void'
  name: quux
  body:
   compound_stmt: 'void'
-    var: '_Float16'
+    variable: '_Float16'
      name: f
      init:
       float_literal: '_Float16' (value: 1)
 
     call_expr: 'void'
-     lhs:
+     callee:
       implicit_cast: (function_to_pointer) '*fn (x: int, ...) void'
         decl_ref_expr: 'fn (x: int, ...) void' lvalue
          name: bar
@@ -71,17 +71,17 @@ fn_def: 'fn () void'
  name: conversions
  body:
   compound_stmt: 'void'
-    var: 'double'
+    variable: 'double'
      name: d
      init:
       float_literal: 'double' (value: 1)
 
-    var: '_Float16'
+    variable: '_Float16'
      name: f16
      init:
       float_literal: '_Float16' (value: 2)
 
-    var: '__fp16'
+    variable: '__fp16'
      name: fp16
      init:
       implicit_cast: (int_to_float) '__fp16' (value: 0)
