@@ -4876,9 +4876,9 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => true,
             .builtin => |builtin| switch (builtin.tag) {
-                Builtin.tagFromName("__builtin_va_start").?,
-                Builtin.tagFromName("__va_start").?,
-                Builtin.tagFromName("va_start").?,
+                .__builtin_va_start,
+                .__va_start,
+                .va_start,
                 => arg_idx != 1,
                 else => true,
             },
@@ -4889,17 +4889,17 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => true,
             .builtin => |builtin| switch (builtin.tag) {
-                Builtin.tagFromName("__builtin_va_start").?,
-                Builtin.tagFromName("__va_start").?,
-                Builtin.tagFromName("va_start").?,
+                .__builtin_va_start,
+                .__va_start,
+                .va_start,
                 => arg_idx != 1,
-                Builtin.tagFromName("__builtin_add_overflow").?,
-                Builtin.tagFromName("__builtin_complex").?,
-                Builtin.tagFromName("__builtin_isinf").?,
-                Builtin.tagFromName("__builtin_isinf_sign").?,
-                Builtin.tagFromName("__builtin_mul_overflow").?,
-                Builtin.tagFromName("__builtin_isnan").?,
-                Builtin.tagFromName("__builtin_sub_overflow").?,
+                .__builtin_add_overflow,
+                .__builtin_complex,
+                .__builtin_isinf,
+                .__builtin_isinf_sign,
+                .__builtin_mul_overflow,
+                .__builtin_isnan,
+                .__builtin_sub_overflow,
                 => false,
                 else => true,
             },
@@ -4917,14 +4917,14 @@ const CallExpr = union(enum) {
 
         const builtin_tok = self.builtin.builtin_tok;
         switch (self.builtin.tag) {
-            Builtin.tagFromName("__builtin_va_start").?,
-            Builtin.tagFromName("__va_start").?,
-            Builtin.tagFromName("va_start").?,
+            .__builtin_va_start,
+            .__va_start,
+            .va_start,
             => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
-            Builtin.tagFromName("__builtin_complex").? => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
-            Builtin.tagFromName("__builtin_add_overflow").?,
-            Builtin.tagFromName("__builtin_sub_overflow").?,
-            Builtin.tagFromName("__builtin_mul_overflow").?,
+            .__builtin_complex => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+            .__builtin_add_overflow,
+            .__builtin_sub_overflow,
+            .__builtin_mul_overflow,
             => return p.checkArithOverflowArg(builtin_tok, first_after, param_tok, arg, arg_idx),
 
             else => {},
@@ -4940,49 +4940,49 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => null,
             .builtin => |builtin| switch (builtin.tag) {
-                Builtin.tagFromName("__c11_atomic_thread_fence").?,
-                Builtin.tagFromName("__c11_atomic_signal_fence").?,
-                Builtin.tagFromName("__c11_atomic_is_lock_free").?,
-                Builtin.tagFromName("__builtin_isinf").?,
-                Builtin.tagFromName("__builtin_isinf_sign").?,
-                Builtin.tagFromName("__builtin_isnan").?,
+                .__c11_atomic_thread_fence,
+                .__c11_atomic_signal_fence,
+                .__c11_atomic_is_lock_free,
+                .__builtin_isinf,
+                .__builtin_isinf_sign,
+                .__builtin_isnan,
                 => 1,
 
-                Builtin.tagFromName("__builtin_complex").?,
-                Builtin.tagFromName("__c11_atomic_load").?,
-                Builtin.tagFromName("__c11_atomic_init").?,
+                .__builtin_complex,
+                .__c11_atomic_load,
+                .__c11_atomic_init,
                 => 2,
 
-                Builtin.tagFromName("__c11_atomic_store").?,
-                Builtin.tagFromName("__c11_atomic_exchange").?,
-                Builtin.tagFromName("__c11_atomic_fetch_add").?,
-                Builtin.tagFromName("__c11_atomic_fetch_sub").?,
-                Builtin.tagFromName("__c11_atomic_fetch_or").?,
-                Builtin.tagFromName("__c11_atomic_fetch_xor").?,
-                Builtin.tagFromName("__c11_atomic_fetch_and").?,
-                Builtin.tagFromName("__atomic_fetch_add").?,
-                Builtin.tagFromName("__atomic_fetch_sub").?,
-                Builtin.tagFromName("__atomic_fetch_and").?,
-                Builtin.tagFromName("__atomic_fetch_xor").?,
-                Builtin.tagFromName("__atomic_fetch_or").?,
-                Builtin.tagFromName("__atomic_fetch_nand").?,
-                Builtin.tagFromName("__atomic_add_fetch").?,
-                Builtin.tagFromName("__atomic_sub_fetch").?,
-                Builtin.tagFromName("__atomic_and_fetch").?,
-                Builtin.tagFromName("__atomic_xor_fetch").?,
-                Builtin.tagFromName("__atomic_or_fetch").?,
-                Builtin.tagFromName("__atomic_nand_fetch").?,
-                Builtin.tagFromName("__builtin_add_overflow").?,
-                Builtin.tagFromName("__builtin_sub_overflow").?,
-                Builtin.tagFromName("__builtin_mul_overflow").?,
+                .__c11_atomic_store,
+                .__c11_atomic_exchange,
+                .__c11_atomic_fetch_add,
+                .__c11_atomic_fetch_sub,
+                .__c11_atomic_fetch_or,
+                .__c11_atomic_fetch_xor,
+                .__c11_atomic_fetch_and,
+                .__atomic_fetch_add,
+                .__atomic_fetch_sub,
+                .__atomic_fetch_and,
+                .__atomic_fetch_xor,
+                .__atomic_fetch_or,
+                .__atomic_fetch_nand,
+                .__atomic_add_fetch,
+                .__atomic_sub_fetch,
+                .__atomic_and_fetch,
+                .__atomic_xor_fetch,
+                .__atomic_or_fetch,
+                .__atomic_nand_fetch,
+                .__builtin_add_overflow,
+                .__builtin_sub_overflow,
+                .__builtin_mul_overflow,
                 => 3,
 
-                Builtin.tagFromName("__c11_atomic_compare_exchange_strong").?,
-                Builtin.tagFromName("__c11_atomic_compare_exchange_weak").?,
+                .__c11_atomic_compare_exchange_strong,
+                .__c11_atomic_compare_exchange_weak,
                 => 5,
 
-                Builtin.tagFromName("__atomic_compare_exchange").?,
-                Builtin.tagFromName("__atomic_compare_exchange_n").?,
+                .__atomic_compare_exchange,
+                .__atomic_compare_exchange_n,
                 => 6,
                 else => null,
             },
@@ -4993,12 +4993,12 @@ const CallExpr = union(enum) {
         return switch (self) {
             .standard => callable_ty.returnType(),
             .builtin => |builtin| switch (builtin.tag) {
-                Builtin.tagFromName("__c11_atomic_exchange").? => {
+                .__c11_atomic_exchange => {
                     if (p.list_buf.items.len != 4) return Type.invalid; // wrong number of arguments; already an error
                     const second_param = p.list_buf.items[2];
                     return second_param.type(&p.tree);
                 },
-                Builtin.tagFromName("__c11_atomic_load").? => {
+                .__c11_atomic_load => {
                     if (p.list_buf.items.len != 3) return Type.invalid; // wrong number of arguments; already an error
                     const first_param = p.list_buf.items[1];
                     const ty = first_param.type(&p.tree);
@@ -5006,47 +5006,47 @@ const CallExpr = union(enum) {
                     return ty.elemType();
                 },
 
-                Builtin.tagFromName("__atomic_fetch_add").?,
-                Builtin.tagFromName("__atomic_add_fetch").?,
-                Builtin.tagFromName("__c11_atomic_fetch_add").?,
+                .__atomic_fetch_add,
+                .__atomic_add_fetch,
+                .__c11_atomic_fetch_add,
 
-                Builtin.tagFromName("__atomic_fetch_sub").?,
-                Builtin.tagFromName("__atomic_sub_fetch").?,
-                Builtin.tagFromName("__c11_atomic_fetch_sub").?,
+                .__atomic_fetch_sub,
+                .__atomic_sub_fetch,
+                .__c11_atomic_fetch_sub,
 
-                Builtin.tagFromName("__atomic_fetch_and").?,
-                Builtin.tagFromName("__atomic_and_fetch").?,
-                Builtin.tagFromName("__c11_atomic_fetch_and").?,
+                .__atomic_fetch_and,
+                .__atomic_and_fetch,
+                .__c11_atomic_fetch_and,
 
-                Builtin.tagFromName("__atomic_fetch_xor").?,
-                Builtin.tagFromName("__atomic_xor_fetch").?,
-                Builtin.tagFromName("__c11_atomic_fetch_xor").?,
+                .__atomic_fetch_xor,
+                .__atomic_xor_fetch,
+                .__c11_atomic_fetch_xor,
 
-                Builtin.tagFromName("__atomic_fetch_or").?,
-                Builtin.tagFromName("__atomic_or_fetch").?,
-                Builtin.tagFromName("__c11_atomic_fetch_or").?,
+                .__atomic_fetch_or,
+                .__atomic_or_fetch,
+                .__c11_atomic_fetch_or,
 
-                Builtin.tagFromName("__atomic_fetch_nand").?,
-                Builtin.tagFromName("__atomic_nand_fetch").?,
-                Builtin.tagFromName("__c11_atomic_fetch_nand").?,
+                .__atomic_fetch_nand,
+                .__atomic_nand_fetch,
+                .__c11_atomic_fetch_nand,
                 => {
                     if (p.list_buf.items.len != 3) return Type.invalid; // wrong number of arguments; already an error
                     const second_param = p.list_buf.items[2];
                     return second_param.type(&p.tree);
                 },
-                Builtin.tagFromName("__builtin_complex").? => {
+                .__builtin_complex => {
                     if (p.list_buf.items.len < 1) return Type.invalid; // not enough arguments; already an error
                     const last_param = p.list_buf.items[p.list_buf.items.len - 1];
                     return last_param.type(&p.tree).makeComplex();
                 },
-                Builtin.tagFromName("__atomic_compare_exchange").?,
-                Builtin.tagFromName("__atomic_compare_exchange_n").?,
-                Builtin.tagFromName("__c11_atomic_is_lock_free").?,
+                .__atomic_compare_exchange,
+                .__atomic_compare_exchange_n,
+                .__c11_atomic_is_lock_free,
                 => .{ .specifier = .bool },
                 else => callable_ty.returnType(),
 
-                Builtin.tagFromName("__c11_atomic_compare_exchange_strong").?,
-                Builtin.tagFromName("__c11_atomic_compare_exchange_weak").?,
+                .__c11_atomic_compare_exchange_strong,
+                .__c11_atomic_compare_exchange_weak,
                 => {
                     if (p.list_buf.items.len != 6) return Type.invalid; // wrong number of arguments
                     const third_param = p.list_buf.items[3];
