@@ -171,7 +171,7 @@ pub const Enum = struct {
         ty: Type,
         name: StringId,
         name_tok: TokenIndex,
-        init: ?Node.Index,
+        init: Node.OptIndex,
     };
 
     pub fn isIncomplete(e: Enum) bool {

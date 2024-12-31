@@ -1569,6 +1569,23 @@ pub const Node = union(enum) {
         }
     };
 
+    pub const OptIndex = enum(u32) {
+        null = std.math.maxInt(u32),
+        _,
+
+        pub fn unpack(opt: OptIndex) ?Index {
+            return if (opt == .null) null else @enumFromInt(@intFromEnum(opt));
+        }
+
+        pub fn pack(index: Index) OptIndex {
+            return @enumFromInt(@intFromEnum(index));
+        }
+
+        pub fn packOpt(optional: ?Index) OptIndex {
+            return if (optional) |some| @enumFromInt(@intFromEnum(some)) else .null;
+        }
+    };
+
     pub const Repr = struct {
         tag: Tag,
         /// If a node is typed the type is stored in data[0]
@@ -1729,11 +1746,6 @@ pub const Node = union(enum) {
                     else => true,
                 };
             }
-        };
-
-        pub const Index = enum(u32) {
-            none = std.math.maxInt(u32),
-            _,
         };
     };
 
@@ -2535,20 +2547,19 @@ pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
 }
 
 fn packOptIndex(opt: ?Node.Index) u32 {
-    return if (opt) |some| @intFromEnum(some) else @intFromEnum(Node.Repr.Index.none);
+    return @intFromEnum(Node.OptIndex.packOpt(opt));
 }
 
 fn unpackOptIndex(idx: u32) ?Node.Index {
-    if (idx == @intFromEnum(Node.Repr.Index.none)) return null;
-    return @enumFromInt(idx);
+    return @as(Node.OptIndex, @enumFromInt(idx)).unpack();
 }
 
 fn packElem(nodes: []const Node.Index, index: usize) u32 {
-    return if (nodes.len > index) @intFromEnum(nodes[index]) else @intFromEnum(Node.Repr.Index.none);
+    return if (nodes.len > index) @intFromEnum(nodes[index]) else @intFromEnum(Node.OptIndex.null);
 }
 
 fn unPackElems(data: []const u32) []const Node.Index {
-    const sentinel = @intFromEnum(Node.Repr.Index.none);
+    const sentinel = @intFromEnum(Node.OptIndex.null);
     for (data, 0..) |item, i| {
         if (item == sentinel) return @ptrCast(data[0..i]);
     }

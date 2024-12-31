@@ -2611,10 +2611,10 @@ fn enumSpec(p: *Parser) Error!Type {
             var new_field_node = field_node.get(&p.tree);
             new_field_node.enum_field.type = dest_ty;
 
-            if (field.init) |some| {
+            if (field.init.unpack()) |some| {
                 res.node = some;
                 try res.implicitCast(p, .int_cast, some.tok(&p.tree));
-                field.init = res.node;
+                field.init = .pack(res.node);
                 new_field_node.enum_field.init = res.node;
             }
 
@@ -2843,7 +2843,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         .name = interned_name,
         .ty = attr_ty,
         .name_tok = name_tok,
-        .init = field_init,
+        .init = .packOpt(field_init),
     }, .node = node };
 }
 
@@ -3372,7 +3372,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             try p.errTok(.initializer_overrides, tok);
             try p.errTok(.previous_initializer, il.tok);
         }
-        il.node = res.node;
+        il.node = .pack(res.node);
         il.tok = tok;
         return true;
     };
@@ -3386,7 +3386,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             try p.errTok(.initializer_overrides, l_brace);
             try p.errTok(.previous_initializer, il.tok);
         }
-        il.node = null;
+        il.node = .null;
         il.tok = l_brace;
         return true;
     }
@@ -3480,7 +3480,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         var saw = false;
         if (is_str_init and p.isStringInit(init_ty)) {
             // discard further strings
-            var tmp_il = InitList{};
+            var tmp_il: InitList = .{};
             defer tmp_il.deinit(p.gpa);
             saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
         } else if (count == 0 and p.isStringInit(init_ty)) {
@@ -3488,7 +3488,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             saw = try p.initializerItem(il, init_ty);
         } else if (is_scalar and count >= scalar_inits_needed) {
             // discard further scalars
-            var tmp_il = InitList{};
+            var tmp_il: InitList = .{};
             defer tmp_il.deinit(p.gpa);
             saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
         } else if (p.tok_ids[p.tok_i] == .l_brace) {
@@ -3499,7 +3499,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 saw = try p.initializerItem(cur_il, cur_ty);
             } else {
                 // discard further values
-                var tmp_il = InitList{};
+                var tmp_il: InitList = .{};
                 defer tmp_il.deinit(p.gpa);
                 saw = try p.initializerItem(&tmp_il, .{ .specifier = .void });
                 if (!warned_excess) try p.errTok(if (init_ty.isArray()) .excess_array_init else .excess_struct_init, first_tok);
@@ -3531,7 +3531,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
                 try p.errTok(.initializer_overrides, first_tok);
                 try p.errTok(.previous_initializer, cur_il.tok);
             }
-            cur_il.node = res.node;
+            cur_il.node = .pack(res.node);
             cur_il.tok = first_tok;
         }
 
@@ -3560,7 +3560,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
         try p.errTok(.initializer_overrides, l_brace);
         try p.errTok(.previous_initializer, il.tok);
     }
-    il.node = null;
+    il.node = .null;
     il.tok = l_brace;
     return true;
 }
@@ -3568,7 +3568,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
 /// Returns true if the value is unused.
 fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, res: *Result, first_tok: TokenIndex, start_index: *u64) Error!bool {
     if (ty.isArray()) {
-        if (il.*.node != null) return false;
+        if (il.*.node != .null) return false;
         start_index.* += 1;
 
         const arr_ty = ty.*;
@@ -3587,7 +3587,7 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, res: *Result, 
         }
         return false;
     } else if (ty.get(.@"struct")) |struct_ty| {
-        if (il.*.node != null) return false;
+        if (il.*.node != .null) return false;
         start_index.* += 1;
 
         const fields = struct_ty.data.record.fields;
@@ -3607,14 +3607,14 @@ fn findScalarInitializerAt(p: *Parser, il: **InitList, ty: *Type, res: *Result, 
     } else if (ty.get(.@"union")) |_| {
         return false;
     }
-    return il.*.node == null;
+    return il.*.node == .null;
 }
 
 /// Returns true if the value is unused.
 fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, res: *Result, first_tok: TokenIndex) Error!bool {
     const actual_ty = res.ty;
     if (ty.isArray() or ty.isComplex()) {
-        if (il.*.node != null) return false;
+        if (il.*.node != .null) return false;
         if (try p.coerceArrayInitExtra(res, first_tok, ty.*, false)) return true;
         const start_index = il.*.list.items.len;
         var index = if (start_index != 0) il.*.list.items[start_index - 1].index else start_index;
@@ -3630,12 +3630,12 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, res: *Result, fi
         while (index < elem_count) : (index += 1) {
             ty.* = elem_ty;
             il.* = try arr_il.find(p.gpa, index);
-            if (il.*.node == null and actual_ty.eql(elem_ty, p.comp, false)) return true;
+            if (il.*.node == .null and actual_ty.eql(elem_ty, p.comp, false)) return true;
             if (try p.findScalarInitializer(il, ty, res, first_tok)) return true;
         }
         return false;
     } else if (ty.get(.@"struct")) |struct_ty| {
-        if (il.*.node != null) return false;
+        if (il.*.node != .null) return false;
         if (actual_ty.eql(ty.*, p.comp, false)) return true;
         const start_index = il.*.list.items.len;
         var index = if (start_index != 0) il.*.list.items[start_index - 1].index + 1 else start_index;
@@ -3650,13 +3650,13 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, res: *Result, fi
             const field = fields[@intCast(index)];
             ty.* = field.ty;
             il.* = try struct_il.find(p.gpa, index);
-            if (il.*.node == null and actual_ty.eql(field.ty, p.comp, false)) return true;
-            if (il.*.node == null and try p.coerceArrayInitExtra(res, first_tok, ty.*, false)) return true;
+            if (il.*.node == .null and actual_ty.eql(field.ty, p.comp, false)) return true;
+            if (il.*.node == .null and try p.coerceArrayInitExtra(res, first_tok, ty.*, false)) return true;
             if (try p.findScalarInitializer(il, ty, res, first_tok)) return true;
         }
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
-        if (il.*.node != null) return false;
+        if (il.*.node != .null) return false;
         if (actual_ty.eql(ty.*, p.comp, false)) return true;
         if (union_ty.data.record.fields.len == 0) {
             try p.errTok(.empty_aggregate_init_braces, first_tok);
@@ -3669,12 +3669,12 @@ fn findScalarInitializer(p: *Parser, il: **InitList, ty: *Type, res: *Result, fi
         if (try p.findScalarInitializer(il, ty, res, first_tok)) return true;
         return false;
     }
-    return il.*.node == null;
+    return il.*.node == .null;
 }
 
 fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: *?u64) Error!bool {
     if (ty.isArray()) {
-        if (il.*.node != null) return false;
+        if (il.*.node != .null) return false;
         const list_index = il.*.list.items.len;
         const index = if (start_index.*) |*some| blk: {
             some.* += 1;
@@ -3694,7 +3694,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         }
         return false;
     } else if (ty.get(.@"struct")) |struct_ty| {
-        if (il.*.node != null) return false;
+        if (il.*.node != .null) return false;
         const list_index = il.*.list.items.len;
         const index = if (start_index.*) |*some| blk: {
             some.* += 1;
@@ -3712,7 +3712,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         }
         return false;
     } else if (ty.get(.@"union")) |union_ty| {
-        if (il.*.node != null) return false;
+        if (il.*.node != .null) return false;
         if (start_index.*) |_| return false; // overrides
         if (union_ty.data.record.fields.len == 0) return false;
 
@@ -3721,7 +3721,7 @@ fn findAggregateInitializer(p: *Parser, il: **InitList, ty: *Type, start_index: 
         return true;
     } else {
         try p.err(.too_many_scalar_init_braces);
-        return il.*.node == null;
+        return il.*.node == .null;
     }
 }
 
@@ -3824,7 +3824,7 @@ fn isStringInit(p: *Parser, ty: Type) bool {
 fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!Node.Index {
     const is_complex = init_ty.isComplex();
     if (init_ty.isScalar() and !is_complex) {
-        return il.node orelse
+        return il.node.unpack() orelse
             try p.addNode(.{ .default_init_expr = .{
             .last_tok = il.tok,
             .type = init_ty,
@@ -3832,7 +3832,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!Node.Index {
     } else if (init_ty.is(.variable_len_array)) {
         return error.ParsingFailed; // vla invalid, reported earlier
     } else if (init_ty.isArray() or is_complex) {
-        if (il.node) |some| return some;
+        if (il.node.unpack()) |some| return some;
 
         const list_buf_top = p.list_buf.items.len;
         defer p.list_buf.items.len = list_buf_top;
@@ -3893,7 +3893,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!Node.Index {
         } });
     } else if (init_ty.get(.@"struct")) |struct_ty| {
         assert(!struct_ty.hasIncompleteSize());
-        if (il.node) |some| return some;
+        if (il.node.unpack()) |some| return some;
 
         const list_buf_top = p.list_buf.items.len;
         defer p.list_buf.items.len = list_buf_top;
@@ -3921,7 +3921,7 @@ fn convertInitList(p: *Parser, il: InitList, init_ty: Type) Error!Node.Index {
             .items = p.list_buf.items[list_buf_top..],
         } });
     } else if (init_ty.get(.@"union")) |union_ty| {
-        if (il.node) |some| return some;
+        if (il.node.unpack()) |some| return some;
 
         const init_node, const index = if (union_ty.data.record.fields.len == 0)
             // do nothing for empty unions
@@ -4694,7 +4694,7 @@ fn pointerValue(p: *Parser, node: Node.Index, offset: Value) !Value {
         .decl_ref_expr => |decl_ref| {
             const var_name = try p.comp.internString(p.tokSlice(decl_ref.name_tok));
             const sym = p.syms.findSymbol(var_name) orelse return .{};
-            const sym_node = sym.node orelse return .{};
+            const sym_node = sym.node.unpack() orelse return .{};
             return Value.pointer(.{ .node = @intFromEnum(sym_node), .offset = offset.ref() }, p.comp);
         },
         .string_literal_expr => return p.tree.value_map.get(node).?,

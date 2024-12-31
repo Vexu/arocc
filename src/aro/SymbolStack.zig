@@ -18,7 +18,7 @@ pub const Symbol = struct {
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: ?Node.Index = null,
+    node: Node.OptIndex = .null,
     kind: Kind,
     val: Value,
 };
@@ -203,7 +203,7 @@ pub fn defineTypedef(
             .qual = ty.qual,
             .data = ty.data,
         },
-        .node = node,
+        .node = .packOpt(node),
         .val = .{},
     });
 }
@@ -247,7 +247,7 @@ pub fn defineSymbol(
         .name = name,
         .tok = tok,
         .ty = ty,
-        .node = node,
+        .node = .pack(node),
         .val = val,
     });
 }
@@ -301,7 +301,7 @@ pub fn declareSymbol(
         .name = name,
         .tok = tok,
         .ty = ty,
-        .node = node,
+        .node = .packOpt(node),
         .val = .{},
     });
 }
@@ -329,7 +329,6 @@ pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: T
         .tok = tok,
         .ty = ty,
         .val = .{},
-        .node = null,
     });
 }
 
