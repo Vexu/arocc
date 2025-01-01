@@ -1,3 +1,4 @@
+//aro-args --target=x86_64-windows-msvc
 struct S1 {};
 
 struct S2 {

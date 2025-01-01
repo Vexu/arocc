@@ -1,4 +1,4 @@
-//aro-args -std=c23
+//aro-args -std=c23 --target=x86_64-linux-gnu
 bool a = true;
 bool b = false;
 bool c = 0;

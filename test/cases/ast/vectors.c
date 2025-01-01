@@ -1,3 +1,21 @@
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
+implicit typedef: 'long double'
+ name: __float80
+
 variable: 'float'
  name: invalid2
 
@@ -19,7 +37,7 @@ fn_def: 'fn () void'
       decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
        name: a
      rhs:
-      implicit_cast: (lval_to_rval) 'f2v': 'vector(2, float)'
+      implicit cast: (lval_to_rval) 'f2v': 'vector(2, float)'
         decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
          name: b
 
@@ -28,9 +46,9 @@ fn_def: 'fn () void'
       decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
        name: a
      rhs:
-      implicit_cast: (vector_splat) 'float'
-        implicit_cast: (int_to_float) 'float' (value: 2)
+      implicit cast: (vector_splat) 'float'
+        implicit cast: (int_to_float) 'float' (value: 2)
           int_literal: 'int' (value: 2)
 
-    implicit_return: 'void'
+    implicit return_stmt: 'void'
 

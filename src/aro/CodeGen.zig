@@ -86,6 +86,7 @@ pub fn genIr(tree: *const Tree) Compilation.Error!Ir {
         c.builder.arena = std.heap.ArenaAllocator.init(gpa);
 
         switch (decl.get(c.tree)) {
+            .empty_decl,
             .static_assert,
             .typedef,
             .struct_decl,
@@ -260,7 +261,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .null_stmt,
         => {},
         .variable => |variable| {
-            if (variable.@"extern" or variable.static) {
+            if (variable.storage_class == .@"extern" or variable.storage_class == .static) {
                 try c.genVar(variable);
                 return .none;
             }
@@ -464,18 +465,22 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .continue_stmt => try c.builder.addJump(c.continue_label),
         .break_stmt => try c.builder.addJump(c.break_label),
         .return_stmt => |@"return"| {
-            if (@"return".expr) |expr| {
-                const operand = try c.genExpr(expr);
-                try c.ret_nodes.append(c.comp.gpa, .{ .value = operand, .label = c.builder.current_label });
+            switch (@"return".operand) {
+                .expr => |expr| {
+                    const operand = try c.genExpr(expr);
+                    try c.ret_nodes.append(c.comp.gpa, .{ .value = operand, .label = c.builder.current_label });
+                },
+                .none => {},
+                .implicit => |zeroes| {
+                    if (zeroes) {
+                        const operand = try c.builder.addConstant(.zero, try c.genType(@"return".return_type));
+                        try c.ret_nodes.append(c.comp.gpa, .{ .value = operand, .label = c.builder.current_label });
+                    }
+                    // No need to emit a jump since an implicit return_stmt is always the last statement.
+                    return .none;
+                },
             }
             try c.builder.addJump(c.return_label);
-        },
-        .implicit_return => |implicit_return| {
-            if (implicit_return.zero) {
-                const operand = try c.builder.addConstant(.zero, try c.genType(implicit_return.return_type));
-                try c.ret_nodes.append(c.comp.gpa, .{ .value = operand, .label = c.builder.current_label });
-            }
-            // No need to emit a jump since implicit_return is always the last instruction.
         },
         .goto_stmt,
         .computed_goto_stmt,
@@ -560,7 +565,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .addr_of_expr => |un| return try c.genLval(un.operand),
         .deref_expr => |un| {
             const operand_node = un.operand.get(c.tree);
-            if (operand_node == .implicit_cast and operand_node.implicit_cast.kind == .function_to_pointer) {
+            if (operand_node == .cast and operand_node.cast.kind == .function_to_pointer) {
                 return c.genExpr(un.operand);
             }
             const operand = try c.genLval(un.operand);
@@ -615,7 +620,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         },
         .paren_expr => |un| return c.genExpr(un.operand),
         .decl_ref_expr => unreachable, // Lval expression.
-        .explicit_cast, .implicit_cast => |cast| switch (cast.kind) {
+        .cast => |cast| switch (cast.kind) {
             .no_op => return c.genExpr(cast.operand),
             .to_void => {
                 _ = try c.genExpr(cast.operand);
@@ -878,7 +883,7 @@ fn genLval(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         },
         .deref_expr => |un| return c.genExpr(un.operand),
         .compound_literal_expr => |literal| {
-            if (literal.static or literal.thread_local) {
+            if (literal.storage_class == .static or literal.thread_local) {
                 return c.fail("TODO CodeGen.compound_literal_expr static or thread_local\n", .{});
             }
             const size: u32 = @intCast(literal.type.sizeof(c.comp).?); // TODO add error in parser
@@ -984,7 +989,7 @@ fn genBoolExpr(c: *CodeGen, base: Node.Index, true_label: Ir.Ref, false_label: I
             if (c.cond_dummy_ty != null) c.cond_dummy_ref = cmp;
             return c.addBranch(cmp, true_label, false_label);
         },
-        .explicit_cast, .implicit_cast => |cast| switch (cast.kind) {
+        .cast => |cast| switch (cast.kind) {
             .bool_to_int => {
                 const operand = try c.genExpr(cast.operand);
                 if (c.cond_dummy_ty != null) c.cond_dummy_ref = operand;
@@ -1062,14 +1067,14 @@ fn genCall(c: *CodeGen, call: Node.Call) Error!Ir.Ref {
     // Detect direct calls.
     const fn_ref = blk: {
         const callee = call.callee.get(c.tree);
-        if (callee != .implicit_cast or callee.implicit_cast.kind != .function_to_pointer) {
+        if (callee != .cast or callee.cast.kind != .function_to_pointer) {
             break :blk try c.genExpr(call.callee);
         }
 
-        var cur = callee.implicit_cast.operand;
+        var cur = callee.cast.operand;
         while (true) switch (cur.get(c.tree)) {
             .paren_expr, .addr_of_expr, .deref_expr => |un| cur = un.operand,
-            .implicit_cast => |cast| {
+            .cast => |cast| {
                 if (cast.kind != .function_to_pointer) {
                     break :blk try c.genExpr(call.callee);
                 }
@@ -1110,7 +1115,7 @@ fn genCall(c: *CodeGen, call: Node.Call) Error!Ir.Ref {
     return c.builder.addInst(.call, .{ .call = call_inst }, try c.genType(call.type));
 }
 
-fn genCompoundAssign(c: *CodeGen, bin: Node.BinaryExpr, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genCompoundAssign(c: *CodeGen, bin: Node.Binary, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const rhs = try c.genExpr(bin.rhs);
     const lhs = try c.genLval(bin.lhs);
     const res = try c.addBin(tag, lhs, rhs, bin.type);
@@ -1118,13 +1123,13 @@ fn genCompoundAssign(c: *CodeGen, bin: Node.BinaryExpr, tag: Ir.Inst.Tag) Error!
     return res;
 }
 
-fn genBinOp(c: *CodeGen, bin: Node.BinaryExpr, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genBinOp(c: *CodeGen, bin: Node.Binary, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const lhs = try c.genExpr(bin.lhs);
     const rhs = try c.genExpr(bin.rhs);
     return c.addBin(tag, lhs, rhs, bin.type);
 }
 
-fn genComparison(c: *CodeGen, bin: Node.BinaryExpr, tag: Ir.Inst.Tag) Error!Ir.Ref {
+fn genComparison(c: *CodeGen, bin: Node.Binary, tag: Ir.Inst.Tag) Error!Ir.Ref {
     const lhs = try c.genExpr(bin.lhs);
     const rhs = try c.genExpr(bin.rhs);
 

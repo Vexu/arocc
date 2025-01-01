@@ -254,7 +254,7 @@ fn createBuiltin(comp: *const Compilation, builtin: Builtin, type_arena: std.mem
     var param_count: usize = 0;
     var params: [Builtin.max_param_count]Type.Func.Param = undefined;
     while (it.next()) |desc| : (param_count += 1) {
-        params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, &it, comp, type_arena), .name = .empty };
+        params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, &it, comp, type_arena), .name = .empty, .node = .null };
     }
 
     const duped_params = try type_arena.dupe(Type.Func.Param, params[0..param_count]);

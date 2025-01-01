@@ -608,7 +608,7 @@ fn nodeIs(p: *Parser, node: Node.Index, comptime tag: std.meta.Tag(Tree.Node)) b
 }
 
 pub fn getDecayedStringLiteral(p: *Parser, node: Node.Index) ?Value {
-    const cast = p.getNode(node, .implicit_cast) orelse return null;
+    const cast = p.getNode(node, .cast) orelse return null;
     if (cast.kind != .array_to_pointer) return null;
 
     var cur = cast.operand;
@@ -688,7 +688,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .gpa = pp.comp.gpa,
         .tree = .{
             .comp = pp.comp,
-            .generated = pp.comp.generated_buf.items,
             .tokens = pp.tokens.slice(),
             .arena = .init(pp.comp.gpa),
         },
@@ -735,29 +734,30 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
     {
         if (p.comp.langopts.hasChar8_T()) {
-            try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "char8_t"), .{ .specifier = .uchar }, 0, null);
+            try p.addImplicitTypedef("char8_t", .{ .specifier = .uchar });
         }
-        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__int128_t"), .{ .specifier = .int128 }, 0, null);
-        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__uint128_t"), .{ .specifier = .uint128 }, 0, null);
+        try p.addImplicitTypedef("__int128_t", .{ .specifier = .int128 });
+        try p.addImplicitTypedef("__uint128_t", .{ .specifier = .uint128 });
 
         const elem_ty = try p.arena.create(Type);
         elem_ty.* = .{ .specifier = .char };
-        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__builtin_ms_va_list"), .{
+        try p.addImplicitTypedef("__builtin_ms_va_list", .{
             .specifier = .pointer,
             .data = .{ .sub_type = elem_ty },
-        }, 0, null);
+        });
 
         const ty = &pp.comp.types.va_list;
-        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__builtin_va_list"), ty.*, 0, null);
+        try p.addImplicitTypedef("__builtin_va_list", ty.*);
 
         if (ty.isArray()) ty.decayArray();
 
-        try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__NSConstantString"), pp.comp.types.ns_constant_string.ty, 0, null);
+        try p.addImplicitTypedef("__NSConstantString", pp.comp.types.ns_constant_string.ty);
 
         if (p.comp.float80Type()) |float80_ty| {
-            try p.syms.defineTypedef(&p, try StrInt.intern(p.comp, "__float80"), float80_ty, 0, null);
+            try p.addImplicitTypedef("__float80", float80_ty);
         }
     }
+    const implicit_typedef_count = p.decl_buf.items.len;
 
     while (p.eatToken(.eof) == null) {
         if (try p.pragma()) continue;
@@ -795,6 +795,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         }
         if (p.eatToken(.semicolon)) |tok| {
             try p.errTok(.extra_semi, tok);
+            const empty = try p.tree.addNode(.{ .empty_decl = .{
+                .semicolon = tok,
+            } });
+            try p.decl_buf.append(empty);
             continue;
         }
         try p.err(.expected_external_decl);
@@ -805,12 +809,39 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     }
 
     p.tree.root_decls = p.decl_buf.moveToUnmanaged();
-    if (p.tree.root_decls.items.len == 0) {
+    if (p.tree.root_decls.items.len == implicit_typedef_count) {
         try p.errTok(.empty_translation_unit, p.tok_i - 1);
     }
     pp.comp.pragmaEvent(.after_parse);
 
     return p.tree;
+}
+
+fn addImplicitTypedef(p: *Parser, name: []const u8, ty: Type) !void {
+    const start = p.comp.generated_buf.items.len;
+    try p.comp.generated_buf.appendSlice(p.comp.gpa, name);
+    try p.comp.generated_buf.append(p.comp.gpa, '\n');
+
+    const name_tok: u32 = @intCast(p.pp.tokens.len);
+    try p.pp.tokens.append(p.gpa, .{ .id = .identifier, .loc = .{
+        .id = .generated,
+        .byte_offset = @intCast(start),
+        .line = p.pp.generated_line,
+    } });
+    p.pp.generated_line += 1;
+
+    // Reset in case there was an allocation.
+    p.tree.tokens = p.pp.tokens.slice();
+
+    const node = try p.addNode(.{
+        .typedef = .{
+            .name_tok = name_tok,
+            .type = ty,
+            .implicit = true,
+        },
+    });
+    try p.syms.defineTypedef(p, try StrInt.intern(p.comp, name), ty, name_tok, node);
+    try p.decl_buf.append(node);
 }
 
 fn skipToPragmaSentinel(p: *Parser) void {
@@ -956,7 +987,11 @@ fn decl(p: *Parser) Error!bool {
         const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = .{} }, .syntax = .keyword };
         try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = tok });
     }
-    var init_d = (try p.initDeclarator(&decl_spec, attr_buf_top)) orelse {
+
+    var decl_node = try p.tree.addNode(.{ .empty_decl = .{
+        .semicolon = first_tok,
+    } });
+    var init_d = (try p.initDeclarator(&decl_spec, attr_buf_top, decl_node)) orelse {
         _ = try p.expectToken(.semicolon);
         if (decl_spec.ty.is(.@"enum") or
             (decl_spec.ty.isRecord() and !decl_spec.ty.isAnonymousRecord(p.comp) and
@@ -999,11 +1034,8 @@ fn decl(p: *Parser) Error!bool {
         }
         if (p.func.ty != null) try p.err(.func_not_in_root);
 
-        const reserved_index = try p.tree.nodes.addOne(p.gpa); // reserve space
-        const node: Node.Index = @enumFromInt(reserved_index);
-
         const interned_declarator_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
-        try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.ty, init_d.d.name, node, .{}, false);
+        try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.ty, init_d.d.name, decl_node, .{}, false);
 
         const func = p.func;
         p.func = .{
@@ -1074,6 +1106,18 @@ fn decl(p: *Parser) Error!bool {
                     }
                     d.ty = try Attribute.applyParameterAttributes(p, d.ty, attr_buf_top_declarator, .alignas_on_param);
 
+                    try param_decl_spec.validateParam(p, &d.ty);
+                    const param_node = try p.addNode(.{
+                        .param = .{
+                            .name_tok = d.name,
+                            .type = d.ty,
+                            .storage_class = switch (param_decl_spec.storage_class) {
+                                .none => .auto,
+                                .register => .register,
+                                else => .auto, // Error reported in `validateParam`
+                            },
+                        },
+                    });
                     // bypass redefinition check to avoid duplicate errors
                     try p.syms.define(p.gpa, .{
                         .kind = .def,
@@ -1081,6 +1125,7 @@ fn decl(p: *Parser) Error!bool {
                         .tok = d.name,
                         .ty = d.ty,
                         .val = .{},
+                        .node = .pack(param_node),
                     });
                     if (p.eatToken(.comma) == null) break;
                 }
@@ -1105,6 +1150,7 @@ fn decl(p: *Parser) Error!bool {
                     .tok = param.name_tok,
                     .ty = param.ty,
                     .val = .{},
+                    .node = param.node,
                 });
             }
         }
@@ -1116,15 +1162,15 @@ fn decl(p: *Parser) Error!bool {
         };
 
         try decl_spec.validateFnDef(p);
-        try p.tree.addNodeExtra(.{ .fn_def = .{
+        try p.tree.setNode(.{ .fn_def = .{
             .name_tok = init_d.d.name,
             .@"inline" = decl_spec.@"inline" != null,
             .static = decl_spec.storage_class == .static,
             .type = init_d.d.ty,
             .body = body,
-        } }, reserved_index);
+        } }, @intFromEnum(decl_node));
 
-        try p.decl_buf.append(node);
+        try p.decl_buf.append(decl_node);
 
         // check gotos
         if (func.ty == null) {
@@ -1149,7 +1195,7 @@ fn decl(p: *Parser) Error!bool {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
         try decl_spec.validate(p, &init_d.d.ty);
 
-        const node = if (init_d.d.ty.isFunc()) try p.addNode(.{
+        try p.tree.setNode(if (init_d.d.ty.isFunc()) .{
             .fn_proto = .{
                 .name_tok = init_d.d.name,
                 .type = init_d.d.ty,
@@ -1157,22 +1203,27 @@ fn decl(p: *Parser) Error!bool {
                 .@"inline" = decl_spec.@"inline" != null,
                 .definition = null,
             },
-        }) else try p.addNode(.{
+        } else .{
             .variable = .{
                 .name_tok = init_d.d.name,
                 .type = init_d.d.ty,
-                .@"extern" = decl_spec.storage_class == .@"extern" and init_d.initializer == null,
-                .static = decl_spec.storage_class == .static,
                 .thread_local = decl_spec.thread_local != null,
                 .implicit = false,
+                .storage_class = switch (decl_spec.storage_class) {
+                    .auto => .auto,
+                    .register => .register,
+                    .static => .static,
+                    .@"extern" => if (init_d.initializer == null) .@"extern" else .auto,
+                    else => .auto, // Error reported in `validate`
+                },
                 .initializer = if (init_d.initializer) |some| some.node else null,
             },
-        });
-        try p.decl_buf.append(node);
+        }, @intFromEnum(decl_node));
+        try p.decl_buf.append(decl_node);
 
         const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
         if (decl_spec.storage_class == .typedef) {
-            try p.syms.defineTypedef(p, interned_name, init_d.d.ty, init_d.d.name, node);
+            try p.syms.defineTypedef(p, interned_name, init_d.d.ty, init_d.d.name, decl_node);
             p.typedefDefined(interned_name, init_d.d.ty);
         } else if (init_d.initializer) |init| {
             // TODO validate global variable/constexpr initializer comptime known
@@ -1181,14 +1232,14 @@ fn decl(p: *Parser) Error!bool {
                 interned_name,
                 init_d.d.ty,
                 init_d.d.name,
-                node,
+                decl_node,
                 if (init_d.d.ty.isConst() or decl_spec.constexpr != null) init.val else .{},
                 decl_spec.constexpr != null,
             );
         } else if (p.func.ty != null and decl_spec.storage_class != .@"extern") {
-            try p.syms.defineSymbol(p, interned_name, init_d.d.ty, init_d.d.name, node, .{}, false);
+            try p.syms.defineSymbol(p, interned_name, init_d.d.ty, init_d.d.name, decl_node, .{}, false);
         } else {
-            try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, node);
+            try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, decl_node);
         }
 
         if (p.eatToken(.comma) == null) break;
@@ -1204,7 +1255,10 @@ fn decl(p: *Parser) Error!bool {
             }
         }
 
-        init_d = (try p.initDeclarator(&decl_spec, attr_buf_top)) orelse {
+        decl_node = try p.tree.addNode(.{ .empty_decl = .{
+            .semicolon = p.tok_i - 1,
+        } });
+        init_d = (try p.initDeclarator(&decl_spec, attr_buf_top, decl_node)) orelse {
             try p.err(.expected_ident_or_l_paren);
             continue;
         };
@@ -1326,8 +1380,7 @@ pub const DeclSpec = struct {
 
     fn validateParam(d: DeclSpec, p: *Parser, ty: *Type) Error!void {
         switch (d.storage_class) {
-            .none => {},
-            .register => ty.qual.register = true,
+            .none, .register => {},
             .auto, .@"extern", .static, .typedef => |tok_i| try p.errTok(.invalid_storage_on_param, tok_i),
         }
         if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
@@ -1370,7 +1423,6 @@ pub const DeclSpec = struct {
                 .register => if (p.func.ty == null) try p.err(.illegal_storage_on_global),
                 else => {},
             }
-            ty.qual.register = d.storage_class == .register;
         }
     }
 
@@ -1402,7 +1454,7 @@ fn typeof(p: *Parser) Error!?Type {
         const typeof_ty = try p.arena.create(Type);
         typeof_ty.* = .{
             .data = ty.data,
-            .qual = if (unqual) .{} else ty.qual.inheritFromTypeof(),
+            .qual = if (unqual) .{} else ty.qual,
             .specifier = ty.specifier,
         };
 
@@ -1417,7 +1469,7 @@ fn typeof(p: *Parser) Error!?Type {
     if (typeof_expr.ty.is(.nullptr_t)) {
         return Type{
             .specifier = .nullptr_t,
-            .qual = if (unqual) .{} else typeof_expr.ty.qual.inheritFromTypeof(),
+            .qual = if (unqual) .{} else typeof_expr.ty.qual,
         };
     } else if (typeof_expr.ty.is(.invalid)) {
         return null;
@@ -1428,7 +1480,7 @@ fn typeof(p: *Parser) Error!?Type {
         .node = typeof_expr.node,
         .ty = .{
             .data = typeof_expr.ty.data,
-            .qual = if (unqual) .{} else typeof_expr.ty.qual.inheritFromTypeof(),
+            .qual = if (unqual) .{} else typeof_expr.ty.qual,
             .specifier = typeof_expr.ty.specifier,
             .decayed = typeof_expr.ty.decayed,
         },
@@ -1735,7 +1787,7 @@ fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void 
 }
 
 /// initDeclarator : declarator assembly? attributeSpecifier? ('=' initializer)?
-fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?InitDeclarator {
+fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_node: Node.Index) Error!?InitDeclarator {
     const this_attr_buf_top = p.attr_buf.len;
     defer p.attr_buf.len = this_attr_buf_top;
 
@@ -1792,7 +1844,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize) Error!?
         defer p.syms.popScope();
 
         const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
-        try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, null);
+        try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, decl_node);
         if (c23_auto or auto_type) {
             p.auto_type_decl_name = interned_name;
         }
@@ -2613,7 +2665,7 @@ fn enumSpec(p: *Parser) Error!Type {
                 new_field_node.enum_field.init = res.node;
             }
 
-            try p.tree.addNodeExtra(new_field_node, @intFromEnum(field_node));
+            try p.tree.setNode(new_field_node, @intFromEnum(field_node));
         }
     }
 
@@ -2823,9 +2875,6 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         }
     }
 
-    const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
-    try p.syms.defineEnumeration(p, interned_name, attr_ty, name_tok, e.val);
-
     const node = try p.addNode(.{
         .enum_field = .{
             .name_tok = name_tok,
@@ -2834,6 +2883,10 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         },
     });
     try p.tree.value_map.put(p.gpa, node, e.val);
+
+    const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
+    try p.syms.defineEnumeration(p, interned_name, attr_ty, name_tok, e.val, node);
+
     return .{ .field = .{
         .name = interned_name,
         .ty = attr_ty,
@@ -3108,11 +3161,12 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             while (true) {
                 const name_tok = try p.expectIdentifier();
                 const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
-                try p.syms.defineParam(p, interned_name, undefined, name_tok);
+                try p.syms.defineParam(p, interned_name, undefined, name_tok, null);
                 try p.param_buf.append(.{
                     .name = interned_name,
                     .name_tok = name_tok,
                     .ty = .{ .specifier = .int },
+                    .node = .null,
                 });
                 if (p.eatToken(.comma) == null) break;
             }
@@ -3178,6 +3232,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
                 .name = try StrInt.intern(p.comp, p.tokSlice(identifier)),
                 .name_tok = identifier,
                 .ty = .{ .specifier = .int },
+                .node = .null,
             });
 
             if (p.eatToken(.comma) == null) break;
@@ -3191,6 +3246,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
         };
 
         var name_tok: TokenIndex = 0;
+        var param_node: Node.OptIndex = .null;
         const first_tok = p.tok_i;
         var param_ty = param_decl_spec.ty;
         if (try p.declarator(param_decl_spec.ty, .param)) |some| {
@@ -3198,13 +3254,26 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
             try p.attributeSpecifier();
 
             name_tok = some.name;
-            param_ty = some.ty;
+            param_ty = try Attribute.applyParameterAttributes(p, some.ty, attr_buf_top, .alignas_on_param);
             if (some.name != 0) {
+                const node = try p.addNode(.{
+                    .param = .{
+                        .name_tok = name_tok,
+                        .type = param_ty,
+                        .storage_class = switch (param_decl_spec.storage_class) {
+                            .none => .auto,
+                            .register => .register,
+                            else => .auto, // Error reported in `validateParam`
+                        },
+                    },
+                });
+                param_node = .pack(node);
                 const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
-                try p.syms.defineParam(p, interned_name, param_ty, name_tok);
+                try p.syms.defineParam(p, interned_name, param_ty, name_tok, node);
             }
+        } else {
+            param_ty = try Attribute.applyParameterAttributes(p, param_ty, attr_buf_top, .alignas_on_param);
         }
-        param_ty = try Attribute.applyParameterAttributes(p, param_ty, attr_buf_top, .alignas_on_param);
 
         if (param_ty.isFunc()) {
             // params declared as functions are converted to function pointers
@@ -3236,6 +3305,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
             .name = if (name_tok == 0) .empty else try StrInt.intern(p.comp, p.tokSlice(name_tok)),
             .name_tok = if (name_tok == 0) first_tok else name_tok,
             .ty = param_ty,
+            .node = param_node,
         });
 
         if (p.eatToken(.comma) == null) break;
@@ -4667,10 +4737,10 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
                     try p.errStr(.func_does_not_return, p.tok_i - 1, func_name);
                 }
             }
-            const implicit_ret = try p.addNode(.{ .implicit_return = .{
-                .r_brace_tok = r_brace,
+            const implicit_ret = try p.addNode(.{ .return_stmt = .{
+                .return_tok = r_brace,
                 .return_type = ret_ty,
-                .zero = return_zero,
+                .operand = .{ .implicit = return_zero },
             } });
             try p.decl_buf.append(implicit_ret);
         }
@@ -4838,7 +4908,7 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
 
     return try p.addNode(.{ .return_stmt = .{
         .return_tok = ret_tok,
-        .expr = if (ret_expr) |some| some.node else null,
+        .operand = if (ret_expr) |some| .{ .expr = some.node } else .none,
         .return_type = ret_ty,
     } });
 }
@@ -4862,12 +4932,10 @@ const CallExpr = union(enum) {
     },
 
     fn init(p: *Parser, call_node: Node.Index, func_node: Node.Index) CallExpr {
-        if (p.getNode(call_node, .decl_ref_expr)) |decl_ref| {
-            const name = p.tokSlice(decl_ref.name_tok);
-            // If this is a builtin then primaryExpr() already created it.
-            if (p.comp.builtins.getOrCreate(p.comp, name, p.arena) catch unreachable) |expanded| {
-                return .{ .builtin = .{ .builtin_tok = decl_ref.name_tok, .tag = expanded.builtin.tag } };
-            }
+        if (p.getNode(call_node, .builtin_ref)) |builtin_ref| {
+            const name = p.tokSlice(builtin_ref.name_tok);
+            const expanded = p.comp.builtins.lookup(name);
+            return .{ .builtin = .{ .builtin_tok = builtin_ref.name_tok, .tag = expanded.builtin.tag } };
         }
         return .{ .standard = func_node };
     }
@@ -5166,7 +5234,7 @@ pub const Result = struct {
     }
 
     fn bin(lhs: *Result, p: *Parser, rt_tag: std.meta.Tag(Node), rhs: Result, tok_i: TokenIndex) !void {
-        const bin_data: Node.BinaryExpr = .{
+        const bin_data: Node.Binary = .{
             .op_tok = tok_i,
             .lhs = lhs.node,
             .rhs = rhs.node,
@@ -5189,7 +5257,7 @@ pub const Result = struct {
     }
 
     fn un(operand: *Result, p: *Parser, rt_tag: std.meta.Tag(Node), tok_i: TokenIndex) Error!void {
-        const un_data: Node.UnaryExpr = .{
+        const un_data: Node.Unary = .{
             .op_tok = tok_i,
             .operand = operand.node,
             .type = operand.ty,
@@ -5208,11 +5276,12 @@ pub const Result = struct {
 
     fn implicitCast(operand: *Result, p: *Parser, kind: Node.Cast.Kind, tok: TokenIndex) Error!void {
         operand.node = try p.addNode(.{
-            .implicit_cast = .{
+            .cast = .{
                 .l_paren = tok,
                 .kind = kind,
                 .operand = operand.node,
                 .type = operand.ty,
+                .implicit = true,
             },
         });
     }
@@ -6019,11 +6088,12 @@ pub const Result = struct {
         res.ty = to;
         res.ty.qual = .{};
         res.node = try p.addNode(.{
-            .explicit_cast = .{
+            .cast = .{
                 .l_paren = l_paren,
                 .type = res.ty,
                 .operand = res.node,
                 .kind = cast_kind,
+                .implicit = false,
             },
         });
     }
@@ -6998,7 +7068,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, offset_kind: OffsetKind, 
 
 fn computeOffsetExtra(p: *Parser, node: Node.Index, offset_so_far: *Value) !Value {
     switch (node.get(&p.tree)) {
-        .implicit_cast => |cast| {
+        .cast => |cast| {
             return switch (cast.kind) {
                 .array_to_pointer => p.computeOffsetExtra(cast.operand, offset_so_far),
                 .lval_to_rval => .{},
@@ -7111,7 +7181,19 @@ fn unExpr(p: *Parser) Error!?Result {
             } else if (operand_ty_valid) {
                 addr_val = try p.computeOffset(operand);
             }
-            if (operand.ty.qual.register) try p.errTok(.addr_of_register, tok);
+            if (p.getNode(operand.node, .decl_ref_expr)) |decl_ref| {
+                switch (decl_ref.decl.get(&p.tree)) {
+                    .variable => |variable| {
+                        if (variable.storage_class == .register) try p.errTok(.addr_of_register, tok);
+                    },
+                    else => {},
+                }
+            } else if (p.getNode(operand.node, .compound_literal_expr)) |literal| {
+                switch (literal.storage_class) {
+                    .register => try p.errTok(.addr_of_register, tok),
+                    else => {},
+                }
+            }
 
             if (operand_ty_valid) {
                 const elem_ty = try p.arena.create(Type);
@@ -7465,6 +7547,7 @@ fn compoundLiteral(p: *Parser) Error!?Result {
             try p.errStr(.invalid_compound_literal_storage_class, tok, @tagName(d.storage_class));
             d.storage_class = .none;
         },
+        .register => if (p.func.ty == null) try p.err(.illegal_storage_on_global),
         else => {},
     }
 
@@ -7476,7 +7559,6 @@ fn compoundLiteral(p: *Parser) Error!?Result {
         }
         return null;
     };
-    if (d.storage_class == .register) ty.qual.register = true;
     try p.expectClosing(l_paren, .r_paren);
 
     if (ty.isFunc()) {
@@ -7498,7 +7580,11 @@ fn compoundLiteral(p: *Parser) Error!?Result {
 
     init_list_expr.node = try p.addNode(.{ .compound_literal_expr = .{
         .l_paren_tok = l_paren,
-        .static = d.storage_class == .static,
+        .storage_class = switch (d.storage_class) {
+            .register => .register,
+            .static => .static,
+            else => .auto,
+        },
         .thread_local = d.thread_local != null,
         .initializer = init_list_expr.node,
         .type = init_list_expr.ty,
@@ -7934,6 +8020,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                             .decl_ref_expr = .{
                                 .name_tok = name_tok,
                                 .type = sym.ty,
+                                .decl = sym.node.unpack().?,
                             },
                         }),
                     };
@@ -7946,17 +8033,22 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     }
                 }
 
-                const dr: Node.DeclRef = .{
-                    .name_tok = name_tok,
-                    .type = sym.ty,
-                };
+                const node = try p.addNode(if (sym.kind == .enumeration)
+                    .{ .enumeration_ref = .{
+                        .name_tok = name_tok,
+                        .type = sym.ty,
+                        .decl = sym.node.unpack().?,
+                    } }
+                else
+                    .{ .decl_ref_expr = .{
+                        .name_tok = name_tok,
+                        .type = sym.ty,
+                        .decl = sym.node.unpack().?,
+                    } });
                 return .{
                     .val = if (p.const_decl_folding == .no_const_decl_folding and sym.kind != .enumeration) Value{} else sym.val,
                     .ty = sym.ty,
-                    .node = try p.addNode(if (sym.kind == .enumeration)
-                        .{ .enumeration_ref = dr }
-                    else
-                        .{ .decl_ref_expr = dr }),
+                    .node = node,
                 };
             }
 
@@ -7981,7 +8073,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                 return .{
                     .ty = some.ty,
                     .node = try p.addNode(.{
-                        .decl_ref_expr = .{
+                        .builtin_ref = .{
                             .name_tok = name_tok,
                             .type = some.ty,
                         },
@@ -8019,6 +8111,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                         .decl_ref_expr = .{
                             .name_tok = name_tok,
                             .type = ty,
+                            .decl = node,
                         },
                     }),
                 };
@@ -8093,6 +8186,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     .decl_ref_expr = .{
                         .name_tok = tok,
                         .type = ty,
+                        .decl = p.func.ident.?.node,
                     },
                 }),
             };
@@ -8129,6 +8223,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     .decl_ref_expr = .{
                         .name_tok = p.tok_i,
                         .type = ty,
+                        .decl = undefined, // TODO
                     },
                 }),
             };
@@ -8213,8 +8308,7 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
         .variable = .{
             .name_tok = p.tok_i,
             .type = ty,
-            .@"extern" = false,
-            .static = true,
+            .storage_class = .static,
             .thread_local = false,
             .implicit = true,
             .initializer = str_lit,
@@ -8881,7 +8975,7 @@ fn genericSelection(p: *Parser) Error!?Result {
                 },
             });
             try p.list_buf.append(res.node);
-            try p.param_buf.append(.{ .name = undefined, .ty = ty, .name_tok = start });
+            try p.param_buf.append(.{ .name = undefined, .ty = ty, .name_tok = start, .node = undefined });
 
             if (ty.eql(controlling_ty, p.comp, false)) {
                 if (chosen_tok == null) {
@@ -8984,7 +9078,7 @@ test "Node locations" {
     defer tree.deinit();
 
     try std.testing.expectEqual(0, comp.diagnostics.list.items.len);
-    for (tree.root_decls.items, 0..) |node, i| {
+    for (tree.root_decls.items[tree.root_decls.items.len - 3 ..], 0..) |node, i| {
         const slice = tree.tokSlice(node.tok(&tree));
         const expected = switch (i) {
             0 => "foo",

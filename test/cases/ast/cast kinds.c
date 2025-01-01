@@ -1,3 +1,21 @@
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
+implicit typedef: 'long double'
+ name: __float80
+
 union_decl: 'union U'
   record_field: 'int'
    name: x
@@ -37,7 +55,7 @@ fn_def: 'fn () void'
       decl_ref_expr: '*int' lvalue
        name: p
      rhs:
-      explicit_cast: (bitcast) '*int'
+      cast: (bitcast) '*int'
         addr_of_expr: '*float'
          operand:
           decl_ref_expr: 'float' lvalue
@@ -48,7 +66,7 @@ fn_def: 'fn () void'
       decl_ref_expr: '*int' lvalue
        name: p
      rhs:
-      implicit_cast: (array_to_pointer) '*d[2]int'
+      implicit cast: (array_to_pointer) '*d[2]int'
         decl_ref_expr: '[2]int' lvalue
          name: arr
 
@@ -59,15 +77,15 @@ fn_def: 'fn () void'
      rhs:
       call_expr: 'int'
        callee:
-        implicit_cast: (function_to_pointer) '*fn () int'
+        implicit cast: (function_to_pointer) '*fn () int'
           decl_ref_expr: 'fn () int' lvalue
            name: bar
 
     variable: '_Bool'
      name: b
      init:
-      implicit_cast: (pointer_to_bool) '_Bool'
-        implicit_cast: (lval_to_rval) '*int'
+      implicit cast: (pointer_to_bool) '_Bool'
+        implicit cast: (lval_to_rval) '*int'
           decl_ref_expr: '*int' lvalue
            name: p
 
@@ -76,8 +94,8 @@ fn_def: 'fn () void'
       decl_ref_expr: 'int' lvalue
        name: x
      rhs:
-      implicit_cast: (pointer_to_int) 'int'
-        implicit_cast: (lval_to_rval) '*int'
+      implicit cast: (pointer_to_int) 'int'
+        implicit cast: (lval_to_rval) '*int'
           decl_ref_expr: '*int' lvalue
            name: p
 
@@ -86,8 +104,8 @@ fn_def: 'fn () void'
       decl_ref_expr: 'int' lvalue
        name: x
      rhs:
-      implicit_cast: (bool_to_int) 'int'
-        implicit_cast: (lval_to_rval) '_Bool'
+      implicit cast: (bool_to_int) 'int'
+        implicit cast: (lval_to_rval) '_Bool'
           decl_ref_expr: '_Bool' lvalue
            name: b
 
@@ -96,8 +114,8 @@ fn_def: 'fn () void'
       decl_ref_expr: 'float' lvalue
        name: f
      rhs:
-      implicit_cast: (bool_to_float) 'float'
-        implicit_cast: (lval_to_rval) '_Bool'
+      implicit cast: (bool_to_float) 'float'
+        implicit cast: (lval_to_rval) '_Bool'
           decl_ref_expr: '_Bool' lvalue
            name: b
 
@@ -106,8 +124,8 @@ fn_def: 'fn () void'
       decl_ref_expr: '*int' lvalue
        name: p
      rhs:
-      implicit_cast: (bool_to_pointer) '*int'
-        implicit_cast: (lval_to_rval) '_Bool'
+      implicit cast: (bool_to_pointer) '*int'
+        implicit cast: (lval_to_rval) '_Bool'
           decl_ref_expr: '_Bool' lvalue
            name: b
 
@@ -116,8 +134,8 @@ fn_def: 'fn () void'
       decl_ref_expr: '_Bool' lvalue
        name: b
      rhs:
-      implicit_cast: (int_to_bool) '_Bool'
-        implicit_cast: (lval_to_rval) 'int'
+      implicit cast: (int_to_bool) '_Bool'
+        implicit cast: (lval_to_rval) 'int'
           decl_ref_expr: 'int' lvalue
            name: x
 
@@ -126,8 +144,8 @@ fn_def: 'fn () void'
       decl_ref_expr: 'float' lvalue
        name: f
      rhs:
-      implicit_cast: (int_to_float) 'float'
-        implicit_cast: (lval_to_rval) 'int'
+      implicit cast: (int_to_float) 'float'
+        implicit cast: (lval_to_rval) 'int'
           decl_ref_expr: 'int' lvalue
            name: x
 
@@ -136,8 +154,8 @@ fn_def: 'fn () void'
       decl_ref_expr: '*int' lvalue
        name: p
      rhs:
-      implicit_cast: (int_to_pointer) '*int'
-        implicit_cast: (lval_to_rval) 'int'
+      implicit cast: (int_to_pointer) '*int'
+        implicit cast: (lval_to_rval) 'int'
           decl_ref_expr: 'int' lvalue
            name: x
 
@@ -146,8 +164,8 @@ fn_def: 'fn () void'
       decl_ref_expr: '_Bool' lvalue
        name: b
      rhs:
-      implicit_cast: (float_to_bool) '_Bool'
-        implicit_cast: (lval_to_rval) 'float'
+      implicit cast: (float_to_bool) '_Bool'
+        implicit cast: (lval_to_rval) 'float'
           decl_ref_expr: 'float' lvalue
            name: f
 
@@ -156,8 +174,8 @@ fn_def: 'fn () void'
       decl_ref_expr: 'int' lvalue
        name: x
      rhs:
-      implicit_cast: (float_to_int) 'int'
-        implicit_cast: (lval_to_rval) 'float'
+      implicit cast: (float_to_int) 'int'
+        implicit cast: (lval_to_rval) 'float'
           decl_ref_expr: 'float' lvalue
            name: f
 
@@ -166,7 +184,7 @@ fn_def: 'fn () void'
       decl_ref_expr: 'int' lvalue
        name: x
      rhs:
-      implicit_cast: (int_cast) 'int'
+      implicit cast: (int_cast) 'int'
         int_literal: 'long' (value: 1)
 
     assign_expr: 'float'
@@ -174,8 +192,8 @@ fn_def: 'fn () void'
       decl_ref_expr: 'float' lvalue
        name: f
      rhs:
-      implicit_cast: (float_cast) 'float'
-        implicit_cast: (lval_to_rval) 'double'
+      implicit cast: (float_cast) 'float'
+        implicit cast: (lval_to_rval) 'double'
           decl_ref_expr: 'double' lvalue
            name: d
 
@@ -184,8 +202,8 @@ fn_def: 'fn () void'
       decl_ref_expr: 'double' lvalue
        name: d
      rhs:
-      implicit_cast: (float_cast) 'double'
-        implicit_cast: (lval_to_rval) 'float'
+      implicit cast: (float_cast) 'double'
+        implicit cast: (lval_to_rval) 'float'
           decl_ref_expr: 'float' lvalue
            name: f
 
@@ -194,11 +212,11 @@ fn_def: 'fn () void'
       decl_ref_expr: '*int' lvalue
        name: p
      rhs:
-      implicit_cast: (null_to_pointer) '*int'
+      implicit cast: (null_to_pointer) '*int'
         int_literal: 'int' (value: 0)
 
-    explicit_cast: (to_void) 'void'
-      implicit_cast: (lval_to_rval) '*int'
+    cast: (to_void) 'void'
+      implicit cast: (lval_to_rval) '*int'
         decl_ref_expr: '*int' lvalue
          name: p
 
@@ -210,8 +228,8 @@ fn_def: 'fn () void'
       decl_ref_expr: 'union U' lvalue
        name: u
      rhs:
-      explicit_cast: (union_cast) 'union U'
-        implicit_cast: (lval_to_rval) 'int'
+      cast: (union_cast) 'union U'
+        implicit cast: (lval_to_rval) 'int'
           decl_ref_expr: 'int' lvalue
            name: x
 
@@ -220,10 +238,10 @@ fn_def: 'fn () void'
       decl_ref_expr: 'union U' lvalue
        name: u
      rhs:
-      explicit_cast: (union_cast) 'union U'
-        implicit_cast: (lval_to_rval) 'float'
+      cast: (union_cast) 'union U'
+        implicit cast: (lval_to_rval) 'float'
           decl_ref_expr: 'float' lvalue
            name: f
 
-    implicit_return: 'void'
+    implicit return_stmt: 'void'
 

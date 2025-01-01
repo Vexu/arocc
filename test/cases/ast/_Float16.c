@@ -1,3 +1,21 @@
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
+implicit typedef: 'long double'
+ name: __float80
+
 variable: '__builtin_va_list': '[1]struct __va_list_tag'
  name: va_list
 
@@ -12,11 +30,11 @@ fn_def: 'fn (x: _Float16, y: _Float16) _Float16'
      expr:
       add_expr: '_Float16'
        lhs:
-        implicit_cast: (lval_to_rval) '_Float16'
+        implicit cast: (lval_to_rval) '_Float16'
           decl_ref_expr: '_Float16' lvalue
            name: x
        rhs:
-        implicit_cast: (lval_to_rval) '_Float16'
+        implicit cast: (lval_to_rval) '_Float16'
           decl_ref_expr: '_Float16' lvalue
            name: y
 
@@ -30,7 +48,7 @@ fn_def: 'fn (x: int, ...) void'
     builtin_call_expr: 'void'
      name: __builtin_va_start
      args:
-      implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
+      implicit cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
         decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
          name: va
       decl_ref_expr: 'int' lvalue
@@ -39,11 +57,11 @@ fn_def: 'fn (x: int, ...) void'
     builtin_call_expr: 'void'
      name: __builtin_va_end
      args:
-      implicit_cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
+      implicit cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
         decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
          name: va
 
-    implicit_return: 'void'
+    implicit return_stmt: 'void'
 
 fn_def: 'fn () void'
  name: quux
@@ -56,16 +74,16 @@ fn_def: 'fn () void'
 
     call_expr: 'void'
      callee:
-      implicit_cast: (function_to_pointer) '*fn (x: int, ...) void'
+      implicit cast: (function_to_pointer) '*fn (x: int, ...) void'
         decl_ref_expr: 'fn (x: int, ...) void' lvalue
          name: bar
      args:
       int_literal: 'int' (value: 1)
-      implicit_cast: (lval_to_rval) '_Float16'
+      implicit cast: (lval_to_rval) '_Float16'
         decl_ref_expr: '_Float16' lvalue
          name: f
 
-    implicit_return: 'void'
+    implicit return_stmt: 'void'
 
 fn_def: 'fn () void'
  name: conversions
@@ -84,7 +102,7 @@ fn_def: 'fn () void'
     variable: '__fp16'
      name: fp16
      init:
-      implicit_cast: (int_to_float) '__fp16' (value: 0)
+      implicit cast: (int_to_float) '__fp16' (value: 0)
         int_literal: 'int' (value: 0)
 
     assign_expr: 'double'
@@ -94,29 +112,29 @@ fn_def: 'fn () void'
      rhs:
       add_expr: 'double'
        lhs:
-        implicit_cast: (lval_to_rval) 'double'
+        implicit cast: (lval_to_rval) 'double'
           decl_ref_expr: 'double' lvalue
            name: d
        rhs:
-        implicit_cast: (float_cast) 'double'
-          implicit_cast: (lval_to_rval) '_Float16'
+        implicit cast: (float_cast) 'double'
+          implicit cast: (lval_to_rval) '_Float16'
             decl_ref_expr: '_Float16' lvalue
              name: f16
 
-    explicit_cast: (to_void) 'void'
+    cast: (to_void) 'void'
       paren_expr: 'float'
        operand:
         add_expr: 'float'
          lhs:
-          implicit_cast: (float_cast) 'float'
-            implicit_cast: (lval_to_rval) '_Float16'
+          implicit cast: (float_cast) 'float'
+            implicit cast: (lval_to_rval) '_Float16'
               decl_ref_expr: '_Float16' lvalue
                name: f16
          rhs:
-          implicit_cast: (float_cast) 'float'
-            implicit_cast: (lval_to_rval) '__fp16'
+          implicit cast: (float_cast) 'float'
+            implicit cast: (lval_to_rval) '__fp16'
               decl_ref_expr: '__fp16' lvalue
                name: fp16
 
-    implicit_return: 'void'
+    implicit return_stmt: 'void'
 

@@ -1,3 +1,4 @@
+//aro-args --target=x86_64-linux-gnu
 int x = _Generic(5,
 	int: 42,
 	double: 32.5

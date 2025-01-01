@@ -1,3 +1,21 @@
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
+implicit typedef: 'long double'
+ name: __float80
+
 variable: 'int'
  name: x
  init:
@@ -29,7 +47,7 @@ variable: 'int'
 variable: 'double'
  name: z
  init:
-  implicit_cast: (int_to_float) 'double' (value: 32)
+  implicit cast: (int_to_float) 'double' (value: 32)
     generic_expr: 'int'
      controlling:
       int_literal: 'int' (value: 5)

@@ -1,7 +1,25 @@
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
+implicit typedef: 'long double'
+ name: __float80
+
 variable: 'attributed(int)'
  attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex.null, .requested = 4 }
  attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex.null, .requested = 4 }
- attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(0), .requested = 16 }
+ attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(6), .requested = 16 }
  name: a
 
 variable: 'const volatile int'
@@ -50,7 +68,7 @@ fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
       decl_ref_expr: 'I': '*d[2]const int' lvalue
        name: b
      rhs:
-      implicit_cast: (int_to_pointer) 'I': '*d[2]const int'
+      implicit cast: (int_to_pointer) 'I': '*d[2]const int'
         int_literal: 'int' (value: 1)
 
     add_assign_expr: 'I': '*d[2]const int'
@@ -58,23 +76,23 @@ fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
       decl_ref_expr: 'I': '*d[2]const int' lvalue
        name: a
      rhs:
-      implicit_cast: (int_to_pointer) 'I': '*d[2]const int'
+      implicit cast: (int_to_pointer) 'I': '*d[2]const int'
         int_literal: 'int' (value: 1)
 
-    implicit_return: 'void'
+    implicit return_stmt: 'void'
 
 enum_decl: 'enum E: unsigned int'
   enum_field: 'int' (value: 2)
    name: D
    init:
-    implicit_cast: (int_cast) 'int'
-      explicit_cast: (int_cast) 'char' (value: 2)
+    implicit cast: (int_cast) 'int'
+      cast: (int_cast) 'char' (value: 2)
         int_literal: 'int' (value: 2)
 
   enum_field: 'int' (value: 3)
    name: E
    init:
-    implicit_cast: (int_cast) 'int'
-      explicit_cast: (int_cast) 'long' (value: 3)
+    implicit cast: (int_cast) 'int'
+      cast: (int_cast) 'long' (value: 3)
         int_literal: 'int' (value: 3)
 

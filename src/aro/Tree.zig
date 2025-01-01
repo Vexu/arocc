@@ -112,7 +112,7 @@ pub const TypeHashContext = struct {
         var hasher = std.hash.Wyhash.init(0);
 
         std.hash.autoHash(&hasher, ty.specifier);
-        std.hash.autoHash(&hasher, @as(u5, @bitCast(ty.qual)));
+        std.hash.autoHash(&hasher, @as(u4, @bitCast(ty.qual)));
         std.hash.autoHash(&hasher, ty.decayed);
         std.hash.autoHash(&hasher, ty.name);
 
@@ -192,7 +192,6 @@ const Tree = @This();
 comp: *Compilation,
 
 // Values from Preprocessor.
-generated: []const u8,
 tokens: Token.List.Slice,
 
 // Values owned by this Tree
@@ -224,25 +223,13 @@ pub const GNUAssemblyQualifiers = struct {
 };
 
 pub const Node = union(enum) {
-    static_assert: struct {
-        assert_tok: TokenIndex,
-        cond: Node.Index,
-        message: ?Node.Index,
-    },
-    fn_proto: struct {
-        name_tok: TokenIndex,
-        type: Type,
-        static: bool,
-        @"inline": bool,
-        /// The definition for this prototype if one exists.
-        definition: ?Node.Index,
-    },
+    empty_decl: EmptyDecl,
+    static_assert: StaticAssert,
+    fn_proto: FnProto,
     fn_def: FnDef,
+    param: Param,
     variable: Variable,
-    typedef: struct {
-        name_tok: TokenIndex,
-        type: Type,
-    },
+    typedef: Typedef,
     global_asm: SimpleAsm,
 
     struct_decl: ContainerDecl,
@@ -252,168 +239,89 @@ pub const Node = union(enum) {
     union_forward_decl: ContainerForwardDecl,
     enum_forward_decl: ContainerForwardDecl,
 
-    enum_field: struct {
-        name_tok: TokenIndex,
-        type: Type,
-        init: ?Node.Index,
-    },
-    record_field: struct {
-        name_or_first_tok: TokenIndex,
-        type: Type,
-        bit_width: ?Node.Index,
-    },
+    enum_field: EnumField,
+    record_field: RecordField,
 
-    labeled_stmt: struct {
-        label_tok: TokenIndex,
-        body: Node.Index,
-        type: Type,
-    },
-    compound_stmt: struct {
-        l_brace_tok: TokenIndex,
-        body: []const Node.Index,
-    },
-    if_stmt: struct {
-        if_tok: TokenIndex,
-        cond: Node.Index,
-        then_body: Node.Index,
-        else_body: ?Node.Index,
-    },
-    switch_stmt: struct {
-        switch_tok: TokenIndex,
-        cond: Node.Index,
-        body: Node.Index,
-    },
-    case_stmt: struct {
-        case_tok: TokenIndex,
-        start: Node.Index,
-        end: ?Node.Index,
-        body: Node.Index,
-    },
-    default_stmt: struct {
-        default_tok: TokenIndex,
-        body: Node.Index,
-    },
-    while_stmt: struct {
-        while_tok: TokenIndex,
-        cond: Node.Index,
-        body: Node.Index,
-    },
-    do_while_stmt: struct {
-        do_tok: TokenIndex,
-        cond: Node.Index,
-        body: Node.Index,
-    },
-    for_stmt: struct {
-        for_tok: TokenIndex,
-        init: union(enum) {
-            decls: []const Node.Index,
-            expr: ?Node.Index,
-        },
-        cond: ?Node.Index,
-        incr: ?Node.Index,
-        body: Node.Index,
-    },
-    goto_stmt: struct {
-        label_tok: TokenIndex,
-    },
-    computed_goto_stmt: struct {
-        goto_tok: TokenIndex,
-        expr: Node.Index,
-    },
-    continue_stmt: struct {
-        continue_tok: TokenIndex,
-    },
-    break_stmt: struct {
-        break_tok: TokenIndex,
-    },
-    null_stmt: struct {
-        semicolon_or_r_brace_tok: TokenIndex,
-        type: Type,
-    },
-    return_stmt: struct {
-        return_tok: TokenIndex,
-        return_type: Type,
-        expr: ?Node.Index,
-    },
-    /// Inserted at the end of a function body if no return stmt is found.
-    implicit_return: struct {
-        r_brace_tok: TokenIndex,
-        return_type: Type,
-        /// True if the function is called "main" and return_type is compatible with int
-        zero: bool,
-    },
+    labeled_stmt: LabeledStmt,
+    compound_stmt: CompoundStmt,
+    if_stmt: IfStmt,
+    switch_stmt: SwitchStmt,
+    case_stmt: CaseStmt,
+    default_stmt: DefaultStmt,
+    while_stmt: WhileStmt,
+    do_while_stmt: DoWhileStmt,
+    for_stmt: ForStmt,
+    goto_stmt: GotoStmt,
+    computed_goto_stmt: CompoutedGotoStmt,
+    continue_stmt: ContinueStmt,
+    break_stmt: BreakStmt,
+    null_stmt: NullStmt,
+    return_stmt: ReturnStmt,
     gnu_asm_simple: SimpleAsm,
 
-    comma_expr: BinaryExpr,
-    assign_expr: BinaryExpr,
-    mul_assign_expr: BinaryExpr,
-    div_assign_expr: BinaryExpr,
-    mod_assign_expr: BinaryExpr,
-    add_assign_expr: BinaryExpr,
-    sub_assign_expr: BinaryExpr,
-    shl_assign_expr: BinaryExpr,
-    shr_assign_expr: BinaryExpr,
-    bit_and_assign_expr: BinaryExpr,
-    bit_xor_assign_expr: BinaryExpr,
-    bit_or_assign_expr: BinaryExpr,
-    bool_or_expr: BinaryExpr,
-    bool_and_expr: BinaryExpr,
-    bit_or_expr: BinaryExpr,
-    bit_xor_expr: BinaryExpr,
-    bit_and_expr: BinaryExpr,
-    equal_expr: BinaryExpr,
-    not_equal_expr: BinaryExpr,
-    less_than_expr: BinaryExpr,
-    less_than_equal_expr: BinaryExpr,
-    greater_than_expr: BinaryExpr,
-    greater_than_equal_expr: BinaryExpr,
-    shl_expr: BinaryExpr,
-    shr_expr: BinaryExpr,
-    add_expr: BinaryExpr,
-    sub_expr: BinaryExpr,
-    mul_expr: BinaryExpr,
-    div_expr: BinaryExpr,
-    mod_expr: BinaryExpr,
+    comma_expr: Binary,
+    assign_expr: Binary,
+    mul_assign_expr: Binary,
+    div_assign_expr: Binary,
+    mod_assign_expr: Binary,
+    add_assign_expr: Binary,
+    sub_assign_expr: Binary,
+    shl_assign_expr: Binary,
+    shr_assign_expr: Binary,
+    bit_and_assign_expr: Binary,
+    bit_xor_assign_expr: Binary,
+    bit_or_assign_expr: Binary,
+    bool_or_expr: Binary,
+    bool_and_expr: Binary,
+    bit_or_expr: Binary,
+    bit_xor_expr: Binary,
+    bit_and_expr: Binary,
+    equal_expr: Binary,
+    not_equal_expr: Binary,
+    less_than_expr: Binary,
+    less_than_equal_expr: Binary,
+    greater_than_expr: Binary,
+    greater_than_equal_expr: Binary,
+    shl_expr: Binary,
+    shr_expr: Binary,
+    add_expr: Binary,
+    sub_expr: Binary,
+    mul_expr: Binary,
+    div_expr: Binary,
+    mod_expr: Binary,
 
-    explicit_cast: Cast,
-    implicit_cast: Cast,
+    cast: Cast,
 
-    addr_of_expr: UnaryExpr,
-    deref_expr: UnaryExpr,
-    plus_expr: UnaryExpr,
-    negate_expr: UnaryExpr,
-    bit_not_expr: UnaryExpr,
-    bool_not_expr: UnaryExpr,
-    pre_inc_expr: UnaryExpr,
-    pre_dec_expr: UnaryExpr,
-    imag_expr: UnaryExpr,
-    real_expr: UnaryExpr,
-    post_inc_expr: UnaryExpr,
-    post_dec_expr: UnaryExpr,
-    paren_expr: UnaryExpr,
-    stmt_expr: UnaryExpr,
+    addr_of_expr: Unary,
+    deref_expr: Unary,
+    plus_expr: Unary,
+    negate_expr: Unary,
+    bit_not_expr: Unary,
+    bool_not_expr: Unary,
+    pre_inc_expr: Unary,
+    pre_dec_expr: Unary,
+    imag_expr: Unary,
+    real_expr: Unary,
+    post_inc_expr: Unary,
+    post_dec_expr: Unary,
+    paren_expr: Unary,
+    stmt_expr: Unary,
 
-    addr_of_label: struct {
-        label_tok: TokenIndex,
-        type: Type,
-    },
+    addr_of_label: AddrOfLabel,
 
-    array_access_expr: struct {
-        l_bracket_tok: TokenIndex,
-        type: Type,
-        base: Node.Index,
-        index: Node.Index,
-    },
-    call_expr: Call,
-    builtin_call_expr: struct {
-        builtin_tok: TokenIndex,
-        type: Type,
-        args: []const Node.Index,
-    },
+    array_access_expr: ArrayAccess,
     member_access_expr: MemberAccess,
     member_access_ptr_expr: MemberAccess,
+
+    call_expr: Call,
+
     decl_ref_expr: DeclRef,
     enumeration_ref: DeclRef,
+
+    builtin_call_expr: BuiltinCall,
+    builtin_ref: BuiltinRef,
+    builtin_types_compatible_p: TypesCompatible,
+    builtin_choose_expr: Conditional,
 
     /// C23 bool literal `true` / `false`
     bool_literal: Literal,
@@ -426,68 +334,50 @@ pub const Node = union(enum) {
     /// a floating point literal
     float_literal: Literal,
     string_literal_expr: Literal,
-    /// wraps a float or double literal: un
-    imaginary_literal: UnaryExpr,
+    /// wraps a float or double literal
+    imaginary_literal: Unary,
+    /// A compound literal (type){ init }
+    compound_literal_expr: CompoundLiteral,
 
     sizeof_expr: TypeInfo,
     alignof_expr: TypeInfo,
 
-    generic_expr: struct {
-        generic_tok: TokenIndex,
-        type: Type,
-        controlling: Node.Index,
-        chosen: Node.Index,
-        rest: []const Node.Index,
-    },
-    generic_association_expr: struct {
-        colon_tok: TokenIndex,
-        association_type: Type,
-        expr: Node.Index,
-    },
-    generic_default_expr: struct {
-        default_tok: TokenIndex,
-        expr: Node.Index,
-    },
+    generic_expr: Generic,
+    generic_association_expr: Generic.Association,
+    generic_default_expr: Generic.Default,
 
     binary_cond_expr: Conditional,
     /// Used as the base for casts of the lhs in `binary_cond_expr`.
-    cond_dummy_expr: UnaryExpr,
+    cond_dummy_expr: Unary,
     cond_expr: Conditional,
-    builtin_choose_expr: Conditional,
-    builtin_types_compatible_p: struct {
-        builtin_tok: TokenIndex,
-        lhs: Type,
-        rhs: Type,
-    },
 
     array_init_expr: ContainerInit,
     struct_init_expr: ContainerInit,
-    union_init_expr: struct {
-        l_brace_tok: TokenIndex,
-        union_type: Type,
-        field_index: u32,
-        initializer: ?Node.Index,
-    },
+    union_init_expr: UnionInit,
     /// Inserted in array_init_expr to represent unspecified elements.
     /// data.int contains the amount of elements.
-    array_filler_expr: struct {
-        last_tok: TokenIndex,
-        type: Type,
-        count: u64,
-    },
+    array_filler_expr: ArrayFiller,
     /// Inserted in record and scalar initializers for unspecified elements.
-    default_init_expr: struct {
-        last_tok: TokenIndex,
-        type: Type,
-    },
+    default_init_expr: DefaultInit,
 
-    compound_literal_expr: struct {
-        l_paren_tok: TokenIndex,
+    pub const EmptyDecl = struct {
+        semicolon: TokenIndex,
+    };
+
+    pub const StaticAssert = struct {
+        assert_tok: TokenIndex,
+        cond: Node.Index,
+        message: ?Node.Index,
+    };
+
+    pub const FnProto = struct {
+        name_tok: TokenIndex,
         type: Type,
         static: bool,
-        thread_local: bool,
-        initializer: Node.Index,
-    },
+        @"inline": bool,
+        /// The definition for this prototype if one exists.
+        definition: ?Node.Index,
+    };
 
     pub const FnDef = struct {
         name_tok: TokenIndex,
@@ -497,16 +387,35 @@ pub const Node = union(enum) {
         body: Node.Index,
     };
 
+    pub const Param = struct {
+        name_tok: TokenIndex,
+        type: Type,
+        storage_class: enum {
+            auto,
+            register,
+        },
+    };
+
     pub const Variable = struct {
         name_tok: TokenIndex,
         type: Type,
-        @"extern": bool,
-        static: bool,
+        storage_class: enum {
+            auto,
+            static,
+            @"extern",
+            register,
+        },
         thread_local: bool,
         /// From predefined macro  __func__, __FUNCTION__ or __PRETTY_FUNCTION__.
         /// Implies `static == true`.
         implicit: bool,
         initializer: ?Node.Index,
+    };
+
+    pub const Typedef = struct {
+        name_tok: TokenIndex,
+        type: Type,
+        implicit: bool,
     };
 
     pub const SimpleAsm = struct {
@@ -527,7 +436,111 @@ pub const Node = union(enum) {
         definition: ?Node.Index,
     };
 
-    pub const BinaryExpr = struct {
+    pub const EnumField = struct {
+        name_tok: TokenIndex,
+        type: Type,
+        init: ?Node.Index,
+    };
+
+    pub const RecordField = struct {
+        name_or_first_tok: TokenIndex,
+        type: Type,
+        bit_width: ?Node.Index,
+    };
+
+    pub const LabeledStmt = struct {
+        label_tok: TokenIndex,
+        body: Node.Index,
+        type: Type,
+    };
+
+    pub const CompoundStmt = struct {
+        l_brace_tok: TokenIndex,
+        body: []const Node.Index,
+    };
+
+    pub const IfStmt = struct {
+        if_tok: TokenIndex,
+        cond: Node.Index,
+        then_body: Node.Index,
+        else_body: ?Node.Index,
+    };
+
+    pub const SwitchStmt = struct {
+        switch_tok: TokenIndex,
+        cond: Node.Index,
+        body: Node.Index,
+    };
+
+    pub const CaseStmt = struct {
+        case_tok: TokenIndex,
+        start: Node.Index,
+        end: ?Node.Index,
+        body: Node.Index,
+    };
+
+    pub const DefaultStmt = struct {
+        default_tok: TokenIndex,
+        body: Node.Index,
+    };
+
+    pub const WhileStmt = struct {
+        while_tok: TokenIndex,
+        cond: Node.Index,
+        body: Node.Index,
+    };
+
+    pub const DoWhileStmt = struct {
+        do_tok: TokenIndex,
+        cond: Node.Index,
+        body: Node.Index,
+    };
+
+    pub const ForStmt = struct {
+        for_tok: TokenIndex,
+        init: union(enum) {
+            decls: []const Node.Index,
+            expr: ?Node.Index,
+        },
+        cond: ?Node.Index,
+        incr: ?Node.Index,
+        body: Node.Index,
+    };
+
+    pub const GotoStmt = struct {
+        label_tok: TokenIndex,
+    };
+
+    pub const CompoutedGotoStmt = struct {
+        goto_tok: TokenIndex,
+        expr: Node.Index,
+    };
+
+    pub const ContinueStmt = struct {
+        continue_tok: TokenIndex,
+    };
+
+    pub const BreakStmt = struct {
+        break_tok: TokenIndex,
+    };
+
+    pub const NullStmt = struct {
+        semicolon_or_r_brace_tok: TokenIndex,
+        type: Type,
+    };
+
+    pub const ReturnStmt = struct {
+        return_tok: TokenIndex,
+        return_type: Type,
+        operand: union(enum) {
+            expr: Node.Index,
+            /// True if the function is called "main" and return_type is compatible with int
+            implicit: bool,
+            none,
+        },
+    };
+
+    pub const Binary = struct {
         type: Type,
         lhs: Node.Index,
         op_tok: TokenIndex,
@@ -539,6 +552,7 @@ pub const Node = union(enum) {
         l_paren: TokenIndex,
         kind: Kind,
         operand: Node.Index,
+        implicit: bool,
 
         pub const Kind = enum {
             /// Does nothing except possibly add qualifiers
@@ -603,17 +617,22 @@ pub const Node = union(enum) {
         };
     };
 
-    pub const UnaryExpr = struct {
+    pub const Unary = struct {
         type: Type,
         op_tok: TokenIndex,
         operand: Node.Index,
     };
 
-    pub const Call = struct {
-        l_paren_tok: TokenIndex,
+    pub const AddrOfLabel = struct {
+        label_tok: TokenIndex,
         type: Type,
-        callee: Node.Index,
-        args: []const Node.Index,
+    };
+
+    pub const ArrayAccess = struct {
+        l_bracket_tok: TokenIndex,
+        type: Type,
+        base: Node.Index,
+        index: Node.Index,
     };
 
     pub const MemberAccess = struct {
@@ -631,9 +650,78 @@ pub const Node = union(enum) {
         }
     };
 
+    pub const Call = struct {
+        l_paren_tok: TokenIndex,
+        type: Type,
+        callee: Node.Index,
+        args: []const Node.Index,
+    };
+
     pub const DeclRef = struct {
         name_tok: TokenIndex,
         type: Type,
+        decl: Node.Index,
+    };
+
+    pub const BuiltinCall = struct {
+        builtin_tok: TokenIndex,
+        type: Type,
+        args: []const Node.Index,
+    };
+
+    pub const BuiltinRef = struct {
+        name_tok: TokenIndex,
+        type: Type,
+    };
+
+    pub const TypesCompatible = struct {
+        builtin_tok: TokenIndex,
+        lhs: Type,
+        rhs: Type,
+    };
+
+    pub const Literal = struct {
+        literal_tok: TokenIndex,
+        type: Type,
+    };
+
+    pub const CompoundLiteral = struct {
+        l_paren_tok: TokenIndex,
+        type: Type,
+        thread_local: bool,
+        storage_class: enum {
+            auto,
+            static,
+            register,
+        },
+        initializer: Node.Index,
+    };
+
+    pub const TypeInfo = struct {
+        type: Type,
+        op_tok: TokenIndex,
+        expr: ?Node.Index,
+    };
+
+    pub const Generic = struct {
+        generic_tok: TokenIndex,
+        type: Type,
+
+        // `Generic` child nodes are either an `Association` a `Default`
+        controlling: Node.Index,
+        chosen: Node.Index,
+        rest: []const Node.Index,
+
+        pub const Association = struct {
+            colon_tok: TokenIndex,
+            association_type: Type,
+            expr: Node.Index,
+        };
+
+        pub const Default = struct {
+            default_tok: TokenIndex,
+            expr: Node.Index,
+        };
     };
 
     pub const Conditional = struct {
@@ -650,15 +738,22 @@ pub const Node = union(enum) {
         items: []const Node.Index,
     };
 
-    pub const Literal = struct {
-        literal_tok: TokenIndex,
-        type: Type,
+    pub const UnionInit = struct {
+        l_brace_tok: TokenIndex,
+        union_type: Type,
+        field_index: u32,
+        initializer: ?Node.Index,
     };
 
-    pub const TypeInfo = struct {
+    pub const ArrayFiller = struct {
+        last_tok: TokenIndex,
         type: Type,
-        op_tok: TokenIndex,
-        expr: ?Node.Index,
+        count: u64,
+    };
+
+    pub const DefaultInit = struct {
+        last_tok: TokenIndex,
+        type: Type,
     };
 
     pub const Index = enum(u32) {
@@ -668,6 +763,11 @@ pub const Node = union(enum) {
             const node_tok = tree.nodes.items(.tok)[@intFromEnum(index)];
             const node_data = &tree.nodes.items(.data)[@intFromEnum(index)];
             return switch (tree.nodes.items(.tag)[@intFromEnum(index)]) {
+                .empty_decl => .{
+                    .empty_decl = .{
+                        .semicolon = node_tok,
+                    },
+                },
                 .static_assert => .{
                     .static_assert = .{
                         .assert_tok = node_tok,
@@ -700,14 +800,33 @@ pub const Node = union(enum) {
                         },
                     };
                 },
+                .param => {
+                    const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
+                    return .{
+                        .param = .{
+                            .name_tok = node_tok,
+                            .type = tree.type_map.keys()[node_data[0]],
+                            .storage_class = if (attr.register)
+                                .register
+                            else
+                                .auto,
+                        },
+                    };
+                },
                 .variable => {
                     const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
                     return .{
                         .variable = .{
                             .name_tok = node_tok,
                             .type = tree.type_map.keys()[node_data[0]],
-                            .@"extern" = attr.@"extern",
-                            .static = attr.static,
+                            .storage_class = if (attr.static)
+                                .static
+                            else if (attr.@"extern")
+                                .@"extern"
+                            else if (attr.register)
+                                .register
+                            else
+                                .auto,
                             .thread_local = attr.thread_local,
                             .implicit = attr.implicit,
                             .initializer = unpackOptIndex(node_data[2]),
@@ -718,6 +837,7 @@ pub const Node = union(enum) {
                     .typedef = .{
                         .name_tok = node_tok,
                         .type = tree.type_map.keys()[node_data[0]],
+                        .implicit = node_data[1] != 0,
                     },
                 },
                 .global_asm => .{
@@ -914,14 +1034,25 @@ pub const Node = union(enum) {
                     .return_stmt = .{
                         .return_tok = node_tok,
                         .return_type = tree.type_map.keys()[node_data[0]],
-                        .expr = unpackOptIndex(node_data[1]),
+                        .operand = .{
+                            .expr = @enumFromInt(node_data[1]),
+                        },
+                    },
+                },
+                .return_none_stmt => .{
+                    .return_stmt = .{
+                        .return_tok = node_tok,
+                        .return_type = tree.type_map.keys()[node_data[0]],
+                        .operand = .none,
                     },
                 },
                 .implicit_return => .{
-                    .implicit_return = .{
-                        .r_brace_tok = node_tok,
+                    .return_stmt = .{
+                        .return_tok = node_tok,
                         .return_type = tree.type_map.keys()[node_data[0]],
-                        .zero = node_data[1] != 0,
+                        .operand = .{
+                            .implicit = node_data[1] != 0,
+                        },
                     },
                 },
                 .gnu_asm_simple => .{
@@ -1171,19 +1302,21 @@ pub const Node = union(enum) {
                     },
                 },
                 .explicit_cast => .{
-                    .explicit_cast = .{
+                    .cast = .{
                         .l_paren = node_tok,
                         .type = tree.type_map.keys()[node_data[0]],
                         .kind = @enumFromInt(node_data[1]),
                         .operand = @enumFromInt(node_data[2]),
+                        .implicit = false,
                     },
                 },
                 .implicit_cast => .{
-                    .implicit_cast = .{
+                    .cast = .{
                         .l_paren = node_tok,
                         .type = tree.type_map.keys()[node_data[0]],
                         .kind = @enumFromInt(node_data[1]),
                         .operand = @enumFromInt(node_data[2]),
+                        .implicit = true,
                     },
                 },
                 .addr_of_expr => .{
@@ -1355,10 +1488,18 @@ pub const Node = union(enum) {
                     .decl_ref_expr = .{
                         .name_tok = node_tok,
                         .type = tree.type_map.keys()[node_data[0]],
+                        .decl = @enumFromInt(node_data[1]),
                     },
                 },
                 .enumeration_ref => .{
                     .enumeration_ref = .{
+                        .name_tok = node_tok,
+                        .type = tree.type_map.keys()[node_data[0]],
+                        .decl = @enumFromInt(node_data[1]),
+                    },
+                },
+                .builtin_ref => .{
+                    .builtin_ref = .{
                         .name_tok = node_tok,
                         .type = tree.type_map.keys()[node_data[0]],
                     },
@@ -1541,7 +1682,12 @@ pub const Node = union(enum) {
                         .compound_literal_expr = .{
                             .l_paren_tok = node_tok,
                             .type = tree.type_map.keys()[node_data[0]],
-                            .static = attr.static,
+                            .storage_class = if (attr.static)
+                                .static
+                            else if (attr.register)
+                                .register
+                            else
+                                .auto,
                             .thread_local = attr.thread_local,
                             .initializer = @enumFromInt(node_data[2]),
                         },
@@ -1598,13 +1744,16 @@ pub const Node = union(enum) {
             @"inline": bool = false,
             thread_local: bool = false,
             implicit: bool = false,
-            _: u27 = 0,
+            register: bool = false,
+            _: u26 = 0,
         };
 
         pub const Tag = enum(u8) {
+            empty_decl,
             static_assert,
             fn_proto,
             fn_def,
+            param,
             variable,
             typedef,
             global_asm,
@@ -1636,6 +1785,7 @@ pub const Node = union(enum) {
             break_stmt,
             null_stmt,
             return_stmt,
+            return_none_stmt,
             implicit_return,
             gnu_asm_simple,
             comma_expr,
@@ -1694,6 +1844,7 @@ pub const Node = union(enum) {
             member_access_ptr_expr,
             decl_ref_expr,
             enumeration_ref,
+            builtin_ref,
             bool_literal,
             nullptr_literal,
             int_literal,
@@ -1723,6 +1874,7 @@ pub const Node = union(enum) {
 
             pub fn isTyped(tag: Tag) bool {
                 return switch (tag) {
+                    .empty_decl,
                     .static_assert,
                     .compound_stmt,
                     .compound_stmt_three,
@@ -1751,13 +1903,14 @@ pub const Node = union(enum) {
 
     pub fn isImplicit(node: Node) bool {
         return switch (node) {
-            .implicit_cast,
-            .implicit_return,
             .array_filler_expr,
             .default_init_expr,
             .cond_dummy_expr,
             => true,
+            .return_stmt => |ret| ret.operand == .implicit,
+            .cast => |cast| cast.implicit,
             .variable => |info| info.implicit,
+            .typedef => |info| info.implicit,
             else => false,
         };
     }
@@ -1765,13 +1918,17 @@ pub const Node = union(enum) {
 
 pub fn addNode(tree: *Tree, node: Node) !Node.Index {
     const index = try tree.nodes.addOne(tree.comp.gpa);
-    try tree.addNodeExtra(node, index);
+    try tree.setNode(node, index);
     return @enumFromInt(index);
 }
 
-pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
+pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
     var repr: Node.Repr = undefined;
     switch (node) {
+        .empty_decl => |empty| {
+            repr.tag = .empty_decl;
+            repr.tok = empty.semicolon;
+        },
         .static_assert => |assert| {
             repr.tag = .static_assert;
             repr.data[0] = @intFromEnum(assert.cond);
@@ -1799,14 +1956,23 @@ pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
             repr.data[2] = @intFromEnum(def.body);
             repr.tok = def.name_tok;
         },
+        .param => |param| {
+            repr.tag = .param;
+            repr.data[0] = try tree.addType(param.type);
+            repr.data[1] = @bitCast(Node.Repr.DeclAttr{
+                .register = param.storage_class == .register,
+            });
+            repr.tok = param.name_tok;
+        },
         .variable => |variable| {
             repr.tag = .variable;
             repr.data[0] = try tree.addType(variable.type);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
-                .@"extern" = variable.@"extern",
-                .static = variable.static,
+                .@"extern" = variable.storage_class == .@"extern",
+                .static = variable.storage_class == .static,
                 .thread_local = variable.thread_local,
                 .implicit = variable.implicit,
+                .register = variable.storage_class == .register,
             });
             repr.data[2] = packOptIndex(variable.initializer);
             repr.tok = variable.name_tok;
@@ -1814,6 +1980,7 @@ pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
         .typedef => |typedef| {
             repr.tag = .typedef;
             repr.data[0] = try tree.addType(typedef.type);
+            repr.data[1] = @intFromBool(typedef.implicit);
             repr.tok = typedef.name_tok;
         },
         .global_asm => |global_asm| {
@@ -1991,16 +2158,21 @@ pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = @"null".semicolon_or_r_brace_tok;
         },
         .return_stmt => |@"return"| {
-            repr.tag = .return_stmt;
             repr.data[0] = try tree.addType(@"return".return_type);
-            repr.data[1] = packOptIndex(@"return".expr);
+            switch (@"return".operand) {
+                .expr => |expr| {
+                    repr.tag = .return_stmt;
+                    repr.data[1] = @intFromEnum(expr);
+                },
+                .none => {
+                    repr.tag = .return_none_stmt;
+                },
+                .implicit => |zeroes| {
+                    repr.tag = .implicit_return;
+                    repr.data[1] = @intFromBool(zeroes);
+                },
+            }
             repr.tok = @"return".return_tok;
-        },
-        .implicit_return => |implicit_return| {
-            repr.tag = .implicit_return;
-            repr.data[0] = try tree.addType(implicit_return.return_type);
-            repr.data[1] = @intFromBool(implicit_return.zero);
-            repr.tok = implicit_return.r_brace_tok;
         },
         .gnu_asm_simple => |gnu_asm_simple| {
             repr.tag = .gnu_asm_simple;
@@ -2217,15 +2389,8 @@ pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
-        .explicit_cast => |cast| {
-            repr.tag = .explicit_cast;
-            repr.data[0] = try tree.addType(cast.type);
-            repr.data[1] = @intFromEnum(cast.kind);
-            repr.data[2] = @intFromEnum(cast.operand);
-            repr.tok = cast.l_paren;
-        },
-        .implicit_cast => |cast| {
-            repr.tag = .implicit_cast;
+        .cast => |cast| {
+            repr.tag = if (cast.implicit) .implicit_cast else .explicit_cast;
             repr.data[0] = try tree.addType(cast.type);
             repr.data[1] = @intFromEnum(cast.kind);
             repr.data[2] = @intFromEnum(cast.operand);
@@ -2379,12 +2544,19 @@ pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
         .decl_ref_expr => |decl_ref| {
             repr.tag = .decl_ref_expr;
             repr.data[0] = try tree.addType(decl_ref.type);
+            repr.data[1] = @intFromEnum(decl_ref.decl);
             repr.tok = decl_ref.name_tok;
         },
-        .enumeration_ref => |decl_ref| {
+        .enumeration_ref => |enumeration_ref| {
             repr.tag = .enumeration_ref;
-            repr.data[0] = try tree.addType(decl_ref.type);
-            repr.tok = decl_ref.name_tok;
+            repr.data[0] = try tree.addType(enumeration_ref.type);
+            repr.data[1] = @intFromEnum(enumeration_ref.decl);
+            repr.tok = enumeration_ref.name_tok;
+        },
+        .builtin_ref => |builtin_ref| {
+            repr.tag = .builtin_ref;
+            repr.data[0] = try tree.addType(builtin_ref.type);
+            repr.tok = builtin_ref.name_tok;
         },
         .bool_literal => |literal| {
             repr.tag = .bool_literal;
@@ -2536,7 +2708,8 @@ pub fn addNodeExtra(tree: *Tree, node: Node, index: usize) !void {
             repr.tag = .compound_literal_expr;
             repr.data[0] = try tree.addType(literal.type);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
-                .static = literal.static,
+                .static = literal.storage_class == .static,
+                .register = literal.storage_class == .register,
                 .thread_local = literal.thread_local,
             });
             repr.data[2] = @intFromEnum(literal.initializer);
@@ -2587,7 +2760,7 @@ pub fn isBitfield(tree: *const Tree, node: Node.Index) bool {
 pub fn bitfieldWidth(tree: *const Tree, node: Node.Index, inspect_lval: bool) ?u32 {
     switch (node.get(tree)) {
         .member_access_expr, .member_access_ptr_expr => |access| return access.isBitFieldWidth(tree),
-        .implicit_cast => |cast| {
+        .cast => |cast| {
             if (!inspect_lval) return null;
 
             return switch (cast.kind) {
@@ -2619,7 +2792,7 @@ pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultU
 
         .paren_expr, .addr_of_expr, .deref_expr => |un| cur_node = un.operand,
         .comma_expr => |bin| cur_node = bin.rhs,
-        .explicit_cast, .implicit_cast => |cast| cur_node = cast.operand,
+        .cast => |cast| cur_node = cast.operand,
         .call_expr => |call| cur_node = call.callee,
         .member_access_expr, .member_access_ptr_expr => |access| {
             var ty = access.base.type(tree);
@@ -2772,10 +2945,14 @@ fn dumpNode(
     const ty = node_index.type(tree);
     try w.writeByteNTimes(' ', level);
 
-    try config.setColor(w, if (node.isImplicit()) IMPLICIT else TAG);
+    if (config == .no_color) {
+        if (node.isImplicit()) try w.writeAll("implicit ");
+    } else {
+        try config.setColor(w, if (node.isImplicit()) IMPLICIT else TAG);
+    }
     try w.print("{s}: ", .{@tagName(node)});
     switch (node) {
-        .implicit_cast, .explicit_cast => |cast| {
+        .cast => |cast| {
             try config.setColor(w, .white);
             try w.print("({s}) ", .{@tagName(cast.kind)});
         },
@@ -2820,7 +2997,7 @@ fn dumpNode(
         };
         try w.writeByte(')');
     }
-    if (node == .implicit_return and node.implicit_return.zero) {
+    if (node == .return_stmt and node.return_stmt.operand == .implicit and node.return_stmt.operand.implicit) {
         try config.setColor(w, IMPLICIT);
         try w.writeAll(" (value: 0)");
         try config.setColor(w, .reset);
@@ -2842,6 +3019,7 @@ fn dumpNode(
     }
 
     switch (node) {
+        .empty_decl => {},
         .global_asm, .gnu_asm_simple => |@"asm"| {
             try w.writeByteNTimes(' ', level + 1);
             try tree.dumpNode(@"asm".asm_str, level + delta, mapper, config, w);
@@ -2893,14 +3071,34 @@ fn dumpNode(
             try w.print("{s}\n", .{tree.tokSlice(typedef.name_tok)});
             try config.setColor(w, .reset);
         },
+        .param => |param| {
+            try w.writeByteNTimes(' ', level + half);
+
+            switch (param.storage_class) {
+                .auto => {},
+                .register => {
+                    try config.setColor(w, ATTRIBUTE);
+                    try w.writeAll("register ");
+                    try config.setColor(w, .reset);
+                },
+            }
+
+            try w.writeAll("name: ");
+            try config.setColor(w, NAME);
+            try w.print("{s}\n", .{tree.tokSlice(param.name_tok)});
+            try config.setColor(w, .reset);
+        },
         .variable => |variable| {
             try w.writeByteNTimes(' ', level + half);
 
             try config.setColor(w, ATTRIBUTE);
-            if (variable.static) try w.writeAll("static ");
-            if (variable.@"extern") try w.writeAll("extern ");
+            switch (variable.storage_class) {
+                .auto => {},
+                .static => try w.writeAll("static "),
+                .@"extern" => try w.writeAll("extern "),
+                .register => try w.writeAll("register "),
+            }
             if (variable.thread_local) try w.writeAll("thread_local ");
-            if (variable.implicit) try w.writeAll("implicit ");
             try config.setColor(w, .reset);
 
             try w.writeAll("name: ");
@@ -2985,11 +3183,15 @@ fn dumpNode(
             }
         },
         .compound_literal_expr => |literal| {
-            if (literal.static or literal.thread_local) {
+            if (literal.storage_class != .auto or literal.thread_local) {
                 try w.writeByteNTimes(' ', level + half - 1);
 
                 try config.setColor(w, ATTRIBUTE);
-                if (literal.static) try w.writeAll(" static");
+                switch (literal.storage_class) {
+                    .auto => {},
+                    .static => try w.writeAll(" static"),
+                    .register => try w.writeAll(" register"),
+                }
                 if (literal.thread_local) try w.writeAll(" thread_local");
                 try w.writeByte('\n');
                 try config.setColor(w, .reset);
@@ -3151,12 +3353,16 @@ fn dumpNode(
             try w.writeAll("expr:\n");
             try tree.dumpNode(goto.expr, level + delta, mapper, config, w);
         },
-        .continue_stmt, .break_stmt, .implicit_return, .null_stmt => {},
+        .continue_stmt, .break_stmt, .null_stmt => {},
         .return_stmt => |ret| {
-            if (ret.expr) |some| {
-                try w.writeByteNTimes(' ', level + half);
-                try w.writeAll("expr:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+            switch (ret.operand) {
+                .expr => |expr| {
+                    try w.writeByteNTimes(' ', level + half);
+                    try w.writeAll("expr:\n");
+                    try tree.dumpNode(expr, level + delta, mapper, config, w);
+                },
+                .implicit => {},
+                .none => {},
             }
         },
         .call_expr => |call| {
@@ -3226,7 +3432,7 @@ fn dumpNode(
             try w.writeAll("rhs:\n");
             try tree.dumpNode(bin.rhs, level + delta, mapper, config, w);
         },
-        .explicit_cast, .implicit_cast => |cast| try tree.dumpNode(cast.operand, level + delta, mapper, config, w),
+        .cast => |cast| try tree.dumpNode(cast.operand, level + delta, mapper, config, w),
         .addr_of_expr,
         .deref_expr,
         .plus_expr,
@@ -3248,6 +3454,13 @@ fn dumpNode(
             try tree.dumpNode(un.operand, level + delta, mapper, config, w);
         },
         .decl_ref_expr, .enumeration_ref => |dr| {
+            try w.writeByteNTimes(' ', level + 1);
+            try w.writeAll("name: ");
+            try config.setColor(w, NAME);
+            try w.print("{s}\n", .{tree.tokSlice(dr.name_tok)});
+            try config.setColor(w, .reset);
+        },
+        .builtin_ref => |dr| {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");
             try config.setColor(w, NAME);

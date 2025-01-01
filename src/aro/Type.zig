@@ -17,9 +17,6 @@ pub const Qualifiers = packed struct {
     @"volatile": bool = false,
     restrict: bool = false,
 
-    // for function parameters only, stored here since it fits in the padding
-    register: bool = false,
-
     pub fn any(quals: Qualifiers) bool {
         return quals.@"const" or quals.restrict or quals.@"volatile" or quals.atomic;
     }
@@ -29,7 +26,6 @@ pub const Qualifiers = packed struct {
         if (quals.atomic) try w.writeAll("_Atomic ");
         if (quals.@"volatile") try w.writeAll("volatile ");
         if (quals.restrict) try w.writeAll("restrict ");
-        if (quals.register) try w.writeAll("register ");
     }
 
     /// Merge the const/volatile qualifiers, used by type resolution
@@ -48,7 +44,6 @@ pub const Qualifiers = packed struct {
             .atomic = a.atomic or b.atomic,
             .@"volatile" = a.@"volatile" or b.@"volatile",
             .restrict = a.restrict or b.restrict,
-            .register = a.register or b.register,
         };
     }
 
@@ -58,14 +53,6 @@ pub const Qualifiers = packed struct {
         if (b.@"volatile" and !a.@"volatile") return false;
         if (b.atomic and !a.atomic) return false;
         return true;
-    }
-
-    /// register is a storage class and not actually a qualifier
-    /// so it is not preserved by typeof()
-    pub fn inheritFromTypeof(quals: Qualifiers) Qualifiers {
-        var res = quals;
-        res.register = false;
-        return res;
     }
 
     pub const Builder = struct {
@@ -101,6 +88,7 @@ pub const Func = struct {
         ty: Type,
         name: StringId,
         name_tok: TokenIndex,
+        node: Node.OptIndex,
     };
 
     fn eql(a: *const Func, b: *const Func, a_spec: Specifier, b_spec: Specifier, comp: *const Compilation) bool {

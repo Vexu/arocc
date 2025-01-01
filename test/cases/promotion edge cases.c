@@ -1,3 +1,4 @@
+//aro-args --target=x86_64-linux-gnu
 struct S {
     unsigned x: 3;
     long y: 5;

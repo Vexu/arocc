@@ -1,4 +1,4 @@
-//aro-args -fnative-half-type
+//aro-args -fnative-half-type --target=x86_64-linux-gnu
 void foo(void) {
 	__fp16 x = 1.0f;
 	__fp16 y = 2.0f;

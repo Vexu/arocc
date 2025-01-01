@@ -196,7 +196,7 @@ fn genVar(c: *AsmCodeGen, variable: Node.Variable) !void {
     const nat_align = ty.alignof(comp);
     const alignment = if (ty.isArray() and size >= 16) @max(16, nat_align) else nat_align;
 
-    if (variable.static) {
+    if (variable.storage_class == .static) {
         try c.data.print("  .local \"{s}\"\n", .{name});
     } else {
         try c.data.print("  .globl \"{s}\"\n", .{name});
