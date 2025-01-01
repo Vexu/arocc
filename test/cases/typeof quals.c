@@ -5,6 +5,7 @@ void test_typeof_quals(void) {
     typeof(c) d;
     register int e;
     typeof(e) f;
+    (void)&f;
     _Atomic int g;
     typeof(g) h;
     int *restrict i = 0;
@@ -13,6 +14,6 @@ void test_typeof_quals(void) {
 
 #define EXPECTED_TYPES "const int" "typeof(<expr>: const int)" \
     "volatile int" "typeof(<expr>: volatile int)" \
-    "register int" "typeof(<expr>: int)" \
+    "int" "typeof(<expr>: int)" "void" \
     "_Atomic int" "typeof(<expr>: _Atomic int)" \
     "restrict *int" "typeof(<expr>: restrict *int)"

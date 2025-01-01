@@ -306,7 +306,14 @@ pub fn declareSymbol(
     });
 }
 
-pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: TokenIndex) !void {
+pub fn defineParam(
+    s: *SymbolStack,
+    p: *Parser,
+    name: StringId,
+    ty: Type,
+    tok: TokenIndex,
+    node: ?Node.Index,
+) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .enumeration, .decl, .def, .constexpr => {
@@ -328,6 +335,7 @@ pub fn defineParam(s: *SymbolStack, p: *Parser, name: StringId, ty: Type, tok: T
         .name = name,
         .tok = tok,
         .ty = ty,
+        .node = .packOpt(node),
         .val = .{},
     });
 }
