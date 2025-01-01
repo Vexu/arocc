@@ -1,3 +1,21 @@
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
+implicit typedef: 'long double'
+ name: __float80
+
 fn_def: 'fn () void'
  name: foo
  body:
@@ -15,23 +33,23 @@ fn_def: 'fn () void'
     variable: 'float'
      name: c
      init:
-      implicit_cast: (float_cast) 'float'
+      implicit cast: (float_cast) 'float'
         add_expr: 'double'
          lhs:
-          implicit_cast: (float_cast) 'double'
-            implicit_cast: (lval_to_rval) 'float'
+          implicit cast: (float_cast) 'double'
+            implicit cast: (lval_to_rval) 'float'
               decl_ref_expr: 'float' lvalue
                name: a
          rhs:
-          implicit_cast: (float_cast) 'double'
-            implicit_cast: (lval_to_rval) 'float'
+          implicit cast: (float_cast) 'double'
+            implicit cast: (lval_to_rval) 'float'
               decl_ref_expr: 'float' lvalue
                name: b
 
     variable: '_Complex float'
      name: ca
      init:
-      implicit_cast: (real_to_complex_float) '_Complex float' (value: 0 + 0i)
+      implicit cast: (real_to_complex_float) '_Complex float' (value: 0 + 0i)
         float_literal: 'float' (value: 0)
 
     assign_expr: '_Complex float'
@@ -39,19 +57,19 @@ fn_def: 'fn () void'
       decl_ref_expr: '_Complex float' lvalue
        name: ca
      rhs:
-      implicit_cast: (complex_float_cast) '_Complex float'
+      implicit cast: (complex_float_cast) '_Complex float'
         add_expr: '_Complex double'
          lhs:
-          implicit_cast: (complex_float_cast) '_Complex double'
-            implicit_cast: (lval_to_rval) '_Complex float'
+          implicit cast: (complex_float_cast) '_Complex double'
+            implicit cast: (lval_to_rval) '_Complex float'
               decl_ref_expr: '_Complex float' lvalue
                name: ca
          rhs:
-          implicit_cast: (real_to_complex_float) '_Complex double'
-            implicit_cast: (float_cast) 'double'
-              implicit_cast: (lval_to_rval) 'float'
+          implicit cast: (real_to_complex_float) '_Complex double'
+            implicit cast: (float_cast) 'double'
+              implicit cast: (lval_to_rval) 'float'
                 decl_ref_expr: 'float' lvalue
                  name: a
 
-    implicit_return: 'void'
+    implicit implicit_return: 'void'
 

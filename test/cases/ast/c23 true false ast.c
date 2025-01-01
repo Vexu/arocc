@@ -1,3 +1,21 @@
+implicit typedef: 'unsigned char'
+ name: char8_t
+
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
 variable: 'bool'
  name: a
  init:
@@ -11,25 +29,25 @@ variable: 'bool'
 variable: 'bool'
  name: c
  init:
-  implicit_cast: (int_to_bool) 'bool' (value: false)
+  implicit cast: (int_to_bool) 'bool' (value: false)
     int_literal: 'int' (value: 0)
 
 variable: 'bool'
  name: d
  init:
-  implicit_cast: (int_to_bool) 'bool' (value: true)
+  implicit cast: (int_to_bool) 'bool' (value: true)
     int_literal: 'int' (value: 1)
 
 variable: 'int'
  name: e
  init:
-  implicit_cast: (bool_to_int) 'int' (value: 1)
+  implicit cast: (bool_to_int) 'int' (value: 1)
     bool_literal: 'bool' (value: true)
 
 variable: 'int'
  name: f
  init:
-  implicit_cast: (bool_to_int) 'int' (value: 0)
+  implicit cast: (bool_to_int) 'int' (value: 0)
     bool_literal: 'bool' (value: false)
 
 variable: 'int'
@@ -37,7 +55,7 @@ variable: 'int'
  init:
   add_expr: 'int' (value: 2)
    lhs:
-    implicit_cast: (bool_to_int) 'int'
+    implicit cast: (bool_to_int) 'int'
       bool_literal: 'bool' (value: true)
    rhs:
     int_literal: 'int' (value: 1)

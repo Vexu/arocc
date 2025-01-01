@@ -1,3 +1,18 @@
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
 fn_def: 'fn () void'
  name: foo
  body:
@@ -45,13 +60,13 @@ fn_def: 'fn () void'
       decl_ref_expr: '_Complex double' lvalue
        name: cd
      rhs:
-      implicit_cast: (lval_to_rval) '_Complex double'
+      implicit cast: (lval_to_rval) '_Complex double'
         compound_literal_expr: '_Complex double' lvalue
          array_init_expr: '_Complex double' (value: 1 + 2i)
-           implicit_cast: (float_cast) 'double' (value: 1)
+           implicit cast: (float_cast) 'double' (value: 1)
              float_literal: 'float' (value: 1)
 
-           implicit_cast: (float_cast) 'double' (value: 2)
+           implicit cast: (float_cast) 'double' (value: 2)
              float_literal: 'float' (value: 2)
 
     assign_expr: '_Complex float'
@@ -59,14 +74,14 @@ fn_def: 'fn () void'
       decl_ref_expr: '_Complex float' lvalue
        name: cf
      rhs:
-      implicit_cast: (lval_to_rval) '_Complex float'
+      implicit cast: (lval_to_rval) '_Complex float'
         compound_literal_expr: '_Complex float' lvalue
          array_init_expr: '_Complex float' (value: 1 + 2i)
-           implicit_cast: (float_cast) 'float' (value: 1)
+           implicit cast: (float_cast) 'float' (value: 1)
              float_literal: 'double' (value: 1)
 
-           implicit_cast: (float_cast) 'float' (value: 2)
+           implicit cast: (float_cast) 'float' (value: 2)
              float_literal: 'double' (value: 2)
 
-    implicit_return: 'void'
+    implicit implicit_return: 'void'
 

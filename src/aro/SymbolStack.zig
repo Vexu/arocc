@@ -174,7 +174,7 @@ pub fn defineTypedef(
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: ?Node.Index,
+    node: Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
@@ -203,7 +203,7 @@ pub fn defineTypedef(
             .qual = ty.qual,
             .data = ty.data,
         },
-        .node = .packOpt(node),
+        .node = .pack(node),
         .val = .{},
     });
 }
@@ -267,7 +267,7 @@ pub fn declareSymbol(
     name: StringId,
     ty: Type,
     tok: TokenIndex,
-    node: ?Node.Index,
+    node: Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
@@ -301,7 +301,7 @@ pub fn declareSymbol(
         .name = name,
         .tok = tok,
         .ty = ty,
-        .node = .packOpt(node),
+        .node = .pack(node),
         .val = .{},
     });
 }
@@ -378,6 +378,7 @@ pub fn defineEnumeration(
     ty: Type,
     tok: TokenIndex,
     val: Value,
+    node: Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
@@ -404,5 +405,6 @@ pub fn defineEnumeration(
         .tok = tok,
         .ty = ty,
         .val = val,
+        .node = .pack(node),
     });
 }

@@ -1,3 +1,18 @@
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '[1]struct __va_list_tag'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
 struct_decl: 'struct S'
   record_field: 'unsigned int'
    name: x
@@ -16,7 +31,7 @@ fn_def: 'fn () void'
     variable: 'char'
      name: c
      init:
-      implicit_cast: (int_cast) 'char' (value: 0)
+      implicit cast: (int_cast) 'char' (value: 0)
         int_literal: 'int' (value: 0)
 
     variable: 'double'
@@ -31,13 +46,13 @@ fn_def: 'fn () void'
      rhs:
       add_expr: 'double'
        lhs:
-        implicit_cast: (lval_to_rval) 'double'
+        implicit cast: (lval_to_rval) 'double'
           decl_ref_expr: 'double' lvalue
            name: d
        rhs:
-        implicit_cast: (int_to_float) 'double'
-          implicit_cast: (int_cast) 'int'
-            implicit_cast: (lval_to_rval) 'char'
+        implicit cast: (int_to_float) 'double'
+          implicit cast: (int_cast) 'int'
+            implicit cast: (lval_to_rval) 'char'
               decl_ref_expr: 'char' lvalue
                name: c
 
@@ -54,8 +69,8 @@ fn_def: 'fn () void'
      init:
       add_expr: 'int'
        lhs:
-        implicit_cast: (int_cast) 'int'
-          implicit_cast: (lval_to_rval) 'unsigned int'
+        implicit cast: (int_cast) 'int'
+          implicit cast: (lval_to_rval) 'unsigned int'
             member_access_expr: 'unsigned int' lvalue bitfield
              lhs:
               decl_ref_expr: 'struct S' lvalue
@@ -69,8 +84,8 @@ fn_def: 'fn () void'
      init:
       add_expr: 'int'
        lhs:
-        implicit_cast: (int_cast) 'int'
-          implicit_cast: (lval_to_rval) 'long'
+        implicit cast: (int_cast) 'int'
+          implicit cast: (lval_to_rval) 'long'
             member_access_expr: 'long' lvalue bitfield
              lhs:
               decl_ref_expr: 'struct S' lvalue
@@ -82,7 +97,7 @@ fn_def: 'fn () void'
     variable: '__fp16'
      name: fp16
      init:
-      implicit_cast: (float_cast) '__fp16' (value: 0)
+      implicit cast: (float_cast) '__fp16' (value: 0)
         float_literal: 'float' (value: 0)
 
     assign_expr: '__fp16'
@@ -90,18 +105,18 @@ fn_def: 'fn () void'
       decl_ref_expr: '__fp16' lvalue
        name: fp16
      rhs:
-      implicit_cast: (float_cast) '__fp16'
+      implicit cast: (float_cast) '__fp16'
         add_expr: 'float'
          lhs:
-          implicit_cast: (float_cast) 'float'
-            implicit_cast: (lval_to_rval) '__fp16'
+          implicit cast: (float_cast) 'float'
+            implicit cast: (lval_to_rval) '__fp16'
               decl_ref_expr: '__fp16' lvalue
                name: fp16
          rhs:
-          implicit_cast: (float_cast) 'float'
-            implicit_cast: (lval_to_rval) '__fp16'
+          implicit cast: (float_cast) 'float'
+            implicit cast: (lval_to_rval) '__fp16'
               decl_ref_expr: '__fp16' lvalue
                name: fp16
 
-    implicit_return: 'void'
+    implicit implicit_return: 'void'
 
