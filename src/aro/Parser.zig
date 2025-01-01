@@ -795,6 +795,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         }
         if (p.eatToken(.semicolon)) |tok| {
             try p.errTok(.extra_semi, tok);
+            const empty = try p.tree.addNode(.{ .empty_decl = .{
+                .semicolon = tok,
+            } });
+            try p.decl_buf.append(empty);
             continue;
         }
         try p.err(.expected_external_decl);
@@ -984,9 +988,8 @@ fn decl(p: *Parser) Error!bool {
         try p.attr_buf.append(p.gpa, .{ .attr = attr, .tok = tok });
     }
 
-    var decl_node = try p.tree.addNode(.{ .null_stmt = .{
-        .semicolon_or_r_brace_tok = first_tok,
-        .type = Type.invalid,
+    var decl_node = try p.tree.addNode(.{ .empty_decl = .{
+        .semicolon = first_tok,
     } });
     var init_d = (try p.initDeclarator(&decl_spec, attr_buf_top, decl_node)) orelse {
         _ = try p.expectToken(.semicolon);
@@ -1008,10 +1011,6 @@ fn decl(p: *Parser) Error!bool {
                 });
             }
             return true;
-        }
-
-        if (p.tree.nodes.len == @intFromEnum(decl_node)) {
-            p.tree.nodes.len -= 1;
         }
 
         try p.errTok(.missing_declaration, first_tok);
@@ -1256,9 +1255,8 @@ fn decl(p: *Parser) Error!bool {
             }
         }
 
-        decl_node = try p.tree.addNode(.{ .null_stmt = .{
-            .semicolon_or_r_brace_tok = first_tok,
-            .type = Type.invalid,
+        decl_node = try p.tree.addNode(.{ .empty_decl = .{
+            .semicolon = p.tok_i - 1,
         } });
         init_d = (try p.initDeclarator(&decl_spec, attr_buf_top, decl_node)) orelse {
             try p.err(.expected_ident_or_l_paren);

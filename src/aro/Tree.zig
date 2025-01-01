@@ -223,6 +223,9 @@ pub const GNUAssemblyQualifiers = struct {
 };
 
 pub const Node = union(enum) {
+    empty_decl: struct {
+        semicolon: TokenIndex,
+    },
     static_assert: struct {
         assert_tok: TokenIndex,
         cond: Node.Index,
@@ -691,6 +694,11 @@ pub const Node = union(enum) {
             const node_tok = tree.nodes.items(.tok)[@intFromEnum(index)];
             const node_data = &tree.nodes.items(.data)[@intFromEnum(index)];
             return switch (tree.nodes.items(.tag)[@intFromEnum(index)]) {
+                .empty_decl => .{
+                    .empty_decl = .{
+                        .semicolon = node_tok,
+                    },
+                },
                 .static_assert => .{
                     .static_assert = .{
                         .assert_tok = node_tok,
@@ -1672,6 +1680,7 @@ pub const Node = union(enum) {
         };
 
         pub const Tag = enum(u8) {
+            empty_decl,
             static_assert,
             fn_proto,
             fn_def,
@@ -1796,6 +1805,7 @@ pub const Node = union(enum) {
 
             pub fn isTyped(tag: Tag) bool {
                 return switch (tag) {
+                    .empty_decl,
                     .static_assert,
                     .compound_stmt,
                     .compound_stmt_three,
@@ -1846,6 +1856,10 @@ pub fn addNode(tree: *Tree, node: Node) !Node.Index {
 pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
     var repr: Node.Repr = undefined;
     switch (node) {
+        .empty_decl => |empty| {
+            repr.tag = .empty_decl;
+            repr.tok = empty.semicolon;
+        },
         .static_assert => |assert| {
             repr.tag = .static_assert;
             repr.data[0] = @intFromEnum(assert.cond);
@@ -2936,6 +2950,7 @@ fn dumpNode(
     }
 
     switch (node) {
+        .empty_decl => {},
         .global_asm, .gnu_asm_simple => |@"asm"| {
             try w.writeByteNTimes(' ', level + 1);
             try tree.dumpNode(@"asm".asm_str, level + delta, mapper, config, w);
