@@ -1,3 +1,4 @@
+//aro-args --target=x86_64-linux-gnu
 #include <stdckdint.h>
 
 void foo(void) {

@@ -13,6 +13,9 @@ implicit typedef: '[1]struct __va_list_tag'
 implicit typedef: 'struct __NSConstantString_tag'
  name: __NSConstantString
 
+implicit typedef: 'long double'
+ name: __float80
+
 variable: 'float'
  name: invalid2
 
@@ -47,5 +50,5 @@ fn_def: 'fn () void'
         implicit cast: (int_to_float) 'float' (value: 2)
           int_literal: 'int' (value: 2)
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 

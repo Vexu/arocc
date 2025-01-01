@@ -1,3 +1,4 @@
+//aro-args --target=aarch64-macos-musl
 void foo(void) {
     _Complex double cd = { 1.0, 2.0 };
     _Complex float cf = { 1.0f, 2.0f };

@@ -16,6 +16,9 @@ implicit typedef: '[1]struct __va_list_tag'
 implicit typedef: 'struct __NSConstantString_tag'
  name: __NSConstantString
 
+implicit typedef: 'long double'
+ name: __float80
+
 fn_def: 'fn () void'
  name: bad
  body:
@@ -38,7 +41,7 @@ fn_def: 'fn () void'
      init:
       int_literal: 'int' (value: 3)
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 
 fn_def: 'fn () void'
  name: good
@@ -62,5 +65,5 @@ fn_def: 'fn () void'
         decl_ref_expr: 'fn () void' lvalue
          name: good
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 

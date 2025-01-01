@@ -13,6 +13,9 @@ implicit typedef: '[1]struct __va_list_tag'
 implicit typedef: 'struct __NSConstantString_tag'
  name: __NSConstantString
 
+implicit typedef: 'long double'
+ name: __float80
+
 union_decl: 'union U'
   record_field: 'int'
    name: x
@@ -240,5 +243,5 @@ fn_def: 'fn () void'
           decl_ref_expr: 'float' lvalue
            name: f
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 

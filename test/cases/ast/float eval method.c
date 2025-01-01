@@ -71,5 +71,5 @@ fn_def: 'fn () void'
                 decl_ref_expr: 'float' lvalue
                  name: a
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 

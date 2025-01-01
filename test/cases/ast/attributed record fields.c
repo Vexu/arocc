@@ -7,7 +7,7 @@ implicit typedef: 'unsigned __int128'
 implicit typedef: '*char'
  name: __builtin_ms_va_list
 
-implicit typedef: '[1]struct __va_list_tag'
+implicit typedef: '*char'
  name: __builtin_va_list
 
 implicit typedef: 'struct __NSConstantString_tag'

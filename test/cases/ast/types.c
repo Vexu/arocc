@@ -79,7 +79,7 @@ fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
       implicit cast: (int_to_pointer) 'I': '*d[2]const int'
         int_literal: 'int' (value: 1)
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 
 enum_decl: 'enum E: unsigned int'
   enum_field: 'int' (value: 2)

@@ -334,14 +334,12 @@ pub const Node = union(enum) {
     return_stmt: struct {
         return_tok: TokenIndex,
         return_type: Type,
-        expr: ?Node.Index,
-    },
-    /// Inserted at the end of a function body if no return stmt is found.
-    implicit_return: struct {
-        r_brace_tok: TokenIndex,
-        return_type: Type,
-        /// True if the function is called "main" and return_type is compatible with int
-        zero: bool,
+        operand: union(enum) {
+            expr: Node.Index,
+            /// True if the function is called "main" and return_type is compatible with int
+            implicit: bool,
+            none,
+        },
     },
     gnu_asm_simple: SimpleAsm,
 
@@ -959,14 +957,25 @@ pub const Node = union(enum) {
                     .return_stmt = .{
                         .return_tok = node_tok,
                         .return_type = tree.type_map.keys()[node_data[0]],
-                        .expr = unpackOptIndex(node_data[1]),
+                        .operand = .{
+                            .expr = @enumFromInt(node_data[1]),
+                        },
+                    },
+                },
+                .return_none_stmt => .{
+                    .return_stmt = .{
+                        .return_tok = node_tok,
+                        .return_type = tree.type_map.keys()[node_data[0]],
+                        .operand = .none,
                     },
                 },
                 .implicit_return => .{
-                    .implicit_return = .{
-                        .r_brace_tok = node_tok,
+                    .return_stmt = .{
+                        .return_tok = node_tok,
                         .return_type = tree.type_map.keys()[node_data[0]],
-                        .zero = node_data[1] != 0,
+                        .operand = .{
+                            .implicit = node_data[1] != 0,
+                        },
                     },
                 },
                 .gnu_asm_simple => .{
@@ -1698,6 +1707,7 @@ pub const Node = union(enum) {
             break_stmt,
             null_stmt,
             return_stmt,
+            return_none_stmt,
             implicit_return,
             gnu_asm_simple,
             comma_expr,
@@ -1814,11 +1824,11 @@ pub const Node = union(enum) {
 
     pub fn isImplicit(node: Node) bool {
         return switch (node) {
-            .implicit_return,
             .array_filler_expr,
             .default_init_expr,
             .cond_dummy_expr,
             => true,
+            .return_stmt => |ret| ret.operand == .implicit,
             .cast => |cast| cast.implicit,
             .variable => |info| info.implicit,
             .typedef => |info| info.implicit,
@@ -2065,16 +2075,21 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = @"null".semicolon_or_r_brace_tok;
         },
         .return_stmt => |@"return"| {
-            repr.tag = .return_stmt;
             repr.data[0] = try tree.addType(@"return".return_type);
-            repr.data[1] = packOptIndex(@"return".expr);
+            switch (@"return".operand) {
+                .expr => |expr| {
+                    repr.tag = .return_stmt;
+                    repr.data[1] = @intFromEnum(expr);
+                },
+                .none => {
+                    repr.tag = .return_none_stmt;
+                },
+                .implicit => |zeroes| {
+                    repr.tag = .implicit_return;
+                    repr.data[1] = @intFromBool(zeroes);
+                },
+            }
             repr.tok = @"return".return_tok;
-        },
-        .implicit_return => |implicit_return| {
-            repr.tag = .implicit_return;
-            repr.data[0] = try tree.addType(implicit_return.return_type);
-            repr.data[1] = @intFromBool(implicit_return.zero);
-            repr.tok = implicit_return.r_brace_tok;
         },
         .gnu_asm_simple => |gnu_asm_simple| {
             repr.tag = .gnu_asm_simple;
@@ -2899,7 +2914,7 @@ fn dumpNode(
         };
         try w.writeByte(')');
     }
-    if (node == .implicit_return and node.implicit_return.zero) {
+    if (node == .return_stmt and node.return_stmt.operand == .implicit and node.return_stmt.operand.implicit) {
         try config.setColor(w, IMPLICIT);
         try w.writeAll(" (value: 0)");
         try config.setColor(w, .reset);
@@ -3254,12 +3269,16 @@ fn dumpNode(
             try w.writeAll("expr:\n");
             try tree.dumpNode(goto.expr, level + delta, mapper, config, w);
         },
-        .continue_stmt, .break_stmt, .implicit_return, .null_stmt => {},
+        .continue_stmt, .break_stmt, .null_stmt => {},
         .return_stmt => |ret| {
-            if (ret.expr) |some| {
-                try w.writeByteNTimes(' ', level + half);
-                try w.writeAll("expr:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+            switch (ret.operand) {
+                .expr => |expr| {
+                    try w.writeByteNTimes(' ', level + half);
+                    try w.writeAll("expr:\n");
+                    try tree.dumpNode(expr, level + delta, mapper, config, w);
+                },
+                .implicit => {},
+                .none => {},
             }
         },
         .call_expr => |call| {

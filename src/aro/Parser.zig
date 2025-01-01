@@ -4739,10 +4739,10 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
                     try p.errStr(.func_does_not_return, p.tok_i - 1, func_name);
                 }
             }
-            const implicit_ret = try p.addNode(.{ .implicit_return = .{
-                .r_brace_tok = r_brace,
+            const implicit_ret = try p.addNode(.{ .return_stmt = .{
+                .return_tok = r_brace,
                 .return_type = ret_ty,
-                .zero = return_zero,
+                .operand = .{ .implicit = return_zero },
             } });
             try p.decl_buf.append(implicit_ret);
         }
@@ -4910,7 +4910,7 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
 
     return try p.addNode(.{ .return_stmt = .{
         .return_tok = ret_tok,
-        .expr = if (ret_expr) |some| some.node else null,
+        .operand = if (ret_expr) |some| .{ .expr = some.node } else .none,
         .return_type = ret_ty,
     } });
 }
@@ -9080,7 +9080,7 @@ test "Node locations" {
     defer tree.deinit();
 
     try std.testing.expectEqual(0, comp.diagnostics.list.items.len);
-    for (tree.root_decls.items, 0..) |node, i| {
+    for (tree.root_decls.items[tree.root_decls.items.len - 3 ..], 0..) |node, i| {
         const slice = tree.tokSlice(node.tok(&tree));
         const expected = switch (i) {
             0 => "foo",

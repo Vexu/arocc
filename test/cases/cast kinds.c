@@ -1,4 +1,4 @@
-//aro-args -Wno-int-conversion
+//aro-args -Wno-int-conversion --target=x86_64-linux-gnu
 union U {
     int x;
     float y;

@@ -61,7 +61,7 @@ fn_def: 'fn (x: int, ...) void'
         decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
          name: va
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 
 fn_def: 'fn () void'
  name: quux
@@ -83,7 +83,7 @@ fn_def: 'fn () void'
         decl_ref_expr: '_Float16' lvalue
          name: f
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 
 fn_def: 'fn () void'
  name: conversions
@@ -136,5 +136,5 @@ fn_def: 'fn () void'
               decl_ref_expr: '__fp16' lvalue
                name: fp16
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 

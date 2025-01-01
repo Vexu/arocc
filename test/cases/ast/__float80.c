@@ -53,5 +53,5 @@ fn_def: 'fn () void'
        operand:
         float_literal: 'long double'
 
-    implicit implicit_return: 'void'
+    implicit return_stmt: 'void'
 
