@@ -5234,7 +5234,7 @@ pub const Result = struct {
     }
 
     fn bin(lhs: *Result, p: *Parser, rt_tag: std.meta.Tag(Node), rhs: Result, tok_i: TokenIndex) !void {
-        const bin_data: Node.BinaryExpr = .{
+        const bin_data: Node.Binary = .{
             .op_tok = tok_i,
             .lhs = lhs.node,
             .rhs = rhs.node,
@@ -5257,7 +5257,7 @@ pub const Result = struct {
     }
 
     fn un(operand: *Result, p: *Parser, rt_tag: std.meta.Tag(Node), tok_i: TokenIndex) Error!void {
-        const un_data: Node.UnaryExpr = .{
+        const un_data: Node.Unary = .{
             .op_tok = tok_i,
             .operand = operand.node,
             .type = operand.ty,
