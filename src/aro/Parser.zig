@@ -15,8 +15,7 @@ const InitList = @import("InitList.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const record_layout = @import("record_layout.zig");
 const Source = @import("Source.zig");
-const StrInt = @import("StringInterner.zig");
-const StringId = StrInt.StringId;
+const StringId = @import("StringInterner.zig").StringId;
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
 const target_util = @import("target.zig");
@@ -474,8 +473,7 @@ pub fn typeStr(p: *Parser, ty: Type) ![]const u8 {
     const strings_top = p.strings.items.len;
     defer p.strings.items.len = strings_top;
 
-    const mapper = p.comp.string_interner.getSlowTypeMapper();
-    try ty.print(mapper, p.comp.langopts, p.strings.writer());
+    try ty.print(p.comp.string_interner, p.comp.langopts, p.strings.writer());
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
@@ -493,12 +491,11 @@ pub fn typePairStrExtra(p: *Parser, a: Type, msg: []const u8, b: Type) ![]const 
     defer p.strings.items.len = strings_top;
 
     try p.strings.append('\'');
-    const mapper = p.comp.string_interner.getSlowTypeMapper();
-    try a.print(mapper, p.comp.langopts, p.strings.writer());
+    try a.print(p.comp.string_interner, p.comp.langopts, p.strings.writer());
     try p.strings.append('\'');
     try p.strings.appendSlice(msg);
     try p.strings.append('\'');
-    try b.print(mapper, p.comp.langopts, p.strings.writer());
+    try b.print(p.comp.string_interner, p.comp.langopts, p.strings.writer());
     try p.strings.append('\'');
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
@@ -702,12 +699,12 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .record_buf = std.ArrayList(Type.Record.Field).init(pp.comp.gpa),
         .field_attr_buf = std.ArrayList([]const Attribute).init(pp.comp.gpa),
         .string_ids = .{
-            .declspec_id = try StrInt.intern(pp.comp, "__declspec"),
-            .main_id = try StrInt.intern(pp.comp, "main"),
-            .file = try StrInt.intern(pp.comp, "FILE"),
-            .jmp_buf = try StrInt.intern(pp.comp, "jmp_buf"),
-            .sigjmp_buf = try StrInt.intern(pp.comp, "sigjmp_buf"),
-            .ucontext_t = try StrInt.intern(pp.comp, "ucontext_t"),
+            .declspec_id = try pp.comp.internString("__declspec"),
+            .main_id = try pp.comp.internString("main"),
+            .file = try pp.comp.internString("FILE"),
+            .jmp_buf = try pp.comp.internString("jmp_buf"),
+            .sigjmp_buf = try pp.comp.internString("sigjmp_buf"),
+            .ucontext_t = try pp.comp.internString("ucontext_t"),
         },
     };
     p.arena = p.tree.arena.allocator();
@@ -840,7 +837,7 @@ fn addImplicitTypedef(p: *Parser, name: []const u8, ty: Type) !void {
             .implicit = true,
         },
     });
-    try p.syms.defineTypedef(p, try StrInt.intern(p.comp, name), ty, name_tok, node);
+    try p.syms.defineTypedef(p, try p.comp.internString(name), ty, name_tok, node);
     try p.decl_buf.append(node);
 }
 
@@ -1034,7 +1031,7 @@ fn decl(p: *Parser) Error!bool {
         }
         if (p.func.ty != null) try p.err(.func_not_in_root);
 
-        const interned_declarator_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
+        const interned_declarator_name = try p.comp.internString(p.tokSlice(init_d.d.name));
         try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.ty, init_d.d.name, decl_node, .{}, false);
 
         const func = p.func;
@@ -1095,7 +1092,7 @@ fn decl(p: *Parser) Error!bool {
                     // find and correct parameter types
                     // TODO check for missing declarations and redefinitions
                     const name_str = p.tokSlice(d.name);
-                    const interned_name = try StrInt.intern(p.comp, name_str);
+                    const interned_name = try p.comp.internString(name_str);
                     for (init_d.d.ty.params()) |*param| {
                         if (param.name == interned_name) {
                             param.ty = d.ty;
@@ -1221,7 +1218,7 @@ fn decl(p: *Parser) Error!bool {
         }, @intFromEnum(decl_node));
         try p.decl_buf.append(decl_node);
 
-        const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
+        const interned_name = try p.comp.internString(p.tokSlice(init_d.d.name));
         if (decl_spec.storage_class == .typedef) {
             try p.syms.defineTypedef(p, interned_name, init_d.d.ty, init_d.d.name, decl_node);
             p.typedefDefined(interned_name, init_d.d.ty);
@@ -1274,16 +1271,14 @@ fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result
 
     const cond = cond_node.get(&p.tree);
     if (cond == .builtin_types_compatible_p) {
-        const mapper = p.comp.string_interner.getSlowTypeMapper();
-
         try buf.appendSlice("'__builtin_types_compatible_p(");
 
         const lhs_ty = cond.builtin_types_compatible_p.lhs;
-        try lhs_ty.print(mapper, p.comp.langopts, buf.writer());
+        try lhs_ty.print(p.comp.string_interner, p.comp.langopts, buf.writer());
         try buf.appendSlice(", ");
 
         const rhs_ty = cond.builtin_types_compatible_p.rhs;
-        try rhs_ty.print(mapper, p.comp.langopts, buf.writer());
+        try rhs_ty.print(p.comp.string_interner, p.comp.langopts, buf.writer());
 
         try buf.appendSlice(")'");
     } else if (maybe_message == null) return null;
@@ -1843,7 +1838,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
         try p.syms.pushScope(p);
         defer p.syms.popScope();
 
-        const interned_name = try StrInt.intern(p.comp, p.tokSlice(init_d.d.name));
+        const interned_name = try p.comp.internString(p.tokSlice(init_d.d.name));
         try p.syms.declareSymbol(p, interned_name, init_d.d.ty, init_d.d.name, decl_node);
         if (c23_auto or auto_type) {
             p.auto_type_decl_name = interned_name;
@@ -2072,7 +2067,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 continue;
             },
             .identifier, .extended_identifier => {
-                var interned_name = try StrInt.intern(p.comp, p.tokSlice(p.tok_i));
+                var interned_name = try p.comp.internString(p.tokSlice(p.tok_i));
                 var declspec_found = false;
 
                 if (interned_name == p.string_ids.declspec_id) {
@@ -2086,7 +2081,7 @@ fn typeSpec(p: *Parser, ty: *Type.Builder) Error!bool {
                 }
                 if (ty.typedef != null) break;
                 if (declspec_found) {
-                    interned_name = try StrInt.intern(p.comp, p.tokSlice(p.tok_i));
+                    interned_name = try p.comp.internString(p.tokSlice(p.tok_i));
                 }
                 const typedef = (try p.syms.findTypedef(p, interned_name, p.tok_i, ty.specifier != .none)) orelse break;
                 if (!ty.combineTypedef(p, typedef.ty, typedef.tok)) break;
@@ -2135,7 +2130,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) !StringId {
         "(anonymous {s} at {s}:{d}:{d})",
         .{ kind_str, source.path, line_col.line_no, line_col.col },
     );
-    return StrInt.intern(p.comp, str);
+    return p.comp.internString(str);
 }
 
 /// recordSpec
@@ -2157,7 +2152,7 @@ fn recordSpec(p: *Parser) Error!Type {
             return error.ParsingFailed;
         };
         // check if this is a reference to a previous type
-        const interned_name = try StrInt.intern(p.comp, p.tokSlice(ident));
+        const interned_name = try p.comp.internString(p.tokSlice(ident));
         if (try p.syms.findTag(p, interned_name, p.tok_ids[kind_tok], ident, p.tok_ids[p.tok_i])) |prev| {
             return prev.ty;
         } else {
@@ -2195,7 +2190,7 @@ fn recordSpec(p: *Parser) Error!Type {
     var defined = false;
     const record_ty: *Type.Record = if (maybe_ident) |ident| record_ty: {
         const ident_str = p.tokSlice(ident);
-        const interned_name = try StrInt.intern(p.comp, ident_str);
+        const interned_name = try p.comp.internString(ident_str);
         if (try p.syms.defineTag(p, interned_name, p.tok_ids[kind_tok], ident)) |prev| {
             if (!prev.ty.hasIncompleteSize()) {
                 // if the record isn't incomplete, this is a redefinition
@@ -2291,7 +2286,7 @@ fn recordSpec(p: *Parser) Error!Type {
     }, attr_buf_top, null);
     if (ty.specifier == .attributed and maybe_ident != null) {
         const ident_str = p.tokSlice(maybe_ident.?);
-        const interned_name = try StrInt.intern(p.comp, ident_str);
+        const interned_name = try p.comp.internString(ident_str);
         const ptr = p.syms.getPtr(interned_name, .tags);
         ptr.ty = ty;
     }
@@ -2441,7 +2436,7 @@ fn recordDeclarator(p: *Parser) Error!bool {
             }
             try p.err(.missing_declaration);
         } else {
-            const interned_name = if (name_tok != 0) try StrInt.intern(p.comp, p.tokSlice(name_tok)) else try p.getAnonymousName(first_tok);
+            const interned_name = if (name_tok != 0) try p.comp.internString(p.tokSlice(name_tok)) else try p.getAnonymousName(first_tok);
             try p.record_buf.append(.{
                 .name = interned_name,
                 .ty = ty,
@@ -2541,7 +2536,7 @@ fn enumSpec(p: *Parser) Error!Type {
             return error.ParsingFailed;
         };
         // check if this is a reference to a previous type
-        const interned_name = try StrInt.intern(p.comp, p.tokSlice(ident));
+        const interned_name = try p.comp.internString(p.tokSlice(ident));
         if (try p.syms.findTag(p, interned_name, .keyword_enum, ident, p.tok_ids[p.tok_i])) |prev| {
             // only check fixed underlying type in forward declarations and not in references.
             if (p.tok_ids[p.tok_i] == .semicolon)
@@ -2578,7 +2573,7 @@ fn enumSpec(p: *Parser) Error!Type {
     var defined = false;
     const enum_ty: *Type.Enum = if (maybe_ident) |ident| enum_ty: {
         const ident_str = p.tokSlice(ident);
-        const interned_name = try StrInt.intern(p.comp, ident_str);
+        const interned_name = try p.comp.internString(ident_str);
         if (try p.syms.defineTag(p, interned_name, .keyword_enum, ident)) |prev| {
             const enum_ty = prev.ty.get(.@"enum").?.data.@"enum";
             if (!enum_ty.isIncomplete() and !enum_ty.fixed) {
@@ -2884,7 +2879,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
     });
     try p.tree.value_map.put(p.gpa, node, e.val);
 
-    const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
+    const interned_name = try p.comp.internString(p.tokSlice(name_tok));
     try p.syms.defineEnumeration(p, interned_name, attr_ty, name_tok, e.val, node);
 
     return .{ .field = .{
@@ -3160,7 +3155,7 @@ fn directDeclarator(p: *Parser, base_type: Type, d: *Declarator, kind: Declarato
             specifier = .old_style_func;
             while (true) {
                 const name_tok = try p.expectIdentifier();
-                const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
+                const interned_name = try p.comp.internString(p.tokSlice(name_tok));
                 try p.syms.defineParam(p, interned_name, undefined, name_tok, null);
                 try p.param_buf.append(.{
                     .name = interned_name,
@@ -3229,7 +3224,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
             if (d.old_style_func == null) d.old_style_func = identifier;
 
             try p.param_buf.append(.{
-                .name = try StrInt.intern(p.comp, p.tokSlice(identifier)),
+                .name = try p.comp.internString(p.tokSlice(identifier)),
                 .name_tok = identifier,
                 .ty = .{ .specifier = .int },
                 .node = .null,
@@ -3268,7 +3263,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
                     },
                 });
                 param_node = .pack(node);
-                const interned_name = try StrInt.intern(p.comp, p.tokSlice(name_tok));
+                const interned_name = try p.comp.internString(p.tokSlice(name_tok));
                 try p.syms.defineParam(p, interned_name, param_ty, name_tok, node);
             }
         } else {
@@ -3302,7 +3297,7 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
 
         try param_decl_spec.validateParam(p, &param_ty);
         try p.param_buf.append(.{
-            .name = if (name_tok == 0) .empty else try StrInt.intern(p.comp, p.tokSlice(name_tok)),
+            .name = if (name_tok == 0) .empty else try p.comp.internString(p.tokSlice(name_tok)),
             .name_tok = if (name_tok == 0) first_tok else name_tok,
             .ty = param_ty,
             .node = param_node,
@@ -3500,7 +3495,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_ty: Type) Error!bool {
             } else if (p.eatToken(.period)) |period| {
                 const field_tok = try p.expectIdentifier();
                 const field_str = p.tokSlice(field_tok);
-                const field_name = try StrInt.intern(p.comp, field_str);
+                const field_name = try p.comp.internString(field_str);
                 cur_ty = cur_ty.canonicalize(.standard);
                 if (!cur_ty.isRecord()) {
                     try p.errStr(.invalid_field_designator, period, try p.typeStr(cur_ty));
@@ -4730,7 +4725,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
             var return_zero = false;
             if (last_noreturn == .no and !ret_ty.is(.void) and !ret_ty.isFunc() and !ret_ty.isArray()) {
                 const func_name = p.tokSlice(p.func.name);
-                const interned_name = try StrInt.intern(p.comp, func_name);
+                const interned_name = try p.comp.internString(func_name);
                 if (interned_name == p.string_ids.main_id and ret_ty.is(.int)) {
                     return_zero = true;
                 } else {
@@ -7010,7 +7005,7 @@ fn builtinOffsetof(p: *Parser, offset_kind: OffsetKind) Error!Result {
 fn offsetofMemberDesignator(p: *Parser, base_ty: Type, offset_kind: OffsetKind, access_tok: TokenIndex) Error!Result {
     errdefer p.skipTo(.r_paren);
     const base_field_name_tok = try p.expectIdentifier();
-    const base_field_name = try StrInt.intern(p.comp, p.tokSlice(base_field_name_tok));
+    const base_field_name = try p.comp.internString(p.tokSlice(base_field_name_tok));
     const base_record_ty = base_ty.getRecord().?;
     try p.validateFieldAccess(base_record_ty, base_ty, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .default_init_expr = .{
@@ -7026,7 +7021,7 @@ fn offsetofMemberDesignator(p: *Parser, base_ty: Type, offset_kind: OffsetKind, 
         .period => {
             p.tok_i += 1;
             const field_name_tok = try p.expectIdentifier();
-            const field_name = try StrInt.intern(p.comp, p.tokSlice(field_name_tok));
+            const field_name = try p.comp.internString(p.tokSlice(field_name_tok));
 
             const lhs_record_ty = lhs.ty.getRecord() orelse {
                 try p.errStr(.offsetof_ty, field_name_tok, try p.typeStr(lhs.ty));
@@ -7110,11 +7105,9 @@ fn packedMemberAccessStr(p: *Parser, record: StringId, member: StringId) ![]cons
     defer p.strings.items.len = strings_top;
 
     var w = p.strings.writer();
-    const mapper = p.comp.string_interner.getSlowTypeMapper();
-
-    try w.writeAll(mapper.lookup(member));
+    try w.writeAll(member.lookup(p.comp));
     try w.writeAll("' of class or structure '");
-    try w.writeAll(mapper.lookup(record));
+    try w.writeAll(record.lookup(p.comp));
     try w.writeAll("' may result in an unaligned pointer value");
 
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
@@ -7727,7 +7720,7 @@ fn fieldAccess(
     if (is_arrow and !is_ptr) try p.errStr(.member_expr_not_ptr, field_name_tok, try p.typeStr(expr_ty));
     if (!is_arrow and is_ptr) try p.errStr(.member_expr_ptr, field_name_tok, try p.typeStr(expr_ty));
 
-    const field_name = try StrInt.intern(p.comp, p.tokSlice(field_name_tok));
+    const field_name = try p.comp.internString(p.tokSlice(field_name_tok));
     try p.validateFieldAccess(record_ty, expr_ty, field_name_tok, field_name);
     var discard: u64 = 0;
     return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, access_tok, &discard);
@@ -7739,8 +7732,7 @@ fn validateFieldAccess(p: *Parser, record_ty: *const Type.Record, expr_ty: Type,
     p.strings.items.len = 0;
 
     try p.strings.writer().print("'{s}' in '", .{p.tokSlice(field_name_tok)});
-    const mapper = p.comp.string_interner.getSlowTypeMapper();
-    try expr_ty.print(mapper, p.comp.langopts, p.strings.writer());
+    try expr_ty.print(p.comp.string_interner, p.comp.langopts, p.strings.writer());
     try p.strings.append('\'');
 
     const duped = try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items);
@@ -7812,7 +7804,7 @@ fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     }
     const last_param_name = func_params[func_params.len - 1].name;
     const decl_ref = p.getNode(arg.node, .decl_ref_expr);
-    if (decl_ref == null or last_param_name != try StrInt.intern(p.comp, p.tokSlice(decl_ref.?.name_tok))) {
+    if (decl_ref == null or last_param_name != try p.comp.internString(p.tokSlice(decl_ref.?.name_tok))) {
         try p.errTok(.va_start_not_last_param, param_tok);
     }
 }
@@ -8004,7 +7996,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
         .identifier, .extended_identifier => {
             const name_tok = try p.expectIdentifier();
             const name = p.tokSlice(name_tok);
-            const interned_name = try StrInt.intern(p.comp, name);
+            const interned_name = try p.comp.internString(name);
             if (interned_name == p.auto_type_decl_name) {
                 try p.errStr(.auto_type_self_initialized, name_tok, name);
                 return error.ParsingFailed;
@@ -8200,8 +8192,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                 const strings_top = p.strings.items.len;
                 defer p.strings.items.len = strings_top;
 
-                const mapper = p.comp.string_interner.getSlowTypeMapper();
-                try Type.printNamed(func_ty, p.tokSlice(p.func.name), mapper, p.comp.langopts, p.strings.writer());
+                try func_ty.printNamed(p.tokSlice(p.func.name), p.comp.string_interner, p.comp.langopts, p.strings.writer());
                 try p.strings.append(0);
                 const predef = try p.makePredefinedIdentifier(strings_top);
                 ty = predef.ty;

@@ -5,12 +5,12 @@ pub const Driver = @import("aro/Driver.zig");
 pub const Parser = @import("aro/Parser.zig");
 pub const Preprocessor = @import("aro/Preprocessor.zig");
 pub const Source = @import("aro/Source.zig");
+pub const StringInterner = @import("aro/StringInterner.zig");
 pub const target_util = @import("aro/target.zig");
 pub const Tokenizer = @import("aro/Tokenizer.zig");
 pub const Toolchain = @import("aro/Toolchain.zig");
 pub const Tree = @import("aro/Tree.zig");
 pub const Type = @import("aro/Type.zig");
-pub const TypeMapper = @import("aro/StringInterner.zig").TypeMapper;
 pub const Value = @import("aro/Value.zig");
 
 const backend = @import("backend");

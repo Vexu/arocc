@@ -10,8 +10,7 @@ const Builder = Ir.Builder;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Compilation = @import("Compilation.zig");
-const StrInt = @import("StringInterner.zig");
-const StringId = StrInt.StringId;
+const StringId = @import("StringInterner.zig").StringId;
 const Tree = @import("Tree.zig");
 const Node = Tree.Node;
 const Type = @import("Type.zig");
@@ -268,7 +267,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             const size: u32 = @intCast(variable.type.sizeof(c.comp).?); // TODO add error in parser
             const @"align" = variable.type.alignof(c.comp);
             const alloc = try c.builder.addAlloc(size, @"align");
-            const name = try StrInt.intern(c.comp, c.tree.tokSlice(variable.name_tok));
+            const name = try c.comp.internString(c.tree.tokSlice(variable.name_tok));
             try c.symbols.append(c.comp.gpa, .{ .name = name, .val = alloc });
             if (variable.initializer) |init| {
                 try c.genInitializer(alloc, variable.type, init);
@@ -867,7 +866,7 @@ fn genLval(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .paren_expr => |un| return c.genLval(un.operand),
         .decl_ref_expr => |decl_ref| {
             const slice = c.tree.tokSlice(decl_ref.name_tok);
-            const name = try StrInt.intern(c.comp, slice);
+            const name = try c.comp.internString(slice);
             var i = c.symbols.items.len;
             while (i > 0) {
                 i -= 1;
@@ -1082,7 +1081,7 @@ fn genCall(c: *CodeGen, call: Node.Call) Error!Ir.Ref {
             },
             .decl_ref_expr => |decl_ref| {
                 const slice = c.tree.tokSlice(decl_ref.name_tok);
-                const name = try StrInt.intern(c.comp, slice);
+                const name = try c.comp.internString(slice);
                 var i = c.symbols.items.len;
                 while (i > 0) {
                     i -= 1;
