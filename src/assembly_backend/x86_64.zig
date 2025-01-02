@@ -8,7 +8,7 @@ const Compilation = aro.Compilation;
 const Node = Tree.Node;
 const Source = aro.Source;
 const Tree = aro.Tree;
-const Type = aro.Type;
+const QualType = aro.QualType;
 const Value = aro.Value;
 
 const AsmCodeGen = @This();
@@ -78,22 +78,23 @@ pub fn todo(c: *AsmCodeGen, msg: []const u8, tok: Tree.TokenIndex) Error {
     return error.FatalError;
 }
 
-fn emitAggregate(c: *AsmCodeGen, ty: Type, node: Node.Index) !void {
-    _ = ty;
+fn emitAggregate(c: *AsmCodeGen, qt: QualType, node: Node.Index) !void {
+    _ = qt;
     return c.todo("Codegen aggregates", node.tok(c.tree));
 }
 
-fn emitSingleValue(c: *AsmCodeGen, ty: Type, node: Node.Index) !void {
+fn emitSingleValue(c: *AsmCodeGen, qt: QualType, node: Node.Index) !void {
     const value = c.tree.value_map.get(node) orelse return;
-    const bit_size = ty.bitSizeof(c.comp).?;
-    if (ty.isComplex()) {
+    const bit_size = qt.bitSizeof(c.comp);
+    const scalar_kind = qt.scalarKind(c.comp);
+    if (!scalar_kind.isReal()) {
         return c.todo("Codegen _Complex values", node.tok(c.tree));
-    } else if (ty.isInt()) {
+    } else if (scalar_kind.isInt()) {
         const storage_unit = std.meta.intToEnum(StorageUnit, bit_size) catch return c.todo("Codegen _BitInt values", node.tok(c.tree));
         try c.data.print("  .{s} ", .{@tagName(storage_unit)});
-        _ = try value.print(ty, c.comp, c.data);
+        _ = try value.print(qt, c.comp, c.data);
         try c.data.writeByte('\n');
-    } else if (ty.isFloat()) {
+    } else if (scalar_kind.isFloat()) {
         switch (bit_size) {
             16 => return serializeFloat(f16, value.toFloat(f16, c.comp), c.data),
             32 => return serializeFloat(f32, value.toFloat(f32, c.comp), c.data),
@@ -102,9 +103,9 @@ fn emitSingleValue(c: *AsmCodeGen, ty: Type, node: Node.Index) !void {
             128 => return serializeFloat(f128, value.toFloat(f128, c.comp), c.data),
             else => unreachable,
         }
-    } else if (ty.isPtr()) {
+    } else if (scalar_kind == .pointer) {
         return c.todo("Codegen pointer", node.tok(c.tree));
-    } else if (ty.isArray()) {
+    } else if (qt.is(c.comp, .array)) {
         // Todo:
         //  Handle truncated initializers e.g. char x[3] = "hello";
         //  Zero out remaining bytes if initializer is shorter than storage capacity
@@ -112,19 +113,19 @@ fn emitSingleValue(c: *AsmCodeGen, ty: Type, node: Node.Index) !void {
         const bytes = value.toBytes(c.comp);
         const directive = if (bytes.len > bit_size / 8) "ascii" else "string";
         try c.data.print("  .{s} ", .{directive});
-        try Value.printString(bytes, ty, c.comp, c.data);
+        try Value.printString(bytes, qt, c.comp, c.data);
 
         try c.data.writeByte('\n');
     } else unreachable;
 }
 
-fn emitValue(c: *AsmCodeGen, ty: Type, node: Node.Index) !void {
+fn emitValue(c: *AsmCodeGen, qt: QualType, node: Node.Index) !void {
     switch (node.get(c.tree)) {
         .array_init_expr,
         .struct_init_expr,
         .union_init_expr,
         => return c.todo("Codegen multiple inits", node.tok(c.tree)),
-        else => return c.emitSingleValue(ty, node),
+        else => return c.emitSingleValue(qt, node),
     }
 }
 
@@ -183,18 +184,18 @@ fn genFn(c: *AsmCodeGen, def: Node.FnDef) !void {
 
 fn genVar(c: *AsmCodeGen, variable: Node.Variable) !void {
     const comp = c.comp;
-    const ty = variable.type;
+    const qt = variable.qt;
 
     const is_tentative = variable.initializer == null;
-    const size = ty.sizeof(comp) orelse blk: {
+    const size = qt.sizeofOrNull(comp) orelse blk: {
         // tentative array definition assumed to have one element
-        std.debug.assert(is_tentative and ty.isArray());
-        break :blk ty.elemType().sizeof(comp).?;
+        std.debug.assert(is_tentative and qt.is(c.comp, .array));
+        break :blk qt.childType(c.comp).sizeof(comp);
     };
 
     const name = c.tree.tokSlice(variable.name_tok);
-    const nat_align = ty.alignof(comp);
-    const alignment = if (ty.isArray() and size >= 16) @max(16, nat_align) else nat_align;
+    const nat_align = qt.alignof(comp);
+    const alignment = if (qt.is(c.comp, .array) and size >= 16) @max(16, nat_align) else nat_align;
 
     if (variable.storage_class == .static) {
         try c.data.print("  .local \"{s}\"\n", .{name});
@@ -221,7 +222,7 @@ fn genVar(c: *AsmCodeGen, variable: Node.Variable) !void {
         try c.data.print("  .size \"{s}\", {d}\n", .{ name, size });
         try c.data.print("  .align {d}\n", .{alignment});
         try c.data.print("\"{s}\":\n", .{name});
-        try c.emitValue(ty, init);
+        try c.emitValue(qt, init);
         return;
     }
     if (variable.thread_local and comp.code_gen_options.data_sections) {

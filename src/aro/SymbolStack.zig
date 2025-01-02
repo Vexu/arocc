@@ -9,14 +9,14 @@ const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenIndex = Tree.TokenIndex;
 const Node = Tree.Node;
-const Type = @import("Type.zig");
+const QualType = @import("TypeStore.zig").QualType;
 const Value = @import("Value.zig");
 
 const SymbolStack = @This();
 
 pub const Symbol = struct {
     name: StringId,
-    ty: Type,
+    qt: QualType,
     tok: TokenIndex,
     node: Node.OptIndex = .null,
     kind: Kind,
@@ -172,16 +172,16 @@ pub fn defineTypedef(
     s: *SymbolStack,
     p: *Parser,
     name: StringId,
-    ty: Type,
+    qt: QualType,
     tok: TokenIndex,
     node: Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .typedef => {
-                if (!prev.ty.is(.invalid)) {
-                    if (!ty.eql(prev.ty, p.comp, true)) {
-                        try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(ty, " vs ", prev.ty));
+                if (!prev.qt.isInvalid()) {
+                    if (!qt.eql(prev.qt, p.comp, true)) {
+                        try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(qt, " vs ", prev.qt));
                         if (prev.tok != 0) try p.errTok(.previous_definition, prev.tok);
                     }
                 }
@@ -199,9 +199,9 @@ pub fn defineTypedef(
         .tok = tok,
         .ty = .{
             .name = name,
-            .specifier = ty.specifier,
-            .qual = ty.qual,
-            .data = ty.data,
+            .specifier = qt.specifier,
+            .qual = qt.qual,
+            .data = qt.data,
         },
         .node = .pack(node),
         .val = .{},
@@ -212,7 +212,7 @@ pub fn defineSymbol(
     s: *SymbolStack,
     p: *Parser,
     name: StringId,
-    ty: Type,
+    qt: QualType,
     tok: TokenIndex,
     node: Node.Index,
     val: Value,
@@ -225,7 +225,7 @@ pub fn defineSymbol(
                 try p.errTok(.previous_definition, prev.tok);
             },
             .decl => {
-                if (!ty.eql(prev.ty, p.comp, true)) {
+                if (!qt.eql(prev.qt, p.comp, true)) {
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 }
@@ -246,7 +246,7 @@ pub fn defineSymbol(
         .kind = if (constexpr) .constexpr else .def,
         .name = name,
         .tok = tok,
-        .ty = ty,
+        .ty = qt,
         .node = .pack(node),
         .val = val,
     });
@@ -265,7 +265,7 @@ pub fn declareSymbol(
     s: *SymbolStack,
     p: *Parser,
     name: StringId,
-    ty: Type,
+    qt: QualType,
     tok: TokenIndex,
     node: Node.Index,
 ) !void {
@@ -276,13 +276,13 @@ pub fn declareSymbol(
                 try p.errTok(.previous_definition, prev.tok);
             },
             .decl => {
-                if (!ty.eql(prev.ty, p.comp, true)) {
+                if (!qt.eql(prev.qt, p.comp, true)) {
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 }
             },
             .def, .constexpr => {
-                if (!ty.eql(prev.ty, p.comp, true)) {
+                if (!qt.eql(prev.qt, p.comp, true)) {
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 } else {
@@ -300,7 +300,7 @@ pub fn declareSymbol(
         .kind = .decl,
         .name = name,
         .tok = tok,
-        .ty = ty,
+        .ty = qt,
         .node = .pack(node),
         .val = .{},
     });
@@ -310,7 +310,7 @@ pub fn defineParam(
     s: *SymbolStack,
     p: *Parser,
     name: StringId,
-    ty: Type,
+    qt: QualType,
     tok: TokenIndex,
     node: ?Node.Index,
 ) !void {
@@ -327,14 +327,14 @@ pub fn defineParam(
             else => unreachable,
         }
     }
-    if (ty.is(.fp16) and !p.comp.hasHalfPrecisionFloatABI()) {
+    if (qt.is(.fp16) and !p.comp.hasHalfPrecisionFloatABI()) {
         try p.errStr(.suggest_pointer_for_invalid_fp16, tok, "parameters");
     }
     try s.define(p.gpa, .{
         .kind = .def,
         .name = name,
         .tok = tok,
-        .ty = ty,
+        .ty = qt,
         .node = .packOpt(node),
         .val = .{},
     });
@@ -375,7 +375,7 @@ pub fn defineEnumeration(
     s: *SymbolStack,
     p: *Parser,
     name: StringId,
-    ty: Type,
+    qt: QualType,
     tok: TokenIndex,
     val: Value,
     node: Node.Index,
@@ -403,7 +403,7 @@ pub fn defineEnumeration(
         .kind = .enumeration,
         .name = name,
         .tok = tok,
-        .ty = ty,
+        .ty = qt,
         .val = val,
         .node = .pack(node),
     });

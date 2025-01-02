@@ -4,15 +4,15 @@ const backend = @import("backend");
 
 const LangOpts = @import("LangOpts.zig");
 const TargetSet = @import("Builtins/Properties.zig").TargetSet;
-const Type = @import("Type.zig");
+const QualType = @import("TypeStore.zig").QualType;
 
 /// intmax_t for this target
-pub fn intMaxType(target: std.Target) Type {
+pub fn intMaxType(target: std.Target) QualType {
     switch (target.cpu.arch) {
         .aarch64,
         .aarch64_be,
         .sparc64,
-        => if (target.os.tag != .openbsd) return .{ .specifier = .long },
+        => if (target.os.tag != .openbsd) return .long,
 
         .bpfel,
         .bpfeb,
@@ -21,28 +21,28 @@ pub fn intMaxType(target: std.Target) Type {
         .powerpc64,
         .powerpc64le,
         .ve,
-        => return .{ .specifier = .long },
+        => return .long,
 
         .x86_64 => switch (target.os.tag) {
             .windows, .openbsd => {},
             else => switch (target.abi) {
                 .gnux32, .muslx32 => {},
-                else => return .{ .specifier = .long },
+                else => return .long,
             },
         },
 
         else => {},
     }
-    return .{ .specifier = .long_long };
+    return .long_long;
 }
 
 /// intptr_t for this target
-pub fn intPtrType(target: std.Target) Type {
-    if (target.os.tag == .haiku) return .{ .specifier = .long };
+pub fn intPtrType(target: std.Target) QualType {
+    if (target.os.tag == .haiku) return .long;
 
     switch (target.cpu.arch) {
         .aarch64, .aarch64_be => switch (target.os.tag) {
-            .windows => return .{ .specifier = .long_long },
+            .windows => return .long_long,
             else => {},
         },
 
@@ -56,28 +56,28 @@ pub fn intPtrType(target: std.Target) Type {
         .spirv32,
         .arc,
         .avr,
-        => return .{ .specifier = .int },
+        => return .int,
 
         .sparc => switch (target.os.tag) {
             .netbsd, .openbsd => {},
-            else => return .{ .specifier = .int },
+            else => return .int,
         },
 
         .powerpc, .powerpcle => switch (target.os.tag) {
-            .linux, .freebsd, .netbsd => return .{ .specifier = .int },
+            .linux, .freebsd, .netbsd => return .int,
             else => {},
         },
 
         // 32-bit x86 Darwin, OpenBSD, and RTEMS use long (the default); others use int
         .x86 => switch (target.os.tag) {
             .openbsd, .rtems => {},
-            else => if (!target.os.tag.isDarwin()) return .{ .specifier = .int },
+            else => if (!target.os.tag.isDarwin()) return .int,
         },
 
         .x86_64 => switch (target.os.tag) {
-            .windows => return .{ .specifier = .long_long },
+            .windows => return .long_long,
             else => switch (target.abi) {
-                .gnux32, .muslx32 => return .{ .specifier = .int },
+                .gnux32, .muslx32 => return .int,
                 else => {},
             },
         },
@@ -85,29 +85,29 @@ pub fn intPtrType(target: std.Target) Type {
         else => {},
     }
 
-    return .{ .specifier = .long };
+    return .long;
 }
 
 /// int16_t for this target
-pub fn int16Type(target: std.Target) Type {
+pub fn int16Type(target: std.Target) QualType {
     return switch (target.cpu.arch) {
-        .avr => .{ .specifier = .int },
-        else => .{ .specifier = .short },
+        .avr => .int,
+        else => .short,
     };
 }
 
 /// sig_atomic_t for this target
-pub fn sigAtomicType(target: std.Target) Type {
-    if (target.cpu.arch.isWasm()) return .{ .specifier = .long };
+pub fn sigAtomicType(target: std.Target) QualType {
+    if (target.cpu.arch.isWasm()) return .long;
     return switch (target.cpu.arch) {
-        .avr => .{ .specifier = .schar },
-        .msp430 => .{ .specifier = .long },
-        else => .{ .specifier = .int },
+        .avr => .schar,
+        .msp430 => .long,
+        else => .int,
     };
 }
 
 /// int64_t for this target
-pub fn int64Type(target: std.Target) Type {
+pub fn int64Type(target: std.Target) QualType {
     switch (target.cpu.arch) {
         .loongarch64,
         .ve,
@@ -116,20 +116,20 @@ pub fn int64Type(target: std.Target) Type {
         .powerpc64le,
         .bpfel,
         .bpfeb,
-        => return .{ .specifier = .long },
+        => return .long,
 
         .sparc64 => return intMaxType(target),
 
         .x86, .x86_64 => if (!target.isDarwin()) return intMaxType(target),
-        .aarch64, .aarch64_be => if (!target.isDarwin() and target.os.tag != .openbsd and target.os.tag != .windows) return .{ .specifier = .long },
+        .aarch64, .aarch64_be => if (!target.isDarwin() and target.os.tag != .openbsd and target.os.tag != .windows) return .long,
         else => {},
     }
-    return .{ .specifier = .long_long };
+    return .long_long;
 }
 
-pub fn float80Type(target: std.Target) ?Type {
+pub fn float80Type(target: std.Target) ?QualType {
     switch (target.cpu.arch) {
-        .x86, .x86_64 => return .{ .specifier = .long_double },
+        .x86, .x86_64 => return .long_double,
         else => {},
     }
     return null;
@@ -987,11 +987,9 @@ test "target size/align tests" {
     };
     comp.target = x86_target;
 
-    const tt: Type = .{
-        .specifier = .long_long,
-    };
+    const tt: QualType = .long_long;
 
-    try std.testing.expectEqual(@as(u64, 8), tt.sizeof(&comp).?);
+    try std.testing.expectEqual(@as(u64, 8), tt.sizeof(&comp));
     try std.testing.expectEqual(@as(u64, 4), tt.alignof(&comp));
 }
 

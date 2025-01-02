@@ -7,7 +7,7 @@ const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
-const Type = @import("Type.zig");
+const QualType = @import("TypeStore.zig").QualType;
 const Value = @import("Value.zig");
 
 const Attribute = @This();
@@ -38,51 +38,42 @@ pub const Kind = enum {
 };
 
 pub const Iterator = struct {
-    source: union(enum) {
-        ty: Type,
-        slice: []const Attribute,
+    source: ?struct {
+        qt: QualType,
+        comp: *const Compilation,
     },
+    slice: []const Attribute,
     index: usize,
 
-    pub fn initSlice(slice: ?[]const Attribute) Iterator {
-        return .{ .source = .{ .slice = slice orelse &.{} }, .index = 0 };
+    pub fn initSlice(slice: []const Attribute) Iterator {
+        return .{ .source = null, .slice = slice, .index = 0 };
     }
 
-    pub fn initType(ty: Type) Iterator {
-        return .{ .source = .{ .ty = ty }, .index = 0 };
+    pub fn initType(qt: QualType, comp: *const Compilation) Iterator {
+        return .{ .source = .{ .qt = qt, .comp = comp}, .slice = &.{}, .index = 0 };
     }
 
     /// returns the next attribute as well as its index within the slice or current type
     /// The index can be used to determine when a nested type has been recursed into
     pub fn next(self: *Iterator) ?struct { Attribute, usize } {
-        switch (self.source) {
-            .slice => |slice| {
-                if (self.index < slice.len) {
-                    defer self.index += 1;
-                    return .{ slice[self.index], self.index };
+        if (self.index < self.slice.len) {
+            defer self.index += 1;
+            return .{ self.slice[self.index], self.index };
+        }
+        if (self.source) |source| {
+            var cur = source.qt;
+            while (true) switch (cur.type(source.comp)) {
+                .typeof => |typeof| cur = typeof.base,
+                .attributed => |attributed| {
+                    self.slice = attributed.attributes;
+                    self.index = 1;
+                    return .{ self.slice[0], 0 };
+                },
+                else => {
+                    self.source = null;
+                    break;
                 }
-            },
-            .ty => |ty| {
-                switch (ty.specifier) {
-                    .typeof_type => {
-                        self.* = .{ .source = .{ .ty = ty.data.sub_type.* }, .index = 0 };
-                        return self.next();
-                    },
-                    .typeof_expr => {
-                        self.* = .{ .source = .{ .ty = ty.data.expr.ty }, .index = 0 };
-                        return self.next();
-                    },
-                    .attributed => {
-                        if (self.index < ty.data.attributed.attributes.len) {
-                            defer self.index += 1;
-                            return .{ ty.data.attributed.attributes[self.index], self.index };
-                        }
-                        self.* = .{ .source = .{ .ty = ty.data.attributed.base }, .index = 0 };
-                        return self.next();
-                    },
-                    else => {},
-                }
-            },
+            };
         }
         return null;
     }
@@ -300,9 +291,12 @@ fn diagnoseField(
         },
         .bytes => |bytes| {
             if (Wanted == Value) {
-                if (node != .string_literal_expr or (!node.string_literal_expr.type.elemType().is(.char) and
-                    !node.string_literal_expr.type.elemType().is(.uchar)))
-                {
+                validate: {
+                    if (node != .string_literal_expr) break :validate;
+                    switch (node.string_literal_expr.qt.childType(p.comp).get(p.comp, .int)) {
+                        .char, .uchar, .schar => {},
+                        else => break :validate,
+                    }
                     return .{
                         .tag = .attribute_requires_string,
                         .extra = .{ .str = decl.name },
@@ -788,11 +782,11 @@ fn ignoredAttrErr(p: *Parser, tok: TokenIndex, attr: Attribute.Tag, context: []c
 }
 
 pub const applyParameterAttributes = applyVariableAttributes;
-pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Diagnostics.Tag) !Type {
+pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, tag: ?Diagnostics.Tag) !QualType {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
-    var base_ty = ty;
+    var base_qt = qt;
     var common = false;
     var nocommon = false;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
@@ -813,10 +807,10 @@ pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag:
             try p.attr_application_buf.append(p.gpa, attr);
             nocommon = true;
         },
-        .vector_size => try attr.applyVectorSize(p, tok, &base_ty),
-        .aligned => try attr.applyAligned(p, base_ty, tag),
-        .nonstring => if (!base_ty.isArray() or !(base_ty.is(.char) or base_ty.is(.uchar) or base_ty.is(.schar))) {
-            try p.errStr(.non_string_ignored, tok, try p.typeStr(ty));
+        .vector_size => try attr.applyVectorSize(p, tok, &base_qt),
+        .aligned => try attr.applyAligned(p, base_qt, tag),
+        .nonstring => if (!base_qt.isArray() or !(base_qt.is(.char) or base_qt.is(.uchar) or base_qt.is(.schar))) {
+            try p.errStr(.non_string_ignored, tok, try p.typeStr(qt));
         } else {
             try p.attr_application_buf.append(p.gpa, attr);
         },
@@ -837,10 +831,10 @@ pub fn applyVariableAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag:
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .variables } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "variables"),
     };
-    return base_ty.withAttributes(p.arena, p.attr_application_buf.items);
+    return base_qt.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub fn applyFieldAttributes(p: *Parser, field_ty: *Type, attr_buf_start: usize) ![]const Attribute {
+pub fn applyFieldAttributes(p: *Parser, field_ty: *QualType, attr_buf_start: usize) ![]const Attribute {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
@@ -857,20 +851,20 @@ pub fn applyFieldAttributes(p: *Parser, field_ty: *Type, attr_buf_start: usize) 
     return p.arena.dupe(Attribute, p.attr_application_buf.items);
 }
 
-pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Diagnostics.Tag) !Type {
+pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, tag: ?Diagnostics.Tag) !QualType {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
-    var base_ty = ty;
+    var base_qt = qt;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
         .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode,
          => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
-        .transparent_union => try attr.applyTransparentUnion(p, tok, base_ty),
-        .vector_size => try attr.applyVectorSize(p, tok, &base_ty),
-        .aligned => try attr.applyAligned(p, base_ty, tag),
-        .designated_init => if (base_ty.is(.@"struct")) {
+        .transparent_union => try attr.applyTransparentUnion(p, tok, base_qt),
+        .vector_size => try attr.applyVectorSize(p, tok, &base_qt),
+        .aligned => try attr.applyAligned(p, base_qt, tag),
+        .designated_init => if (base_qt.is(.@"struct")) {
             try p.attr_application_buf.append(p.gpa, attr);
         } else {
             try p.errTok(.designated_init_invalid, tok);
@@ -882,14 +876,14 @@ pub fn applyTypeAttributes(p: *Parser, ty: Type, attr_buf_start: usize, tag: ?Di
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .types } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "types"),
     };
-    return base_ty.withAttributes(p.arena, p.attr_application_buf.items);
+    return base_qt.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) !QualType {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
-    var base_ty = ty;
+    var base_qt = qt;
     var hot = false;
     var cold = false;
     var @"noinline" = false;
@@ -926,8 +920,8 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
             try p.attr_application_buf.append(p.gpa, attr);
             @"noinline" = true;
         },
-        .aligned => try attr.applyAligned(p, base_ty, null),
-        .format => try attr.applyFormat(p, base_ty),
+        .aligned => try attr.applyAligned(p, base_qt, null),
+        .format => try attr.applyFormat(p, base_qt),
         .calling_convention => switch (attr.args.calling_convention.cc) {
             .C => continue,
             .stdcall, .thiscall => switch (p.comp.target.cpu.arch) {
@@ -940,15 +934,15 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
             },
         },
         .malloc => {
-            if (base_ty.returnType().isPtr()) {
+            if (base_qt.returnType().isPtr()) {
                 try p.attr_application_buf.append(p.gpa, attr);
             } else {
                 try ignoredAttrErr(p, tok, attr.tag, "functions that do not return pointers");
             }
         },
         .alloc_align => {
-            if (base_ty.returnType().isPtr()) {
-                const params = base_ty.params();
+            if (base_qt.returnType().isPtr()) {
+                const params = base_qt.params();
                 if (attr.args.alloc_align.position == 0 or attr.args.alloc_align.position > params.len) {
                     try p.errExtra(.attribute_param_out_of_bounds, tok, .{ .attr_arg_count = .{ .attribute = .alloc_align, .expected = 1 } });
                 } else if (!params[attr.args.alloc_align.position - 1].ty.isInt()) {
@@ -1002,11 +996,10 @@ pub fn applyFunctionAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Typ
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .functions } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "functions"),
     };
-    return ty.withAttributes(p.arena, p.attr_application_buf.items);
+    return qt.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub fn applyLabelAttributes(p: *Parser, attr_buf_start: usize) !Type {
-    const ty: Type = .{ .specifier = .void };
+pub fn applyLabelAttributes(p: *Parser, attr_buf_start: usize) !QualType {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
@@ -1028,11 +1021,10 @@ pub fn applyLabelAttributes(p: *Parser, attr_buf_start: usize) !Type {
         },
         else => try ignoredAttrErr(p, tok, attr.tag, "labels"),
     };
-    return ty.withAttributes(p.arena, p.attr_application_buf.items);
+    return QualType.void.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_start: usize) !Type {
-    const ty: Type = .{ .specifier = .void };
+pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_start: usize) !QualType {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
@@ -1054,10 +1046,10 @@ pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_sta
         },
         else => try p.errStr(.cannot_apply_attribute_to_statement, tok, @tagName(attr.tag)),
     };
-    return ty.withAttributes(p.arena, p.attr_application_buf.items);
+    return QualType.void.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-pub fn applyEnumeratorAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !Type {
+pub fn applyEnumeratorAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) !QualType {
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
@@ -1065,19 +1057,18 @@ pub fn applyEnumeratorAttributes(p: *Parser, ty: Type, attr_buf_start: usize) !T
         .deprecated, .unavailable => try p.attr_application_buf.append(p.gpa, attr),
         else => try ignoredAttrErr(p, tok, attr.tag, "enums"),
     };
-    return ty.withAttributes(p.arena, p.attr_application_buf.items);
+    return qt.withAttributes(p.arena, p.attr_application_buf.items);
 }
 
-fn applyAligned(attr: Attribute, p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !void {
-    const base = ty.canonicalize(.standard);
+fn applyAligned(attr: Attribute, p: *Parser, qt: QualType, tag: ?Diagnostics.Tag) !void {
     if (attr.args.aligned.alignment) |alignment| alignas: {
         if (attr.syntax != .keyword) break :alignas;
 
         const align_tok = attr.args.aligned.__name_tok;
         if (tag) |t| try p.errTok(t, align_tok);
 
-        const default_align = base.alignof(p.comp);
-        if (ty.isFunc()) {
+        const default_align = qt.base().alignof(p.comp);
+        if (qt.isFunc()) {
             try p.errTok(.alignas_on_func, align_tok);
         } else if (alignment.requested < default_align) {
             try p.errExtra(.minimum_alignment, align_tok, .{ .unsigned = default_align });
@@ -1086,8 +1077,8 @@ fn applyAligned(attr: Attribute, p: *Parser, ty: Type, tag: ?Diagnostics.Tag) !v
     try p.attr_application_buf.append(p.gpa, attr);
 }
 
-fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type) !void {
-    const union_ty = ty.get(.@"union") orelse {
+fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
+    const union_ty = qt.get(.@"union") orelse {
         return p.errTok(.transparent_union_wrong_type, tok);
     };
     // TODO validate union defined at end
@@ -1096,9 +1087,9 @@ fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type)
     if (fields.len == 0) {
         return p.errTok(.transparent_union_one_field, tok);
     }
-    const first_field_size = fields[0].ty.bitSizeof(p.comp).?;
+    const first_field_size = fields[0].qt.bitSizeof(p.comp);
     for (fields[1..]) |field| {
-        const field_size = field.ty.bitSizeof(p.comp).?;
+        const field_size = field.qt.bitSizeof(p.comp);
         if (field_size == first_field_size) continue;
         const str = try std.fmt.allocPrint(
             p.comp.diagnostics.arena.allocator(),
@@ -1112,32 +1103,28 @@ fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type)
     try p.attr_application_buf.append(p.gpa, attr);
 }
 
-fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, ty: *Type) !void {
-    const base = ty.base();
-    const is_enum = ty.is(.@"enum");
-    if (!(ty.isInt() or ty.isFloat()) or !ty.isReal() or (is_enum and p.comp.langopts.emulate == .gcc)) {
-        try p.errStr(.invalid_vec_elem_ty, tok, try p.typeStr(ty.*));
+fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType) !void {
+    const scalar_kind = qt.scalarKind(p.comp);
+    if (!scalar_kind.isArithmetic() or !scalar_kind.isReal() or (scalar_kind == .@"enum" and p.comp.langopts.emulate != .gcc)) {
+        try p.errStr(.invalid_vec_elem_ty, tok, try p.typeStr(qt.*));
         return error.ParsingFailed;
     }
-    if (is_enum) return;
 
     const vec_bytes = attr.args.vector_size.bytes;
-    const ty_size = ty.sizeof(p.comp).?;
-    if (vec_bytes % ty_size != 0) {
+    const elem_size = qt.sizeof(p.comp);
+    if (vec_bytes % elem_size != 0) {
         return p.errTok(.vec_size_not_multiple, tok);
     }
-    const vec_size = vec_bytes / ty_size;
+    const vec_len: u32 = vec_bytes / elem_size;
 
-    const arr_ty = try p.arena.create(Type.Array);
-    arr_ty.* = .{ .elem = ty.*, .len = vec_size };
-    base.* = .{
-        .specifier = .vector,
-        .data = .{ .array = arr_ty },
-    };
+    try p.comp.type_store.put(p.gpa, .{ .vector = .{
+        .elem = qt.*,
+        .len = vec_len,
+    }});
 }
 
-fn applyFormat(attr: Attribute, p: *Parser, ty: Type) !void {
+fn applyFormat(attr: Attribute, p: *Parser, qt: QualType) !void {
     // TODO validate
-    _ = ty;
+    _ = qt;
     try p.attr_application_buf.append(p.gpa, attr);
 }

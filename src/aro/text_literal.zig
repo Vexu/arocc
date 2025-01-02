@@ -6,7 +6,7 @@ const mem = std.mem;
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Tokenizer = @import("Tokenizer.zig");
-const Type = @import("Type.zig");
+const QualType = @import("TypeStore.zig").QualType;
 
 pub const Item = union(enum) {
     /// decoded hex or character escape
@@ -92,13 +92,13 @@ pub const Kind = enum {
     }
 
     /// The C type of a character literal of this kind
-    pub fn charLiteralType(kind: Kind, comp: *const Compilation) Type {
+    pub fn charLiteralType(kind: Kind, comp: *const Compilation) QualType {
         return switch (kind) {
-            .char => Type.int,
-            .wide => comp.types.wchar,
-            .utf_8 => .{ .specifier = .uchar },
-            .utf_16 => comp.types.uint_least16_t,
-            .utf_32 => comp.types.uint_least32_t,
+            .char => .int,
+            .wide => comp.type_store.wchar,
+            .utf_8 => .uchar,
+            .utf_16 => comp.type_store.uint_least16_t,
+            .utf_32 => comp.type_store.uint_least32_t,
             .unterminated => unreachable,
         };
     }
@@ -121,7 +121,7 @@ pub const Kind = enum {
     pub fn charUnitSize(kind: Kind, comp: *const Compilation) Compilation.CharUnitSize {
         return switch (kind) {
             .char => .@"1",
-            .wide => switch (comp.types.wchar.sizeof(comp).?) {
+            .wide => switch (comp.type_store.wchar.sizeof(comp)) {
                 2 => .@"2",
                 4 => .@"4",
                 else => unreachable,
@@ -141,7 +141,7 @@ pub const Kind = enum {
     }
 
     /// The C type of an element of a string literal of this kind
-    pub fn elementType(kind: Kind, comp: *const Compilation) Type {
+    pub fn elementType(kind: Kind, comp: *const Compilation) QualType {
         return switch (kind) {
             .unterminated => unreachable,
             .char => .{ .specifier = .char },

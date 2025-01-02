@@ -10,7 +10,9 @@ pub const target_util = @import("aro/target.zig");
 pub const Tokenizer = @import("aro/Tokenizer.zig");
 pub const Toolchain = @import("aro/Toolchain.zig");
 pub const Tree = @import("aro/Tree.zig");
-pub const Type = @import("aro/Type.zig");
+pub const TypeStore = @import("aro/TypeStore.zig");
+pub const QualType = TypeStore.QualType;
+pub const Type = TypeStore.Type;
 pub const Value = @import("aro/Value.zig");
 
 const backend = @import("backend");

@@ -8,7 +8,7 @@ const Compilation = @import("Compilation.zig");
 const number_affixes = @import("Tree/number_affixes.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
-const Type = @import("Type.zig");
+const QualType = @import("TypeStore.zig").QualType;
 const Value = @import("Value.zig");
 
 pub const Token = struct {
@@ -106,86 +106,6 @@ pub const TokenWithExpansionLocs = struct {
 pub const TokenIndex = u32;
 pub const ValueMap = std.AutoHashMapUnmanaged(Node.Index, Value);
 
-pub const TypeHashContext = struct {
-    pub fn hash(_: TypeHashContext, ty: Type) u32 {
-        var hasher = std.hash.Wyhash.init(0);
-
-        std.hash.autoHash(&hasher, ty.specifier);
-        std.hash.autoHash(&hasher, @as(u4, @bitCast(ty.qual)));
-        std.hash.autoHash(&hasher, ty.decayed);
-        std.hash.autoHash(&hasher, ty.name);
-
-        switch (ty.specifier) {
-            .bit_int, .complex_bit_int => std.hash.autoHash(&hasher, ty.data.int),
-            .pointer,
-            .unspecified_variable_len_array,
-            .typeof_type,
-            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.sub_type)),
-            .func,
-            .var_args_func,
-            .old_style_func,
-            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.func)),
-            .array,
-            .static_array,
-            .incomplete_array,
-            .vector,
-            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.array)),
-            .variable_len_array,
-            .typeof_expr,
-            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.expr)),
-            .@"struct",
-            .@"union",
-            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.record)),
-            .@"enum",
-            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.@"enum")),
-            .attributed,
-            => std.hash.autoHash(&hasher, @intFromPtr(ty.data.attributed)),
-            else => {},
-        }
-
-        return @as(u32, @truncate(hasher.final()));
-    }
-
-    pub fn eql(_: TypeHashContext, a: Type, b: Type, _: usize) bool {
-        if (a.specifier != b.specifier) return false;
-        if (a.qual != b.qual) return false;
-        if (a.decayed != b.decayed) return false;
-        if (a.name != b.name) return false;
-
-        switch (a.specifier) {
-            .bit_int, .complex_bit_int => {
-                if (a.data.int.bits != b.data.int.bits) return false;
-                if (a.data.int.signedness != b.data.int.signedness) return false;
-            },
-            .pointer,
-            .unspecified_variable_len_array,
-            .typeof_type,
-            => if (a.data.sub_type != b.data.sub_type) return false,
-            .func,
-            .var_args_func,
-            .old_style_func,
-            => if (a.data.func != b.data.func) return false,
-            .array,
-            .static_array,
-            .incomplete_array,
-            .vector,
-            => if (a.data.array != b.data.array) return false,
-            .variable_len_array,
-            .typeof_expr,
-            => if (a.data.expr != b.data.expr) return false,
-            .@"struct",
-            .@"union",
-            => if (a.data.record != b.data.record) return false,
-            .@"enum",
-            => if (a.data.@"enum" != b.data.@"enum") return false,
-            .attributed,
-            => if (a.data.attributed != b.data.attributed) return false,
-            else => {},
-        }
-        return true;
-    }
-};
-
 const Tree = @This();
 
 comp: *Compilation,
@@ -198,10 +118,6 @@ nodes: std.MultiArrayList(Node.Repr) = .empty,
 extra: std.ArrayListUnmanaged(u32) = .empty,
 root_decls: std.ArrayListUnmanaged(Node.Index) = .empty,
 value_map: ValueMap = .empty,
-type_map: std.ArrayHashMapUnmanaged(Type, void, TypeHashContext, false) = .empty,
-
-/// Arena allocator used for types.
-arena: std.heap.ArenaAllocator,
 
 pub const genIr = CodeGen.genIr;
 
@@ -210,8 +126,6 @@ pub fn deinit(tree: *Tree) void {
     tree.extra.deinit(tree.comp.gpa);
     tree.root_decls.deinit(tree.comp.gpa);
     tree.value_map.deinit(tree.comp.gpa);
-    tree.type_map.deinit(tree.comp.gpa);
-    tree.arena.deinit();
     tree.* = undefined;
 }
 
@@ -371,7 +285,7 @@ pub const Node = union(enum) {
 
     pub const FnProto = struct {
         name_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         static: bool,
         @"inline": bool,
         /// The definition for this prototype if one exists.
@@ -380,7 +294,7 @@ pub const Node = union(enum) {
 
     pub const FnDef = struct {
         name_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         static: bool,
         @"inline": bool,
         body: Node.Index,
@@ -388,7 +302,7 @@ pub const Node = union(enum) {
 
     pub const Param = struct {
         name_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         storage_class: enum {
             auto,
             register,
@@ -397,7 +311,7 @@ pub const Node = union(enum) {
 
     pub const Variable = struct {
         name_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         storage_class: enum {
             auto,
             static,
@@ -413,7 +327,7 @@ pub const Node = union(enum) {
 
     pub const Typedef = struct {
         name_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         implicit: bool,
     };
 
@@ -424,33 +338,33 @@ pub const Node = union(enum) {
 
     pub const ContainerDecl = struct {
         name_or_kind_tok: TokenIndex,
-        container_type: Type,
+        container_qt: QualType,
         fields: []const Node.Index,
     };
 
     pub const ContainerForwardDecl = struct {
         name_or_kind_tok: TokenIndex,
-        container_type: Type,
+        container_qt: QualType,
         /// The definition for this forward declaration if one exists.
         definition: ?Node.Index,
     };
 
     pub const EnumField = struct {
         name_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         init: ?Node.Index,
     };
 
     pub const RecordField = struct {
         name_or_first_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         bit_width: ?Node.Index,
     };
 
     pub const LabeledStmt = struct {
         label_tok: TokenIndex,
         body: Node.Index,
-        type: Type,
+        qt: QualType,
     };
 
     pub const CompoundStmt = struct {
@@ -525,29 +439,29 @@ pub const Node = union(enum) {
 
     pub const NullStmt = struct {
         semicolon_or_r_brace_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
     };
 
     pub const ReturnStmt = struct {
         return_tok: TokenIndex,
-        return_type: Type,
+        return_qt: QualType,
         operand: union(enum) {
             expr: Node.Index,
-            /// True if the function is called "main" and return_type is compatible with int
+            /// True if the function is called "main" and return_qt is compatible with int
             implicit: bool,
             none,
         },
     };
 
     pub const Binary = struct {
-        type: Type,
+        qt: QualType,
         lhs: Node.Index,
         op_tok: TokenIndex,
         rhs: Node.Index,
     };
 
     pub const Cast = struct {
-        type: Type,
+        qt: QualType,
         l_paren: TokenIndex,
         kind: Kind,
         operand: Node.Index,
@@ -617,76 +531,78 @@ pub const Node = union(enum) {
     };
 
     pub const Unary = struct {
-        type: Type,
+        qt: QualType,
         op_tok: TokenIndex,
         operand: Node.Index,
     };
 
     pub const AddrOfLabel = struct {
         label_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
     };
 
     pub const ArrayAccess = struct {
         l_bracket_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         base: Node.Index,
         index: Node.Index,
     };
 
     pub const MemberAccess = struct {
-        type: Type,
+        qt: QualType,
         base: Node.Index,
         access_tok: TokenIndex,
         member_index: u32,
 
         pub fn isBitFieldWidth(access: MemberAccess, tree: *const Tree) ?u32 {
-            var ty = access.base.type(tree);
-            if (ty.isPtr()) ty = ty.elemType();
-            const record_ty = ty.get(.@"struct") orelse ty.get(.@"union") orelse return null;
-            const field = record_ty.data.record.fields[access.member_index];
-            return field.bit_width;
+            var qt = access.base.qt(tree);
+            if (qt.get(tree.comp, .pointer)) |pointer| qt = pointer.child;
+            const record_ty = switch (qt.base(tree.comp).type) {
+                .@"struct", .@"union" => |record| record,
+                else => return null,
+            };
+            return record_ty.fields[access.member_index].bit_width.unpack();
         }
     };
 
     pub const Call = struct {
         l_paren_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         callee: Node.Index,
         args: []const Node.Index,
     };
 
     pub const DeclRef = struct {
         name_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         decl: Node.Index,
     };
 
     pub const BuiltinCall = struct {
         builtin_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         args: []const Node.Index,
     };
 
     pub const BuiltinRef = struct {
         name_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
     };
 
     pub const TypesCompatible = struct {
         builtin_tok: TokenIndex,
-        lhs: Type,
-        rhs: Type,
+        lhs: QualType,
+        rhs: QualType,
     };
 
     pub const Literal = struct {
         literal_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
     };
 
     pub const CompoundLiteral = struct {
         l_paren_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         thread_local: bool,
         storage_class: enum {
             auto,
@@ -697,14 +613,14 @@ pub const Node = union(enum) {
     };
 
     pub const TypeInfo = struct {
-        type: Type,
+        qt: QualType,
         op_tok: TokenIndex,
         expr: ?Node.Index,
     };
 
     pub const Generic = struct {
         generic_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
 
         // `Generic` child nodes are either an `Association` a `Default`
         controlling: Node.Index,
@@ -713,7 +629,7 @@ pub const Node = union(enum) {
 
         pub const Association = struct {
             colon_tok: TokenIndex,
-            association_type: Type,
+            association_qt: QualType,
             expr: Node.Index,
         };
 
@@ -725,7 +641,7 @@ pub const Node = union(enum) {
 
     pub const Conditional = struct {
         cond_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         cond: Node.Index,
         then_expr: Node.Index,
         else_expr: Node.Index,
@@ -733,26 +649,26 @@ pub const Node = union(enum) {
 
     pub const ContainerInit = struct {
         l_brace_tok: TokenIndex,
-        container_type: Type,
+        container_qt: QualType,
         items: []const Node.Index,
     };
 
     pub const UnionInit = struct {
         l_brace_tok: TokenIndex,
-        union_type: Type,
+        union_qt: QualType,
         field_index: u32,
         initializer: ?Node.Index,
     };
 
     pub const ArrayFiller = struct {
         last_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
         count: u64,
     };
 
     pub const DefaultInit = struct {
         last_tok: TokenIndex,
-        type: Type,
+        qt: QualType,
     };
 
     pub const Index = enum(u32) {
@@ -779,7 +695,7 @@ pub const Node = union(enum) {
                     return .{
                         .fn_proto = .{
                             .name_tok = node_tok,
-                            .type = tree.type_map.keys()[node_data[0]],
+                            .qt = @bitCast(node_data[0]),
                             .static = attr.static,
                             .@"inline" = attr.@"inline",
                             // TODO decide how to handle definition
@@ -792,7 +708,7 @@ pub const Node = union(enum) {
                     return .{
                         .fn_def = .{
                             .name_tok = node_tok,
-                            .type = tree.type_map.keys()[node_data[0]],
+                            .qt = @bitCast(node_data[0]),
                             .static = attr.static,
                             .@"inline" = attr.@"inline",
                             .body = @enumFromInt(node_data[2]),
@@ -804,7 +720,7 @@ pub const Node = union(enum) {
                     return .{
                         .param = .{
                             .name_tok = node_tok,
-                            .type = tree.type_map.keys()[node_data[0]],
+                            .qt = @bitCast(node_data[0]),
                             .storage_class = if (attr.register)
                                 .register
                             else
@@ -817,7 +733,7 @@ pub const Node = union(enum) {
                     return .{
                         .variable = .{
                             .name_tok = node_tok,
-                            .type = tree.type_map.keys()[node_data[0]],
+                            .qt = @bitCast(node_data[0]),
                             .storage_class = if (attr.static)
                                 .static
                             else if (attr.@"extern")
@@ -835,7 +751,7 @@ pub const Node = union(enum) {
                 .typedef => .{
                     .typedef = .{
                         .name_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .implicit = node_data[1] != 0,
                     },
                 },
@@ -848,84 +764,84 @@ pub const Node = union(enum) {
                 .struct_decl => .{
                     .struct_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .fields = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
                     },
                 },
                 .struct_decl_two => .{
                     .struct_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .fields = unPackElems(node_data[1..]),
                     },
                 },
                 .union_decl => .{
                     .union_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .fields = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
                     },
                 },
                 .union_decl_two => .{
                     .union_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .fields = unPackElems(node_data[1..]),
                     },
                 },
                 .enum_decl => .{
                     .enum_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .fields = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
                     },
                 },
                 .enum_decl_two => .{
                     .enum_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .fields = unPackElems(node_data[1..]),
                     },
                 },
                 .struct_forward_decl => .{
                     .struct_forward_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .definition = null,
                     },
                 },
                 .union_forward_decl => .{
                     .union_forward_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .definition = null,
                     },
                 },
                 .enum_forward_decl => .{
                     .enum_forward_decl = .{
                         .name_or_kind_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .definition = null,
                     },
                 },
                 .enum_field => .{
                     .enum_field = .{
                         .name_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .init = unpackOptIndex(node_data[1]),
                     },
                 },
                 .record_field => .{
                     .record_field = .{
                         .name_or_first_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .bit_width = unpackOptIndex(node_data[1]),
                     },
                 },
                 .labeled_stmt => .{
                     .labeled_stmt = .{
                         .label_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .body = @enumFromInt(node_data[1]),
                     },
                 },
@@ -1026,13 +942,13 @@ pub const Node = union(enum) {
                 .null_stmt => .{
                     .null_stmt = .{
                         .semicolon_or_r_brace_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .return_stmt => .{
                     .return_stmt = .{
                         .return_tok = node_tok,
-                        .return_type = tree.type_map.keys()[node_data[0]],
+                        .return_qt = @bitCast(node_data[0]),
                         .operand = .{
                             .expr = @enumFromInt(node_data[1]),
                         },
@@ -1041,14 +957,14 @@ pub const Node = union(enum) {
                 .return_none_stmt => .{
                     .return_stmt = .{
                         .return_tok = node_tok,
-                        .return_type = tree.type_map.keys()[node_data[0]],
+                        .return_qt = @bitCast(node_data[0]),
                         .operand = .none,
                     },
                 },
                 .implicit_return => .{
                     .return_stmt = .{
                         .return_tok = node_tok,
-                        .return_type = tree.type_map.keys()[node_data[0]],
+                        .return_qt = @bitCast(node_data[0]),
                         .operand = .{
                             .implicit = node_data[1] != 0,
                         },
@@ -1063,7 +979,7 @@ pub const Node = union(enum) {
                 .comma_expr => .{
                     .comma_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1071,7 +987,7 @@ pub const Node = union(enum) {
                 .assign_expr => .{
                     .assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1079,7 +995,7 @@ pub const Node = union(enum) {
                 .mul_assign_expr => .{
                     .mul_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1087,7 +1003,7 @@ pub const Node = union(enum) {
                 .div_assign_expr => .{
                     .div_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1095,7 +1011,7 @@ pub const Node = union(enum) {
                 .mod_assign_expr => .{
                     .mod_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1103,7 +1019,7 @@ pub const Node = union(enum) {
                 .add_assign_expr => .{
                     .add_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1111,7 +1027,7 @@ pub const Node = union(enum) {
                 .sub_assign_expr => .{
                     .sub_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1119,7 +1035,7 @@ pub const Node = union(enum) {
                 .shl_assign_expr => .{
                     .shl_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1127,7 +1043,7 @@ pub const Node = union(enum) {
                 .shr_assign_expr => .{
                     .shr_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1135,7 +1051,7 @@ pub const Node = union(enum) {
                 .bit_and_assign_expr => .{
                     .bit_and_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1143,7 +1059,7 @@ pub const Node = union(enum) {
                 .bit_xor_assign_expr => .{
                     .bit_xor_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1151,7 +1067,7 @@ pub const Node = union(enum) {
                 .bit_or_assign_expr => .{
                     .bit_or_assign_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1159,7 +1075,7 @@ pub const Node = union(enum) {
                 .bool_or_expr => .{
                     .bool_or_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1167,7 +1083,7 @@ pub const Node = union(enum) {
                 .bool_and_expr => .{
                     .bool_and_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1175,7 +1091,7 @@ pub const Node = union(enum) {
                 .bit_or_expr => .{
                     .bit_or_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1183,7 +1099,7 @@ pub const Node = union(enum) {
                 .bit_xor_expr => .{
                     .bit_xor_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1191,7 +1107,7 @@ pub const Node = union(enum) {
                 .bit_and_expr => .{
                     .bit_and_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1199,7 +1115,7 @@ pub const Node = union(enum) {
                 .equal_expr => .{
                     .equal_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1207,7 +1123,7 @@ pub const Node = union(enum) {
                 .not_equal_expr => .{
                     .not_equal_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1215,7 +1131,7 @@ pub const Node = union(enum) {
                 .less_than_expr => .{
                     .less_than_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1223,7 +1139,7 @@ pub const Node = union(enum) {
                 .less_than_equal_expr => .{
                     .less_than_equal_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1231,7 +1147,7 @@ pub const Node = union(enum) {
                 .greater_than_expr => .{
                     .greater_than_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1239,7 +1155,7 @@ pub const Node = union(enum) {
                 .greater_than_equal_expr => .{
                     .greater_than_equal_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1247,7 +1163,7 @@ pub const Node = union(enum) {
                 .shl_expr => .{
                     .shl_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1255,7 +1171,7 @@ pub const Node = union(enum) {
                 .shr_expr => .{
                     .shr_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1263,7 +1179,7 @@ pub const Node = union(enum) {
                 .add_expr => .{
                     .add_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1271,7 +1187,7 @@ pub const Node = union(enum) {
                 .sub_expr => .{
                     .sub_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1279,7 +1195,7 @@ pub const Node = union(enum) {
                 .mul_expr => .{
                     .mul_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1287,7 +1203,7 @@ pub const Node = union(enum) {
                 .div_expr => .{
                     .div_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1295,7 +1211,7 @@ pub const Node = union(enum) {
                 .mod_expr => .{
                     .mod_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
                         .rhs = @enumFromInt(node_data[2]),
                     },
@@ -1303,7 +1219,7 @@ pub const Node = union(enum) {
                 .explicit_cast => .{
                     .cast = .{
                         .l_paren = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .kind = @enumFromInt(node_data[1]),
                         .operand = @enumFromInt(node_data[2]),
                         .implicit = false,
@@ -1312,7 +1228,7 @@ pub const Node = union(enum) {
                 .implicit_cast => .{
                     .cast = .{
                         .l_paren = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .kind = @enumFromInt(node_data[1]),
                         .operand = @enumFromInt(node_data[2]),
                         .implicit = true,
@@ -1321,118 +1237,118 @@ pub const Node = union(enum) {
                 .addr_of_expr => .{
                     .addr_of_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .deref_expr => .{
                     .deref_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .plus_expr => .{
                     .plus_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .negate_expr => .{
                     .negate_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .bit_not_expr => .{
                     .bit_not_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .bool_not_expr => .{
                     .bool_not_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .pre_inc_expr => .{
                     .pre_inc_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .pre_dec_expr => .{
                     .pre_dec_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .imag_expr => .{
                     .imag_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .real_expr => .{
                     .real_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .post_inc_expr => .{
                     .post_inc_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .post_dec_expr => .{
                     .post_dec_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .paren_expr => .{
                     .paren_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .stmt_expr => .{
                     .stmt_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .cond_dummy_expr => .{
                     .cond_dummy_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .addr_of_label => .{
                     .addr_of_label = .{
                         .label_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .array_access_expr => .{
                     .array_access_expr = .{
                         .l_bracket_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .base = @enumFromInt(node_data[1]),
                         .index = @enumFromInt(node_data[2]),
                     },
@@ -1440,7 +1356,7 @@ pub const Node = union(enum) {
                 .call_expr => .{
                     .call_expr = .{
                         .l_paren_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .callee = @enumFromInt(tree.extra.items[node_data[1]]),
                         .args = @ptrCast(tree.extra.items[node_data[1] + 1 ..][0 .. node_data[2] - 1]),
                     },
@@ -1448,7 +1364,7 @@ pub const Node = union(enum) {
                 .call_expr_one => .{
                     .call_expr = .{
                         .l_paren_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .callee = @enumFromInt(node_data[1]),
                         .args = @ptrCast(node_data[2..2]),
                     },
@@ -1456,21 +1372,21 @@ pub const Node = union(enum) {
                 .builtin_call_expr => .{
                     .builtin_call_expr = .{
                         .builtin_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .args = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
                     },
                 },
                 .builtin_call_expr_two => .{
                     .builtin_call_expr = .{
                         .builtin_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .args = unPackElems(node_data[1..]),
                     },
                 },
                 .member_access_expr => .{
                     .member_access_expr = .{
                         .access_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .base = @enumFromInt(node_data[1]),
                         .member_index = node_data[2],
                     },
@@ -1478,7 +1394,7 @@ pub const Node = union(enum) {
                 .member_access_ptr_expr => .{
                     .member_access_ptr_expr = .{
                         .access_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .base = @enumFromInt(node_data[1]),
                         .member_index = node_data[2],
                     },
@@ -1486,77 +1402,77 @@ pub const Node = union(enum) {
                 .decl_ref_expr => .{
                     .decl_ref_expr = .{
                         .name_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .decl = @enumFromInt(node_data[1]),
                     },
                 },
                 .enumeration_ref => .{
                     .enumeration_ref = .{
                         .name_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .decl = @enumFromInt(node_data[1]),
                     },
                 },
                 .builtin_ref => .{
                     .builtin_ref = .{
                         .name_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .bool_literal => .{
                     .bool_literal = .{
                         .literal_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .nullptr_literal => .{
                     .nullptr_literal = .{
                         .literal_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .int_literal => .{
                     .int_literal = .{
                         .literal_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .char_literal => .{
                     .char_literal = .{
                         .literal_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .float_literal => .{
                     .float_literal = .{
                         .literal_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .string_literal_expr => .{
                     .string_literal_expr = .{
                         .literal_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .imaginary_literal => .{
                     .imaginary_literal = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .operand = @enumFromInt(node_data[1]),
                     },
                 },
                 .sizeof_expr => .{
                     .sizeof_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .expr = unpackOptIndex(node_data[1]),
                     },
                 },
                 .alignof_expr => .{
                     .alignof_expr = .{
                         .op_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .expr = unpackOptIndex(node_data[1]),
                     },
                 },
@@ -1564,7 +1480,7 @@ pub const Node = union(enum) {
                 .generic_expr_zero => .{
                     .generic_expr = .{
                         .generic_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .controlling = @enumFromInt(node_data[1]),
                         .chosen = @enumFromInt(node_data[2]),
                         .rest = &.{},
@@ -1573,7 +1489,7 @@ pub const Node = union(enum) {
                 .generic_expr => .{
                     .generic_expr = .{
                         .generic_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .controlling = @enumFromInt(tree.extra.items[node_data[1]]),
                         .chosen = @enumFromInt(tree.extra.items[node_data[1] + 1]),
                         .rest = @ptrCast(tree.extra.items[node_data[1] + 2 ..][0 .. node_data[2] - 2]),
@@ -1582,7 +1498,7 @@ pub const Node = union(enum) {
                 .generic_association_expr => .{
                     .generic_association_expr = .{
                         .colon_tok = node_tok,
-                        .association_type = tree.type_map.keys()[node_data[0]],
+                        .association_qt = @bitCast(node_data[0]),
                         .expr = @enumFromInt(node_data[1]),
                     },
                 },
@@ -1595,7 +1511,7 @@ pub const Node = union(enum) {
                 .binary_cond_expr => .{
                     .binary_cond_expr = .{
                         .cond_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .cond = @enumFromInt(node_data[1]),
                         .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
                         .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
@@ -1604,7 +1520,7 @@ pub const Node = union(enum) {
                 .cond_expr => .{
                     .cond_expr = .{
                         .cond_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .cond = @enumFromInt(node_data[1]),
                         .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
                         .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
@@ -1613,7 +1529,7 @@ pub const Node = union(enum) {
                 .builtin_choose_expr => .{
                     .builtin_choose_expr = .{
                         .cond_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .cond = @enumFromInt(node_data[1]),
                         .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
                         .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
@@ -1622,42 +1538,42 @@ pub const Node = union(enum) {
                 .builtin_types_compatible_p => .{
                     .builtin_types_compatible_p = .{
                         .builtin_tok = node_tok,
-                        .lhs = tree.type_map.keys()[node_data[0]],
-                        .rhs = tree.type_map.keys()[node_data[1]],
+                        .lhs = @bitCast(node_data[0]),
+                        .rhs = @bitCast(node_data[1]),
                     },
                 },
                 .array_init_expr_two => .{
                     .array_init_expr = .{
                         .l_brace_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .items = unPackElems(node_data[1..]),
                     },
                 },
                 .array_init_expr => .{
                     .array_init_expr = .{
                         .l_brace_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .items = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
                     },
                 },
                 .struct_init_expr_two => .{
                     .struct_init_expr = .{
                         .l_brace_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .items = unPackElems(node_data[1..]),
                     },
                 },
                 .struct_init_expr => .{
                     .struct_init_expr = .{
                         .l_brace_tok = node_tok,
-                        .container_type = tree.type_map.keys()[node_data[0]],
+                        .container_qt = @bitCast(node_data[0]),
                         .items = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
                     },
                 },
                 .union_init_expr => .{
                     .union_init_expr = .{
                         .l_brace_tok = node_tok,
-                        .union_type = tree.type_map.keys()[node_data[0]],
+                        .union_qt = @bitCast(node_data[0]),
                         .field_index = node_data[1],
                         .initializer = unpackOptIndex(node_data[2]),
                     },
@@ -1665,14 +1581,14 @@ pub const Node = union(enum) {
                 .array_filler_expr => .{
                     .array_filler_expr = .{
                         .last_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                         .count = @bitCast(node_data[1..].*),
                     },
                 },
                 .default_init_expr => .{
                     .default_init_expr = .{
                         .last_tok = node_tok,
-                        .type = tree.type_map.keys()[node_data[0]],
+                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .compound_literal_expr => {
@@ -1680,7 +1596,7 @@ pub const Node = union(enum) {
                     return .{
                         .compound_literal_expr = .{
                             .l_paren_tok = node_tok,
-                            .type = tree.type_map.keys()[node_data[0]],
+                            .qt = @bitCast(node_data[0]),
                             .storage_class = if (attr.static)
                                 .static
                             else if (attr.register)
@@ -1704,13 +1620,16 @@ pub const Node = union(enum) {
             return tree.tokens.items(.loc)[@intFromEnum(tok_i)];
         }
 
-        pub fn @"type"(index: Index, tree: *const Tree) Type {
+        pub fn qt(index: Index, tree: *const Tree) QualType {
+            return index.qtOrNull(tree) orelse .void;
+        }
+
+        pub fn qtOrNull(index: Index, tree: *const Tree) ?QualType {
             if (!tree.nodes.items(.tag)[@intFromEnum(index)].isTyped()) {
-                return .{ .specifier = .void };
+                return null;
             }
             // If a node is typed the type is stored in data[0].
-            const type_index = tree.nodes.items(.data)[@intFromEnum(index)][0];
-            return tree.type_map.keys()[type_index];
+            return @bitCast(tree.nodes.items(.data)[@intFromEnum(index)][0]);
         }
     };
 
@@ -1936,7 +1855,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .fn_proto => |proto| {
             repr.tag = .fn_proto;
-            repr.data[0] = try tree.addType(proto.type);
+            repr.data[0] = @bitCast(proto.qt);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
                 .static = proto.static,
                 .@"inline" = proto.@"inline",
@@ -1947,7 +1866,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .fn_def => |def| {
             repr.tag = .fn_def;
-            repr.data[0] = try tree.addType(def.type);
+            repr.data[0] = @bitCast(def.qt);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
                 .static = def.static,
                 .@"inline" = def.@"inline",
@@ -1957,7 +1876,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .param => |param| {
             repr.tag = .param;
-            repr.data[0] = try tree.addType(param.type);
+            repr.data[0] = @bitCast(param.qt);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
                 .register = param.storage_class == .register,
             });
@@ -1965,7 +1884,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .variable => |variable| {
             repr.tag = .variable;
-            repr.data[0] = try tree.addType(variable.type);
+            repr.data[0] = @bitCast(variable.qt);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
                 .@"extern" = variable.storage_class == .@"extern",
                 .static = variable.storage_class == .static,
@@ -1978,7 +1897,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .typedef => |typedef| {
             repr.tag = .typedef;
-            repr.data[0] = try tree.addType(typedef.type);
+            repr.data[0] = @bitCast(typedef.qt);
             repr.data[1] = @intFromBool(typedef.implicit);
             repr.tok = typedef.name_tok;
         },
@@ -1988,7 +1907,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = global_asm.asm_tok;
         },
         .struct_decl => |decl| {
-            repr.data[0] = try tree.addType(decl.container_type);
+            repr.data[0] = @bitCast(decl.container_qt);
             if (decl.fields.len > 2) {
                 repr.tag = .struct_decl;
                 repr.data[1], repr.data[2] = try tree.addExtra(decl.fields);
@@ -2000,7 +1919,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = decl.name_or_kind_tok;
         },
         .union_decl => |decl| {
-            repr.data[0] = try tree.addType(decl.container_type);
+            repr.data[0] = @bitCast(decl.container_qt);
             if (decl.fields.len > 2) {
                 repr.tag = .union_decl;
                 repr.data[1], repr.data[2] = try tree.addExtra(decl.fields);
@@ -2012,7 +1931,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = decl.name_or_kind_tok;
         },
         .enum_decl => |decl| {
-            repr.data[0] = try tree.addType(decl.container_type);
+            repr.data[0] = @bitCast(decl.container_qt);
             if (decl.fields.len > 2) {
                 repr.tag = .enum_decl;
                 repr.data[1], repr.data[2] = try tree.addExtra(decl.fields);
@@ -2025,40 +1944,40 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .struct_forward_decl => |decl| {
             repr.tag = .struct_forward_decl;
-            repr.data[0] = try tree.addType(decl.container_type);
+            repr.data[0] = @bitCast(decl.container_qt);
             // TODO decide how to handle definition
             // repr.data[1] = decl.definition;
             repr.tok = decl.name_or_kind_tok;
         },
         .union_forward_decl => |decl| {
             repr.tag = .union_forward_decl;
-            repr.data[0] = try tree.addType(decl.container_type);
+            repr.data[0] = @bitCast(decl.container_qt);
             // TODO decide how to handle definition
             // repr.data[1] = decl.definition;
             repr.tok = decl.name_or_kind_tok;
         },
         .enum_forward_decl => |decl| {
             repr.tag = .enum_forward_decl;
-            repr.data[0] = try tree.addType(decl.container_type);
+            repr.data[0] = @bitCast(decl.container_qt);
             // TODO decide how to handle definition
             // repr.data[1] = decl.definition;
             repr.tok = decl.name_or_kind_tok;
         },
         .enum_field => |field| {
             repr.tag = .enum_field;
-            repr.data[0] = try tree.addType(field.type);
+            repr.data[0] = @bitCast(field.qt);
             repr.data[1] = packOptIndex(field.init);
             repr.tok = field.name_tok;
         },
         .record_field => |field| {
             repr.tag = .record_field;
-            repr.data[0] = try tree.addType(field.type);
+            repr.data[0] = @bitCast(field.qt);
             repr.data[1] = packOptIndex(field.bit_width);
             repr.tok = field.name_or_first_tok;
         },
         .labeled_stmt => |labeled| {
             repr.tag = .labeled_stmt;
-            repr.data[0] = try tree.addType(labeled.type);
+            repr.data[0] = @bitCast(labeled.qt);
             repr.data[1] = @intFromEnum(labeled.body);
             repr.tok = labeled.label_tok;
         },
@@ -2153,11 +2072,11 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .null_stmt => |@"null"| {
             repr.tag = .null_stmt;
-            repr.data[0] = try tree.addType(@"null".type);
+            repr.data[0] = @bitCast(@"null".qt);
             repr.tok = @"null".semicolon_or_r_brace_tok;
         },
         .return_stmt => |@"return"| {
-            repr.data[0] = try tree.addType(@"return".return_type);
+            repr.data[0] = @bitCast(@"return".return_qt);
             switch (@"return".operand) {
                 .expr => |expr| {
                     repr.tag = .return_stmt;
@@ -2180,325 +2099,325 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .comma_expr => |bin| {
             repr.tag = .comma_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .assign_expr => |bin| {
             repr.tag = .assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .mul_assign_expr => |bin| {
             repr.tag = .mul_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .div_assign_expr => |bin| {
             repr.tag = .div_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .mod_assign_expr => |bin| {
             repr.tag = .mod_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .add_assign_expr => |bin| {
             repr.tag = .add_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .sub_assign_expr => |bin| {
             repr.tag = .sub_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .shl_assign_expr => |bin| {
             repr.tag = .shl_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .shr_assign_expr => |bin| {
             repr.tag = .shr_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_and_assign_expr => |bin| {
             repr.tag = .bit_and_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_xor_assign_expr => |bin| {
             repr.tag = .bit_xor_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_or_assign_expr => |bin| {
             repr.tag = .bit_or_assign_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bool_or_expr => |bin| {
             repr.tag = .bool_or_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bool_and_expr => |bin| {
             repr.tag = .bool_and_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_or_expr => |bin| {
             repr.tag = .bit_or_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_xor_expr => |bin| {
             repr.tag = .bit_xor_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_and_expr => |bin| {
             repr.tag = .bit_and_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .equal_expr => |bin| {
             repr.tag = .equal_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .not_equal_expr => |bin| {
             repr.tag = .not_equal_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .less_than_expr => |bin| {
             repr.tag = .less_than_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .less_than_equal_expr => |bin| {
             repr.tag = .less_than_equal_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .greater_than_expr => |bin| {
             repr.tag = .greater_than_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .greater_than_equal_expr => |bin| {
             repr.tag = .greater_than_equal_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .shl_expr => |bin| {
             repr.tag = .shl_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .shr_expr => |bin| {
             repr.tag = .shr_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .add_expr => |bin| {
             repr.tag = .add_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .sub_expr => |bin| {
             repr.tag = .sub_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .mul_expr => |bin| {
             repr.tag = .mul_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .div_expr => |bin| {
             repr.tag = .div_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .mod_expr => |bin| {
             repr.tag = .mod_expr;
-            repr.data[0] = try tree.addType(bin.type);
+            repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .cast => |cast| {
             repr.tag = if (cast.implicit) .implicit_cast else .explicit_cast;
-            repr.data[0] = try tree.addType(cast.type);
+            repr.data[0] = @bitCast(cast.qt);
             repr.data[1] = @intFromEnum(cast.kind);
             repr.data[2] = @intFromEnum(cast.operand);
             repr.tok = cast.l_paren;
         },
         .addr_of_expr => |un| {
             repr.tag = .addr_of_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .deref_expr => |un| {
             repr.tag = .deref_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .plus_expr => |un| {
             repr.tag = .plus_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .negate_expr => |un| {
             repr.tag = .negate_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .bit_not_expr => |un| {
             repr.tag = .bit_not_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .bool_not_expr => |un| {
             repr.tag = .bool_not_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .pre_inc_expr => |un| {
             repr.tag = .pre_inc_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .pre_dec_expr => |un| {
             repr.tag = .pre_dec_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .imag_expr => |un| {
             repr.tag = .imag_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .real_expr => |un| {
             repr.tag = .real_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .post_inc_expr => |un| {
             repr.tag = .post_inc_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .post_dec_expr => |un| {
             repr.tag = .post_dec_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .paren_expr => |un| {
             repr.tag = .paren_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .stmt_expr => |un| {
             repr.tag = .stmt_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .cond_dummy_expr => |un| {
             repr.tag = .cond_dummy_expr;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .addr_of_label => |addr_of| {
             repr.tag = .addr_of_label;
-            repr.data[0] = try tree.addType(addr_of.type);
+            repr.data[0] = @bitCast(addr_of.qt);
             repr.tok = addr_of.label_tok;
         },
         .array_access_expr => |access| {
             repr.tag = .array_access_expr;
-            repr.data[0] = try tree.addType(access.type);
+            repr.data[0] = @bitCast(access.qt);
             repr.data[1] = @intFromEnum(access.base);
             repr.data[2] = @intFromEnum(access.index);
             repr.tok = access.l_bracket_tok;
         },
         .call_expr => |call| {
-            repr.data[0] = try tree.addType(call.type);
+            repr.data[0] = @bitCast(call.qt);
             if (call.args.len > 1) {
                 repr.tag = .call_expr;
                 repr.data[1] = @intCast(tree.extra.items.len);
@@ -2515,7 +2434,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = call.l_paren_tok;
         },
         .builtin_call_expr => |call| {
-            repr.data[0] = try tree.addType(call.type);
+            repr.data[0] = @bitCast(call.qt);
             if (call.args.len > 2) {
                 repr.tag = .builtin_call_expr;
                 repr.data[1], repr.data[2] = try tree.addExtra(call.args);
@@ -2528,85 +2447,85 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .member_access_expr => |access| {
             repr.tag = .member_access_expr;
-            repr.data[0] = try tree.addType(access.type);
+            repr.data[0] = @bitCast(access.qt);
             repr.data[1] = @intFromEnum(access.base);
             repr.data[2] = access.member_index;
             repr.tok = access.access_tok;
         },
         .member_access_ptr_expr => |access| {
             repr.tag = .member_access_ptr_expr;
-            repr.data[0] = try tree.addType(access.type);
+            repr.data[0] = @bitCast(access.qt);
             repr.data[1] = @intFromEnum(access.base);
             repr.data[2] = access.member_index;
             repr.tok = access.access_tok;
         },
         .decl_ref_expr => |decl_ref| {
             repr.tag = .decl_ref_expr;
-            repr.data[0] = try tree.addType(decl_ref.type);
+            repr.data[0] = @bitCast(decl_ref.qt);
             repr.data[1] = @intFromEnum(decl_ref.decl);
             repr.tok = decl_ref.name_tok;
         },
         .enumeration_ref => |enumeration_ref| {
             repr.tag = .enumeration_ref;
-            repr.data[0] = try tree.addType(enumeration_ref.type);
+            repr.data[0] = @bitCast(enumeration_ref.qt);
             repr.data[1] = @intFromEnum(enumeration_ref.decl);
             repr.tok = enumeration_ref.name_tok;
         },
         .builtin_ref => |builtin_ref| {
             repr.tag = .builtin_ref;
-            repr.data[0] = try tree.addType(builtin_ref.type);
+            repr.data[0] = @bitCast(builtin_ref.qt);
             repr.tok = builtin_ref.name_tok;
         },
         .bool_literal => |literal| {
             repr.tag = .bool_literal;
-            repr.data[0] = try tree.addType(literal.type);
+            repr.data[0] = @bitCast(literal.qt);
             repr.tok = literal.literal_tok;
         },
         .nullptr_literal => |literal| {
             repr.tag = .nullptr_literal;
-            repr.data[0] = try tree.addType(literal.type);
+            repr.data[0] = @bitCast(literal.qt);
             repr.tok = literal.literal_tok;
         },
         .int_literal => |literal| {
             repr.tag = .int_literal;
-            repr.data[0] = try tree.addType(literal.type);
+            repr.data[0] = @bitCast(literal.qt);
             repr.tok = literal.literal_tok;
         },
         .char_literal => |literal| {
             repr.tag = .char_literal;
-            repr.data[0] = try tree.addType(literal.type);
+            repr.data[0] = @bitCast(literal.qt);
             repr.tok = literal.literal_tok;
         },
         .float_literal => |literal| {
             repr.tag = .float_literal;
-            repr.data[0] = try tree.addType(literal.type);
+            repr.data[0] = @bitCast(literal.qt);
             repr.tok = literal.literal_tok;
         },
         .string_literal_expr => |literal| {
             repr.tag = .string_literal_expr;
-            repr.data[0] = try tree.addType(literal.type);
+            repr.data[0] = @bitCast(literal.qt);
             repr.tok = literal.literal_tok;
         },
         .imaginary_literal => |un| {
             repr.tag = .imaginary_literal;
-            repr.data[0] = try tree.addType(un.type);
+            repr.data[0] = @bitCast(un.qt);
             repr.data[1] = @intFromEnum(un.operand);
             repr.tok = un.op_tok;
         },
         .sizeof_expr => |type_info| {
             repr.tag = .sizeof_expr;
-            repr.data[0] = try tree.addType(type_info.type);
+            repr.data[0] = @bitCast(type_info.qt);
             repr.data[1] = packOptIndex(type_info.expr);
             repr.tok = type_info.op_tok;
         },
         .alignof_expr => |type_info| {
             repr.tag = .alignof_expr;
-            repr.data[0] = try tree.addType(type_info.type);
+            repr.data[0] = @bitCast(type_info.qt);
             repr.data[1] = packOptIndex(type_info.expr);
             repr.tok = type_info.op_tok;
         },
         .generic_expr => |generic| {
-            repr.data[0] = try tree.addType(generic.type);
+            repr.data[0] = @bitCast(generic.qt);
             if (generic.rest.len > 0) {
                 repr.tag = .generic_expr;
                 repr.data[1] = @intCast(tree.extra.items.len);
@@ -2625,7 +2544,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .generic_association_expr => |association| {
             repr.tag = .generic_association_expr;
-            repr.data[0] = try tree.addType(association.association_type);
+            repr.data[0] = @bitCast(association.association_qt);
             repr.data[1] = @intFromEnum(association.expr);
             repr.tok = association.colon_tok;
         },
@@ -2636,33 +2555,33 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .binary_cond_expr => |cond| {
             repr.tag = .binary_cond_expr;
-            repr.data[0] = try tree.addType(cond.type);
+            repr.data[0] = @bitCast(cond.qt);
             repr.data[1] = @intFromEnum(cond.cond);
             repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
             repr.tok = cond.cond_tok;
         },
         .cond_expr => |cond| {
             repr.tag = .cond_expr;
-            repr.data[0] = try tree.addType(cond.type);
+            repr.data[0] = @bitCast(cond.qt);
             repr.data[1] = @intFromEnum(cond.cond);
             repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
             repr.tok = cond.cond_tok;
         },
         .builtin_choose_expr => |cond| {
             repr.tag = .builtin_choose_expr;
-            repr.data[0] = try tree.addType(cond.type);
+            repr.data[0] = @bitCast(cond.qt);
             repr.data[1] = @intFromEnum(cond.cond);
             repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
             repr.tok = cond.cond_tok;
         },
         .builtin_types_compatible_p => |builtin| {
             repr.tag = .builtin_types_compatible_p;
-            repr.data[0] = try tree.addType(builtin.lhs);
-            repr.data[1] = try tree.addType(builtin.rhs);
+            repr.data[0] = @bitCast(builtin.lhs);
+            repr.data[1] = @bitCast(builtin.rhs);
             repr.tok = builtin.builtin_tok;
         },
         .array_init_expr => |init| {
-            repr.data[0] = try tree.addType(init.container_type);
+            repr.data[0] = @bitCast(init.container_qt);
             if (init.items.len > 2) {
                 repr.tag = .array_init_expr;
                 repr.data[1], repr.data[2] = try tree.addExtra(init.items);
@@ -2674,7 +2593,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = init.l_brace_tok;
         },
         .struct_init_expr => |init| {
-            repr.data[0] = try tree.addType(init.container_type);
+            repr.data[0] = @bitCast(init.container_qt);
             if (init.items.len > 2) {
                 repr.tag = .struct_init_expr;
                 repr.data[1], repr.data[2] = try tree.addExtra(init.items);
@@ -2687,25 +2606,25 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .union_init_expr => |init| {
             repr.tag = .union_init_expr;
-            repr.data[0] = try tree.addType(init.union_type);
+            repr.data[0] = @bitCast(init.union_qt);
             repr.data[1] = init.field_index;
             repr.data[2] = packOptIndex(init.initializer);
             repr.tok = init.l_brace_tok;
         },
         .array_filler_expr => |filler| {
             repr.tag = .array_filler_expr;
-            repr.data[0] = try tree.addType(filler.type);
+            repr.data[0] = @bitCast(filler.qt);
             repr.data[1], repr.data[2] = @as([2]u32, @bitCast(filler.count));
             repr.tok = filler.last_tok;
         },
         .default_init_expr => |default| {
             repr.tag = .default_init_expr;
-            repr.data[0] = try tree.addType(default.type);
+            repr.data[0] = @bitCast(default.qt);
             repr.tok = default.last_tok;
         },
         .compound_literal_expr => |literal| {
             repr.tag = .compound_literal_expr;
-            repr.data[0] = try tree.addType(literal.type);
+            repr.data[0] = @bitCast(literal.qt);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
                 .static = literal.storage_class == .static,
                 .register = literal.storage_class == .register,
@@ -2736,11 +2655,6 @@ fn unPackElems(data: []const u32) []const Node.Index {
         if (item == sentinel) return @ptrCast(data[0..i]);
     }
     return @ptrCast(data);
-}
-
-fn addType(tree: *Tree, ty: Type) !u32 {
-    const gop = try tree.type_map.getOrPut(tree.comp.gpa, ty);
-    return @intCast(gop.index);
 }
 
 /// Returns index to `tree.extra` and length of data
@@ -2785,8 +2699,8 @@ pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultU
     while (true) switch (cur_node.get(tree)) {
         .decl_ref_expr => |decl_ref| return .{
             .tok = decl_ref.name_tok,
-            .nodiscard = decl_ref.type.hasAttribute(.nodiscard),
-            .warn_unused_result = decl_ref.type.hasAttribute(.warn_unused_result),
+            .nodiscard = decl_ref.qt.hasAttribute(tree.comp, .nodiscard),
+            .warn_unused_result = decl_ref.qt.hasAttribute(tree.comp, .warn_unused_result),
         },
 
         .paren_expr, .addr_of_expr, .deref_expr => |un| cur_node = un.operand,
@@ -2794,11 +2708,15 @@ pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultU
         .cast => |cast| cur_node = cast.operand,
         .call_expr => |call| cur_node = call.callee,
         .member_access_expr, .member_access_ptr_expr => |access| {
-            var ty = access.base.type(tree);
-            if (ty.isPtr()) ty = ty.elemType();
-            const record = ty.getRecord().?;
-            const field = record.fields[access.member_index];
-            const attributes = if (record.field_attributes) |attrs| attrs[access.member_index] else &.{};
+            var qt = access.base.qt(tree);
+            if (qt.get(tree.comp, .pointer)) |pointer| qt = pointer.child;
+            const record_ty = switch (qt.base(tree.comp).type) {
+                .@"struct", .@"union" => |record| record,
+                else => return null,
+            };
+
+            const field = record_ty.fields[access.member_index];
+            const attributes = field.attributes(tree.comp);
             return .{
                 .tok = field.name_tok,
                 .nodiscard = for (attributes) |attr| {
@@ -2823,32 +2741,37 @@ pub fn isLvalExtra(tree: *const Tree, node: Node.Index, is_const: *bool) bool {
     var cur_node = node;
     switch (cur_node.get(tree)) {
         .compound_literal_expr => |literal| {
-            is_const.* = literal.type.isConst();
+            is_const.* = literal.qt.@"const";
             return true;
         },
         .string_literal_expr => return true,
         .member_access_ptr_expr => |access| {
-            const ptr_ty = access.base.type(tree);
-            if (ptr_ty.isPtr()) is_const.* = ptr_ty.elemType().isConst();
-            return true;
-        },
-        .array_access_expr => |access| {
-            const array_ty = access.base.type(tree);
-            if (array_ty.isPtr() or array_ty.isArray()) is_const.* = array_ty.elemType().isConst();
-            return true;
-        },
-        .decl_ref_expr => |decl_ref| {
-            is_const.* = decl_ref.type.isConst();
-            return true;
-        },
-        .deref_expr => |un| {
-            const operand_ty = un.operand.type(tree);
-            if (operand_ty.isFunc()) return false;
-            if (operand_ty.isPtr() or operand_ty.isArray()) is_const.* = operand_ty.elemType().isConst();
+            const ptr_qt = access.base.qt(tree);
+            if (ptr_qt.get(tree.comp, .pointer)) |pointer| is_const.* = pointer.child.@"const";
             return true;
         },
         .member_access_expr => |access| {
             return tree.isLvalExtra(access.base, is_const);
+        },
+        .array_access_expr => |access| {
+            const base_qt = access.base.qt(tree);
+            // Array access operand undergoes lval conversions so the base can never
+            // be a pure array type.
+            if (base_qt.get(tree.comp, .pointer)) |pointer| is_const.* = pointer.child.@"const";
+            return true;
+        },
+        .decl_ref_expr => |decl_ref| {
+            is_const.* = decl_ref.qt.@"const";
+            return true;
+        },
+        .deref_expr => |un| {
+            const operand_qt = un.operand.qt(tree);
+            switch (operand_qt.base(tree.comp).type) {
+                .func => return false,
+                .pointer => |pointer| is_const.* = pointer.child.@"const",
+                else => {},
+            }
+            return true;
         },
         .paren_expr => |un| {
             return tree.isLvalExtra(un.operand, is_const);
@@ -2937,7 +2860,6 @@ fn dumpNode(
     const ATTRIBUTE = std.io.tty.Color.bright_yellow;
 
     const node = node_index.get(tree);
-    const ty = node_index.type(tree);
     try w.writeByteNTimes(' ', level);
 
     if (config == .no_color) {
@@ -2954,14 +2876,12 @@ fn dumpNode(
         else => {},
     }
 
-    try config.setColor(w, TYPE);
-    try w.writeByte('\'');
-    const name = ty.getName();
-    if (name != .empty) {
-        try w.print("{s}': '", .{name.lookup(tree.comp)});
+    if (node_index.qtOrNull(tree)) |qt| {
+        try config.setColor(w, TYPE);
+        try w.writeByte('\'');
+        try qt.dump(tree.comp, w);
+        try w.writeByte('\'');
     }
-    try ty.dump(tree.comp.string_interner, tree.comp.langopts, w);
-    try w.writeByte('\'');
 
     if (tree.isLval(node_index)) {
         try config.setColor(w, ATTRIBUTE);
@@ -2975,12 +2895,12 @@ fn dumpNode(
     if (tree.value_map.get(node_index)) |val| {
         try config.setColor(w, LITERAL);
         try w.writeAll(" (value: ");
-        if (try val.print(ty, tree.comp, w)) |nested| switch (nested) {
+        if (try val.print(node_index.qt(tree), tree.comp, w)) |nested| switch (nested) {
             .pointer => |ptr| {
                 switch (tree.nodes.items(.tag)[ptr.node]) {
                     .compound_literal_expr => {
                         try w.writeAll("(compound literal) ");
-                        _ = try ptr.offset.print(tree.comp.types.ptrdiff, tree.comp, w);
+                        _ = try ptr.offset.print(tree.comp.type_store.ptrdiff, tree.comp, w);
                     },
                     else => {
                         const ptr_node: Node.Index = @enumFromInt(ptr.node);
@@ -3000,18 +2920,6 @@ fn dumpNode(
 
     try w.writeAll("\n");
     try config.setColor(w, .reset);
-
-    if (ty.specifier == .attributed) {
-        try config.setColor(w, ATTRIBUTE);
-        var it = Attribute.Iterator.initType(ty);
-        while (it.next()) |item| {
-            const attr, _ = item;
-            try w.writeByteNTimes(' ', level + half);
-            try w.print("attr: {s}", .{@tagName(attr.tag)});
-            try tree.dumpAttribute(attr, w);
-        }
-        try config.setColor(w, .reset);
-    }
 
     switch (node) {
         .empty_decl => {},
@@ -3148,17 +3056,21 @@ fn dumpNode(
             }
         },
         .struct_decl, .union_decl => |decl| {
-            const maybe_field_attributes = if (ty.getRecord()) |record| record.field_attributes else null;
-            for (decl.fields, 0..) |field, i| {
-                if (i != 0) try w.writeByte('\n');
-                try tree.dumpNode(field, level + delta, config, w);
-                if (maybe_field_attributes) |field_attributes| {
-                    if (field_attributes[i].len == 0) continue;
+            const fields = switch (node_index.qt(tree).base(tree.comp).type) {
+                .@"struct", .@"union" => |record| record.fields,
+                else => unreachable,
+            };
 
-                    try config.setColor(w, ATTRIBUTE);
-                    try tree.dumpFieldAttributes(field_attributes[i], level + delta + half, w);
-                    try config.setColor(w, .reset);
-                }
+            for (decl.fields, fields, 0..) |field_node, field, i| {
+                if (i != 0) try w.writeByte('\n');
+                try tree.dumpNode(field_node, level + delta, config, w);
+
+                const field_attributes = field.attributes(tree.comp);
+                if (field_attributes.len == 0) continue;
+
+                try config.setColor(w, ATTRIBUTE);
+                try tree.dumpFieldAttributes(field_attributes, level + delta + half, w);
+                try config.setColor(w, .reset);
             }
         },
         .array_init_expr, .struct_init_expr => |init| {
@@ -3246,14 +3158,14 @@ fn dumpNode(
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("lhs: ");
             try config.setColor(w, TYPE);
-            try call.lhs.dump(tree.comp.string_interner, tree.comp.langopts, w);
+            try call.lhs.dump(tree.comp, w);
             try w.writeByte('\n');
             try config.setColor(w, .reset);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("rhs: ");
             try config.setColor(w, TYPE);
-            try call.rhs.dump(tree.comp.string_interner, tree.comp.langopts, w);
+            try call.rhs.dump(tree.comp, w);
             try w.writeByte('\n');
             try config.setColor(w, .reset);
         },
@@ -3348,7 +3260,19 @@ fn dumpNode(
             try w.writeAll("expr:\n");
             try tree.dumpNode(goto.expr, level + delta, config, w);
         },
-        .continue_stmt, .break_stmt, .null_stmt => {},
+        .null_stmt => {
+            const qt = node_index.qt(tree);
+            try config.setColor(w, ATTRIBUTE);
+            var it = Attribute.Iterator.initType(qt, tree.comp);
+            while (it.next()) |item| {
+                const attr, _ = item;
+                try w.writeByteNTimes(' ', level + half);
+                try w.print("attr: {s}", .{@tagName(attr.tag)});
+                try tree.dumpAttribute(attr, w);
+            }
+            try config.setColor(w, .reset);
+        },
+        .continue_stmt, .break_stmt => {},
         .return_stmt => |ret| {
             switch (ret.operand) {
                 .expr => |expr| {
@@ -3474,14 +3398,17 @@ fn dumpNode(
             try w.writeAll("lhs:\n");
             try tree.dumpNode(access.base, level + delta, config, w);
 
-            var base_ty = access.base.type(tree);
-            if (base_ty.isPtr()) base_ty = base_ty.elemType();
-            base_ty = base_ty.canonicalize(.standard);
+            var base_qt = access.base.qt(tree);
+            if (base_qt.get(tree.comp, .pointer)) |some| base_qt = some.child;
+            const fields = switch (base_qt.base(tree.comp).type) {
+                .@"struct", .@"union" => |record| record.fields,
+                else => unreachable,
+            };
 
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");
             try config.setColor(w, NAME);
-            try w.print("{s}\n", .{base_ty.data.record.fields[access.member_index].name.lookup(tree.comp)});
+            try w.print("{s}\n", .{fields[access.member_index].name.lookup(tree.comp)});
             try config.setColor(w, .reset);
         },
         .array_access_expr => |access| {
