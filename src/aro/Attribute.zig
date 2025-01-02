@@ -1093,11 +1093,10 @@ fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, ty: Type)
     for (fields[1..]) |field| {
         const field_size = field.ty.bitSizeof(p.comp).?;
         if (field_size == first_field_size) continue;
-        const mapper = p.comp.string_interner.getSlowTypeMapper();
         const str = try std.fmt.allocPrint(
             p.comp.diagnostics.arena.allocator(),
             "'{s}' ({d}",
-            .{ mapper.lookup(field.name), field_size },
+            .{ field.name.lookup(p.comp), field_size },
         );
         try p.errStr(.transparent_union_size, field.name_tok, str);
         return p.errExtra(.transparent_union_size_note, fields[0].name_tok, .{ .unsigned = first_field_size });

@@ -364,9 +364,7 @@ pub fn main() !void {
             var actual = StmtTypeDumper.init(gpa);
             defer actual.deinit(gpa);
 
-            const mapper = try tree.comp.string_interner.getFastTypeMapper(gpa);
-            defer mapper.deinit(gpa);
-            try actual.dump(&tree, mapper, test_fn.body, gpa);
+            try actual.dump(&tree, test_fn.body, gpa);
 
             var i: usize = 0;
             for (types.tokens) |str| {
@@ -621,23 +619,23 @@ const StmtTypeDumper = struct {
         };
     }
 
-    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, mapper: aro.TypeMapper, node: Node.Index, m: *MsgWriter) AllocatorError!void {
+    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: Node.Index, m: *MsgWriter) AllocatorError!void {
         const maybe_ret = node.get(tree);
         if (maybe_ret == .return_stmt and maybe_ret.return_stmt.operand == .implicit) return;
         const ty = node.type(tree);
-        ty.dump(mapper, tree.comp.langopts, m.buf.writer()) catch {};
+        ty.dump(tree.comp.string_interner, tree.comp.langopts, m.buf.writer()) catch {};
         const owned = try m.buf.toOwnedSlice();
         errdefer m.buf.allocator.free(owned);
         try self.types.append(owned);
     }
 
-    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, mapper: aro.TypeMapper, body: Node.Index, allocator: std.mem.Allocator) AllocatorError!void {
+    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, body: Node.Index, allocator: std.mem.Allocator) AllocatorError!void {
         var m = MsgWriter.init(allocator);
         defer m.deinit();
 
         const compound = body.get(tree).compound_stmt;
         for (compound.body) |stmt| {
-            try self.dumpNode(tree, mapper, stmt, &m);
+            try self.dumpNode(tree, stmt, &m);
         }
     }
 };

@@ -15,7 +15,7 @@ const LangOpts = @import("LangOpts.zig");
 const Pragma = @import("Pragma.zig");
 const record_layout = @import("record_layout.zig");
 const Source = @import("Source.zig");
-const StrInt = @import("StringInterner.zig");
+const StringInterner = @import("StringInterner.zig");
 const target_util = @import("target.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
@@ -130,7 +130,7 @@ types: struct {
     int16: Type = .{ .specifier = .invalid },
     int64: Type = .{ .specifier = .invalid },
 } = .{},
-string_interner: StrInt = .{},
+string_interner: StringInterner = .{},
 interner: Interner = .{},
 /// If this is not null, the directory containing the specified Source will be searched for includes
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
@@ -180,6 +180,10 @@ pub fn deinit(comp: *Compilation) void {
     comp.string_interner.deinit(comp.gpa);
     comp.interner.deinit(comp.gpa);
     comp.environment.deinit(comp.gpa);
+}
+
+pub fn internString(comp: *Compilation, str: []const u8) !StringInterner.StringId {
+    return comp.string_interner.intern(comp.gpa, str);
 }
 
 pub fn getSourceEpoch(self: *const Compilation, max: i64) !?u47 {
@@ -490,24 +494,23 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     }
 
     // various int types
-    const mapper = comp.string_interner.getSlowTypeMapper();
-    try generateTypeMacro(w, mapper, "__INTPTR_TYPE__", comp.types.intptr, comp.langopts);
-    try generateTypeMacro(w, mapper, "__UINTPTR_TYPE__", comp.types.intptr.makeIntegerUnsigned(), comp.langopts);
+    try comp.generateTypeMacro(w, "__INTPTR_TYPE__", comp.types.intptr);
+    try comp.generateTypeMacro(w, "__UINTPTR_TYPE__", comp.types.intptr.makeIntegerUnsigned());
 
-    try generateTypeMacro(w, mapper, "__INTMAX_TYPE__", comp.types.intmax, comp.langopts);
+    try comp.generateTypeMacro(w, "__INTMAX_TYPE__", comp.types.intmax);
     try comp.generateSuffixMacro("__INTMAX", w, comp.types.intptr);
 
-    try generateTypeMacro(w, mapper, "__UINTMAX_TYPE__", comp.types.intmax.makeIntegerUnsigned(), comp.langopts);
+    try comp.generateTypeMacro(w, "__UINTMAX_TYPE__", comp.types.intmax.makeIntegerUnsigned());
     try comp.generateSuffixMacro("__UINTMAX", w, comp.types.intptr.makeIntegerUnsigned());
 
-    try generateTypeMacro(w, mapper, "__PTRDIFF_TYPE__", comp.types.ptrdiff, comp.langopts);
-    try generateTypeMacro(w, mapper, "__SIZE_TYPE__", comp.types.size, comp.langopts);
-    try generateTypeMacro(w, mapper, "__WCHAR_TYPE__", comp.types.wchar, comp.langopts);
-    try generateTypeMacro(w, mapper, "__CHAR16_TYPE__", comp.types.uint_least16_t, comp.langopts);
-    try generateTypeMacro(w, mapper, "__CHAR32_TYPE__", comp.types.uint_least32_t, comp.langopts);
+    try comp.generateTypeMacro(w, "__PTRDIFF_TYPE__", comp.types.ptrdiff);
+    try comp.generateTypeMacro(w, "__SIZE_TYPE__", comp.types.size);
+    try comp.generateTypeMacro(w, "__WCHAR_TYPE__", comp.types.wchar);
+    try comp.generateTypeMacro(w, "__CHAR16_TYPE__", comp.types.uint_least16_t);
+    try comp.generateTypeMacro(w, "__CHAR32_TYPE__", comp.types.uint_least32_t);
 
-    try comp.generateExactWidthTypes(w, mapper);
-    try comp.generateFastAndLeastWidthTypes(w, mapper);
+    try comp.generateExactWidthTypes(w);
+    try comp.generateFastAndLeastWidthTypes(w);
 
     if (target_util.FPSemantics.halfPrecisionType(comp.target)) |half| {
         try generateFloatMacros(w, "FLT16", half, "F16");
@@ -689,9 +692,9 @@ fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target_util.FP
     try w.print("#define {s}MIN__ {s}{s}\n", .{ prefix_slice, min, ext });
 }
 
-fn generateTypeMacro(w: anytype, mapper: StrInt.TypeMapper, name: []const u8, ty: Type, langopts: LangOpts) !void {
+fn generateTypeMacro(comp: *const Compilation, w: anytype, name: []const u8, ty: Type) !void {
     try w.print("#define {s} ", .{name});
-    try ty.print(mapper, langopts, w);
+    try ty.print(comp.string_interner, comp.langopts, w);
     try w.writeByte('\n');
 }
 
@@ -765,10 +768,6 @@ pub fn float80Type(comp: *const Compilation) ?Type {
     return target_util.float80Type(comp.target);
 }
 
-pub fn internString(comp: *Compilation, str: []const u8) !StrInt.StringId {
-    return comp.string_interner.internExtra(comp.gpa, str);
-}
-
 /// Smallest integer type with at least N bits
 pub fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) Type {
     if (bits == 64 and (comp.target.isDarwin() or comp.target.isWasm())) {
@@ -800,7 +799,6 @@ fn generateFastOrLeastType(
     kind: enum { least, fast },
     signedness: std.builtin.Signedness,
     w: anytype,
-    mapper: StrInt.TypeMapper,
 ) !void {
     const ty = comp.intLeastN(bits, signedness); // defining the fast types as the least types is permitted
 
@@ -819,7 +817,7 @@ fn generateFastOrLeastType(
         base_name, kind_str, bits, suffix,
     }) catch return error.OutOfMemory;
 
-    try generateTypeMacro(w, mapper, full, ty, comp.langopts);
+    try comp.generateTypeMacro(w, full, ty);
 
     const prefix = full[2 .. full.len - suffix.len]; // remove "__" and "_TYPE__"
 
@@ -830,59 +828,59 @@ fn generateFastOrLeastType(
     try comp.generateFmt(prefix, w, ty);
 }
 
-fn generateFastAndLeastWidthTypes(comp: *Compilation, w: anytype, mapper: StrInt.TypeMapper) !void {
+fn generateFastAndLeastWidthTypes(comp: *Compilation, w: anytype) !void {
     const sizes = [_]usize{ 8, 16, 32, 64 };
     for (sizes) |size| {
-        try comp.generateFastOrLeastType(size, .least, .signed, w, mapper);
-        try comp.generateFastOrLeastType(size, .least, .unsigned, w, mapper);
-        try comp.generateFastOrLeastType(size, .fast, .signed, w, mapper);
-        try comp.generateFastOrLeastType(size, .fast, .unsigned, w, mapper);
+        try comp.generateFastOrLeastType(size, .least, .signed, w);
+        try comp.generateFastOrLeastType(size, .least, .unsigned, w);
+        try comp.generateFastOrLeastType(size, .fast, .signed, w);
+        try comp.generateFastOrLeastType(size, .fast, .unsigned, w);
     }
 }
 
-fn generateExactWidthTypes(comp: *const Compilation, w: anytype, mapper: StrInt.TypeMapper) !void {
-    try comp.generateExactWidthType(w, mapper, .schar);
+fn generateExactWidthTypes(comp: *const Compilation, w: anytype) !void {
+    try comp.generateExactWidthType(w, .schar);
 
     if (comp.intSize(.short) > comp.intSize(.char)) {
-        try comp.generateExactWidthType(w, mapper, .short);
+        try comp.generateExactWidthType(w, .short);
     }
 
     if (comp.intSize(.int) > comp.intSize(.short)) {
-        try comp.generateExactWidthType(w, mapper, .int);
+        try comp.generateExactWidthType(w, .int);
     }
 
     if (comp.intSize(.long) > comp.intSize(.int)) {
-        try comp.generateExactWidthType(w, mapper, .long);
+        try comp.generateExactWidthType(w, .long);
     }
 
     if (comp.intSize(.long_long) > comp.intSize(.long)) {
-        try comp.generateExactWidthType(w, mapper, .long_long);
+        try comp.generateExactWidthType(w, .long_long);
     }
 
-    try comp.generateExactWidthType(w, mapper, .uchar);
+    try comp.generateExactWidthType(w, .uchar);
     try comp.generateExactWidthIntMax(w, .uchar);
     try comp.generateExactWidthIntMax(w, .schar);
 
     if (comp.intSize(.short) > comp.intSize(.char)) {
-        try comp.generateExactWidthType(w, mapper, .ushort);
+        try comp.generateExactWidthType(w, .ushort);
         try comp.generateExactWidthIntMax(w, .ushort);
         try comp.generateExactWidthIntMax(w, .short);
     }
 
     if (comp.intSize(.int) > comp.intSize(.short)) {
-        try comp.generateExactWidthType(w, mapper, .uint);
+        try comp.generateExactWidthType(w, .uint);
         try comp.generateExactWidthIntMax(w, .uint);
         try comp.generateExactWidthIntMax(w, .int);
     }
 
     if (comp.intSize(.long) > comp.intSize(.int)) {
-        try comp.generateExactWidthType(w, mapper, .ulong);
+        try comp.generateExactWidthType(w, .ulong);
         try comp.generateExactWidthIntMax(w, .ulong);
         try comp.generateExactWidthIntMax(w, .long);
     }
 
     if (comp.intSize(.long_long) > comp.intSize(.long)) {
-        try comp.generateExactWidthType(w, mapper, .ulong_long);
+        try comp.generateExactWidthType(w, .ulong_long);
         try comp.generateExactWidthIntMax(w, .ulong_long);
         try comp.generateExactWidthIntMax(w, .long_long);
     }
@@ -905,7 +903,7 @@ fn generateSuffixMacro(comp: *const Compilation, prefix: []const u8, w: anytype,
 ///     Name macro (e.g. #define __UINT32_TYPE__ unsigned int)
 ///     Format strings (e.g. #define __UINT32_FMTu__ "u")
 ///     Suffix macro (e.g. #define __UINT32_C_SUFFIX__ U)
-fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StrInt.TypeMapper, specifier: Type.Specifier) !void {
+fn generateExactWidthType(comp: *const Compilation, w: anytype, specifier: Type.Specifier) !void {
     var ty = Type{ .specifier = specifier };
     const width = 8 * ty.sizeof(comp).?;
     const unsigned = ty.isUnsignedInt(comp);
@@ -922,7 +920,7 @@ fn generateExactWidthType(comp: *const Compilation, w: anytype, mapper: StrInt.T
         if (unsigned) "__UINT" else "__INT", width, suffix,
     }) catch return error.OutOfMemory;
 
-    try generateTypeMacro(w, mapper, full, ty, comp.langopts);
+    try comp.generateTypeMacro(w, full, ty);
 
     const prefix = full[0 .. full.len - suffix.len]; // remove "_TYPE__"
 
@@ -940,7 +938,7 @@ pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
 
 fn generateNsConstantStringType(comp: *Compilation) !void {
     comp.types.ns_constant_string.record = .{
-        .name = try StrInt.intern(comp, "__NSConstantString_tag"),
+        .name = try comp.internString("__NSConstantString_tag"),
         .fields = &comp.types.ns_constant_string.fields,
         .field_attributes = null,
         .type_layout = undefined,
@@ -948,10 +946,10 @@ fn generateNsConstantStringType(comp: *Compilation) !void {
     const const_int_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = &comp.types.ns_constant_string.int_ty } };
     const const_char_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = &comp.types.ns_constant_string.char_ty } };
 
-    comp.types.ns_constant_string.fields[0] = .{ .name = try StrInt.intern(comp, "isa"), .ty = const_int_ptr };
-    comp.types.ns_constant_string.fields[1] = .{ .name = try StrInt.intern(comp, "flags"), .ty = .{ .specifier = .int } };
-    comp.types.ns_constant_string.fields[2] = .{ .name = try StrInt.intern(comp, "str"), .ty = const_char_ptr };
-    comp.types.ns_constant_string.fields[3] = .{ .name = try StrInt.intern(comp, "length"), .ty = .{ .specifier = .long } };
+    comp.types.ns_constant_string.fields[0] = .{ .name = try comp.internString("isa"), .ty = const_int_ptr };
+    comp.types.ns_constant_string.fields[1] = .{ .name = try comp.internString("flags"), .ty = .{ .specifier = .int } };
+    comp.types.ns_constant_string.fields[2] = .{ .name = try comp.internString("str"), .ty = const_char_ptr };
+    comp.types.ns_constant_string.fields[3] = .{ .name = try comp.internString("length"), .ty = .{ .specifier = .long } };
     comp.types.ns_constant_string.ty = .{ .specifier = .@"struct", .data = .{ .record = &comp.types.ns_constant_string.record } };
     record_layout.compute(&comp.types.ns_constant_string.record, comp.types.ns_constant_string.ty, comp, null) catch unreachable;
 }
@@ -987,7 +985,7 @@ fn generateVaListType(comp: *Compilation) !Type {
         .aarch64_va_list => {
             const record_ty = try arena.create(Type.Record);
             record_ty.* = .{
-                .name = try StrInt.intern(comp, "__va_list_tag"),
+                .name = try comp.internString("__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 5),
                 .field_attributes = null,
                 .type_layout = undefined, // computed below
@@ -995,18 +993,18 @@ fn generateVaListType(comp: *Compilation) !Type {
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
             const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
-            record_ty.fields[0] = .{ .name = try StrInt.intern(comp, "__stack"), .ty = void_ptr };
-            record_ty.fields[1] = .{ .name = try StrInt.intern(comp, "__gr_top"), .ty = void_ptr };
-            record_ty.fields[2] = .{ .name = try StrInt.intern(comp, "__vr_top"), .ty = void_ptr };
-            record_ty.fields[3] = .{ .name = try StrInt.intern(comp, "__gr_offs"), .ty = .{ .specifier = .int } };
-            record_ty.fields[4] = .{ .name = try StrInt.intern(comp, "__vr_offs"), .ty = .{ .specifier = .int } };
+            record_ty.fields[0] = .{ .name = try comp.internString("__stack"), .ty = void_ptr };
+            record_ty.fields[1] = .{ .name = try comp.internString("__gr_top"), .ty = void_ptr };
+            record_ty.fields[2] = .{ .name = try comp.internString("__vr_top"), .ty = void_ptr };
+            record_ty.fields[3] = .{ .name = try comp.internString("__gr_offs"), .ty = .{ .specifier = .int } };
+            record_ty.fields[4] = .{ .name = try comp.internString("__vr_offs"), .ty = .{ .specifier = .int } };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
             record_layout.compute(record_ty, ty, comp, null) catch unreachable;
         },
         .x86_64_va_list => {
             const record_ty = try arena.create(Type.Record);
             record_ty.* = .{
-                .name = try StrInt.intern(comp, "__va_list_tag"),
+                .name = try comp.internString("__va_list_tag"),
                 .fields = try arena.alloc(Type.Record.Field, 4),
                 .field_attributes = null,
                 .type_layout = undefined, // computed below
@@ -1014,10 +1012,10 @@ fn generateVaListType(comp: *Compilation) !Type {
             const void_ty = try arena.create(Type);
             void_ty.* = .{ .specifier = .void };
             const void_ptr = Type{ .specifier = .pointer, .data = .{ .sub_type = void_ty } };
-            record_ty.fields[0] = .{ .name = try StrInt.intern(comp, "gp_offset"), .ty = .{ .specifier = .uint } };
-            record_ty.fields[1] = .{ .name = try StrInt.intern(comp, "fp_offset"), .ty = .{ .specifier = .uint } };
-            record_ty.fields[2] = .{ .name = try StrInt.intern(comp, "overflow_arg_area"), .ty = void_ptr };
-            record_ty.fields[3] = .{ .name = try StrInt.intern(comp, "reg_save_area"), .ty = void_ptr };
+            record_ty.fields[0] = .{ .name = try comp.internString("gp_offset"), .ty = .{ .specifier = .uint } };
+            record_ty.fields[1] = .{ .name = try comp.internString("fp_offset"), .ty = .{ .specifier = .uint } };
+            record_ty.fields[2] = .{ .name = try comp.internString("overflow_arg_area"), .ty = void_ptr };
+            record_ty.fields[3] = .{ .name = try comp.internString("reg_save_area"), .ty = void_ptr };
             ty = .{ .specifier = .@"struct", .data = .{ .record = record_ty } };
             record_layout.compute(record_ty, ty, comp, null) catch unreachable;
         },

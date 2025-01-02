@@ -8,8 +8,6 @@ const BigIntSpace = Interner.Tag.Int.BigIntSpace;
 
 const annex_g = @import("annex_g.zig");
 const Compilation = @import("Compilation.zig");
-const StringInterner = @import("StringInterner.zig");
-const StringId = StringInterner.StringId;
 const target_util = @import("target.zig");
 const Type = @import("Type.zig");
 

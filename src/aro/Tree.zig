@@ -7,7 +7,6 @@ const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
 const number_affixes = @import("Tree/number_affixes.zig");
 const Source = @import("Source.zig");
-const StringInterner = @import("StringInterner.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Type = @import("Type.zig");
 const Value = @import("Value.zig");
@@ -2875,11 +2874,8 @@ pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
 }
 
 pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void {
-    const mapper = tree.comp.string_interner.getFastTypeMapper(tree.comp.gpa) catch tree.comp.string_interner.getSlowTypeMapper();
-    defer mapper.deinit(tree.comp.gpa);
-
     for (tree.root_decls.items) |i| {
-        try tree.dumpNode(i, 0, mapper, config, writer);
+        try tree.dumpNode(i, 0, config, writer);
         try writer.writeByte('\n');
     }
 }
@@ -2928,7 +2924,6 @@ fn dumpNode(
     tree: *const Tree,
     node_index: Node.Index,
     level: u32,
-    mapper: StringInterner.TypeMapper,
     config: std.io.tty.Config,
     w: anytype,
 ) !void {
@@ -2963,9 +2958,9 @@ fn dumpNode(
     try w.writeByte('\'');
     const name = ty.getName();
     if (name != .empty) {
-        try w.print("{s}': '", .{mapper.lookup(name)});
+        try w.print("{s}': '", .{name.lookup(tree.comp)});
     }
-    try ty.dump(mapper, tree.comp.langopts, w);
+    try ty.dump(tree.comp.string_interner, tree.comp.langopts, w);
     try w.writeByte('\'');
 
     if (tree.isLval(node_index)) {
@@ -3022,16 +3017,16 @@ fn dumpNode(
         .empty_decl => {},
         .global_asm, .gnu_asm_simple => |@"asm"| {
             try w.writeByteNTimes(' ', level + 1);
-            try tree.dumpNode(@"asm".asm_str, level + delta, mapper, config, w);
+            try tree.dumpNode(@"asm".asm_str, level + delta, config, w);
         },
         .static_assert => |assert| {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("condition:\n");
-            try tree.dumpNode(assert.cond, level + delta, mapper, config, w);
+            try tree.dumpNode(assert.cond, level + delta, config, w);
             if (assert.message) |some| {
                 try w.writeByteNTimes(' ', level + 1);
                 try w.writeAll("diagnostic:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
         },
         .fn_proto => |proto| {
@@ -3062,7 +3057,7 @@ fn dumpNode(
             try config.setColor(w, .reset);
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("body:\n");
-            try tree.dumpNode(def.body, level + delta, mapper, config, w);
+            try tree.dumpNode(def.body, level + delta, config, w);
         },
         .typedef => |typedef| {
             try w.writeByteNTimes(' ', level + half);
@@ -3110,7 +3105,7 @@ fn dumpNode(
                 try config.setColor(w, .reset);
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("init:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
         },
         .enum_field => |field| {
@@ -3122,7 +3117,7 @@ fn dumpNode(
             if (field.init) |some| {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("init:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
         },
         .record_field => |field| {
@@ -3137,26 +3132,26 @@ fn dumpNode(
             if (field.bit_width) |some| {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("bits:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
         },
         .compound_stmt => |compound| {
             for (compound.body, 0..) |stmt, i| {
                 if (i != 0) try w.writeByte('\n');
-                try tree.dumpNode(stmt, level + delta, mapper, config, w);
+                try tree.dumpNode(stmt, level + delta, config, w);
             }
         },
         .enum_decl => |decl| {
             for (decl.fields, 0..) |field, i| {
                 if (i != 0) try w.writeByte('\n');
-                try tree.dumpNode(field, level + delta, mapper, config, w);
+                try tree.dumpNode(field, level + delta, config, w);
             }
         },
         .struct_decl, .union_decl => |decl| {
             const maybe_field_attributes = if (ty.getRecord()) |record| record.field_attributes else null;
             for (decl.fields, 0..) |field, i| {
                 if (i != 0) try w.writeByte('\n');
-                try tree.dumpNode(field, level + delta, mapper, config, w);
+                try tree.dumpNode(field, level + delta, config, w);
                 if (maybe_field_attributes) |field_attributes| {
                     if (field_attributes[i].len == 0) continue;
 
@@ -3169,7 +3164,7 @@ fn dumpNode(
         .array_init_expr, .struct_init_expr => |init| {
             for (init.items, 0..) |item, i| {
                 if (i != 0) try w.writeByte('\n');
-                try tree.dumpNode(item, level + delta, mapper, config, w);
+                try tree.dumpNode(item, level + delta, config, w);
             }
         },
         .union_init_expr => |init| {
@@ -3179,7 +3174,7 @@ fn dumpNode(
             try w.print("{d}\n", .{init.field_index});
             try config.setColor(w, .reset);
             if (init.initializer) |some| {
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
         },
         .compound_literal_expr => |literal| {
@@ -3197,7 +3192,7 @@ fn dumpNode(
                 try config.setColor(w, .reset);
             }
 
-            try tree.dumpNode(literal.initializer, level + half, mapper, config, w);
+            try tree.dumpNode(literal.initializer, level + half, config, w);
         },
         .labeled_stmt => |labeled| {
             try w.writeByteNTimes(' ', level + half);
@@ -3208,101 +3203,101 @@ fn dumpNode(
             try config.setColor(w, .reset);
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("stmt:\n");
-            try tree.dumpNode(labeled.body, level + delta, mapper, config, w);
+            try tree.dumpNode(labeled.body, level + delta, config, w);
         },
         .case_stmt => |case| {
             try w.writeByteNTimes(' ', level + half);
 
             if (case.end) |some| {
                 try w.writeAll("range start:\n");
-                try tree.dumpNode(case.start, level + delta, mapper, config, w);
+                try tree.dumpNode(case.start, level + delta, config, w);
 
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("range end:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             } else {
                 try w.writeAll("value:\n");
-                try tree.dumpNode(case.start, level + delta, mapper, config, w);
+                try tree.dumpNode(case.start, level + delta, config, w);
             }
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("stmt:\n");
-            try tree.dumpNode(case.body, level + delta, mapper, config, w);
+            try tree.dumpNode(case.body, level + delta, config, w);
         },
         .default_stmt => |default| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("stmt:\n");
-            try tree.dumpNode(default.body, level + delta, mapper, config, w);
+            try tree.dumpNode(default.body, level + delta, config, w);
         },
         .binary_cond_expr, .cond_expr, .builtin_choose_expr => |conditional| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
-            try tree.dumpNode(conditional.cond, level + delta, mapper, config, w);
+            try tree.dumpNode(conditional.cond, level + delta, config, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("then:\n");
-            try tree.dumpNode(conditional.then_expr, level + delta, mapper, config, w);
+            try tree.dumpNode(conditional.then_expr, level + delta, config, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("else:\n");
-            try tree.dumpNode(conditional.else_expr, level + delta, mapper, config, w);
+            try tree.dumpNode(conditional.else_expr, level + delta, config, w);
         },
         .builtin_types_compatible_p => |call| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("lhs: ");
             try config.setColor(w, TYPE);
-            try call.lhs.dump(mapper, tree.comp.langopts, w);
+            try call.lhs.dump(tree.comp.string_interner, tree.comp.langopts, w);
             try w.writeByte('\n');
             try config.setColor(w, .reset);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("rhs: ");
             try config.setColor(w, TYPE);
-            try call.rhs.dump(mapper, tree.comp.langopts, w);
+            try call.rhs.dump(tree.comp.string_interner, tree.comp.langopts, w);
             try w.writeByte('\n');
             try config.setColor(w, .reset);
         },
         .if_stmt => |@"if"| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
-            try tree.dumpNode(@"if".cond, level + delta, mapper, config, w);
+            try tree.dumpNode(@"if".cond, level + delta, config, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("then:\n");
-            try tree.dumpNode(@"if".then_body, level + delta, mapper, config, w);
+            try tree.dumpNode(@"if".then_body, level + delta, config, w);
 
             if (@"if".else_body) |some| {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("else:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
         },
         .switch_stmt => |@"switch"| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
-            try tree.dumpNode(@"switch".cond, level + delta, mapper, config, w);
+            try tree.dumpNode(@"switch".cond, level + delta, config, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("body:\n");
-            try tree.dumpNode(@"switch".body, level + delta, mapper, config, w);
+            try tree.dumpNode(@"switch".body, level + delta, config, w);
         },
         .while_stmt => |@"while"| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
-            try tree.dumpNode(@"while".cond, level + delta, mapper, config, w);
+            try tree.dumpNode(@"while".cond, level + delta, config, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("body:\n");
-            try tree.dumpNode(@"while".body, level + delta, mapper, config, w);
+            try tree.dumpNode(@"while".body, level + delta, config, w);
         },
         .do_while_stmt => |do| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("cond:\n");
-            try tree.dumpNode(do.cond, level + delta, mapper, config, w);
+            try tree.dumpNode(do.cond, level + delta, config, w);
 
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("body:\n");
-            try tree.dumpNode(do.body, level + delta, mapper, config, w);
+            try tree.dumpNode(do.body, level + delta, config, w);
         },
         .for_stmt => |@"for"| {
             switch (@"for".init) {
@@ -3310,29 +3305,29 @@ fn dumpNode(
                     try w.writeByteNTimes(' ', level + half);
                     try w.writeAll("decl:\n");
                     for (decls) |decl| {
-                        try tree.dumpNode(decl, level + delta, mapper, config, w);
+                        try tree.dumpNode(decl, level + delta, config, w);
                         try w.writeByte('\n');
                     }
                 },
                 .expr => |expr| if (expr) |some| {
                     try w.writeByteNTimes(' ', level + half);
                     try w.writeAll("init:\n");
-                    try tree.dumpNode(some, level + delta, mapper, config, w);
+                    try tree.dumpNode(some, level + delta, config, w);
                 },
             }
             if (@"for".cond) |some| {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("cond:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
             if (@"for".incr) |some| {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("incr:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("body:\n");
-            try tree.dumpNode(@"for".body, level + delta, mapper, config, w);
+            try tree.dumpNode(@"for".body, level + delta, config, w);
         },
         .addr_of_label => |addr| {
             try w.writeByteNTimes(' ', level + half);
@@ -3351,7 +3346,7 @@ fn dumpNode(
         .computed_goto_stmt => |goto| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("expr:\n");
-            try tree.dumpNode(goto.expr, level + delta, mapper, config, w);
+            try tree.dumpNode(goto.expr, level + delta, config, w);
         },
         .continue_stmt, .break_stmt, .null_stmt => {},
         .return_stmt => |ret| {
@@ -3359,7 +3354,7 @@ fn dumpNode(
                 .expr => |expr| {
                     try w.writeByteNTimes(' ', level + half);
                     try w.writeAll("expr:\n");
-                    try tree.dumpNode(expr, level + delta, mapper, config, w);
+                    try tree.dumpNode(expr, level + delta, config, w);
                 },
                 .implicit => {},
                 .none => {},
@@ -3368,13 +3363,13 @@ fn dumpNode(
         .call_expr => |call| {
             try w.writeByteNTimes(' ', level + half);
             try w.writeAll("callee:\n");
-            try tree.dumpNode(call.callee, level + delta, mapper, config, w);
+            try tree.dumpNode(call.callee, level + delta, config, w);
 
             if (call.args.len > 0) {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("args:\n");
                 for (call.args) |arg| {
-                    try tree.dumpNode(arg, level + delta, mapper, config, w);
+                    try tree.dumpNode(arg, level + delta, config, w);
                 }
             }
         },
@@ -3389,7 +3384,7 @@ fn dumpNode(
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("args:\n");
                 for (call.args) |arg| {
-                    try tree.dumpNode(arg, level + delta, mapper, config, w);
+                    try tree.dumpNode(arg, level + delta, config, w);
                 }
             }
         },
@@ -3426,13 +3421,13 @@ fn dumpNode(
         => |bin| {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("lhs:\n");
-            try tree.dumpNode(bin.lhs, level + delta, mapper, config, w);
+            try tree.dumpNode(bin.lhs, level + delta, config, w);
 
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("rhs:\n");
-            try tree.dumpNode(bin.rhs, level + delta, mapper, config, w);
+            try tree.dumpNode(bin.rhs, level + delta, config, w);
         },
-        .cast => |cast| try tree.dumpNode(cast.operand, level + delta, mapper, config, w),
+        .cast => |cast| try tree.dumpNode(cast.operand, level + delta, config, w),
         .addr_of_expr,
         .deref_expr,
         .plus_expr,
@@ -3451,7 +3446,7 @@ fn dumpNode(
         => |un| {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("operand:\n");
-            try tree.dumpNode(un.operand, level + delta, mapper, config, w);
+            try tree.dumpNode(un.operand, level + delta, config, w);
         },
         .decl_ref_expr, .enumeration_ref => |dr| {
             try w.writeByteNTimes(' ', level + 1);
@@ -3477,7 +3472,7 @@ fn dumpNode(
         .member_access_expr, .member_access_ptr_expr => |access| {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("lhs:\n");
-            try tree.dumpNode(access.base, level + delta, mapper, config, w);
+            try tree.dumpNode(access.base, level + delta, config, w);
 
             var base_ty = access.base.type(tree);
             if (base_ty.isPtr()) base_ty = base_ty.elemType();
@@ -3486,46 +3481,46 @@ fn dumpNode(
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");
             try config.setColor(w, NAME);
-            try w.print("{s}\n", .{mapper.lookup(base_ty.data.record.fields[access.member_index].name)});
+            try w.print("{s}\n", .{base_ty.data.record.fields[access.member_index].name.lookup(tree.comp)});
             try config.setColor(w, .reset);
         },
         .array_access_expr => |access| {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("base:\n");
-            try tree.dumpNode(access.base, level + delta, mapper, config, w);
+            try tree.dumpNode(access.base, level + delta, config, w);
 
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("index:\n");
-            try tree.dumpNode(access.index, level + delta, mapper, config, w);
+            try tree.dumpNode(access.index, level + delta, config, w);
         },
         .sizeof_expr, .alignof_expr => |type_info| {
             if (type_info.expr) |some| {
                 try w.writeByteNTimes(' ', level + 1);
                 try w.writeAll("expr:\n");
-                try tree.dumpNode(some, level + delta, mapper, config, w);
+                try tree.dumpNode(some, level + delta, config, w);
             }
         },
         .generic_expr => |generic| {
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("controlling:\n");
-            try tree.dumpNode(generic.controlling, level + delta, mapper, config, w);
+            try tree.dumpNode(generic.controlling, level + delta, config, w);
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("chosen:\n");
-            try tree.dumpNode(generic.chosen, level + delta, mapper, config, w);
+            try tree.dumpNode(generic.chosen, level + delta, config, w);
 
             if (generic.rest.len > 0) {
                 try w.writeByteNTimes(' ', level + 1);
                 try w.writeAll("rest:\n");
                 for (generic.rest) |expr| {
-                    try tree.dumpNode(expr, level + delta, mapper, config, w);
+                    try tree.dumpNode(expr, level + delta, config, w);
                 }
             }
         },
         .generic_association_expr => |assoc| {
-            try tree.dumpNode(assoc.expr, level + delta, mapper, config, w);
+            try tree.dumpNode(assoc.expr, level + delta, config, w);
         },
         .generic_default_expr => |default| {
-            try tree.dumpNode(default.expr, level + delta, mapper, config, w);
+            try tree.dumpNode(default.expr, level + delta, config, w);
         },
         .array_filler_expr => |filler| {
             try w.writeByteNTimes(' ', level + 1);
