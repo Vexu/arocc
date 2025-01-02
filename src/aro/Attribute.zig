@@ -1037,13 +1037,20 @@ pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_sta
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
-        .fallthrough => if (p.tok_ids[p.tok_i] != .keyword_case and p.tok_ids[p.tok_i] != .keyword_default) {
-            // TODO: this condition is not completely correct; the last statement of a compound
-            // statement is also valid if it precedes a switch label (so intervening '}' are ok,
-            // but only if they close a compound statement)
-            try p.errTok(.invalid_fallthrough, expr_start);
-        } else {
-            try p.attr_application_buf.append(p.gpa, attr);
+        .fallthrough => {
+            for (p.tok_ids[p.tok_i..]) |tok_id| {
+                switch (tok_id) {
+                    .keyword_case, .keyword_default, .eof => {
+                        try p.attr_application_buf.append(p.gpa, attr);
+                        break;
+                    },
+                    .r_brace => {},
+                    else => {
+                        try p.errTok(.invalid_fallthrough, expr_start);
+                        break;
+                    },
+                }
+            }
         },
         else => try p.errStr(.cannot_apply_attribute_to_statement, tok, @tagName(attr.tag)),
     };
