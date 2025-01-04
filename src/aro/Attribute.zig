@@ -383,7 +383,7 @@ const EnumTypes = enum {
 };
 pub const Alignment = struct {
     node: Tree.Node.OptIndex = .null,
-    requested: u29,
+    requested: u32,
 };
 pub const Identifier = struct {
     tok: TokenIndex = 0,
@@ -854,7 +854,9 @@ pub fn applyFieldAttributes(p: *Parser, field_ty: *QualType, attr_buf_start: usi
         .aligned => try attr.applyAligned(p, field_ty.*, null),
         else => try ignoredAttrErr(p, tok, attr.tag, "fields"),
     };
-    if (p.attr_application_buf.items.len == 0) return &[0]Attribute{};
+    if (p.attr_application_buf.items.len == 0) return &.{};
+
+    // TODO avoid duping these
     return p.arena.dupe(Attribute, p.attr_application_buf.items);
 }
 

@@ -897,8 +897,8 @@ fn generateSizeofType(comp: *Compilation, w: anytype, name: []const u8, qt: Qual
 }
 
 pub fn nextLargestIntSameSign(comp: *const Compilation, qt: QualType) ?QualType {
-    assert(qt.isInt());
-    const candidates: [4]QualType = if (qt.isUnsignedInt(comp))
+    assert(qt.isInt(comp));
+    const candidates: [4]QualType = if (qt.signedness(comp) == .signed)
         .{ .short, .int, .long, .long_long }
     else
         .{ .ushort, .uint, .ulong, .ulong_long };

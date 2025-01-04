@@ -220,7 +220,7 @@ pub const QualType = packed struct(u32) {
             .func_variadic,
             .func_old_style,
             => {
-                const param_size = 3;
+                const param_size = 4;
                 const extra = comp.type_store.extra.items;
                 const params_len = switch (repr.tag) {
                     .func_one, .func_variadic_one, .func_old_style_one => 1 * param_size,
@@ -353,6 +353,13 @@ pub const QualType = packed struct(u32) {
         };
     }
 
+    pub fn getRecord(qt: QualType, comp: *const Compilation) ?Type.Record {
+        return switch (qt.base(comp).type) {
+            .@"struct", .@"union" => |record| record,
+            else => null,
+        };
+    }
+
     pub fn get(qt: QualType, comp: *const Compilation, comptime tag: std.meta.Tag(Type)) ?@FieldType(Type, @tagName(tag)) {
         comptime std.debug.assert(tag != .typeof and tag != .attributed and tag != .typedef);
         const base_type = qt.base(comp).type;
@@ -390,6 +397,18 @@ pub const QualType = packed struct(u32) {
             .fixed, .static => |len| return len,
             else => return null,
         }
+    }
+
+    pub const TypeSizeOrder = enum { lt, gt, eq, indeterminate };
+
+    pub fn sizeCompare(a: QualType, b: QualType, comp: *const Compilation) TypeSizeOrder {
+        const a_size = a.sizeofOrNull(comp) orelse return .indeterminate;
+        const b_size = b.sizeofOrNull(comp) orelse return .indeterminate;
+        return switch (std.math.order(a_size, b_size)) {
+            .lt => .lt,
+            .gt => .gt,
+            .eq => .eq,
+        };
     }
 
     pub fn sizeof(qt: QualType, comp: *const Compilation) u64 {
@@ -575,18 +594,44 @@ pub const QualType = packed struct(u32) {
         return .gt;
     }
 
+    /// Returns true if `a` and `b` are integer types that differ only in sign
+    pub fn sameRankDifferentSign(a: QualType, b: QualType, comp: *const Compilation) bool {
+        if (!a.isInt(comp) or !b.isInt(comp)) return false;
+        if (a.intRank(comp) != b.intRank(comp)) return false;
+        return a.signedness(comp) != b.signedness(comp);
+    }
+
     pub fn promoteInt(qt: QualType, comp: *const Compilation) QualType {
         const int_qt = switch (qt.base(comp).type) {
+            .bool => return .int,
             .@"enum" => |@"enum"| @"enum".tag orelse return .int,
             .bit_int => return qt,
             .complex => return qt, // Assume complex integer type
             else => qt, // Not an integer type
         };
-        return switch (int_qt.get(comp, .int)) {
-            .bool, .char, .schar, .uchar, .short => .int,
+        return switch (int_qt.get(comp, .int).?) {
+            .char, .schar, .uchar, .short => .int,
             .ushort => if (Type.Int.uchar.bits(comp) == Type.Int.int.bits(comp)) .uint else .int,
             else => return int_qt,
         };
+    }
+
+    /// Promote a bitfield. If `int` can hold all the values of the underlying field,
+    /// promote to int. Otherwise, promote to unsigned int
+    /// Returns null if no promotion is necessary
+    pub fn promoteBitfield(qt: QualType, comp: *const Compilation, width: u32) ?QualType {
+        const type_size_bits = qt.bitSizeof(comp);
+
+        // Note: GCC and clang will promote `long: 3` to int even though the C standard does not allow this
+        if (width < type_size_bits) {
+            return .int;
+        }
+
+        if (width == type_size_bits) {
+            return if (qt.signedness(comp) == .unsigned) .uint else .int;
+        }
+
+        return null;
     }
 
     pub const ScalarKind = enum {
@@ -629,6 +674,7 @@ pub const QualType = packed struct(u32) {
             };
         }
 
+        /// Equivalent to isInt() or isFloat()
         pub fn isArithmetic(sk: ScalarKind) bool {
             return switch (sk) {
                 .bool, .@"enum", .int, .complex_int, .float, .complex_float => true,
@@ -773,6 +819,16 @@ pub const QualType = packed struct(u32) {
         }
     }
 
+    pub fn getAttribute(qt: QualType, comp: *const Compilation, comptime tag: Attribute.Tag) ?Attribute.ArgumentsForTag(tag) {
+        if (tag == .aligned) @compileError("use requestedAlignment");
+        var it = Attribute.Iterator.initType(qt, comp);
+        while (it.next()) |item| {
+            const attribute, _ = item;
+            if (attribute.tag == tag) return @field(attribute.args, @tagName(tag));
+        }
+        return null;
+    }
+
     pub fn hasAttribute(qt: QualType, comp: *const Compilation, tag: Attribute.Tag) bool {
         var it = Attribute.Iterator.initType(qt, comp);
         while (it.next()) |item| {
@@ -780,6 +836,15 @@ pub const QualType = packed struct(u32) {
             if (attr.tag == tag) return true;
         }
         return false;
+    }
+
+    pub fn alignable(qt: QualType, comp: *const Compilation) bool {
+        if (qt.isInvalid()) return false;
+        const base_type = qt.base(comp);
+        switch (base_type.type) {
+            .array, .void => return false,
+            else => return base_type.qt.sizeofOrNull(comp) != null,
+        }
     }
 
     pub fn requestedAlignment(qt: QualType, comp: *const Compilation) ?u32 {
@@ -806,7 +871,30 @@ pub const QualType = packed struct(u32) {
         return max_requested;
     }
 
+    pub fn enumIsPacked(qt: QualType, comp: *const Compilation) bool {
+        std.debug.assert(qt.is(comp, .@"enum"));
+        return comp.langopts.short_enums or target_util.packAllEnums(comp.target) or qt.hasAttribute(comp, .@"packed");
+    }
+
     pub fn print(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+        _ = try qt.printPrologue(comp, w);
+        try qt.printEpilogue(comp, w);
+    }
+
+    pub fn printNamed(qt: QualType, name: []const u8, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+        const simple = try qt.printPrologue(comp, w);
+        if (simple) try w.writeByte(' ');
+        try w.writeAll(name);
+        try qt.printEpilogue(comp, w);
+    }
+
+    fn printPrologue(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!bool {
+        _ = qt;
+        _ = comp;
+        @panic("TODO");
+    }
+
+    fn printEpilogue(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
         _ = qt;
         _ = comp;
         @panic("TODO");
@@ -920,6 +1008,7 @@ pub const Type = union(enum) {
         pub const Param = extern struct {
             qt: QualType,
             name: StringId,
+            name_tok: TokenIndex,
             node: Node.OptIndex,
         };
     };
@@ -975,6 +1064,10 @@ pub const Type = union(enum) {
                 return comp.type_store.attributes.items[field._attr_index..][0..field._attr_len];
             }
 
+            pub fn isAnonymousRecord(field: Field) bool {
+                return field.name and field.ty.isRecord();
+            }
+
             pub const Layout = extern struct {
                 /// `offset_bits` and `size_bits` should both be INVALID if and only if the field
                 /// is an unnamed bitfield. There is no way to reference an unnamed bitfield in C, so
@@ -1022,6 +1115,18 @@ pub const Type = union(enum) {
             // the format "(anonymous TAG at path:line:col)".
             return record.name.lookup(comp)[0] == '(';
         }
+
+        pub fn hasField(record: Record, comp: *const Compilation, name: StringId) bool {
+            std.debug.assert(record.layout != null);
+            std.debug.assert(name != .empty);
+            for (record.fields) |field| {
+                if (name == field.name) return true;
+                if (field.name == .empty) if (field.qt.getRecord(comp)) |field_record_ty| {
+                    if (field_record_ty.hasField(comp, name)) return true;
+                };
+            }
+            return false;
+        }
     };
 
     pub const Enum = struct {
@@ -1031,10 +1136,10 @@ pub const Type = union(enum) {
         fields: []const Field,
 
         pub const Field = extern struct {
-            type: QualType,
+            qt: QualType,
             name: StringId,
             name_tok: TokenIndex,
-            node: Node.Index,
+            init: Node.OptIndex,
         };
     };
 
@@ -1152,7 +1257,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
                 try ts.extra.append(gpa, @intCast(func.params.len));
             }
 
-            const param_size = 3;
+            const param_size = 4;
             comptime std.debug.assert(@sizeOf(Type.Func.Param) == @sizeOf(u32) * param_size);
 
             try ts.extra.ensureUnusedCapacity(gpa, func.params.len * param_size);

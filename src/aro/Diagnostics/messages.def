@@ -208,6 +208,13 @@ missing_type_specifier_c23
     .msg = "a type specifier is required for all declarations"
     .kind = .@"error"
 
+param_not_declared
+    .msg = "parameter '{s}' was not declared, defaults to 'int'"
+    .opt = W("implicit-int")
+    .extra = .str
+    .kind = .warning
+    .all = true
+
 multiple_storage_class
     .msg = "cannot combine with previous '{s}' declaration specifier"
     .extra = .str

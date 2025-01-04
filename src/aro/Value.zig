@@ -198,7 +198,7 @@ pub fn floatToInt(v: *Value, dest_ty: QualType, comp: *Compilation) !FloatToIntC
 pub fn intToFloat(v: *Value, dest_ty: QualType, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
 
-    if (dest_ty.isComplex()) {
+    if (dest_ty.is(comp, .complex)) {
         const bits = dest_ty.bitSizeof(comp);
         const cf: Interner.Key.Complex = switch (bits) {
             32 => .{ .cf16 = .{ v.toFloat(f16, comp), 0 } },
@@ -292,7 +292,7 @@ pub fn intCast(v: *Value, dest_ty: QualType, comp: *Compilation) !IntCastChangeK
 pub fn floatCast(v: *Value, dest_ty: QualType, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
     const bits = dest_ty.bitSizeof(comp);
-    if (dest_ty.isComplex()) {
+    if (dest_ty.is(comp, .complex)) {
         const cf: Interner.Key.Complex = switch (bits) {
             32 => .{ .cf16 = .{ v.toFloat(f16, comp), v.imag(f16, comp) } },
             64 => .{ .cf32 = .{ v.toFloat(f32, comp), v.imag(f32, comp) } },

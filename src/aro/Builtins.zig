@@ -43,7 +43,7 @@ fn specForSize(comp: *const Compilation, size_bits: u32) TypeStore.Builder.Speci
     unreachable;
 }
 
-fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *Compilation, allocator: std.mem.Allocator) !QualType {
+fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *Compilation) !QualType {
     var builder: TypeStore.Builder = .{ .parser = undefined, .error_on_invalid = true };
     var require_native_int32 = false;
     var require_native_int64 = false;
@@ -153,7 +153,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         .V => |element_count| {
             std.debug.assert(desc.suffix.len == 0);
             const child_desc = it.next().?;
-            const elem_qt = try createType(child_desc, undefined, comp, allocator);
+            const elem_qt = try createType(child_desc, undefined, comp);
             const vector_qt = try comp.type_store.put(comp.gpa, .{ .vector = .{
                 .elem = elem_qt,
                 .len = element_count,
@@ -246,18 +246,18 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
     return builder.finish() catch unreachable;
 }
 
-fn createBuiltin(comp: *Compilation, builtin: Builtin, type_arena: std.mem.Allocator) !QualType {
+fn createBuiltin(comp: *Compilation, builtin: Builtin) !QualType {
     var it = TypeDescription.TypeIterator.init(builtin.properties.param_str);
 
     const ret_ty_desc = it.next().?;
     if (ret_ty_desc.spec == .@"!") {
         // Todo: handle target-dependent definition
     }
-    const ret_ty = try createType(ret_ty_desc, &it, comp, type_arena);
+    const ret_ty = try createType(ret_ty_desc, &it, comp);
     var param_count: usize = 0;
     var params: [Builtin.max_param_count]TypeStore.Type.Func.Param = undefined;
     while (it.next()) |desc| : (param_count += 1) {
-        params[param_count] = .{ .qt = try createType(desc, &it, comp, type_arena), .name = .empty, .node = .null };
+        params[param_count] = .{ .name_tok = 0, .qt = try createType(desc, &it, comp), .name = .empty, .node = .null };
     }
 
     return comp.type_store.put(comp.gpa, .{ .func = .{
@@ -274,13 +274,13 @@ pub fn lookup(b: *const Builtins, name: []const u8) Expanded {
     return .{ .builtin = builtin, .qt = qt };
 }
 
-pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, type_arena: std.mem.Allocator) !?Expanded {
+pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8) !?Expanded {
     const qt = b._name_to_type_map.get(name) orelse {
         const builtin = Builtin.fromName(name) orelse return null;
         if (!comp.hasBuiltinFunction(builtin)) return null;
 
         try b._name_to_type_map.ensureUnusedCapacity(comp.gpa, 1);
-        const qt = try createBuiltin(comp, builtin, type_arena);
+        const qt = try createBuiltin(comp, builtin);
         b._name_to_type_map.putAssumeCapacity(name, qt);
 
         return .{
@@ -345,16 +345,13 @@ test "All builtins" {
     var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
     _ = try comp.generateBuiltinMacros(.include_system_defines, null);
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    const type_arena = arena.allocator();
 
     var builtin_it = Iterator{};
     while (builtin_it.next()) |entry| {
-        const name = try type_arena.dupe(u8, entry.name);
-        if (try comp.builtins.getOrCreate(&comp, name, type_arena)) |func_ty| {
-            const get_again = (try comp.builtins.getOrCreate(&comp, name, std.testing.failing_allocator)).?;
+        const interned = try comp.internString(entry.name);
+        const name = interned.lookup(&comp);
+        if (try comp.builtins.getOrCreate(&comp, name)) |func_ty| {
+            const get_again = (try comp.builtins.getOrCreate(&comp, name)).?;
             const found_by_lookup = comp.builtins.lookup(name);
             try std.testing.expectEqual(func_ty.builtin.tag, get_again.builtin.tag);
             try std.testing.expectEqual(func_ty.builtin.tag, found_by_lookup.builtin.tag);
@@ -368,16 +365,12 @@ test "Allocation failures" {
             var comp = Compilation.init(allocator, std.fs.cwd());
             defer comp.deinit();
             _ = try comp.generateBuiltinMacros(.include_system_defines, null);
-            var arena = std.heap.ArenaAllocator.init(comp.gpa);
-            defer arena.deinit();
-
-            const type_arena = arena.allocator();
 
             const num_builtins = 40;
             var builtin_it = Iterator{};
             for (0..num_builtins) |_| {
                 const entry = builtin_it.next().?;
-                _ = try comp.builtins.getOrCreate(&comp, entry.name, type_arena);
+                _ = try comp.builtins.getOrCreate(&comp, entry.name);
             }
         }
     };
