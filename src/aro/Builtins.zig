@@ -44,7 +44,10 @@ fn specForSize(comp: *const Compilation, size_bits: u32) TypeStore.Builder.Speci
 }
 
 fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *Compilation) !QualType {
-    var builder: TypeStore.Builder = .{ .parser = undefined, .error_on_invalid = true };
+    var parser: Parser = undefined;
+    parser.comp = comp;
+    var builder: TypeStore.Builder = .{ .parser = &parser, .error_on_invalid = true };
+
     var require_native_int32 = false;
     var require_native_int64 = false;
     for (desc.prefix) |prefix| {
@@ -345,11 +348,14 @@ test "All builtins" {
     var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
     _ = try comp.generateBuiltinMacros(.include_system_defines, null);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const name_arena = arena.allocator();
 
     var builtin_it = Iterator{};
     while (builtin_it.next()) |entry| {
-        const interned = try comp.internString(entry.name);
-        const name = interned.lookup(&comp);
+        const name = try name_arena.dupe(u8, entry.name);
         if (try comp.builtins.getOrCreate(&comp, name)) |func_ty| {
             const get_again = (try comp.builtins.getOrCreate(&comp, name)).?;
             const found_by_lookup = comp.builtins.lookup(name);

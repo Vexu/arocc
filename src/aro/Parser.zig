@@ -3035,7 +3035,7 @@ const Declarator = struct {
                 .array => |array_ty| {
                     const elem_qt = array_ty.elem;
                     if (elem_qt.sizeofOrNull(p.comp) == null) {
-                        try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_qt));
+                        try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(array_ty.elem));
                         return error.ParsingFailed;
                     }
                     if (elem_qt.is(p.comp, .func)) {
@@ -3048,6 +3048,7 @@ const Declarator = struct {
                     if (type_qt.qt.isQualified() and elem_qt.is(p.comp, .array)) {
                         try p.errTok(.qualifier_non_outermost_array, source_tok);
                     }
+                    cur = elem_qt;
                 },
                 .func => |func_ty| {
                     const ret_qt = func_ty.return_type;
@@ -3064,6 +3065,7 @@ const Declarator = struct {
                             try p.errStr(.suggest_pointer_for_invalid_fp16, source_tok, "function return value");
                         }
                     }
+                    cur = ret_qt;
                 },
                 else => return,
             }

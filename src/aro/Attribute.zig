@@ -60,13 +60,14 @@ pub const Iterator = struct {
             defer self.index += 1;
             return .{ self.slice[self.index], self.index };
         }
-        if (self.source) |source| {
+        if (self.source) |*source| {
             var cur = source.qt;
             while (true) switch (cur.type(source.comp)) {
                 .typeof => |typeof| cur = typeof.base,
                 .attributed => |attributed| {
                     self.slice = attributed.attributes;
                     self.index = 1;
+                    source.qt = attributed.base;
                     return .{ self.slice[0], 0 };
                 },
                 else => {

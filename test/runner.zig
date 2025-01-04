@@ -622,8 +622,7 @@ const StmtTypeDumper = struct {
     fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: Node.Index, m: *MsgWriter) AllocatorError!void {
         const maybe_ret = node.get(tree);
         if (maybe_ret == .return_stmt and maybe_ret.return_stmt.operand == .implicit) return;
-        const ty = node.type(tree);
-        ty.dump(tree.comp.string_interner, tree.comp.langopts, m.buf.writer()) catch {};
+        node.qt(tree).dump(tree.comp, m.buf.writer()) catch {};
         const owned = try m.buf.toOwnedSlice();
         errdefer m.buf.allocator.free(owned);
         try self.types.append(owned);

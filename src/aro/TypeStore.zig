@@ -221,13 +221,15 @@ pub const QualType = packed struct(u32) {
             .func_old_style,
             => {
                 const param_size = 4;
+                comptime std.debug.assert(@sizeOf(Type.Func.Param) == @sizeOf(u32) * param_size);
+
                 const extra = comp.type_store.extra.items;
                 const params_len = switch (repr.tag) {
-                    .func_one, .func_variadic_one, .func_old_style_one => 1 * param_size,
-                    .func, .func_variadic, .func_old_style => extra[repr.data[1]] * param_size,
+                    .func_one, .func_variadic_one, .func_old_style_one => 1,
+                    .func, .func_variadic, .func_old_style => extra[repr.data[1]],
                     else => unreachable,
                 };
-                const extra_params = extra[repr.data[1] + @intFromBool(params_len > 1) ..][0..params_len];
+                const extra_params = extra[repr.data[1] + @intFromBool(params_len > 1) ..][0 .. params_len * param_size];
 
                 return .{ .func = .{
                     .return_type = @bitCast(repr.data[0]),
@@ -273,8 +275,11 @@ pub const QualType = packed struct(u32) {
                 .len = repr.data[1],
             } },
             .@"struct", .@"union" => {
-                const layout_size = 6;
+                const layout_size = 5;
+                comptime std.debug.assert(@sizeOf(Type.Record.Layout) == @sizeOf(u32) * layout_size);
                 const field_size = 10;
+                comptime std.debug.assert(@sizeOf(Type.Record.Field) == @sizeOf(u32) * field_size);
+
                 const extra = comp.type_store.extra.items;
                 const layout = @as(*Type.Record.Layout, @alignCast(@ptrCast(extra[repr.data[1]..][0..layout_size]))).*;
                 const fields_len = extra[repr.data[1] + layout_size] * field_size;
@@ -303,11 +308,17 @@ pub const QualType = packed struct(u32) {
             } },
             .@"enum", .enum_fixed => {
                 const extra = comp.type_store.extra.items;
+                const field_size = 4;
+                comptime std.debug.assert(@sizeOf(Type.Enum.Field) == @sizeOf(u32) * field_size);
+
+                const fields_len = extra[repr.data[1] + 1] * field_size;
+                const extra_fields = extra[repr.data[1] + 2 ..][0..fields_len];
+
                 return .{ .@"enum" = .{
                     .name = @enumFromInt(extra[repr.data[1]]),
                     .tag = @bitCast(repr.data[0]),
                     .fixed = repr.tag == .enum_fixed,
-                    .fields = std.mem.bytesAsSlice(Type.Enum.Field, std.mem.sliceAsBytes(extra[repr.data[1] + 1 ..][0 .. repr.data[1] + 2])),
+                    .fields = std.mem.bytesAsSlice(Type.Enum.Field, std.mem.sliceAsBytes(extra_fields)),
                 } };
             },
             .enum_incomplete => .{ .@"enum" = .{
@@ -1098,6 +1109,10 @@ pub const QualType = packed struct(u32) {
                 try w.writeAll(")");
                 return true;
             },
+            .typedef => |typedef| {
+                try w.writeAll(typedef.name.lookup(comp));
+                return true;
+            },
             .attributed => |attributed| continue :loop attributed.base.type(comp),
             else => {},
         }
@@ -1658,9 +1673,9 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
                     else => .func_variadic,
                 },
                 .old_style => switch (func.params.len) {
-                    0 => .func_variadic_zero,
-                    1 => .func_variadic_one,
-                    else => .func_variadic,
+                    0 => .func_old_style_zero,
+                    1 => .func_old_style_one,
+                    else => .func_old_style,
                 },
             };
         },
@@ -1788,11 +1803,11 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
             if (attr_count > 1) {
                 repr.tag = .attributed;
                 const extra_index: u32 = @intCast(ts.extra.items.len);
-                repr.data[0] = extra_index;
+                repr.data[1] = extra_index;
                 try ts.extra.appendSlice(gpa, &.{ attr_index, attr_count });
             } else {
                 repr.tag = .attributed_one;
-                repr.data[0] = attr_index;
+                repr.data[1] = attr_index;
             }
         },
     }
@@ -2333,9 +2348,6 @@ pub const Builder = struct {
     pub fn combineTypedef(b: *Builder, typedef_qt: QualType) bool {
         if (typedef_qt.isInvalid()) return false;
         if (b.type != .none) return false;
-
-        b.error_on_invalid = true;
-        defer b.error_on_invalid = false;
 
         b.typedef = true;
         b.type = .{ .other = typedef_qt };
