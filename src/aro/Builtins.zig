@@ -4,18 +4,20 @@ const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const Parser = @import("Parser.zig");
 const target_util = @import("target.zig");
-const Type = @import("Type.zig");
+const TypeStore = @import("TypeStore.zig");
+const QualType = TypeStore.QualType;
+const Builder = TypeStore.Builder;
 const TypeDescription = @import("Builtins/TypeDescription.zig");
 
 const Properties = @import("Builtins/Properties.zig");
 pub const Builtin = @import("Builtins/Builtin.def").with(Properties);
 
 const Expanded = struct {
-    ty: Type,
+    qt: QualType,
     builtin: Builtin,
 };
 
-const NameToTypeMap = std.StringHashMapUnmanaged(Type);
+const NameToTypeMap = std.StringHashMapUnmanaged(QualType);
 
 const Builtins = @This();
 
@@ -25,38 +27,38 @@ pub fn deinit(b: *Builtins, gpa: std.mem.Allocator) void {
     b._name_to_type_map.deinit(gpa);
 }
 
-fn specForSize(comp: *const Compilation, size_bits: u32) Type.Builder.Specifier {
-    var ty = Type{ .specifier = .short };
-    if (ty.sizeof(comp).? * 8 == size_bits) return .short;
+fn specForSize(comp: *const Compilation, size_bits: u32) TypeStore.Builder.Specifier {
+    var qt: QualType = .short;
+    if (qt.bitSizeof(comp) == size_bits) return .short;
 
-    ty.specifier = .int;
-    if (ty.sizeof(comp).? * 8 == size_bits) return .int;
+    qt = .int;
+    if (qt.bitSizeof(comp) == size_bits) return .int;
 
-    ty.specifier = .long;
-    if (ty.sizeof(comp).? * 8 == size_bits) return .long;
+    qt = .long;
+    if (qt.bitSizeof(comp) == size_bits) return .long;
 
-    ty.specifier = .long_long;
-    if (ty.sizeof(comp).? * 8 == size_bits) return .long_long;
+    qt = .long_long;
+    if (qt.bitSizeof(comp) == size_bits) return .long_long;
 
     unreachable;
 }
 
-fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *const Compilation, allocator: std.mem.Allocator) !Type {
-    var builder: Type.Builder = .{ .error_on_invalid = true };
+fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *Compilation, allocator: std.mem.Allocator) !QualType {
+    var builder: TypeStore.Builder = .{ .parser = undefined, .error_on_invalid = true };
     var require_native_int32 = false;
     var require_native_int64 = false;
     for (desc.prefix) |prefix| {
         switch (prefix) {
-            .L => builder.combine(undefined, .long, 0) catch unreachable,
+            .L => builder.combine(.long, 0) catch unreachable,
             .LL => {
-                builder.combine(undefined, .long, 0) catch unreachable;
-                builder.combine(undefined, .long, 0) catch unreachable;
+                builder.combine(.long, 0) catch unreachable;
+                builder.combine(.long, 0) catch unreachable;
             },
             .LLL => {
-                switch (builder.specifier) {
-                    .none => builder.specifier = .int128,
-                    .signed => builder.specifier = .sint128,
-                    .unsigned => builder.specifier = .uint128,
+                switch (builder.type) {
+                    .none => builder.type = .int128,
+                    .signed => builder.type = .sint128,
+                    .unsigned => builder.type = .uint128,
                     else => unreachable,
                 }
             },
@@ -65,184 +67,186 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *c
             .N => {
                 std.debug.assert(desc.spec == .i);
                 if (!target_util.isLP64(comp.target)) {
-                    builder.combine(undefined, .long, 0) catch unreachable;
+                    builder.combine(.long, 0) catch unreachable;
                 }
             },
             .O => {
-                builder.combine(undefined, .long, 0) catch unreachable;
+                builder.combine(.long, 0) catch unreachable;
                 if (comp.target.os.tag != .opencl) {
-                    builder.combine(undefined, .long, 0) catch unreachable;
+                    builder.combine(.long, 0) catch unreachable;
                 }
             },
-            .S => builder.combine(undefined, .signed, 0) catch unreachable,
-            .U => builder.combine(undefined, .unsigned, 0) catch unreachable,
+            .S => builder.combine(.signed, 0) catch unreachable,
+            .U => builder.combine(.unsigned, 0) catch unreachable,
             .I => {
                 // Todo: compile-time constant integer
             },
         }
     }
     switch (desc.spec) {
-        .v => builder.combine(undefined, .void, 0) catch unreachable,
-        .b => builder.combine(undefined, .bool, 0) catch unreachable,
-        .c => builder.combine(undefined, .char, 0) catch unreachable,
-        .s => builder.combine(undefined, .short, 0) catch unreachable,
+        .v => builder.combine(.void, 0) catch unreachable,
+        .b => builder.combine(.bool, 0) catch unreachable,
+        .c => builder.combine(.char, 0) catch unreachable,
+        .s => builder.combine(.short, 0) catch unreachable,
         .i => {
             if (require_native_int32) {
-                builder.specifier = specForSize(comp, 32);
+                builder.type = specForSize(comp, 32);
             } else if (require_native_int64) {
-                builder.specifier = specForSize(comp, 64);
+                builder.type = specForSize(comp, 64);
             } else {
-                switch (builder.specifier) {
+                switch (builder.type) {
                     .int128, .sint128, .uint128 => {},
-                    else => builder.combine(undefined, .int, 0) catch unreachable,
+                    else => builder.combine(.int, 0) catch unreachable,
                 }
             }
         },
-        .h => builder.combine(undefined, .fp16, 0) catch unreachable,
-        .x => builder.combine(undefined, .float16, 0) catch unreachable,
+        .h => builder.combine(.fp16, 0) catch unreachable,
+        .x => builder.combine(.float16, 0) catch unreachable,
         .y => {
             // Todo: __bf16
-            return .{ .specifier = .invalid };
+            return .invalid;
         },
-        .f => builder.combine(undefined, .float, 0) catch unreachable,
+        .f => builder.combine(.float, 0) catch unreachable,
         .d => {
-            if (builder.specifier == .long_long) {
-                builder.specifier = .float128;
+            if (builder.type == .long_long) {
+                builder.type = .float128;
             } else {
-                builder.combine(undefined, .double, 0) catch unreachable;
+                builder.combine(.double, 0) catch unreachable;
             }
         },
         .z => {
-            std.debug.assert(builder.specifier == .none);
-            builder.specifier = Type.Builder.fromType(comp.types.size);
+            std.debug.assert(builder.type == .none);
+            builder.type = Builder.fromType(comp, comp.type_store.size);
         },
         .w => {
-            std.debug.assert(builder.specifier == .none);
-            builder.specifier = Type.Builder.fromType(comp.types.wchar);
+            std.debug.assert(builder.type == .none);
+            builder.type = Builder.fromType(comp, comp.type_store.wchar);
         },
         .F => {
-            std.debug.assert(builder.specifier == .none);
-            builder.specifier = Type.Builder.fromType(comp.types.ns_constant_string.ty);
+            std.debug.assert(builder.type == .none);
+            builder.type = Builder.fromType(comp, comp.type_store.ns_constant_string);
         },
         .G => {
             // Todo: id
-            return .{ .specifier = .invalid };
+            return .invalid;
         },
         .H => {
             // Todo: SEL
-            return .{ .specifier = .invalid };
+            return .invalid;
         },
         .M => {
             // Todo: struct objc_super
-            return .{ .specifier = .invalid };
+            return .invalid;
         },
         .a => {
-            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            builder.specifier = Type.Builder.fromType(comp.types.va_list);
+            builder.type = Builder.fromType(comp, comp.type_store.va_list);
         },
         .A => {
-            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            var va_list = comp.types.va_list;
-            if (va_list.isArray()) va_list.decayArray();
-            builder.specifier = Type.Builder.fromType(va_list);
+            var va_list = comp.type_store.va_list;
+            std.debug.assert(!va_list.is(comp, .array));
+            builder.type = Builder.fromType(comp, va_list);
         },
         .V => |element_count| {
             std.debug.assert(desc.suffix.len == 0);
             const child_desc = it.next().?;
-            const child_ty = try createType(child_desc, undefined, comp, allocator);
-            const arr_ty = try allocator.create(Type.Array);
-            arr_ty.* = .{
+            const elem_qt = try createType(child_desc, undefined, comp, allocator);
+            const vector_qt = try comp.type_store.put(comp.gpa, .{ .vector = .{
+                .elem = elem_qt,
                 .len = element_count,
-                .elem = child_ty,
-            };
-            const vector_ty: Type = .{ .specifier = .vector, .data = .{ .array = arr_ty } };
-            builder.specifier = Type.Builder.fromType(vector_ty);
+            } });
+            builder.type = .{ .other = vector_qt };
         },
         .q => {
             // Todo: scalable vector
-            return .{ .specifier = .invalid };
+            return .invalid;
         },
         .E => {
             // Todo: ext_vector (OpenCL vector)
-            return .{ .specifier = .invalid };
+            return .invalid;
         },
         .X => |child| {
-            builder.combine(undefined, .complex, 0) catch unreachable;
+            builder.combine(.complex, 0) catch unreachable;
             switch (child) {
-                .float => builder.combine(undefined, .float, 0) catch unreachable,
-                .double => builder.combine(undefined, .double, 0) catch unreachable,
+                .float => builder.combine(.float, 0) catch unreachable,
+                .double => builder.combine(.double, 0) catch unreachable,
                 .longdouble => {
-                    builder.combine(undefined, .long, 0) catch unreachable;
-                    builder.combine(undefined, .double, 0) catch unreachable;
+                    builder.combine(.long, 0) catch unreachable;
+                    builder.combine(.double, 0) catch unreachable;
                 },
             }
         },
         .Y => {
-            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            builder.specifier = Type.Builder.fromType(comp.types.ptrdiff);
+            builder.type = Builder.fromType(comp, comp.type_store.ptrdiff);
         },
         .P => {
-            std.debug.assert(builder.specifier == .none);
-            if (comp.types.file.specifier == .invalid) {
-                return comp.types.file;
+            std.debug.assert(builder.type == .none);
+            if (comp.type_store.file.isInvalid()) {
+                return comp.type_store.file;
             }
-            builder.specifier = Type.Builder.fromType(comp.types.file);
+            builder.type = Builder.fromType(comp, comp.type_store.file);
         },
         .J => {
-            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            if (comp.types.jmp_buf.specifier == .invalid) {
-                return comp.types.jmp_buf;
+            if (comp.type_store.jmp_buf.isInvalid()) {
+                return comp.type_store.jmp_buf;
             }
-            builder.specifier = Type.Builder.fromType(comp.types.jmp_buf);
+            builder.type = Builder.fromType(comp, comp.type_store.jmp_buf);
         },
         .SJ => {
-            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            if (comp.types.sigjmp_buf.specifier == .invalid) {
-                return comp.types.sigjmp_buf;
+            if (comp.type_store.sigjmp_buf.isInvalid()) {
+                return comp.type_store.sigjmp_buf;
             }
-            builder.specifier = Type.Builder.fromType(comp.types.sigjmp_buf);
+            builder.type = Builder.fromType(comp, comp.type_store.sigjmp_buf);
         },
         .K => {
-            std.debug.assert(builder.specifier == .none);
-            if (comp.types.ucontext_t.specifier == .invalid) {
-                return comp.types.ucontext_t;
+            std.debug.assert(builder.type == .none);
+            if (comp.type_store.ucontext_t.isInvalid()) {
+                return comp.type_store.ucontext_t;
             }
-            builder.specifier = Type.Builder.fromType(comp.types.ucontext_t);
+            builder.type = Builder.fromType(comp, comp.type_store.ucontext_t);
         },
         .p => {
-            std.debug.assert(builder.specifier == .none);
+            std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            builder.specifier = Type.Builder.fromType(comp.types.pid_t);
+            builder.type = Builder.fromType(comp, comp.type_store.pid_t);
         },
-        .@"!" => return .{ .specifier = .invalid },
+        .@"!" => return .invalid,
     }
     for (desc.suffix) |suffix| {
         switch (suffix) {
             .@"*" => |address_space| {
                 _ = address_space; // TODO: handle address space
-                const elem_ty = try allocator.create(Type);
-                elem_ty.* = builder.finish(undefined) catch unreachable;
-                const ty = Type{
-                    .specifier = .pointer,
-                    .data = .{ .sub_type = elem_ty },
-                };
-                builder.qual = .{};
-                builder.specifier = Type.Builder.fromType(ty);
+                var pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
+                    .child = builder.finish() catch unreachable,
+                    .decayed = null,
+                } });
+                pointer_qt.@"const" = builder.@"const" != null;
+                pointer_qt.@"volatile" = builder.@"volatile" != null;
+                pointer_qt.restrict = builder.restrict != null;
+
+                builder.@"const" = null;
+                builder.@"volatile" = null;
+                builder.restrict = null;
+                builder.type = .{ .other = pointer_qt };
             },
-            .C => builder.qual.@"const" = 0,
-            .D => builder.qual.@"volatile" = 0,
-            .R => builder.qual.restrict = 0,
+            .C => builder.@"const" = 0,
+            .D => builder.@"volatile" = 0,
+            .R => builder.restrict = 0,
         }
     }
-    return builder.finish(undefined) catch unreachable;
+    return builder.finish() catch unreachable;
 }
 
-fn createBuiltin(comp: *const Compilation, builtin: Builtin, type_arena: std.mem.Allocator) !Type {
+fn createBuiltin(comp: *Compilation, builtin: Builtin, type_arena: std.mem.Allocator) !QualType {
     var it = TypeDescription.TypeIterator.init(builtin.properties.param_str);
 
     const ret_ty_desc = it.next().?;
@@ -251,53 +255,41 @@ fn createBuiltin(comp: *const Compilation, builtin: Builtin, type_arena: std.mem
     }
     const ret_ty = try createType(ret_ty_desc, &it, comp, type_arena);
     var param_count: usize = 0;
-    var params: [Builtin.max_param_count]Type.Func.Param = undefined;
+    var params: [Builtin.max_param_count]TypeStore.Type.Func.Param = undefined;
     while (it.next()) |desc| : (param_count += 1) {
-        params[param_count] = .{ .name_tok = 0, .ty = try createType(desc, &it, comp, type_arena), .name = .empty, .node = .null };
+        params[param_count] = .{ .qt = try createType(desc, &it, comp, type_arena), .name = .empty, .node = .null };
     }
 
-    const duped_params = try type_arena.dupe(Type.Func.Param, params[0..param_count]);
-    const func = try type_arena.create(Type.Func);
-
-    func.* = .{
+    return comp.type_store.put(comp.gpa, .{ .func = .{
         .return_type = ret_ty,
-        .params = duped_params,
-    };
-    return .{
-        .specifier = if (builtin.properties.isVarArgs()) .var_args_func else .func,
-        .data = .{ .func = func },
-    };
+        .kind = if (builtin.properties.isVarArgs()) .variadic else .normal,
+        .params = params[0..param_count],
+    } });
 }
 
 /// Asserts that the builtin has already been created
 pub fn lookup(b: *const Builtins, name: []const u8) Expanded {
     const builtin = Builtin.fromName(name).?;
-    const ty = b._name_to_type_map.get(name).?;
-    return .{
-        .builtin = builtin,
-        .ty = ty,
-    };
+    const qt = b._name_to_type_map.get(name).?;
+    return .{ .builtin = builtin, .qt = qt };
 }
 
 pub fn getOrCreate(b: *Builtins, comp: *Compilation, name: []const u8, type_arena: std.mem.Allocator) !?Expanded {
-    const ty = b._name_to_type_map.get(name) orelse {
+    const qt = b._name_to_type_map.get(name) orelse {
         const builtin = Builtin.fromName(name) orelse return null;
         if (!comp.hasBuiltinFunction(builtin)) return null;
 
         try b._name_to_type_map.ensureUnusedCapacity(comp.gpa, 1);
-        const ty = try createBuiltin(comp, builtin, type_arena);
-        b._name_to_type_map.putAssumeCapacity(name, ty);
+        const qt = try createBuiltin(comp, builtin, type_arena);
+        b._name_to_type_map.putAssumeCapacity(name, qt);
 
         return .{
             .builtin = builtin,
-            .ty = ty,
+            .qt = qt,
         };
     };
     const builtin = Builtin.fromName(name).?;
-    return .{
-        .builtin = builtin,
-        .ty = ty,
-    };
+    return .{ .builtin = builtin, .qt = qt };
 }
 
 pub const Iterator = struct {

@@ -10,7 +10,6 @@ const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenIndex = Tree.TokenIndex;
 const Node = Tree.Node;
-const Type = @import("Type.zig");
 
 const Item = struct {
     list: InitList,

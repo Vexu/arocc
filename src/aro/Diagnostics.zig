@@ -47,7 +47,7 @@ pub const Message = struct {
         },
         ignored_record_attr: struct {
             tag: Attribute.Tag,
-            specifier: enum { @"struct", @"union", @"enum" },
+            tag_kind: enum { @"struct", @"union", @"enum" },
         },
         attribute_todo: struct {
             tag: Attribute.Tag,
@@ -432,7 +432,7 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
         }),
         .ignored_record_attr => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
             @tagName(msg.extra.ignored_record_attr.tag),
-            @tagName(msg.extra.ignored_record_attr.specifier),
+            @tagName(msg.extra.ignored_record_attr.tag_kind),
         }),
         .attribute_todo => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
             @tagName(msg.extra.attribute_todo.tag),
