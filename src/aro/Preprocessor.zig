@@ -1009,7 +1009,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .strings = std.ArrayListAligned(u8, 4).init(pp.comp.gpa),
 
         .tree = undefined,
-        .arena = undefined,
         .labels = undefined,
         .decl_buf = undefined,
         .list_buf = undefined,
@@ -1017,7 +1016,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .enum_buf = undefined,
         .record_buf = undefined,
         .attr_buf = undefined,
-        .field_attr_buf = undefined,
         .string_ids = undefined,
     };
     defer parser.strings.deinit();

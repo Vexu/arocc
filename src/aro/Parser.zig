@@ -104,9 +104,8 @@ gpa: mem.Allocator,
 tok_ids: []const Token.Id,
 tok_i: TokenIndex = 0,
 
+/// The AST being constructed.
 tree: Tree,
-// references tree.arena
-arena: Allocator,
 
 // buffers used during compilation
 syms: SymbolStack = .{},
@@ -114,12 +113,17 @@ strings: std.ArrayListAligned(u8, 4),
 labels: std.ArrayList(Label),
 list_buf: NodeList,
 decl_buf: NodeList,
+/// Function type parameters, also used for generic selection association
+/// duplicate checking.
 param_buf: std.ArrayList(Type.Func.Param),
+/// Enum type fields.
 enum_buf: std.ArrayList(Type.Enum.Field),
+/// Record type fields.
 record_buf: std.ArrayList(Type.Record.Field),
+/// Attributes that have been parsed but not yet validated or applied.
 attr_buf: std.MultiArrayList(TentativeAttribute) = .{},
+/// Used to store validated attributes before they are applied to types.
 attr_application_buf: std.ArrayListUnmanaged(Attribute) = .{},
-field_attr_buf: std.ArrayList([]const Attribute),
 /// type name -> variable name location for tentative definitions (top-level defs with thus-far-incomplete types)
 /// e.g. `struct Foo bar;` where `struct Foo` is not defined yet.
 /// The key is the StringId of `Foo` and the value is the TokenIndex of `bar`
@@ -154,13 +158,13 @@ func: struct {
     ident: ?Result = null,
     pretty_ident: ?Result = null,
 } = .{},
+
 /// Various variables that are different for each record.
 record: struct {
     // invalid means we're not parsing a record
     kind: Token.Id = .invalid,
     flexible_field: ?TokenIndex = null,
     start: usize = 0,
-    field_attr_start: usize = 0,
 
     fn addField(r: @This(), p: *Parser, name: StringId, tok: TokenIndex) Error!void {
         var i = p.record_members.items.len;
@@ -188,6 +192,7 @@ record: struct {
     }
 } = .{},
 record_members: std.ArrayListUnmanaged(struct { tok: TokenIndex, name: StringId }) = .{},
+
 @"switch": ?*Switch = null,
 in_loop: bool = false,
 pragma_pack: ?u8 = null,
@@ -681,10 +686,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     assert(pp.linemarkers == .none);
     pp.comp.pragmaEvent(.before_parse);
 
-    // TODO get rid of
-    var arena = std.heap.ArenaAllocator.init(pp.comp.gpa);
-    errdefer arena.deinit();
-
     var p: Parser = .{
         .pp = pp,
         .comp = pp.comp,
@@ -693,7 +694,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             .comp = pp.comp,
             .tokens = pp.tokens.slice(),
         },
-        .arena = arena.allocator(),
         .tok_ids = pp.tokens.items(.id),
         .strings = .init(pp.comp.gpa),
         .labels = .init(pp.comp.gpa),
@@ -702,7 +702,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .param_buf = .init(pp.comp.gpa),
         .enum_buf = .init(pp.comp.gpa),
         .record_buf = .init(pp.comp.gpa),
-        .field_attr_buf = .init(pp.comp.gpa),
         .string_ids = .{
             .declspec_id = try pp.comp.internString("__declspec"),
             .main_id = try pp.comp.internString("main"),
@@ -726,8 +725,6 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.attr_buf.deinit(pp.comp.gpa);
         p.attr_application_buf.deinit(pp.comp.gpa);
         p.tentative_defs.deinit(pp.comp.gpa);
-        assert(p.field_attr_buf.items.len == 0);
-        p.field_attr_buf.deinit();
     }
 
     try p.syms.pushScope(&p);
@@ -2291,15 +2288,12 @@ fn recordSpec(p: *Parser) Error!QualType {
 
     const old_record = p.record;
     const old_members = p.record_members.items.len;
-    const old_field_attr_start = p.field_attr_buf.items.len;
     p.record = .{
         .kind = p.tok_ids[kind_tok],
         .start = p.record_members.items.len,
-        .field_attr_start = p.field_attr_buf.items.len,
     };
     defer p.record = old_record;
     defer p.record_members.items.len = old_members;
-    defer p.field_attr_buf.items.len = old_field_attr_start;
 
     try p.recordDecls();
 
@@ -2308,24 +2302,6 @@ fn recordSpec(p: *Parser) Error!QualType {
     if (p.record.flexible_field) |some| {
         if (fields.len == 1 and is_struct) {
             try p.errTok(.flexible_in_empty, some);
-        }
-    }
-
-    const attr_count = p.field_attr_buf.items.len - old_field_attr_start;
-    const record_decls = p.decl_buf.items[decl_buf_top..];
-    if (attr_count > 0) {
-        if (attr_count != record_decls.len) {
-            // A mismatch here means that non-field decls were parsed. This can happen if there were
-            // parse errors during attribute parsing. Bail here because if there are any field attributes,
-            // there must be exactly one per field.
-            return error.ParsingFailed;
-        }
-
-        const field_attr_slice = p.field_attr_buf.items[old_field_attr_start..];
-        for (fields, field_attr_slice) |*field, attributes| {
-            field._attr_index = @intCast(p.comp.type_store.attributes.items.len);
-            field._attr_len = @intCast(attributes.len);
-            try p.comp.type_store.attributes.appendSlice(p.gpa, attributes);
         }
     }
 
@@ -2338,7 +2314,7 @@ fn recordSpec(p: *Parser) Error!QualType {
     try p.attributeSpecifier();
 
     const attributed_qt = try Attribute.applyTypeAttributes(p, qt, attr_buf_top, null);
-    // what?
+    // TODO what?
     // if (ty.specifier == .attributed and maybe_ident != null) {
     //     const ident_str = p.tokSlice(maybe_ident.?);
     //     const interned_name = try p.comp.internString(ident_str);
@@ -2377,7 +2353,7 @@ fn recordSpec(p: *Parser) Error!QualType {
     const cd: Node.ContainerDecl = .{
         .name_or_kind_tok = maybe_ident orelse kind_tok,
         .container_qt = attributed_qt,
-        .fields = record_decls,
+        .fields = p.decl_buf.items[decl_buf_top..],
     };
     p.decl_buf.items[decl_buf_top - 1] = try p.addNode(if (is_struct) .{ .struct_decl = cd } else .{ .union_decl = cd });
     if (p.func.qt == null) {
@@ -2484,21 +2460,12 @@ fn recordDecl(p: *Parser) Error!bool {
         }
 
         try p.attributeSpecifier(); // .record
+
         const to_append = try Attribute.applyFieldAttributes(p, &qt, attr_buf_top);
 
-        const any_fields_have_attrs = p.field_attr_buf.items.len > p.record.field_attr_start;
-
-        if (any_fields_have_attrs) {
-            try p.field_attr_buf.append(to_append);
-        } else {
-            if (to_append.len > 0) {
-                const preceding = p.record_members.items.len - p.record.start;
-                if (preceding > 0) {
-                    try p.field_attr_buf.appendNTimes(&.{}, preceding);
-                }
-                try p.field_attr_buf.append(to_append);
-            }
-        }
+        const attr_index: u32 = @intCast(p.comp.type_store.attributes.items.len);
+        const attr_len: u32 = @intCast(to_append.len);
+        try p.comp.type_store.attributes.appendSlice(p.gpa, to_append);
 
         if (name_tok == 0 and bits == null) unnamed: {
             if (qt.sizeofOrNull(p.comp) == null) break :unnamed;
@@ -2509,6 +2476,8 @@ fn recordDecl(p: *Parser) Error!bool {
                     try p.record_buf.append(.{
                         .name = try p.getAnonymousName(first_tok),
                         .qt = qt,
+                        ._attr_index = attr_index,
+                        ._attr_len = attr_len,
                     });
 
                     const node = try p.addNode(.{
@@ -2532,6 +2501,8 @@ fn recordDecl(p: *Parser) Error!bool {
                 .qt = qt,
                 .name_tok = name_tok,
                 .bit_width = if (bits) |some| @enumFromInt(some) else .null,
+                ._attr_index = attr_index,
+                ._attr_len = attr_len,
             });
             if (name_tok != 0) try p.record.addField(p, interned_name, name_tok);
             const node = try p.addNode(.{

@@ -855,9 +855,7 @@ pub fn applyFieldAttributes(p: *Parser, field_ty: *QualType, attr_buf_start: usi
         else => try ignoredAttrErr(p, tok, attr.tag, "fields"),
     };
     if (p.attr_application_buf.items.len == 0) return &.{};
-
-    // TODO avoid duping these
-    return p.arena.dupe(Attribute, p.attr_application_buf.items);
+    return p.attr_application_buf.items;
 }
 
 pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, tag: ?Diagnostics.Tag) !QualType {
