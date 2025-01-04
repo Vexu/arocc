@@ -2,7 +2,9 @@ pub const std = @import("std");
 
 const Attribute = @import("Attribute.zig");
 const Compilation = @import("Compilation.zig");
+const LangOpts = @import("LangOpts.zig");
 const record_layout = @import("record_layout.zig");
+const Parser = @import("Parser.zig");
 const StringInterner = @import("StringInterner.zig");
 const StringId = StringInterner.StringId;
 const target_util = @import("target.zig");
@@ -171,16 +173,48 @@ pub const QualType = packed struct(u32) {
                 .bits = @intCast(repr.data[0]),
                 .signedness = @enumFromInt(repr.data[1]),
             } },
-            .func,
-            .func_variadic,
-            .func_old_style,
-            .func_zero,
-            .func_variadic_zero,
-            .func_old_style_zero,
+            .func_zero => .{ .func = .{
+                .return_type = @bitCast(repr.data[0]),
+                .kind = .normal,
+                .params = &.{},
+            } },
+            .func_variadic_zero => .{ .func = .{
+                .return_type = @bitCast(repr.data[0]),
+                .kind = .variadic,
+                .params = &.{},
+            } },
+            .func_old_style_zero => .{ .func = .{
+                .return_type = @bitCast(repr.data[0]),
+                .kind = .old_style,
+                .params = &.{},
+            } },
             .func_one,
             .func_variadic_one,
             .func_old_style_one,
-            => @panic("TODO"),
+            .func,
+            .func_variadic,
+            .func_old_style,
+            => {
+                const param_size = 3;
+                const extra = comp.type_store.extra.items;
+                const params_len = switch (repr.tag) {
+                    .func_one, .func_variadic_one, .func_old_style_one => 1 * param_size,
+                    .func, .func_variadic, .func_old_style => extra[repr.data[1]] * param_size,
+                    else => unreachable,
+                };
+                const extra_params = extra[repr.data[1] + @intFromBool(params_len > 1) ..][0..params_len];
+
+                return .{ .func = .{
+                    .return_type = @bitCast(repr.data[0]),
+                    .kind = switch (repr.tag) {
+                        .func_one, .func => .normal,
+                        .func_variadic_one, .func_variadic => .variadic,
+                        .func_old_style_one, .func_old_style => .old_style,
+                        else => unreachable,
+                    },
+                    .params = std.mem.bytesAsSlice(Type.Func.Param, std.mem.sliceAsBytes(extra_params)),
+                } };
+            },
             .pointer => .{ .pointer = .{
                 .child = @bitCast(repr.data[0]),
                 .decayed = null,
@@ -215,15 +249,16 @@ pub const QualType = packed struct(u32) {
             } },
             .@"struct", .@"union" => {
                 const layout_size = 6;
+                const field_size = 10;
                 const extra = comp.type_store.extra.items;
                 const layout = @as(*Type.Record.Layout, @alignCast(@ptrCast(extra[repr.data[1]..][0..layout_size]))).*;
-                const fields_len = extra[repr.data[1] + layout_size];
-                const fields = extra[repr.data[1] + layout_size + 1 ..][0..fields_len];
+                const fields_len = extra[repr.data[1] + layout_size] * field_size;
+                const extra_fields = extra[repr.data[1] + layout_size + 1 ..][0..fields_len];
 
                 const record: Type.Record = .{
                     .name = @enumFromInt(repr.data[0]),
                     .layout = layout,
-                    .fields = std.mem.bytesAsSlice(Type.Record.Field, std.mem.sliceAsBytes(fields)),
+                    .fields = std.mem.bytesAsSlice(Type.Record.Field, std.mem.sliceAsBytes(extra_fields)),
                 };
                 return switch (repr.tag) {
                     .@"struct" => .{ .@"struct" = record },
@@ -431,6 +466,18 @@ pub const QualType = packed struct(u32) {
             },
             else => unreachable,
         }
+    }
+
+    pub fn toReal(qt: QualType, comp: *const Compilation) QualType {
+        _ = qt;
+        _ = comp;
+        @panic("TODO");
+    }
+
+    pub fn toComplex(qt: QualType, comp: *Compilation) !QualType {
+        _ = qt;
+        _ = comp;
+        @panic("TODO");
     }
 
     pub const ScalarKind = enum {
@@ -1163,3 +1210,799 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
         },
     }
 }
+
+/// An unfinished Type
+pub const Builder = struct {
+    parser: *Parser,
+
+    @"const": ?TokenIndex = null,
+    atomic: ?TokenIndex = null,
+    @"volatile": ?TokenIndex = null,
+    restrict: ?TokenIndex = null,
+
+    complex_tok: ?TokenIndex = null,
+    bit_int_tok: ?TokenIndex = null,
+    typedef: bool = false,
+    typeof: ?QualType = null,
+
+    type: Specifier = .none,
+    /// When true an error is returned instead of adding a diagnostic message.
+    /// Used for trying to combine typedef types.
+    error_on_invalid: bool = false,
+
+    pub const Specifier = union(enum) {
+        none,
+        void,
+        /// GNU __auto_type extension
+        auto_type,
+        /// C23 auto
+        c23_auto,
+        nullptr_t,
+        bool,
+        char,
+        schar,
+        uchar,
+        complex_char,
+        complex_schar,
+        complex_uchar,
+
+        unsigned,
+        signed,
+        short,
+        sshort,
+        ushort,
+        short_int,
+        sshort_int,
+        ushort_int,
+        int,
+        sint,
+        uint,
+        long,
+        slong,
+        ulong,
+        long_int,
+        slong_int,
+        ulong_int,
+        long_long,
+        slong_long,
+        ulong_long,
+        long_long_int,
+        slong_long_int,
+        ulong_long_int,
+        int128,
+        sint128,
+        uint128,
+        complex_unsigned,
+        complex_signed,
+        complex_short,
+        complex_sshort,
+        complex_ushort,
+        complex_short_int,
+        complex_sshort_int,
+        complex_ushort_int,
+        complex_int,
+        complex_sint,
+        complex_uint,
+        complex_long,
+        complex_slong,
+        complex_ulong,
+        complex_long_int,
+        complex_slong_int,
+        complex_ulong_int,
+        complex_long_long,
+        complex_slong_long,
+        complex_ulong_long,
+        complex_long_long_int,
+        complex_slong_long_int,
+        complex_ulong_long_int,
+        complex_int128,
+        complex_sint128,
+        complex_uint128,
+        bit_int: u64,
+        sbit_int: u64,
+        ubit_int: u64,
+        complex_bit_int: u64,
+        complex_sbit_int: u64,
+        complex_ubit_int: u64,
+
+        fp16,
+        float16,
+        float,
+        double,
+        long_double,
+        float128,
+        complex,
+        complex_float16,
+        complex_float,
+        complex_double,
+        complex_long_double,
+        complex_float128,
+
+        // Any not simply constructed from specifier keywords.
+        other: QualType,
+
+        pub fn str(spec: Builder.Specifier, langopts: LangOpts) ?[]const u8 {
+            return switch (spec) {
+                .none => unreachable,
+                .void => "void",
+                .auto_type => "__auto_type",
+                .c23_auto => "auto",
+                .nullptr_t => "nullptr_t",
+                .bool => if (langopts.standard.atLeast(.c23)) "bool" else "_Bool",
+                .char => "char",
+                .schar => "signed char",
+                .uchar => "unsigned char",
+                .unsigned => "unsigned",
+                .signed => "signed",
+                .short => "short",
+                .ushort => "unsigned short",
+                .sshort => "signed short",
+                .short_int => "short int",
+                .sshort_int => "signed short int",
+                .ushort_int => "unsigned short int",
+                .int => "int",
+                .sint => "signed int",
+                .uint => "unsigned int",
+                .long => "long",
+                .slong => "signed long",
+                .ulong => "unsigned long",
+                .long_int => "long int",
+                .slong_int => "signed long int",
+                .ulong_int => "unsigned long int",
+                .long_long => "long long",
+                .slong_long => "signed long long",
+                .ulong_long => "unsigned long long",
+                .long_long_int => "long long int",
+                .slong_long_int => "signed long long int",
+                .ulong_long_int => "unsigned long long int",
+                .int128 => "__int128",
+                .sint128 => "signed __int128",
+                .uint128 => "unsigned __int128",
+                .complex_char => "_Complex char",
+                .complex_schar => "_Complex signed char",
+                .complex_uchar => "_Complex unsigned char",
+                .complex_unsigned => "_Complex unsigned",
+                .complex_signed => "_Complex signed",
+                .complex_short => "_Complex short",
+                .complex_ushort => "_Complex unsigned short",
+                .complex_sshort => "_Complex signed short",
+                .complex_short_int => "_Complex short int",
+                .complex_sshort_int => "_Complex signed short int",
+                .complex_ushort_int => "_Complex unsigned short int",
+                .complex_int => "_Complex int",
+                .complex_sint => "_Complex signed int",
+                .complex_uint => "_Complex unsigned int",
+                .complex_long => "_Complex long",
+                .complex_slong => "_Complex signed long",
+                .complex_ulong => "_Complex unsigned long",
+                .complex_long_int => "_Complex long int",
+                .complex_slong_int => "_Complex signed long int",
+                .complex_ulong_int => "_Complex unsigned long int",
+                .complex_long_long => "_Complex long long",
+                .complex_slong_long => "_Complex signed long long",
+                .complex_ulong_long => "_Complex unsigned long long",
+                .complex_long_long_int => "_Complex long long int",
+                .complex_slong_long_int => "_Complex signed long long int",
+                .complex_ulong_long_int => "_Complex unsigned long long int",
+                .complex_int128 => "_Complex __int128",
+                .complex_sint128 => "_Complex signed __int128",
+                .complex_uint128 => "_Complex unsigned __int128",
+
+                .fp16 => "__fp16",
+                .float16 => "_Float16",
+                .float => "float",
+                .double => "double",
+                .long_double => "long double",
+                .float128 => "__float128",
+                .complex => "_Complex",
+                .complex_float16 => "_Complex _Float16",
+                .complex_float => "_Complex float",
+                .complex_double => "_Complex double",
+                .complex_long_double => "_Complex long double",
+                .complex_float128 => "_Complex __float128",
+
+                else => null,
+            };
+        }
+    };
+
+    pub fn finish(b: Builder) Parser.Error!QualType {
+        const qt: QualType = switch (b.type) {
+            .none => blk: {
+                if (b.typeof) |typeof| {
+                    break :blk typeof;
+                } else {
+                    if (b.parser.comp.langopts.standard.atLeast(.c23)) {
+                        try b.parser.err(.missing_type_specifier_c23);
+                    } else {
+                        try b.parser.err(.missing_type_specifier);
+                    }
+                    break :blk .int;
+                }
+            },
+            .void => .void,
+            .auto_type => .auto_type,
+            .c23_auto => .c23_auto,
+            .nullptr_t => unreachable, // nullptr_t can only be accessed via typeof(nullptr)
+            .bool => .bool,
+            .char => .char,
+            .schar => .schar,
+            .uchar => .uchar,
+
+            .unsigned => .uint,
+            .signed => .int,
+            .short_int, .sshort_int, .short, .sshort => .short,
+            .ushort, .ushort_int => .ushort,
+            .int, .sint => .int,
+            .uint => .uint,
+            .long, .slong, .long_int, .slong_int => .long,
+            .ulong, .ulong_int => .ulong,
+            .long_long, .slong_long, .long_long_int, .slong_long_int => .long_long,
+            .ulong_long, .ulong_long_int => .ulong_long,
+            .int128, .sint128 => .int128,
+            .uint128 => .uint128,
+
+            .complex_char,
+            .complex_schar,
+            .complex_uchar,
+            .complex_unsigned,
+            .complex_signed,
+            .complex_short_int,
+            .complex_sshort_int,
+            .complex_short,
+            .complex_sshort,
+            .complex_ushort,
+            .complex_ushort_int,
+            .complex_int,
+            .complex_sint,
+            .complex_uint,
+            .complex_long,
+            .complex_slong,
+            .complex_long_int,
+            .complex_slong_int,
+            .complex_ulong,
+            .complex_ulong_int,
+            .complex_long_long,
+            .complex_slong_long,
+            .complex_long_long_int,
+            .complex_slong_long_int,
+            .complex_ulong_long,
+            .complex_ulong_long_int,
+            .complex_int128,
+            .complex_sint128,
+            .complex_uint128,
+            => blk: {
+                const base_qt: QualType = switch (b.type) {
+                    .complex_char => .char,
+                    .complex_schar => .schar,
+                    .complex_uchar => .uchar,
+                    .complex_unsigned => .uint,
+                    .complex_signed => .int,
+                    .complex_short_int, .complex_sshort_int, .complex_short, .complex_sshort => .short,
+                    .complex_ushort, .complex_ushort_int => .ushort,
+                    .complex_int, .complex_sint => .int,
+                    .complex_uint => .uint,
+                    .complex_long, .complex_slong, .complex_long_int, .complex_slong_int => .long,
+                    .complex_ulong, .complex_ulong_int => .ulong,
+                    .complex_long_long, .complex_slong_long, .complex_long_long_int, .complex_slong_long_int => .long_long,
+                    .complex_ulong_long, .complex_ulong_long_int => .ulong_long,
+                    .complex_int128, .complex_sint128 => .int128,
+                    .complex_uint128 => .uint128,
+                    else => unreachable,
+                };
+                if (b.complex_tok) |tok| try b.parser.errTok(.complex_int, tok);
+                break :blk try base_qt.toComplex(b.parser.comp);
+            },
+
+            .bit_int, .sbit_int, .ubit_int, .complex_bit_int, .complex_ubit_int, .complex_sbit_int => |bits| blk: {
+                const unsigned = b.type == .ubit_int or b.type == .complex_ubit_int;
+                const complex = b.type == .complex_bit_int or b.type == .complex_ubit_int or b.type == .complex_sbit_int;
+                const complex_str = if (complex) "_Complex " else "";
+
+                if (unsigned) {
+                    if (bits < 1) {
+                        try b.parser.errStr(.unsigned_bit_int_too_small, b.bit_int_tok.?, complex_str);
+                        return .invalid;
+                    }
+                } else {
+                    if (bits < 2) {
+                        try b.parser.errStr(.signed_bit_int_too_small, b.bit_int_tok.?, complex_str);
+                        return .invalid;
+                    }
+                }
+                if (bits > Compilation.bit_int_max_bits) {
+                    try b.parser.errStr(if (unsigned) .unsigned_bit_int_too_big else .signed_bit_int_too_big, b.bit_int_tok.?, complex_str);
+                    return .invalid;
+                }
+                if (b.complex_tok) |tok| try b.parser.errTok(.complex_int, tok);
+
+                const qt = try b.parser.comp.type_store.put(b.parser.gpa, .{ .bit_int = .{
+                    .signedness = if (unsigned) .unsigned else .signed,
+                    .bits = @intCast(bits),
+                } });
+                break :blk if (complex) try qt.toComplex(b.parser.comp) else qt;
+            },
+
+            .fp16 => .fp16,
+            .float16 => .float16,
+            .float => .float,
+            .double => .double,
+            .long_double => .long_double,
+            .float128 => .float128,
+
+            .complex_float16,
+            .complex_float,
+            .complex_double,
+            .complex_long_double,
+            .complex_float128,
+            .complex,
+            => blk: {
+                const base_qt: QualType = switch (b.type) {
+                    .complex_float16 => .float16,
+                    .complex_float => .float,
+                    .complex_double => .double,
+                    .complex_long_double => .long_double,
+                    .complex_float128 => .float128,
+                    .complex => .double,
+                    else => unreachable,
+                };
+                if (b.type == .complex) try b.parser.errTok(.plain_complex, b.parser.tok_i - 1);
+                break :blk try base_qt.toComplex(b.parser.comp);
+            },
+
+            .other => |qt| qt,
+        };
+        return b.finishQuals(qt);
+    }
+
+    pub fn finishQuals(b: Builder, qt: QualType) !QualType {
+        var result_qt = qt;
+        if (b.@"const" != null) result_qt.@"const" = true;
+        if (b.@"volatile" != null) result_qt.@"volatile" = true;
+
+        if (b.restrict) |restrict_tok| {
+            switch (qt.base(b.parser.comp).type) {
+                .array, .pointer => result_qt.restrict = true,
+                else => {
+                    try b.parser.errStr(.restrict_non_pointer, restrict_tok, try b.parser.typeStr(qt));
+                },
+            }
+        }
+
+        if (b.atomic) |atomic_tok| {
+            _ = atomic_tok;
+            // if (qt.isArray()) try b.parser.errStr(.atomic_array, atomic_tok, try b.parser.typeStr(qt));
+            // if (qt.isFunc()) try b.parser.errStr(.atomic_func, atomic_tok, try b.parser.typeStr(qt));
+            // if (qt.hasIncompleteSize()) try b.parser.errStr(.atomic_incomplete, atomic_tok, try b.parser.typeStr(qt));
+            // TODO erro if quals
+            // TODO make atomic
+        }
+        return result_qt;
+    }
+
+    fn cannotCombine(b: Builder, source_tok: TokenIndex) !void {
+        if (b.error_on_invalid) return error.CannotCombine;
+        const ty_str = b.type.str(b.parser.comp.langopts) orelse try b.parser.typeStr(try b.finish());
+        if (b.typedef) {
+            try b.parser.errStr(.cannot_combine_with_typedef, source_tok, ty_str);
+        } else {
+            try b.parser.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
+        }
+    }
+
+    fn duplicateSpec(b: *Builder, source_tok: TokenIndex, spec: []const u8) !void {
+        if (b.error_on_invalid) return error.CannotCombine;
+        if (b.parser.comp.langopts.emulate != .clang) return b.cannotCombine(source_tok);
+        try b.parser.errStr(.duplicate_decl_spec, b.parser.tok_i, spec);
+    }
+
+    pub fn combineFromTypeof(b: *Builder, new: QualType, source_tok: TokenIndex) Compilation.Error!void {
+        if (b.typedef) return b.parser.errStr(.cannot_combine_spec, source_tok, "type-name");
+        if (b.typeof != null) return b.parser.errStr(.cannot_combine_spec, source_tok, "typeof");
+        if (b.type != .none) return b.parser.errStr(.cannot_combine_with_typeof, source_tok, @tagName(b.type));
+        b.type = .{ .other = new };
+    }
+
+    /// Try to combine type from typedef, returns true if successful.
+    pub fn combineTypedef(b: *Builder, typedef_qt: QualType) bool {
+        if (typedef_qt.isInvalid()) return false;
+        if (b.type != .none) return false;
+
+        b.error_on_invalid = true;
+        defer b.error_on_invalid = false;
+
+        b.typedef = true;
+        b.type = .{ .other = typedef_qt };
+        return true;
+    }
+
+    pub fn combine(b: *Builder, new: Builder.Specifier, source_tok: TokenIndex) !void {
+        b.combineExtra(new, source_tok) catch |err| switch (err) {
+            error.CannotCombine => unreachable,
+            else => |e| return e,
+        };
+    }
+
+    fn combineExtra(b: *Builder, new: Builder.Specifier, source_tok: TokenIndex) !void {
+        if (b.typeof != null) {
+            if (b.error_on_invalid) return error.CannotCombine;
+            try b.parser.errStr(.cannot_combine_with_typeof, source_tok, @tagName(new));
+        }
+
+        switch (new) {
+            .complex => b.complex_tok = source_tok,
+            .bit_int => b.bit_int_tok = source_tok,
+            else => {},
+        }
+
+        if (new == .int128 and !target_util.hasInt128(b.parser.comp.target)) {
+            try b.parser.errStr(.type_not_supported_on_target, source_tok, "__int128");
+        }
+
+        b.type = switch (new) {
+            else => switch (b.type) {
+                .none => new,
+                else => return b.cannotCombine(source_tok),
+            },
+            .signed => switch (b.type) {
+                .none => .signed,
+                .char => .schar,
+                .short => .sshort,
+                .short_int => .sshort_int,
+                .int => .sint,
+                .long => .slong,
+                .long_int => .slong_int,
+                .long_long => .slong_long,
+                .long_long_int => .slong_long_int,
+                .int128 => .sint128,
+                .bit_int => |bits| .{ .sbit_int = bits },
+                .complex => .signed,
+                .complex_char => .schar,
+                .complex_short => .sshort,
+                .complex_short_int => .sshort_int,
+                .complex_int => .sint,
+                .complex_long => .slong,
+                .complex_long_int => .slong_int,
+                .complex_long_long => .slong_long,
+                .complex_long_long_int => .slong_long_int,
+                .complex_int128 => .sint128,
+                .complex_bit_int => |bits| .{ .complex_sbit_int = bits },
+                .signed,
+                .sshort,
+                .sshort_int,
+                .sint,
+                .slong,
+                .slong_int,
+                .slong_long,
+                .slong_long_int,
+                .sint128,
+                .sbit_int,
+                .complex_schar,
+                .complex_signed,
+                .complex_sshort,
+                .complex_sshort_int,
+                .complex_sint,
+                .complex_slong,
+                .complex_slong_int,
+                .complex_slong_long,
+                .complex_slong_long_int,
+                .complex_sint128,
+                .complex_sbit_int,
+                => return b.duplicateSpec(source_tok, "signed"),
+                else => return b.cannotCombine(source_tok),
+            },
+            .unsigned => switch (b.type) {
+                .none => .unsigned,
+                .char => .uchar,
+                .short => .ushort,
+                .short_int => .ushort_int,
+                .int => .uint,
+                .long => .ulong,
+                .long_int => .ulong_int,
+                .long_long => .ulong_long,
+                .long_long_int => .ulong_long_int,
+                .int128 => .uint128,
+                .bit_int => |bits| .{ .ubit_int = bits },
+                .complex => .unsigned,
+                .complex_char => .uchar,
+                .complex_short => .ushort,
+                .complex_short_int => .ushort_int,
+                .complex_int => .uint,
+                .complex_long => .ulong,
+                .complex_long_int => .ulong_int,
+                .complex_long_long => .ulong_long,
+                .complex_long_long_int => .ulong_long_int,
+                .complex_int128 => .uint128,
+                .complex_bit_int => |bits| .{ .complex_ubit_int = bits },
+                .unsigned,
+                .ushort,
+                .ushort_int,
+                .uint,
+                .ulong,
+                .ulong_int,
+                .ulong_long,
+                .ulong_long_int,
+                .uint128,
+                .ubit_int,
+                .complex_uchar,
+                .complex_unsigned,
+                .complex_ushort,
+                .complex_ushort_int,
+                .complex_uint,
+                .complex_ulong,
+                .complex_ulong_int,
+                .complex_ulong_long,
+                .complex_ulong_long_int,
+                .complex_uint128,
+                .complex_ubit_int,
+                => return b.duplicateSpec(source_tok, "unsigned"),
+                else => return b.cannotCombine(source_tok),
+            },
+            .char => switch (b.type) {
+                .none => .char,
+                .unsigned => .uchar,
+                .signed => .schar,
+                .complex => .char,
+                .complex_signed => .schar,
+                .complex_unsigned => .uchar,
+                else => return b.cannotCombine(source_tok),
+            },
+            .short => switch (b.type) {
+                .none => .short,
+                .unsigned => .ushort,
+                .signed => .sshort,
+                .int => .short_int,
+                .sint => .sshort_int,
+                .uint => .ushort_int,
+                .complex => .short,
+                .complex_signed => .sshort,
+                .complex_unsigned => .ushort,
+                else => return b.cannotCombine(source_tok),
+            },
+            .int => switch (b.type) {
+                .none => .int,
+                .signed => .sint,
+                .unsigned => .uint,
+                .short => .short_int,
+                .sshort => .sshort_int,
+                .ushort => .ushort_int,
+                .long => .long_int,
+                .slong => .slong_int,
+                .ulong => .ulong_int,
+                .long_long => .long_long_int,
+                .slong_long => .slong_long_int,
+                .ulong_long => .ulong_long_int,
+                .complex => .int,
+                .complex_signed => .sint,
+                .complex_unsigned => .uint,
+                .complex_short => .short_int,
+                .complex_sshort => .sshort_int,
+                .complex_ushort => .ushort_int,
+                .complex_long => .long_int,
+                .complex_slong => .slong_int,
+                .complex_ulong => .ulong_int,
+                .complex_long_long => .long_long_int,
+                .complex_slong_long => .slong_long_int,
+                .complex_ulong_long => .ulong_long_int,
+                else => return b.cannotCombine(source_tok),
+            },
+            .long => switch (b.type) {
+                .none => .long,
+                .double => .long_double,
+                .long => .long_long,
+                .unsigned => .ulong,
+                .signed => .long,
+                .int => .long_int,
+                .sint => .slong_int,
+                .ulong => .ulong_long,
+                .complex => .long,
+                .complex_signed => .slong,
+                .complex_unsigned => .ulong,
+                .complex_long => .long_long,
+                .complex_slong => .slong_long,
+                .complex_ulong => .ulong_long,
+                .complex_double => .long_double,
+                else => return b.cannotCombine(source_tok),
+            },
+            .int128 => switch (b.type) {
+                .none => .int128,
+                .unsigned => .uint128,
+                .signed => .sint128,
+                .complex => .int128,
+                .complex_signed => .sint128,
+                .complex_unsigned => .uint128,
+                else => return b.cannotCombine(source_tok),
+            },
+            .bit_int => switch (b.type) {
+                .none => .{ .bit_int = new.bit_int },
+                .unsigned => .{ .ubit_int = new.bit_int },
+                .signed => .{ .sbit_int = new.bit_int },
+                .complex => .{ .complex_bit_int = new.bit_int },
+                .complex_signed => .{ .complex_sbit_int = new.bit_int },
+                .complex_unsigned => .{ .complex_ubit_int = new.bit_int },
+                else => return b.cannotCombine(source_tok),
+            },
+            .auto_type => switch (b.type) {
+                .none => .auto_type,
+                else => return b.cannotCombine(source_tok),
+            },
+            .c23_auto => switch (b.type) {
+                .none => .c23_auto,
+                else => return b.cannotCombine(source_tok),
+            },
+            .fp16 => switch (b.type) {
+                .none => .fp16,
+                else => return b.cannotCombine(source_tok),
+            },
+            .float16 => switch (b.type) {
+                .none => .float16,
+                .complex => .float16,
+                else => return b.cannotCombine(source_tok),
+            },
+            .float => switch (b.type) {
+                .none => .float,
+                .complex => .float,
+                else => return b.cannotCombine(source_tok),
+            },
+            .double => switch (b.type) {
+                .none => .double,
+                .long => .long_double,
+                .complex_long => .long_double,
+                .complex => .double,
+                else => return b.cannotCombine(source_tok),
+            },
+            .float128 => switch (b.type) {
+                .none => .float128,
+                .complex => .float128,
+                else => return b.cannotCombine(source_tok),
+            },
+            .complex => switch (b.type) {
+                .none => .complex,
+                .float16 => .float16,
+                .float => .float,
+                .double => .double,
+                .long_double => .long_double,
+                .float128 => .float128,
+                .char => .char,
+                .schar => .schar,
+                .uchar => .uchar,
+                .unsigned => .unsigned,
+                .signed => .signed,
+                .short => .short,
+                .sshort => .sshort,
+                .ushort => .ushort,
+                .short_int => .short_int,
+                .sshort_int => .sshort_int,
+                .ushort_int => .ushort_int,
+                .int => .int,
+                .sint => .sint,
+                .uint => .uint,
+                .long => .long,
+                .slong => .slong,
+                .ulong => .ulong,
+                .long_int => .long_int,
+                .slong_int => .slong_int,
+                .ulong_int => .ulong_int,
+                .long_long => .long_long,
+                .slong_long => .slong_long,
+                .ulong_long => .ulong_long,
+                .long_long_int => .long_long_int,
+                .slong_long_int => .slong_long_int,
+                .ulong_long_int => .ulong_long_int,
+                .int128 => .int128,
+                .sint128 => .sint128,
+                .uint128 => .uint128,
+                .bit_int => |bits| .{ .complex_bit_int = bits },
+                .sbit_int => |bits| .{ .complex_sbit_int = bits },
+                .ubit_int => |bits| .{ .complex_ubit_int = bits },
+                .complex,
+                .complex_float,
+                .complex_double,
+                .complex_long_double,
+                .complex_float128,
+                .complex_char,
+                .complex_schar,
+                .complex_uchar,
+                .complex_unsigned,
+                .complex_signed,
+                .complex_short,
+                .complex_sshort,
+                .complex_ushort,
+                .complex_short_int,
+                .complex_sshort_int,
+                .complex_ushort_int,
+                .complex_int,
+                .complex_sint,
+                .complex_uint,
+                .complex_long,
+                .complex_slong,
+                .complex_ulong,
+                .complex_long_int,
+                .complex_slong_int,
+                .complex_ulong_int,
+                .complex_long_long,
+                .complex_slong_long,
+                .complex_ulong_long,
+                .complex_long_long_int,
+                .complex_slong_long_int,
+                .complex_ulong_long_int,
+                .complex_int128,
+                .complex_sint128,
+                .complex_uint128,
+                .complex_bit_int,
+                .complex_sbit_int,
+                .complex_ubit_int,
+                => return b.duplicateSpec(source_tok, "_Complex"),
+                else => return b.cannotCombine(source_tok),
+            },
+        };
+    }
+
+    pub fn fromType(comp: *const Compilation, qt: QualType) Builder.Specifier {
+        return switch (qt.base(comp).type) {
+            .void => .void,
+            .nullptr_t => .nullptr_t,
+            .bool => .bool,
+            .int => |int| switch (int) {
+                .char => .char,
+                .schar => .schar,
+                .uchar => .uchar,
+                .short => .short,
+                .ushort => .ushort,
+                .int => .int,
+                .uint => .uint,
+                .long => .long,
+                .ulong => .ulong,
+                .long_long => .long_long,
+                .ulong_long => .ulong_long,
+                .int128 => .int128,
+                .uint128 => .uint128,
+            },
+            .bit_int => |bit_int| if (bit_int.signedness == .unsigned) {
+                return .{ .ubit_int = bit_int.bits };
+            } else {
+                return .{ .bit_int = bit_int.bits };
+            },
+            .float => |float| switch (float) {
+                .fp16 => .fp16,
+                .float16 => .float16,
+                .float => .float,
+                .double => .double,
+                .long_double => .long_double,
+                .float128 => .float128,
+            },
+            .complex => |complex| switch (complex.base(comp).type) {
+                .int => |int| switch (int) {
+                    .char => .char,
+                    .schar => .schar,
+                    .uchar => .uchar,
+                    .short => .short,
+                    .ushort => .ushort,
+                    .int => .int,
+                    .uint => .uint,
+                    .long => .long,
+                    .ulong => .ulong,
+                    .long_long => .long_long,
+                    .ulong_long => .ulong_long,
+                    .int128 => .int128,
+                    .uint128 => .uint128,
+                },
+                .bit_int => |bit_int| if (bit_int.signedness == .unsigned) {
+                    return .{ .complex_ubit_int = bit_int.bits };
+                } else {
+                    return .{ .complex_bit_int = bit_int.bits };
+                },
+                .float => |float| switch (float) {
+                    .fp16 => unreachable,
+                    .float16 => .float16,
+                    .float => .float,
+                    .double => .double,
+                    .long_double => .long_double,
+                    .float128 => .float128,
+                },
+                else => unreachable,
+            },
+            else => .{ .other = qt },
+        };
+    }
+};
