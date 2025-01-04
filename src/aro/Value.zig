@@ -147,12 +147,12 @@ pub fn floatToInt(v: *Value, dest_ty: QualType, comp: *Compilation) !FloatToIntC
     const float_val = v.toFloat(f128, comp);
     const was_zero = float_val == 0;
 
-    if (dest_ty.is(.bool)) {
+    if (dest_ty.is(comp, .bool)) {
         const was_one = float_val == 1.0;
         v.* = fromBool(!was_zero);
         if (was_zero or was_one) return .none;
         return .value_changed;
-    } else if (dest_ty.isUnsignedInt(comp) and float_val < 0) {
+    } else if (dest_ty.signedness(comp) == .unsigned and float_val < 0) {
         v.* = zero;
         return .out_of_range;
     }
@@ -589,8 +589,9 @@ pub fn decrement(res: *Value, val: Value, qt: QualType, comp: *Compilation) !boo
 /// elem_size is only used when subtracting two pointers, so we can scale the result by the size of the element type
 pub fn sub(res: *Value, lhs: Value, rhs: Value, qt: QualType, elem_size: u64, comp: *Compilation) !bool {
     const bits: usize = @intCast(qt.bitSizeof(comp));
-    if (qt.isFloat()) {
-        if (qt.isComplex()) {
+    const scalar_kind = qt.scalarKind(comp);
+    if (scalar_kind.isFloat()) {
+        if (scalar_kind == .complex_float) {
             res.* = switch (bits) {
                 32 => try complexAddSub(lhs, rhs, f16, .sub, comp),
                 64 => try complexAddSub(lhs, rhs, f32, .sub, comp),
@@ -782,8 +783,7 @@ pub fn rem(lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !Value {
     const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
     const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-    const signedness = qt.signedness(comp);
-    if (signedness == .signed) {
+    if (qt.signedness(comp) == .signed) {
         var spaces: [2]BigIntSpace = undefined;
         const min_val = try Value.minInt(qt, comp);
         const negative = BigIntMutable.init(&spaces[0].limbs, -1).toConst();

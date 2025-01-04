@@ -568,7 +568,6 @@ const MsvcContext = struct {
 };
 
 pub fn compute(fields: []Type.Record.Field, qt: QualType, comp: *const Compilation, pragma_pack: ?u8) Error!Type.Record.Layout {
-    // if (true) @panic("TODO");
     switch (comp.langopts.emulate) {
         .gcc, .clang => {
             var context = SysVContext.init(qt, comp, pragma_pack);

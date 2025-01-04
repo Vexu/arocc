@@ -119,6 +119,9 @@ extra: std.ArrayListUnmanaged(u32) = .empty,
 root_decls: std.ArrayListUnmanaged(Node.Index) = .empty,
 value_map: ValueMap = .empty,
 
+// TODO eliminate somehow
+arena: std.heap.ArenaAllocator,
+
 pub const genIr = CodeGen.genIr;
 
 pub fn deinit(tree: *Tree) void {

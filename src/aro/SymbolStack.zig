@@ -180,7 +180,7 @@ pub fn defineTypedef(
         switch (prev.kind) {
             .typedef => {
                 if (!prev.qt.isInvalid()) {
-                    if (!qt.eql(prev.qt, p.comp, true)) {
+                    if (!qt.eqlQualified(prev.qt, p.comp)) {
                         try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(qt, " vs ", prev.qt));
                         if (prev.tok != 0) try p.errTok(.previous_definition, prev.tok);
                     }
@@ -197,12 +197,7 @@ pub fn defineTypedef(
         .kind = .typedef,
         .name = name,
         .tok = tok,
-        .ty = .{
-            .name = name,
-            .specifier = qt.specifier,
-            .qual = qt.qual,
-            .data = qt.data,
-        },
+        .qt = qt,
         .node = .pack(node),
         .val = .{},
     });
@@ -225,7 +220,7 @@ pub fn defineSymbol(
                 try p.errTok(.previous_definition, prev.tok);
             },
             .decl => {
-                if (!qt.eql(prev.qt, p.comp, true)) {
+                if (!qt.eqlQualified(prev.qt, p.comp)) {
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 }
@@ -246,7 +241,7 @@ pub fn defineSymbol(
         .kind = if (constexpr) .constexpr else .def,
         .name = name,
         .tok = tok,
-        .ty = qt,
+        .qt = qt,
         .node = .pack(node),
         .val = val,
     });
@@ -276,13 +271,13 @@ pub fn declareSymbol(
                 try p.errTok(.previous_definition, prev.tok);
             },
             .decl => {
-                if (!qt.eql(prev.qt, p.comp, true)) {
+                if (!qt.eqlQualified(prev.qt, p.comp)) {
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 }
             },
             .def, .constexpr => {
-                if (!qt.eql(prev.qt, p.comp, true)) {
+                if (!qt.eqlQualified(prev.qt, p.comp)) {
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 } else {
@@ -300,7 +295,7 @@ pub fn declareSymbol(
         .kind = .decl,
         .name = name,
         .tok = tok,
-        .ty = qt,
+        .qt = qt,
         .node = .pack(node),
         .val = .{},
     });
@@ -327,14 +322,11 @@ pub fn defineParam(
             else => unreachable,
         }
     }
-    if (qt.is(.fp16) and !p.comp.hasHalfPrecisionFloatABI()) {
-        try p.errStr(.suggest_pointer_for_invalid_fp16, tok, "parameters");
-    }
     try s.define(p.gpa, .{
         .kind = .def,
         .name = name,
         .tok = tok,
-        .ty = qt,
+        .qt = qt,
         .node = .packOpt(node),
         .val = .{},
     });
@@ -403,7 +395,7 @@ pub fn defineEnumeration(
         .kind = .enumeration,
         .name = name,
         .tok = tok,
-        .ty = qt,
+        .qt = qt,
         .val = val,
         .node = .pack(node),
     });

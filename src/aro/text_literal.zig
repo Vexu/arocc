@@ -144,8 +144,8 @@ pub const Kind = enum {
     pub fn elementType(kind: Kind, comp: *const Compilation) QualType {
         return switch (kind) {
             .unterminated => unreachable,
-            .char => .{ .specifier = .char },
-            .utf_8 => if (comp.langopts.hasChar8_T()) .{ .specifier = .uchar } else .{ .specifier = .char },
+            .char => .char,
+            .utf_8 => if (comp.langopts.hasChar8_T()) .uchar else .char,
             else => kind.charLiteralType(comp),
         };
     }

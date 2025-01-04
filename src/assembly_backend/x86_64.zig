@@ -103,7 +103,7 @@ fn emitSingleValue(c: *AsmCodeGen, qt: QualType, node: Node.Index) !void {
             128 => return serializeFloat(f128, value.toFloat(f128, c.comp), c.data),
             else => unreachable,
         }
-    } else if (scalar_kind == .pointer) {
+    } else if (scalar_kind.isPointer()) {
         return c.todo("Codegen pointer", node.tok(c.tree));
     } else if (qt.is(c.comp, .array)) {
         // Todo:
