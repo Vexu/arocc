@@ -48,8 +48,8 @@ fn_def: 'fn (x: int, ...) void'
     builtin_call_expr: 'void'
      name: __builtin_va_start
      args:
-      implicit cast: (array_to_pointer) 'decayed *va_list: [1]struct __va_list_tag' (value: &va)
-        decl_ref_expr: 'va_list: [1]struct __va_list_tag' lvalue
+      implicit cast: (array_to_pointer) 'decayed *va_list: __builtin_va_list: [1]struct __va_list_tag' (value: &va)
+        decl_ref_expr: 'va_list: __builtin_va_list: [1]struct __va_list_tag' lvalue
          name: va
       decl_ref_expr: 'int' lvalue
        name: x
@@ -57,8 +57,8 @@ fn_def: 'fn (x: int, ...) void'
     builtin_call_expr: 'void'
      name: __builtin_va_end
      args:
-      implicit cast: (array_to_pointer) 'decayed *va_list: [1]struct __va_list_tag' (value: &va)
-        decl_ref_expr: 'va_list: [1]struct __va_list_tag' lvalue
+      implicit cast: (array_to_pointer) 'decayed *va_list: __builtin_va_list: [1]struct __va_list_tag' (value: &va)
+        decl_ref_expr: 'va_list: __builtin_va_list: [1]struct __va_list_tag' lvalue
          name: va
 
     implicit return_stmt: 'void'

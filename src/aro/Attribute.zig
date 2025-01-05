@@ -74,6 +74,7 @@ pub const Iterator = struct {
                     source.qt = attributed.base;
                     return .{ self.slice[0], 0 };
                 },
+                .typedef => |typedef| cur = typedef.base,
                 else => {
                     self.source = null;
                     break;

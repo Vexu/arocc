@@ -34,7 +34,7 @@ variable: 'const volatile int'
 fn_proto: 'fn (a: restrict *int, b: restrict *int, c: restrict *int) int'
  name: foo
 
-fn_proto: 'fn (n: int, bar: *d[<expr>]int) int'
+fn_proto: 'fn (n: int, bar: decayed *[<expr>]int) int'
  name: bar
 
 typedef: 'void'
@@ -59,24 +59,24 @@ typedef: 'C: A: int'
 typedef: '[2]int'
  name: I
 
-fn_def: 'fn (a: *d[2]const int, b: *d[2]const int) void'
+fn_def: 'fn (a: decayed *const I: [2]int, b: decayed *const I: [2]int) void'
  name: qux
  body:
   compound_stmt
-    add_assign_expr: 'I': '*d[2]const int'
+    add_assign_expr: 'decayed *const I: [2]int'
      lhs:
-      decl_ref_expr: 'I': '*d[2]const int' lvalue
+      decl_ref_expr: 'decayed *const I: [2]int' lvalue
        name: b
      rhs:
-      implicit cast: (int_to_pointer) 'I': '*d[2]const int'
+      implicit cast: (int_to_pointer) 'decayed *const I: [2]int'
         int_literal: 'int' (value: 1)
 
-    add_assign_expr: 'I': '*d[2]const int'
+    add_assign_expr: 'decayed *const I: [2]int'
      lhs:
-      decl_ref_expr: 'I': '*d[2]const int' lvalue
+      decl_ref_expr: 'decayed *const I: [2]int' lvalue
        name: a
      rhs:
-      implicit cast: (int_to_pointer) 'I': '*d[2]const int'
+      implicit cast: (int_to_pointer) 'decayed *const I: [2]int'
         int_literal: 'int' (value: 1)
 
     implicit return_stmt: 'void'

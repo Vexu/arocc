@@ -56,11 +56,14 @@ const Repr = struct {
 
 const Index = enum(u29) {
     /// A NaN-like poison value
+    /// Must *NOT* be nested.
     invalid = std.math.maxInt(u29) - 0,
     /// GNU auto type
     /// This is a placeholder specifier - it must be replaced by the actual type specifier (determined by the initializer)
+    /// Must *NOT* be nested.
     auto_type = std.math.maxInt(u29) - 1,
     /// C23 auto, behaves like auto_type
+    /// Must *NOT* be nested.
     c23_auto = std.math.maxInt(u29) - 2,
     void = std.math.maxInt(u29) - 3,
     bool = std.math.maxInt(u29) - 4,
@@ -358,7 +361,6 @@ pub const QualType = packed struct(u32) {
 
     pub fn base(qt: QualType, comp: *const Compilation) struct { type: Type, qt: QualType } {
         var cur = qt;
-        // TODO handle invalid autotype c23auto here?
         while (true) switch (cur.type(comp)) {
             .typeof => |typeof| cur = typeof.base,
             .typedef => |typedef| cur = typedef.base,
@@ -376,6 +378,11 @@ pub const QualType = packed struct(u32) {
 
     pub fn get(qt: QualType, comp: *const Compilation, comptime tag: std.meta.Tag(Type)) ?@FieldType(Type, @tagName(tag)) {
         comptime std.debug.assert(tag != .typeof and tag != .attributed and tag != .typedef);
+        switch (qt._index) {
+            .invalid, .auto_type, .c23_auto => return null,
+            else => {},
+        }
+
         const base_type = qt.base(comp).type;
         if (base_type == tag) return @field(base_type, @tagName(tag));
         return null;
@@ -386,7 +393,7 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn childType(qt: QualType, comp: *const Compilation) QualType {
-        if (qt._index == .invalid) return .invalid;
+        if (qt.isInvalid()) return .invalid;
         return switch (qt.base(comp).type) {
             .complex => |complex| complex,
             .func => |func| func.return_type,
@@ -696,18 +703,21 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn decay(qt: QualType, comp: *Compilation) !QualType {
+        if (qt.isInvalid()) return .invalid;
         switch (qt.base(comp).type) {
             .array => |array_ty| {
                 if (array_ty.elem.isInvalid()) return .invalid;
-                var ptr_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
-                    .child = array_ty.elem,
+
+                // Copy qualifiers to element.
+                var elem_qt = array_ty.elem;
+                elem_qt.@"const" = qt.@"const";
+                elem_qt.@"volatile" = qt.@"volatile";
+                elem_qt.restrict = qt.restrict;
+
+                return try comp.type_store.put(comp.gpa, .{ .pointer = .{
+                    .child = elem_qt,
                     .decayed = qt,
                 } });
-                // Copy qualifiers
-                ptr_qt.@"const" = qt.@"const";
-                ptr_qt.@"volatile" = qt.@"volatile";
-                ptr_qt.restrict = qt.restrict;
-                return ptr_qt;
             },
             .func => |func_ty| {
                 if (func_ty.return_type.isInvalid()) {
@@ -956,8 +966,9 @@ pub const QualType = packed struct(u32) {
                 const b_func = b_type.func;
 
                 if (a_func.params.len != b_func.params.len) {
+                    if (a_func.kind == .old_style and b_func.kind == .old_style) return true;
                     if (a_func.kind == .old_style or b_func.kind == .old_style) {
-                        if (true) @panic("TODO is this correct?");
+                        //TODO is this correct?
                         const maybe_has_params = if (a_func.kind == .old_style) b_func else a_func;
 
                         // Check if any args undergo default argument promotion.
@@ -970,7 +981,7 @@ pub const QualType = packed struct(u32) {
                                 },
                                 .float => |float_ty| if (float_ty != .double) return false,
                                 .@"enum" => |enum_ty| {
-                                    if (comp.langopts.emulate == .clang and enum_ty.tag == null) return false;
+                                    if (comp.langopts.emulate == .clang and enum_ty.incomplete) return false;
                                 },
                                 else => {},
                             }
@@ -1993,7 +2004,7 @@ pub const Builder = struct {
     complex_tok: ?TokenIndex = null,
     bit_int_tok: ?TokenIndex = null,
     typedef: bool = false,
-    typeof: ?QualType = null,
+    typeof: bool = false,
 
     type: Specifier = .none,
     /// When true an error is returned instead of adding a diagnostic message.
@@ -2179,16 +2190,12 @@ pub const Builder = struct {
     pub fn finish(b: Builder) Parser.Error!QualType {
         const qt: QualType = switch (b.type) {
             .none => blk: {
-                if (b.typeof) |typeof| {
-                    break :blk typeof;
+                if (b.parser.comp.langopts.standard.atLeast(.c23)) {
+                    try b.parser.err(.missing_type_specifier_c23);
                 } else {
-                    if (b.parser.comp.langopts.standard.atLeast(.c23)) {
-                        try b.parser.err(.missing_type_specifier_c23);
-                    } else {
-                        try b.parser.err(.missing_type_specifier);
-                    }
-                    break :blk .int;
+                    try b.parser.err(.missing_type_specifier);
                 }
+                break :blk .int;
             },
             .void => .void,
             .auto_type => .auto_type,
@@ -2352,11 +2359,7 @@ pub const Builder = struct {
 
     fn cannotCombine(b: Builder, source_tok: TokenIndex) !void {
         const ty_str = b.type.str(b.parser.comp.langopts) orelse try b.parser.typeStr(try b.finish());
-        if (b.typedef) {
-            try b.parser.errStr(.cannot_combine_with_typedef, source_tok, ty_str);
-        } else {
-            try b.parser.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
-        }
+        try b.parser.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
     }
 
     fn duplicateSpec(b: *Builder, source_tok: TokenIndex, spec: []const u8) !void {
@@ -2366,7 +2369,7 @@ pub const Builder = struct {
 
     pub fn combineFromTypeof(b: *Builder, new: QualType, source_tok: TokenIndex) Compilation.Error!void {
         if (b.typedef) return b.parser.errStr(.cannot_combine_spec, source_tok, "type-name");
-        if (b.typeof != null) return b.parser.errStr(.cannot_combine_spec, source_tok, "typeof");
+        if (b.typeof) return b.parser.errStr(.cannot_combine_spec, source_tok, "typeof");
         if (b.type != .none) return b.parser.errStr(.cannot_combine_with_typeof, source_tok, @tagName(b.type));
         b.type = .{ .other = new };
     }
@@ -2382,8 +2385,11 @@ pub const Builder = struct {
     }
 
     pub fn combine(b: *Builder, new: Builder.Specifier, source_tok: TokenIndex) !void {
-        if (b.typeof != null) {
+        if (b.typeof) {
             try b.parser.errStr(.cannot_combine_with_typeof, source_tok, @tagName(new));
+        }
+        if (b.typedef) {
+            try b.parser.errExtra(.cannot_combine_spec, source_tok, .{ .str = "type-name" });
         }
 
         switch (new) {
