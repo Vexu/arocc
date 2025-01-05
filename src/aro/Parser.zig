@@ -7678,6 +7678,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 .op_tok = tok,
                 .qt = res.qt,
                 .expr = if (has_expr) res.node else null,
+                .operand_qt = operand_qt,
             } });
             return res;
         },
@@ -7713,12 +7714,13 @@ fn unExpr(p: *Parser) Error!?Result {
 
                 try p.errTok(.alignof_expr, expected_paren);
             }
+            const operand_qt = res.qt;
 
             if (res.qt.is(p.comp, .void)) {
                 try p.errStr(.pointer_arith_void, tok, "alignof");
             }
 
-            if (res.qt.alignable(p.comp)) {
+            if (res.qt.sizeofOrNull(p.comp) != null) {
                 res.val = try Value.int(res.qt.alignof(p.comp), p.comp);
                 res.qt = p.comp.type_store.size;
             } else if (!res.qt.isInvalid()) {
@@ -7730,6 +7732,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 .op_tok = tok,
                 .qt = res.qt,
                 .expr = if (has_expr) res.node else null,
+                .operand_qt = operand_qt,
             } });
             return res;
         },

@@ -616,6 +616,7 @@ pub const Node = union(enum) {
         qt: QualType,
         op_tok: TokenIndex,
         expr: ?Node.Index,
+        operand_qt: QualType,
     };
 
     pub const Generic = struct {
@@ -1467,6 +1468,7 @@ pub const Node = union(enum) {
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
                         .expr = unpackOptIndex(node_data[1]),
+                        .operand_qt = @bitCast(node_data[2]),
                     },
                 },
                 .alignof_expr => .{
@@ -1474,6 +1476,7 @@ pub const Node = union(enum) {
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
                         .expr = unpackOptIndex(node_data[1]),
+                        .operand_qt = @bitCast(node_data[2]),
                     },
                 },
 
@@ -2512,12 +2515,14 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tag = .sizeof_expr;
             repr.data[0] = @bitCast(type_info.qt);
             repr.data[1] = packOptIndex(type_info.expr);
+            repr.data[2] = @bitCast(type_info.operand_qt);
             repr.tok = type_info.op_tok;
         },
         .alignof_expr => |type_info| {
             repr.tag = .alignof_expr;
             repr.data[0] = @bitCast(type_info.qt);
             repr.data[1] = packOptIndex(type_info.expr);
+            repr.data[2] = @bitCast(type_info.operand_qt);
             repr.tok = type_info.op_tok;
         },
         .generic_expr => |generic| {
@@ -3429,6 +3434,13 @@ fn dumpNode(
                 try w.writeByteNTimes(' ', level + 1);
                 try w.writeAll("expr:\n");
                 try tree.dumpNode(some, level + delta, config, w);
+            } else {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("operand type: ");
+                try config.setColor(w, TYPE);
+                try type_info.operand_qt.dump(tree.comp, w);
+                try w.writeByte('\n');
+                try config.setColor(w, .reset);
             }
         },
         .generic_expr => |generic| {
