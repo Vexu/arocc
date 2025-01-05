@@ -62,6 +62,10 @@ pub const Iterator = struct {
         }
         if (self.source) |*source| {
             var cur = source.qt;
+            if (cur.isInvalid()) {
+                self.source = null;
+                return null;
+            }
             while (true) switch (cur.type(source.comp)) {
                 .typeof => |typeof| cur = typeof.base,
                 .attributed => |attributed| {
@@ -839,7 +843,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .variables } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "variables"),
     };
-    return applySelected(base_qt, p, p.attr_application_buf.items);
+    return applySelected(base_qt, p);
 }
 
 pub fn applyFieldAttributes(p: *Parser, field_ty: *QualType, attr_buf_start: usize) ![]const Attribute {
@@ -884,7 +888,7 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, tag:
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .types } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "types"),
     };
-    return applySelected(base_qt, p, p.attr_application_buf.items);
+    return applySelected(base_qt, p);
 }
 
 pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) !QualType {
@@ -1004,7 +1008,7 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .functions } }),
         else => try ignoredAttrErr(p, tok, attr.tag, "functions"),
     };
-    return applySelected(qt, p, p.attr_application_buf.items);
+    return applySelected(qt, p);
 }
 
 pub fn applyLabelAttributes(p: *Parser, attr_buf_start: usize) !QualType {
@@ -1029,7 +1033,7 @@ pub fn applyLabelAttributes(p: *Parser, attr_buf_start: usize) !QualType {
         },
         else => try ignoredAttrErr(p, tok, attr.tag, "labels"),
     };
-    return applySelected(.void, p, p.attr_application_buf.items);
+    return applySelected(.void, p);
 }
 
 pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_start: usize) !QualType {
@@ -1054,7 +1058,7 @@ pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_sta
         },
         else => try p.errStr(.cannot_apply_attribute_to_statement, tok, @tagName(attr.tag)),
     };
-    return applySelected(.void, p, p.attr_application_buf.items);
+    return applySelected(.void, p);
 }
 
 pub fn applyEnumeratorAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) !QualType {
@@ -1065,7 +1069,7 @@ pub fn applyEnumeratorAttributes(p: *Parser, qt: QualType, attr_buf_start: usize
         .deprecated, .unavailable => try p.attr_application_buf.append(p.gpa, attr),
         else => try ignoredAttrErr(p, tok, attr.tag, "enums"),
     };
-    return applySelected(qt, p, p.attr_application_buf.items);
+    return applySelected(qt, p);
 }
 
 fn applyAligned(attr: Attribute, p: *Parser, qt: QualType, tag: ?Diagnostics.Tag) !void {
@@ -1112,7 +1116,12 @@ fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualT
 
 fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType) !void {
     const scalar_kind = qt.scalarKind(p.comp);
-    if (!scalar_kind.isArithmetic() or !scalar_kind.isReal() or (scalar_kind == .@"enum" and p.comp.langopts.emulate != .gcc)) {
+    if (!scalar_kind.isArithmetic() or !scalar_kind.isReal() or scalar_kind == .@"enum") {
+        if (qt.get(p.comp, .@"enum")) |enum_ty| {
+            if (p.comp.langopts.emulate == .clang and enum_ty.incomplete) {
+                return; // Clang silently ignores vector_size on incomplete enums.
+            }
+        }
         try p.errStr(.invalid_vec_elem_ty, tok, try p.typeStr(qt.*));
         return error.ParsingFailed;
     }
@@ -1135,10 +1144,10 @@ fn applyFormat(attr: Attribute, p: *Parser, qt: QualType) !void {
     try p.attr_application_buf.append(p.gpa, attr);
 }
 
-fn applySelected(qt: QualType, p: *Parser, selected_attributes: []const Attribute) !QualType {
-    if (selected_attributes.len == 0) return qt;
+fn applySelected(qt: QualType, p: *Parser) !QualType {
+    if (p.attr_application_buf.items.len == 0) return qt;
     return (try p.comp.type_store.put(p.gpa, .{ .attributed = .{
         .base = qt,
-        .attributes = selected_attributes,
+        .attributes = p.attr_application_buf.items,
     } })).withQualifiers(qt);
 }

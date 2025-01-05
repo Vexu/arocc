@@ -811,7 +811,7 @@ fn generateSuffixMacro(comp: *const Compilation, prefix: []const u8, w: anytype,
 ///     Suffix macro (e.g. #define __UINT32_C_SUFFIX__ U)
 fn generateExactWidthType(comp: *Compilation, w: anytype, original_qt: QualType) !void {
     var qt = original_qt;
-    const width = qt.bitSizeof(comp);
+    const width = qt.sizeof(comp) * 8;
     const unsigned = qt.signedness(comp) == .unsigned;
 
     if (width == 16) {
@@ -868,7 +868,7 @@ pub fn wcharMax(comp: *const Compilation) u32 {
 
 fn generateExactWidthIntMax(comp: *Compilation, w: anytype, original_qt: QualType) !void {
     var qt = original_qt;
-    const bit_count: u8 = @intCast(qt.bitSizeof(comp));
+    const bit_count: u8 = @intCast(qt.sizeof(comp) * 8);
     const unsigned = qt.signedness(comp) == .unsigned;
 
     if (bit_count == 64) {
@@ -884,7 +884,7 @@ fn generateExactWidthIntMax(comp: *Compilation, w: anytype, original_qt: QualTyp
 }
 
 fn generateIntWidth(comp: *Compilation, w: anytype, name: []const u8, qt: QualType) !void {
-    try w.print("#define __{s}_WIDTH__ {d}\n", .{ name, qt.bitSizeof(comp) });
+    try w.print("#define __{s}_WIDTH__ {d}\n", .{ name, qt.sizeof(comp) * 8 });
 }
 
 fn generateIntMaxAndWidth(comp: *Compilation, w: anytype, name: []const u8, qt: QualType) !void {

@@ -91,6 +91,9 @@ pub fn genIr(tree: *const Tree) Compilation.Error!Ir {
             .struct_decl,
             .union_decl,
             .enum_decl,
+            .struct_forward_decl,
+            .union_forward_decl,
+            .enum_forward_decl,
             => {},
 
             .fn_proto => {},
@@ -141,7 +144,7 @@ fn genType(c: *CodeGen, qt: QualType) !Interner.Ref {
         .func => return .func,
         .complex => return c.fail("TODO lower complex types", .{}),
         .atomic => return c.fail("TODO lower atomic types", .{}),
-        .@"enum" => |@"enum"| return c.genType(@"enum".tag.?),
+        .@"enum" => |@"enum"| return c.genType(@"enum".tag),
         .int => |int| .{ .int_ty = int.bits(c.comp) },
         .bit_int => |bit_int| .{ .int_ty = bit_int.bits },
         .float => |float| .{ .float_ty = float.bits(c.comp) },

@@ -30,7 +30,7 @@ struct_decl: 'struct S'
 fn_def: 'fn () void'
  name: foo
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: 'char'
      name: c
      init:

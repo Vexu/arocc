@@ -16,7 +16,7 @@ implicit typedef: 'struct __NSConstantString_tag'
 fn_def: 'fn () void'
  name: foo
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: '_Complex double'
      name: cd
      init:

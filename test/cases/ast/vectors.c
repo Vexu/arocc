@@ -16,34 +16,34 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
-variable: 'float'
+typedef: 'float'
  name: invalid2
 
-variable: 'vector(2, float)'
+typedef: 'vector(2, float)'
  name: f2v
 
 fn_def: 'fn () void'
  name: foo
  body:
-  compound_stmt: 'void'
-    variable: 'f2v': 'vector(2, float)'
+  compound_stmt
+    variable: 'f2v: vector(2, float)'
      name: a
 
-    variable: 'f2v': 'vector(2, float)'
+    variable: 'f2v: vector(2, float)'
      name: b
 
-    assign_expr: 'f2v': 'vector(2, float)'
+    assign_expr: 'f2v: vector(2, float)'
      lhs:
-      decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
+      decl_ref_expr: 'f2v: vector(2, float)' lvalue
        name: a
      rhs:
-      implicit cast: (lval_to_rval) 'f2v': 'vector(2, float)'
-        decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
+      implicit cast: (lval_to_rval) 'f2v: vector(2, float)'
+        decl_ref_expr: 'f2v: vector(2, float)' lvalue
          name: b
 
-    mul_assign_expr: 'f2v': 'vector(2, float)'
+    mul_assign_expr: 'f2v: vector(2, float)'
      lhs:
-      decl_ref_expr: 'f2v': 'vector(2, float)' lvalue
+      decl_ref_expr: 'f2v: vector(2, float)' lvalue
        name: a
      rhs:
       implicit cast: (vector_splat) 'float'

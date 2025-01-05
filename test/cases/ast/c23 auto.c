@@ -22,7 +22,7 @@ implicit typedef: 'long double'
 fn_def: 'fn () void'
  name: bad
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: 'invalid'
      name: a
 
@@ -46,7 +46,7 @@ fn_def: 'fn () void'
 fn_def: 'fn () void'
  name: good
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: 'int'
      name: a
      init:

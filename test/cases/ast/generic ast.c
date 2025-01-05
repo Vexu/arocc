@@ -23,10 +23,10 @@ variable: 'int'
    controlling:
     int_literal: 'int' (value: 5)
    chosen:
-    generic_association_expr: 'void'
+    generic_association_expr
       int_literal: 'int' (value: 42)
    rest:
-    generic_association_expr: 'void'
+    generic_association_expr
       float_literal: 'double' (value: 32.5)
 
 variable: 'int'
@@ -36,12 +36,12 @@ variable: 'int'
    controlling:
     int_literal: 'int' (value: 5)
    chosen:
-    generic_association_expr: 'void'
+    generic_association_expr
       int_literal: 'int' (value: 42)
    rest:
-    generic_association_expr: 'void'
+    generic_association_expr
       float_literal: 'double' (value: 32.5)
-    generic_default_expr: 'void'
+    generic_default_expr
       string_literal_expr: '[7]char' lvalue (value: "string")
 
 variable: 'double'
@@ -52,6 +52,6 @@ variable: 'double'
      controlling:
       int_literal: 'int' (value: 5)
      chosen:
-      generic_default_expr: 'void'
+      generic_default_expr
         int_literal: 'int' (value: 32)
 
