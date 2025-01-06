@@ -440,7 +440,7 @@ pub fn main() !void {
             const expected_output = buf.items;
 
             const obj_name = "test_object.o";
-            if (true) break :blk;
+            if (true) @panic("no backend available");
             // {
             //     const obj = try Codegen.generateTree(&comp, tree);
             //     defer obj.deinit();

@@ -21,21 +21,11 @@ Aro will be used as the C frontend for [C to Zig translation](https://github.com
 
 ## Codegen
 
-Basic proof of concept code generation is supported for x86-64 linux and can produce a valid hello world:
+Earlier there was a proof of concept backend capable of producing a valid hello world binary
+but it was removed to make way for a new more capable backend which is still under construction.
+The new backend will reuse parts of the self-hosted Zig compiler.
 
-```sh-session
-$ cat hello.c
-extern int printf(const char *restrict fmt, ...);
-int main(void) {
-    printf("Hello, world!\n");
-    return 0;
-}
-$ zig build && ./zig-out/bin/arocc hello.c -o hello
-$ ./hello
-Hello, world!
-```
-
-A more capable backend is under construction which will reuse parts of the self-hosted Zig compiler. [#542](https://github.com/Vexu/arocc/issues/542)
+[#542](https://github.com/Vexu/arocc/issues/542)
 
 ## Using aro as a module
 
