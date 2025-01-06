@@ -2064,6 +2064,12 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                 };
                 try p.expectClosing(l_paren, .r_paren);
 
+                if (base_qt.isQualified() and !base_qt.isInvalid()) {
+                    try p.errStr(.atomic_qualified, atomic_tok, try p.typeStr(base_qt));
+                    builder.type = .{ .other = .invalid };
+                    continue;
+                }
+
                 const new_spec = TypeStore.Builder.fromType(p.comp, base_qt);
                 try builder.combine(new_spec, atomic_tok);
 
@@ -2137,13 +2143,13 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
             .keyword_struct, .keyword_union => {
                 const tag_tok = p.tok_i;
                 const record_ty = try p.recordSpec();
-                try builder.combine(TypeStore.Builder.fromType(p.comp, record_ty), tag_tok);
+                try builder.combine(.{ .other = record_ty }, tag_tok);
                 continue;
             },
             .keyword_enum => {
                 const tag_tok = p.tok_i;
                 const enum_ty = try p.enumSpec();
-                try builder.combine(TypeStore.Builder.fromType(p.comp, enum_ty), tag_tok);
+                try builder.combine(.{ .other = enum_ty }, tag_tok);
                 continue;
             },
             .identifier, .extended_identifier => {

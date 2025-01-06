@@ -527,6 +527,10 @@ pub const Node = union(enum) {
             union_cast,
             /// Create vector where each value is same as the input scalar.
             vector_splat,
+            /// Convert an atomic type to its non atomic base type.
+            atomic_to_non_atomic,
+            /// Convert a non atomic type to an atomic type.
+            non_atomic_to_atomic,
         };
     };
 

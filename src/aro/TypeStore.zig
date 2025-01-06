@@ -817,6 +817,7 @@ pub const QualType = packed struct(u32) {
                 .ushort => if (Type.Int.uchar.bits(comp) == Type.Int.int.bits(comp)) .uint else .int,
                 else => return qt,
             },
+            .atomic => |atomic| continue :loop atomic.base(comp).type,
             else => unreachable, // Not an integer type
         };
     }
@@ -2333,7 +2334,41 @@ pub const Builder = struct {
     }
 
     pub fn finishQuals(b: Builder, qt: QualType) !QualType {
+        if (qt.isInvalid()) return .invalid;
         var result_qt = qt;
+        if (b.atomic) |atomic_tok| {
+            if (result_qt.isAutoType()) return b.parser.todo("_Atomic __auto_type");
+            if (result_qt.isC23Auto()) {
+                try b.parser.errTok(.atomic_auto, atomic_tok);
+                return .invalid;
+            }
+            if (result_qt.sizeofOrNull(b.parser.comp) == null) {
+                try b.parser.errStr(.atomic_incomplete, atomic_tok, try b.parser.typeStr(qt));
+                return .invalid;
+            }
+            switch (result_qt.base(b.parser.comp).type) {
+                .array => {
+                    try b.parser.errStr(.atomic_array, atomic_tok, try b.parser.typeStr(qt));
+                    return .invalid;
+                },
+                .func => {
+                    try b.parser.errStr(.atomic_func, atomic_tok, try b.parser.typeStr(qt));
+                    return .invalid;
+                },
+                .atomic => {
+                    try b.parser.errStr(.atomic_atomic, atomic_tok, try b.parser.typeStr(qt));
+                    return .invalid;
+                },
+                .complex => {
+                    try b.parser.errStr(.atomic_complex, atomic_tok, try b.parser.typeStr(qt));
+                    return .invalid;
+                },
+                else => {
+                    result_qt = try b.parser.comp.type_store.put(b.parser.gpa, .{ .atomic = result_qt });
+                },
+            }
+        }
+
         if (b.@"const" != null) result_qt.@"const" = true;
         if (b.@"volatile" != null) result_qt.@"volatile" = true;
 
@@ -2344,15 +2379,6 @@ pub const Builder = struct {
                     try b.parser.errStr(.restrict_non_pointer, restrict_tok, try b.parser.typeStr(qt));
                 },
             }
-        }
-
-        if (b.atomic) |atomic_tok| {
-            _ = atomic_tok;
-            // if (qt.isArray()) try b.parser.errStr(.atomic_array, atomic_tok, try b.parser.typeStr(qt));
-            // if (qt.isFunc()) try b.parser.errStr(.atomic_func, atomic_tok, try b.parser.typeStr(qt));
-            // if (qt.hasIncompleteSize()) try b.parser.errStr(.atomic_incomplete, atomic_tok, try b.parser.typeStr(qt));
-            // TODO erro if quals
-            // TODO make atomic
         }
         return result_qt;
     }
@@ -2391,6 +2417,7 @@ pub const Builder = struct {
         if (b.typedef) {
             try b.parser.errExtra(.cannot_combine_spec, source_tok, .{ .str = "type-name" });
         }
+        if (b.type == .other and b.type.other.isInvalid()) return;
 
         switch (new) {
             .complex => b.complex_tok = source_tok,

@@ -221,6 +221,7 @@ pub const Options = struct {
     @"sign-conversion": Kind = .default,
     @"address-of-packed-member": Kind = .default,
     nonnull: Kind = .default,
+    @"atomic-access": Kind = .default,
 };
 
 const Diagnostics = @This();

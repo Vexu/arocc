@@ -899,18 +899,42 @@ parameter_here
     .kind = .note
 
 atomic_array
-    .msg = "atomic cannot be applied to array type '{s}'"
+    .msg = "_Atomic cannot be applied to array type '{s}'"
     .extra = .str
     .kind = .@"error"
 
 atomic_func
-    .msg = "atomic cannot be applied to function type '{s}'"
+    .msg = "_Atomic cannot be applied to function type '{s}'"
     .extra = .str
     .kind = .@"error"
 
 atomic_incomplete
-    .msg = "atomic cannot be applied to incomplete type '{s}'"
+    .msg = "_Atomic cannot be applied to incomplete type '{s}'"
     .extra = .str
+    .kind = .@"error"
+
+atomic_atomic
+    .msg = "_Atomic cannot be applied to atomic type '{s}'"
+    .extra = .str
+    .kind = .@"error"
+
+atomic_complex
+    .msg = "_Atomic cannot be applied to complex type '{s}'"
+    .extra = .str
+    .kind = .@"error"
+
+atomic_qualified
+    .msg = "_Atomic cannot be applied to qualified type '{s}'"
+    .extra = .str
+    .kind = .@"error"
+
+atomic_auto
+    .msg = "_Atomic cannot be applied to type 'auto' in C23"
+    .kind = .@"error"
+
+atomic_access
+    .msg = "accessing a member of an atomic structure or union is undefined behavior"
+    .opt = W("atomic-access")
     .kind = .@"error"
 
 addr_of_register

@@ -685,6 +685,8 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             .null_to_pointer,
             .union_cast,
             .vector_splat,
+            .atomic_to_non_atomic,
+            .non_atomic_to_atomic,
             => return c.fail("TODO CodeGen gen CastKind {}\n", .{cast.kind}),
         },
         .binary_cond_expr => |conditional| {
