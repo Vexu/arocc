@@ -5352,76 +5352,78 @@ const CallExpr = union(enum) {
         };
     }
 
-    fn returnType(self: CallExpr, p: *Parser, callable_ty: QualType) QualType {
-        return switch (self) {
-            .standard => callable_ty.returnType(),
-            .builtin => |builtin| switch (builtin.tag) {
-                .__c11_atomic_exchange => {
-                    if (p.list_buf.items.len != 4) return .invalid; // wrong number of arguments; already an error
-                    const second_param = p.list_buf.items[2];
-                    return second_param.qt(&p.tree);
-                },
-                .__c11_atomic_load => {
-                    if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
-                    const first_param = p.list_buf.items[1];
-                    const qt = first_param.qt(&p.tree);
-                    if (!qt.scalarKind(p.comp).isPointer()) return .invalid;
-                    return qt.childType(p.comp);
-                },
+    fn returnType(self: CallExpr, p: *Parser, func_qt: QualType) !QualType {
+        if (self == .standard) {
+            return if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+        }
+        const builtin = self.builtin;
+        const func_ty = func_qt.get(p.comp, .func).?;
+        return switch (builtin.tag) {
+            .__c11_atomic_exchange => {
+                if (p.list_buf.items.len != 4) return .invalid; // wrong number of arguments; already an error
+                const second_param = p.list_buf.items[2];
+                return second_param.qt(&p.tree);
+            },
+            .__c11_atomic_load => {
+                if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
+                const first_param = p.list_buf.items[1];
+                const qt = first_param.qt(&p.tree);
+                if (!qt.scalarKind(p.comp).isPointer()) return .invalid;
+                return qt.childType(p.comp);
+            },
 
-                .__atomic_fetch_add,
-                .__atomic_add_fetch,
-                .__c11_atomic_fetch_add,
+            .__atomic_fetch_add,
+            .__atomic_add_fetch,
+            .__c11_atomic_fetch_add,
 
-                .__atomic_fetch_sub,
-                .__atomic_sub_fetch,
-                .__c11_atomic_fetch_sub,
+            .__atomic_fetch_sub,
+            .__atomic_sub_fetch,
+            .__c11_atomic_fetch_sub,
 
-                .__atomic_fetch_and,
-                .__atomic_and_fetch,
-                .__c11_atomic_fetch_and,
+            .__atomic_fetch_and,
+            .__atomic_and_fetch,
+            .__c11_atomic_fetch_and,
 
-                .__atomic_fetch_xor,
-                .__atomic_xor_fetch,
-                .__c11_atomic_fetch_xor,
+            .__atomic_fetch_xor,
+            .__atomic_xor_fetch,
+            .__c11_atomic_fetch_xor,
 
-                .__atomic_fetch_or,
-                .__atomic_or_fetch,
-                .__c11_atomic_fetch_or,
+            .__atomic_fetch_or,
+            .__atomic_or_fetch,
+            .__c11_atomic_fetch_or,
 
-                .__atomic_fetch_nand,
-                .__atomic_nand_fetch,
-                .__c11_atomic_fetch_nand,
-                => {
-                    if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
-                    const second_param = p.list_buf.items[2];
-                    return second_param.qt(&p.tree);
-                },
-                .__builtin_complex => {
-                    if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
-                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
-                    return last_param.qt(&p.tree).toComplex(p.comp);
-                },
-                .__atomic_compare_exchange,
-                .__atomic_compare_exchange_n,
-                .__c11_atomic_is_lock_free,
-                => .bool,
-                else => callable_ty.returnType(),
+            .__atomic_fetch_nand,
+            .__atomic_nand_fetch,
+            .__c11_atomic_fetch_nand,
+            => {
+                if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
+                const second_param = p.list_buf.items[2];
+                return second_param.qt(&p.tree);
+            },
+            .__builtin_complex => {
+                if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
+                const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                return try last_param.qt(&p.tree).toComplex(p.comp);
+            },
+            .__atomic_compare_exchange,
+            .__atomic_compare_exchange_n,
+            .__c11_atomic_is_lock_free,
+            => .bool,
+            else => func_ty.return_type,
 
-                .__c11_atomic_compare_exchange_strong,
-                .__c11_atomic_compare_exchange_weak,
-                => {
-                    if (p.list_buf.items.len != 6) return .invalid; // wrong number of arguments
-                    const third_param = p.list_buf.items[3];
-                    return third_param.qt(&p.tree);
-                },
+            .__c11_atomic_compare_exchange_strong,
+            .__c11_atomic_compare_exchange_weak,
+            => {
+                if (p.list_buf.items.len != 6) return .invalid; // wrong number of arguments
+                const third_param = p.list_buf.items[3];
+                return third_param.qt(&p.tree);
             },
         };
     }
 
     fn finish(self: CallExpr, p: *Parser, func_qt: QualType, list_buf_top: usize, l_paren: TokenIndex) Error!Result {
         const args = p.list_buf.items[list_buf_top..];
-        const return_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+        const return_qt = try self.returnType(p, func_qt);
         switch (self) {
             .standard => |func_node| return .{
                 .qt = return_qt,
