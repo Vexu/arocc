@@ -246,6 +246,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
             \\/// Integer starting at 0 derived from the unique index,
             \\/// corresponds with the data array index.
             \\pub const Tag = enum(u16) {
+            \\
         );
         for (values_array) |value| {
             try writer.print("    {},\n", .{std.zig.fmtId(value.name)});

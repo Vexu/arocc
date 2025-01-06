@@ -155,6 +155,7 @@ pub fn build(b: *Build) !void {
             GenerateDef.create(b, .{ .name = "Builtins/Builtin.def", .needs_large_dafsa_node = true }),
             GenerateDef.create(b, .{ .name = "Attribute/names.def" }),
             GenerateDef.create(b, .{ .name = "Diagnostics/messages.def", .kind = .named }),
+            GenerateDef.create(b, .{ .name = "Tokenizer/keywords.def" }),
         },
     });
     const assembly_backend = b.addModule("assembly_backend", .{

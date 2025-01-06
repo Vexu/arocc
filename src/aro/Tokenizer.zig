@@ -834,194 +834,32 @@ pub const Token = struct {
         }
     };
 
+    const keywords = @import("Tokenizer/keywords.def").with(struct {
+        id: Token.Id,
+        standard: ?LangOpts.Standard = null,
+        gnu_always: bool = false,
+        ms_extension: bool = false,
+    });
+
     /// double underscore and underscore + capital letter identifiers
     /// belong to the implementation namespace, so we always convert them
     /// to keywords.
     pub fn getTokenId(langopts: LangOpts, str: []const u8) Token.Id {
-        const kw = all_kws.get(str) orelse return .identifier;
-        const standard = langopts.standard;
-        return switch (kw) {
-            .keyword_inline => if (standard.isGNU() or standard.atLeast(.c99)) kw else .identifier,
-            .keyword_restrict => if (standard.atLeast(.c99)) kw else .identifier,
-            .keyword_typeof => if (standard.isGNU() or standard.atLeast(.c23)) kw else .identifier,
-            .keyword_asm => if (standard.isGNU()) kw else .identifier,
-            .keyword_declspec => if (langopts.declspec_attrs) kw else .identifier,
+        const tag_and_properties = keywords.fromName(str) orelse return .identifier;
+        const properties = tag_and_properties.properties;
 
-            .keyword_c23_alignas,
-            .keyword_c23_alignof,
-            .keyword_c23_bool,
-            .keyword_c23_static_assert,
-            .keyword_c23_thread_local,
-            .keyword_constexpr,
-            .keyword_true,
-            .keyword_false,
-            .keyword_nullptr,
-            .keyword_typeof_unqual,
-            .keyword_elifdef,
-            .keyword_elifndef,
-            => if (standard.atLeast(.c23)) kw else .identifier,
+        if (properties.ms_extension and !langopts.ms_extensions) return .identifier;
+        if (properties.id == .keyword_declspec and !langopts.declspec_attrs) return .identifier;
 
-            .keyword_int64,
-            .keyword_int64_2,
-            .keyword_int32,
-            .keyword_int32_2,
-            .keyword_int16,
-            .keyword_int16_2,
-            .keyword_int8,
-            .keyword_int8_2,
-            .keyword_stdcall2,
-            .keyword_thiscall2,
-            .keyword_vectorcall2,
-            => if (langopts.ms_extensions) kw else .identifier,
-            else => kw,
-        };
+        if (properties.standard) |standard| {
+            if (properties.gnu_always and langopts.standard.isGNU()) return properties.id;
+            if (langopts.standard.atLeast(standard)) return properties.id;
+            return .identifier;
+        }
+        if (properties.gnu_always and !langopts.standard.isGNU()) return .identifier;
+
+        return properties.id;
     }
-
-    const all_kws = std.StaticStringMap(Id).initComptime(.{
-        .{ "auto", .keyword_auto },
-        .{ "break", .keyword_break },
-        .{ "case", .keyword_case },
-        .{ "char", .keyword_char },
-        .{ "const", .keyword_const },
-        .{ "continue", .keyword_continue },
-        .{ "default", .keyword_default },
-        .{ "do", .keyword_do },
-        .{ "double", .keyword_double },
-        .{ "else", .keyword_else },
-        .{ "enum", .keyword_enum },
-        .{ "extern", .keyword_extern },
-        .{ "float", .keyword_float },
-        .{ "for", .keyword_for },
-        .{ "goto", .keyword_goto },
-        .{ "if", .keyword_if },
-        .{ "int", .keyword_int },
-        .{ "long", .keyword_long },
-        .{ "register", .keyword_register },
-        .{ "return", .keyword_return },
-        .{ "short", .keyword_short },
-        .{ "signed", .keyword_signed },
-        .{ "__signed", .keyword_signed1 },
-        .{ "__signed__", .keyword_signed2 },
-        .{ "sizeof", .keyword_sizeof },
-        .{ "static", .keyword_static },
-        .{ "struct", .keyword_struct },
-        .{ "switch", .keyword_switch },
-        .{ "typedef", .keyword_typedef },
-        .{ "union", .keyword_union },
-        .{ "unsigned", .keyword_unsigned },
-        .{ "void", .keyword_void },
-        .{ "volatile", .keyword_volatile },
-        .{ "while", .keyword_while },
-        .{ "__typeof__", .keyword_typeof2 },
-        .{ "__typeof", .keyword_typeof1 },
-
-        // ISO C99
-        .{ "_Bool", .keyword_bool },
-        .{ "_Complex", .keyword_complex },
-        .{ "_Imaginary", .keyword_imaginary },
-        .{ "inline", .keyword_inline },
-        .{ "restrict", .keyword_restrict },
-
-        // ISO C11
-        .{ "_Alignas", .keyword_alignas },
-        .{ "_Alignof", .keyword_alignof },
-        .{ "_Atomic", .keyword_atomic },
-        .{ "_Generic", .keyword_generic },
-        .{ "_Noreturn", .keyword_noreturn },
-        .{ "_Static_assert", .keyword_static_assert },
-        .{ "_Thread_local", .keyword_thread_local },
-
-        // ISO C23
-        .{ "_BitInt", .keyword_bit_int },
-        .{ "alignas", .keyword_c23_alignas },
-        .{ "alignof", .keyword_c23_alignof },
-        .{ "bool", .keyword_c23_bool },
-        .{ "static_assert", .keyword_c23_static_assert },
-        .{ "thread_local", .keyword_c23_thread_local },
-        .{ "constexpr", .keyword_constexpr },
-        .{ "true", .keyword_true },
-        .{ "false", .keyword_false },
-        .{ "nullptr", .keyword_nullptr },
-        .{ "typeof_unqual", .keyword_typeof_unqual },
-
-        // Preprocessor directives
-        .{ "include", .keyword_include },
-        .{ "include_next", .keyword_include_next },
-        .{ "embed", .keyword_embed },
-        .{ "define", .keyword_define },
-        .{ "defined", .keyword_defined },
-        .{ "undef", .keyword_undef },
-        .{ "ifdef", .keyword_ifdef },
-        .{ "ifndef", .keyword_ifndef },
-        .{ "elif", .keyword_elif },
-        .{ "elifdef", .keyword_elifdef },
-        .{ "elifndef", .keyword_elifndef },
-        .{ "endif", .keyword_endif },
-        .{ "error", .keyword_error },
-        .{ "warning", .keyword_warning },
-        .{ "pragma", .keyword_pragma },
-        .{ "line", .keyword_line },
-        .{ "__VA_ARGS__", .keyword_va_args },
-        .{ "__VA_OPT__", .keyword_va_opt },
-        .{ "__func__", .macro_func },
-        .{ "__FUNCTION__", .macro_function },
-        .{ "__PRETTY_FUNCTION__", .macro_pretty_func },
-
-        // gcc keywords
-        .{ "__auto_type", .keyword_auto_type },
-        .{ "__const", .keyword_const1 },
-        .{ "__const__", .keyword_const2 },
-        .{ "__inline", .keyword_inline1 },
-        .{ "__inline__", .keyword_inline2 },
-        .{ "__volatile", .keyword_volatile1 },
-        .{ "__volatile__", .keyword_volatile2 },
-        .{ "__restrict", .keyword_restrict1 },
-        .{ "__restrict__", .keyword_restrict2 },
-        .{ "__alignof", .keyword_alignof1 },
-        .{ "__alignof__", .keyword_alignof2 },
-        .{ "typeof", .keyword_typeof },
-        .{ "__attribute", .keyword_attribute1 },
-        .{ "__attribute__", .keyword_attribute2 },
-        .{ "__extension__", .keyword_extension },
-        .{ "asm", .keyword_asm },
-        .{ "__asm", .keyword_asm1 },
-        .{ "__asm__", .keyword_asm2 },
-        .{ "_Float128", .keyword_float128_1 },
-        .{ "__float128", .keyword_float128_2 },
-        .{ "__int128", .keyword_int128 },
-        .{ "__imag", .keyword_imag1 },
-        .{ "__imag__", .keyword_imag2 },
-        .{ "__real", .keyword_real1 },
-        .{ "__real__", .keyword_real2 },
-        .{ "_Float16", .keyword_float16 },
-
-        // clang keywords
-        .{ "__fp16", .keyword_fp16 },
-
-        // ms keywords
-        .{ "__declspec", .keyword_declspec },
-        .{ "__int64", .keyword_int64 },
-        .{ "_int64", .keyword_int64_2 },
-        .{ "__int32", .keyword_int32 },
-        .{ "_int32", .keyword_int32_2 },
-        .{ "__int16", .keyword_int16 },
-        .{ "_int16", .keyword_int16_2 },
-        .{ "__int8", .keyword_int8 },
-        .{ "_int8", .keyword_int8_2 },
-        .{ "__stdcall", .keyword_stdcall },
-        .{ "_stdcall", .keyword_stdcall2 },
-        .{ "__thiscall", .keyword_thiscall },
-        .{ "_thiscall", .keyword_thiscall2 },
-        .{ "__vectorcall", .keyword_vectorcall },
-        .{ "_vectorcall", .keyword_vectorcall2 },
-
-        // builtins that require special parsing
-        .{ "__builtin_choose_expr", .builtin_choose_expr },
-        .{ "__builtin_va_arg", .builtin_va_arg },
-        .{ "__builtin_offsetof", .builtin_offsetof },
-        .{ "__builtin_bitoffsetof", .builtin_bitoffsetof },
-        .{ "__builtin_types_compatible_p", .builtin_types_compatible_p },
-    });
 };
 
 const Tokenizer = @This();

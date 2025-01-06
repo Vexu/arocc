@@ -1,0 +1,432 @@
+# Standard keywords
+auto
+    .id = .keyword_auto
+
+break
+    .id = .keyword_break
+
+case
+    .id = .keyword_case
+
+char
+    .id = .keyword_char
+
+const
+    .id = .keyword_const
+
+continue
+    .id = .keyword_continue
+
+default
+    .id = .keyword_default
+
+do
+    .id = .keyword_do
+
+double
+    .id = .keyword_double
+
+else
+    .id = .keyword_else
+
+enum
+    .id = .keyword_enum
+
+extern
+    .id = .keyword_extern
+
+float
+    .id = .keyword_float
+
+for
+    .id = .keyword_for
+
+goto
+    .id = .keyword_goto
+
+if
+    .id = .keyword_if
+
+int
+    .id = .keyword_int
+
+long
+    .id = .keyword_long
+
+register
+    .id = .keyword_register
+
+return
+    .id = .keyword_return
+
+short
+    .id = .keyword_short
+
+signed
+    .id = .keyword_signed
+
+__signed
+    .id = .keyword_signed1
+
+__signed__
+    .id = .keyword_signed2
+
+sizeof
+    .id = .keyword_sizeof
+
+static
+    .id = .keyword_static
+
+struct
+    .id = .keyword_struct
+
+switch
+    .id = .keyword_switch
+
+typedef
+    .id = .keyword_typedef
+
+union
+    .id = .keyword_union
+
+unsigned
+    .id = .keyword_unsigned
+
+void
+    .id = .keyword_void
+
+volatile
+    .id = .keyword_volatile
+
+while
+    .id = .keyword_while
+
+__typeof__
+    .id = .keyword_typeof2
+
+__typeof
+    .id = .keyword_typeof1
+
+
+# ISO C99
+_Bool
+    .id = .keyword_bool
+    .standard = .c99
+
+_Complex
+    .id = .keyword_complex
+    .standard = .c99
+
+_Imaginary
+    .id = .keyword_imaginary
+    .standard = .c99
+
+inline
+    .id = .keyword_inline
+    .standard = .c99
+    .gnu_always = true
+
+restrict
+    .id = .keyword_restrict
+    .standard = .c99
+    .gnu_always = true
+
+
+# ISO C11
+# These keywords are always available
+_Alignas
+    .id = .keyword_alignas
+
+_Alignof
+    .id = .keyword_alignof
+
+_Atomic
+    .id = .keyword_atomic
+
+_Generic
+    .id = .keyword_generic
+
+_Noreturn
+    .id = .keyword_noreturn
+
+_Static_assert
+    .id = .keyword_static_assert
+
+_Thread_local
+    .id = .keyword_thread_local
+
+
+# ISO C23
+# 
+_BitInt
+    .id = .keyword_bit_int
+
+alignas
+    .id = .keyword_c23_alignas
+    .standard = .c23
+
+alignof
+    .id = .keyword_c23_alignof
+    .standard = .c23
+
+bool
+    .id = .keyword_c23_bool
+    .standard = .c23
+
+static_assert
+    .id = .keyword_c23_static_assert
+    .standard = .c23
+
+thread_local
+    .id = .keyword_c23_thread_local
+    .standard = .c23
+
+constexpr
+    .id = .keyword_constexpr
+    .standard = .c23
+
+true
+    .id = .keyword_true
+    .standard = .c23
+
+false
+    .id = .keyword_false
+    .standard = .c23
+
+nullptr
+    .id = .keyword_nullptr
+    .standard = .c23
+
+typeof_unqual
+    .id = .keyword_typeof_unqual
+    .standard = .c23
+
+
+# Preprocessor directives
+include
+    .id = .keyword_include
+
+include_next
+    .id = .keyword_include_next
+
+embed
+    .id = .keyword_embed
+
+define
+    .id = .keyword_define
+
+defined
+    .id = .keyword_defined
+
+undef
+    .id = .keyword_undef
+
+ifdef
+    .id = .keyword_ifdef
+
+ifndef
+    .id = .keyword_ifndef
+
+elif
+    .id = .keyword_elif
+
+elifdef
+    .id = .keyword_elifdef
+    .standard = .c23
+
+elifndef
+    .id = .keyword_elifndef
+    .standard = .c23
+
+endif
+    .id = .keyword_endif
+
+error
+    .id = .keyword_error
+
+warning
+    .id = .keyword_warning
+
+pragma
+    .id = .keyword_pragma
+
+line
+    .id = .keyword_line
+
+__VA_ARGS__
+    .id = .keyword_va_args
+
+__VA_OPT__
+    .id = .keyword_va_opt
+
+__func__
+    .id = .macro_func
+
+__FUNCTION__
+    .id = .macro_function
+
+__PRETTY_FUNCTION__
+    .id = .macro_pretty_func
+
+
+# gcc keywords
+__auto_type
+    .id = .keyword_auto_type
+
+__const
+    .id = .keyword_const1
+
+__const__
+    .id = .keyword_const2
+
+__inline
+    .id = .keyword_inline1
+
+__inline__
+    .id = .keyword_inline2
+
+__volatile
+    .id = .keyword_volatile1
+
+__volatile__
+    .id = .keyword_volatile2
+
+__restrict
+    .id = .keyword_restrict1
+
+__restrict__
+    .id = .keyword_restrict2
+
+__alignof
+    .id = .keyword_alignof1
+
+__alignof__
+    .id = .keyword_alignof2
+
+typeof
+    .id = .keyword_typeof
+    .gnu_always = true
+    .standard = .c23
+
+__attribute
+    .id = .keyword_attribute1
+
+__attribute__
+    .id = .keyword_attribute2
+
+__extension__
+    .id = .keyword_extension
+
+asm
+    .id = .keyword_asm
+    .gnu_always = true
+
+__asm
+    .id = .keyword_asm1
+
+__asm__
+    .id = .keyword_asm2
+
+_Float128
+    .id = .keyword_float128_1
+
+__float128
+    .id = .keyword_float128_2
+
+__int128
+    .id = .keyword_int128
+
+__imag
+    .id = .keyword_imag1
+
+__imag__
+    .id = .keyword_imag2
+
+__real
+    .id = .keyword_real1
+
+__real__
+    .id = .keyword_real2
+
+_Float16
+    .id = .keyword_float16
+
+
+# clang keywords
+__fp16
+    .id = .keyword_fp16
+
+
+# MSVC keywords
+__declspec
+    .id = .keyword_declspec
+
+__int64
+    .id = .keyword_int64
+    .ms_extension = true
+
+_int64
+    .id = .keyword_int64_2
+    .ms_extension = true
+
+__int32
+    .id = .keyword_int32
+    .ms_extension = true
+
+_int32
+    .id = .keyword_int32_2
+    .ms_extension = true
+
+__int16
+    .id = .keyword_int16
+    .ms_extension = true
+
+_int16
+    .id = .keyword_int16_2
+    .ms_extension = true
+
+__int8
+    .id = .keyword_int8
+    .ms_extension = true
+
+_int8
+    .id = .keyword_int8_2
+    .ms_extension = true
+
+__stdcall
+    .id = .keyword_stdcall
+
+_stdcall
+    .id = .keyword_stdcall2
+    .ms_extension = true
+
+__thiscall
+    .id = .keyword_thiscall
+
+_thiscall
+    .id = .keyword_thiscall2
+    .ms_extension = true
+
+__vectorcall
+    .id = .keyword_vectorcall
+
+_vectorcall
+    .id = .keyword_vectorcall2
+    .ms_extension = true
+
+
+# builtins that require special parsing
+__builtin_choose_expr
+    .id = .builtin_choose_expr
+
+__builtin_va_arg
+    .id = .builtin_va_arg
+
+__builtin_offsetof
+    .id = .builtin_offsetof
+
+__builtin_bitoffsetof
+    .id = .builtin_bitoffsetof
+
+__builtin_types_compatible_p
+    .id = .builtin_types_compatible_p
