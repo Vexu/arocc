@@ -1034,6 +1034,7 @@ fn decl(p: *Parser) Error!bool {
         if (p.func.qt != null) try p.err(.func_not_in_root);
 
         const interned_declarator_name = try p.comp.internString(p.tokSlice(init_d.d.name));
+        try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
         const func = p.func;
         p.func = .{
             .qt = init_d.d.qt,
@@ -1188,7 +1189,6 @@ fn decl(p: *Parser) Error!bool {
             }
         }
 
-        try p.syms.defineSymbol(p, interned_declarator_name, p.func.qt.?, init_d.d.name, decl_node, .{}, false);
         const body = (try p.compoundStmt(true, null)) orelse {
             assert(init_d.d.old_style_func != null);
             try p.err(.expected_fn_body);
@@ -6043,8 +6043,8 @@ pub const Result = struct {
     }
 
     fn nullToPointer(res: *Result, p: *Parser, ptr_ty: QualType, tok: TokenIndex) Error!void {
-        res.val = .{};
         if (!res.qt.is(p.comp, .nullptr_t) and !res.val.isZero(p.comp)) return;
+        res.val = .{};
         res.qt = ptr_ty;
         try res.implicitCast(p, .null_to_pointer, tok);
     }
@@ -8246,8 +8246,8 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
         if (arg_count >= params_len) {
             if (call_expr.shouldPromoteVarArg(arg_count)) switch (arg.qt.base(p.comp).type) {
-                .int => try arg.castToInt(p, arg.qt.promoteInt(p.comp), param_tok),
-                .float => try arg.castToFloat(p, .double, param_tok),
+                .int => |int_ty| if (int_ty == .int) try arg.castToInt(p, arg.qt.promoteInt(p.comp), param_tok),
+                .float => |float_ty| if (float_ty == .double) try arg.castToFloat(p, .double, param_tok),
                 else => {},
             };
 
