@@ -9,6 +9,8 @@ _Atomic auto g = 1;
 // _Atomic __auto_type h = 1; // TODO
 int *_Atomic i;
 int (*_Atomic j)[2];
+_Atomic(int) _Atomic(float) k;
+_Atomic void l;
 
 void test_func() {
     _Atomic int a;

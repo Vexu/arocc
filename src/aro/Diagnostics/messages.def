@@ -1548,6 +1548,10 @@ func_field
     .msg = "field declared as a function"
     .kind = .@"error"
 
+expected_member_name
+    .msg = "expected member name after declarator"
+    .kind = .@"error"
+
 vla_field
     .msg = "variable length array fields extension is not supported"
     .kind = .@"error"
@@ -2174,6 +2178,18 @@ sizeof_array_arg
     .extra = .str
     .kind = .warning
     .opt = W("sizeof-array-argument")
+
+array_address_to_bool
+    .msg = "address of array '{s}' will always evaluate to 'true'"
+    .extra = .str
+    .kind = .warning
+    .opt = W("pointer-bool-conversion")
+
+string_literal_to_bool
+    .msg = "implicit conversion turns string literal into bool: {s}"
+    .extra = .str
+    .kind = .off
+    .opt = W("string-conversion")
 
 constant_expression_conversion_not_allowed
     .msg = "this conversion is not allowed in a constant expression"

@@ -32,5 +32,5 @@ _Static_assert(__builtin_types_compatible_p(int, long));
 _Static_assert(__builtin_types_compatible_p(__typeof__(const int) *, int *), "Types do not match");
 
 #define EXPECTED_ERRORS "__builtin_types_compatible_p.c:31:1: error: static assertion failed '__builtin_types_compatible_p(int, long)'" \
-	"__builtin_types_compatible_p.c:32:1: error: static assertion failed '__builtin_types_compatible_p(const int *, int *)' \"Types do not match\"" \
+	"__builtin_types_compatible_p.c:32:1: error: static assertion failed '__builtin_types_compatible_p(typeof(const int) *, int *)' \"Types do not match\"" \
 

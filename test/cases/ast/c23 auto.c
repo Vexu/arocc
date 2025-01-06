@@ -47,8 +47,7 @@ fn_def: 'fn () void'
     variable: 'invalid'
      name: e
      init:
-      implicit cast: (array_to_pointer) 'decayed *[1]char' (value: "")
-        string_literal_expr: '[1]char' lvalue (value: "")
+      string_literal_expr: '[1]char' lvalue (value: "")
 
     variable: 'invalid'
      name: f

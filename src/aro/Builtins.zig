@@ -228,13 +228,10 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         switch (suffix) {
             .@"*" => |address_space| {
                 _ = address_space; // TODO: handle address space
-                var pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
+                const pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
                     .child = builder.finish() catch unreachable,
                     .decayed = null,
                 } });
-                pointer_qt.@"const" = builder.@"const" != null;
-                pointer_qt.@"volatile" = builder.@"volatile" != null;
-                pointer_qt.restrict = builder.restrict != null;
 
                 builder.@"const" = null;
                 builder.@"volatile" = null;

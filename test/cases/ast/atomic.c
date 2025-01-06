@@ -50,6 +50,12 @@ variable: '_Atomic(int *)'
 variable: '_Atomic(int (*)[2])'
  name: j
 
+variable: '_Atomic(int)'
+ name: k
+
+variable: 'invalid'
+ name: l
+
 fn_def: 'fn () void'
  name: test_func
  body:

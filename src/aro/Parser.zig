@@ -794,7 +794,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
             continue;
         }
         try p.err(.expected_external_decl);
-        p.tok_i += 1;
+        p.nextExternDecl();
     }
     if (p.tentative_defs.count() > 0) {
         try p.diagnoseIncompleteDefinitions();
@@ -867,9 +867,7 @@ fn nextExternDecl(p: *Parser) void {
     while (true) : (p.tok_i += 1) {
         switch (p.tok_ids[p.tok_i]) {
             .l_paren, .l_brace, .l_bracket => parens += 1,
-            .r_paren, .r_brace, .r_bracket => if (parens != 0) {
-                parens -= 1;
-            },
+            .r_paren, .r_brace, .r_bracket => parens -|= 1,
             .keyword_typedef,
             .keyword_extern,
             .keyword_static,
@@ -994,7 +992,9 @@ fn decl(p: *Parser) Error!bool {
 
         missing_decl: {
             if (decl_spec.qt.type(p.comp) == .typeof) {
-                break :missing_decl; // we follow GCC and clang's behavior here
+                // we follow GCC and clang's behavior here
+                try p.errTok(.missing_declaration, first_tok);
+                return true;
             }
             switch (decl_spec.qt.base(p.comp).type) {
                 .@"enum" => break :missing_decl,
@@ -1027,7 +1027,7 @@ fn decl(p: *Parser) Error!bool {
             .comma, .semicolon => break :fn_def,
             .l_brace => {},
             else => if (init_d.d.old_style_func == null) {
-                try p.err(.expected_fn_body);
+                try p.errTok(.expected_fn_body, p.tok_i - 1);
                 return true;
             },
         }
@@ -1088,7 +1088,7 @@ fn decl(p: *Parser) Error!bool {
                     };
                     try p.attributeSpecifier();
 
-                    if (param_d.qt.sizeofOrNull(p.comp) == null) {
+                    if (param_d.qt.hasIncompleteSize(p.comp)) {
                         if (param_d.qt.is(p.comp, .void)) {
                             try p.errTok(.invalid_void_param, param_d.name);
                         } else {
@@ -1183,7 +1183,7 @@ fn decl(p: *Parser) Error!bool {
                         }
                     }
                 }
-                if (param.qt.sizeofOrNull(p.comp) == null and !param.qt.is(p.comp, .void)) {
+                if (param.qt.hasIncompleteSize(p.comp) and !param.qt.is(p.comp, .void)) {
                     try p.errStr(.parameter_incomplete_ty, param.name_tok, try p.typeStr(param.qt));
                 }
             }
@@ -1390,8 +1390,9 @@ fn staticAssert(p: *Parser) Error!bool {
         try p.errStr(.pre_c23_compat, static_assert, "'_Static_assert' with no message");
     }
 
+    const is_int_expr = res.qt.isInvalid() or res.qt.isInt(p.comp);
     try res.castToBool(p, .bool, res_token);
-    if (!res.qt.is(p.comp, .bool)) {
+    if (!is_int_expr) {
         res.val = .{};
     }
     if (res.val.opt_ref == .none) {
@@ -1850,7 +1851,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
         } else {
             init_d.d.qt = try Attribute.applyTypeAttributes(p, init_d.d.qt, attr_buf_top, null);
         }
-    } else if (init_d.d.qt.is(p.comp, .func)) {
+    } else if (init_d.d.declarator_type == .func) {
         if (decl_spec.auto_type) |tok_i| {
             try p.errStr(.auto_type_not_allowed, tok_i, "function return type");
             init_d.d.qt = .invalid;
@@ -1861,7 +1862,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
             init_d.d.qt = try Attribute.applyFunctionAttributes(p, init_d.d.qt, attr_buf_top);
         }
     } else {
-        if (init_d.d.qt.is(p.comp, .array)) {
+        if (init_d.d.declarator_type == .array) {
             if (decl_spec.auto_type) |tok_i| {
                 try p.errStr(.auto_type_array, tok_i, p.tokSlice(init_d.d.name));
                 init_d.d.qt = .invalid;
@@ -1869,7 +1870,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
                 try p.errStr(.c23_auto_array, tok_i, p.tokSlice(init_d.d.name));
                 init_d.d.qt = .invalid;
             }
-        } else if (init_d.d.qt.is(p.comp, .pointer)) {
+        } else if (init_d.d.declarator_type == .pointer) {
             if (decl_spec.auto_type != null or decl_spec.c23_auto != null) {
                 // TODO this is not a hard error in clang
                 try p.errTok(.auto_type_requires_plain_declarator, p.tok_i);
@@ -1895,7 +1896,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
             if (init_d.d.qt.isInvalid()) break :incomplete;
             if (init_d.d.qt.isC23Auto()) break :incomplete;
             if (init_d.d.qt.isAutoType()) break :incomplete;
-            if (init_d.d.qt.sizeofOrNull(p.comp) != null) break :incomplete;
+            if (!init_d.d.qt.hasIncompleteSize(p.comp)) break :incomplete;
             if (init_d.d.qt.get(p.comp, .array)) |array_ty| {
                 if (array_ty.len == .incomplete) break :incomplete;
             }
@@ -1958,7 +1959,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     incomplete: {
         if (decl_spec.storage_class == .typedef) break :incomplete;
         if (init_d.d.qt.isInvalid()) break :incomplete;
-        if (init_d.d.qt.sizeofOrNull(p.comp)) |_| break :incomplete;
+        if (!init_d.d.qt.hasIncompleteSize(p.comp)) break :incomplete;
 
         const init_type = init_d.d.qt.base(p.comp).type;
         if (decl_spec.storage_class == .@"extern") switch (init_type) {
@@ -2070,13 +2071,7 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                     continue;
                 }
 
-                const new_spec = TypeStore.Builder.fromType(p.comp, base_qt);
-                try builder.combine(new_spec, atomic_tok);
-
-                if (builder.atomic != null)
-                    try p.errStr(.duplicate_decl_spec, atomic_tok, "_Atomic")
-                else
-                    builder.atomic = atomic_tok;
+                try builder.combineAtomic(base_qt, atomic_tok);
                 continue;
             },
             .keyword_alignas,
@@ -2369,7 +2364,7 @@ fn recordSpec(p: *Parser) Error!QualType {
     // }
 
     for (fields) |field| {
-        if (field.qt.sizeofOrNull(p.comp) == null and !field.qt.is(p.comp, .array)) break;
+        if (field.qt.hasIncompleteSize(p.comp) and !field.qt.is(p.comp, .array)) break;
     } else {
         const pragma_pack_value = switch (p.comp.langopts.emulate) {
             .clang => starting_pragma_pack,
@@ -2477,9 +2472,11 @@ fn recordDecl(p: *Parser) Error!bool {
         var bits_node: ?Node.Index = null;
         var bits: ?u32 = null;
         const first_tok = p.tok_i;
+        var saw_declarator = false;
         if (try p.declarator(qt, .record)) |d| {
             name_tok = d.name;
             qt = d.qt;
+            saw_declarator = true;
         }
 
         if (p.eatToken(.colon)) |_| bits: {
@@ -2522,7 +2519,6 @@ fn recordDecl(p: *Parser) Error!bool {
         try p.comp.type_store.attributes.appendSlice(p.gpa, to_append);
 
         if (name_tok == 0 and bits == null) unnamed: {
-            if (qt.sizeofOrNull(p.comp) == null) break :unnamed;
             switch (qt.base(p.comp).type) {
                 .@"enum" => break :unnamed,
                 .@"struct", .@"union" => |record_ty| if (record_ty.isAnonymous(p.comp)) {
@@ -2547,7 +2543,13 @@ fn recordDecl(p: *Parser) Error!bool {
                 } else break :unnamed,
                 else => {},
             }
-            try p.err(.missing_declaration);
+            if (saw_declarator) {
+                try p.errTok(.expected_member_name, first_tok);
+            } else {
+                try p.err(.missing_declaration);
+            }
+            if (p.eatToken(.comma) == null) break;
+            continue;
         } else {
             const interned_name = if (name_tok != 0) try p.comp.internString(p.tokSlice(name_tok)) else try p.getAnonymousName(first_tok);
             try p.record_buf.append(.{
@@ -2596,7 +2598,7 @@ fn recordDecl(p: *Parser) Error!bool {
                         p.record.flexible_field = first_tok;
                     },
                 },
-                else => if (field_type.qt.sizeofOrNull(p.comp) == null) {
+                else => if (field_type.qt.hasIncompleteSize(p.comp)) {
                     try p.errStr(.field_incomplete_ty, first_tok, try p.typeStr(qt));
                 } else if (p.record.flexible_field) |some| {
                     std.debug.assert(some != first_tok);
@@ -2726,7 +2728,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         // can be specified after the closing rbrace, which we haven't encountered yet.
         const enum_ty: Type.Enum = .{
             .name = interned_name,
-            .tag = fixed_qt orelse .int,
+            .tag = fixed_qt orelse undefined,
             .incomplete = true,
             .fixed = fixed_qt != null,
             .fields = &.{},
@@ -3126,7 +3128,7 @@ const Declarator = struct {
                 const child_res = try validateExtra(p, elem_qt, source_tok);
                 if (child_res != .normal) return child_res;
 
-                if (elem_qt.sizeofOrNull(p.comp) == null) {
+                if (elem_qt.hasIncompleteSize(p.comp)) {
                     try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_qt));
                     return .nested_invalid;
                 }
@@ -3410,6 +3412,10 @@ fn directDeclarator(
             func_ty.kind = if (p.comp.langopts.standard.atLeast(.c23)) .variadic else .normal;
 
             func_ty.return_type = try p.directDeclarator(base_declarator, kind);
+
+            // Set after call to `directDeclarator` since we will return
+            // a function type from here.
+            base_declarator.declarator_type = .func;
             return p.comp.type_store.put(p.gpa, .{ .func = func_ty });
         }
 
@@ -3418,7 +3424,7 @@ fn directDeclarator(
         const param_buf_top = p.param_buf.items.len;
         defer p.param_buf.items.len = param_buf_top;
 
-        if (try p.paramDecls(base_declarator)) |params| {
+        if (try p.paramDecls()) |params| {
             func_ty.kind = .normal;
             func_ty.params = params;
             if (p.eatToken(.ellipsis)) |_| func_ty.kind = .variadic;
@@ -3463,7 +3469,7 @@ fn directDeclarator(
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
 /// paramDecl : declSpec (declarator | abstractDeclarator)
-fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
+fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
     // TODO warn about visibility of types declared here
     try p.syms.pushScope(p);
     defer p.syms.popScope();
@@ -3482,7 +3488,6 @@ fn paramDecls(p: *Parser, d: *Declarator) Error!?[]Type.Func.Param {
             // handle deprecated K&R style parameters
             const identifier = try p.expectIdentifier();
             try p.errStr(.unknown_type_name, identifier, p.tokSlice(identifier));
-            if (d.old_style_func == null) d.old_style_func = identifier;
 
             try p.param_buf.append(.{
                 .name = try p.comp.internString(p.tokSlice(identifier)),
@@ -4147,11 +4152,11 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: QualType) !voi
     if (target.is(p.comp, .void)) return; // Do not do type coercion on excess items
 
     const node = item.node;
-    try item.lvalConversion(p, tok);
     if (target.isAutoType() or target.isC23Auto()) {
         if (p.getNode(node, .member_access_expr) orelse p.getNode(node, .member_access_ptr_expr)) |access| {
             if (access.isBitFieldWidth(&p.tree) != null) try p.errTok(.auto_type_from_bitfield, tok);
         }
+        try item.lvalConversion(p, tok);
         return;
     }
 
@@ -4805,7 +4810,10 @@ fn stmt(p: *Parser) Error!Node.Index {
 
             const scalar_kind = goto_expr.qt.scalarKind(p.comp);
             if (!scalar_kind.isPointer()) {
-                const result_qt: QualType = .{ .@"const" = true, ._index = .void_pointer };
+                const result_qt = try p.comp.type_store.put(p.gpa, .{ .pointer = .{
+                    .child = .{ .@"const" = true, ._index = .void },
+                    .decayed = null,
+                } });
                 if (!scalar_kind.isInt()) {
                     try p.errStr(.incompatible_arg, expr_tok, try p.typePairStrExtra(goto_expr.qt, " to parameter of incompatible type ", result_qt));
                     return error.ParsingFailed;
@@ -4909,7 +4917,7 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
         _ = try p.expectToken(.colon);
 
         if (p.@"switch") |some| check: {
-            if (some.qt.sizeofOrNull(p.comp) == null) break :check; // error already reported for incomplete size
+            if (some.qt.hasIncompleteSize(p.comp)) break :check; // error already reported for incomplete size
 
             const first = first_item.val;
             const last = if (second_item) |second| second.val else first;
@@ -5225,7 +5233,6 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
         if (ret_void) {
             try p.errStr(.void_func_returns_value, e_tok, p.tokSlice(p.func.name));
         } else {
-            try some.lvalConversion(p, e_tok);
             try some.coerce(p, ret_qt, e_tok, .ret);
 
             try some.saveValue(p);
@@ -5878,7 +5885,17 @@ pub const Result = struct {
         std.debug.assert(!bool_qt.isInvalid());
 
         const src_sk = res.qt.scalarKind(p.comp);
-        if (src_sk.isPointer()) {
+        if (res.qt.is(p.comp, .array)) {
+            if (res.val.is(.bytes, p.comp)) {
+                try p.errStr(.string_literal_to_bool, tok, try p.typePairStrExtra(res.qt, " to ", bool_qt));
+            } else {
+                try p.errStr(.array_address_to_bool, tok, p.tokSlice(tok));
+            }
+            try res.lvalConversion(p, tok);
+            res.val = .one;
+            res.qt = bool_qt;
+            try res.implicitCast(p, .pointer_to_bool, tok);
+        } else if (src_sk.isPointer()) {
             res.val.boolCast(p.comp);
             res.qt = bool_qt;
             try res.implicitCast(p, .pointer_to_bool, tok);
@@ -5906,7 +5923,7 @@ pub const Result = struct {
     fn castToInt(res: *Result, p: *Parser, int_qt: QualType, tok: TokenIndex) Error!void {
         if (res.qt.isInvalid()) return;
         std.debug.assert(!int_qt.isInvalid());
-        if (int_qt.sizeofOrNull(p.comp) == null) {
+        if (int_qt.hasIncompleteSize(p.comp)) {
             return error.ParsingFailed; // Cast to incomplete enum, diagnostic already issued
         }
 
@@ -6414,7 +6431,7 @@ pub const Result = struct {
             if (dest_sk == .bool) {
                 res.val.boolCast(p.comp);
             } else if (src_sk.isFloat() and dest_int) {
-                if (dest_qt.sizeofOrNull(p.comp) == null) {
+                if (dest_qt.hasIncompleteSize(p.comp)) {
                     try p.errStr(.cast_to_incomplete_type, l_paren, try p.typeStr(dest_qt));
                     return error.ParsingFailed;
                 }
@@ -6425,7 +6442,7 @@ pub const Result = struct {
             } else if (dest_sk.isFloat() and src_sk.isFloat()) {
                 try res.val.floatCast(dest_qt, p.comp);
             } else if (src_int and dest_int) {
-                if (dest_qt.sizeofOrNull(p.comp) == null) {
+                if (dest_qt.hasIncompleteSize(p.comp)) {
                     try p.errStr(.cast_to_incomplete_type, l_paren, try p.typeStr(dest_qt));
                     return error.ParsingFailed;
                 }
@@ -6503,7 +6520,7 @@ pub const Result = struct {
 
     /// Perform assignment-like coercion to `dest_ty`.
     fn coerce(res: *Result, p: *Parser, dest_ty: QualType, tok: TokenIndex, c: CoerceContext) Error!void {
-        if (res.qt.isInvalid() or dest_ty.isInvalid()) {
+        if (dest_ty.isInvalid()) {
             res.qt = .invalid;
             return;
         }
@@ -6520,7 +6537,15 @@ pub const Result = struct {
         tok: TokenIndex,
         c: CoerceContext,
     ) (Error || error{CoercionFailed})!void {
-        const dest_sk = dest_qt.scalarKind(p.comp);
+        // Subject of the coercion does not need to be qualified.
+        const src_original_qt = res.qt;
+        switch (c) {
+            .init, .ret, .assign => try res.lvalConversion(p, tok),
+            else => {},
+        }
+        if (res.qt.isInvalid()) return;
+        const dest_unqual = dest_qt.unqualified();
+        const dest_sk = dest_unqual.scalarKind(p.comp);
         const src_sk = res.qt.scalarKind(p.comp);
 
         if (dest_sk == .nullptr_t) {
@@ -6528,42 +6553,42 @@ pub const Result = struct {
         } else if (dest_sk == .bool) {
             if (src_sk != .none and src_sk != .nullptr_t) {
                 // this is ridiculous but it's what clang does
-                try res.castToBool(p, dest_qt, tok);
+                try res.castToBool(p, dest_unqual, tok);
                 return;
             }
         } else if (dest_sk.isInt()) {
             if (res.qt.isInt(p.comp) or res.qt.isFloat(p.comp)) {
-                try res.castToInt(p, dest_qt, tok);
+                try res.castToInt(p, dest_unqual, tok);
                 return;
             } else if (src_sk.isPointer()) {
                 if (c == .test_coerce) return error.CoercionFailed;
-                try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(res.qt, " to ", dest_qt));
+                try p.errStr(.implicit_ptr_to_int, tok, try p.typePairStrExtra(src_original_qt, " to ", dest_unqual));
                 try c.note(p);
-                try res.castToInt(p, dest_qt, tok);
+                try res.castToInt(p, dest_unqual, tok);
                 return;
             }
         } else if (dest_sk.isFloat()) {
             if (res.qt.isInt(p.comp) or res.qt.isFloat(p.comp)) {
-                try res.castToFloat(p, dest_qt, tok);
+                try res.castToFloat(p, dest_unqual, tok);
                 return;
             }
         } else if (dest_sk.isPointer()) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
-                try res.nullToPointer(p, dest_qt, tok);
+                try res.nullToPointer(p, dest_unqual, tok);
                 return;
             } else if (src_sk.isInt() and src_sk.isReal()) {
                 if (c == .test_coerce) return error.CoercionFailed;
-                try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(res.qt, " to ", dest_qt));
+                try p.errStr(.implicit_int_to_ptr, tok, try p.typePairStrExtra(src_original_qt, " to ", dest_unqual));
                 try c.note(p);
-                try res.castToPointer(p, dest_qt, tok);
+                try res.castToPointer(p, dest_unqual, tok);
                 return;
-            } else if (src_sk == .void_pointer or dest_qt.eql(res.qt, p.comp)) {
+            } else if (src_sk == .void_pointer or dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             } else if (dest_sk == .void_pointer and src_sk.isPointer() or (res.qt.isInt(p.comp) and src_sk.isReal())) {
                 return; // ok
             } else if (src_sk.isPointer()) {
                 const src_child = res.qt.childType(p.comp);
-                const dest_child = dest_qt.childType(p.comp);
+                const dest_child = dest_unqual.childType(p.comp);
                 if (src_child.eql(dest_child, p.comp)) {
                     if ((src_child.@"const" and !dest_child.@"const") or
                         (src_child.@"volatile" and !dest_child.@"volatile") or
@@ -6575,9 +6600,9 @@ pub const Result = struct {
                             .ret => .ptr_ret_discards_quals,
                             .arg => .ptr_arg_discards_quals,
                             .test_coerce => return error.CoercionFailed,
-                        }, tok, try c.typePairStr(p, dest_qt, res.qt));
+                        }, tok, try c.typePairStr(p, dest_qt, src_original_qt));
                     }
-                    try res.castToPointer(p, dest_qt, tok);
+                    try res.castToPointer(p, dest_unqual, tok);
                     return;
                 }
 
@@ -6588,19 +6613,19 @@ pub const Result = struct {
                     .ret => if (different_sign_only) .incompatible_return_sign else .incompatible_return,
                     .arg => if (different_sign_only) .incompatible_ptr_arg_sign else .incompatible_ptr_arg,
                     .test_coerce => return error.CoercionFailed,
-                }, tok, try c.typePairStr(p, dest_qt, res.qt));
+                }, tok, try c.typePairStr(p, dest_qt, src_original_qt));
                 try c.note(p);
 
-                res.qt = dest_qt;
+                res.qt = dest_unqual;
                 return res.implicitCast(p, .bitcast, tok);
             }
-        } else if (dest_qt.getRecord(p.comp) != null) {
-            if (dest_qt.eql(res.qt, p.comp)) {
+        } else if (dest_unqual.getRecord(p.comp) != null) {
+            if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             }
 
-            if (c == .arg) if (dest_qt.get(p.comp, .@"union")) |union_ty| {
-                if (dest_qt.hasAttribute(p.comp, .transparent_union)) transparent_union: {
+            if (c == .arg) if (dest_unqual.get(p.comp, .@"union")) |union_ty| {
+                if (dest_unqual.hasAttribute(p.comp, .transparent_union)) transparent_union: {
                     res.coerceExtra(p, union_ty.fields[0].qt, tok, .test_coerce) catch |er| switch (er) {
                         error.CoercionFailed => break :transparent_union,
                         else => |e| return e,
@@ -6609,18 +6634,18 @@ pub const Result = struct {
                         .field_index = 0,
                         .initializer = res.node,
                         .l_brace_tok = tok,
-                        .union_qt = dest_qt,
+                        .union_qt = dest_unqual,
                     } });
-                    res.qt = dest_qt;
+                    res.qt = dest_unqual;
                     return;
                 }
             };
-        } else if (dest_qt.is(p.comp, .vector)) {
-            if (dest_qt.eql(res.qt, p.comp)) {
+        } else if (dest_unqual.is(p.comp, .vector)) {
+            if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             }
         } else {
-            if (c == .assign and (dest_qt.is(p.comp, .array) or dest_qt.is(p.comp, .func))) {
+            if (c == .assign and (dest_unqual.is(p.comp, .array) or dest_unqual.is(p.comp, .func))) {
                 try p.errTok(.not_assignable, tok);
                 return;
             } else if (c == .test_coerce) {
@@ -6637,7 +6662,7 @@ pub const Result = struct {
             .ret => .incompatible_return,
             .arg => .incompatible_arg,
             .test_coerce => return error.CoercionFailed,
-        }, tok, try c.typePairStr(p, dest_qt, res.qt));
+        }, tok, try c.typePairStr(p, dest_unqual, res.qt));
         try c.note(p);
     }
 };
@@ -6725,12 +6750,11 @@ fn assignExpr(p: *Parser) Error!?Result {
         p.eatTag(.pipe_equal) orelse return lhs;
 
     var rhs = try p.expect(assignExpr);
-    try rhs.lvalConversion(p, tok);
 
     var is_const: bool = undefined;
     if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
         try p.errTok(.not_assignable, tok);
-        return error.ParsingFailed;
+        lhs.qt = .invalid;
     }
 
     // adjustTypes will do do lvalue conversion but we do not want that
@@ -6741,6 +6765,7 @@ fn assignExpr(p: *Parser) Error!?Result {
         .div_assign_expr,
         .mod_assign_expr,
         => {
+            try rhs.lvalConversion(p, tok);
             if (rhs.val.isZero(p.comp) and lhs.qt.isInt(p.comp) and rhs.qt.isInt(p.comp)) {
                 switch (tag) {
                     .div_assign_expr => try p.errStr(.division_by_zero, tok, "division"),
@@ -6755,6 +6780,7 @@ fn assignExpr(p: *Parser) Error!?Result {
         .sub_assign_expr,
         .add_assign_expr,
         => {
+            try rhs.lvalConversion(p, tok);
             if (lhs.qt.isPointer(p.comp) and rhs.qt.isInt(p.comp)) {
                 try rhs.castToPointer(p, lhs.qt, tok);
             } else {
@@ -6769,6 +6795,7 @@ fn assignExpr(p: *Parser) Error!?Result {
         .bit_xor_assign_expr,
         .bit_or_assign_expr,
         => {
+            try rhs.lvalConversion(p, tok);
             _ = try lhs_copy.adjustTypes(tok, &rhs, p, .integer);
             try lhs.bin(p, tag, rhs, tok);
             return lhs;
@@ -7087,7 +7114,7 @@ fn addExpr(p: *Parser) Error!?Result {
             }
         } else if (!lhs.qt.isInvalid()) {
             const lhs_sk = lhs.qt.scalarKind(p.comp);
-            if (lhs_sk == .pointer and lhs.qt.childType(p.comp).sizeofOrNull(p.comp) == null) {
+            if (lhs_sk.isPointer() and lhs_sk != .void_pointer and lhs.qt.childType(p.comp).hasIncompleteSize(p.comp)) {
                 try p.errStr(.ptr_arithmetic_incomplete, tok, try p.typeStr(lhs.qt.childType(p.comp)));
                 lhs.qt = .invalid;
             }
@@ -7600,7 +7627,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 },
             }
 
-            if (operand.qt.sizeofOrNull(p.comp) == null and !operand.qt.is(p.comp, .void)) {
+            if (operand.qt.hasIncompleteSize(p.comp) and !operand.qt.is(p.comp, .void)) {
                 try p.errStr(.deref_incomplete_ty_ptr, tok, try p.typeStr(operand.qt));
             }
 
@@ -7786,8 +7813,12 @@ fn unExpr(p: *Parser) Error!?Result {
                     res.qt = p.comp.type_store.size;
                 } else {
                     res.val = .{};
-                    try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.qt));
-                    res.qt = .invalid;
+                    if (res.qt.hasIncompleteSize(p.comp)) {
+                        try p.errStr(.invalid_sizeof, expected_paren - 1, try p.typeStr(res.qt));
+                        res.qt = .invalid;
+                    } else {
+                        res.qt = p.comp.type_store.size;
+                    }
                 }
             }
 
@@ -7956,7 +7987,7 @@ fn compoundLiteral(p: *Parser) Error!?Result {
         .array => |array_ty| if (array_ty.len == .variable) {
             try p.err(.vla_init);
         },
-        else => if (qt.sizeofOrNull(p.comp) == null) {
+        else => if (qt.hasIncompleteSize(p.comp)) {
             try p.errStr(.variable_incomplete_ty, p.tok_i, try p.typeStr(qt));
             return error.ParsingFailed;
         },
@@ -8220,7 +8251,8 @@ fn checkArithOverflowArg(p: *Parser, builtin_tok: TokenIndex, first_after: Token
     } else if (idx == 2) {
         if (!arg.qt.isPointer(p.comp)) return p.errStr(.overflow_result_requires_ptr, param_tok, try p.typeStr(arg.qt));
         const child = arg.qt.childType(p.comp);
-        if (!child.isInt(p.comp) or child.@"const") return p.errStr(.overflow_result_requires_ptr, param_tok, try p.typeStr(arg.qt));
+        const child_sk = child.scalarKind(p.comp);
+        if (!child_sk.isInt() or child_sk == .bool or child_sk == .@"enum" or child.@"const") return p.errStr(.overflow_result_requires_ptr, param_tok, try p.typeStr(arg.qt));
     }
 }
 
@@ -8275,7 +8307,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         if (call_expr.shouldPerformLvalConversion(arg_count)) {
             try arg.lvalConversion(p, param_tok);
         }
-        if (arg.qt.sizeofOrNull(p.comp) == null and !arg.qt.is(p.comp, .void)) return error.ParsingFailed;
+        if (arg.qt.hasIncompleteSize(p.comp) and !arg.qt.is(p.comp, .void)) return error.ParsingFailed;
 
         if (arg_count >= params_len) {
             if (call_expr.shouldPromoteVarArg(arg_count)) switch (arg.qt.base(p.comp).type) {
@@ -8299,11 +8331,11 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         if (func_qt.get(p.comp, .func)) |func_ty| {
             const param = func_ty.params[arg_count];
 
-            if (param.qt.get(p.comp, .array)) |array| static_check: {
-                const param_array_len = switch (array.len) {
-                    .static => |len| len,
-                    else => break :static_check,
-                };
+            if (param.qt.get(p.comp, .pointer)) |pointer_ty| static_check: {
+                const decayed_child_qt = pointer_ty.decayed orelse break :static_check;
+                const param_array_ty = decayed_child_qt.get(p.comp, .array).?;
+                if (param_array_ty.len != .static) break :static_check;
+                const param_array_len = param_array_ty.len.static;
                 const arg_array_len = arg.qt.arrayLen(p.comp) orelse break :static_check;
 
                 if (arg_array_len < param_array_len) {
