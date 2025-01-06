@@ -1,3 +1,6 @@
+implicit typedef: 'unsigned char'
+ name: char8_t
+
 implicit typedef: '__int128'
  name: __int128_t
 
@@ -12,6 +15,9 @@ implicit typedef: '[1]struct __va_list_tag'
 
 implicit typedef: 'struct __NSConstantString_tag'
  name: __NSConstantString
+
+implicit typedef: 'long double'
+ name: __float80
 
 variable: 'invalid'
  name: a
@@ -33,13 +39,18 @@ variable: 'invalid'
 variable: '_Atomic(int)'
  name: f
 
-variable: '_Atomic(int)'
+variable: 'invalid'
  name: g
  init:
-  implicit cast: (int_cast) '_Atomic(int)' (value: 1)
-    int_literal: 'int' (value: 1)
+  int_literal: 'int' (value: 1)
 
-fn_def: 'kr (...) void'
+variable: '_Atomic(int *)'
+ name: i
+
+variable: '_Atomic(int (*)[2])'
+ name: j
+
+fn_def: 'fn () void'
  name: test_func
  body:
   compound_stmt

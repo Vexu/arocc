@@ -90,6 +90,8 @@ const Index = enum(u29) {
     void_pointer = std.math.maxInt(u29) - 25,
     char_pointer = std.math.maxInt(u29) - 26,
     int_pointer = std.math.maxInt(u29) - 27,
+    /// Special type used when combining declarators.
+    declarator_combine = std.math.maxInt(u29) - 28,
     _,
 };
 
@@ -165,6 +167,7 @@ pub const QualType = packed struct(u32) {
             .invalid => unreachable,
             .auto_type => unreachable,
             .c23_auto => unreachable,
+            .declarator_combine => unreachable,
             .void => return .void,
             .bool => return .bool,
             .nullptr_t => return .nullptr_t,

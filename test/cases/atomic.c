@@ -1,4 +1,4 @@
-// aro-args -std=c23 --target=x86_64-linux-gnu
+//aro-args -std=c23 --target=x86_64-linux-gnu
 _Atomic(const int) a;
 _Atomic(int [2]) b;
 _Atomic(int (int)) c;
@@ -7,6 +7,8 @@ _Atomic(_Atomic(int)) e;
 _Complex _Atomic(int) f;
 _Atomic auto g = 1;
 // _Atomic __auto_type h = 1; // TODO
+int *_Atomic i;
+int (*_Atomic j)[2];
 
 void test_func() {
     _Atomic int a;

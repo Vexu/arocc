@@ -3089,33 +3089,50 @@ const Declarator = struct {
     const Kind = enum { normal, abstract, param, record };
 
     fn validate(d: *Declarator, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
-        if (!try validateExtra(p, d.qt, source_tok)) return;
-        if (d.declarator_type == .func) return;
-        if (d.qt.isAutoType() or d.qt.isC23Auto()) return;
+        switch (try validateExtra(p, d.qt, source_tok)) {
+            .normal => return,
+            .nested_invalid => if (d.declarator_type == .func) return,
+            .nested_auto => {
+                if (d.declarator_type == .func) return;
+                if (d.qt.isAutoType() or d.qt.isC23Auto()) return;
+            },
+            .declarator_combine => return,
+        }
         d.qt = .invalid;
     }
 
-    // Returns true if the type contained invalid or auto types.
-    fn validateExtra(p: *Parser, cur: QualType, source_tok: TokenIndex) Parser.Error!bool {
-        if (cur.isInvalid()) return true;
-        if (cur.isAutoType()) return true;
-        if (cur.isC23Auto()) return true;
+    const ValidationResult = enum {
+        nested_invalid,
+        nested_auto,
+        declarator_combine,
+        normal,
+    };
+
+    fn validateExtra(p: *Parser, cur: QualType, source_tok: TokenIndex) Parser.Error!ValidationResult {
+        if (cur.isInvalid()) return .nested_invalid;
+        if (cur.isAutoType()) return .nested_auto;
+        if (cur.isC23Auto()) return .nested_auto;
+        if (cur._index == .declarator_combine) return .declarator_combine;
 
         switch (cur.type(p.comp)) {
             .pointer => |pointer_ty| {
                 return validateExtra(p, pointer_ty.child, source_tok);
             },
+            .atomic => |atomic_ty| {
+                return validateExtra(p, atomic_ty, source_tok);
+            },
             .array => |array_ty| {
                 const elem_qt = array_ty.elem;
-                if (try validateExtra(p, elem_qt, source_tok)) return true;
+                const child_res = try validateExtra(p, elem_qt, source_tok);
+                if (child_res != .normal) return child_res;
 
                 if (elem_qt.sizeofOrNull(p.comp) == null) {
                     try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_qt));
-                    return true;
+                    return .nested_invalid;
                 }
                 if (elem_qt.is(p.comp, .func)) {
                     try p.errTok(.array_func_elem, source_tok);
-                    return true;
+                    return .nested_invalid;
                 }
                 if (array_ty.len == .static and elem_qt.is(p.comp, .array)) {
                     try p.errTok(.static_non_outermost_array, source_tok);
@@ -3123,11 +3140,12 @@ const Declarator = struct {
                 if (cur.isQualified() and elem_qt.is(p.comp, .array)) {
                     try p.errTok(.qualifier_non_outermost_array, source_tok);
                 }
-                return false;
+                return .normal;
             },
             .func => |func_ty| {
                 const ret_qt = func_ty.return_type;
-                if (try validateExtra(p, ret_qt, source_tok)) return true;
+                const child_res = try validateExtra(p, ret_qt, source_tok);
+                if (child_res != .normal) return child_res;
 
                 if (ret_qt.is(p.comp, .array)) try p.errTok(.func_cannot_return_array, source_tok);
                 if (ret_qt.is(p.comp, .func)) try p.errTok(.func_cannot_return_func, source_tok);
@@ -3142,9 +3160,9 @@ const Declarator = struct {
                         try p.errStr(.suggest_pointer_for_invalid_fp16, source_tok, "function return value");
                     }
                 }
-                return false;
+                return .normal;
             },
-            else => return false,
+            else => return .normal,
         }
     }
 };
@@ -3182,7 +3200,8 @@ fn declarator(
         try d.validate(p, combine_tok);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
-        var res = (try p.declarator(.invalid, kind)) orelse {
+        const special_marker: QualType = .{ ._index = .declarator_combine };
+        var res = (try p.declarator(special_marker, kind)) orelse {
             p.tok_i = l_paren;
             break :blk;
         };
@@ -3191,22 +3210,28 @@ fn declarator(
         const outer = try p.directDeclarator(&d, kind);
 
         // Correct the base type now that it is known.
-        // If outer is invalid there was no pointer, array or function type.
-        if (outer.isInvalid() or res.qt.isInvalid()) {
+        // If res.qt is the special marker there was no inner type.
+        if (res.qt._index == .declarator_combine) {
+            res.qt = outer;
+        } else if (outer.isInvalid() or res.qt.isInvalid()) {
             res.qt = outer;
         } else {
             var cur = res.qt;
             while (true) {
                 switch (cur.type(p.comp)) {
-                    .pointer => |pointer_ty| if (!pointer_ty.child.isInvalid()) {
+                    .pointer => |pointer_ty| if (pointer_ty.child._index != .declarator_combine) {
                         cur = pointer_ty.child;
                         continue;
                     },
-                    .array => |array_ty| if (!array_ty.elem.isInvalid()) {
+                    .atomic => |atomic_ty| if (atomic_ty._index != .declarator_combine) {
+                        cur = atomic_ty;
+                        continue;
+                    },
+                    .array => |array_ty| if (array_ty.elem._index != .declarator_combine) {
                         cur = array_ty.elem;
                         continue;
                     },
-                    .func => |func_ty| if (!func_ty.return_type.isInvalid()) {
+                    .func => |func_ty| if (func_ty.return_type._index != .declarator_combine) {
                         cur = func_ty.return_type;
                         continue;
                     },
@@ -3226,16 +3251,18 @@ fn declarator(
 
     d.qt = try p.directDeclarator(&d, kind);
 
-    if (kind == .normal and !d.qt.isInvalid()) {
-        switch (d.qt.base(p.comp).type) {
-            .@"enum", .@"struct", .@"union" => {},
-            else => {
-                try p.errTok(.expected_ident_or_l_paren, expected_ident);
-                return error.ParsingFailed;
-            },
-        }
+    switch (try Declarator.validateExtra(p, d.qt, expected_ident)) {
+        .normal => if (kind == .normal) {
+            switch (d.qt.base(p.comp).type) {
+                .@"enum", .@"struct", .@"union" => {},
+                else => {
+                    try p.errTok(.expected_ident_or_l_paren, expected_ident);
+                    return error.ParsingFailed;
+                },
+            }
+        },
+        else => {},
     }
-    try d.validate(p, expected_ident);
     if (start == p.tok_i) return null;
     return d;
 }
