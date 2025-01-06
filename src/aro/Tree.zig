@@ -1367,7 +1367,7 @@ pub const Node = union(enum) {
                         .l_paren_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
                         .callee = @enumFromInt(node_data[1]),
-                        .args = @ptrCast(node_data[2..2]),
+                        .args = unPackElems(node_data[2..]),
                     },
                 },
                 .builtin_call_expr => .{
@@ -3085,13 +3085,13 @@ fn dumpNode(
                 if (fields.len == 0) continue;
 
                 const field_attributes = fields[field_i].attributes(tree.comp);
+                field_i += 1;
+
                 if (field_attributes.len == 0) continue;
 
                 try config.setColor(w, ATTRIBUTE);
                 try tree.dumpFieldAttributes(field_attributes, level + delta + half, w);
                 try config.setColor(w, .reset);
-
-                field_i += 1;
             }
         },
         .array_init_expr, .struct_init_expr => |init| {

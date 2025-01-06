@@ -56,7 +56,7 @@ const Repr = struct {
 
 const Index = enum(u29) {
     /// A NaN-like poison value
-    /// Must *NOT* be nested.
+    /// Can only be nested in function types.
     invalid = std.math.maxInt(u29) - 0,
     /// GNU auto type
     /// This is a placeholder specifier - it must be replaced by the actual type specifier (determined by the initializer)
