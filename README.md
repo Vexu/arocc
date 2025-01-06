@@ -1,18 +1,28 @@
-<img src="https://aro.vexu.eu/aro-logo.svg" alt="Aro" width="120px"/>
+<img src="https://aro.vexu.eu/aro-logo.svg" alt="Aro" width="120px"/> <!-- Graphic design is my passion -->
 
 # Aro
 
 A C compiler with the goal of providing fast compilation and low memory usage with good diagnostics.
 
-Aro is included as an alternative C frontend in the [Zig compiler](https://github.com/ziglang/zig)
-for `translate-c` and eventually compiling C files by translating them to Zig first.
-Aro is developed in https://github.com/Vexu/arocc and the Zig dependency is
-updated from there when needed.
+The project intends to support standard C and all common extensions:
 
-Currently most of standard C is supported up to C23 and as are many of the common
-extensions from GNU, MSVC, and Clang
+| Version          | status                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| C23              | Complete excluding [Add IEEE 754 interchange and extended types](https://github.com/Vexu/arocc/issues/552) |
+| C17              | Complete excluding warnings [Ensure C1/ compatibility](https://github.com/Vexu/arocc/issues/820)           |
+| C11              | Complete excluding warnings [Ensure C11 compatibility](https://github.com/Vexu/arocc/issues/821)           |
+| C99              | Complete excluding warnings [Ensure C99 compatibility](https://github.com/Vexu/arocc/issues/822)           |
+| C95              | Complete                                                                                                   |
+| C89              | Complete                                                                                                   |
+| GNU extensions   | [Ensure GNU C extension compatibility](https://github.com/Vexu/arocc/issues/824)                           |
+| Clang extensions | [ Ensure Clang C extension compatibility](https://github.com/Vexu/arocc/issues/825)                        |
 
-Basic code generation is supported for x86-64 linux and can produce a valid hello world:
+Aro will be used as the C frontend for [C to Zig translation](https://github.com/ziglang/translate-c/) in the Zig toolchain.
+
+## Codegen
+
+Basic proof of concept code generation is supported for x86-64 linux and can produce a valid hello world:
+
 ```sh-session
 $ cat hello.c
 extern int printf(const char *restrict fmt, ...);
@@ -24,9 +34,13 @@ $ zig build && ./zig-out/bin/arocc hello.c -o hello
 $ ./hello
 Hello, world!
 ```
----
-# Using aro as a module
+
+A more capable backend is under construction which will reuse parts of the self-hosted Zig compiler. [#542](https://github.com/Vexu/arocc/issues/542)
+
+## Using aro as a module
+
 The following assumes that your package has a `build.zig.zon` file.
+
 ```sh-session
 zig fetch --save git+https://github.com/Vexu/arocc.git
 ```
@@ -51,7 +65,9 @@ b.installDirectory(.{
 ```
 
 Now you can do
+
 ```zig
 const aro = @import("aro");
 ```
+
 in your Zig code.
