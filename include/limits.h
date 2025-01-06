@@ -2,6 +2,13 @@
 
 #pragma once
 
+/* GlibC will try to include_next GCC's limits.h which will fail.
+   Define _GCC_LIMITS_H_ to prevent it.  */
+#if defined __GNUC__ && !defined _GCC_LIMITS_H_
+#define _GCC_LIMITS_H_
+#endif
+
+/* Include the system's limits.h */
 #if __STDC_HOSTED__ && __has_include_next(<limits.h>)
 #include_next <limits.h>
 #endif
