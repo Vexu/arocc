@@ -2455,6 +2455,11 @@ fn recordDecl(p: *Parser) Error!bool {
                     try p.errStr(.auto_type_not_allowed, p.tok_i, if (p.record.kind == .keyword_struct) "struct member" else "union member");
                     try builder.combine(.auto_type, p.tok_i);
                 },
+                .identifier, .extended_identifier => {
+                    if (builder.type != .none) break;
+                    try p.errStr(.unknown_type_name, p.tok_i, p.tokSlice(p.tok_i));
+                    builder.type = .{ .other = .invalid };
+                },
                 else => break,
             }
             p.tok_i += 1;
@@ -2468,6 +2473,7 @@ fn recordDecl(p: *Parser) Error!bool {
     };
 
     try p.attributeSpecifier(); // .record
+    var error_on_unnamed = false;
     while (true) {
         const this_decl_top = p.attr_buf.len;
         defer p.attr_buf.len = this_decl_top;
@@ -2480,11 +2486,10 @@ fn recordDecl(p: *Parser) Error!bool {
         var bits_node: ?Node.Index = null;
         var bits: ?u32 = null;
         const first_tok = p.tok_i;
-        var saw_declarator = false;
         if (try p.declarator(qt, .record)) |d| {
             name_tok = d.name;
             qt = d.qt;
-            saw_declarator = true;
+            error_on_unnamed = true;
         }
 
         if (p.eatToken(.colon)) |_| bits: {
@@ -2527,7 +2532,7 @@ fn recordDecl(p: *Parser) Error!bool {
         try p.comp.type_store.attributes.appendSlice(p.gpa, to_append);
 
         if (name_tok == 0 and bits == null) unnamed: {
-            switch (qt.base(p.comp).type) {
+            if (!qt.isInvalid()) switch (qt.base(p.comp).type) {
                 .@"enum" => break :unnamed,
                 .@"struct", .@"union" => |record_ty| if (record_ty.isAnonymous(p.comp)) {
                     // An anonymous record appears as indirect fields on the parent
@@ -2548,10 +2553,10 @@ fn recordDecl(p: *Parser) Error!bool {
                     try p.decl_buf.append(node);
                     try p.record.addFieldsFromAnonymous(p, record_ty);
                     break; // must be followed by a semicolon
-                } else break :unnamed,
+                },
                 else => {},
-            }
-            if (saw_declarator) {
+            };
+            if (error_on_unnamed) {
                 try p.errTok(.expected_member_name, first_tok);
             } else {
                 try p.err(.missing_declaration);
@@ -2616,6 +2621,7 @@ fn recordDecl(p: *Parser) Error!bool {
         }
 
         if (p.eatToken(.comma) == null) break;
+        error_on_unnamed = true;
     }
 
     if (p.eatToken(.semicolon) == null) {
@@ -3186,7 +3192,6 @@ fn declarator(
     base_qt: QualType,
     kind: Declarator.Kind,
 ) Error!?Declarator {
-    const start = p.tok_i;
     var d = Declarator{ .name = 0, .qt = base_qt };
 
     // Parse potential pointer declarators first.
@@ -3281,7 +3286,7 @@ fn declarator(
         }
     }
     try d.validate(p, expected_ident);
-    if (start == p.tok_i) return null;
+    if (d.qt == base_qt) return null;
     return d;
 }
 
@@ -6203,8 +6208,8 @@ pub const Result = struct {
         const b_real = b.qt.toReal(p.comp);
 
         const type_order = a.qt.intRankOrder(b.qt, p.comp);
-        const a_signed = a.qt.signedness(p.comp) == .unsigned;
-        const b_signed = b.qt.signedness(p.comp) == .unsigned;
+        const a_signed = a.qt.signedness(p.comp) == .signed;
+        const b_signed = b.qt.signedness(p.comp) == .signed;
 
         var target_qt: QualType = .invalid;
         if (a_signed == b_signed) {
