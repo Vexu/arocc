@@ -15,6 +15,10 @@ _Static_assert(1, "\u0060");
 _Static_assert(1, "aaァ\e[1;");
 #pragma GCC diagnostic pop
 
+const char *s1 = (const char *)"hello";
+const char *s2 = "hello" + 1;
+const char *s3 = "hello" - 1;
+
 #define EXPECTED_ERRORS "strings.c:2:29: error: escape sequence out of range" \
     "strings.c:4:19: error: invalid universal character" \
     "strings.c:5:19: error: character 'b' cannot be specified by a universal character name" \

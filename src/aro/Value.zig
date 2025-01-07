@@ -253,7 +253,7 @@ pub const IntCastChangeKind = enum {
 pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind {
     if (v.opt_ref == .none) return .none;
     const key = comp.interner.get(v.ref());
-    if (key == .pointer) return .none;
+    if (key == .pointer or key == .bytes) return .none;
 
     const dest_bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
     const dest_signed = dest_ty.signedness(comp) == .signed;
@@ -544,6 +544,10 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     }
     const lhs_key = comp.interner.get(lhs.ref());
     const rhs_key = comp.interner.get(rhs.ref());
+    if (lhs_key == .bytes or rhs_key == .bytes) {
+        res.* = .{};
+        return false;
+    }
     if (lhs_key == .pointer or rhs_key == .pointer) {
         const rel, const index = if (lhs_key == .pointer)
             .{ lhs_key.pointer, rhs }
@@ -613,6 +617,10 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
     }
     const lhs_key = comp.interner.get(lhs.ref());
     const rhs_key = comp.interner.get(rhs.ref());
+    if (lhs_key == .bytes or rhs_key == .bytes) {
+        res.* = .{};
+        return false;
+    }
     if (lhs_key == .pointer and rhs_key == .pointer) {
         const lhs_pointer = lhs_key.pointer;
         const rhs_pointer = rhs_key.pointer;
