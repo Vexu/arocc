@@ -240,6 +240,10 @@ noplt
     .tag = .noplt
     .gnu = true
 
+nothrow
+    .tag = .nothrow
+    .gnu = true
+
 # optimize
 #     .tag = .optimize
 #     .gnu = true
