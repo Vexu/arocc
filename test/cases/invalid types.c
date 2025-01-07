@@ -2,7 +2,7 @@ long float a;
 
 enum Foo {};
 
-
+typename foo;
 
 void f[4];
 struct Bar f;
@@ -34,6 +34,7 @@ void foo(void) {
 #define EXPECTED_ERRORS \
     "invalid types.c:1:6: error: cannot combine with previous 'long' specifier" \
     "invalid types.c:3:11: error: empty enum is invalid" \
+    "invalid types.c:5:1: error: unknown type name 'typename'" \
     "invalid types.c:7:7: error: array has incomplete element type 'void'" \
     "invalid types.c:8:12: error: tentative definition has type 'struct Bar' that is never completed" \
     "invalid types.c:8:8: note: forward declaration of 'struct Bar'" \

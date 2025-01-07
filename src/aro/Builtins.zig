@@ -344,9 +344,12 @@ test Iterator {
 test "All builtins" {
     var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
     defer comp.deinit();
-    _ = try comp.generateBuiltinMacros(.include_system_defines, null);
+    try comp.type_store.initNamedTypes(&comp);
+    comp.type_store.va_list = try comp.type_store.va_list.decay(&comp);
+
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
+
 
     const name_arena = arena.allocator();
 

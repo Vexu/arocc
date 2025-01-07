@@ -12,8 +12,8 @@ void test_typeof_quals(void) {
     typeof(i) j;
 }
 
-#define EXPECTED_TYPES "const int" "typeof(<expr>: const int)" \
-    "volatile int" "typeof(<expr>: volatile int)" \
+#define EXPECTED_TYPES "const int" "const typeof(<expr>: const int)" \
+    "volatile int" "volatile typeof(<expr>: volatile int)" \
     "int" "typeof(<expr>: int)" "void" \
-    "_Atomic int" "typeof(<expr>: _Atomic int)" \
-    "restrict *int" "typeof(<expr>: restrict *int)"
+    "_Atomic(int)" "typeof(<expr>: _Atomic(int))" \
+    "restrict *int" "restrict typeof(<expr>: restrict *int)"

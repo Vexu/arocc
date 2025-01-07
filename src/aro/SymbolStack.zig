@@ -181,7 +181,9 @@ pub fn defineTypedef(
             .typedef => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
                     if (qt.isInvalid()) return;
-                    try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(qt, " vs ", prev.qt));
+                    const non_typedef_qt = qt.type(p.comp).typedef.base;
+                    const non_typedef_prev_qt = prev.qt.type(p.comp).typedef.base;
+                    try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(non_typedef_qt, " vs ", non_typedef_prev_qt));
                     if (prev.tok != 0) try p.errTok(.previous_definition, prev.tok);
                 }
             },

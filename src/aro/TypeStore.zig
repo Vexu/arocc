@@ -888,7 +888,7 @@ pub const QualType = packed struct(u32) {
 
         pub fn isPointer(sk: ScalarKind) bool {
             return switch (sk) {
-                .pointer, .nullptr_t, .void_pointer => true,
+                .pointer, .void_pointer => true,
                 else => false,
             };
         }
@@ -1515,10 +1515,6 @@ pub const Type = union(enum) {
                 return comp.type_store.attributes.items[field._attr_index..][0..field._attr_len];
             }
 
-            pub fn isAnonymousRecord(field: Field) bool {
-                return field.name and field.ty.isRecord();
-            }
-
             pub const Layout = extern struct {
                 /// `offset_bits` and `size_bits` should both be INVALID if and only if the field
                 /// is an unnamed bitfield. There is no way to reference an unnamed bitfield in C, so
@@ -1572,7 +1568,7 @@ pub const Type = union(enum) {
             std.debug.assert(name != .empty);
             for (record.fields) |field| {
                 if (name == field.name) return true;
-                if (field.name == .empty) if (field.qt.getRecord(comp)) |field_record_ty| {
+                if (field.name_tok == 0) if (field.qt.getRecord(comp)) |field_record_ty| {
                     if (field_record_ty.hasField(comp, name)) return true;
                 };
             }
@@ -2422,6 +2418,7 @@ pub const Builder = struct {
         if (b.typedef) return b.parser.errStr(.cannot_combine_spec, source_tok, "type-name");
         if (b.typeof) return b.parser.errStr(.cannot_combine_spec, source_tok, "typeof");
         if (b.type != .none) return b.parser.errStr(.cannot_combine_with_typeof, source_tok, @tagName(b.type));
+        b.typeof = true;
         b.type = .{ .other = new };
     }
 

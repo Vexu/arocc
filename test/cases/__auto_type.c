@@ -69,14 +69,14 @@ void baz(void) {
     "__auto_type.c:7:11: error: '__auto_type' not allowed in function prototype" \
     "__auto_type.c:9:9: error: '__auto_type' not allowed in typedef" \
     "__auto_type.c:10:5: error: cannot combine with previous 'int' specifier" \
-    "__auto_type.c:16:17: error: '__auto_type' not allowed in struct member" \
-    "__auto_type.c:19:17: error: '__auto_type' not allowed in union member" \
+    "__auto_type.c:16:5: error: '__auto_type' not allowed in struct member" \
+    "__auto_type.c:19:5: error: '__auto_type' not allowed in union member" \
     "__auto_type.c:29:5: warning: '__auto_type' is a GNU extension [-Wgnu-auto-type]" \
-    "__auto_type.c:35:13: error: invalid cast to '__auto_type'" \
+    "__auto_type.c:35:14: error: expected expression" \
     "__auto_type.c:37:17: error: declaration of variable 'd' with deduced type requires an initializer" \
     "__auto_type.c:39:5: error: '__auto_type' may only be used with a single declarator" \
     "__auto_type.c:42:21: error: cannot use bit-field as '__auto_type' initializer" \
     "__auto_type.c:49:7: error: expression is not assignable" \
-    "__auto_type.c:58:17: error: 'auto_array' declared as array of '__auto_type'" \
+    "__auto_type.c:58:5: error: 'auto_array' declared as array of '__auto_type'" \
     "__auto_type.c:60:29: error: cannot use '__auto_type' with initializer list" \
 

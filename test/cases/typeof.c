@@ -130,7 +130,8 @@ void initializers(void) {
 
 #define TESTS_SKIPPED 1
 
-#define EXPECTED_ERRORS "incompatible pointer types assigning to 'typeof(typeof(int)) *' from incompatible type 'typeof(float) *' [-Wincompatible-pointer-types]" \
+#define EXPECTED_ERRORS \
+    "typeof.c:24:9: warning: incompatible pointer types assigning to 'typeof(typeof(int)) *' from incompatible type 'typeof(float) *' [-Wincompatible-pointer-types]" \
     "typeof.c:28:7: error: expression is not assignable" \
     "typeof.c:30:7: error: expression is not assignable" \
     "typeof.c:34:30: error: initializing 'typeof(int *)' from incompatible type 'float'" \

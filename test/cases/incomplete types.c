@@ -59,9 +59,8 @@ struct Foo f;
     "incomplete types.c:25:29: error: field has incomplete type 'struct self_referential'" \
     "incomplete types.c:29:29: error: variable has incomplete type 'struct self_referential'" \
     "incomplete types.c:33:17: error: variable has incomplete type 'struct node'" \
-    "incomplete types.c:34:13: error: statement requires expression with integer type ('struct node' invalid)" \
     "incomplete types.c:40:12: error: variable has incomplete type 'enum E'" \
-    "incomplete types.c:44:58: error: array has incomplete element type 'struct S [*]'" \
+    "incomplete types.c:44:58: error: array has incomplete element type 'struct S'" \
     "incomplete types.c:48:12: error: tentative definition has type 'struct Foo' that is never completed" \
     "incomplete types.c:46:16: note: forward declaration of 'struct Foo'" \
     "incomplete types.c:48:12: error: tentative definition has type 'struct Foo' that is never completed" \

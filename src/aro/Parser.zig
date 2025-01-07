@@ -181,7 +181,7 @@ record: struct {
 
     fn addFieldsFromAnonymous(r: @This(), p: *Parser, record_ty: Type.Record) Error!void {
         for (record_ty.fields) |f| {
-            if (f.name == .empty) {
+            if (f.name_tok == 0) {
                 if (f.qt.getRecord(p.comp)) |field_record_ty| {
                     try r.addFieldsFromAnonymous(p, field_record_ty);
                 }
@@ -970,7 +970,17 @@ fn decl(p: *Parser) Error!bool {
             return false;
         }
         switch (p.tok_ids[first_tok]) {
-            .asterisk, .l_paren, .identifier, .extended_identifier => {},
+            .asterisk, .l_paren => {},
+            .identifier, .extended_identifier => switch (p.tok_ids[first_tok + 1]) {
+                .identifier, .extended_identifier => {
+                    // The most likely reason for `identifier identifier` is
+                    // an unknown type name.
+                    try p.errStr(.unknown_type_name, p.tok_i, p.tokSlice(p.tok_i));
+                    p.tok_i += 1;
+                    break :blk DeclSpec{ .qt = .invalid };
+                },
+                else => {},
+            },
             else => if (p.tok_i != first_tok) {
                 try p.err(.expected_ident_or_l_paren);
                 return error.ParsingFailed;
@@ -1045,10 +1055,9 @@ fn decl(p: *Parser) Error!bool {
         // Check return type of 'main' function.
         if (interned_declarator_name == p.string_ids.main_id) {
             const func_ty = init_d.d.qt.get(p.comp, .func).?;
-            if (func_ty.return_type.get(p.comp, .int)) |int_ty| {
-                if (int_ty != .int) {
-                    try p.errTok(.main_return_type, init_d.d.name);
-                }
+            const int_ty = func_ty.return_type.get(p.comp, .int);
+            if (int_ty == null or int_ty.? != .int) {
+                try p.errTok(.main_return_type, init_d.d.name);
             }
         }
 
@@ -1947,7 +1956,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     const name = init_d.d.name;
     if (init_d.d.qt.isAutoType() or init_d.d.qt.isC23Auto()) {
         if (init_d.initializer) |some| {
-            init_d.d.qt = some.qt;
+            init_d.d.qt = some.qt.withQualifiers(init_d.d.qt);
         } else {
             if (init_d.d.qt.isC23Auto()) {
                 try p.errStr(.c32_auto_requires_initializer, name, p.tokSlice(name));
@@ -2687,6 +2696,9 @@ fn enumSpec(p: *Parser) Error!QualType {
         // check if this is a reference to a previous type
         const interned_name = try p.comp.internString(p.tokSlice(ident));
         if (try p.syms.findTag(p, interned_name, p.tok_ids[enum_tok], ident, p.tok_ids[p.tok_i])) |prev| {
+            // only check fixed underlying type in forward declarations and not in references.
+            if (p.tok_ids[p.tok_i] == .semicolon)
+                try p.checkEnumFixedTy(fixed_qt, ident, prev);
             return prev.qt;
         } else {
             const enum_qt = try p.comp.type_store.put(p.gpa, .{ .@"enum" = .{
@@ -2731,6 +2743,7 @@ fn enumSpec(p: *Parser) Error!QualType {
                     try p.errStr(.redefinition, ident, ident_str);
                     try p.errTok(.previous_definition, prev.tok);
                 } else {
+                    try p.checkEnumFixedTy(fixed_qt, ident, prev);
                     defined = true;
                     break :blk .{ enum_ty, prev.qt };
                 }
@@ -2856,17 +2869,17 @@ fn enumSpec(p: *Parser) Error!QualType {
     return attributed_qt;
 }
 
-fn checkEnumFixedTy(p: *Parser, fixed_ty: ?QualType, ident_tok: TokenIndex, prev: Symbol) !void {
+fn checkEnumFixedTy(p: *Parser, fixed_qt: ?QualType, ident_tok: TokenIndex, prev: Symbol) !void {
     const enum_ty = prev.qt.get(p.comp, .@"enum").?;
-    if (fixed_ty) |some| {
+    if (fixed_qt) |some| {
         if (!enum_ty.fixed) {
             try p.errTok(.enum_prev_nonfixed, ident_tok);
             try p.errTok(.previous_definition, prev.tok);
             return error.ParsingFailed;
         }
 
-        if (!enum_ty.tag.?.eql(some, p.comp)) {
-            const str = try p.typePairStrExtra(some, " (was ", enum_ty.tag.?);
+        if (!enum_ty.tag.eql(some, p.comp)) {
+            const str = try p.typePairStrExtra(some, " (was ", enum_ty.tag);
             try p.errStr(.enum_different_explicit_ty, ident_tok, str);
             try p.errTok(.previous_definition, prev.tok);
             return error.ParsingFailed;
@@ -3228,6 +3241,7 @@ fn declarator(
         // If res.qt is the special marker there was no inner type.
         if (res.qt._index == .declarator_combine) {
             res.qt = outer;
+            res.declarator_type = d.declarator_type;
         } else if (outer.isInvalid() or res.qt.isInvalid()) {
             res.qt = outer;
         } else {
@@ -3804,35 +3818,32 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType) Error!bool {
                 if (cur_qt.isInvalid()) continue;
 
                 const field_str = p.tokSlice(field_tok);
-                const field_name = try p.comp.internString(field_str);
+                const target_name = try p.comp.internString(field_str);
                 const record_ty = cur_qt.getRecord(p.comp) orelse {
                     try p.errStr(.invalid_field_designator, period, try p.typeStr(cur_qt));
                     return error.ParsingFailed;
                 };
-                if (!record_ty.hasField(p.comp, field_name)) {
+                if (!record_ty.hasField(p.comp, target_name)) {
                     try p.errStr(.no_such_field_designator, period, field_str);
                     return error.ParsingFailed;
                 }
 
                 // TODO check if union already has field set
-                outer: while (true) {
-                    for (record_ty.fields, 0..) |field, i| {
-                        if (field.name == .empty) if (field.qt.getRecord(p.comp)) |field_record_ty| {
-                            // Recurse into anonymous field if it has a field by the name.
-                            if (!field_record_ty.hasField(p.comp, field_name)) continue;
-                            cur_qt = field.qt;
-                            cur_il = try il.find(p.gpa, i);
-                            cur_index_hint = cur_index_hint orelse i;
-                            continue :outer;
-                        };
-                        if (field_name == field.name) {
-                            cur_il = try cur_il.find(p.gpa, i);
-                            cur_qt = field.qt;
-                            cur_index_hint = cur_index_hint orelse i;
-                            break :outer;
-                        }
+                for (record_ty.fields, 0..) |field, field_index| {
+                    if (field.name_tok == 0) if (field.qt.getRecord(p.comp)) |field_record_ty| {
+                        // Recurse into anonymous field if it has a field by the name.
+                        if (!field_record_ty.hasField(p.comp, target_name)) continue;
+                        cur_qt = field.qt;
+                        cur_il = try il.find(p.gpa, field_index);
+                        cur_index_hint = cur_index_hint orelse field_index;
+                        break;
+                    };
+                    if (field.name == target_name) {
+                        cur_il = try cur_il.find(p.gpa, field_index);
+                        cur_qt = field.qt;
+                        cur_index_hint = cur_index_hint orelse field_index;
+                        break;
                     }
-                    unreachable; // we already checked that the starting type has this field
                 }
                 designation = true;
             } else break;
@@ -5793,12 +5804,18 @@ pub const Result = struct {
                 // comparisons between floats and pointes not allowed
                 if (a_sk == .none or b_sk == .none or (a_sk.isFloat() and b_sk.isPointer()) or (b_sk.isFloat() and a_sk.isPointer()))
                     return a.invalidBinTy(tok, b, p);
+                if (a_sk == .nullptr_t or b_sk == .nullptr_t) return a.invalidBinTy(tok, b, p);
 
                 if ((a_sk.isInt() or b_sk.isInt()) and !(a.val.isZero(p.comp) or b.val.isZero(p.comp))) {
                     try p.errStr(.comparison_ptr_int, tok, try p.typePairStr(a.qt, b.qt));
                 } else if (a_sk.isPointer() and b_sk.isPointer()) {
-                    if (a_sk != .void_pointer and b_sk != .void_pointer and !a.qt.eql(b.qt, p.comp))
-                        try p.errStr(.comparison_distinct_ptr, tok, try p.typePairStr(a.qt, b.qt));
+                    if (a_sk != .void_pointer and b_sk != .void_pointer) {
+                        const a_elem = a.qt.childType(p.comp);
+                        const b_elem = b.qt.childType(p.comp);
+                        if (!a_elem.eql(b_elem, p.comp)) {
+                            try p.errStr(.comparison_distinct_ptr, tok, try p.typePairStr(a.qt, b.qt));
+                        }
+                    }
                 } else if (a_sk.isPointer()) {
                     try b.castToPointer(p, a.qt, tok);
                 } else {
@@ -6117,7 +6134,7 @@ pub const Result = struct {
 
     fn nullToPointer(res: *Result, p: *Parser, ptr_ty: QualType, tok: TokenIndex) Error!void {
         if (!res.qt.is(p.comp, .nullptr_t) and !res.val.isZero(p.comp)) return;
-        res.val = .{};
+        res.val = .null;
         res.qt = ptr_ty;
         try res.implicitCast(p, .null_to_pointer, tok);
     }
@@ -6790,7 +6807,7 @@ fn assignExpr(p: *Parser) Error!?Result {
         .mod_assign_expr,
         => {
             try rhs.lvalConversion(p, tok);
-            if (rhs.val.isZero(p.comp) and lhs.qt.isInt(p.comp) and rhs.qt.isInt(p.comp)) {
+            if (!lhs.qt.isInvalid() and rhs.val.isZero(p.comp) and lhs.qt.isInt(p.comp) and rhs.qt.isInt(p.comp)) {
                 switch (tag) {
                     .div_assign_expr => try p.errStr(.division_by_zero, tok, "division"),
                     .mod_assign_expr => try p.errStr(.division_by_zero, tok, "remainder"),
@@ -6805,7 +6822,7 @@ fn assignExpr(p: *Parser) Error!?Result {
         .add_assign_expr,
         => {
             try rhs.lvalConversion(p, tok);
-            if (lhs.qt.isPointer(p.comp) and rhs.qt.isInt(p.comp)) {
+            if (!lhs.qt.isInvalid() and lhs.qt.isPointer(p.comp) and rhs.qt.isInt(p.comp)) {
                 try rhs.castToPointer(p, lhs.qt, tok);
             } else {
                 _ = try lhs_copy.adjustTypes(tok, &rhs, p, .arithmetic);
@@ -7117,6 +7134,9 @@ fn addExpr(p: *Parser) Error!?Result {
             p.eatTag(.minus) orelse break;
         var rhs = try p.expect(mulExpr);
 
+        // We'll want to check this for invalid pointer arithmetic.
+        const original_lhs_qt = lhs.qt;
+
         if (try lhs.adjustTypes(tok, &rhs, p, if (tag == .add_expr) .add else .sub)) {
             const lhs_sk = lhs.qt.scalarKind(p.comp);
             if (tag == .add_expr) {
@@ -7136,10 +7156,11 @@ fn addExpr(p: *Parser) Error!?Result {
                         lhs.qt.signedness(p.comp) != .unsigned) try p.errOverflow(tok, lhs);
                 }
             }
-        } else if (!lhs.qt.isInvalid()) {
-            const lhs_sk = lhs.qt.scalarKind(p.comp);
-            if (lhs_sk.isPointer() and lhs_sk != .void_pointer and lhs.qt.childType(p.comp).hasIncompleteSize(p.comp)) {
-                try p.errStr(.ptr_arithmetic_incomplete, tok, try p.typeStr(lhs.qt.childType(p.comp)));
+        }
+        if (!lhs.qt.isInvalid()) {
+            const lhs_sk = original_lhs_qt.scalarKind(p.comp);
+            if (lhs_sk == .pointer and original_lhs_qt.childType(p.comp).hasIncompleteSize(p.comp)) {
+                try p.errStr(.ptr_arithmetic_incomplete, tok, try p.typeStr(original_lhs_qt.childType(p.comp)));
                 lhs.qt = .invalid;
             }
         }
@@ -8180,8 +8201,8 @@ fn fieldAccess(
     const expr_qt = if (lhs.qt.get(p.comp, .atomic)) |atomic| atomic else lhs.qt;
     const is_ptr = expr_qt.isPointer(p.comp);
     const expr_base_qt = if (is_ptr) expr_qt.childType(p.comp) else expr_qt;
-    const non_atomic_base_qt = if (expr_base_qt.get(p.comp, .atomic)) |atomic| atomic else expr_base_qt;
-    const record_ty = non_atomic_base_qt.getRecord(p.comp) orelse {
+    const record_qt = if (expr_base_qt.get(p.comp, .atomic)) |atomic| atomic else expr_base_qt;
+    const record_ty = record_qt.getRecord(p.comp) orelse {
         try p.errStr(.expected_record_ty, field_name_tok, try p.typeStr(expr_qt));
         return error.ParsingFailed;
     };
@@ -8192,24 +8213,24 @@ fn fieldAccess(
         return error.ParsingFailed;
     }
     if (expr_qt != lhs.qt) try p.errStr(.member_expr_atomic, field_name_tok, try p.typeStr(lhs.qt));
-    if (expr_base_qt != non_atomic_base_qt) try p.errStr(.member_expr_atomic, field_name_tok, try p.typeStr(expr_base_qt));
+    if (expr_base_qt != record_qt) try p.errStr(.member_expr_atomic, field_name_tok, try p.typeStr(expr_base_qt));
 
     if (is_arrow and !is_ptr) try p.errStr(.member_expr_not_ptr, field_name_tok, try p.typeStr(expr_qt));
     if (!is_arrow and is_ptr) try p.errStr(.member_expr_ptr, field_name_tok, try p.typeStr(expr_qt));
 
     const field_name = try p.comp.internString(p.tokSlice(field_name_tok));
-    try p.validateFieldAccess(record_ty, expr_qt, field_name_tok, field_name);
+    try p.validateFieldAccess(record_ty, record_qt, field_name_tok, field_name);
     var discard: u64 = 0;
     return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, access_tok, &discard);
 }
 
-fn validateFieldAccess(p: *Parser, record_ty: Type.Record, expr_ty: QualType, field_name_tok: TokenIndex, field_name: StringId) Error!void {
+fn validateFieldAccess(p: *Parser, record_ty: Type.Record, record_qt: QualType, field_name_tok: TokenIndex, field_name: StringId) Error!void {
     if (record_ty.hasField(p.comp, field_name)) return;
 
     p.strings.items.len = 0;
 
     try p.strings.writer().print("'{s}' in '", .{p.tokSlice(field_name_tok)});
-    try expr_ty.print(p.comp, p.strings.writer());
+    try record_qt.print(p.comp, p.strings.writer());
     try p.strings.append('\'');
 
     const duped = try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items);
@@ -8227,7 +8248,7 @@ fn fieldAccessExtra(
     offset_bits: *u64,
 ) Error!Result {
     for (record_ty.fields, 0..) |field, field_index| {
-        if (field.name == .empty) if (field.qt.getRecord(p.comp)) |field_record_ty| {
+        if (field.name_tok == 0) if (field.qt.getRecord(p.comp)) |field_record_ty| {
             if (!field_record_ty.hasField(p.comp, target_name)) continue;
 
             const access: Node.MemberAccess = .{
@@ -8381,11 +8402,11 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 const param_array_ty = decayed_child_qt.get(p.comp, .array).?;
                 if (param_array_ty.len != .static) break :static_check;
                 const param_array_len = param_array_ty.len.static;
-                const arg_array_len = arg.qt.arrayLen(p.comp) orelse break :static_check;
+                const arg_array_len = arg.qt.arrayLen(p.comp);
 
-                if (arg_array_len < param_array_len) {
+                if (arg_array_len != null and arg_array_len.? < param_array_len) {
                     const extra = Diagnostics.Message.Extra{ .arguments = .{
-                        .expected = @intCast(arg_array_len),
+                        .expected = @intCast(arg_array_len.?),
                         .actual = @intCast(param_array_len),
                     } };
                     try p.errExtra(.array_argument_too_small, param_tok, extra);
