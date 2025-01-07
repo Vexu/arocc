@@ -560,6 +560,7 @@ pub const Node = union(enum) {
 
         pub fn isBitFieldWidth(access: MemberAccess, tree: *const Tree) ?u32 {
             var qt = access.base.qt(tree);
+            if (qt.isInvalid()) return null;
             if (qt.get(tree.comp, .pointer)) |pointer| qt = pointer.child;
             const record_ty = switch (qt.base(tree.comp).type) {
                 .@"struct", .@"union" => |record| record,
@@ -3413,10 +3414,7 @@ fn dumpNode(
 
             var base_qt = access.base.qt(tree);
             if (base_qt.get(tree.comp, .pointer)) |some| base_qt = some.child;
-            const fields = switch (base_qt.base(tree.comp).type) {
-                .@"struct", .@"union" => |record| record.fields,
-                else => unreachable,
-            };
+            const fields = (base_qt.getRecord(tree.comp) orelse return).fields;
 
             try w.writeByteNTimes(' ', level + 1);
             try w.writeAll("name: ");

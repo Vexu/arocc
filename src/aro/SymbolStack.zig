@@ -179,14 +179,14 @@ pub fn defineTypedef(
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .typedef => {
-                if (!prev.qt.isInvalid()) {
-                    if (!qt.eqlQualified(prev.qt, p.comp)) {
-                        try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(qt, " vs ", prev.qt));
-                        if (prev.tok != 0) try p.errTok(.previous_definition, prev.tok);
-                    }
+                if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
+                    if (qt.isInvalid()) return;
+                    try p.errStr(.redefinition_of_typedef, tok, try p.typePairStrExtra(qt, " vs ", prev.qt));
+                    if (prev.tok != 0) try p.errTok(.previous_definition, prev.tok);
                 }
             },
             .enumeration, .decl, .def, .constexpr => {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
@@ -216,20 +216,24 @@ pub fn defineSymbol(
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .enumeration => {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
             .decl => {
-                if (!qt.eqlQualified(prev.qt, p.comp)) {
+                if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
+                    if (qt.isInvalid()) return;
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 }
             },
-            .def, .constexpr => {
+            .def, .constexpr => if (!prev.qt.isInvalid()) {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
             .typedef => {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
@@ -267,17 +271,20 @@ pub fn declareSymbol(
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .enumeration => {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
             .decl => {
-                if (!qt.eqlQualified(prev.qt, p.comp)) {
+                if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
+                    if (qt.isInvalid()) return;
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 }
             },
             .def, .constexpr => {
-                if (!qt.eqlQualified(prev.qt, p.comp)) {
+                if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
+                    if (qt.isInvalid()) return;
                     try p.errStr(.redefinition_incompatible, tok, p.tokSlice(tok));
                     try p.errTok(.previous_definition, prev.tok);
                 } else {
@@ -285,6 +292,7 @@ pub fn declareSymbol(
                 }
             },
             .typedef => {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
@@ -311,11 +319,13 @@ pub fn defineParam(
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
-            .enumeration, .decl, .def, .constexpr => {
+            .enumeration, .decl, .def, .constexpr => if (!prev.qt.isInvalid()) {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_of_parameter, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
             .typedef => {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },
@@ -374,17 +384,20 @@ pub fn defineEnumeration(
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
-            .enumeration => {
+            .enumeration => if (!prev.qt.isInvalid()) {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
                 return;
             },
             .decl, .def, .constexpr => {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
                 return;
             },
             .typedef => {
+                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },

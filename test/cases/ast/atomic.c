@@ -36,7 +36,7 @@ variable: 'invalid'
 variable: 'invalid'
  name: e
 
-variable: '_Atomic(int)'
+variable: 'invalid'
  name: f
 
 variable: 'invalid'
@@ -57,7 +57,7 @@ variable: 'invalid'
  name: l
 
 fn_def: 'fn () void'
- name: test_func
+ name: test_coerce
  body:
   compound_stmt
     variable: '_Atomic(int)'
@@ -117,12 +117,49 @@ fn_def: 'fn () void'
           decl_ref_expr: '_Atomic(int)' lvalue
            name: a
 
+    implicit return_stmt: 'void'
+
+fn_def: 'fn () void'
+ name: test_member_access
+ body:
+  compound_stmt
     struct_decl: 'struct B'
       record_field: 'int'
        name: a
 
     variable: '_Atomic(struct B)'
-     name: s
+     name: a
+
+    variable: '_Atomic(struct B *)'
+     name: b
+
+    variable: '*_Atomic(struct B)'
+     name: c
+
+    member_access_expr: 'int' lvalue
+     lhs:
+      decl_ref_expr: '_Atomic(struct B)' lvalue
+       name: a
+
+    member_access_expr: 'int' lvalue
+     lhs:
+      decl_ref_expr: '_Atomic(struct B *)' lvalue
+       name: b
+
+    member_access_ptr_expr: 'int' lvalue
+     lhs:
+      decl_ref_expr: '_Atomic(struct B *)' lvalue
+       name: b
+
+    member_access_expr: 'int' lvalue
+     lhs:
+      decl_ref_expr: '*_Atomic(struct B)' lvalue
+       name: c
+
+    member_access_ptr_expr: 'int' lvalue
+     lhs:
+      decl_ref_expr: '*_Atomic(struct B)' lvalue
+       name: c
 
     implicit return_stmt: 'void'
 

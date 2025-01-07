@@ -774,8 +774,8 @@ pub const QualType = packed struct(u32) {
     /// Asserts that ty is an integer type
     pub fn intRank(qt: QualType, comp: *const Compilation) usize {
         return loop: switch (qt.base(comp).type) {
-            .bit_int => |bit_int| @as(u64, bit_int.bits) * 8,
-            .bool => 1 + (QualType.bool.bitSizeof(comp) * 8),
+            .bit_int => |bit_int| @as(usize, bit_int.bits) * 8,
+            .bool => 1 + @as(usize, @intCast((QualType.bool.bitSizeof(comp) * 8))),
             .int => |int_ty| switch (int_ty) {
                 .char, .schar, .uchar => 2 + (int_ty.bits(comp) * 8),
                 .short, .ushort => 3 + (int_ty.bits(comp) * 8),
@@ -2425,12 +2425,15 @@ pub const Builder = struct {
         b.type = .{ .other = new };
     }
 
-    pub fn combineAtomic(b: *Builder, base_qt: QualType, source_tok: TokenIndex) Compilation.Error!void {
+    pub fn combineAtomic(b: *Builder, base_qt: QualType, source_tok: TokenIndex) !void {
         if (b.atomic_type != null) return b.parser.errStr(.cannot_combine_spec, source_tok, "_Atomic");
         if (b.typedef) return b.parser.errStr(.cannot_combine_spec, source_tok, "type-name");
         if (b.typeof) return b.parser.errStr(.cannot_combine_spec, source_tok, "typeof");
+
+        const new_spec = TypeStore.Builder.fromType(b.parser.comp, base_qt);
+        try b.combine(new_spec, source_tok);
+
         b.atomic_type = source_tok;
-        b.type = .{ .other = base_qt };
     }
 
     /// Try to combine type from typedef, returns true if successful.
@@ -2598,7 +2601,7 @@ pub const Builder = struct {
                 .long_long => .long_long_int,
                 .slong_long => .slong_long_int,
                 .ulong_long => .ulong_long_int,
-                .complex => .int,
+                .complex => .complex_int,
                 .complex_signed => .complex_sint,
                 .complex_unsigned => .complex_uint,
                 .complex_short => .complex_short_int,
@@ -2799,19 +2802,19 @@ pub const Builder = struct {
             },
             .complex => |complex| switch (complex.base(comp).type) {
                 .int => |int| switch (int) {
-                    .char => .char,
-                    .schar => .schar,
-                    .uchar => .uchar,
-                    .short => .short,
-                    .ushort => .ushort,
-                    .int => .int,
-                    .uint => .uint,
-                    .long => .long,
-                    .ulong => .ulong,
-                    .long_long => .long_long,
-                    .ulong_long => .ulong_long,
-                    .int128 => .int128,
-                    .uint128 => .uint128,
+                    .char => .complex_char,
+                    .schar => .complex_schar,
+                    .uchar => .complex_uchar,
+                    .short => .complex_short,
+                    .ushort => .complex_ushort,
+                    .int => .complex_int,
+                    .uint => .complex_uint,
+                    .long => .complex_long,
+                    .ulong => .complex_ulong,
+                    .long_long => .complex_long_long,
+                    .ulong_long => .complex_ulong_long,
+                    .int128 => .complex_int128,
+                    .uint128 => .complex_uint128,
                 },
                 .bit_int => |bit_int| if (bit_int.signedness == .unsigned) {
                     return .{ .complex_ubit_int = bit_int.bits };
@@ -2820,11 +2823,11 @@ pub const Builder = struct {
                 },
                 .float => |float| switch (float) {
                     .fp16 => unreachable,
-                    .float16 => .float16,
-                    .float => .float,
-                    .double => .double,
-                    .long_double => .long_double,
-                    .float128 => .float128,
+                    .float16 => .complex_float16,
+                    .float => .complex_float,
+                    .double => .complex_double,
+                    .long_double => .complex_long_double,
+                    .float128 => .complex_float128,
                 },
                 else => unreachable,
             },

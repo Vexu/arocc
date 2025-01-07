@@ -1257,6 +1257,11 @@ member_expr_ptr
     .extra = .str
     .kind = .@"error"
 
+member_expr_atomic
+    .msg = "accessing a member of atomic type '{s}' is undefined behavior"
+    .extra = .str
+    .kind = .@"error"
+
 no_such_member
     .msg = "no member named {s}"
     .extra = .str
