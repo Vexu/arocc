@@ -65,6 +65,11 @@ char *bar(char *p) {
     char *p2 = &p[1];
     return p2;
 }
+
+int casted[10];
+_Static_assert(&((char *)casted)[4] == (char *)&casted[1], "");
+_Static_assert(&((int *)casted)[1] == &casted[1], "");
+
 #define EXPECTED_ERRORS "relocations.c:24:1: error: static assertion failed" \
     "relocations.c:29:16: error: static_assert expression is not an integral constant expression" \
     "relocations.c:30:16: error: static_assert expression is not an integral constant expression" \
