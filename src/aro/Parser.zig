@@ -5921,7 +5921,7 @@ pub const Result = struct {
                 return a.shouldEval(b, p);
             },
             .sub => {
-                // if both aren't arithmetic then either both should be pointers or just the lelft one.
+                // if both aren't arithmetic then either both should be pointers or just the left one.
                 if (!a_sk.isPointer() or !(b_sk.isPointer() or b_sk.isInt())) return a.invalidBinTy(tok, b, p);
 
                 if (a_sk == .void_pointer)
@@ -5931,7 +5931,10 @@ pub const Result = struct {
                 if (b_sk == .nullptr_t) try b.nullToPointer(p, .void_pointer, tok);
 
                 if (a_sk.isPointer() and b_sk.isPointer()) {
-                    if (!a.qt.eql(b.qt, p.comp)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.qt, b.qt));
+                    const a_child_qt = a.qt.get(p.comp, .pointer).?.child;
+                    const b_child_qt = b.qt.get(p.comp, .pointer).?.child;
+
+                    if (!a_child_qt.eql(b_child_qt, p.comp)) try p.errStr(.incompatible_pointers, tok, try p.typePairStr(a.qt, b.qt));
                     if (a.qt.childType(p.comp).sizeofOrNull(p.comp) orelse 1 == 0) try p.errStr(.subtract_pointers_zero_elem_size, tok, try p.typeStr(a.qt.childType(p.comp)));
                     a.qt = p.comp.type_store.ptrdiff;
                 }
