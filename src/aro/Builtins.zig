@@ -350,7 +350,6 @@ test "All builtins" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-
     const name_arena = arena.allocator();
 
     var builtin_it = Iterator{};

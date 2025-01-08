@@ -720,16 +720,19 @@ pub const QualType = packed struct(u32) {
         if (qt.isInvalid()) return .invalid;
         switch (qt.base(comp).type) {
             .array => |array_ty| {
-                // Copy qualifiers to element.
+                // Copy const and volatile to the element
                 var elem_qt = array_ty.elem;
                 elem_qt.@"const" = qt.@"const" or elem_qt.@"const";
                 elem_qt.@"volatile" = qt.@"volatile" or elem_qt.@"volatile";
-                elem_qt.restrict = qt.restrict or elem_qt.restrict;
 
-                return try comp.type_store.put(comp.gpa, .{ .pointer = .{
+                var pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
                     .child = elem_qt,
                     .decayed = qt,
                 } });
+
+                // .. and restrict to the pointer.
+                pointer_qt.restrict = qt.restrict or array_ty.elem.restrict;
+                return pointer_qt;
             },
             .func => |func_ty| {
                 if (func_ty.return_type.isInvalid()) {
@@ -955,6 +958,8 @@ pub const QualType = packed struct(u32) {
         const b_type_qt = b_qt.base(comp);
         const b_type = b_type_qt.type;
 
+        // Alignment check also guards against comparing incomplete enums to ints.
+        if (a_type_qt.qt.alignof(comp) != b_type_qt.qt.alignof(comp)) return false;
         if (a_type == .@"enum" and b_type != .@"enum") {
             return a_type.@"enum".tag.eql(b_qt, comp);
         } else if (a_type != .@"enum" and b_type == .@"enum") {
@@ -987,6 +992,13 @@ pub const QualType = packed struct(u32) {
             .func => |a_func| {
                 const b_func = b_type.func;
 
+                // Function return type cannot be qualified.
+                if (!a_func.return_type.eql(b_func.return_type, comp)) return false;
+
+                if (a_func.params.len == 0 and b_func.params.len == 0) {
+                    return (a_func.kind == .variadic) == (b_func.kind == .variadic);
+                }
+
                 if (a_func.params.len != b_func.params.len) {
                     if (a_func.kind == .old_style and b_func.kind == .old_style) return true;
                     if (a_func.kind == .old_style or b_func.kind == .old_style) {
@@ -1015,9 +1027,6 @@ pub const QualType = packed struct(u32) {
 
                 if ((a_func.kind == .normal) != (b_func.kind == .normal)) return false;
 
-                // Function return type cannot be qualified.
-                if (!a_func.return_type.eql(b_func.return_type, comp)) return false;
-
                 for (a_func.params, b_func.params) |a_param, b_param| {
                     // Function parameters cannot be qualified.
                     if (!a_param.qt.eql(b_param.qt, comp)) return false;
@@ -1030,11 +1039,25 @@ pub const QualType = packed struct(u32) {
             },
             .array => |a_array| {
                 const b_array = b_type.array;
+                const a_len = switch (a_array.len) {
+                    .fixed, .static => |len| len,
+                    else => null,
+                };
+                const b_len = switch (b_array.len) {
+                    .fixed, .static => |len| len,
+                    else => null,
+                };
+                if (a_len != null and b_len != null) {
+                    return a_len.? == b_len.?;
+                }
+
                 // Array element qualifiers are ignored.
                 return a_array.elem.eql(b_array.elem, comp);
             },
             .vector => |a_vector| {
                 const b_vector = b_type.vector;
+                if (a_vector.len != b_vector.len) return false;
+
                 // Vector elemnent qualifiers are checked.
                 return a_vector.elem.eqlQualified(b_vector.elem, comp);
             },

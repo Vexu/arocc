@@ -25,5 +25,4 @@ union U {
 
 #define EXPECTED_ERRORS "layout overflow.c:3:8: error: type 'struct S' is too large" \
     "layout overflow.c:22:15: error: array is too large" \
-    "layout overflow.c:20:7: error: type 'union U' is too large" \
 

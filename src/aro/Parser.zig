@@ -2370,6 +2370,30 @@ fn recordSpec(p: *Parser) Error!QualType {
     done = true;
     try p.attributeSpecifier();
 
+    const any_incomplete = blk: {
+        for (fields) |field| {
+            if (field.qt.hasIncompleteSize(p.comp) and !field.qt.is(p.comp, .array)) break :blk true;
+        }
+        // Set fields and a dummy layout before addign attributes.
+        record_ty.fields = fields;
+        record_ty.layout = .{
+            .size_bits = 8,
+            .field_alignment_bits = 8,
+            .pointer_alignment_bits = 8,
+            .required_alignment_bits = 8,
+        };
+
+        const base_type = qt.base(p.comp);
+        if (is_struct) {
+            std.debug.assert(base_type.type.@"struct".name == record_ty.name);
+            try p.comp.type_store.set(p.gpa, .{ .@"struct" = record_ty }, @intFromEnum(base_type.qt._index));
+        } else {
+            std.debug.assert(base_type.type.@"union".name == record_ty.name);
+            try p.comp.type_store.set(p.gpa, .{ .@"union" = record_ty }, @intFromEnum(base_type.qt._index));
+        }
+        break :blk false;
+    };
+
     const attributed_qt = try Attribute.applyTypeAttributes(p, qt, attr_buf_top, null);
 
     // Make sure the symbol for this record points to the attributed type.
@@ -2380,9 +2404,7 @@ fn recordSpec(p: *Parser) Error!QualType {
         ptr.qt = attributed_qt;
     }
 
-    for (fields) |field| {
-        if (field.qt.hasIncompleteSize(p.comp) and !field.qt.is(p.comp, .array)) break;
-    } else {
+    if (!any_incomplete) {
         const pragma_pack_value = switch (p.comp.langopts.emulate) {
             .clang => starting_pragma_pack,
             .gcc => p.pragma_pack,
@@ -2396,14 +2418,25 @@ fn recordSpec(p: *Parser) Error!QualType {
             error.Overflow => try p.errStr(.record_too_large, maybe_ident orelse kind_tok, try p.typeStr(qt)),
         }
 
-        // Override previous incomplete type.
-        const base_type = attributed_qt.base(p.comp);
-        if (is_struct) {
-            std.debug.assert(base_type.type.@"struct".name == record_ty.name);
-            try p.comp.type_store.set(p.gpa, .{ .@"struct" = record_ty }, @intFromEnum(base_type.qt._index));
-        } else {
-            std.debug.assert(base_type.type.@"union".name == record_ty.name);
-            try p.comp.type_store.set(p.gpa, .{ .@"union" = record_ty }, @intFromEnum(base_type.qt._index));
+        // Override previous incomplete layout and fields.
+        const base_qt = qt.base(p.comp).qt;
+        const ts = &p.comp.type_store;
+        var extra_index = ts.types.items(.data)[@intFromEnum(base_qt._index)][1];
+
+        const layout_size = 5;
+        comptime std.debug.assert(@sizeOf(Type.Record.Layout) == @sizeOf(u32) * layout_size);
+        const field_size = 10;
+        comptime std.debug.assert(@sizeOf(Type.Record.Field) == @sizeOf(u32) * field_size);
+
+        const casted_layout: *const [layout_size]u32 = @ptrCast(&record_ty.layout);
+        ts.extra.items[extra_index..][0..layout_size].* = casted_layout.*;
+        extra_index += layout_size;
+        extra_index += 1; // For field length
+
+        for (record_ty.fields) |*field| {
+            const casted: *const [field_size]u32 = @ptrCast(field);
+            ts.extra.items[extra_index..][0..field_size].* = casted.*;
+            extra_index += field_size;
         }
     }
 
@@ -3163,11 +3196,13 @@ const Declarator = struct {
                     try p.errTok(.array_func_elem, source_tok);
                     return .nested_invalid;
                 }
-                if (array_ty.len == .static and elem_qt.is(p.comp, .array)) {
-                    try p.errTok(.static_non_outermost_array, source_tok);
-                }
-                if (cur.isQualified() and elem_qt.is(p.comp, .array)) {
-                    try p.errTok(.qualifier_non_outermost_array, source_tok);
+                if (elem_qt.get(p.comp, .array)) |elem_array_ty| {
+                    if (elem_array_ty.len == .static) {
+                        try p.errTok(.static_non_outermost_array, source_tok);
+                    }
+                    if (elem_qt.isQualified()) {
+                        try p.errTok(.qualifier_non_outermost_array, source_tok);
+                    }
                 }
                 return .normal;
             },
@@ -3400,7 +3435,7 @@ fn directDeclarator(
                     return error.ParsingFailed;
                 }
 
-                var len = size.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
+                const len = size.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
 
                 // `outer` is validated later so it may be invalid here
                 if (!outer.isInvalid() and !outer.isAutoType() and !outer.isC23Auto()) {
@@ -3408,7 +3443,7 @@ fn directDeclarator(
                     const max_elems = p.comp.maxArrayBytes() / @max(1, outer_size);
                     if (len > max_elems) {
                         try p.errTok(.array_too_large, l_bracket);
-                        len = max_elems;
+                        return .invalid;
                     }
                 }
 
@@ -3789,6 +3824,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType) Error!bool {
                 const expr_tok = p.tok_i;
                 const index_res = try p.integerConstExpr(.gnu_folding_extension);
                 try p.expectClosing(l_bracket, .r_bracket);
+                designation = true;
                 if (cur_qt.isInvalid()) continue;
 
                 if (index_res.val.opt_ref == .none) {
@@ -3812,9 +3848,9 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType) Error!bool {
 
                 cur_il = try cur_il.find(p.gpa, index_int);
                 cur_qt = array_ty.elem;
-                designation = true;
             } else if (p.eatToken(.period)) |period| {
                 const field_tok = try p.expectIdentifier();
+                designation = true;
                 if (cur_qt.isInvalid()) continue;
 
                 const field_str = p.tokSlice(field_tok);
@@ -3845,7 +3881,6 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType) Error!bool {
                         break;
                     }
                 }
-                designation = true;
             } else break;
         }
         if (designation) index_hint = null;
