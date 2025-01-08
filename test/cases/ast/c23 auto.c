@@ -19,10 +19,13 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
+fn_proto: 'invalid'
+ name: a
+
 fn_def: 'fn () void'
  name: bad
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: 'invalid'
      name: a
 
@@ -41,21 +44,31 @@ fn_def: 'fn () void'
      init:
       int_literal: 'int' (value: 3)
 
+    variable: 'invalid'
+     name: e
+     init:
+      string_literal_expr: '[1]char' lvalue (value: "")
+
+    variable: 'invalid'
+     name: f
+     init:
+      implicit default_init_expr: 'invalid'
+
     implicit return_stmt: 'void'
 
 fn_def: 'fn () void'
  name: good
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: 'int'
      name: a
      init:
       int_literal: 'int' (value: 1)
 
-    variable: '*d[4]char'
+    variable: 'decayed *[4]char'
      name: b
      init:
-      implicit cast: (array_to_pointer) '*d[4]char'
+      implicit cast: (array_to_pointer) 'decayed *[4]char'
         string_literal_expr: '[4]char' lvalue (value: "foo")
 
     variable: '*fn () void'

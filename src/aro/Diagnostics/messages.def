@@ -208,6 +208,13 @@ missing_type_specifier_c23
     .msg = "a type specifier is required for all declarations"
     .kind = .@"error"
 
+param_not_declared
+    .msg = "parameter '{s}' was not declared, defaults to 'int'"
+    .opt = W("implicit-int")
+    .extra = .str
+    .kind = .warning
+    .all = true
+
 multiple_storage_class
     .msg = "cannot combine with previous '{s}' declaration specifier"
     .extra = .str
@@ -228,6 +235,16 @@ expected_type
 
 cannot_combine_spec
     .msg = "cannot combine with previous '{s}' specifier"
+    .extra = .str
+    .kind = .@"error"
+
+cannot_combine_with_typedef
+    .msg = "'{s} type-name' is invalid"
+    .extra = .str
+    .kind = .@"error"
+
+cannot_combine_with_typeof
+    .msg = "'{s} typeof' is invalid"
     .extra = .str
     .kind = .@"error"
 
@@ -268,11 +285,6 @@ extern_initializer
     .msg = "extern variable has initializer"
     .opt = W("extern-initializer")
     .kind = .warning
-
-spec_from_typedef
-    .msg = "'{s}' came from typedef"
-    .extra = .str
-    .kind = .note
 
 param_before_var_args
     .msg = "ISO C requires a named parameter before '...'"
@@ -887,18 +899,42 @@ parameter_here
     .kind = .note
 
 atomic_array
-    .msg = "atomic cannot be applied to array type '{s}'"
+    .msg = "_Atomic cannot be applied to array type '{s}'"
     .extra = .str
     .kind = .@"error"
 
 atomic_func
-    .msg = "atomic cannot be applied to function type '{s}'"
+    .msg = "_Atomic cannot be applied to function type '{s}'"
     .extra = .str
     .kind = .@"error"
 
 atomic_incomplete
-    .msg = "atomic cannot be applied to incomplete type '{s}'"
+    .msg = "_Atomic cannot be applied to incomplete type '{s}'"
     .extra = .str
+    .kind = .@"error"
+
+atomic_atomic
+    .msg = "_Atomic cannot be applied to atomic type '{s}'"
+    .extra = .str
+    .kind = .@"error"
+
+atomic_complex
+    .msg = "_Atomic cannot be applied to complex type '{s}'"
+    .extra = .str
+    .kind = .@"error"
+
+atomic_qualified
+    .msg = "_Atomic cannot be applied to qualified type '{s}'"
+    .extra = .str
+    .kind = .@"error"
+
+atomic_auto
+    .msg = "_Atomic cannot be applied to type 'auto' in C23"
+    .kind = .@"error"
+
+atomic_access
+    .msg = "accessing a member of an atomic structure or union is undefined behavior"
+    .opt = W("atomic-access")
     .kind = .@"error"
 
 addr_of_register
@@ -1066,11 +1102,6 @@ arr_init_too_long
     .extra = .str
     .kind = .@"error"
 
-invalid_typeof
-    .msg = "'{s} typeof' is invalid"
-    .extra = .str
-    .kind = .@"error"
-
 division_by_zero
     .msg = "{s} by zero is undefined"
     .extra = .str
@@ -1223,6 +1254,11 @@ member_expr_not_ptr
 
 member_expr_ptr
     .msg = "member reference type '{s}' is a pointer; did you mean to use '->'?"
+    .extra = .str
+    .kind = .@"error"
+
+member_expr_atomic
+    .msg = "accessing a member of atomic type '{s}' is undefined behavior"
     .extra = .str
     .kind = .@"error"
 
@@ -1515,6 +1551,10 @@ extra_semi
 
 func_field
     .msg = "field declared as a function"
+    .kind = .@"error"
+
+expected_member_name
+    .msg = "expected member name after declarator"
     .kind = .@"error"
 
 vla_field
@@ -2211,15 +2251,11 @@ auto_type_requires_plain_declarator
     .msg = "'__auto_type' requires a plain identifier as declarator"
     .kind = .@"error"
 
-invalid_cast_to_auto_type
-    .msg = "invalid cast to '__auto_type'"
-    .kind = .@"error"
-
 auto_type_from_bitfield
     .msg = "cannot use bit-field as '__auto_type' initializer"
     .kind = .@"error"
 
-array_of_auto_type
+auto_type_array
     .msg = "'{s}' declared as array of '__auto_type'"
     .kind = .@"error"
     .extra = .str
@@ -2494,10 +2530,6 @@ identifier_not_normalized
     .extra = .normalized
     .opt = W("normalized")
 
-c23_auto_plain_declarator
-    .msg = "'auto' requires a plain identifier declarator"
-    .kind = .@"error"
-
 c23_auto_single_declarator
     .msg = "'auto' can only be used with a single declarator"
     .kind = .@"error"
@@ -2506,9 +2538,19 @@ c32_auto_requires_initializer
     .msg = "'auto' requires an initializer"
     .kind = .@"error"
 
-c23_auto_scalar_init
-    .msg = "'auto' requires a scalar initializer"
+c23_auto_not_allowed
+    .msg = "'auto' not allowed in {s}"
     .kind = .@"error"
+    .extra = .str
+
+c23_auto_with_init_list
+    .msg = "cannot use 'auto' with array"
+    .kind = .@"error"
+
+c23_auto_array
+    .msg = "'{s}' declared as array of 'auto'"
+    .kind = .@"error"
+    .extra = .str
 
 negative_shift_count
     .msg = "shift count is negative"

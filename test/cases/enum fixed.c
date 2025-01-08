@@ -112,8 +112,8 @@ void more_pointers(void) {
     "enum fixed.c:67:25: warning: incompatible pointer types initializing 'enum Unsigned: unsigned int *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
     "enum fixed.c:70:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
     "enum fixed.c:71:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]" \
-    "enum fixed.c:82:12: error: non-integral type 'struct BackingStruct' is an invalid underlying type" \
-    "enum fixed.c:86:12: error: non-integral type 'enum BackingEnum: int' is an invalid underlying type" \
+    "enum fixed.c:82:12: error: non-integral type 'BackingStruct' is an invalid underlying type" \
+    "enum fixed.c:86:12: error: non-integral type 'BackingEnum' is an invalid underlying type" \
     "enum fixed.c:90:23: error: expected identifier or '('" \
     "enum fixed.c:97:31: warning: incompatible pointer types initializing 'enum SignedEnum: int *' from incompatible type 'unsigned int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
     "enum fixed.c:99:38: warning: incompatible pointer types initializing 'enum CharEnum: signed char *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]" \

@@ -9,7 +9,7 @@ const BigIntSpace = Interner.Tag.Int.BigIntSpace;
 const annex_g = @import("annex_g.zig");
 const Compilation = @import("Compilation.zig");
 const target_util = @import("target.zig");
-const Type = @import("Type.zig");
+const QualType = @import("TypeStore.zig").QualType;
 
 const Value = @This();
 
@@ -141,18 +141,18 @@ pub const FloatToIntChangeKind = enum {
 
 /// Converts the stored value from a float to an integer.
 /// `.none` value remains unchanged.
-pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChangeKind {
+pub fn floatToInt(v: *Value, dest_ty: QualType, comp: *Compilation) !FloatToIntChangeKind {
     if (v.opt_ref == .none) return .none;
 
     const float_val = v.toFloat(f128, comp);
     const was_zero = float_val == 0;
 
-    if (dest_ty.is(.bool)) {
+    if (dest_ty.is(comp, .bool)) {
         const was_one = float_val == 1.0;
         v.* = fromBool(!was_zero);
         if (was_zero or was_one) return .none;
         return .value_changed;
-    } else if (dest_ty.isUnsignedInt(comp) and float_val < 0) {
+    } else if (dest_ty.signedness(comp) == .unsigned and float_val < 0) {
         v.* = zero;
         return .out_of_range;
     }
@@ -180,7 +180,7 @@ pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChang
     }
 
     const signedness = dest_ty.signedness(comp);
-    const bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
+    const bits: usize = @intCast(dest_ty.bitSizeof(comp));
 
     // rational.p.truncate(rational.p.toConst(), signedness: Signedness, bit_count: usize)
     const fits = rational.p.fitsInTwosComp(signedness, bits);
@@ -195,11 +195,11 @@ pub fn floatToInt(v: *Value, dest_ty: Type, comp: *Compilation) !FloatToIntChang
 
 /// Converts the stored value from an integer to a float.
 /// `.none` value remains unchanged.
-pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
+pub fn intToFloat(v: *Value, dest_ty: QualType, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
 
-    if (dest_ty.isComplex()) {
-        const bits = dest_ty.bitSizeof(comp).?;
+    if (dest_ty.is(comp, .complex)) {
+        const bits = dest_ty.bitSizeof(comp);
         const cf: Interner.Key.Complex = switch (bits) {
             32 => .{ .cf16 = .{ v.toFloat(f16, comp), 0 } },
             64 => .{ .cf32 = .{ v.toFloat(f32, comp), 0 } },
@@ -211,7 +211,7 @@ pub fn intToFloat(v: *Value, dest_ty: Type, comp: *Compilation) !void {
         v.* = try intern(comp, .{ .complex = cf });
         return;
     }
-    const bits = dest_ty.bitSizeof(comp).?;
+    const bits = dest_ty.bitSizeof(comp);
     return switch (comp.interner.get(v.ref()).int) {
         inline .u64, .i64 => |data| {
             const f: Interner.Key.Float = switch (bits) {
@@ -250,12 +250,12 @@ pub const IntCastChangeKind = enum {
 
 /// Truncates or extends bits based on type.
 /// `.none` value remains unchanged.
-pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind {
+pub fn intCast(v: *Value, dest_ty: QualType, comp: *Compilation) !IntCastChangeKind {
     if (v.opt_ref == .none) return .none;
     const key = comp.interner.get(v.ref());
     if (key == .pointer or key == .bytes) return .none;
 
-    const dest_bits: usize = @intCast(dest_ty.bitSizeof(comp).?);
+    const dest_bits: usize = @intCast(dest_ty.bitSizeof(comp));
     const dest_signed = dest_ty.signedness(comp) == .signed;
 
     var space: BigIntSpace = undefined;
@@ -289,10 +289,10 @@ pub fn intCast(v: *Value, dest_ty: Type, comp: *Compilation) !IntCastChangeKind 
 
 /// Converts the stored value to a float of the specified type
 /// `.none` value remains unchanged.
-pub fn floatCast(v: *Value, dest_ty: Type, comp: *Compilation) !void {
+pub fn floatCast(v: *Value, dest_ty: QualType, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
-    const bits = dest_ty.bitSizeof(comp).?;
-    if (dest_ty.isComplex()) {
+    const bits = dest_ty.bitSizeof(comp);
+    if (dest_ty.is(comp, .complex)) {
         const cf: Interner.Key.Complex = switch (bits) {
             32 => .{ .cf16 = .{ v.toFloat(f16, comp), v.imag(f16, comp) } },
             64 => .{ .cf32 = .{ v.toFloat(f32, comp), v.imag(f32, comp) } },
@@ -517,10 +517,11 @@ fn complexAddSub(lhs: Value, rhs: Value, comptime T: type, op: ComplexOp, comp: 
     };
 }
 
-pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
-    const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isFloat()) {
-        if (ty.isComplex()) {
+pub fn add(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !bool {
+    const bits: usize = @intCast(qt.bitSizeof(comp));
+    const scalar_kind = qt.scalarKind(comp);
+    if (scalar_kind.isFloat()) {
+        if (scalar_kind == .complex_float) {
             res.* = switch (bits) {
                 32 => try complexAddSub(lhs, rhs, f16, .add, comp),
                 64 => try complexAddSub(lhs, rhs, f32, .add, comp),
@@ -554,12 +555,12 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         else
             .{ rhs_key.pointer, lhs };
 
-        const elem_size = try int(ty.elemType().sizeof(comp) orelse 1, comp);
+        const elem_size = try int(qt.childType(comp).sizeofOrNull(comp) orelse 1, comp);
         var total_offset: Value = undefined;
-        const mul_overflow = try total_offset.mul(elem_size, index, comp.types.ptrdiff, comp);
+        const mul_overflow = try total_offset.mul(elem_size, index, comp.type_store.ptrdiff, comp);
         const old_offset = fromRef(rel.offset);
-        const add_overflow = try total_offset.add(total_offset, old_offset, comp.types.ptrdiff, comp);
-        _ = try total_offset.intCast(comp.types.ptrdiff, comp);
+        const add_overflow = try total_offset.add(total_offset, old_offset, comp.type_store.ptrdiff, comp);
+        _ = try total_offset.intCast(comp.type_store.ptrdiff, comp);
         res.* = try pointer(.{ .node = rel.node, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
@@ -576,24 +577,25 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     defer comp.gpa.free(limbs);
     var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-    const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
+    const overflowed = result_bigint.addWrap(lhs_bigint, rhs_bigint, qt.signedness(comp), bits);
     res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
     return overflowed;
 }
 
-pub fn negate(res: *Value, val: Value, ty: Type, comp: *Compilation) !bool {
-    return res.sub(zero, val, ty, undefined, comp);
+pub fn negate(res: *Value, val: Value, qt: QualType, comp: *Compilation) !bool {
+    return res.sub(zero, val, qt, undefined, comp);
 }
 
-pub fn decrement(res: *Value, val: Value, ty: Type, comp: *Compilation) !bool {
-    return res.sub(val, one, ty, undefined, comp);
+pub fn decrement(res: *Value, val: Value, qt: QualType, comp: *Compilation) !bool {
+    return res.sub(val, one, qt, undefined, comp);
 }
 
 /// elem_size is only used when subtracting two pointers, so we can scale the result by the size of the element type
-pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: *Compilation) !bool {
-    const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isFloat()) {
-        if (ty.isComplex()) {
+pub fn sub(res: *Value, lhs: Value, rhs: Value, qt: QualType, elem_size: u64, comp: *Compilation) !bool {
+    const bits: usize = @intCast(qt.bitSizeof(comp));
+    const scalar_kind = qt.scalarKind(comp);
+    if (scalar_kind.isFloat()) {
+        if (scalar_kind == .complex_float) {
             res.* = switch (bits) {
                 32 => try complexAddSub(lhs, rhs, f16, .sub, comp),
                 64 => try complexAddSub(lhs, rhs, f32, .sub, comp),
@@ -630,19 +632,19 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
         }
         const lhs_offset = fromRef(lhs_pointer.offset);
         const rhs_offset = fromRef(rhs_pointer.offset);
-        const overflowed = try res.sub(lhs_offset, rhs_offset, comp.types.ptrdiff, undefined, comp);
+        const overflowed = try res.sub(lhs_offset, rhs_offset, comp.type_store.ptrdiff, undefined, comp);
         const rhs_size = try int(elem_size, comp);
-        _ = try res.div(res.*, rhs_size, comp.types.ptrdiff, comp);
+        _ = try res.div(res.*, rhs_size, comp.type_store.ptrdiff, comp);
         return overflowed;
     } else if (lhs_key == .pointer) {
         const rel = lhs_key.pointer;
 
         const lhs_size = try int(elem_size, comp);
         var total_offset: Value = undefined;
-        const mul_overflow = try total_offset.mul(lhs_size, rhs, comp.types.ptrdiff, comp);
+        const mul_overflow = try total_offset.mul(lhs_size, rhs, comp.type_store.ptrdiff, comp);
         const old_offset = fromRef(rel.offset);
-        const add_overflow = try total_offset.sub(old_offset, total_offset, comp.types.ptrdiff, undefined, comp);
-        _ = try total_offset.intCast(comp.types.ptrdiff, comp);
+        const add_overflow = try total_offset.sub(old_offset, total_offset, comp.type_store.ptrdiff, undefined, comp);
+        _ = try total_offset.intCast(comp.type_store.ptrdiff, comp);
         res.* = try pointer(.{ .node = rel.node, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
@@ -659,15 +661,16 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, ty: Type, elem_size: u64, comp: 
     defer comp.gpa.free(limbs);
     var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-    const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, ty.signedness(comp), bits);
+    const overflowed = result_bigint.subWrap(lhs_bigint, rhs_bigint, qt.signedness(comp), bits);
     res.* = try intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
     return overflowed;
 }
 
-pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
-    const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isFloat()) {
-        if (ty.isComplex()) {
+pub fn mul(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !bool {
+    const bits: usize = @intCast(qt.bitSizeof(comp));
+    const scalar_kind = qt.scalarKind(comp);
+    if (scalar_kind.isFloat()) {
+        if (scalar_kind == .complex_float) {
             const cf: Interner.Key.Complex = switch (bits) {
                 32 => .{ .cf16 = annex_g.complexFloatMul(f16, lhs.toFloat(f16, comp), lhs.imag(f16, comp), rhs.toFloat(f16, comp), rhs.imag(f16, comp)) },
                 64 => .{ .cf32 = annex_g.complexFloatMul(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
@@ -710,7 +713,7 @@ pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 
         result_bigint.mul(lhs_bigint, rhs_bigint, limbs_buffer, comp.gpa);
 
-        const signedness = ty.signedness(comp);
+        const signedness = qt.signedness(comp);
         const overflowed = !result_bigint.toConst().fitsInTwosComp(signedness, bits);
         if (overflowed) {
             result_bigint.truncate(result_bigint.toConst(), signedness, bits);
@@ -721,10 +724,11 @@ pub fn mul(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
 }
 
 /// caller guarantees rhs != 0
-pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
-    const bits: usize = @intCast(ty.bitSizeof(comp).?);
-    if (ty.isFloat()) {
-        if (ty.isComplex()) {
+pub fn div(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !bool {
+    const bits: usize = @intCast(qt.bitSizeof(comp));
+    const scalar_kind = qt.scalarKind(comp);
+    if (scalar_kind.isFloat()) {
+        if (scalar_kind == .complex_float) {
             const cf: Interner.Key.Complex = switch (bits) {
                 32 => .{ .cf16 = annex_g.complexFloatDiv(f16, lhs.toFloat(f16, comp), lhs.imag(f16, comp), rhs.toFloat(f16, comp), rhs.imag(f16, comp)) },
                 64 => .{ .cf32 = annex_g.complexFloatDiv(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
@@ -775,22 +779,21 @@ pub fn div(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
         result_q.divTrunc(&result_r, lhs_bigint, rhs_bigint, limbs_buffer);
 
         res.* = try intern(comp, .{ .int = .{ .big_int = result_q.toConst() } });
-        return !result_q.toConst().fitsInTwosComp(ty.signedness(comp), bits);
+        return !result_q.toConst().fitsInTwosComp(qt.signedness(comp), bits);
     }
 }
 
 /// caller guarantees rhs != 0
 /// caller guarantees lhs != std.math.minInt(T) OR rhs != -1
-pub fn rem(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
+pub fn rem(lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !Value {
     var lhs_space: BigIntSpace = undefined;
     var rhs_space: BigIntSpace = undefined;
     const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
     const rhs_bigint = rhs.toBigInt(&rhs_space, comp);
 
-    const signedness = ty.signedness(comp);
-    if (signedness == .signed) {
+    if (qt.signedness(comp) == .signed) {
         var spaces: [2]BigIntSpace = undefined;
-        const min_val = try Value.minInt(ty, comp);
+        const min_val = try Value.minInt(qt, comp);
         const negative = BigIntMutable.init(&spaces[0].limbs, -1).toConst();
         const big_one = BigIntMutable.init(&spaces[1].limbs, 1).toConst();
         if (lhs.compare(.eq, min_val, comp) and rhs_bigint.eql(negative)) {
@@ -798,9 +801,9 @@ pub fn rem(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
         } else if (rhs_bigint.order(big_one).compare(.lt)) {
             // lhs - @divTrunc(lhs, rhs) * rhs
             var tmp: Value = undefined;
-            _ = try tmp.div(lhs, rhs, ty, comp);
-            _ = try tmp.mul(tmp, rhs, ty, comp);
-            _ = try tmp.sub(lhs, tmp, ty, undefined, comp);
+            _ = try tmp.div(lhs, rhs, qt, comp);
+            _ = try tmp.mul(tmp, rhs, qt, comp);
+            _ = try tmp.sub(lhs, tmp, qt, undefined, comp);
             return tmp;
         }
     }
@@ -887,8 +890,8 @@ pub fn bitAnd(lhs: Value, rhs: Value, comp: *Compilation) !Value {
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn bitNot(val: Value, ty: Type, comp: *Compilation) !Value {
-    const bits: usize = @intCast(ty.bitSizeof(comp).?);
+pub fn bitNot(val: Value, qt: QualType, comp: *Compilation) !Value {
+    const bits: usize = @intCast(qt.bitSizeof(comp));
     var val_space: Value.BigIntSpace = undefined;
     const val_bigint = val.toBigInt(&val_space, comp);
 
@@ -899,21 +902,21 @@ pub fn bitNot(val: Value, ty: Type, comp: *Compilation) !Value {
     defer comp.gpa.free(limbs);
     var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
-    result_bigint.bitNotWrap(val_bigint, ty.signedness(comp), bits);
+    result_bigint.bitNotWrap(val_bigint, qt.signedness(comp), bits);
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn shl(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !bool {
+pub fn shl(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !bool {
     var lhs_space: Value.BigIntSpace = undefined;
     const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
     const shift = rhs.toInt(usize, comp) orelse std.math.maxInt(usize);
 
-    const bits: usize = @intCast(ty.bitSizeof(comp).?);
+    const bits: usize = @intCast(qt.bitSizeof(comp));
     if (shift > bits) {
         if (lhs_bigint.positive) {
-            res.* = try Value.maxInt(ty, comp);
+            res.* = try Value.maxInt(qt, comp);
         } else {
-            res.* = try Value.minInt(ty, comp);
+            res.* = try Value.minInt(qt, comp);
         }
         return true;
     }
@@ -926,7 +929,7 @@ pub fn shl(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     var result_bigint = BigIntMutable{ .limbs = limbs, .positive = undefined, .len = undefined };
 
     result_bigint.shiftLeft(lhs_bigint, shift);
-    const signedness = ty.signedness(comp);
+    const signedness = qt.signedness(comp);
     const overflowed = !result_bigint.toConst().fitsInTwosComp(signedness, bits);
     if (overflowed) {
         result_bigint.truncate(result_bigint.toConst(), signedness, bits);
@@ -935,7 +938,7 @@ pub fn shl(res: *Value, lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !b
     return overflowed;
 }
 
-pub fn shr(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
+pub fn shr(lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !Value {
     var lhs_space: Value.BigIntSpace = undefined;
     const lhs_bigint = lhs.toBigInt(&lhs_space, comp);
     const shift = rhs.toInt(usize, comp) orelse return zero;
@@ -951,7 +954,7 @@ pub fn shr(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
         }
     }
 
-    const bits: usize = @intCast(ty.bitSizeof(comp).?);
+    const bits: usize = @intCast(qt.bitSizeof(comp));
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         std.math.big.int.calcTwosCompLimbCount(bits),
@@ -963,8 +966,8 @@ pub fn shr(lhs: Value, rhs: Value, ty: Type, comp: *Compilation) !Value {
     return intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn complexConj(val: Value, ty: Type, comp: *Compilation) !Value {
-    const bits = ty.bitSizeof(comp).?;
+pub fn complexConj(val: Value, qt: QualType, comp: *Compilation) !Value {
+    const bits = qt.bitSizeof(comp);
     const cf: Interner.Key.Complex = switch (bits) {
         32 => .{ .cf16 = .{ val.toFloat(f16, comp), -val.imag(f16, comp) } },
         64 => .{ .cf32 = .{ val.toFloat(f32, comp), -val.imag(f32, comp) } },
@@ -1032,10 +1035,10 @@ pub fn comparePointers(lhs: Value, op: std.math.CompareOperator, rhs: Value, com
     return null;
 }
 
-fn twosCompIntLimit(limit: std.math.big.int.TwosCompIntLimit, ty: Type, comp: *Compilation) !Value {
-    const signedness = ty.signedness(comp);
+fn twosCompIntLimit(limit: std.math.big.int.TwosCompIntLimit, qt: QualType, comp: *Compilation) !Value {
+    const signedness = qt.signedness(comp);
     if (limit == .min and signedness == .unsigned) return Value.zero;
-    const mag_bits: usize = @intCast(ty.bitSizeof(comp).?);
+    const mag_bits: usize = @intCast(qt.bitSizeof(comp));
     switch (mag_bits) {
         inline 8, 16, 32, 64 => |bits| {
             if (limit == .min) return Value.int(@as(i64, std.math.minInt(std.meta.Int(.signed, bits))), comp);
@@ -1060,12 +1063,12 @@ fn twosCompIntLimit(limit: std.math.big.int.TwosCompIntLimit, ty: Type, comp: *C
     return Value.intern(comp, .{ .int = .{ .big_int = result_bigint.toConst() } });
 }
 
-pub fn minInt(ty: Type, comp: *Compilation) !Value {
-    return twosCompIntLimit(.min, ty, comp);
+pub fn minInt(qt: QualType, comp: *Compilation) !Value {
+    return twosCompIntLimit(.min, qt, comp);
 }
 
-pub fn maxInt(ty: Type, comp: *Compilation) !Value {
-    return twosCompIntLimit(.max, ty, comp);
+pub fn maxInt(qt: QualType, comp: *Compilation) !Value {
+    return twosCompIntLimit(.max, qt, comp);
 }
 
 const NestedPrint = union(enum) {
@@ -1079,13 +1082,13 @@ pub fn printPointer(offset: Value, base: []const u8, comp: *const Compilation, w
     try w.writeByte('&');
     try w.writeAll(base);
     if (!offset.isZero(comp)) {
-        const maybe_nested = try offset.print(comp.types.ptrdiff, comp, w);
+        const maybe_nested = try offset.print(comp.type_store.ptrdiff, comp, w);
         std.debug.assert(maybe_nested == null);
     }
 }
 
-pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!?NestedPrint {
-    if (ty.is(.bool)) {
+pub fn print(v: Value, qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!?NestedPrint {
+    if (qt.is(comp, .bool)) {
         try w.writeAll(if (v.isZero(comp)) "false" else "true");
         return null;
     }
@@ -1100,7 +1103,7 @@ pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w
             .f32 => |x| try w.print("{d}", .{@round(@as(f64, @floatCast(x)) * 1000000) / 1000000}),
             inline else => |x| try w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| try printString(b, ty, comp, w),
+        .bytes => |b| try printString(b, qt, comp, w),
         .complex => |repr| switch (repr) {
             .cf32 => |components| try w.print("{d} + {d}i", .{ @round(@as(f64, @floatCast(components[0])) * 1000000) / 1000000, @round(@as(f64, @floatCast(components[1])) * 1000000) / 1000000 }),
             inline else => |components| try w.print("{d} + {d}i", .{ @as(f64, @floatCast(components[0])), @as(f64, @floatCast(components[1])) }),
@@ -1111,8 +1114,8 @@ pub fn print(v: Value, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w
     return null;
 }
 
-pub fn printString(bytes: []const u8, ty: Type, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
-    const size: Compilation.CharUnitSize = @enumFromInt(ty.elemType().sizeof(comp).?);
+pub fn printString(bytes: []const u8, qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+    const size: Compilation.CharUnitSize = @enumFromInt(qt.childType(comp).sizeof(comp));
     const without_null = bytes[0 .. bytes.len - @intFromEnum(size)];
     try w.writeByte('"');
     switch (size) {

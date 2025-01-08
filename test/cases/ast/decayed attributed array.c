@@ -26,8 +26,7 @@ variable: 'attributed([1]int)'
 variable: '*int'
  name: ptr
  init:
-  implicit cast: (array_to_pointer) '*d:attributed([1]int)' (value: &arr)
-   attr: aligned alignment: null
+  implicit cast: (array_to_pointer) 'decayed *attributed([1]int)' (value: &arr)
     decl_ref_expr: 'attributed([1]int)' lvalue
      attr: aligned alignment: null
      name: arr
@@ -35,7 +34,7 @@ variable: '*int'
 fn_def: 'fn () void'
  name: foo
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: 'attributed([64]char)'
      attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(14), .requested = 8 }
      name: x
@@ -47,8 +46,7 @@ fn_def: 'fn () void'
        operand:
         array_access_expr: 'char' lvalue
          base:
-          implicit cast: (array_to_pointer) '*d:attributed([64]char)'
-           attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(14), .requested = 8 }
+          implicit cast: (array_to_pointer) 'decayed *attributed([64]char)'
             paren_expr: 'attributed([64]char)' lvalue
              attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(14), .requested = 8 }
              operand:

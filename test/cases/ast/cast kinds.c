@@ -26,7 +26,7 @@ union_decl: 'union U'
 fn_def: 'fn () int'
  name: bar
  body:
-  compound_stmt: 'void'
+  compound_stmt
     return_stmt: 'int'
      expr:
       int_literal: 'int' (value: 42)
@@ -34,7 +34,7 @@ fn_def: 'fn () int'
 fn_def: 'fn () void'
  name: foo
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: 'int'
      name: x
 
@@ -66,7 +66,7 @@ fn_def: 'fn () void'
       decl_ref_expr: '*int' lvalue
        name: p
      rhs:
-      implicit cast: (array_to_pointer) '*d[2]int'
+      implicit cast: (array_to_pointer) 'decayed *[2]int'
         decl_ref_expr: '[2]int' lvalue
          name: arr
 

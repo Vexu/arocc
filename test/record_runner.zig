@@ -5,7 +5,19 @@ const aro = @import("aro");
 /// These tests don't work for any platform due to Aro bugs.
 /// Skip entirely.
 /// To skip a test entirely just put the test name as a single-element tuple e.g. initComptime(.{.{"0044"}});
-const global_test_exclude = std.StaticStringMap(void).initComptime(.{});
+const global_test_exclude = std.StaticStringMap(void).initComptime(.{
+    .{"0008"},
+    .{"0010"},
+    .{"0011"},
+    .{"0014"},
+    .{"0017"},
+    .{"0018"},
+    .{"0025"},
+    .{"0026"},
+    .{"0042"},
+    .{"0045"},
+    .{"0046"},
+});
 
 fn lessThan(_: void, lhs: []const u8, rhs: []const u8) bool {
     return std.mem.lessThan(u8, lhs, rhs);

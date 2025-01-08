@@ -19,8 +19,8 @@ implicit typedef: 'long double'
 fn_def: 'fn () int'
  name: main
  body:
-  compound_stmt: 'void'
-    for_stmt: 'void'
+  compound_stmt
+    for_stmt
      decl:
       variable: 'int'
        name: x

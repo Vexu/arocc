@@ -36,6 +36,18 @@ __attribute__((aligned("foo"))) o;
 _Alignas(1.2) p;
 _Static_assert(_Alignof(_BitInt(65535)) > 0, "");
 
+void array_incomplete(void) {
+    typedef int arr[] __attribute__((aligned(32)));
+    arr a = {1, 2, 3};
+    _Static_assert(_Alignof(__typeof(a)) == 4, "");
+}
+
+void array_fixed(void) {
+    typedef int arr[3] __attribute__((aligned(32)));
+    arr a = {1, 2, 3};
+    _Static_assert(_Alignof(__typeof(a)) == 32, "");
+}
+
 #define EXPECTED_ERRORS "alignment.c:1:1: error: '_Alignas' attribute only applies to variables and fields" \
     "alignment.c:3:3: error: '_Alignas' attribute only applies to variables and fields" \
     "alignment.c:5:1: error: requested alignment is less than minimum alignment of 4" \

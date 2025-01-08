@@ -144,7 +144,7 @@ struct NoTrailingSemicolon {
     "containers.c:15:12: error: tentative definition has type 'struct Foo' that is never completed" \
     "containers.c:15:8: note: forward declaration of 'struct Foo'" \
     "containers.c:20:6: warning: declaration does not declare anything [-Wmissing-declaration]" \
-    "containers.c:21:25: warning: declaration does not declare anything [-Wmissing-declaration]" \
+    "containers.c:21:25: error: expected member name after declarator" \
     "containers.c:22:20: error: invalid application of 'sizeof' to an incomplete type 'struct StructTest'" \
     "containers.c:38:5: error: invalid application of 'sizeof' to an incomplete type 'struct Foo'" \
     "containers.c:39:5: error: must use 'struct' tag to refer to type 'StructTest'" \

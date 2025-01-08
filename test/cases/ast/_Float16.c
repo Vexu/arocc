@@ -16,16 +16,16 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
-variable: '__builtin_va_list': '[1]struct __va_list_tag'
+typedef: '__builtin_va_list: [1]struct __va_list_tag'
  name: va_list
 
-variable: '__builtin_va_list': '[1]struct __va_list_tag'
+typedef: '__builtin_va_list: [1]struct __va_list_tag'
  name: __gnuc_va_list
 
 fn_def: 'fn (x: _Float16, y: _Float16) _Float16'
  name: foo
  body:
-  compound_stmt: 'void'
+  compound_stmt
     return_stmt: '_Float16'
      expr:
       add_expr: '_Float16'
@@ -41,15 +41,15 @@ fn_def: 'fn (x: _Float16, y: _Float16) _Float16'
 fn_def: 'fn (x: int, ...) void'
  name: bar
  body:
-  compound_stmt: 'void'
-    variable: 'va_list': '[1]struct __va_list_tag'
+  compound_stmt
+    variable: 'va_list: __builtin_va_list: [1]struct __va_list_tag'
      name: va
 
     builtin_call_expr: 'void'
      name: __builtin_va_start
      args:
-      implicit cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
-        decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
+      implicit cast: (array_to_pointer) 'decayed *va_list: __builtin_va_list: [1]struct __va_list_tag' (value: &va)
+        decl_ref_expr: 'va_list: __builtin_va_list: [1]struct __va_list_tag' lvalue
          name: va
       decl_ref_expr: 'int' lvalue
        name: x
@@ -57,8 +57,8 @@ fn_def: 'fn (x: int, ...) void'
     builtin_call_expr: 'void'
      name: __builtin_va_end
      args:
-      implicit cast: (array_to_pointer) 'va_list': '*d[1]struct __va_list_tag' (value: &va)
-        decl_ref_expr: 'va_list': '[1]struct __va_list_tag' lvalue
+      implicit cast: (array_to_pointer) 'decayed *va_list: __builtin_va_list: [1]struct __va_list_tag' (value: &va)
+        decl_ref_expr: 'va_list: __builtin_va_list: [1]struct __va_list_tag' lvalue
          name: va
 
     implicit return_stmt: 'void'
@@ -66,7 +66,7 @@ fn_def: 'fn (x: int, ...) void'
 fn_def: 'fn () void'
  name: quux
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: '_Float16'
      name: f
      init:
@@ -88,7 +88,7 @@ fn_def: 'fn () void'
 fn_def: 'fn () void'
  name: conversions
  body:
-  compound_stmt: 'void'
+  compound_stmt
     variable: 'double'
      name: d
      init:

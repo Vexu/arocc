@@ -517,6 +517,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
         std.debug.print("invalid EXPECTED_ERRORS {}\n", .{macro});
         return false;
     }
+    buf.items.len = 0;
 
     var count: usize = 0;
     for (macro.tokens) |str| {
@@ -528,11 +529,11 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
         defer count += 1;
         if (count >= expected_count) continue;
 
-        defer buf.items.len = 0;
+        const start = buf.items.len;
         // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
         std.debug.assert((try std.zig.string_literal.parseWrite(buf.writer(), pp.tokSlice(str))) == .success);
         try buf.append('\n');
-        const expected_error = buf.items;
+        const expected_error = buf.items[start..];
 
         const index = std.mem.indexOf(u8, m.buf.items, expected_error);
         if (index == null) {
@@ -553,11 +554,24 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
     if (count != expected_count) {
         std.debug.print(
             \\EXPECTED_ERRORS missing errors, expected {d} found {d},
-            \\=== actual output ===
-            \\{s}
             \\
-            \\
-        , .{ count, expected_count, m.buf.items });
+        , .{ count, expected_count });
+        var it = std.mem.tokenizeScalar(u8, m.buf.items, '\n');
+        while (it.next()) |msg| {
+            const start = std.mem.indexOf(u8, msg, ".c:") orelse continue;
+            const index = std.mem.indexOf(u8, buf.items, msg[start..]);
+            if (index == null) {
+                std.debug.print(
+                    \\
+                    \\========= new error ==========
+                    \\{s}
+                    \\
+                    \\=== not in EXPECTED_ERRORS ===
+                    \\
+                    \\
+                , .{msg});
+            }
+        }
         return false;
     }
     return true;
@@ -622,8 +636,7 @@ const StmtTypeDumper = struct {
     fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: Node.Index, m: *MsgWriter) AllocatorError!void {
         const maybe_ret = node.get(tree);
         if (maybe_ret == .return_stmt and maybe_ret.return_stmt.operand == .implicit) return;
-        const ty = node.type(tree);
-        ty.dump(tree.comp.string_interner, tree.comp.langopts, m.buf.writer()) catch {};
+        node.qt(tree).dump(tree.comp, m.buf.writer()) catch {};
         const owned = try m.buf.toOwnedSlice();
         errdefer m.buf.allocator.free(owned);
         try self.types.append(owned);
