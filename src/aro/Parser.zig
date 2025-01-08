@@ -4186,12 +4186,12 @@ fn coerceArrayInitExtra(p: *Parser, item: *Result, tok: TokenIndex, target: Qual
     const target_elem = target_array_ty.elem;
     const item_elem = maybe_item_array_ty.?.elem;
 
-    const target_int = target_elem.get(p.comp, .int);
-    const item_int = item_elem.get(p.comp, .int);
+    const target_int = target_elem.get(p.comp, .int) orelse .int; // not int; string compat checks below will fail by design
+    const item_int = item_elem.get(p.comp, .int) orelse .int; // not int; string compat checks below will fail by design
 
     const compatible = target_elem.eql(item_elem, p.comp) or
-        (is_str_lit and item_int.? == .char and (target_int.? == .uchar or target_int.? == .schar)) or
-        (is_str_lit and item_int.? == .uchar and (target_int.? == .uchar or target_int.? == .schar or target_int.? == .char));
+        (is_str_lit and item_int == .char and (target_int == .uchar or target_int == .schar)) or
+        (is_str_lit and item_int == .uchar and (target_int == .uchar or target_int == .schar or target_int == .char));
     if (!compatible) {
         if (!report_err) return false;
         const e_msg = " with array of type ";
