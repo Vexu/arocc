@@ -378,12 +378,13 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
     if (tc.driver.nostdinc) return;
 
     const comp = tc.driver.comp;
+    const sm = &tc.driver.source_manager;
     const target = tc.getTarget();
 
     // musl prefers /usr/include before builtin includes, so musl targets will add builtins
     // at the end of this function (unless disabled with nostdlibinc)
     if (!tc.driver.nobuiltininc and (!target.isMusl() or tc.driver.nostdlibinc)) {
-        try comp.addBuiltinIncludeDir(tc.driver.aro_name);
+        try tc.driver.source_manager.addBuiltinIncludeDir(comp.gpa, tc.driver.aro_name);
     }
 
     if (tc.driver.nostdlibinc) return;
@@ -391,30 +392,30 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
     const sysroot = tc.getSysroot();
     const local_include = try std.fmt.allocPrint(comp.gpa, "{s}{s}", .{ sysroot, "/usr/local/include" });
     defer comp.gpa.free(local_include);
-    try comp.addSystemIncludeDir(local_include);
+    try sm.addSystemIncludeDir(comp.gpa, local_include);
 
     if (self.gcc_detector.is_valid) {
         const gcc_include_path = try std.fs.path.join(comp.gpa, &.{ self.gcc_detector.parent_lib_path, "..", self.gcc_detector.gcc_triple, "include" });
         defer comp.gpa.free(gcc_include_path);
-        try comp.addSystemIncludeDir(gcc_include_path);
+        try sm.addSystemIncludeDir(comp.gpa, gcc_include_path);
     }
 
     if (getMultiarchTriple(target)) |triple| {
         const joined = try std.fs.path.join(comp.gpa, &.{ sysroot, "usr", "include", triple });
         defer comp.gpa.free(joined);
         if (tc.filesystem.exists(joined)) {
-            try comp.addSystemIncludeDir(joined);
+            try sm.addSystemIncludeDir(comp.gpa, joined);
         }
     }
 
     if (target.os.tag == .rtems) return;
 
-    try comp.addSystemIncludeDir("/include");
-    try comp.addSystemIncludeDir("/usr/include");
+    try sm.addSystemIncludeDir(comp.gpa, "/include");
+    try sm.addSystemIncludeDir(comp.gpa, "/usr/include");
 
     std.debug.assert(!tc.driver.nostdlibinc);
     if (!tc.driver.nobuiltininc and target.isMusl()) {
-        try comp.addBuiltinIncludeDir(tc.driver.aro_name);
+        try tc.driver.source_manager.addBuiltinIncludeDir(comp.gpa, tc.driver.aro_name);
     }
 }
 
@@ -425,7 +426,7 @@ test Linux {
     defer arena_instance.deinit();
     const arena = arena_instance.allocator();
 
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
     comp.environment = .{
         .path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
@@ -437,7 +438,7 @@ test Linux {
     comp.target = try std.zig.system.resolveTargetQuery(target_query);
     comp.langopts.setEmulatedCompiler(.gcc);
 
-    var driver: Driver = .{ .comp = &comp };
+    var driver: Driver = .init(&comp, .{});
     defer driver.deinit();
     driver.raw_target_triple = raw_triple;
 

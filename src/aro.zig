@@ -4,7 +4,8 @@ pub const Diagnostics = @import("aro/Diagnostics.zig");
 pub const Driver = @import("aro/Driver.zig");
 pub const Parser = @import("aro/Parser.zig");
 pub const Preprocessor = @import("aro/Preprocessor.zig");
-pub const Source = @import("aro/Source.zig");
+pub const SourceManager = @import("aro/SourceManager.zig");
+pub const Source = SourceManager.Source;
 pub const StringInterner = @import("aro/StringInterner.zig");
 pub const target_util = @import("aro/target.zig");
 pub const Tokenizer = @import("aro/Tokenizer.zig");
@@ -35,6 +36,7 @@ test {
     _ = @import("aro/Driver/GCCVersion.zig");
     _ = @import("aro/InitList.zig");
     _ = @import("aro/Preprocessor.zig");
+    _ = @import("aro/SourceManager.zig");
     _ = @import("aro/target.zig");
     _ = @import("aro/Tokenizer.zig");
     _ = @import("aro/toolchains/Linux.zig");

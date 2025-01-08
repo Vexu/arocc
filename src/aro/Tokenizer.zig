@@ -3,7 +3,8 @@ const assert = std.debug.assert;
 
 const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
-const Source = @import("Source.zig");
+const SourceManager = @import("SourceManager.zig");
+const Source = SourceManager.Source;
 
 pub const Token = struct {
     id: Id,
@@ -2156,10 +2157,14 @@ test "Tokenizer fuzz test" {
 }
 
 fn testTokenizerFuzz(input_bytes: []const u8) anyerror!void {
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    const gpa = std.testing.allocator;
+    var sm: SourceManager = .{ .cwd = std.fs.cwd() };
+    defer sm.deinit(gpa);
+
+    var comp = Compilation.init(gpa);
     defer comp.deinit();
 
-    const source = try comp.addSourceFromBuffer("fuzz.c", input_bytes);
+    const source = try sm.addSourceFromBuffer(gpa, &comp.diagnostics, "fuzz.c", input_bytes);
 
     var tokenizer: Tokenizer = .{
         .buf = source.buf,
@@ -2175,12 +2180,16 @@ fn testTokenizerFuzz(input_bytes: []const u8) anyerror!void {
 }
 
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    const gpa = std.testing.allocator;
+    var sm: SourceManager = .{ .cwd = std.fs.cwd() };
+    defer sm.deinit(gpa);
+
+    var comp = Compilation.init(gpa);
     defer comp.deinit();
     if (standard) |provided| {
         comp.langopts.standard = provided;
     }
-    const source = try comp.addSourceFromBuffer("path", contents);
+    const source = try sm.addSourceFromBuffer(gpa, &comp.diagnostics, "path", contents);
     var tokenizer = Tokenizer{
         .buf = source.buf,
         .source = source.id,

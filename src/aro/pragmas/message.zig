@@ -6,7 +6,6 @@ const Diagnostics = @import("../Diagnostics.zig");
 const Parser = @import("../Parser.zig");
 const Pragma = @import("../Pragma.zig");
 const Preprocessor = @import("../Preprocessor.zig");
-const Source = @import("../Source.zig");
 const TokenIndex = @import("../Tree.zig").TokenIndex;
 
 const Message = @This();

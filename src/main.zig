@@ -38,7 +38,7 @@ pub fn main() u8 {
     };
     defer gpa.free(aro_name);
 
-    var comp = Compilation.initDefault(gpa, std.fs.cwd()) catch |er| switch (er) {
+    var comp = Compilation.initDefault(gpa) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) process.exit(1);
@@ -47,10 +47,10 @@ pub fn main() u8 {
     };
     defer comp.deinit();
 
-    var driver: Driver = .{ .comp = &comp, .aro_name = aro_name };
+    var driver: Driver = .init(&comp, .{ .aro_name = aro_name });
     defer driver.deinit();
 
-    var toolchain: Toolchain = .{ .driver = &driver, .arena = arena, .filesystem = .{ .real = comp.cwd } };
+    var toolchain: Toolchain = .{ .driver = &driver, .arena = arena, .filesystem = .{ .real = driver.source_manager.cwd } };
     defer toolchain.deinit();
 
     driver.main(&toolchain, args, fast_exit, assembly_backend.genAsm) catch |er| switch (er) {

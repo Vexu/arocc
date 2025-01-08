@@ -11,20 +11,20 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 
-const Compilation = @import("Compilation.zig");
-const Source = @import("Source.zig");
+const LangOpts = @import("LangOpts.zig");
+const SourceManager = @import("SourceManager.zig");
 const Tokenizer = @import("Tokenizer.zig");
 
 pub const Hideset = @This();
 
 const Identifier = struct {
-    id: Source.Id = .unused,
+    id: SourceManager.Source.Id = .unused,
     byte_offset: u32 = 0,
 
-    fn slice(self: Identifier, comp: *const Compilation) []const u8 {
+    fn slice(self: Identifier, sm: *const SourceManager, langopts: LangOpts) []const u8 {
         var tmp_tokenizer = Tokenizer{
-            .buf = comp.getSource(self.id).buf,
-            .langopts = comp.langopts,
+            .buf = self.id.get(sm).buf,
+            .langopts = langopts,
             .index = self.byte_offset,
             .source = .generated,
         };
@@ -32,7 +32,7 @@ const Identifier = struct {
         return tmp_tokenizer.buf[res.start..res.end];
     }
 
-    fn fromLocation(loc: Source.Location) Identifier {
+    fn fromLocation(loc: SourceManager.Location) Identifier {
         return .{
             .id = loc.id,
             .byte_offset = loc.byte_offset,
@@ -52,12 +52,11 @@ pub const Index = enum(u32) {
     _,
 };
 
-map: std.AutoHashMapUnmanaged(Identifier, Index) = .{},
+map: std.AutoHashMapUnmanaged(Identifier, Index) = .empty,
 /// Used for computing union/intersection of two lists; stored here so that allocations can be retained
 /// until hideset is deinit'ed
-tmp_map: std.AutoHashMapUnmanaged(Identifier, void) = .{},
-linked_list: Item.List = .{},
-comp: *const Compilation,
+tmp_map: std.AutoHashMapUnmanaged(Identifier, void) = .empty,
+linked_list: Item.List = .empty,
 
 /// Invalidated if the underlying MultiArrayList slice is reallocated due to resize
 const Iterator = struct {
@@ -71,10 +70,11 @@ const Iterator = struct {
     }
 };
 
-pub fn deinit(self: *Hideset) void {
-    self.map.deinit(self.comp.gpa);
-    self.tmp_map.deinit(self.comp.gpa);
-    self.linked_list.deinit(self.comp.gpa);
+pub fn deinit(self: *Hideset, gpa: mem.Allocator) void {
+    self.map.deinit(gpa);
+    self.tmp_map.deinit(gpa);
+    self.linked_list.deinit(gpa);
+    self.* = undefined;
 }
 
 pub fn clearRetainingCapacity(self: *Hideset) void {
@@ -82,30 +82,30 @@ pub fn clearRetainingCapacity(self: *Hideset) void {
     self.map.clearRetainingCapacity();
 }
 
-pub fn clearAndFree(self: *Hideset) void {
-    self.map.clearAndFree(self.comp.gpa);
-    self.tmp_map.clearAndFree(self.comp.gpa);
-    self.linked_list.shrinkAndFree(self.comp.gpa, 0);
+pub fn clearAndFree(self: *Hideset, gpa: mem.Allocator) void {
+    self.map.clearAndFree(gpa);
+    self.tmp_map.clearAndFree(gpa);
+    self.linked_list.shrinkAndFree(gpa, 0);
 }
 
 /// Iterator is invalidated if the underlying MultiArrayList slice is reallocated due to resize
 fn iterator(self: *const Hideset, idx: Index) Iterator {
-    return Iterator{
+    return .{
         .slice = self.linked_list.slice(),
         .i = idx,
     };
 }
 
-pub fn get(self: *const Hideset, loc: Source.Location) Index {
+pub fn get(self: *const Hideset, loc: SourceManager.Location) Index {
     return self.map.get(Identifier.fromLocation(loc)) orelse .none;
 }
 
-pub fn put(self: *Hideset, loc: Source.Location, value: Index) !void {
-    try self.map.put(self.comp.gpa, Identifier.fromLocation(loc), value);
+pub fn put(self: *Hideset, gpa: Allocator, loc: SourceManager.Location, value: Index) !void {
+    try self.map.put(gpa, Identifier.fromLocation(loc), value);
 }
 
-fn ensureUnusedCapacity(self: *Hideset, new_size: usize) !void {
-    try self.linked_list.ensureUnusedCapacity(self.comp.gpa, new_size);
+fn ensureUnusedCapacity(self: *Hideset, gpa: Allocator, new_size: usize) !void {
+    try self.linked_list.ensureUnusedCapacity(gpa, new_size);
 }
 
 /// Creates a one-item list with contents `identifier`
@@ -121,25 +121,25 @@ fn createNodeAssumeCapacityExtra(self: *Hideset, identifier: Identifier, next: I
 }
 
 /// Create a new list with `identifier` at the front followed by `tail`
-pub fn prepend(self: *Hideset, loc: Source.Location, tail: Index) !Index {
+pub fn prepend(self: *Hideset, gpa: Allocator, loc: SourceManager.Location, tail: Index) !Index {
     const new_idx = self.linked_list.len;
-    try self.linked_list.append(self.comp.gpa, .{ .identifier = Identifier.fromLocation(loc), .next = tail });
+    try self.linked_list.append(gpa, .{ .identifier = Identifier.fromLocation(loc), .next = tail });
     return @enumFromInt(new_idx);
 }
 
 /// Attach elements of `b` to the front of `a` (if they're not in `a`)
-pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
+pub fn @"union"(self: *Hideset, gpa: mem.Allocator, a: Index, b: Index) !Index {
     if (a == .none) return b;
     if (b == .none) return a;
     self.tmp_map.clearRetainingCapacity();
 
     var it = self.iterator(b);
     while (it.next()) |identifier| {
-        try self.tmp_map.put(self.comp.gpa, identifier, {});
+        try self.tmp_map.put(gpa, identifier, {});
     }
 
     var head: Index = b;
-    try self.ensureUnusedCapacity(self.len(a));
+    try self.ensureUnusedCapacity(gpa, self.len(a));
     it = self.iterator(a);
     while (it.next()) |identifier| {
         if (!self.tmp_map.contains(identifier)) {
@@ -149,10 +149,10 @@ pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
     return head;
 }
 
-pub fn contains(self: *const Hideset, list: Index, str: []const u8) bool {
+pub fn contains(self: *const Hideset, sm: *const SourceManager, langopts: LangOpts, list: Index, str: []const u8) bool {
     var it = self.iterator(list);
     while (it.next()) |identifier| {
-        if (mem.eql(u8, str, identifier.slice(self.comp))) return true;
+        if (mem.eql(u8, str, identifier.slice(sm, langopts))) return true;
     }
     return false;
 }
@@ -167,7 +167,7 @@ fn len(self: *const Hideset, list: Index) usize {
     return count;
 }
 
-pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
+pub fn intersection(self: *Hideset, gpa: Allocator, a: Index, b: Index) !Index {
     if (a == .none or b == .none) return .none;
     self.tmp_map.clearRetainingCapacity();
 
@@ -176,9 +176,9 @@ pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
     var it = self.iterator(a);
     var a_len: usize = 0;
     while (it.next()) |identifier| : (a_len += 1) {
-        try self.tmp_map.put(self.comp.gpa, identifier, {});
+        try self.tmp_map.put(gpa, identifier, {});
     }
-    try self.ensureUnusedCapacity(@min(a_len, self.len(b)));
+    try self.ensureUnusedCapacity(gpa, @min(a_len, self.len(b)));
 
     it = self.iterator(b);
     while (it.next()) |identifier| {

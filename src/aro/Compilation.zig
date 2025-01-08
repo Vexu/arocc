@@ -13,8 +13,7 @@ const Builtin = Builtins.Builtin;
 const Diagnostics = @import("Diagnostics.zig");
 const LangOpts = @import("LangOpts.zig");
 const Pragma = @import("Pragma.zig");
-const record_layout = @import("record_layout.zig");
-const Source = @import("Source.zig");
+const SourceManager = @import("SourceManager.zig");
 const StringInterner = @import("StringInterner.zig");
 const target_util = @import("target.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -29,7 +28,6 @@ pub const Error = error{
 } || Allocator.Error;
 
 pub const bit_int_max_bits = std.math.maxInt(u16);
-const path_buf_stack_limit = 1024;
 
 /// Environment variables used during compilation / linking.
 pub const Environment = struct {
@@ -100,38 +98,28 @@ diagnostics: Diagnostics,
 
 code_gen_options: CodeGenOptions = .default,
 environment: Environment = .{},
-sources: std.StringArrayHashMapUnmanaged(Source) = .{},
-include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
-system_include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
 target: std.Target = @import("builtin").target,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .{},
 langopts: LangOpts = .{},
-generated_buf: std.ArrayListUnmanaged(u8) = .{},
 builtins: Builtins = .{},
 string_interner: StringInterner = .{},
 interner: Interner = .{},
 type_store: TypeStore = .{},
-/// If this is not null, the directory containing the specified Source will be searched for includes
-/// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
-ms_cwd_source_id: ?Source.Id = null,
-cwd: std.fs.Dir,
 
-pub fn init(gpa: Allocator, cwd: std.fs.Dir) Compilation {
+pub fn init(gpa: Allocator) Compilation {
     return .{
         .gpa = gpa,
         .diagnostics = Diagnostics.init(gpa),
-        .cwd = cwd,
     };
 }
 
 /// Initialize Compilation with default environment,
 /// pragma handlers and emulation mode set to target.
-pub fn initDefault(gpa: Allocator, cwd: std.fs.Dir) !Compilation {
+pub fn initDefault(gpa: Allocator) !Compilation {
     var comp: Compilation = .{
         .gpa = gpa,
         .environment = try Environment.loadAll(gpa),
         .diagnostics = Diagnostics.init(gpa),
-        .cwd = cwd,
     };
     errdefer comp.deinit();
     try comp.addDefaultPragmaHandlers();
@@ -143,18 +131,8 @@ pub fn deinit(comp: *Compilation) void {
     for (comp.pragma_handlers.values()) |pragma| {
         pragma.deinit(pragma, comp);
     }
-    for (comp.sources.values()) |source| {
-        comp.gpa.free(source.path);
-        comp.gpa.free(source.buf);
-        comp.gpa.free(source.splice_locs);
-    }
-    comp.sources.deinit(comp.gpa);
     comp.diagnostics.deinit();
-    comp.include_dirs.deinit(comp.gpa);
-    for (comp.system_include_dirs.items) |path| comp.gpa.free(path);
-    comp.system_include_dirs.deinit(comp.gpa);
     comp.pragma_handlers.deinit(comp.gpa);
-    comp.generated_buf.deinit(comp.gpa);
     comp.builtins.deinit(comp.gpa);
     comp.string_interner.deinit(comp.gpa);
     comp.interner.deinit(comp.gpa);
@@ -531,14 +509,24 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
 }
 
 /// Generate builtin macros trying to use mtime as timestamp
-pub fn generateBuiltinMacrosFromPath(comp: *Compilation, system_defines_mode: SystemDefinesMode, path: []const u8) !Source {
-    const stat = comp.cwd.statFile(path) catch return try generateBuiltinMacros(comp, system_defines_mode, null);
+pub fn generateBuiltinMacrosFromPath(
+    comp: *Compilation,
+    sm: *SourceManager,
+    system_defines_mode: SystemDefinesMode,
+    path: []const u8,
+) !SourceManager.Source {
+    const stat = sm.cwd.statFile(path) catch return try comp.generateBuiltinMacros(sm, system_defines_mode, null);
     const timestamp: i64 = @intCast(@divTrunc(stat.mtime, std.time.ns_per_s));
-    return try generateBuiltinMacros(comp, system_defines_mode, @intCast(std.math.clamp(timestamp, 0, max_timestamp)));
+    return try comp.generateBuiltinMacros(sm, system_defines_mode, @intCast(std.math.clamp(timestamp, 0, max_timestamp)));
 }
 
 /// Generate builtin macros that will be available to each source file.
-pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode, timestamp: ?u47) !Source {
+pub fn generateBuiltinMacros(
+    comp: *Compilation,
+    sm: *SourceManager,
+    system_defines_mode: SystemDefinesMode,
+    timestamp: ?u47,
+) !SourceManager.Source {
     try comp.type_store.initNamedTypes(comp);
 
     var buf = std.ArrayList(u8).init(comp.gpa);
@@ -591,7 +579,7 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         try comp.generateSystemDefines(buf.writer());
     }
 
-    return comp.addSourceFromBuffer("<builtin>", buf.items);
+    return sm.addSourceFromBuffer(comp.gpa, &comp.diagnostics, "<builtin>", buf.items);
 }
 
 fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target_util.FPSemantics, ext: []const u8) !void {
@@ -932,452 +920,6 @@ pub fn fixedEnumTagType(comp: *const Compilation) ?QualType {
 pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
     return comp.langopts.char_signedness_override orelse comp.target.charSignedness();
 }
-
-/// Add built-in aro headers directory to system include paths
-pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8) !void {
-    var search_path = aro_dir;
-    while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
-        var base_dir = comp.cwd.openDir(dirname, .{}) catch continue;
-        defer base_dir.close();
-
-        base_dir.access("include/stddef.h", .{}) catch continue;
-        const path = try std.fs.path.join(comp.gpa, &.{ dirname, "include" });
-        errdefer comp.gpa.free(path);
-        try comp.system_include_dirs.append(comp.gpa, path);
-        break;
-    } else return error.AroIncludeNotFound;
-}
-
-pub fn addSystemIncludeDir(comp: *Compilation, path: []const u8) !void {
-    const duped = try comp.gpa.dupe(u8, path);
-    errdefer comp.gpa.free(duped);
-    try comp.system_include_dirs.append(comp.gpa, duped);
-}
-
-pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
-    if (id == .generated) return .{
-        .path = "<scratch space>",
-        .buf = comp.generated_buf.items,
-        .id = .generated,
-        .splice_locs = &.{},
-        .kind = .user,
-    };
-    return comp.sources.values()[@intFromEnum(id) - 2];
-}
-
-/// Creates a Source from the contents of `reader` and adds it to the Compilation
-pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8, kind: Source.Kind) !Source {
-    const contents = try reader.readAllAlloc(comp.gpa, std.math.maxInt(u32));
-    errdefer comp.gpa.free(contents);
-    return comp.addSourceFromOwnedBuffer(contents, path, kind);
-}
-
-/// Creates a Source from `buf` and adds it to the Compilation
-/// Performs newline splicing and line-ending normalization to '\n'
-/// `buf` will be modified and the allocation will be resized if newline splicing
-/// or line-ending changes happen.
-/// caller retains ownership of `path`
-/// To add the contents of an arbitrary reader as a Source, see addSourceFromReader
-/// To add a file's contents given its path, see addSourceFromPath
-pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8, kind: Source.Kind) !Source {
-    try comp.sources.ensureUnusedCapacity(comp.gpa, 1);
-
-    var contents = buf;
-    const duped_path = try comp.gpa.dupe(u8, path);
-    errdefer comp.gpa.free(duped_path);
-
-    var splice_list = std.ArrayList(u32).init(comp.gpa);
-    defer splice_list.deinit();
-
-    const source_id: Source.Id = @enumFromInt(comp.sources.count() + 2);
-
-    var i: u32 = 0;
-    var backslash_loc: u32 = undefined;
-    var state: enum {
-        beginning_of_file,
-        bom1,
-        bom2,
-        start,
-        back_slash,
-        cr,
-        back_slash_cr,
-        trailing_ws,
-    } = .beginning_of_file;
-    var line: u32 = 1;
-
-    for (contents) |byte| {
-        contents[i] = byte;
-
-        switch (byte) {
-            '\r' => {
-                switch (state) {
-                    .start, .cr, .beginning_of_file => {
-                        state = .start;
-                        line += 1;
-                        state = .cr;
-                        contents[i] = '\n';
-                        i += 1;
-                    },
-                    .back_slash, .trailing_ws, .back_slash_cr => {
-                        i = backslash_loc;
-                        try splice_list.append(i);
-                        if (state == .trailing_ws) {
-                            try comp.addDiagnostic(.{
-                                .tag = .backslash_newline_escape,
-                                .loc = .{ .id = source_id, .byte_offset = i, .line = line },
-                            }, &.{});
-                        }
-                        state = if (state == .back_slash_cr) .cr else .back_slash_cr;
-                    },
-                    .bom1, .bom2 => break, // invalid utf-8
-                }
-            },
-            '\n' => {
-                switch (state) {
-                    .start, .beginning_of_file => {
-                        state = .start;
-                        line += 1;
-                        i += 1;
-                    },
-                    .cr, .back_slash_cr => {},
-                    .back_slash, .trailing_ws => {
-                        i = backslash_loc;
-                        if (state == .back_slash or state == .trailing_ws) {
-                            try splice_list.append(i);
-                        }
-                        if (state == .trailing_ws) {
-                            try comp.addDiagnostic(.{
-                                .tag = .backslash_newline_escape,
-                                .loc = .{ .id = source_id, .byte_offset = i, .line = line },
-                            }, &.{});
-                        }
-                    },
-                    .bom1, .bom2 => break,
-                }
-                state = .start;
-            },
-            '\\' => {
-                backslash_loc = i;
-                state = .back_slash;
-                i += 1;
-            },
-            '\t', '\x0B', '\x0C', ' ' => {
-                switch (state) {
-                    .start, .trailing_ws => {},
-                    .beginning_of_file => state = .start,
-                    .cr, .back_slash_cr => state = .start,
-                    .back_slash => state = .trailing_ws,
-                    .bom1, .bom2 => break,
-                }
-                i += 1;
-            },
-            '\xEF' => {
-                i += 1;
-                state = switch (state) {
-                    .beginning_of_file => .bom1,
-                    else => .start,
-                };
-            },
-            '\xBB' => {
-                i += 1;
-                state = switch (state) {
-                    .bom1 => .bom2,
-                    else => .start,
-                };
-            },
-            '\xBF' => {
-                switch (state) {
-                    .bom2 => i = 0, // rewind and overwrite the BOM
-                    else => i += 1,
-                }
-                state = .start;
-            },
-            else => {
-                i += 1;
-                state = .start;
-            },
-        }
-    }
-
-    const splice_locs = try splice_list.toOwnedSlice();
-    errdefer comp.gpa.free(splice_locs);
-
-    if (i != contents.len) contents = try comp.gpa.realloc(contents, i);
-    errdefer @compileError("errdefers in callers would possibly free the realloced slice using the original len");
-
-    const source = Source{
-        .id = source_id,
-        .path = duped_path,
-        .buf = contents,
-        .splice_locs = splice_locs,
-        .kind = kind,
-    };
-
-    comp.sources.putAssumeCapacityNoClobber(duped_path, source);
-    return source;
-}
-
-/// Caller retains ownership of `path` and `buf`.
-/// Dupes the source buffer; if it is acceptable to modify the source buffer and possibly resize
-/// the allocation, please use `addSourceFromOwnedBuffer`
-pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8) !Source {
-    if (comp.sources.get(path)) |some| return some;
-    if (@as(u64, buf.len) > std.math.maxInt(u32)) return error.StreamTooLong;
-
-    const contents = try comp.gpa.dupe(u8, buf);
-    errdefer comp.gpa.free(contents);
-
-    return comp.addSourceFromOwnedBuffer(contents, path, .user);
-}
-
-/// Caller retains ownership of `path`.
-pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
-    return comp.addSourceFromPathExtra(path, .user);
-}
-
-/// Caller retains ownership of `path`.
-fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kind) !Source {
-    if (comp.sources.get(path)) |some| return some;
-
-    if (mem.indexOfScalar(u8, path, 0) != null) {
-        return error.FileNotFound;
-    }
-
-    const file = try comp.cwd.openFile(path, .{});
-    defer file.close();
-
-    const contents = file.readToEndAlloc(comp.gpa, std.math.maxInt(u32)) catch |err| switch (err) {
-        error.FileTooBig => return error.StreamTooLong,
-        else => |e| return e,
-    };
-    errdefer comp.gpa.free(contents);
-
-    return comp.addSourceFromOwnedBuffer(contents, path, kind);
-}
-
-pub const IncludeDirIterator = struct {
-    comp: *const Compilation,
-    cwd_source_id: ?Source.Id,
-    include_dirs_idx: usize = 0,
-    sys_include_dirs_idx: usize = 0,
-    tried_ms_cwd: bool = false,
-
-    const FoundSource = struct {
-        path: []const u8,
-        kind: Source.Kind,
-    };
-
-    fn next(self: *IncludeDirIterator) ?FoundSource {
-        if (self.cwd_source_id) |source_id| {
-            self.cwd_source_id = null;
-            const path = self.comp.getSource(source_id).path;
-            return .{ .path = std.fs.path.dirname(path) orelse ".", .kind = .user };
-        }
-        if (self.include_dirs_idx < self.comp.include_dirs.items.len) {
-            defer self.include_dirs_idx += 1;
-            return .{ .path = self.comp.include_dirs.items[self.include_dirs_idx], .kind = .user };
-        }
-        if (self.sys_include_dirs_idx < self.comp.system_include_dirs.items.len) {
-            defer self.sys_include_dirs_idx += 1;
-            return .{ .path = self.comp.system_include_dirs.items[self.sys_include_dirs_idx], .kind = .system };
-        }
-        if (self.comp.ms_cwd_source_id) |source_id| {
-            if (self.tried_ms_cwd) return null;
-            self.tried_ms_cwd = true;
-            const path = self.comp.getSource(source_id).path;
-            return .{ .path = std.fs.path.dirname(path) orelse ".", .kind = .user };
-        }
-        return null;
-    }
-
-    /// Returned value's path field must be freed by allocator
-    fn nextWithFile(self: *IncludeDirIterator, filename: []const u8, allocator: Allocator) !?FoundSource {
-        while (self.next()) |found| {
-            const path = try std.fs.path.join(allocator, &.{ found.path, filename });
-            if (self.comp.langopts.ms_extensions) {
-                std.mem.replaceScalar(u8, path, '\\', '/');
-            }
-            return .{ .path = path, .kind = found.kind };
-        }
-        return null;
-    }
-
-    /// Advance the iterator until it finds an include directory that matches
-    /// the directory which contains `source`.
-    fn skipUntilDirMatch(self: *IncludeDirIterator, source: Source.Id) void {
-        const path = self.comp.getSource(source).path;
-        const includer_path = std.fs.path.dirname(path) orelse ".";
-        while (self.next()) |found| {
-            if (mem.eql(u8, includer_path, found.path)) break;
-        }
-    }
-};
-
-pub fn hasInclude(
-    comp: *const Compilation,
-    filename: []const u8,
-    includer_token_source: Source.Id,
-    /// angle bracket vs quotes
-    include_type: IncludeType,
-    /// __has_include vs __has_include_next
-    which: WhichInclude,
-) !bool {
-    if (mem.indexOfScalar(u8, filename, 0) != null) {
-        return false;
-    }
-
-    if (std.fs.path.isAbsolute(filename)) {
-        if (which == .next) return false;
-        return !std.meta.isError(comp.cwd.access(filename, .{}));
-    }
-
-    const cwd_source_id = switch (include_type) {
-        .quotes => switch (which) {
-            .first => includer_token_source,
-            .next => null,
-        },
-        .angle_brackets => null,
-    };
-    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id };
-    if (which == .next) {
-        it.skipUntilDirMatch(includer_token_source);
-    }
-
-    var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-    const sf_allocator = stack_fallback.get();
-
-    while (try it.nextWithFile(filename, sf_allocator)) |found| {
-        defer sf_allocator.free(found.path);
-        if (!std.meta.isError(comp.cwd.access(found.path, .{}))) return true;
-    }
-    return false;
-}
-
-pub const WhichInclude = enum {
-    first,
-    next,
-};
-
-pub const IncludeType = enum {
-    quotes,
-    angle_brackets,
-};
-
-fn getFileContents(comp: *Compilation, path: []const u8, limit: ?u32) ![]const u8 {
-    if (mem.indexOfScalar(u8, path, 0) != null) {
-        return error.FileNotFound;
-    }
-
-    const file = try comp.cwd.openFile(path, .{});
-    defer file.close();
-
-    var buf = std.ArrayList(u8).init(comp.gpa);
-    defer buf.deinit();
-
-    const max = limit orelse std.math.maxInt(u32);
-    file.reader().readAllArrayList(&buf, max) catch |e| switch (e) {
-        error.StreamTooLong => if (limit == null) return e,
-        else => return e,
-    };
-
-    return buf.toOwnedSlice();
-}
-
-pub fn findEmbed(
-    comp: *Compilation,
-    filename: []const u8,
-    includer_token_source: Source.Id,
-    /// angle bracket vs quotes
-    include_type: IncludeType,
-    limit: ?u32,
-) !?[]const u8 {
-    if (std.fs.path.isAbsolute(filename)) {
-        return if (comp.getFileContents(filename, limit)) |some|
-            some
-        else |err| switch (err) {
-            error.OutOfMemory => |e| return e,
-            else => null,
-        };
-    }
-
-    const cwd_source_id = switch (include_type) {
-        .quotes => includer_token_source,
-        .angle_brackets => null,
-    };
-    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id };
-    var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-    const sf_allocator = stack_fallback.get();
-
-    while (try it.nextWithFile(filename, sf_allocator)) |found| {
-        defer sf_allocator.free(found.path);
-        if (comp.getFileContents(found.path, limit)) |some|
-            return some
-        else |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => {},
-        }
-    }
-    return null;
-}
-
-pub fn findInclude(
-    comp: *Compilation,
-    filename: []const u8,
-    includer_token: Token,
-    /// angle bracket vs quotes
-    include_type: IncludeType,
-    /// include vs include_next
-    which: WhichInclude,
-) !?Source {
-    if (std.fs.path.isAbsolute(filename)) {
-        if (which == .next) return null;
-        // TODO: classify absolute file as belonging to system includes or not?
-        return if (comp.addSourceFromPath(filename)) |some|
-            some
-        else |err| switch (err) {
-            error.OutOfMemory => |e| return e,
-            else => null,
-        };
-    }
-    const cwd_source_id = switch (include_type) {
-        .quotes => switch (which) {
-            .first => includer_token.source,
-            .next => null,
-        },
-        .angle_brackets => null,
-    };
-    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id };
-
-    if (which == .next) {
-        it.skipUntilDirMatch(includer_token.source);
-    }
-
-    var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-    const sf_allocator = stack_fallback.get();
-
-    while (try it.nextWithFile(filename, sf_allocator)) |found| {
-        defer sf_allocator.free(found.path);
-        if (comp.addSourceFromPathExtra(found.path, found.kind)) |some| {
-            if (it.tried_ms_cwd) {
-                try comp.addDiagnostic(.{
-                    .tag = .ms_search_rule,
-                    .extra = .{ .str = some.path },
-                    .loc = .{
-                        .id = includer_token.source,
-                        .byte_offset = includer_token.start,
-                        .line = includer_token.line,
-                    },
-                }, &.{});
-            }
-            return some;
-        } else |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => {},
-        }
-    }
-    return null;
-}
-
 pub fn addPragmaHandler(comp: *Compilation, name: []const u8, handler: *Pragma) Allocator.Error!void {
     try comp.pragma_handlers.putNoClobber(comp.gpa, name, handler);
 }
@@ -1447,17 +989,6 @@ pub fn hasBuiltinFunction(comp: *const Compilation, builtin: Builtin) bool {
     }
 }
 
-pub fn locSlice(comp: *const Compilation, loc: Source.Location) []const u8 {
-    var tmp_tokenizer = Tokenizer{
-        .buf = comp.getSource(loc.id).buf,
-        .langopts = comp.langopts,
-        .index = loc.byte_offset,
-        .source = .generated,
-    };
-    const tok = tmp_tokenizer.next();
-    return tmp_tokenizer.buf[tok.start..tok.end];
-}
-
 pub const CharUnitSize = enum(u32) {
     @"1" = 1,
     @"2" = 2,
@@ -1473,111 +1004,3 @@ pub const CharUnitSize = enum(u32) {
 };
 
 pub const addDiagnostic = Diagnostics.add;
-
-test "addSourceFromReader" {
-    const Test = struct {
-        fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
-            var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
-            defer comp.deinit();
-
-            var buf_reader = std.io.fixedBufferStream(str);
-            const source = try comp.addSourceFromReader(buf_reader.reader(), "path", .user);
-
-            try std.testing.expectEqualStrings(expected, source.buf);
-            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diagnostics.list.items.len)));
-            try std.testing.expectEqualSlices(u32, splices, source.splice_locs);
-        }
-
-        fn withAllocationFailures(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator, std.fs.cwd());
-            defer comp.deinit();
-
-            _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
-            _ = try comp.addSourceFromBuffer("path", "non-spliced buffer\n");
-        }
-    };
-    try Test.addSourceFromReader("ab\\\nc", "abc", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\rc", "abc", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\r\nc", "abc", 0, &.{2});
-    try Test.addSourceFromReader("ab\\ \nc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\\t\nc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\                     \t\nc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\\r \nc", "ab \nc", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\\\nc", "ab\\c", 0, &.{3});
-    try Test.addSourceFromReader("ab\\   \r\nc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\ \\\nc", "ab\\ c", 0, &.{4});
-    try Test.addSourceFromReader("ab\\\r\\\nc", "abc", 0, &.{ 2, 2 });
-    try Test.addSourceFromReader("ab\\  \rc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\", "ab\\", 0, &.{});
-    try Test.addSourceFromReader("ab\\\\", "ab\\\\", 0, &.{});
-    try Test.addSourceFromReader("ab\\ ", "ab\\ ", 0, &.{});
-    try Test.addSourceFromReader("ab\\\n", "ab", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\r\n", "ab", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\r", "ab", 0, &.{2});
-
-    // carriage return normalization
-    try Test.addSourceFromReader("ab\r", "ab\n", 0, &.{});
-    try Test.addSourceFromReader("ab\r\r", "ab\n\n", 0, &.{});
-    try Test.addSourceFromReader("ab\r\r\n", "ab\n\n", 0, &.{});
-    try Test.addSourceFromReader("ab\r\r\n\r", "ab\n\n\n", 0, &.{});
-    try Test.addSourceFromReader("\r\\", "\n\\", 0, &.{});
-    try Test.addSourceFromReader("\\\r\\", "\\", 0, &.{0});
-
-    try std.testing.checkAllAllocationFailures(std.testing.allocator, Test.withAllocationFailures, .{});
-}
-
-test "addSourceFromReader - exhaustive check for carriage return elimination" {
-    const alphabet = [_]u8{ '\r', '\n', ' ', '\\', 'a' };
-    const alen = alphabet.len;
-    var buf: [alphabet.len]u8 = [1]u8{alphabet[0]} ** alen;
-
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
-    defer comp.deinit();
-
-    var source_count: u32 = 0;
-
-    while (true) {
-        const source = try comp.addSourceFromBuffer(&buf, &buf);
-        source_count += 1;
-        try std.testing.expect(std.mem.indexOfScalar(u8, source.buf, '\r') == null);
-
-        if (std.mem.allEqual(u8, &buf, alphabet[alen - 1])) break;
-
-        var idx = std.mem.indexOfScalar(u8, &alphabet, buf[buf.len - 1]).?;
-        buf[buf.len - 1] = alphabet[(idx + 1) % alen];
-        var j = buf.len - 1;
-        while (j > 0) : (j -= 1) {
-            idx = std.mem.indexOfScalar(u8, &alphabet, buf[j - 1]).?;
-            if (buf[j] == alphabet[0]) buf[j - 1] = alphabet[(idx + 1) % alen] else break;
-        }
-    }
-    try std.testing.expect(source_count == std.math.powi(usize, alen, alen) catch unreachable);
-}
-
-test "ignore BOM at beginning of file" {
-    const BOM = "\xEF\xBB\xBF";
-
-    const Test = struct {
-        fn run(buf: []const u8) !void {
-            var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
-            defer comp.deinit();
-
-            var buf_reader = std.io.fixedBufferStream(buf);
-            const source = try comp.addSourceFromReader(buf_reader.reader(), "file.c", .user);
-            const expected_output = if (mem.startsWith(u8, buf, BOM)) buf[BOM.len..] else buf;
-            try std.testing.expectEqualStrings(expected_output, source.buf);
-        }
-    };
-
-    try Test.run(BOM);
-    try Test.run(BOM ++ "x");
-    try Test.run("x" ++ BOM);
-    try Test.run(BOM ++ " ");
-    try Test.run(BOM ++ "\n");
-    try Test.run(BOM ++ "\\");
-
-    try Test.run(BOM[0..1] ++ "x");
-    try Test.run(BOM[0..2] ++ "x");
-    try Test.run(BOM[1..] ++ "x");
-    try Test.run(BOM[2..] ++ "x");
-}

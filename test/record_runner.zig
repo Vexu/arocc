@@ -224,11 +224,13 @@ fn runTestCases(allocator: std.mem.Allocator, test_dir: []const u8, wg: *std.Thr
 fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, stats: *Stats) !void {
     const path = test_case.path;
 
-    var comp = aro.Compilation.init(alloc, std.fs.cwd());
+    var comp = aro.Compilation.init(alloc);
     defer comp.deinit();
+    var sm: aro.SourceManager = .{ .cwd = std.fs.cwd() };
+    defer sm.deinit(alloc);
 
     try comp.addDefaultPragmaHandlers();
-    try comp.addBuiltinIncludeDir(test_dir);
+    try sm.addBuiltinIncludeDir(alloc, test_dir);
 
     try setTarget(&comp, test_case.target);
     switch (comp.target.os.tag) {
@@ -261,7 +263,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     var case_node = stats.root_node.start(case_name.items, 0);
     defer case_node.end();
 
-    const file = comp.addSourceFromBuffer(path, test_case.source) catch |err| {
+    const file = sm.addSourceFromBuffer(alloc, &comp.diagnostics, path, test_case.source) catch |err| {
         stats.recordResult(.fail);
         std.debug.print("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
         return;
@@ -279,10 +281,10 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
         try mac_writer.writeAll("#define MSVC\n");
     }
 
-    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
-    const builtin_macros = try comp.generateBuiltinMacrosFromPath(.include_system_defines, file.path);
+    const user_macros = try sm.addSourceFromBuffer(alloc, &comp.diagnostics, "<command line>", macro_buf.items);
+    const builtin_macros = try comp.generateBuiltinMacrosFromPath(&sm, .include_system_defines, file.path);
 
-    var pp = aro.Preprocessor.init(&comp);
+    var pp = aro.Preprocessor.init(&comp, &sm);
     defer pp.deinit();
     try pp.addBuiltinMacros();
 
@@ -326,7 +328,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
                 .@"fatal error", .@"error" => {},
                 else => continue,
             }
-            const src = comp.getSource(msg.loc.id);
+            const src = msg.loc.id.get(&sm);
             const line = src.lineCol(msg.loc).line;
             if (std.ascii.indexOfIgnoreCase(line, "_Static_assert") != null) {
                 if (std.ascii.indexOfIgnoreCase(line, "_extra_") != null) {
@@ -345,7 +347,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
         if (!expected.eql(actual)) {
             m.print("\nexp:{any}\nact:{any}\n", .{ expected, actual });
             for (comp.diagnostics.list.items) |msg| {
-                aro.Diagnostics.renderMessage(&comp, &m, msg);
+                aro.Diagnostics.renderMessage(&sm, &m, msg);
             }
             stats.recordResult(.fail);
         } else if (actual.any()) {
