@@ -842,6 +842,8 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         .tls_model,
         .visibility,
         => |t| try p.errExtra(.attribute_todo, tok, .{ .attribute_todo = .{ .tag = t, .kind = .variables } }),
+        // There is already an error in Parser for _Noreturn keyword
+        .noreturn => if (attr.syntax != .keyword) try ignoredAttrErr(p, tok, attr.tag, "variables"),
         else => try ignoredAttrErr(p, tok, attr.tag, "variables"),
     };
     return applySelected(base_qt, p);

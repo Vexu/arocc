@@ -31,6 +31,9 @@ void foo(void) {
     char j[] = "hello";
 }
 
+typedef struct Incomplete ArrayOfIncomplete[];
+ArrayOfIncomplete a;
+
 #define EXPECTED_ERRORS \
     "invalid types.c:1:6: error: cannot combine with previous 'long' specifier" \
     "invalid types.c:3:11: error: empty enum is invalid" \
@@ -54,3 +57,4 @@ void foo(void) {
     "invalid types.c:27:5: warning: tentative array definition assumed to have one element" \
     "invalid types.c:29:6: error: redefinition of 'foo'" \
     "invalid types.c:30:9: error: variable has incomplete type 'int []'" \
+    "invalid types.c:34:44: error: array has incomplete element type 'struct Incomplete'" \

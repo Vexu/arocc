@@ -188,7 +188,6 @@ pub fn defineTypedef(
                 }
             },
             .enumeration, .decl, .def, .constexpr => {
-                if (qt.isInvalid()) return;
                 try p.errStr(.redefinition_different_sym, tok, p.tokSlice(tok));
                 try p.errTok(.previous_definition, prev.tok);
             },

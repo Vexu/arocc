@@ -549,17 +549,17 @@ pub const QualType = packed struct(u32) {
 
     /// Size of a type as reported by the alignof operator.
     pub fn alignof(qt: QualType, comp: *const Compilation) u32 {
-        // don't return the attribute for records
-        // layout has already accounted for requested alignment
         if (qt.requestedAlignment(comp)) |requested| request: {
-            // gcc does not respect alignment on enums
             if (qt.is(comp, .@"enum")) {
                 if (comp.langopts.emulate == .gcc) {
+                    // gcc does not respect alignment on enums
                     break :request;
                 }
             } else if (qt.getRecord(comp)) |record_ty| {
                 const layout = record_ty.layout orelse return 0;
 
+                // don't return the attribute for records
+                // layout has already accounted for requested alignment
                 const computed = @divExact(layout.field_alignment_bits, 8);
                 return @max(requested, computed);
             } else if (comp.langopts.emulate == .msvc) {
@@ -1002,7 +1002,6 @@ pub const QualType = packed struct(u32) {
                 if (a_func.params.len != b_func.params.len) {
                     if (a_func.kind == .old_style and b_func.kind == .old_style) return true;
                     if (a_func.kind == .old_style or b_func.kind == .old_style) {
-                        //TODO is this correct?
                         const maybe_has_params = if (a_func.kind == .old_style) b_func else a_func;
 
                         // Check if any args undergo default argument promotion.
@@ -1226,7 +1225,8 @@ pub const QualType = packed struct(u32) {
             },
             .atomic => |atomic| {
                 try w.writeAll("_Atomic(");
-                try atomic.print(comp, w);
+                _ = try atomic.printPrologue(comp, w);
+                try atomic.printEpilogue(comp, w);
                 try w.writeAll(")");
             },
 
@@ -1551,10 +1551,6 @@ pub const Type = union(enum) {
                 ///
                 /// For bit-fields, this is the width of the field.
                 size_bits: u64 align(4) = INVALID,
-
-                pub fn isUnnamed(self: Field.Layout) bool {
-                    return self.offset_bits == INVALID and self.size_bits == INVALID;
-                }
             };
         };
 
@@ -2458,7 +2454,6 @@ pub const Builder = struct {
 
     /// Try to combine type from typedef, returns true if successful.
     pub fn combineTypedef(b: *Builder, typedef_qt: QualType) bool {
-        if (typedef_qt.isInvalid()) return false;
         if (b.type != .none) return false;
 
         b.typedef = true;

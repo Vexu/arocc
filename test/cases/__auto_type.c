@@ -1,6 +1,6 @@
 //aro-args -Wno-gnu-alignof-expression
 #include "test_helpers.h"
-__auto_type foo(void);
+__auto_type __attribute__((noreturn)) foo(void);
 __auto_type foo1(void) {}
 
 void bar(__auto_type);
@@ -63,6 +63,8 @@ void baz(void) {
     _Static_assert(_Alignof(aligned_var) == 128, "");
 }
 
+__auto_type multidimensional[2][2];
+
 #define EXPECTED_ERRORS "__auto_type.c:3:1: error: '__auto_type' not allowed in function return type" \
     "__auto_type.c:4:1: error: '__auto_type' not allowed in function return type" \
     "__auto_type.c:6:10: error: '__auto_type' not allowed in function prototype" \
@@ -79,4 +81,5 @@ void baz(void) {
     "__auto_type.c:49:7: error: expression is not assignable" \
     "__auto_type.c:58:5: error: 'auto_array' declared as array of '__auto_type'" \
     "__auto_type.c:60:29: error: cannot use '__auto_type' with initializer list" \
+    "__auto_type.c:66:1: error: 'multidimensional' declared as array of '__auto_type'" \
 

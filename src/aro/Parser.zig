@@ -1159,7 +1159,7 @@ fn decl(p: *Parser) Error!bool {
                     };
                 }
             }
-            // Set the
+            // Update the functio type to contain the declared parameters.
             p.func.qt = try p.comp.type_store.put(p.gpa, .{ .func = .{
                 .kind = .normal,
                 .params = new_params,
@@ -1236,15 +1236,16 @@ fn decl(p: *Parser) Error!bool {
     var warned_auto = false;
     while (true) {
         if (init_d.d.old_style_func) |tok_i| try p.errTok(.invalid_old_style_params, tok_i);
-        try decl_spec.validate(p, init_d.d.qt);
 
         if (decl_spec.storage_class == .typedef) {
+            try decl_spec.validateDecl(p);
             try p.tree.setNode(.{ .typedef = .{
                 .name_tok = init_d.d.name,
                 .qt = init_d.d.qt,
                 .implicit = false,
             } }, @intFromEnum(decl_node));
         } else if (init_d.d.declarator_type == .func or init_d.d.qt.is(p.comp, .func)) {
+            try decl_spec.validateFnDecl(p);
             try p.tree.setNode(.{ .fn_proto = .{
                 .name_tok = init_d.d.name,
                 .qt = init_d.d.qt,
@@ -1253,6 +1254,7 @@ fn decl(p: *Parser) Error!bool {
                 .definition = null,
             } }, @intFromEnum(decl_node));
         } else {
+            try decl_spec.validateDecl(p);
             var node_qt = init_d.d.qt;
             if (p.func.qt == null) {
                 if (node_qt.get(p.comp, .array)) |array_ty| {
@@ -1287,10 +1289,13 @@ fn decl(p: *Parser) Error!bool {
 
         const interned_name = try p.comp.internString(p.tokSlice(init_d.d.name));
         if (decl_spec.storage_class == .typedef) {
-            const typedef_qt = (try p.comp.type_store.put(p.gpa, .{ .typedef = .{
-                .base = init_d.d.qt,
-                .name = interned_name,
-            } })).withQualifiers(init_d.d.qt);
+            const typedef_qt = if (init_d.d.qt.isInvalid())
+                init_d.d.qt
+            else
+                (try p.comp.type_store.put(p.gpa, .{ .typedef = .{
+                    .base = init_d.d.qt,
+                    .name = interned_name,
+                } })).withQualifiers(init_d.d.qt);
             try p.syms.defineTypedef(p, interned_name, typedef_qt, init_d.d.name, decl_node);
             p.typedefDefined(interned_name, typedef_qt);
         } else if (init_d.initializer) |init| {
@@ -1466,27 +1471,25 @@ pub const DeclSpec = struct {
         if (d.constexpr) |tok_i| try p.errTok(.illegal_storage_on_func, tok_i);
     }
 
-    fn validate(d: DeclSpec, p: *Parser, final_qt: QualType) Error!void {
-        if (final_qt.is(p.comp, .func) and d.storage_class != .typedef) {
-            switch (d.storage_class) {
-                .none, .@"extern" => {},
-                .static => |tok_i| if (p.func.qt != null) try p.errTok(.static_func_not_global, tok_i),
-                .typedef => unreachable,
-                .auto, .register => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
-            }
-            if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
-            if (d.constexpr) |tok_i| try p.errTok(.illegal_storage_on_func, tok_i);
-        } else {
-            if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
-            // TODO move to attribute validation
-            if (d.noreturn) |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
-            switch (d.storage_class) {
-                .auto => if (p.func.qt == null and !p.comp.langopts.standard.atLeast(.c23)) {
-                    try p.err(.illegal_storage_on_global);
-                },
-                .register => if (p.func.qt == null) try p.err(.illegal_storage_on_global),
-                else => {},
-            }
+    fn validateFnDecl(d: DeclSpec, p: *Parser) Error!void {
+        switch (d.storage_class) {
+            .none, .@"extern" => {},
+            .static => |tok_i| if (p.func.qt != null) try p.errTok(.static_func_not_global, tok_i),
+            .typedef => unreachable,
+            .auto, .register => |tok_i| try p.errTok(.illegal_storage_on_func, tok_i),
+        }
+        if (d.thread_local) |tok_i| try p.errTok(.threadlocal_non_var, tok_i);
+        if (d.constexpr) |tok_i| try p.errTok(.illegal_storage_on_func, tok_i);
+    }
+
+    fn validateDecl(d: DeclSpec, p: *Parser) Error!void {
+        if (d.@"inline") |tok_i| try p.errStr(.func_spec_non_func, tok_i, "inline");
+        // TODO move to attribute validation
+        if (d.noreturn) |tok_i| try p.errStr(.func_spec_non_func, tok_i, "_Noreturn");
+        switch (d.storage_class) {
+            .auto => std.debug.assert(!p.comp.langopts.standard.atLeast(.c23)),
+            .register => if (p.func.qt == null) try p.err(.illegal_storage_on_global),
+            else => {},
         }
     }
 
@@ -1889,7 +1892,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     var apply_var_attributes = false;
     if (decl_spec.storage_class == .typedef) {
         init_d.d.qt = try Attribute.applyTypeAttributes(p, init_d.d.qt, attr_buf_top, null);
-    } else if (init_d.d.qt.is(p.comp, .func)) {
+    } else if (init_d.d.declarator_type == .func or init_d.d.qt.is(p.comp, .func)) {
         init_d.d.qt = try Attribute.applyFunctionAttributes(p, init_d.d.qt, attr_buf_top);
     } else {
         apply_var_attributes = true;
@@ -3192,6 +3195,18 @@ const Declarator = struct {
                     try p.errStr(.array_incomplete_elem, source_tok, try p.typeStr(elem_qt));
                     return .nested_invalid;
                 }
+                switch (array_ty.len) {
+                    .fixed, .static => |len| {
+                        const elem_size = elem_qt.sizeofOrNull(p.comp) orelse 1;
+                        const max_elems = p.comp.maxArrayBytes() / @max(1, elem_size);
+                        if (len > max_elems) {
+                            try p.errTok(.array_too_large, source_tok);
+                            return .nested_invalid;
+                        }
+                    },
+                    else => {},
+                }
+
                 if (elem_qt.is(p.comp, .func)) {
                     try p.errTok(.array_func_elem, source_tok);
                     return .nested_invalid;
@@ -3436,17 +3451,6 @@ fn directDeclarator(
                 }
 
                 const len = size.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
-
-                // `outer` is validated later so it may be invalid here
-                if (!outer.isInvalid() and !outer.isAutoType() and !outer.isC23Auto()) {
-                    const outer_size = outer.sizeofOrNull(p.comp) orelse 1;
-                    const max_elems = p.comp.maxArrayBytes() / @max(1, outer_size);
-                    if (len > max_elems) {
-                        try p.errTok(.array_too_large, l_bracket);
-                        return .invalid;
-                    }
-                }
-
                 const array_qt = try p.comp.type_store.put(p.gpa, .{ .array = .{
                     .elem = outer,
                     .len = if (static != null)
@@ -3479,7 +3483,7 @@ fn directDeclarator(
         if (p.eatToken(.ellipsis)) |_| {
             try p.err(.param_before_var_args);
             try p.expectClosing(l_paren, .r_paren);
-            func_ty.kind = if (p.comp.langopts.standard.atLeast(.c23)) .variadic else .normal;
+            func_ty.kind = .variadic;
 
             func_ty.return_type = try p.directDeclarator(base_declarator, kind);
 

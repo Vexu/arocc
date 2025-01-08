@@ -119,7 +119,7 @@ fn genType(c: *CodeGen, qt: QualType) !Interner.Ref {
         .void => return .void,
         .bool => return .i1,
         .@"struct" => |record| {
-            if (c.record_cache.get(base.qt)) |some| return some;
+            if (c.record_cache.get(base.qt.unqualified())) |some| return some;
 
             const elem_buf_top = c.record_elem_buf.items.len;
             defer c.record_elem_buf.items.len = elem_buf_top;
@@ -133,9 +133,11 @@ fn genType(c: *CodeGen, qt: QualType) !Interner.Ref {
                 try c.record_elem_buf.append(c.builder.gpa, field_ref);
             }
 
-            return c.builder.interner.put(c.builder.gpa, .{
+            const recrd_ty = try c.builder.interner.put(c.builder.gpa, .{
                 .record_ty = c.record_elem_buf.items[elem_buf_top..],
             });
+            try c.record_cache.put(c.comp.gpa, base.qt.unqualified(), recrd_ty);
+            return recrd_ty;
         },
         .@"union" => {
             return c.fail("TODO lower union types", .{});
