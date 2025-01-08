@@ -181,6 +181,7 @@ void array_members(void) {
     "initializers.c:32:15: error: array initializer must be an initializer list or wide string literal" \
     "initializers.c:34:14: error: variable has incomplete type 'struct S'" \
     "initializers.c:35:12: error: variable has incomplete type 'enum E'" \
+    "initializers.c:35:20: error: variable has incomplete type 'enum E'" \
     "initializers.c:36:13: error: variable has incomplete type 'union U'" \
     "initializers.c:37:11: error: array has incomplete element type 'void'" \
     "initializers.c:38:11: error: variable has incomplete type 'void'" \
@@ -204,4 +205,4 @@ void array_members(void) {
     "initializers.c:131:15: warning: incompatible pointer types initializing 'long *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
     "initializers.c:132:23: warning: incompatible pointer types initializing 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
     "initializers.c:148:35: error: array designator used for non-array type 'struct S'" \
-    "initializers.c:150:30: warning: implicit pointer to integer conversion from 'char *' to 'int' [-Wint-conversion]" \
+    "initializers.c:150:30: warning: implicit pointer to integer conversion from 'char [4]' to 'int' [-Wint-conversion]" \

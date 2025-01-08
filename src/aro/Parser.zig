@@ -3893,12 +3893,12 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType) Error!bool {
         }
 
         var saw = false;
-        if (is_str_init and p.isStringInit()) {
+        if (is_str_init and p.isStringInit(init_qt)) {
             // discard further strings
             var tmp_il: InitList = .{};
             defer tmp_il.deinit(p.gpa);
             saw = try p.initializerItem(&tmp_il, .void);
-        } else if (count == 0 and p.isStringInit()) {
+        } else if (count == 0 and p.isStringInit(init_qt)) {
             is_str_init = true;
             saw = try p.initializerItem(il, init_qt);
         } else if (is_scalar and count >= scalar_inits_needed) {
@@ -4247,7 +4247,9 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: QualType) !voi
     return item.saveValue(p);
 }
 
-fn isStringInit(p: *Parser) bool {
+fn isStringInit(p: *Parser, init_qt: QualType) bool {
+    const init_array_ty = init_qt.get(p.comp, .array) orelse return false;
+    if (!init_array_ty.elem.is(p.comp, .int)) return false;
     var i = p.tok_i;
     while (true) : (i += 1) {
         switch (p.tok_ids[i]) {
@@ -7183,7 +7185,7 @@ fn addExpr(p: *Parser) Error!?Result {
                     }
                 }
             } else {
-                const elem_size = if (lhs_sk.isPointer()) lhs.qt.childType(p.comp).sizeofOrNull(p.comp) orelse 1 else 1;
+                const elem_size = if (original_lhs_qt.isPointer(p.comp)) original_lhs_qt.childType(p.comp).sizeofOrNull(p.comp) orelse 1 else 1;
                 if (elem_size == 0 and rhs.qt.isPointer(p.comp)) {
                     lhs.val = .{};
                 } else {
