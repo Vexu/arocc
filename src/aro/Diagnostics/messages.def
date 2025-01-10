@@ -2633,3 +2633,13 @@ gnu_missing_eq_designator
     .msg = "use of GNU 'missing =' extension in designator"
     .kind = .warning
     .opt = W("gnu-designator")
+
+empty_if_body
+    .msg = "if statement has empty body"
+    .kind = .warning
+    .opt = W("empty-body")
+
+empty_if_body_note
+    .msg = "put the semicolon on a separate line to silence this warning"
+    .kind = .note
+    .opt = W("empty-body")

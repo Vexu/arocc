@@ -223,6 +223,7 @@ pub const Options = struct {
     nonnull: Kind = .default,
     @"atomic-access": Kind = .default,
     @"gnu-designator": Kind = .default,
+    @"empty-body": Kind = .default,
 };
 
 const Diagnostics = @This();
