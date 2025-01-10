@@ -4720,6 +4720,17 @@ fn stmt(p: *Parser) Error!Node.Index {
         const then_body = try p.stmt();
         const else_body = if (p.eatToken(.keyword_else)) |_| try p.stmt() else null;
 
+        if (p.nodeIs(then_body, .null_stmt) and else_body == null) {
+            const semicolon_tok = then_body.get(&p.tree).null_stmt.semicolon_or_r_brace_tok;
+            const locs = p.pp.tokens.items(.loc);
+            const if_loc = locs[kw_if];
+            const semicolon_loc = locs[semicolon_tok];
+            if (if_loc.line == semicolon_loc.line) {
+                try p.errTok(.empty_if_body, semicolon_tok);
+                try p.errTok(.empty_if_body_note, semicolon_tok);
+            }
+        }
+
         return p.addNode(.{ .if_stmt = .{
             .if_tok = kw_if,
             .cond = cond.node,
