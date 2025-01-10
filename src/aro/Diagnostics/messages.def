@@ -2628,3 +2628,8 @@ attribute_param_out_of_bounds
 alloc_align_required_int_param
     .msg = "'alloc_align' attribute argument may only refer to a function parameter of integer type"
     .kind = .@"error"
+
+gnu_missing_eq_designator
+    .msg = "use of GNU 'missing =' extension in designator"
+    .kind = .warning
+    .opt = W("gnu-designator")

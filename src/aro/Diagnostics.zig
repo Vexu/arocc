@@ -222,6 +222,7 @@ pub const Options = struct {
     @"address-of-packed-member": Kind = .default,
     nonnull: Kind = .default,
     @"atomic-access": Kind = .default,
+    @"gnu-designator": Kind = .default,
 };
 
 const Diagnostics = @This();
