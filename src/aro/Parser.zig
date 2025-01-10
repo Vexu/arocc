@@ -3890,7 +3890,11 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType) Error!bool {
         if (designation) index_hint = null;
         defer index_hint = cur_index_hint orelse null;
 
-        if (designation) _ = try p.expectToken(.equal);
+        if (designation) {
+            if (p.eatToken(.equal) == null) {
+                try p.err(.gnu_missing_eq_designator);
+            }
+        }
 
         if (!designation and cur_qt.hasAttribute(p.comp, .designated_init)) {
             try p.err(.designated_init_needed);
