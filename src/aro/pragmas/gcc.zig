@@ -19,8 +19,8 @@ pragma: Pragma = .{
     .parserHandler = parserHandler,
     .preserveTokens = preserveTokens,
 },
-original_options: Diagnostics.Options = .{},
-options_stack: std.ArrayListUnmanaged(Diagnostics.Options) = .{},
+original_state: Diagnostics.State = .{},
+state_stack: std.ArrayListUnmanaged(Diagnostics.State) = .{},
 
 const Directive = enum {
     warning,
@@ -39,19 +39,19 @@ const Directive = enum {
 
 fn beforePreprocess(pragma: *Pragma, comp: *Compilation) void {
     var self: *GCC = @fieldParentPtr("pragma", pragma);
-    self.original_options = comp.diagnostics.options;
+    self.original_state = comp.diagnostics.state;
 }
 
 fn beforeParse(pragma: *Pragma, comp: *Compilation) void {
     var self: *GCC = @fieldParentPtr("pragma", pragma);
-    comp.diagnostics.options = self.original_options;
-    self.options_stack.items.len = 0;
+    comp.diagnostics.state = self.original_state;
+    self.state_stack.items.len = 0;
 }
 
 fn afterParse(pragma: *Pragma, comp: *Compilation) void {
     var self: *GCC = @fieldParentPtr("pragma", pragma);
-    comp.diagnostics.options = self.original_options;
-    self.options_stack.items.len = 0;
+    comp.diagnostics.state = self.original_state;
+    self.state_stack.items.len = 0;
 }
 
 pub fn init(allocator: mem.Allocator) !*Pragma {
@@ -62,7 +62,7 @@ pub fn init(allocator: mem.Allocator) !*Pragma {
 
 fn deinit(pragma: *Pragma, comp: *Compilation) void {
     var self: *GCC = @fieldParentPtr("pragma", pragma);
-    self.options_stack.deinit(comp.gpa);
+    self.state_stack.deinit(comp.gpa);
     comp.gpa.destroy(self);
 }
 
@@ -103,8 +103,8 @@ fn diagnosticHandler(self: *GCC, pp: *Preprocessor, start_idx: TokenIndex) Pragm
 
             try pp.comp.diagnostics.set(str[2..], new_kind);
         },
-        .push => try self.options_stack.append(pp.comp.gpa, pp.comp.diagnostics.options),
-        .pop => pp.comp.diagnostics.options = self.options_stack.pop() orelse self.original_options,
+        .push => try self.state_stack.append(pp.comp.gpa, pp.comp.diagnostics.state),
+        .pop => pp.comp.diagnostics.state = self.state_stack.pop() orelse self.original_state,
     }
 }
 

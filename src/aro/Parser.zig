@@ -432,6 +432,13 @@ pub fn errStr(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, str: []const 
 
 pub fn errExtra(p: *Parser, tag: Diagnostics.Tag, tok_i: TokenIndex, extra: Diagnostics.Message.Extra) Compilation.Error!void {
     @branchHint(.cold);
+
+    // Suppress pedantic diagnostics inside __extension__ blocks.
+    if (p.extension_suppressed) {
+        const prop = tag.property();
+        if (prop.extension and prop.kind == .off) return;
+    }
+
     const tok = p.pp.tokens.get(tok_i);
     var loc = tok.loc;
     if (tok_i != 0 and tok.id == .eof) {
@@ -2352,7 +2359,11 @@ fn recordSpec(p: *Parser) Error!QualType {
 
     if (p.record.flexible_field) |some| {
         if (fields.len == 1 and is_struct) {
-            try p.errTok(.flexible_in_empty, some);
+            if (p.comp.langopts.emulate == .msvc) {
+                try p.errTok(.flexible_in_empty_msvc, some);
+            } else {
+                try p.errTok(.flexible_in_empty, some);
+            }
         }
     }
 
@@ -2638,8 +2649,12 @@ fn recordDecl(p: *Parser) Error!bool {
                     .fixed => {},
                     .incomplete => {
                         if (p.record.kind == .keyword_union) {
-                            try p.errTok(.flexible_in_union, first_tok);
-                            qt = .invalid;
+                            if (p.comp.langopts.emulate == .msvc) {
+                                try p.errTok(.flexible_in_union_msvc, first_tok);
+                            } else {
+                                try p.errTok(.flexible_in_union, first_tok);
+                                qt = .invalid;
+                            }
                         }
                         if (p.record.flexible_field) |some| {
                             if (p.record.kind == .keyword_struct) {
@@ -8001,7 +8016,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 }
 
                 if (base_type.qt.sizeofOrNull(p.comp)) |size| {
-                    if (size == 0) {
+                    if (size == 0 and p.comp.langopts.emulate == .msvc) {
                         try p.errTok(.sizeof_returns_zero, tok);
                     }
                     res.val = try Value.int(size, p.comp);

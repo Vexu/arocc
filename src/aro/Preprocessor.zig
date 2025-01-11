@@ -821,9 +821,9 @@ fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anyty
 }
 
 fn fatalNotFound(pp: *Preprocessor, tok: TokenWithExpansionLocs, filename: []const u8) Compilation.Error {
-    const old = pp.comp.diagnostics.fatal_errors;
-    pp.comp.diagnostics.fatal_errors = true;
-    defer pp.comp.diagnostics.fatal_errors = old;
+    const old = pp.comp.diagnostics.state.fatal_errors;
+    pp.comp.diagnostics.state.fatal_errors = true;
+    defer pp.comp.diagnostics.state.fatal_errors = old;
 
     try pp.comp.diagnostics.addExtra(pp.comp.langopts, .{ .tag = .cli_error, .loc = tok.loc, .extra = .{
         .str = try std.fmt.allocPrint(pp.comp.diagnostics.arena.allocator(), "'{s}' not found", .{filename}),

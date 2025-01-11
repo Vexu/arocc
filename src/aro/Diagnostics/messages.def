@@ -15,7 +15,7 @@ error_directive
 
 warning_directive
     .msg = "{s}"
-    .opt = W("#warnings")
+    .opt = .@"#warnings"
     .extra = .str
     .kind = .warning
 
@@ -57,9 +57,8 @@ endif_without_if
 
 unknown_pragma
     .msg = "unknown pragma ignored"
-    .opt = W("unknown-pragmas")
+    .opt = .@"unknown-pragmas"
     .kind = .off
-    .all = true
 
 line_simple_digit
     .msg = "#line directive requires a simple digit sequence"
@@ -131,8 +130,9 @@ macro_name_must_be_identifier
 
 whitespace_after_macro_name
     .msg = "ISO C99 requires whitespace after the macro name"
-    .opt = W("c99-extensions")
+    .opt = .@"c99-extensions"
     .kind = .warning
+    .extension = true
 
 hash_hash_at_start
     .msg = "'##' cannot appear at the start of a macro expansion"
@@ -200,9 +200,8 @@ expected_integer_constant_expr
 
 missing_type_specifier
     .msg = "type specifier missing, defaults to 'int'"
-    .opt = W("implicit-int")
+    .opt = .@"implicit-int"
     .kind = .warning
-    .all = true
 
 missing_type_specifier_c23
     .msg = "a type specifier is required for all declarations"
@@ -210,10 +209,9 @@ missing_type_specifier_c23
 
 param_not_declared
     .msg = "parameter '{s}' was not declared, defaults to 'int'"
-    .opt = W("implicit-int")
+    .opt = .@"implicit-int"
     .extra = .str
     .kind = .warning
-    .all = true
 
 multiple_storage_class
     .msg = "cannot combine with previous '{s}' declaration specifier"
@@ -251,9 +249,8 @@ cannot_combine_with_typeof
 duplicate_decl_spec
     .msg = "duplicate '{s}' declaration specifier"
     .extra = .str
-    .opt = W("duplicate-decl-specifier")
+    .opt = .@"duplicate-decl-specifier"
     .kind = .warning
-    .all = true
 
 restrict_non_pointer
     .msg = "restrict requires a pointer or reference ('{s}' is invalid)"
@@ -270,7 +267,7 @@ expected_ident_or_l_paren
 
 missing_declaration
     .msg = "declaration does not declare anything"
-    .opt = W("missing-declaration")
+    .opt = .@"missing-declaration"
     .kind = .warning
 
 func_not_in_root
@@ -283,7 +280,7 @@ illegal_initializer
 
 extern_initializer
     .msg = "extern variable has initializer"
-    .opt = W("extern-initializer")
+    .opt = .@"extern-initializer"
     .kind = .warning
 
 param_before_var_args
@@ -357,30 +354,26 @@ static_func_not_global
 implicit_func_decl
     .msg = "call to undeclared function '{s}'; ISO C99 and later do not support implicit function declarations"
     .extra = .str
-    .opt = W("implicit-function-declaration")
+    .opt = .@"implicit-function-declaration"
     .kind = .@"error"
-    .all = true
 
 unknown_builtin
     .msg = "use of unknown builtin '{s}'"
     .extra = .str
-    .opt = W("implicit-function-declaration")
+    .opt = .@"implicit-function-declaration"
     .kind = .@"error"
-    .all = true
 
 implicit_builtin
     .msg = "implicitly declaring library function '{s}'"
     .extra = .str
-    .opt = W("implicit-function-declaration")
+    .opt = .@"implicit-function-declaration"
     .kind = .@"error"
-    .all = true
 
 implicit_builtin_header_note
     .msg = "include the header <{s}.h> or explicitly provide a declaration for '{s}'"
     .extra = .builtin_with_header
-    .opt = W("implicit-function-declaration")
+    .opt = .@"implicit-function-declaration"
     .kind = .note
-    .all = true
 
 expected_param_decl
     .msg = "expected parameter declaration"
@@ -400,9 +393,8 @@ invalid_void_param
 
 unused_value
     .msg = "expression result unused"
-    .opt = W("unused-value")
+    .opt = .@"unused-value"
     .kind = .warning
-    .all = true
 
 continue_not_in_loop
     .msg = "'continue' statement not in a loop"
@@ -414,9 +406,8 @@ break_not_in_loop_or_switch
 
 unreachable_code
     .msg = "unreachable code"
-    .opt = W("unreachable-code")
+    .opt = .@"unreachable-code"
     .kind = .warning
-    .all = true
 
 duplicate_label
     .msg = "duplicate label '{s}'"
@@ -466,12 +457,12 @@ array_argument_too_small
     .msg = "array argument is too small; contains {d} elements, callee requires at least {d}"
     .extra = .arguments
     .kind = .warning
-    .opt = W("array-bounds")
+    .opt = .@"array-bounds"
 
 non_null_argument
     .msg = "null passed to a callee that requires a non-null argument"
     .kind = .warning
-    .opt = W("nonnull")
+    .opt = .nonnull
 
 expected_arguments_old
     .msg = expected_arguments
@@ -506,7 +497,7 @@ variable_len_array_file_scope
 useless_static
     .msg = "'static' useless without a constant size"
     .kind = .warning
-    .w_extra = true
+#    .w_extra = true TODO
 
 negative_array_size
     .msg = "array size must be 0 or greater"
@@ -536,19 +527,19 @@ unterminated_macro_arg_list
 unknown_warning
     .msg = "unknown warning '{s}'"
     .extra = .str
-    .opt = W("unknown-warning-option")
+    .opt = .@"unknown-warning-option"
     .kind = .warning
 
 array_overflow
     .msg = "{s}"
     .extra = .str
-    .opt = W("array-bounds")
+    .opt = .@"array-bounds"
     .kind = .warning
 
 overflow
     .msg = "overflow in expression; result is '{s}'"
     .extra = .str
-    .opt = W("integer-overflow")
+    .opt = .@"integer-overflow"
     .kind = .warning
 
 int_literal_too_big
@@ -609,14 +600,14 @@ parameter_missing
 empty_record
     .msg = "empty {s} is a GNU extension"
     .extra = .str
-    .opt = W("gnu-empty-struct")
+    .opt = .@"gnu-empty-struct"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 empty_record_size
     .msg = "empty {s} has size 0 in C, size 1 in C++"
     .extra = .str
-    .opt = W("c++-compat")
+    .opt = .@"c++-compat"
     .kind = .off
 
 wrong_tag
@@ -630,9 +621,9 @@ expected_parens_around_typename
 
 alignof_expr
     .msg = "'_Alignof' applied to an expression is a GNU extension"
-    .opt = W("gnu-alignof-expression")
+    .opt = .@"gnu-alignof-expression"
     .kind = .warning
-    .suppress_gnu = true
+    .extension = true
 
 invalid_alignof
     .msg = "invalid application of 'alignof' to an incomplete type '{s}'"
@@ -647,22 +638,22 @@ invalid_sizeof
 macro_redefined
     .msg = "'{s}' macro redefined"
     .extra = .str
-    .opt = W("macro-redefined")
+    .opt = .@"macro-redefined"
     .kind = .warning
 
 generic_qual_type
     .msg = "generic association with qualifiers cannot be matched with"
-    .opt = W("generic-qual-type")
+    .opt = .@"generic-qual-type"
     .kind = .warning
 
 generic_array_type
     .msg = "generic association array type cannot be matched with"
-    .opt = W("generic-qual-type")
+    .opt = .@"generic-qual-type"
     .kind = .warning
 
 generic_func_type
     .msg = "generic association function type cannot be matched with"
-    .opt = W("generic-qual-type")
+    .opt = .@"generic-qual-type"
     .kind = .warning
 
 generic_duplicate
@@ -698,9 +689,8 @@ incomplete_universal_character
 
 multichar_literal_warning
     .msg = "multi-character character constant"
-    .opt = W("multichar")
+    .opt = .multichar
     .kind = .warning
-    .all = true
 
 invalid_multichar_literal
     .msg = "{s} character literals may not contain multiple characters"
@@ -714,7 +704,6 @@ wide_multichar_literal
 char_lit_too_wide
     .msg = "character constant too long for its type"
     .kind = .warning
-    .all = true
 
 char_too_large
     .msg = "character too large for enclosing character literal type"
@@ -758,13 +747,13 @@ invalid_bin_types
 comparison_ptr_int
     .msg = "comparison between pointer and integer ({s})"
     .extra = .str
-    .opt = W("pointer-integer-compare")
+    .opt = .@"pointer-integer-compare"
     .kind = .warning
 
 comparison_distinct_ptr
     .msg = "comparison of distinct pointer types ({s})"
     .extra = .str
-    .opt = W("compare-distinct-pointer-types")
+    .opt = .@"compare-distinct-pointer-types"
     .kind = .warning
 
 incompatible_pointers
@@ -785,7 +774,7 @@ incompatible_assign
 implicit_ptr_to_int
     .msg = "implicit pointer to integer conversion from {s}"
     .extra = .str
-    .opt = W("int-conversion")
+    .opt = .@"int-conversion"
     .kind = .warning
 
 invalid_cast_to_float
@@ -811,7 +800,7 @@ invalid_cast_operand_type
 qual_cast
     .msg = "cast to type '{s}' will not preserve qualifiers"
     .extra = .str
-    .opt = W("cast-qualifiers")
+    .opt = .@"cast-qualifiers"
     .kind = .warning
 
 invalid_index
@@ -825,13 +814,13 @@ invalid_subscript
 array_after
     .msg = "array index {s} is past the end of the array"
     .extra = .str
-    .opt = W("array-bounds")
+    .opt = .@"array-bounds"
     .kind = .warning
 
 array_before
     .msg = "array index {s} is before the beginning of the array"
     .extra = .str
-    .opt = W("array-bounds")
+    .opt = .@"array-bounds"
     .kind = .warning
 
 statement_int
@@ -847,9 +836,8 @@ statement_scalar
 func_should_return
     .msg = "non-void function '{s}' should return a value"
     .extra = .str
-    .opt = W("return-type")
+    .opt = .@"return-type"
     .kind = .@"error"
-    .all = true
 
 incompatible_return
     .msg = "returning {s}"
@@ -860,27 +848,25 @@ incompatible_return_sign
     .msg = "returning {s}" ++ pointer_sign_message
     .extra = .str
     .kind = .warning
-    .opt = W("pointer-sign")
+    .opt = .@"pointer-sign"
 
 implicit_int_to_ptr
     .msg = "implicit integer to pointer conversion from {s}"
     .extra = .str
-    .opt = W("int-conversion")
+    .opt = .@"int-conversion"
     .kind = .warning
 
 func_does_not_return
     .msg = "non-void function '{s}' does not return a value"
     .extra = .str
-    .opt = W("return-type")
+    .opt = .@"return-type"
     .kind = .warning
-    .all = true
 
 void_func_returns_value
     .msg = "void function '{s}' should not return a value"
     .extra = .str
-    .opt = W("return-type")
+    .opt = .@"return-type"
     .kind = .@"error"
-    .all = true
 
 incompatible_arg
     .msg = "passing {s}"
@@ -891,13 +877,13 @@ incompatible_ptr_arg
     .msg = "passing {s}"
     .extra = .str
     .kind = .warning
-    .opt = W("incompatible-pointer-types")
+    .opt = .@"incompatible-pointer-types"
 
 incompatible_ptr_arg_sign
     .msg = "passing {s}" ++ pointer_sign_message
     .extra = .str
     .kind = .warning
-    .opt = W("pointer-sign")
+    .opt = .@"pointer-sign"
 
 parameter_here
     .msg = "passing argument to parameter here"
@@ -939,7 +925,7 @@ atomic_auto
 
 atomic_access
     .msg = "accessing a member of an atomic structure or union is undefined behavior"
-    .opt = W("atomic-access")
+    .opt = .@"atomic-access"
     .kind = .@"error"
 
 addr_of_register
@@ -1003,25 +989,26 @@ non_pow2_align
 pointer_mismatch
     .msg = "pointer type mismatch ({s})"
     .extra = .str
-    .opt = W("pointer-type-mismatch")
+    .opt = .@"pointer-type-mismatch"
     .kind = .warning
 
 static_assert_not_constant
-    .msg = "static_assert expression is not an integral constant expression"
+    .msg = "static assertion expression is not an integral constant expression"
     .kind = .@"error"
 
 static_assert_missing_message
-    .msg = "static_assert with no message is a C23 extension"
-    .opt = W("c23-extensions")
+    .msg = "'_Static_assert' with no message is a C23 extension"
+    .opt = .@"c23-extensions"
     .kind = .warning
     .suppress_version = .c23
+    .extension = true
 
 pre_c23_compat
     .msg = "{s} is incompatible with C standards before C23"
     .extra = .str
     .kind = .off
     .suppress_unless_version = .c23
-    .opt = W("pre-c23-compat")
+    .opt = .@"pre-c23-compat"
 
 unbound_vla
     .msg = "variable length array must be bound in function definition"
@@ -1039,25 +1026,25 @@ record_too_large
 incompatible_ptr_init
     .msg = "incompatible pointer types initializing {s}"
     .extra = .str
-    .opt = W("incompatible-pointer-types")
+    .opt = .@"incompatible-pointer-types"
     .kind = .warning
 
 incompatible_ptr_init_sign
     .msg = "incompatible pointer types initializing {s}" ++ pointer_sign_message
     .extra = .str
-    .opt = W("pointer-sign")
+    .opt = .@"pointer-sign"
     .kind = .warning
 
 incompatible_ptr_assign
     .msg = "incompatible pointer types assigning to {s}"
     .extra = .str
-    .opt = W("incompatible-pointer-types")
+    .opt = .@"incompatible-pointer-types"
     .kind = .warning
 
 incompatible_ptr_assign_sign
     .msg = "incompatible pointer types assigning to {s} " ++ pointer_sign_message
     .extra = .str
-    .opt = W("pointer-sign")
+    .opt = .@"pointer-sign"
     .kind = .warning
 
 vla_init
@@ -1079,27 +1066,27 @@ empty_scalar_init
 
 excess_scalar_init
     .msg = "excess elements in scalar initializer"
-    .opt = W("excess-initializers")
+    .opt = .@"excess-initializers"
     .kind = .warning
 
 excess_str_init
     .msg = "excess elements in string initializer"
-    .opt = W("excess-initializers")
+    .opt = .@"excess-initializers"
     .kind = .warning
 
 excess_struct_init
     .msg = "excess elements in struct initializer"
-    .opt = W("excess-initializers")
+    .opt = .@"excess-initializers"
     .kind = .warning
 
 excess_array_init
     .msg = "excess elements in array initializer"
-    .opt = W("excess-initializers")
+    .opt = .@"excess-initializers"
     .kind = .warning
 
 str_init_too_long
     .msg = "initializer-string for char array is too long"
-    .opt = W("excess-initializers")
+    .opt = .@"excess-initializers"
     .kind = .warning
 
 arr_init_too_long
@@ -1110,7 +1097,7 @@ arr_init_too_long
 division_by_zero
     .msg = "{s} by zero is undefined"
     .extra = .str
-    .opt = W("division-by-zero")
+    .opt = .@"division-by-zero"
     .kind = .warning
 
 division_by_zero_macro
@@ -1145,9 +1132,8 @@ array_init_str
 
 initializer_overrides
     .msg = "initializer overrides previous initialization"
-    .opt = W("initializer-overrides")
+    .opt = .@"initializer-overrides"
     .kind = .warning
-    .w_extra = true
 
 previous_initializer
     .msg = "previous initialization"
@@ -1185,37 +1171,37 @@ empty_aggregate_init_braces
 ptr_init_discards_quals
     .msg = "initializing {s} discards qualifiers"
     .extra = .str
-    .opt = W("incompatible-pointer-types-discards-qualifiers")
+    .opt = .@"incompatible-pointer-types-discards-qualifiers"
     .kind = .warning
 
 ptr_assign_discards_quals
     .msg = "assigning to {s} discards qualifiers"
     .extra = .str
-    .opt = W("incompatible-pointer-types-discards-qualifiers")
+    .opt = .@"incompatible-pointer-types-discards-qualifiers"
     .kind = .warning
 
 ptr_ret_discards_quals
     .msg = "returning {s} discards qualifiers"
     .extra = .str
-    .opt = W("incompatible-pointer-types-discards-qualifiers")
+    .opt = .@"incompatible-pointer-types-discards-qualifiers"
     .kind = .warning
 
 ptr_arg_discards_quals
     .msg = "passing {s} discards qualifiers"
     .extra = .str
-    .opt = W("incompatible-pointer-types-discards-qualifiers")
+    .opt = .@"incompatible-pointer-types-discards-qualifiers"
     .kind = .warning
 
 unknown_attribute
     .msg = "unknown attribute '{s}' ignored"
     .extra = .str
-    .opt = W("unknown-attributes")
+    .opt = .@"unknown-attributes"
     .kind = .warning
 
 ignored_attribute
     .msg = "{s}"
     .extra = .str
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 invalid_fallthrough
@@ -1229,7 +1215,7 @@ cannot_apply_attribute_to_statement
 
 builtin_macro_redefined
     .msg = "redefining builtin macro"
-    .opt = W("builtin-macro-redefined")
+    .opt = .@"builtin-macro-redefined"
     .kind = .warning
 
 feature_check_requires_identifier
@@ -1243,9 +1229,9 @@ missing_tok_builtin
 
 gnu_label_as_value
     .msg = "use of GNU address-of-label extension"
-    .opt = W("gnu-label-as-value")
+    .opt = .@"gnu-label-as-value"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 expected_record_ty
     .msg = "member reference base type '{s}' is not a structure or union"
@@ -1275,9 +1261,8 @@ no_such_member
 malformed_warning_check
     .msg = "{s} expected option name (e.g. \"-Wundef\")"
     .extra = .str
-    .opt = W("malformed-warning-check")
+    .opt = .@"malformed-warning-check"
     .kind = .warning
-    .all = true
 
 invalid_computed_goto
     .msg = "computed goto in function with no address-of-label expressions"
@@ -1286,7 +1271,7 @@ invalid_computed_goto
 pragma_warning_message
     .msg = "{s}"
     .extra = .str
-    .opt = W("#pragma-messages")
+    .opt = .@"#pragma-messages"
     .kind = .warning
 
 pragma_error_message
@@ -1318,21 +1303,20 @@ pragma_poison_macro
 
 newline_eof
     .msg = "no newline at end of file"
-    .opt = W("newline-eof")
+    .opt = .@"newline-eof"
     .kind = .off
-    .pedantic = true
 
 empty_translation_unit
     .msg = "ISO C requires a translation unit to contain at least one declaration"
-    .opt = W("empty-translation-unit")
+    .opt = .@"empty-translation-unit"
     .kind = .off
-    .pedantic = true
 
 omitting_parameter_name
     .msg = "omitting the parameter name in a function definition is a C23 extension"
-    .opt = W("c23-extensions")
+    .opt = .@"c23-extensions"
     .kind = .warning
     .suppress_version = .c23
+    .extension = true
 
 non_int_bitfield
     .msg = "bit-field has non-integer type '{s}'"
@@ -1358,7 +1342,7 @@ invalid_utf8
 
 implicitly_unsigned_literal
     .msg = "integer literal is too large to be represented in a signed integer type, interpreting as unsigned"
-    .opt = W("implicitly-unsigned-literal")
+    .opt = .@"implicitly-unsigned-literal"
     .kind = .warning
 
 invalid_preproc_operator
@@ -1371,7 +1355,7 @@ invalid_preproc_expr_start
 
 c99_compat
     .msg = "using this character in an identifier is incompatible with C99"
-    .opt = W("c99-compat")
+    .opt = .@"c99-compat"
     .kind = .off
 
 unexpected_character
@@ -1386,14 +1370,14 @@ invalid_identifier_start_char
 
 unicode_zero_width
     .msg = "identifier contains Unicode character <U+{X:0>4}> that is invisible in some environments"
-    .opt = W("unicode-homoglyph")
+    .opt = .@"unicode-homoglyph"
     .extra = .actual_codepoint
     .kind = .warning
 
 unicode_homoglyph
     .msg = "treating Unicode character <U+{X:0>4}> as identifier character rather than as '{u}' symbol"
     .extra = .codepoints
-    .opt = W("unicode-homoglyph")
+    .opt = .@"unicode-homoglyph"
     .kind = .warning
 
 meaningless_asm_qual
@@ -1413,9 +1397,9 @@ invalid_asm_str
 
 dollar_in_identifier_extension
     .msg = "'$' in identifier"
-    .opt = W("dollar-in-identifier-extension")
+    .opt = .@"dollar-in-identifier-extension"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 dollars_in_identifiers
     .msg = "illegal character '$' in identifier"
@@ -1436,19 +1420,17 @@ pragma_operator_string_literal
 
 unknown_gcc_pragma
     .msg = "pragma GCC expected 'error', 'warning', 'diagnostic', 'poison'"
-    .opt = W("unknown-pragmas")
+    .opt = .@"unknown-pragmas"
     .kind = .off
-    .all = true
 
 unknown_gcc_pragma_directive
     .msg = "pragma GCC diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'"
-    .opt = W("unknown-pragmas")
+    .opt = .@"unknown-pragmas"
     .kind = .warning
-    .all = true
 
 predefined_top_level
     .msg = "predefined identifier is only valid inside function"
-    .opt = W("predefined-identifier-outside-function")
+    .opt = .@"predefined-identifier-outside-function"
     .kind = .warning
 
 incompatible_va_arg
@@ -1458,22 +1440,20 @@ incompatible_va_arg
 
 too_many_scalar_init_braces
     .msg = "too many braces around scalar initializer"
-    .opt = W("many-braces-around-scalar-init")
+    .opt = .@"many-braces-around-scalar-init"
     .kind = .warning
 
 uninitialized_in_own_init
     .msg = "variable '{s}' is uninitialized when used within its own initialization"
     .extra = .str
-    .opt = W("uninitialized")
+    .opt = .uninitialized
     .kind = .off
-    .all = true
 
 gnu_statement_expression
     .msg = "use of GNU statement expression extension"
-    .opt = W("gnu-statement-expression")
+    .opt = .@"gnu-statement-expression"
     .kind = .off
-    .suppress_gnu = true
-    .pedantic = true
+    .extension = true
 
 stmt_expr_not_allowed_file_scope
     .msg = "statement expression not allowed at file scope"
@@ -1481,10 +1461,9 @@ stmt_expr_not_allowed_file_scope
 
 gnu_imaginary_constant
     .msg = "imaginary constants are a GNU extension"
-    .opt = W("gnu-imaginary-constant")
+    .opt = .@"gnu-imaginary-constant"
     .kind = .off
-    .suppress_gnu = true
-    .pedantic = true
+    .extension = true
 
 plain_complex
     .msg = "plain '_Complex' requires a type specifier; assuming '_Complex double'"
@@ -1492,16 +1471,15 @@ plain_complex
 
 complex_int
     .msg = "complex integer types are a GNU extension"
-    .opt = W("gnu-complex-integer")
-    .suppress_gnu = true
+    .opt = .@"gnu-complex-integer"
     .kind = .off
+    .extension = true
 
 qual_on_ret_type
     .msg = "'{s}' type qualifier on return type has no effect"
-    .opt = W("ignored-qualifiers")
+    .opt = .@"ignored-qualifiers"
     .extra = .str
     .kind = .off
-    .all = true
 
 cli_invalid_standard
     .msg = "invalid standard '{s}'"
@@ -1550,9 +1528,8 @@ cli_unknown_linker
 
 extra_semi
     .msg = "extra ';' outside of a function"
-    .opt = W("extra-semi")
+    .opt = .@"extra-semi"
     .kind = .off
-    .pedantic = true
 
 func_field
     .msg = "field declared as a function"
@@ -1574,7 +1551,12 @@ field_incomplete_ty
 flexible_in_union
     .msg = "flexible array member in union is not allowed"
     .kind = .@"error"
-    .suppress_msvc = true
+
+flexible_in_union_msvc
+    .msg = "flexible array member in union is a Microsoft extension"
+    .kind = .off
+    .opt = .@"microsoft-flexible-array"
+    .extension = true
 
 flexible_non_final
     .msg = "flexible array member is not at the end of struct"
@@ -1583,7 +1565,12 @@ flexible_non_final
 flexible_in_empty
     .msg = "flexible array member in otherwise empty struct"
     .kind = .@"error"
-    .suppress_msvc = true
+
+flexible_in_empty_msvc
+    .msg = "flexible array member in otherwise empty struct is a Microsoft extension"
+    .kind = .off
+    .opt = .@"microsoft-flexible-array"
+    .extension = true
 
 duplicate_member
     .msg = "duplicate member '{s}'"
@@ -1593,14 +1580,14 @@ duplicate_member
 binary_integer_literal
     .msg = "binary integer literals are a GNU extension"
     .kind = .off
-    .opt = W("gnu-binary-literal")
-    .pedantic = true
+    .opt = .@"gnu-binary-literal"
+    .extension = true
 
 gnu_va_macro
     .msg = "named variadic macros are a GNU extension"
-    .opt = W("variadic-macros")
+    .opt = .@"variadic-macros"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 builtin_must_be_called
     .msg = "builtin function must be directly called"
@@ -1616,7 +1603,7 @@ va_start_fixed_args
 
 va_start_not_last_param
     .msg = "second argument to 'va_start' is not the last named parameter"
-    .opt = W("varargs")
+    .opt = .varargs
     .kind = .warning
 
 attribute_not_enough_args
@@ -1651,19 +1638,19 @@ declspec_not_enabled
 declspec_attr_not_supported
     .msg = "__declspec attribute '{s}' is not supported"
     .extra = .str
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 deprecated_declarations
     .msg = "{s}"
     .extra = .str
-    .opt = W("deprecated-declarations")
+    .opt = .@"deprecated-declarations"
     .kind = .warning
 
 deprecated_note
     .msg = "'{s}' has been explicitly marked deprecated here"
     .extra = .str
-    .opt = W("deprecated-declarations")
+    .opt = .@"deprecated-declarations"
     .kind = .note
 
 unavailable
@@ -1680,7 +1667,7 @@ warning_attribute
     .msg = "{s}"
     .extra = .str
     .kind = .warning
-    .opt = W("attribute-warning")
+    .opt = .@"attribute-warning"
 
 error_attribute
     .msg = "{s}"
@@ -1691,12 +1678,12 @@ ignored_record_attr
     .msg = "attribute '{s}' is ignored, place it after \"{s}\" to apply attribute to type declaration"
     .extra = .ignored_record_attr
     .kind = .warning
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
 
 backslash_newline_escape
     .msg = "backslash and newline separated by space"
     .kind = .warning
-    .opt = W("backslash-newline-escape")
+    .opt = .@"backslash-newline-escape"
 
 array_size_non_int
     .msg = "size of array has non-integer type '{s}'"
@@ -1707,13 +1694,13 @@ cast_to_smaller_int
     .msg = "cast to smaller integer type {s}"
     .extra = .str
     .kind = .warning
-    .opt = W("pointer-to-int-cast")
+    .opt = .@"pointer-to-int-cast"
 
 gnu_switch_range
     .msg = "use of GNU case range extension"
-    .opt = W("gnu-case-range")
+    .opt = .@"gnu-case-range"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 empty_case_range
     .msg = "empty case range specified"
@@ -1722,7 +1709,7 @@ empty_case_range
 non_standard_escape_char
     .msg = "use of non-standard escape character '\\{s}'"
     .kind = .off
-    .opt = W("pedantic")
+    .extension = true
     .extra = .invalid_escape
 
 invalid_pp_stringify_escape
@@ -1732,61 +1719,61 @@ invalid_pp_stringify_escape
 vla
     .msg = "variable length array used"
     .kind = .off
-    .opt = W("vla")
+    .opt = .vla
 
 int_value_changed
     .msg = "implicit conversion from {s}"
     .extra = .str
     .kind = .warning
-    .opt = W("constant-conversion")
+    .opt = .@"constant-conversion"
 
 sign_conversion
     .msg = "implicit conversion changes signedness: {s}"
     .extra = .str
     .kind = .off
-    .opt = W("sign-conversion")
+    .opt = .@"sign-conversion"
 
 float_overflow_conversion
     .msg = "implicit conversion of non-finite value from {s} is undefined"
     .extra = .str
     .kind = .off
-    .opt = W("float-overflow-conversion")
+    .opt = .@"float-overflow-conversion"
 
 float_out_of_range
     .msg = "implicit conversion of out of range value from {s} is undefined"
     .extra = .str
     .kind = .warning
-    .opt = W("literal-conversion")
+    .opt = .@"literal-conversion"
 
 float_zero_conversion
     .msg = "implicit conversion from {s}"
     .extra = .str
     .kind = .off
-    .opt = W("float-zero-conversion")
+    .opt = .@"float-zero-conversion"
 
 float_value_changed
     .msg = "implicit conversion from {s}"
     .extra = .str
     .kind = .warning
-    .opt = W("float-conversion")
+    .opt = .@"float-conversion"
 
 float_to_int
     .msg = "implicit conversion turns floating-point number into integer: {s}"
     .extra = .str
     .kind = .off
-    .opt = W("literal-conversion")
+    .opt = .@"literal-conversion"
 
 const_decl_folded
     .msg = "expression is not an integer constant expression; folding it to a constant is a GNU extension"
     .kind = .off
-    .opt = W("gnu-folding-constant")
-    .pedantic = true
+    .opt = .@"gnu-folding-constant"
+    .extension = true
 
 const_decl_folded_vla
     .msg = "variable length array folded to constant array as an extension"
     .kind = .off
-    .opt = W("gnu-folding-constant")
-    .pedantic = true
+    .opt = .@"gnu-folding-constant"
+    .extension = true
 
 redefinition_of_typedef
     .msg = "typedef redefinition with different types ({s})"
@@ -1797,7 +1784,7 @@ undefined_macro
     .msg = "'{s}' is not defined, evaluates to 0"
     .extra = .str
     .kind = .off
-    .opt = W("undef")
+    .opt = .undef
 
 fn_macro_undefined
     .msg = "function-like macro '{s}' is not defined"
@@ -1832,16 +1819,16 @@ offsetof_array
 pragma_pack_lparen
     .msg = "missing '(' after '#pragma pack' - ignoring"
     .kind = .warning
-    .opt = W("ignored-pragmas")
+    .opt = .@"ignored-pragmas"
 
 pragma_pack_rparen
     .msg = "missing ')' after '#pragma pack' - ignoring"
     .kind = .warning
-    .opt = W("ignored-pragmas")
+    .opt = .@"ignored-pragmas"
 
 pragma_pack_unknown_action
     .msg = "unknown action for '#pragma pack' - ignoring"
-    .opt = W("ignored-pragmas")
+    .opt = .@"ignored-pragmas"
     .kind = .warning
 
 pragma_pack_show
@@ -1851,12 +1838,12 @@ pragma_pack_show
 
 pragma_pack_int
     .msg = "expected #pragma pack parameter to be '1', '2', '4', '8', or '16'"
-    .opt = W("ignored-pragmas")
+    .opt = .@"ignored-pragmas"
     .kind = .warning
 
 pragma_pack_int_ident
     .msg = "expected integer or identifier in '#pragma pack' - ignored"
-    .opt = W("ignored-pragmas")
+    .opt = .@"ignored-pragmas"
     .kind = .warning
 
 pragma_pack_undefined_pop
@@ -1865,7 +1852,7 @@ pragma_pack_undefined_pop
 
 pragma_pack_empty_stack
     .msg = "#pragma pack(pop, ...) failed: stack empty"
-    .opt = W("ignored-pragmas")
+    .opt = .@"ignored-pragmas"
     .kind = .warning
 
 cond_expr_type
@@ -1881,24 +1868,24 @@ enumerator_too_small
     .msg = "ISO C restricts enumerator values to range of 'int' ({s} is too small)"
     .extra = .str
     .kind = .off
-    .opt = W("pedantic")
+    .extension = true
 
 enumerator_too_large
     .msg = "ISO C restricts enumerator values to range of 'int' ({s} is too large)"
     .extra = .str
     .kind = .off
-    .opt = W("pedantic")
+    .extension = true
 
 include_next
     .msg = "#include_next is a language extension"
     .kind = .off
-    .pedantic = true
-    .opt = W("gnu-include-next")
+    .opt = .@"gnu-include-next"
+    .extension = true
 
 include_next_outside_header
     .msg = "#include_next in primary source file; will search from start of include path"
     .kind = .warning
-    .opt = W("include-next-outside-header")
+    .opt = .@"include-next-outside-header"
 
 enumerator_overflow
     .msg = "overflow in enumeration value"
@@ -1907,19 +1894,19 @@ enumerator_overflow
 enum_not_representable
     .msg = "incremented enumerator value {s} is not representable in the largest integer type"
     .kind = .warning
-    .opt = W("enum-too-large")
+    .opt = .@"enum-too-large"
     .extra = .pow_2_as_string
 
 enum_too_large
     .msg = "enumeration values exceed range of largest integer"
     .kind = .warning
-    .opt = W("enum-too-large")
+    .opt = .@"enum-too-large"
 
 enum_fixed
     .msg = "enumeration types with a fixed underlying type are a Clang extension"
     .kind = .off
-    .pedantic = true
-    .opt = W("fixed-enum-extension")
+    .opt = .@"fixed-enum-extension"
+    .extension = true
 
 enum_prev_nonfixed
     .msg = "enumeration previously declared with nonfixed underlying type"
@@ -1942,18 +1929,18 @@ enum_not_representable_fixed
 
 transparent_union_wrong_type
     .msg = "'transparent_union' attribute only applies to unions"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 transparent_union_one_field
     .msg = "transparent union definition must contain at least one field; transparent_union attribute ignored"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 transparent_union_size
     .msg = "size of field {s} bits) does not match the size of the first field in transparent union; transparent_union attribute ignored"
     .extra = .str
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 transparent_union_size_note
@@ -1967,73 +1954,73 @@ designated_init_invalid
 
 designated_init_needed
     .msg = "positional initialization of field in 'struct' declared with 'designated_init' attribute"
-    .opt = W("designated-init")
+    .opt = .@"designated-init"
     .kind = .warning
 
 ignore_common
     .msg = "ignoring attribute 'common' because it conflicts with attribute 'nocommon'"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 ignore_nocommon
     .msg = "ignoring attribute 'nocommon' because it conflicts with attribute 'common'"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 non_string_ignored
     .msg = "'nonstring' attribute ignored on objects of type '{s}'"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 local_variable_attribute
     .msg = "'{s}' attribute only applies to local variables"
     .extra = .str
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 ignore_cold
     .msg = "ignoring attribute 'cold' because it conflicts with attribute 'hot'"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 ignore_hot
     .msg = "ignoring attribute 'hot' because it conflicts with attribute 'cold'"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 ignore_noinline
     .msg = "ignoring attribute 'noinline' because it conflicts with attribute 'always_inline'"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 ignore_always_inline
     .msg = "ignoring attribute 'always_inline' because it conflicts with attribute 'noinline'"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 invalid_noreturn
     .msg = "function '{s}' declared 'noreturn' should not return"
     .extra = .str
     .kind = .warning
-    .opt = W("invalid-noreturn")
+    .opt = .@"invalid-noreturn"
 
 nodiscard_unused
     .msg = "ignoring return value of '{s}', declared with 'nodiscard' attribute"
     .extra = .str
     .kind = .warning
-    .opt = W("unused-result")
+    .opt = .@"unused-result"
 
 warn_unused_result
     .msg = "ignoring return value of '{s}', declared with 'warn_unused_result' attribute"
     .extra = .str
     .kind = .warning
-    .opt = W("unused-result")
+    .opt = .@"unused-result"
 
 builtin_unused
     .msg = "ignoring return value of function declared with {s} attribute"
     .extra = .str
     .kind = .warning
-    .opt = W("unused-value")
+    .opt = .@"unused-value"
 
 invalid_vec_elem_ty
     .msg = "invalid vector element type '{s}'"
@@ -2057,33 +2044,29 @@ invalid_real
 zero_length_array
     .msg = "zero size arrays are an extension"
     .kind = .off
-    .pedantic = true
-    .opt = W("zero-length-array")
+    .opt = .@"zero-length-array"
 
 old_style_flexible_struct
     .msg = "array index {s} is past the end of the array"
     .extra = .str
     .kind = .off
-    .pedantic = true
-    .opt = W("old-style-flexible-struct")
+    .opt = .@"old-style-flexible-struct"
 
 comma_deletion_va_args
     .msg = "token pasting of ',' and __VA_ARGS__ is a GNU extension"
     .kind = .off
-    .pedantic = true
-    .opt = W("gnu-zero-variadic-macro-arguments")
-    .suppress_gcc = true
+    .opt = .@"gnu-zero-variadic-macro-arguments"
+    .extension = true
 
 main_return_type
     .msg = "return type of 'main' is not 'int'"
     .kind = .warning
-    .opt = W("main-return-type")
+    .opt = .@"main-return-type"
 
 expansion_to_defined
     .msg = "macro expansion producing 'defined' has undefined behavior"
     .kind = .off
-    .pedantic = true
-    .opt = W("expansion-to-defined")
+    .opt = .@"expansion-to-defined"
 
 invalid_int_suffix
     .msg = "invalid suffix '{s}' on integer constant"
@@ -2116,8 +2099,6 @@ hex_floating_constant_requires_exponent
 sizeof_returns_zero
     .msg = "sizeof returns 0"
     .kind = .warning
-    .suppress_gcc = true
-    .suppress_clang = true
 
 declspec_not_allowed_after_declarator
     .msg = "'declspec' attribute not allowed after declarator"
@@ -2133,11 +2114,11 @@ type_not_supported_on_target
     .kind = .@"error"
 
 bit_int
-    .msg = "'_BitInt' in C17 and earlier is a Clang extension'"
+    .msg = "'_BitInt' in C17 and earlier is a Clang extension"
     .kind = .off
-    .pedantic = true
-    .opt = W("bit-int-extension")
+    .opt = .@"bit-int-extension"
     .suppress_version = .c23
+    .extension = true
 
 unsigned_bit_int_too_small
     .msg = "{s}unsigned _BitInt must have a bit size of at least 1"
@@ -2162,8 +2143,8 @@ signed_bit_int_too_big
 keyword_macro
     .msg = "keyword is hidden by macro definition"
     .kind = .off
-    .pedantic = true
-    .opt = W("keyword-macro")
+    .opt = .@"keyword-macro"
+    .extension = true
 
 ptr_arithmetic_incomplete
     .msg = "arithmetic on a pointer to an incomplete type '{s}'"
@@ -2173,33 +2154,32 @@ ptr_arithmetic_incomplete
 callconv_not_supported
     .msg = "'{s}' calling convention is not supported for this target"
     .extra = .str
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 pointer_arith_void
     .msg = "invalid application of '{s}' to a void type"
     .extra = .str
     .kind = .off
-    .pedantic = true
-    .opt = W("pointer-arith")
+    .opt = .@"pointer-arith"
 
 sizeof_array_arg
     .msg = "sizeof on array function parameter will return size of {s}"
     .extra = .str
     .kind = .warning
-    .opt = W("sizeof-array-argument")
+    .opt = .@"sizeof-array-argument"
 
 array_address_to_bool
     .msg = "address of array '{s}' will always evaluate to 'true'"
     .extra = .str
     .kind = .warning
-    .opt = W("pointer-bool-conversion")
+    .opt = .@"pointer-bool-conversion"
 
 string_literal_to_bool
     .msg = "implicit conversion turns string literal into bool: {s}"
     .extra = .str
     .kind = .off
-    .opt = W("string-conversion")
+    .opt = .@"string-conversion"
 
 constant_expression_conversion_not_allowed
     .msg = "this conversion is not allowed in a constant expression"
@@ -2222,21 +2202,21 @@ suggest_pointer_for_invalid_fp16
 
 bitint_suffix
     .msg = "'_BitInt' suffix for literals is a C23 extension"
-    .opt = W("c23-extensions")
+    .opt = .@"c23-extensions"
     .kind = .warning
     .suppress_version = .c23
 
 auto_type_extension
     .msg = "'__auto_type' is a GNU extension"
-    .opt = W("gnu-auto-type")
+    .opt = .@"gnu-auto-type"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 gnu_pointer_arith
     .msg = "arithmetic on pointers to void is a GNU extension"
-    .opt = W("gnu-pointer-arith")
+    .opt = .@"gnu-pointer-arith"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 auto_type_not_allowed
     .msg = "'__auto_type' not allowed in {s}"
@@ -2285,9 +2265,9 @@ forward_declaration_here
 
 gnu_union_cast
     .msg = "cast to union type is a GNU extension"
-    .opt = W("gnu-union-cast")
+    .opt = .@"gnu-union-cast"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 invalid_union_cast
     .msg = "cast to union type from type '{s}' not present in union"
@@ -2306,7 +2286,7 @@ invalid_source_epoch
 fuse_ld_path
     .msg = "'-fuse-ld=' taking a path is deprecated; use '--ld-path=' instead"
     .kind = .off
-    .opt = W("fuse-ld-path")
+    .opt = .@"fuse-ld-path"
 
 invalid_rtlib
     .msg = "invalid runtime library name '{s}'"
@@ -2334,20 +2314,20 @@ gnu_asm_disabled
 extension_token_used
     .msg = "extension used"
     .kind = .off
-    .pedantic = true
-    .opt = W("language-extension-token")
+    .opt = .@"language-extension-token"
+    .extension = true
 
 complex_component_init
     .msg = "complex initialization specifying real and imaginary components is an extension"
-    .opt = W("complex-component-init")
+    .opt = .@"complex-component-init"
     .kind = .off
-    .pedantic = true
+    .extension = true
 
 complex_prefix_postfix_op
     .msg = "ISO C does not support '++'/'--' on complex type '{s}'"
-    .opt = W("pedantic")
     .extra = .str
     .kind = .off
+    .extension = true
 
 not_floating_type
     .msg = "argument type '{s}' is not a real floating point type"
@@ -2362,18 +2342,17 @@ argument_types_differ
 ms_search_rule
     .msg = "#include resolved using non-portable Microsoft search rules as: {s}"
     .extra = .str
-    .opt = W("microsoft-include")
+    .opt = .@"microsoft-include"
     .kind = .warning
 
 ctrl_z_eof
     .msg = "treating Ctrl-Z as end-of-file is a Microsoft extension"
-    .opt = W("microsoft-end-of-file")
+    .opt = .@"microsoft-end-of-file"
     .kind = .off
-    .pedantic = true
 
 illegal_char_encoding_warning
     .msg = "illegal character encoding in character literal"
-    .opt = W("invalid-source-encoding")
+    .opt = .@"invalid-source-encoding"
     .kind = .warning
 
 illegal_char_encoding_error
@@ -2390,7 +2369,7 @@ ucn_basic_char_warning
     .kind = .off
     .extra = .ascii
     .suppress_unless_version = .c23
-    .opt = W("pre-c23-compat")
+    .opt = .@"pre-c23-compat"
 
 ucn_control_char_error
     .msg = "universal character name refers to a control character"
@@ -2400,17 +2379,17 @@ ucn_control_char_warning
     .msg = "universal character name referring to a control character is incompatible with C standards before C23"
     .kind = .off
     .suppress_unless_version = .c23
-    .opt = W("pre-c23-compat")
+    .opt = .@"pre-c23-compat"
 
 c89_ucn_in_literal
     .msg = "universal character names are only valid in C99 or later"
     .suppress_version = .c99
     .kind = .warning
-    .opt = W("unicode")
+    .opt = .unicode
 
 four_char_char_literal
     .msg = "multi-character character constant"
-    .opt = W("four-char-constants")
+    .opt = .@"four-char-constants"
     .kind = .off
 
 multi_char_char_literal
@@ -2425,7 +2404,7 @@ missing_hex_escape
 unknown_escape_sequence
     .msg = "unknown escape sequence '\\{s}'"
     .kind = .warning
-    .opt = W("unknown-escape-sequence")
+    .opt = .@"unknown-escape-sequence"
     .extra = .invalid_escape
 
 attribute_requires_string
@@ -2436,7 +2415,7 @@ attribute_requires_string
 unterminated_string_literal_warning
     .msg = "missing terminating '\"' character"
     .kind = .warning
-    .opt = W("invalid-pp-token")
+    .opt = .@"invalid-pp-token"
 
 unterminated_string_literal_error
     .msg = "missing terminating '\"' character"
@@ -2445,7 +2424,7 @@ unterminated_string_literal_error
 empty_char_literal_warning
     .msg = "empty character constant"
     .kind = .warning
-    .opt = W("invalid-pp-token")
+    .opt = .@"invalid-pp-token"
 
 empty_char_literal_error
     .msg = "empty character constant"
@@ -2454,7 +2433,7 @@ empty_char_literal_error
 unterminated_char_literal_warning
     .msg = "missing terminating ' character"
     .kind = .warning
-    .opt = W("invalid-pp-token")
+    .opt = .@"invalid-pp-token"
 
 unterminated_char_literal_error
     .msg = "missing terminating ' character"
@@ -2467,12 +2446,12 @@ unterminated_comment
 def_no_proto_deprecated
     .msg = "a function definition without a prototype is deprecated in all versions of C and is not supported in C23"
     .kind = .warning
-    .opt = W("deprecated-non-prototype")
+    .opt = .@"deprecated-non-prototype"
 
 passing_args_to_kr
     .msg = "passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23"
     .kind = .warning
-    .opt = W("deprecated-non-prototype")
+    .opt = .@"deprecated-non-prototype"
 
 unknown_type_name
     .msg = "unknown type name '{s}'"
@@ -2481,15 +2460,17 @@ unknown_type_name
 
 label_compound_end
     .msg = "label at end of compound statement is a C23 extension"
-    .opt = W("c23-extensions")
+    .opt = .@"c23-extensions"
     .kind = .warning
     .suppress_version = .c23
+    .extension = true
 
 u8_char_lit
     .msg = "UTF-8 character literal is a C23 extension"
-    .opt = W("c23-extensions")
+    .opt = .@"c23-extensions"
     .kind = .warning
     .suppress_version = .c23
+    .extension = true
 
 malformed_embed_param
     .msg = "unexpected token in embed parameter"
@@ -2503,13 +2484,13 @@ duplicate_embed_param
     .msg = "duplicate embed parameter '{s}'"
     .kind = .warning
     .extra = .str
-    .opt = W("duplicate-embed-param")
+    .opt = .@"duplicate-embed-param"
 
 unsupported_embed_param
     .msg = "unsupported embed parameter '{s}' embed parameter"
     .kind = .warning
     .extra = .str
-    .opt = W("unsupported-embed-param")
+    .opt = .@"unsupported-embed-param"
 
 invalid_compound_literal_storage_class
     .msg = "compound literal cannot have {s} storage class"
@@ -2533,7 +2514,7 @@ identifier_not_normalized
     .msg = "'{s}' is not in NFC"
     .kind = .warning
     .extra = .normalized
-    .opt = W("normalized")
+    .opt = .normalized
 
 c23_auto_single_declarator
     .msg = "'auto' can only be used with a single declarator"
@@ -2559,21 +2540,19 @@ c23_auto_array
 
 negative_shift_count
     .msg = "shift count is negative"
-    .opt = W("shift-count-negative")
+    .opt = .@"shift-count-negative"
     .kind = .warning
-    .all = true
 
 too_big_shift_count
     .msg = "shift count >= width of type"
-    .opt = W("shift-count-overflow")
+    .opt = .@"shift-count-overflow"
     .kind = .warning
-    .all = true
 
 complex_conj
     .msg = "ISO C does not support '~' for complex conjugation of '{s}'"
-    .opt = W("pedantic")
     .extra = .str
     .kind = .off
+    .extension = true
 
 overflow_builtin_requires_int
     .msg = "operand argument to overflow builtin must be an integer ('{s}' invalid)"
@@ -2611,18 +2590,18 @@ constexpr_requires_const
 subtract_pointers_zero_elem_size
     .msg = "subtraction of pointers to type '{s}' of zero size has undefined behavior"
     .kind = .warning
-    .opt = W("pointer-arith")
+    .opt = .@"pointer-arith"
     .extra = .str
 
 packed_member_address
     .msg = "taking address of packed member '{s}"
-    .opt = W("address-of-packed-member")
+    .opt = .@"address-of-packed-member"
     .kind = .warning
     .extra = .str
 
 alloc_align_requires_ptr_return
     .msg = "'alloc_align' attribute only applies to return values that are pointers"
-    .opt = W("ignored-attributes")
+    .opt = .@"ignored-attributes"
     .kind = .warning
 
 attribute_param_out_of_bounds
@@ -2637,29 +2616,31 @@ alloc_align_required_int_param
 gnu_missing_eq_designator
     .msg = "use of GNU 'missing =' extension in designator"
     .kind = .warning
-    .opt = W("gnu-designator")
+    .opt = .@"gnu-designator"
+    .extension = true
 
 empty_if_body
     .msg = "if statement has empty body"
     .kind = .warning
-    .opt = W("empty-body")
+    .opt = .@"empty-body"
 
 empty_if_body_note
     .msg = "put the semicolon on a separate line to silence this warning"
     .kind = .note
-    .opt = W("empty-body")
+    .opt = .@"empty-body"
 
 nullability_extension
     .msg = "type nullability specifier '{s}' is a Clang extension"
     .extra = .str
     .kind = .off
-    .opt = W("nullability-extension")
+    .opt = .@"nullability-extension"
+    .extension = true
 
 duplicate_nullability
     .msg = "duplicate nullability specifier '{s}'"
     .extra = .str
     .kind = .warning
-    .opt = W("nullability")
+    .opt = .@"nullability"
 
 conflicting_nullability
     .msg = "nullaibility specifier '{s}' conflicts with existing specifier '{s}'"

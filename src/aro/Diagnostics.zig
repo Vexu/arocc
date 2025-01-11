@@ -76,185 +76,276 @@ const Properties = struct {
     msg: []const u8,
     kind: Kind,
     extra: std.meta.FieldEnum(Message.Extra) = .none,
-    opt: ?u8 = null,
-    all: bool = false,
-    w_extra: bool = false,
-    pedantic: bool = false,
+    opt: ?Option = null,
+    extension: bool = false,
+
+    // TODO look into removing these
     suppress_version: ?LangOpts.Standard = null,
     suppress_unless_version: ?LangOpts.Standard = null,
-    suppress_gnu: bool = false,
-    suppress_gcc: bool = false,
-    suppress_clang: bool = false,
-    suppress_msvc: bool = false,
 
-    pub fn makeOpt(comptime str: []const u8) u16 {
-        return @offsetOf(Options, str);
-    }
-    pub fn getKind(prop: Properties, options: *Options) Kind {
-        const opt = @as([*]Kind, @ptrCast(options))[prop.opt orelse return prop.kind];
-        if (opt == .default) return prop.kind;
-        return opt;
-    }
     pub const max_bits = Compilation.bit_int_max_bits;
 };
 
 pub const Tag = @import("Diagnostics/messages.def").with(Properties).Tag;
 
-pub const Kind = enum { @"fatal error", @"error", note, warning, off, default };
+pub const Kind = enum {
+    off,
+    note,
+    warning,
+    @"error",
+    @"fatal error",
+};
 
-pub const Options = struct {
-    // do not directly use these, instead add `const NAME = true;`
-    all: Kind = .default,
-    extra: Kind = .default,
-    pedantic: Kind = .default,
+pub const Option = enum {
+    @"unsupported-pragma",
+    @"c99-extensions",
+    @"implicit-int",
+    @"duplicate-decl-specifier",
+    @"missing-declaration",
+    @"extern-initializer",
+    @"implicit-function-declaration",
+    @"unused-value",
+    @"unreachable-code",
+    @"unknown-warning-option",
+    @"gnu-empty-struct",
+    @"gnu-alignof-expression",
+    @"macro-redefined",
+    @"generic-qual-type",
+    multichar,
+    @"pointer-integer-compare",
+    @"compare-distinct-pointer-types",
+    @"literal-conversion",
+    @"cast-qualifiers",
+    @"array-bounds",
+    @"int-conversion",
+    @"pointer-type-mismatch",
+    @"c23-extensions",
+    @"incompatible-pointer-types",
+    @"excess-initializers",
+    @"division-by-zero",
+    @"initializer-overrides",
+    @"incompatible-pointer-types-discards-qualifiers",
+    @"unknown-attributes",
+    @"ignored-attributes",
+    @"builtin-macro-redefined",
+    @"gnu-label-as-value",
+    @"malformed-warning-check",
+    @"#pragma-messages",
+    @"newline-eof",
+    @"empty-translation-unit",
+    @"implicitly-unsigned-literal",
+    @"c99-compat",
+    @"unicode-zero-width",
+    @"unicode-homoglyph",
+    unicode,
+    @"return-type",
+    @"dollar-in-identifier-extension",
+    @"unknown-pragmas",
+    @"predefined-identifier-outside-function",
+    @"many-braces-around-scalar-init",
+    uninitialized,
+    @"gnu-statement-expression",
+    @"gnu-imaginary-constant",
+    @"gnu-complex-integer",
+    @"ignored-qualifiers",
+    @"integer-overflow",
+    @"extra-semi",
+    @"gnu-binary-literal",
+    @"variadic-macros",
+    varargs,
+    @"#warnings",
+    @"deprecated-declarations",
+    @"backslash-newline-escape",
+    @"pointer-to-int-cast",
+    @"gnu-case-range",
+    @"c++-compat",
+    vla,
+    @"float-overflow-conversion",
+    @"float-zero-conversion",
+    @"float-conversion",
+    @"gnu-folding-constant",
+    undef,
+    @"ignored-pragmas",
+    @"gnu-include-next",
+    @"include-next-outside-header",
+    @"include-next-absolute-path",
+    @"enum-too-large",
+    @"fixed-enum-extension",
+    @"designated-init",
+    @"attribute-warning",
+    @"invalid-noreturn",
+    @"zero-length-array",
+    @"old-style-flexible-struct",
+    @"gnu-zero-variadic-macro-arguments",
+    @"main-return-type",
+    @"expansion-to-defined",
+    @"bit-int-extension",
+    @"keyword-macro",
+    @"pointer-arith",
+    @"sizeof-array-argument",
+    @"pre-c23-compat",
+    @"pointer-bool-conversion",
+    @"string-conversion",
+    @"gnu-auto-type",
+    @"gnu-pointer-arith",
+    @"gnu-union-cast",
+    @"pointer-sign",
+    @"fuse-ld-path",
+    @"language-extension-token",
+    @"complex-component-init",
+    @"microsoft-include",
+    @"microsoft-end-of-file",
+    @"invalid-source-encoding",
+    @"four-char-constants",
+    @"unknown-escape-sequence",
+    @"invalid-pp-token",
+    @"deprecated-non-prototype",
+    @"duplicate-embed-param",
+    @"unsupported-embed-param",
+    @"unused-result",
+    normalized,
+    @"shift-count-negative",
+    @"shift-count-overflow",
+    @"constant-conversion",
+    @"sign-conversion",
+    @"address-of-packed-member",
+    nonnull,
+    @"atomic-access",
+    @"gnu-designator",
+    @"empty-body",
+    @"nullability-extension",
+    nullability,
+    @"microsoft-flexible-array",
 
-    @"unsupported-pragma": Kind = .default,
-    @"c99-extensions": Kind = .default,
-    @"implicit-int": Kind = .default,
-    @"duplicate-decl-specifier": Kind = .default,
-    @"missing-declaration": Kind = .default,
-    @"extern-initializer": Kind = .default,
-    @"implicit-function-declaration": Kind = .default,
-    @"unused-value": Kind = .default,
-    @"unreachable-code": Kind = .default,
-    @"unknown-warning-option": Kind = .default,
-    @"gnu-empty-struct": Kind = .default,
-    @"gnu-alignof-expression": Kind = .default,
-    @"macro-redefined": Kind = .default,
-    @"generic-qual-type": Kind = .default,
-    multichar: Kind = .default,
-    @"pointer-integer-compare": Kind = .default,
-    @"compare-distinct-pointer-types": Kind = .default,
-    @"literal-conversion": Kind = .default,
-    @"cast-qualifiers": Kind = .default,
-    @"array-bounds": Kind = .default,
-    @"int-conversion": Kind = .default,
-    @"pointer-type-mismatch": Kind = .default,
-    @"c23-extensions": Kind = .default,
-    @"incompatible-pointer-types": Kind = .default,
-    @"excess-initializers": Kind = .default,
-    @"division-by-zero": Kind = .default,
-    @"initializer-overrides": Kind = .default,
-    @"incompatible-pointer-types-discards-qualifiers": Kind = .default,
-    @"unknown-attributes": Kind = .default,
-    @"ignored-attributes": Kind = .default,
-    @"builtin-macro-redefined": Kind = .default,
-    @"gnu-label-as-value": Kind = .default,
-    @"malformed-warning-check": Kind = .default,
-    @"#pragma-messages": Kind = .default,
-    @"newline-eof": Kind = .default,
-    @"empty-translation-unit": Kind = .default,
-    @"implicitly-unsigned-literal": Kind = .default,
-    @"c99-compat": Kind = .default,
-    @"unicode-zero-width": Kind = .default,
-    @"unicode-homoglyph": Kind = .default,
-    unicode: Kind = .default,
-    @"return-type": Kind = .default,
-    @"dollar-in-identifier-extension": Kind = .default,
-    @"unknown-pragmas": Kind = .default,
-    @"predefined-identifier-outside-function": Kind = .default,
-    @"many-braces-around-scalar-init": Kind = .default,
-    uninitialized: Kind = .default,
-    @"gnu-statement-expression": Kind = .default,
-    @"gnu-imaginary-constant": Kind = .default,
-    @"gnu-complex-integer": Kind = .default,
-    @"ignored-qualifiers": Kind = .default,
-    @"integer-overflow": Kind = .default,
-    @"extra-semi": Kind = .default,
-    @"gnu-binary-literal": Kind = .default,
-    @"variadic-macros": Kind = .default,
-    varargs: Kind = .default,
-    @"#warnings": Kind = .default,
-    @"deprecated-declarations": Kind = .default,
-    @"backslash-newline-escape": Kind = .default,
-    @"pointer-to-int-cast": Kind = .default,
-    @"gnu-case-range": Kind = .default,
-    @"c++-compat": Kind = .default,
-    vla: Kind = .default,
-    @"float-overflow-conversion": Kind = .default,
-    @"float-zero-conversion": Kind = .default,
-    @"float-conversion": Kind = .default,
-    @"gnu-folding-constant": Kind = .default,
-    undef: Kind = .default,
-    @"ignored-pragmas": Kind = .default,
-    @"gnu-include-next": Kind = .default,
-    @"include-next-outside-header": Kind = .default,
-    @"include-next-absolute-path": Kind = .default,
-    @"enum-too-large": Kind = .default,
-    @"fixed-enum-extension": Kind = .default,
-    @"designated-init": Kind = .default,
-    @"attribute-warning": Kind = .default,
-    @"invalid-noreturn": Kind = .default,
-    @"zero-length-array": Kind = .default,
-    @"old-style-flexible-struct": Kind = .default,
-    @"gnu-zero-variadic-macro-arguments": Kind = .default,
-    @"main-return-type": Kind = .default,
-    @"expansion-to-defined": Kind = .default,
-    @"bit-int-extension": Kind = .default,
-    @"keyword-macro": Kind = .default,
-    @"pointer-arith": Kind = .default,
-    @"sizeof-array-argument": Kind = .default,
-    @"pre-c23-compat": Kind = .default,
-    @"pointer-bool-conversion": Kind = .default,
-    @"string-conversion": Kind = .default,
-    @"gnu-auto-type": Kind = .default,
-    @"gnu-pointer-arith": Kind = .default,
-    @"gnu-union-cast": Kind = .default,
-    @"pointer-sign": Kind = .default,
-    @"fuse-ld-path": Kind = .default,
-    @"language-extension-token": Kind = .default,
-    @"complex-component-init": Kind = .default,
-    @"microsoft-include": Kind = .default,
-    @"microsoft-end-of-file": Kind = .default,
-    @"invalid-source-encoding": Kind = .default,
-    @"four-char-constants": Kind = .default,
-    @"unknown-escape-sequence": Kind = .default,
-    @"invalid-pp-token": Kind = .default,
-    @"deprecated-non-prototype": Kind = .default,
-    @"duplicate-embed-param": Kind = .default,
-    @"unsupported-embed-param": Kind = .default,
-    @"unused-result": Kind = .default,
-    normalized: Kind = .default,
-    @"shift-count-negative": Kind = .default,
-    @"shift-count-overflow": Kind = .default,
-    @"constant-conversion": Kind = .default,
-    @"sign-conversion": Kind = .default,
-    @"address-of-packed-member": Kind = .default,
-    nonnull: Kind = .default,
-    @"atomic-access": Kind = .default,
-    @"gnu-designator": Kind = .default,
-    @"empty-body": Kind = .default,
-    @"nullability-extension": Kind = .default,
-    nullability: Kind = .default,
+    /// GNU extensions
+    pub const gnu = [_]Option{
+        .@"gnu-empty-struct",
+        .@"gnu-alignof-expression",
+        .@"gnu-label-as-value",
+        .@"gnu-statement-expression",
+        .@"gnu-imaginary-constant",
+        .@"gnu-complex-integer",
+        .@"gnu-binary-literal",
+        .@"gnu-case-range",
+        .@"gnu-folding-constant",
+        .@"gnu-include-next",
+        .@"gnu-zero-variadic-macro-arguments",
+        .@"gnu-auto-type",
+        .@"gnu-pointer-arith",
+        .@"gnu-union-cast",
+        .@"gnu-designator",
+        .@"zero-length-array",
+    };
+
+    /// Clang extensions
+    pub const clang = [_]Option{
+        .@"fixed-enum-extension",
+        .@"bit-int-extension",
+        .@"nullability-extension",
+    };
+
+    /// Microsoft extensions
+    pub const microsoft = [_]Option{
+        .@"microsoft-end-of-file",
+        .@"microsoft-include",
+        .@"microsoft-flexible-array",
+    };
+
+    pub const extra = [_]Option{
+        .@"initializer-overrides",
+        .@"ignored-qualifiers",
+        .@"initializer-overrides",
+        .@"expansion-to-defined",
+        .@"fuse-ld-path",
+    };
+
+    pub const implicit = [_]Option{
+        .@"implicit-int",
+        .@"implicit-function-declaration",
+    };
+
+    pub const unused = [_]Option{
+        .@"unused-value",
+        .@"unused-result",
+    };
+
+    pub const most = implicit ++ unused ++ [_]Option{
+        .@"initializer-overrides",
+        .@"ignored-qualifiers",
+        .@"initializer-overrides",
+        .multichar,
+        .@"return-type",
+        .@"sizeof-array-argument",
+        .uninitialized,
+        .@"unknown-pragmas",
+    };
+
+    pub const all = most ++ [_]Option{
+        .nonnull,
+        .@"unreachable-code",
+        .@"malformed-warning-check",
+    };
+};
+
+pub const State = struct {
+    // Treat all errors as fatal, set by -Wfatal-errors
+    fatal_errors: bool = false,
+    // Treat all warnings as errors, set by -Werror
+    error_warnings: bool = false,
+    /// Enable all warnings, set by -Weverything
+    enable_all_warnings: bool = false,
+    /// Ignore all warnings, set by -w
+    ignore_warnings: bool = false,
+    /// How to treat extension diagnostics, set by -Wpedantic
+    extensions: Kind = .off,
+    /// How to treat individual options, set by -W<name>
+    options: std.EnumMap(Option, Kind) = .{},
 };
 
 const Diagnostics = @This();
 
 list: std.ArrayListUnmanaged(Message) = .{},
 arena: std.heap.ArenaAllocator,
-fatal_errors: bool = false,
-options: Options = .{},
+state: State = .{},
 errors: u32 = 0,
 macro_backtrace_limit: u32 = 6,
 
+/// Used by the __has_warning builtin macro.
 pub fn warningExists(name: []const u8) bool {
-    inline for (@typeInfo(Options).@"struct".fields) |f| {
-        if (mem.eql(u8, f.name, name)) return true;
+    if (std.mem.eql(u8, name, "pedantic")) return true;
+    inline for (comptime std.meta.declarations(Option)) |group| {
+        if (std.mem.eql(u8, name, group.name)) return true;
     }
-    return false;
+    return std.meta.stringToEnum(Option, name) != null;
 }
 
 pub fn set(d: *Diagnostics, name: []const u8, to: Kind) !void {
-    inline for (@typeInfo(Options).@"struct".fields) |f| {
-        if (mem.eql(u8, f.name, name)) {
-            @field(d.options, f.name) = to;
+    if (std.mem.eql(u8, name, "pedantic")) {
+        d.state.extensions = to;
+        return;
+    }
+    if (std.meta.stringToEnum(Option, name)) |option| {
+        d.state.options.put(option, to);
+        return;
+    }
+
+    inline for (comptime std.meta.declarations(Option)) |group| {
+        if (std.mem.eql(u8, name, group.name)) {
+            d.setGroup(&@field(Option, group.name), to);
             return;
         }
     }
+
     try d.addExtra(.{}, .{
         .tag = .unknown_warning,
         .extra = .{ .str = name },
     }, &.{}, true);
+}
+
+fn setGroup(d: *Diagnostics, group: []const Option, to: Kind) void {
+    for (group) |option| {
+        d.state.options.put(option, to);
+    }
 }
 
 pub fn init(gpa: Allocator) Diagnostics {
@@ -328,8 +419,7 @@ pub fn addExtra(
             .loc = msg.loc,
         });
     }
-    if (kind == .@"fatal error" or (kind == .@"error" and d.fatal_errors))
-        return error.FatalError;
+    if (kind == .@"fatal error") return error.FatalError;
 }
 
 pub fn render(comp: *Compilation, config: std.io.tty.Config) void {
@@ -351,7 +441,6 @@ pub fn renderMessages(comp: *Compilation, m: anytype) void {
             .warning => warnings += 1,
             .note => {},
             .off => continue, // happens if an error is added before it is disabled
-            .default => unreachable,
         }
         renderMessage(comp, m, msg);
     }
@@ -497,9 +586,15 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
 
     if (prop.opt) |some| {
         if (msg.kind == .@"error" and prop.kind != .@"error") {
-            m.print(" [-Werror,-W{s}]", .{optName(some)});
+            m.print(" [-Werror,-W{s}]", .{@tagName(some)});
         } else if (msg.kind != .note) {
-            m.print(" [-W{s}]", .{optName(some)});
+            m.print(" [-W{s}]", .{@tagName(some)});
+        }
+    } else if (prop.extension) {
+        if (msg.kind == .@"error") {
+            m.write(" [-Werror,-Wpedantic]");
+        } else {
+            m.write(" [-Wpedantic]");
         }
     }
 
@@ -517,30 +612,38 @@ fn printRt(m: anytype, str: []const u8, comptime fmts: anytype, args: anytype) v
     m.write(str[i..]);
 }
 
-fn optName(offset: u16) []const u8 {
-    return std.meta.fieldNames(Options)[offset / @sizeOf(Kind)];
-}
-
 fn tagKind(d: *Diagnostics, tag: Tag, langopts: LangOpts) Kind {
     const prop = tag.property();
-    var kind = prop.getKind(&d.options);
+    var kind = prop.kind;
 
-    if (prop.all) {
-        if (d.options.all != .default) kind = d.options.all;
-    }
-    if (prop.w_extra) {
-        if (d.options.extra != .default) kind = d.options.extra;
-    }
-    if (prop.pedantic) {
-        if (d.options.pedantic != .default) kind = d.options.pedantic;
-    }
     if (prop.suppress_version) |some| if (langopts.standard.atLeast(some)) return .off;
     if (prop.suppress_unless_version) |some| if (!langopts.standard.atLeast(some)) return .off;
-    if (prop.suppress_gnu and langopts.standard.isExplicitGNU()) return .off;
-    if (prop.suppress_gcc and langopts.emulate == .gcc) return .off;
-    if (prop.suppress_clang and langopts.emulate == .clang) return .off;
-    if (prop.suppress_msvc and langopts.emulate == .msvc) return .off;
-    if (kind == .@"error" and d.fatal_errors) kind = .@"fatal error";
+
+    // -w disregards explicit kind set with -W<name>
+    if (d.state.ignore_warnings and prop.kind == .warning) return .off;
+
+    // Get explicit kind set by -W<name>=
+    var set_explicit = false;
+    if (prop.opt) |option| {
+        if (d.state.options.get(option)) |explicit| {
+            kind = explicit;
+            set_explicit = true;
+        }
+    }
+
+    // Use extension diagnostic behavior if not set explicitly.
+    if (prop.extension and !set_explicit) {
+        kind = @enumFromInt(@max(@intFromEnum(kind), @intFromEnum(d.state.extensions)));
+    }
+
+    // Make diagnostic a warning if -Weverything is set.
+    if (kind == .off and d.state.enable_all_warnings) kind = .warning;
+
+    // Upgrade warnigns to errors if -Werror is set
+    if (kind == .warning and d.state.error_warnings) kind = .@"error";
+
+    // Upgrade errors to fatal errors if -Wfatal-errors is set
+    if (kind == .@"error" and d.state.fatal_errors) kind = .@"fatal error";
     return kind;
 }
 
@@ -583,14 +686,14 @@ const MsgWriter = struct {
             .@"fatal error", .@"error" => m.setColor(.bright_red),
             .note => m.setColor(.bright_cyan),
             .warning => m.setColor(.bright_magenta),
-            .off, .default => unreachable,
+            .off => unreachable,
         }
         m.write(switch (kind) {
             .@"fatal error" => "fatal error: ",
             .@"error" => "error: ",
             .note => "note: ",
             .warning => "warning: ",
-            .off, .default => unreachable,
+            .off => unreachable,
         });
         m.setColor(.white);
     }

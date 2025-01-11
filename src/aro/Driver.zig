@@ -199,6 +199,7 @@ pub const usage =
     \\  -o <file>               Write output to <file>
     \\  -P, --no-line-commands  Disable linemarker output in -E mode
     \\  -pedantic               Warn on language extensions
+    \\  -pedantic-errors        Error on language extensions
     \\  --rtlib=<arg>           Compiler runtime library to use (libgcc or compiler-rt)
     \\  -std=<standard>         Specify language standard
     \\  -S, --assemble          Only run preprocess and compilation steps
@@ -206,6 +207,7 @@ pub const usage =
     \\  --target=<value>        Generate code for the given target
     \\  -U <macro>              Undefine <macro>
     \\  -undef                  Do not predefine any system-specific macros. Standard predefined macros remain defined.
+    \\  -w                      Ignore all warnings
     \\  -Werror                 Treat all warnings as errors
     \\  -Werror=<warning>       Treat warning as error
     \\  -W<warning>             Enable the specified warning
@@ -402,8 +404,10 @@ pub fn parseArgs(
                 hosted = true;
             } else if (mem.eql(u8, arg, "-fms-extensions")) {
                 d.comp.langopts.enableMSExtensions();
+                try d.comp.diagnostics.set("microsoft", .off);
             } else if (mem.eql(u8, arg, "-fno-ms-extensions")) {
                 d.comp.langopts.disableMSExtensions();
+                try d.comp.diagnostics.set("microsoft", .warning);
             } else if (mem.startsWith(u8, arg, "-I")) {
                 var path = arg["-I".len..];
                 if (path.len == 0) {
@@ -442,6 +446,11 @@ pub fn parseArgs(
                     continue;
                 };
                 d.comp.langopts.setEmulatedCompiler(compiler);
+                switch (d.comp.langopts.emulate) {
+                    .clang => try d.comp.diagnostics.set("clang", .off),
+                    .gcc => try d.comp.diagnostics.set("gnu", .off),
+                    .msvc => try d.comp.diagnostics.set("microsoft", .off),
+                }
             } else if (option(arg, "-ffp-eval-method=")) |fp_method_str| {
                 const fp_eval_method = std.meta.stringToEnum(LangOpts.FPEvalMethod, fp_method_str) orelse .indeterminate;
                 if (fp_eval_method == .indeterminate) {
@@ -463,21 +472,36 @@ pub fn parseArgs(
             } else if (option(arg, "--sysroot=")) |sysroot| {
                 d.sysroot = sysroot;
             } else if (mem.eql(u8, arg, "-pedantic")) {
-                d.comp.diagnostics.options.pedantic = .warning;
+                d.comp.diagnostics.state.extensions = .warning;
+            } else if (mem.eql(u8, arg, "-pedantic-errors")) {
+                d.comp.diagnostics.state.extensions = .@"error";
+            } else if (mem.eql(u8, arg, "-w")) {
+                d.comp.diagnostics.state.ignore_warnings = true;
             } else if (option(arg, "--rtlib=")) |rtlib| {
                 if (mem.eql(u8, rtlib, "compiler-rt") or mem.eql(u8, rtlib, "libgcc") or mem.eql(u8, rtlib, "platform")) {
                     d.rtlib = rtlib;
                 } else {
                     try d.comp.addDiagnostic(.{ .tag = .invalid_rtlib, .extra = .{ .str = rtlib } }, &.{});
                 }
+            } else if (mem.eql(u8, arg, "-Wno-fatal-errors")) {
+                d.comp.diagnostics.state.fatal_errors = false;
+            } else if (mem.eql(u8, arg, "-Wfatal-errors")) {
+                d.comp.diagnostics.state.fatal_errors = true;
+            } else if (mem.eql(u8, arg, "-Wno-everything")) {
+                d.comp.diagnostics.state.enable_all_warnings = false;
+            } else if (mem.eql(u8, arg, "-Weverything")) {
+                d.comp.diagnostics.state.enable_all_warnings = true;
+            } else if (mem.eql(u8, arg, "-Werror")) {
+                d.comp.diagnostics.state.error_warnings = true;
+            } else if (mem.eql(u8, arg, "-Wno-error")) {
+                d.comp.diagnostics.state.error_warnings = false;
             } else if (option(arg, "-Werror=")) |err_name| {
                 try d.comp.diagnostics.set(err_name, .@"error");
-            } else if (mem.eql(u8, arg, "-Wno-fatal-errors")) {
-                d.comp.diagnostics.fatal_errors = false;
+            } else if (option(arg, "-Wno-error=")) |err_name| {
+                // TODO this should not set to warning if the option has not been specified.
+                try d.comp.diagnostics.set(err_name, .warning);
             } else if (option(arg, "-Wno-")) |err_name| {
                 try d.comp.diagnostics.set(err_name, .off);
-            } else if (mem.eql(u8, arg, "-Wfatal-errors")) {
-                d.comp.diagnostics.fatal_errors = true;
             } else if (option(arg, "-W")) |err_name| {
                 try d.comp.diagnostics.set(err_name, .warning);
             } else if (option(arg, "-std=")) |standard| {
@@ -495,6 +519,11 @@ pub fn parseArgs(
                 };
                 d.comp.target = target;
                 d.comp.langopts.setEmulatedCompiler(target_util.systemCompiler(target));
+                switch (d.comp.langopts.emulate) {
+                    .clang => try d.comp.diagnostics.set("clang", .off),
+                    .gcc => try d.comp.diagnostics.set("gnu", .off),
+                    .msvc => try d.comp.diagnostics.set("microsoft", .off),
+                }
                 d.raw_target_triple = triple;
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
