@@ -6,14 +6,14 @@ const Attribute = @import("Attribute.zig");
 const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
 const number_affixes = @import("Tree/number_affixes.zig");
-const Source = @import("Source.zig");
+const SourceManager = @import("SourceManager.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const QualType = @import("TypeStore.zig").QualType;
 const Value = @import("Value.zig");
 
 pub const Token = struct {
     id: Id,
-    loc: Source.Location,
+    loc: SourceManager.Location,
 
     pub const List = std.MultiArrayList(Token);
     pub const Id = Tokenizer.Token.Id;
@@ -30,19 +30,19 @@ pub const TokenWithExpansionLocs = struct {
     /// This location contains the actual token slice which might be generated.
     /// If it is generated then there is guaranteed to be at least one
     /// expansion location.
-    loc: Source.Location,
-    expansion_locs: ?[*]Source.Location = null,
+    loc: SourceManager.Location,
+    expansion_locs: ?[*]SourceManager.Location = null,
 
-    pub fn expansionSlice(tok: TokenWithExpansionLocs) []const Source.Location {
-        const locs = tok.expansion_locs orelse return &[0]Source.Location{};
+    pub fn expansionSlice(tok: TokenWithExpansionLocs) []const SourceManager.Location {
+        const locs = tok.expansion_locs orelse return &[0]SourceManager.Location{};
         var i: usize = 0;
         while (locs[i].id != .unused) : (i += 1) {}
         return locs[0..i];
     }
 
-    pub fn addExpansionLocation(tok: *TokenWithExpansionLocs, gpa: std.mem.Allocator, new: []const Source.Location) !void {
+    pub fn addExpansionLocation(tok: *TokenWithExpansionLocs, gpa: std.mem.Allocator, new: []const SourceManager.Location) !void {
         if (new.len == 0 or tok.id == .whitespace or tok.id == .macro_ws or tok.id == .placemarker) return;
-        var list = std.ArrayList(Source.Location).init(gpa);
+        var list = std.ArrayList(SourceManager.Location).init(gpa);
         defer {
             @memset(list.items.ptr[list.items.len..list.capacity], .{});
             // Add a sentinel to indicate the end of the list since
@@ -73,7 +73,7 @@ pub const TokenWithExpansionLocs = struct {
         }
     }
 
-    pub fn free(expansion_locs: ?[*]Source.Location, gpa: std.mem.Allocator) void {
+    pub fn free(expansion_locs: ?[*]SourceManager.Location, gpa: std.mem.Allocator) void {
         const locs = expansion_locs orelse return;
         var i: usize = 0;
         while (locs[i].id != .unused) : (i += 1) {}
@@ -88,7 +88,7 @@ pub const TokenWithExpansionLocs = struct {
         return copy;
     }
 
-    pub fn checkMsEof(tok: TokenWithExpansionLocs, source: Source, comp: *Compilation) !void {
+    pub fn checkMsEof(tok: TokenWithExpansionLocs, source: SourceManager.Source, comp: *Compilation) !void {
         std.debug.assert(tok.id == .eof);
         if (source.buf.len > tok.loc.byte_offset and source.buf[tok.loc.byte_offset] == 0x1A) {
             try comp.addDiagnostic(.{
@@ -109,6 +109,7 @@ pub const ValueMap = std.AutoHashMapUnmanaged(Node.Index, Value);
 const Tree = @This();
 
 comp: *Compilation,
+source_manager: *SourceManager,
 
 // Values from Preprocessor.
 tokens: Token.List.Slice,
@@ -1623,7 +1624,7 @@ pub const Node = union(enum) {
             return tree.nodes.items(.tok)[@intFromEnum(index)];
         }
 
-        pub fn loc(index: Index, tree: *const Tree) ?Source.Location {
+        pub fn loc(index: Index, tree: *const Tree) ?SourceManager.Location {
             const tok_i = index.tok(tree);
             return tree.tokens.items(.loc)[@intFromEnum(tok_i)];
         }
@@ -2799,7 +2800,15 @@ pub fn isLvalExtra(tree: *const Tree, node: Node.Index, is_const: *bool) bool {
 pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
-    return tree.comp.locSlice(loc);
+
+    var tmp_tokenizer = Tokenizer{
+        .buf = loc.id.get(tree.source_manager).buf,
+        .langopts = tree.comp.langopts,
+        .index = loc.byte_offset,
+        .source = .generated,
+    };
+    const tok = tmp_tokenizer.next();
+    return tmp_tokenizer.buf[tok.start..tok.end];
 }
 
 pub fn dump(tree: *const Tree, config: std.io.tty.Config, writer: anytype) !void {

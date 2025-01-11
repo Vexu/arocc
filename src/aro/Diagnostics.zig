@@ -8,7 +8,7 @@ const Builtin = Builtins.Builtin;
 const Header = @import("Builtins/Properties.zig").Header;
 const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
-const Source = @import("Source.zig");
+const SourceManager = @import("SourceManager.zig");
 const Tree = @import("Tree.zig");
 
 const is_windows = @import("builtin").os.tag == .windows;
@@ -16,7 +16,7 @@ const is_windows = @import("builtin").os.tag == .windows;
 pub const Message = struct {
     tag: Tag,
     kind: Kind = undefined,
-    loc: Source.Location = .{},
+    loc: SourceManager.Location = .{},
     extra: Extra = .{ .none = {} },
 
     pub const Extra = union {
@@ -266,7 +266,7 @@ pub fn deinit(d: *Diagnostics) void {
     d.arena.deinit();
 }
 
-pub fn add(comp: *Compilation, msg: Message, expansion_locs: []const Source.Location) Compilation.Error!void {
+pub fn add(comp: *Compilation, msg: Message, expansion_locs: []const SourceManager.Location) Compilation.Error!void {
     return comp.diagnostics.addExtra(comp.langopts, msg, expansion_locs, true);
 }
 
@@ -274,7 +274,7 @@ pub fn addExtra(
     d: *Diagnostics,
     langopts: LangOpts,
     msg: Message,
-    expansion_locs: []const Source.Location,
+    expansion_locs: []const SourceManager.Location,
     note_msg_loc: bool,
 ) Compilation.Error!void {
     const kind = d.tagKind(msg.tag, langopts);
@@ -330,20 +330,20 @@ pub fn addExtra(
         return error.FatalError;
 }
 
-pub fn render(comp: *Compilation, config: std.io.tty.Config) void {
-    if (comp.diagnostics.list.items.len == 0) return;
+pub fn render(d: *Diagnostics, sm: *SourceManager, config: std.io.tty.Config) void {
+    if (d.list.items.len == 0) return;
     var m = defaultMsgWriter(config);
     defer m.deinit();
-    renderMessages(comp, &m);
+    d.renderMessages(sm, &m);
 }
 pub fn defaultMsgWriter(config: std.io.tty.Config) MsgWriter {
     return MsgWriter.init(config);
 }
 
-pub fn renderMessages(comp: *Compilation, m: anytype) void {
+pub fn renderMessages(d: *Diagnostics, sm: *const SourceManager, m: anytype) void {
     var errors: u32 = 0;
     var warnings: u32 = 0;
-    for (comp.diagnostics.list.items) |msg| {
+    for (d.list.items) |msg| {
         switch (msg.kind) {
             .@"fatal error", .@"error" => errors += 1,
             .warning => warnings += 1,
@@ -351,7 +351,7 @@ pub fn renderMessages(comp: *Compilation, m: anytype) void {
             .off => continue, // happens if an error is added before it is disabled
             .default => unreachable,
         }
-        renderMessage(comp, m, msg);
+        renderMessage(sm, m, msg);
     }
     const w_s: []const u8 = if (warnings == 1) "" else "s";
     const e_s: []const u8 = if (errors == 1) "" else "s";
@@ -363,10 +363,10 @@ pub fn renderMessages(comp: *Compilation, m: anytype) void {
         m.print("{d} error{s} generated.\n", .{ errors, e_s });
     }
 
-    comp.diagnostics.list.items.len = 0;
+    d.list.items.len = 0;
 }
 
-pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
+pub fn renderMessage(sm: *const SourceManager, m: anytype, msg: Message) void {
     var line: ?[]const u8 = null;
     var end_with_splice = false;
     const width = if (msg.loc.id != .unused) blk: {
@@ -380,7 +380,7 @@ pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
             => loc.byte_offset += msg.extra.invalid_escape.offset,
             else => {},
         }
-        const source = comp.getSource(loc.id);
+        const source = loc.id.get(sm);
         var line_col = source.lineCol(loc);
         line = line_col.line;
         end_with_splice = line_col.end_with_splice;

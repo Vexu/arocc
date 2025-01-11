@@ -342,7 +342,7 @@ test Iterator {
 }
 
 test "All builtins" {
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator);
     defer comp.deinit();
     try comp.type_store.initNamedTypes(&comp);
     comp.type_store.va_list = try comp.type_store.va_list.decay(&comp);
@@ -367,9 +367,11 @@ test "All builtins" {
 test "Allocation failures" {
     const Test = struct {
         fn testOne(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator, std.fs.cwd());
+            var comp = Compilation.init(allocator);
             defer comp.deinit();
-            _ = try comp.generateBuiltinMacros(.include_system_defines, null);
+            var sm: @import("SourceManager.zig") = .{ .cwd = std.fs.cwd() };
+            defer sm.deinit(allocator);
+            _ = try comp.generateBuiltinMacros(&sm, .include_system_defines, null);
 
             const num_builtins = 40;
             var builtin_it = Iterator{};

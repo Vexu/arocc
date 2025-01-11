@@ -502,13 +502,12 @@ pub fn defineSystemIncludes(tc: *Toolchain) !void {
         .unknown => {
             if (tc.driver.nostdinc) return;
 
-            const comp = tc.driver.comp;
             if (!tc.driver.nobuiltininc) {
-                try comp.addBuiltinIncludeDir(tc.driver.aro_name);
+                try tc.driver.source_manager.addBuiltinIncludeDir(tc.driver.comp.gpa, tc.driver.aro_name);
             }
 
             if (!tc.driver.nostdlibinc) {
-                try comp.addSystemIncludeDir("/usr/include");
+                try tc.driver.source_manager.addSystemIncludeDir(tc.driver.comp.gpa, "/usr/include");
             }
         },
     };

@@ -13,7 +13,8 @@ const Diagnostics = @import("Diagnostics.zig");
 const GCCVersion = @import("Driver/GCCVersion.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
-const Source = @import("Source.zig");
+const SourceManager = @import("SourceManager.zig");
+const Source = SourceManager.Source;
 const target_util = @import("target.zig");
 const Toolchain = @import("Toolchain.zig");
 const Tree = @import("Tree.zig");
@@ -42,8 +43,10 @@ const pic_related_options = std.StaticStringMap(void).initComptime(.{
 const Driver = @This();
 
 comp: *Compilation,
-inputs: std.ArrayListUnmanaged(Source) = .{},
-link_objects: std.ArrayListUnmanaged([]const u8) = .{},
+source_manager: SourceManager,
+
+inputs: std.ArrayListUnmanaged(Source.Id) = .empty,
+link_objects: std.ArrayListUnmanaged([]const u8) = .empty,
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
 system_defines: Compilation.SystemDefinesMode = .include_system_defines,
@@ -87,7 +90,7 @@ debug_dump_letters: packed struct(u3) {
 } = .{},
 
 /// Full path to the aro executable
-aro_name: []const u8 = "",
+aro_name: []const u8,
 
 /// Value of --triple= passed via CLI
 raw_target_triple: ?[]const u8 = null,
@@ -114,6 +117,22 @@ static_pie: bool = false,
 strip: bool = false,
 unwindlib: ?[]const u8 = null,
 
+pub const InitOptions = struct {
+    /// Default is `std.fs.cwd()`
+    cwd: ?std.fs.Dir = null,
+    aro_name: []const u8 = "",
+};
+
+pub fn init(comp: *Compilation, options: InitOptions) Driver {
+    return .{
+        .comp = comp,
+        .source_manager = .{
+            .cwd = options.cwd orelse std.fs.cwd(),
+        },
+        .aro_name = options.aro_name,
+    };
+}
+
 pub fn deinit(d: *Driver) void {
     for (d.link_objects.items[d.link_objects.items.len - d.temp_file_count ..]) |obj| {
         std.fs.deleteFileAbsolute(obj) catch {};
@@ -121,6 +140,7 @@ pub fn deinit(d: *Driver) void {
     }
     d.inputs.deinit(d.comp.gpa);
     d.link_objects.deinit(d.comp.gpa);
+    d.source_manager.deinit(d.comp.gpa);
     d.* = undefined;
 }
 
@@ -414,7 +434,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.include_dirs.append(d.comp.gpa, path);
+                try d.source_manager.include_dirs.append(d.comp.gpa, path);
             } else if (mem.startsWith(u8, arg, "-fsyntax-only")) {
                 d.only_syntax = true;
             } else if (mem.startsWith(u8, arg, "-fno-syntax-only")) {
@@ -435,7 +455,7 @@ pub fn parseArgs(
                 }
                 const duped = try d.comp.gpa.dupe(u8, path);
                 errdefer d.comp.gpa.free(duped);
-                try d.comp.system_include_dirs.append(d.comp.gpa, duped);
+                try d.source_manager.system_include_dirs.append(d.comp.gpa, duped);
             } else if (option(arg, "--emulate=")) |compiler_str| {
                 const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
                     try d.comp.addDiagnostic(.{ .tag = .cli_invalid_emulate, .extra = .{ .str = arg } }, &.{});
@@ -567,10 +587,9 @@ pub fn parseArgs(
         } else if (std.mem.endsWith(u8, arg, ".o") or std.mem.endsWith(u8, arg, ".obj")) {
             try d.link_objects.append(d.comp.gpa, arg);
         } else {
-            const source = d.addSource(arg) catch |er| {
+            d.addSource(arg) catch |er| {
                 return d.fatal("unable to add source file '{s}': {s}", .{ arg, errorDescription(er) });
             };
-            try d.inputs.append(d.comp.gpa, source);
         }
     }
     if (d.comp.langopts.preserve_comments and !d.only_preprocess) {
@@ -603,14 +622,17 @@ fn option(arg: []const u8, name: []const u8) ?[]const u8 {
     return null;
 }
 
-fn addSource(d: *Driver, path: []const u8) !Source {
+fn addSource(d: *Driver, path: []const u8) !void {
     if (mem.eql(u8, "-", path)) {
         const stdin = std.io.getStdIn().reader();
         const input = try stdin.readAllAlloc(d.comp.gpa, std.math.maxInt(u32));
         defer d.comp.gpa.free(input);
-        return d.comp.addSourceFromBuffer("<stdin>", input);
+        const source = try d.source_manager.addSourceFromBuffer(d.comp.gpa, &d.comp.diagnostics, "<stdin>", input);
+        try d.inputs.append(d.comp.gpa, source.id);
+        return;
     }
-    return d.comp.addSourceFromPath(path);
+    const source = try d.source_manager.addSourceFromPath(d.comp.gpa, &d.comp.diagnostics, path);
+    try d.inputs.append(d.comp.gpa, source.id);
 }
 
 pub fn err(d: *Driver, msg: []const u8) Compilation.Error!void {
@@ -639,7 +661,7 @@ pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalEr
 }
 
 pub fn renderErrors(d: *Driver) void {
-    Diagnostics.render(d.comp, d.detectConfig(std.io.getStdErr()));
+    d.comp.diagnostics.render(&d.source_manager, d.detectConfig(std.io.getStdErr()));
 }
 
 pub fn detectConfig(d: *Driver, file: std.fs.File) std.io.tty.Config {
@@ -713,22 +735,24 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         error.AroIncludeNotFound => return d.fatal("unable to find Aro builtin headers", .{}),
     };
 
-    const user_macros = d.comp.addSourceFromBuffer("<command line>", macro_buf.items) catch |er| switch (er) {
+    const user_macros = d.source_manager.addSourceFromBuffer(d.comp.gpa, &d.comp.diagnostics, "<command line>", macro_buf.items) catch |er| switch (er) {
         error.StreamTooLong => return d.fatal("user provided macro source exceeded max size", .{}),
         else => |e| return e,
     };
 
     if (fast_exit and d.inputs.items.len == 1) {
-        const builtin = d.comp.generateBuiltinMacrosFromPath(d.system_defines, d.inputs.items[0].path) catch |er| switch (er) {
+        const source = d.inputs.items[0].get(&d.source_manager);
+        const builtin_id = d.comp.generateBuiltinMacrosFromPath(&d.source_manager, d.system_defines, source.path) catch |er| switch (er) {
             error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
             else => |e| return e,
         };
-        try d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit, asm_gen_fn);
+        try d.processSource(tc, source, builtin_id, user_macros, fast_exit, asm_gen_fn);
         unreachable;
     }
 
-    for (d.inputs.items) |source| {
-        const builtin = d.comp.generateBuiltinMacrosFromPath(d.system_defines, source.path) catch |er| switch (er) {
+    for (d.inputs.items) |source_id| {
+        const source = source_id.get(&d.source_manager);
+        const builtin = d.comp.generateBuiltinMacrosFromPath(&d.source_manager, d.system_defines, source.path) catch |er| switch (er) {
             error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
             else => |e| return e,
         };
@@ -812,14 +836,14 @@ fn processSource(
     comptime fast_exit: bool,
     asm_gen_fn: ?AsmCodeGenFn,
 ) !void {
-    d.comp.generated_buf.items.len = 0;
+    d.source_manager.generated_buf.items.len = 0;
     const prev_errors = d.comp.diagnostics.errors;
 
-    var pp = try Preprocessor.initDefault(d.comp);
+    var pp = try Preprocessor.initDefault(d.comp, &d.source_manager);
     defer pp.deinit();
 
     if (d.comp.langopts.ms_extensions) {
-        d.comp.ms_cwd_source_id = source.id;
+        d.source_manager.ms_cwd_source_id = source.id;
     }
     const dump_mode = d.debug_dump_letters.getPreprocessorDumpMode();
     if (d.verbose_pp) pp.verbose = true;
@@ -845,7 +869,7 @@ fn processSource(
         }
 
         const file = if (d.output_name) |some|
-            d.comp.cwd.createFile(some, .{}) catch |er|
+            d.source_manager.cwd.createFile(some, .{}) catch |er|
                 return d.fatal("unable to create output file '{s}': {s}", .{ some, errorDescription(er) })
         else
             std.io.getStdOut();
@@ -904,7 +928,7 @@ fn processSource(
         defer assembly.deinit(d.comp.gpa);
 
         if (d.only_preprocess_and_compile) {
-            const out_file = d.comp.cwd.createFile(out_file_name, .{}) catch |er|
+            const out_file = d.source_manager.cwd.createFile(out_file_name, .{}) catch |er|
                 return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
             defer out_file.close();
 
@@ -918,7 +942,7 @@ fn processSource(
         // then assemble to out_file_name
         var assembly_name_buf: [std.fs.max_name_bytes]u8 = undefined;
         const assembly_out_file_name = try d.getRandomFilename(&assembly_name_buf, ".s");
-        const out_file = d.comp.cwd.createFile(assembly_out_file_name, .{}) catch |er|
+        const out_file = d.source_manager.cwd.createFile(assembly_out_file_name, .{}) catch |er|
             return d.fatal("unable to create output file '{s}': {s}", .{ assembly_out_file_name, errorDescription(er) });
         defer out_file.close();
         assembly.writeToFile(out_file) catch |er|
@@ -956,7 +980,7 @@ fn processSource(
         };
         defer obj.deinit();
 
-        const out_file = d.comp.cwd.createFile(out_file_name, .{}) catch |er|
+        const out_file = d.source_manager.cwd.createFile(out_file_name, .{}) catch |er|
             return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
         defer out_file.close();
 

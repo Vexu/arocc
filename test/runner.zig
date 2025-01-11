@@ -31,7 +31,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         var it = std.mem.tokenizeScalar(u8, file.buf[0..nl], ' ');
         while (it.next()) |some| try test_args.append(some);
 
-        var driver: aro.Driver = .{ .comp = comp };
+        var driver: aro.Driver = .init(comp, .{});
         defer driver.deinit();
         _ = try driver.parseArgs(std.io.null_writer, macro_buf, test_args.items);
         only_preprocess = driver.only_preprocess;
@@ -168,21 +168,24 @@ pub fn main() !void {
     });
 
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa, std.fs.cwd());
+    var initial_comp = aro.Compilation.init(gpa);
     defer initial_comp.deinit();
 
     const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });
     defer gpa.free(cases_include_dir);
 
-    try initial_comp.include_dirs.append(gpa, cases_include_dir);
+    var initial_sm: aro.SourceManager = .{ .cwd = std.fs.cwd() };
+    defer initial_sm.deinit(gpa);
+
+    try initial_sm.include_dirs.append(gpa, cases_include_dir);
 
     const cases_next_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include", "next" });
     defer gpa.free(cases_next_include_dir);
 
-    try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
+    try initial_sm.include_dirs.append(gpa, cases_next_include_dir);
 
     try initial_comp.addDefaultPragmaHandlers();
-    try initial_comp.addBuiltinIncludeDir(test_dir);
+    try initial_sm.addBuiltinIncludeDir(gpa, test_dir);
 
     // apparently we can't use setAstCwd without libc on windows yet
     const win = @import("builtin").os.tag == .windows;
@@ -197,21 +200,24 @@ pub fn main() !void {
     var skip_count: u32 = 0;
     next_test: for (cases.items) |path| {
         var comp = initial_comp;
+        var sm = initial_sm;
         defer {
             // preserve some values
-            comp.include_dirs = .{};
-            comp.system_include_dirs = .{};
+            sm.include_dirs = .{};
+            sm.system_include_dirs = .{};
+
             comp.pragma_handlers = .{};
             comp.environment = .{};
             // reset everything else
             comp.deinit();
+            sm.deinit(gpa);
         }
 
         const case = std.mem.sliceTo(std.fs.path.basename(path), '.');
         var case_node = root_node.start(case, 0);
         defer case_node.end();
 
-        const file = comp.addSourceFromPath(path) catch |err| {
+        const file = sm.addSourceFromPath(gpa, &comp.diagnostics, path) catch |err| {
             fail_count += 1;
             std.debug.print("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
@@ -221,12 +227,12 @@ pub fn main() !void {
         defer macro_buf.deinit();
 
         const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, macro_buf.writer());
-        const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
+        const user_macros = try sm.addSourceFromBuffer(gpa, &comp.diagnostics, "<command line>", macro_buf.items);
 
-        const builtin_macros = try comp.generateBuiltinMacrosFromPath(system_defines, file.path);
+        const builtin_macros = try comp.generateBuiltinMacrosFromPath(&sm, system_defines, file.path);
 
         comp.diagnostics.errors = 0;
-        var pp = aro.Preprocessor.init(&comp);
+        var pp = aro.Preprocessor.init(&comp, &sm);
         defer pp.deinit();
         if (only_preprocess) {
             pp.preserve_whitespace = true;
@@ -238,7 +244,9 @@ pub fn main() !void {
         try pp.addBuiltinMacros();
 
         if (comp.langopts.ms_extensions) {
-            comp.ms_cwd_source_id = file.id;
+            sm.ms_cwd_source_id = file.id;
+        } else {
+            sm.ms_cwd_source_id = null;
         }
 
         _ = try pp.preprocess(builtin_macros);
@@ -271,7 +279,7 @@ pub fn main() !void {
                     continue;
                 }
             } else {
-                aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
+                comp.diagnostics.render(&sm, std.io.tty.detectConfig(std.io.getStdErr()));
                 if (comp.diagnostics.errors != 0) {
                     std.debug.print("in case {s}\n", .{case});
                     fail_count += 1;
@@ -412,10 +420,10 @@ pub fn main() !void {
         if (pp.defines.contains("NO_ERROR_VALIDATION")) {
             var m = MsgWriter.init(pp.comp.gpa);
             defer m.deinit();
-            aro.Diagnostics.renderMessages(pp.comp, &m);
+            comp.diagnostics.renderMessages(&sm, &m);
             continue;
         }
-        aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
+        comp.diagnostics.render(&sm, std.io.tty.detectConfig(std.io.getStdErr()));
 
         if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
             if (comp.diagnostics.errors != 0) break :blk;
@@ -511,7 +519,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
     const expected_count = pp.comp.diagnostics.list.items.len;
     var m = MsgWriter.init(pp.comp.gpa);
     defer m.deinit();
-    aro.Diagnostics.renderMessages(pp.comp, &m);
+    pp.comp.diagnostics.renderMessages(pp.source_manager, &m);
 
     if (macro.is_func) {
         std.debug.print("invalid EXPECTED_ERRORS {}\n", .{macro});

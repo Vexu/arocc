@@ -14,7 +14,7 @@ const Diagnostics = @import("Diagnostics.zig");
 const InitList = @import("InitList.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const record_layout = @import("record_layout.zig");
-const Source = @import("Source.zig");
+const SourceManager = @import("SourceManager.zig");
 const StringId = @import("StringInterner.zig").StringId;
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
@@ -207,7 +207,11 @@ string_ids: struct {
 
 /// Checks codepoint for various pedantic warnings
 /// Returns true if diagnostic issued
-fn checkIdentifierCodepointWarnings(comp: *Compilation, codepoint: u21, loc: Source.Location) Compilation.Error!bool {
+fn checkIdentifierCodepointWarnings(
+    comp: *Compilation,
+    codepoint: u21,
+    loc: SourceManager.Location,
+) Compilation.Error!bool {
     assert(codepoint >= 0x80);
 
     const err_start = comp.diagnostics.list.items.len;
@@ -368,7 +372,7 @@ pub fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
     if (p.tok_ids[tok].lexeme()) |some| return some;
     const loc = p.pp.tokens.items(.loc)[tok];
     var tmp_tokenizer = Tokenizer{
-        .buf = p.comp.getSource(loc.id).buf,
+        .buf = loc.id.get(p.pp.source_manager).buf,
         .langopts = p.comp.langopts,
         .index = loc.byte_offset,
         .source = .generated,
@@ -691,6 +695,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .comp = pp.comp,
         .gpa = pp.comp.gpa,
         .tree = .{
+            .source_manager = pp.source_manager,
             .comp = pp.comp,
             .tokens = pp.tokens.slice(),
         },
@@ -810,9 +815,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 }
 
 fn addImplicitTypedef(p: *Parser, name: []const u8, qt: QualType) !void {
-    const start = p.comp.generated_buf.items.len;
-    try p.comp.generated_buf.appendSlice(p.comp.gpa, name);
-    try p.comp.generated_buf.append(p.comp.gpa, '\n');
+    const start = p.tree.source_manager.generated_buf.items.len;
+    try p.tree.source_manager.generated_buf.appendSlice(p.comp.gpa, name);
+    try p.tree.source_manager.generated_buf.append(p.comp.gpa, '\n');
 
     const name_tok: u32 = @intCast(p.pp.tokens.len);
     try p.pp.tokens.append(p.gpa, .{ .id = .identifier, .loc = .{
@@ -2216,7 +2221,7 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
 
 fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) !StringId {
     const loc = p.pp.tokens.items(.loc)[kind_tok];
-    const source = p.comp.getSource(loc.id);
+    const source = loc.id.get(p.pp.source_manager);
     const line_col = source.lineCol(loc);
 
     const kind_str = switch (p.tok_ids[kind_tok]) {
@@ -8849,7 +8854,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
             assert(!p.in_macro);
             const loc = p.pp.tokens.items(.loc)[p.tok_i];
             defer p.tok_i += 1;
-            const buf = p.comp.getSource(.generated).buf[loc.byte_offset..];
+            const buf = p.pp.source_manager.generated_buf.items[loc.byte_offset..];
             var byte: u8 = buf[0] - '0';
             for (buf[1..]) |c| {
                 if (!std.ascii.isDigit(c)) break;
@@ -9623,19 +9628,22 @@ fn genericSelection(p: *Parser) Error!?Result {
 }
 
 test "Node locations" {
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    const gpa = std.testing.allocator;
+    var sm: SourceManager = .{ .cwd = std.fs.cwd() };
+    defer sm.deinit(gpa);
+    var comp = Compilation.init(gpa);
     defer comp.deinit();
 
-    const file = try comp.addSourceFromBuffer("file.c",
+    const file = try sm.addSourceFromBuffer(gpa, &comp.diagnostics, "file.c",
         \\int foo = 5;
         \\int bar = 10;
         \\int main(void) {}
         \\
     );
 
-    const builtin_macros = try comp.generateBuiltinMacros(.no_system_defines, null);
+    const builtin_macros = try comp.generateBuiltinMacros(&sm, .no_system_defines, null);
 
-    var pp = Preprocessor.init(&comp);
+    var pp = Preprocessor.init(&comp, &sm);
     defer pp.deinit();
     try pp.addBuiltinMacros();
 
