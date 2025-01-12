@@ -5,6 +5,42 @@ const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const Source = @import("Source.zig");
 
+/// Value for valid escapes indicates how many characters to consume, not counting leading backslash
+const UCNKind = enum(u8) {
+    /// Just `\`
+    none,
+    /// \u or \U
+    incomplete,
+    /// `\uxxxx`
+    hex4 = 5,
+    /// `\Uxxxxxxxx`
+    hex8 = 9,
+
+    /// In the classification phase we do not care if the escape represents a valid universal character name
+    /// e.g. \UFFFFFFFF is acceptable.
+    fn classify(buf: []const u8) UCNKind {
+        assert(buf[0] == '\\');
+        if (buf.len == 1) return .none;
+        switch (buf[1]) {
+            'u' => {
+                if (buf.len < 6) return .incomplete;
+                for (buf[2..6]) |c| {
+                    if (!std.ascii.isHex(c)) return .incomplete;
+                }
+                return .hex4;
+            },
+            'U' => {
+                if (buf.len < 10) return .incomplete;
+                for (buf[2..10]) |c| {
+                    if (!std.ascii.isHex(c)) return .incomplete;
+                }
+                return .hex8;
+            },
+            else => return .none,
+        }
+    }
+};
+
 pub const Token = struct {
     id: Id,
     source: Source.Id,
@@ -19,7 +55,7 @@ pub const Token = struct {
         eof,
         /// identifier containing solely basic character set characters
         identifier,
-        /// identifier with at least one extended character
+        /// identifier with at least one extended character or UCN escape sequence
         extended_identifier,
 
         // string literals with prefixes
@@ -343,6 +379,9 @@ pub const Token = struct {
         /// A comment token if asked to preserve comments.
         comment,
 
+        /// Incomplete universal character name
+        incomplete_ucn,
+
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
@@ -586,6 +625,8 @@ pub const Token = struct {
                 .placemarker,
                 => "",
                 .macro_ws => " ",
+
+                .incomplete_ucn => "\\",
 
                 .macro_func => "__func__",
                 .macro_function => "__FUNCTION__",
@@ -1168,6 +1209,26 @@ pub fn next(self: *Tokenizer) Token {
                 'u' => state = .u,
                 'U' => state = .U,
                 'L' => state = .L,
+                '\\' => {
+                    const ucn_kind = UCNKind.classify(self.buf[self.index..]);
+                    switch (ucn_kind) {
+                        .none => {
+                            self.index += 1;
+                            id = .invalid;
+                            break;
+                        },
+                        .incomplete => {
+                            self.index += 1;
+                            id = .incomplete_ucn;
+                            break;
+                        },
+                        .hex4, .hex8 => {
+                            self.index += @intFromEnum(ucn_kind);
+                            id = .extended_identifier;
+                            state = .extended_identifier;
+                        },
+                    }
+                },
                 'a'...'t', 'v'...'z', 'A'...'K', 'M'...'T', 'V'...'Z', '_' => state = .identifier,
                 '=' => state = .equal,
                 '!' => state = .bang,
@@ -1393,6 +1454,20 @@ pub fn next(self: *Tokenizer) Token {
                     break;
                 },
                 0x80...0xFF => state = .extended_identifier,
+                '\\' => {
+                    const ucn_kind = UCNKind.classify(self.buf[self.index..]);
+                    switch (ucn_kind) {
+                        .none, .incomplete => {
+                            id = if (state == .identifier) Token.getTokenId(self.langopts, self.buf[start..self.index]) else .extended_identifier;
+                            break;
+                        },
+                        .hex4, .hex8 => {
+                            state = .extended_identifier;
+                            self.index += @intFromEnum(ucn_kind);
+                        },
+                    }
+                },
+
                 else => {
                     id = if (state == .identifier) Token.getTokenId(self.langopts, self.buf[start..self.index]) else .extended_identifier;
                     break;
@@ -2217,6 +2292,40 @@ test "C23 keywords" {
         .keyword_nullptr,
         .keyword_typeof_unqual,
     }, .c23);
+}
+
+test "Universal character names" {
+    try expectTokens("\\", &.{.invalid});
+    try expectTokens("\\g", &.{ .invalid, .identifier });
+    try expectTokens("\\u", &.{ .incomplete_ucn, .identifier });
+    try expectTokens("\\ua", &.{ .incomplete_ucn, .identifier });
+    try expectTokens("\\U9", &.{ .incomplete_ucn, .identifier });
+    try expectTokens("\\ug", &.{ .incomplete_ucn, .identifier });
+    try expectTokens("\\uag", &.{ .incomplete_ucn, .identifier });
+
+    try expectTokens("\\ ", &.{ .invalid, .eof });
+    try expectTokens("\\g ", &.{ .invalid, .identifier, .eof });
+    try expectTokens("\\u ", &.{ .incomplete_ucn, .identifier, .eof });
+    try expectTokens("\\ua ", &.{ .incomplete_ucn, .identifier, .eof });
+    try expectTokens("\\U9 ", &.{ .incomplete_ucn, .identifier, .eof });
+    try expectTokens("\\ug ", &.{ .incomplete_ucn, .identifier, .eof });
+    try expectTokens("\\uag ", &.{ .incomplete_ucn, .identifier, .eof });
+
+    try expectTokens("a\\", &.{ .identifier, .invalid });
+    try expectTokens("a\\g", &.{ .identifier, .invalid, .identifier });
+    try expectTokens("a\\u", &.{ .identifier, .incomplete_ucn, .identifier });
+    try expectTokens("a\\ua", &.{ .identifier, .incomplete_ucn, .identifier });
+    try expectTokens("a\\U9", &.{ .identifier, .incomplete_ucn, .identifier });
+    try expectTokens("a\\ug", &.{ .identifier, .incomplete_ucn, .identifier });
+    try expectTokens("a\\uag", &.{ .identifier, .incomplete_ucn, .identifier });
+
+    try expectTokens("a\\ ", &.{ .identifier, .invalid, .eof });
+    try expectTokens("a\\g ", &.{ .identifier, .invalid, .identifier, .eof });
+    try expectTokens("a\\u ", &.{ .identifier, .incomplete_ucn, .identifier, .eof });
+    try expectTokens("a\\ua ", &.{ .identifier, .incomplete_ucn, .identifier, .eof });
+    try expectTokens("a\\U9 ", &.{ .identifier, .incomplete_ucn, .identifier, .eof });
+    try expectTokens("a\\ug ", &.{ .identifier, .incomplete_ucn, .identifier, .eof });
+    try expectTokens("a\\uag ", &.{ .identifier, .incomplete_ucn, .identifier, .eof });
 }
 
 test "Tokenizer fuzz test" {
