@@ -8878,7 +8878,7 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
     const slice = p.strings.items[strings_top..];
     const val = try Value.intern(p.comp, .{ .bytes = slice });
 
-    const str_lit = try p.addNode(.{ .string_literal_expr = .{ .qt = array_qt, .literal_tok = p.tok_i } });
+    const str_lit = try p.addNode(.{ .string_literal_expr = .{ .qt = array_qt, .literal_tok = p.tok_i, .kind = .ascii } });
     if (!p.in_macro) try p.tree.value_map.put(p.gpa, str_lit, val);
 
     return .{ .qt = array_qt, .node = try p.addNode(.{
@@ -9013,6 +9013,13 @@ fn stringLiteral(p: *Parser) Error!Result {
         .node = try p.addNode(.{ .string_literal_expr = .{
             .literal_tok = string_start,
             .qt = array_qt,
+            .kind = switch (string_kind) {
+                .char, .unterminated => .ascii,
+                .wide => .wide,
+                .utf_8 => .utf8,
+                .utf_16 => .utf16,
+                .utf_32 => .utf32,
+            },
         } }),
     };
     try res.putValue(p);
@@ -9031,7 +9038,7 @@ fn charLiteral(p: *Parser) Error!?Result {
         return .{
             .qt = .int,
             .val = .zero,
-            .node = try p.addNode(.{ .char_literal = .{ .qt = .int, .literal_tok = p.tok_i } }),
+            .node = try p.addNode(.{ .char_literal = .{ .qt = .int, .literal_tok = p.tok_i, .kind = .ascii } }),
         };
     };
     if (char_kind == .utf_8) try p.err(.u8_char_lit);
@@ -9130,7 +9137,17 @@ fn charLiteral(p: *Parser) Error!?Result {
     const res = Result{
         .qt = if (p.in_macro) macro_qt else char_literal_qt,
         .val = value,
-        .node = try p.addNode(.{ .char_literal = .{ .qt = char_literal_qt, .literal_tok = p.tok_i } }),
+        .node = try p.addNode(.{ .char_literal = .{
+            .qt = char_literal_qt,
+            .literal_tok = p.tok_i,
+            .kind = switch (char_kind) {
+                .char, .unterminated => .ascii,
+                .wide => .wide,
+                .utf_8 => .utf8,
+                .utf_16 => .utf16,
+                .utf_32 => .utf32,
+            },
+        } }),
     };
     if (!p.in_macro) try p.tree.value_map.put(p.gpa, res.node, res.val);
     return res;
