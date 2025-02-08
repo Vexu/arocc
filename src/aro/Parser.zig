@@ -4883,8 +4883,8 @@ fn stmt(p: *Parser) Error!Node.Index {
 
         return p.addNode(.{ .for_stmt = .{
             .for_tok = kw_for,
-            .init = if (init) |some|
-                .{ .expr = some }
+            .init = if (decl_buf_top == p.decl_buf.items.len)
+                .{ .expr = init }
             else
                 .{ .decls = p.decl_buf.items[decl_buf_top..] },
             .cond = cond,

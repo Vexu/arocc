@@ -21,7 +21,6 @@ fn_def: 'fn () int'
  body:
   compound_stmt
     for_stmt
-     decl:
      body:
       null_stmt: 'void'
 
