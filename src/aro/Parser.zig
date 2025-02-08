@@ -2813,7 +2813,7 @@ fn enumSpec(p: *Parser) Error!QualType {
     };
 
     // reserve space for this enum
-    try p.decl_buf.append(undefined);
+    try p.decl_buf.append(@enumFromInt(reserved_index));
     const decl_buf_top = p.decl_buf.items.len;
     const list_buf_top = p.list_buf.items.len;
     const enum_buf_top = p.enum_buf.items.len;
@@ -2904,12 +2904,11 @@ fn enumSpec(p: *Parser) Error!QualType {
     }
 
     // finish by creating a node
-    const node = try p.addNode(.{ .enum_decl = .{
+    try p.tree.setNode(.{ .enum_decl = .{
         .name_or_kind_tok = maybe_ident orelse enum_tok,
         .container_qt = attributed_qt,
         .fields = field_nodes,
-    } });
-    p.decl_buf.items[decl_buf_top - 1] = node;
+    } }, reserved_index);
 
     if (p.func.qt == null) {
         _ = p.tentative_defs.remove(enum_ty.name);
