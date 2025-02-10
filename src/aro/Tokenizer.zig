@@ -19,7 +19,7 @@ pub const Token = struct {
         eof,
         /// identifier containing solely basic character set characters
         identifier,
-        /// identifier with at least one extended character
+        /// identifier with at least one extended character or UCN escape sequence
         extended_identifier,
 
         // string literals with prefixes
@@ -1074,14 +1074,55 @@ pub fn next(self: *Tokenizer) Token {
         pp_num,
         pp_num_exponent,
         pp_num_digit_separator,
+        ucn_backslash,
+        ucn_start,
     } = .start;
 
     var start = self.index;
     var id: Token.Id = .eof;
+    var ucn_from: enum {
+        start,
+        within,
+    } = undefined;
 
     while (self.index < self.buf.len) : (self.index += 1) {
         const c = self.buf[self.index];
         switch (state) {
+            .ucn_backslash => switch (c) {
+                'u', 'U' => {
+                    state = .ucn_start;
+                },
+                else => switch (ucn_from) {
+                    .start => {
+                        id = .invalid;
+                        break;
+                    },
+                    .within => {
+                        id = .extended_identifier;
+                        self.index -= 1;
+                        break;
+                    },
+                },
+            },
+            .ucn_start => switch (c) {
+                'a'...'f', 'A'...'F', '0'...'9' => {
+                    state = .extended_identifier;
+                },
+                else => {
+                    switch (ucn_from) {
+                        .start => {
+                            id = .invalid;
+                            self.index -= 1;
+                            break;
+                        },
+                        .within => {
+                            id = .extended_identifier;
+                            self.index -= 2;
+                            break;
+                        },
+                    }
+                },
+            },
             .start => switch (c) {
                 '\n' => {
                     id = .nl;
@@ -1100,6 +1141,10 @@ pub fn next(self: *Tokenizer) Token {
                 'u' => state = .u,
                 'U' => state = .U,
                 'L' => state = .L,
+                '\\' => {
+                    ucn_from = .start;
+                    state = .ucn_backslash;
+                },
                 'a'...'t', 'v'...'z', 'A'...'K', 'M'...'T', 'V'...'Z', '_' => state = .identifier,
                 '=' => state = .equal,
                 '!' => state = .bang,
@@ -1325,6 +1370,10 @@ pub fn next(self: *Tokenizer) Token {
                     break;
                 },
                 0x80...0xFF => state = .extended_identifier,
+                '\\' => {
+                    ucn_from = .within;
+                    state = .ucn_backslash;
+                },
                 else => {
                     id = if (state == .identifier) Token.getTokenId(self.langopts, self.buf[start..self.index]) else .extended_identifier;
                     break;
@@ -1732,6 +1781,27 @@ pub fn next(self: *Tokenizer) Token {
         }
     } else if (self.index == self.buf.len) {
         switch (state) {
+            .ucn_backslash => {
+                switch (ucn_from) {
+                    .start => id = .invalid,
+                    .within => {
+                        id = .extended_identifier;
+                        self.index -= 1;
+                    },
+                }
+            },
+            .ucn_start => {
+                switch (ucn_from) {
+                    .start => {
+                        id = .invalid;
+                        self.index -= 1;
+                    },
+                    .within => {
+                        id = .extended_identifier;
+                        self.index -= 2;
+                    },
+                }
+            },
             .start, .line_comment => {},
             .u, .u8, .U, .L, .identifier => id = Token.getTokenId(self.langopts, self.buf[start..self.index]),
             .extended_identifier => id = .extended_identifier,
@@ -2149,6 +2219,40 @@ test "C23 keywords" {
         .keyword_nullptr,
         .keyword_typeof_unqual,
     }, .c23);
+}
+
+test "Universal character names" {
+    try expectTokens("\\", &.{.invalid});
+    try expectTokens("\\g", &.{ .invalid, .identifier });
+    try expectTokens("\\u", &.{ .invalid, .identifier });
+    try expectTokens("\\ua", &.{.extended_identifier});
+    try expectTokens("\\U9", &.{.extended_identifier});
+    try expectTokens("\\ug", &.{ .invalid, .identifier });
+    try expectTokens("\\uag", &.{.extended_identifier});
+
+    try expectTokens("\\ ", &.{ .invalid, .eof });
+    try expectTokens("\\g ", &.{ .invalid, .identifier, .eof });
+    try expectTokens("\\u ", &.{ .invalid, .identifier, .eof });
+    try expectTokens("\\ua ", &.{ .extended_identifier, .eof });
+    try expectTokens("\\U9 ", &.{ .extended_identifier, .eof });
+    try expectTokens("\\ug ", &.{ .invalid, .identifier, .eof });
+    try expectTokens("\\uag ", &.{ .extended_identifier, .eof });
+
+    try expectTokens("a\\", &.{ .extended_identifier, .invalid });
+    try expectTokens("a\\g", &.{ .extended_identifier, .invalid, .identifier });
+    try expectTokens("a\\u", &.{ .extended_identifier, .invalid, .identifier });
+    try expectTokens("a\\ua", &.{.extended_identifier});
+    try expectTokens("a\\U9", &.{.extended_identifier});
+    try expectTokens("a\\ug", &.{ .extended_identifier, .invalid, .identifier });
+    try expectTokens("a\\uag", &.{.extended_identifier});
+
+    try expectTokens("a\\ ", &.{ .extended_identifier, .invalid, .eof });
+    try expectTokens("a\\g ", &.{ .extended_identifier, .invalid, .identifier, .eof });
+    try expectTokens("a\\u ", &.{ .extended_identifier, .invalid, .identifier, .eof });
+    try expectTokens("a\\ua ", &.{ .extended_identifier, .eof });
+    try expectTokens("a\\U9 ", &.{ .extended_identifier, .eof });
+    try expectTokens("a\\ug ", &.{ .extended_identifier, .invalid, .identifier, .eof });
+    try expectTokens("a\\uag ", &.{ .extended_identifier, .eof });
 }
 
 test "Tokenizer fuzz test" {
