@@ -599,7 +599,7 @@ const DafsaBuilder = struct {
     pub fn minimize(self: *DafsaBuilder, down_to: usize) !void {
         if (self.unchecked_nodes.items.len == 0) return;
         while (self.unchecked_nodes.items.len > down_to) {
-            const unchecked_node = self.unchecked_nodes.pop();
+            const unchecked_node = self.unchecked_nodes.pop().?;
             if (self.minimized_nodes.getPtr(unchecked_node.child)) |child| {
                 unchecked_node.parent.children[unchecked_node.char] = child.*;
             } else {
