@@ -4859,7 +4859,6 @@ fn stmt(p: *Parser) Error!Node.Index {
 
         // for (init; cond
         const cond = cond: {
-            if (got_decl) break :cond null;
             const cond_tok = p.tok_i;
             var cond = (try p.expr()) orelse break :cond null;
 
