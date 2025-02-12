@@ -17,6 +17,7 @@ void foo(void) {
     if (!BAZ) return;
     int a, b;
     for (a=1,b=1;;);
+    for (int i = 2, b = 4; i + 2; i = 2);
 }
 
 void bar(int arg) {
@@ -48,7 +49,7 @@ void baz(int arg) {
     "statements.c:5:10: warning: expression result unused [-Wunused-value]" \
     "statements.c:5:10: error: statement requires expression with scalar type ('void' invalid)" \
     "statements.c:7:21: error: case value must be an integer constant expression" \
-    "statements.c:32:16: warning: use of GNU case range extension [-Wgnu-case-range]" \
-    "statements.c:33:14: error: duplicate case value '2'" \
-    "statements.c:32:14: note: previous case defined here" \
+    "statements.c:33:16: warning: use of GNU case range extension [-Wgnu-case-range]" \
+    "statements.c:34:14: error: duplicate case value '2'" \
+    "statements.c:33:14: note: previous case defined here" \
 
