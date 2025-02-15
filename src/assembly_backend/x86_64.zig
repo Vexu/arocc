@@ -6,7 +6,7 @@ const aro = @import("aro");
 const Assembly = aro.Assembly;
 const Compilation = aro.Compilation;
 const Node = Tree.Node;
-const Source = aro.Source;
+const SourceManager = aro.SourceManager;
 const Tree = aro.Tree;
 const QualType = aro.QualType;
 const Value = aro.Value;
@@ -68,7 +68,7 @@ fn serializeFloat(comptime T: type, value: T, w: Writer) !void {
 }
 
 pub fn todo(c: *AsmCodeGen, msg: []const u8, tok: Tree.TokenIndex) Error {
-    const loc: Source.Location = c.tree.tokens.items(.loc)[tok];
+    const loc: SourceManager.Location = c.tree.tokens.items(.loc)[tok];
 
     try c.comp.addDiagnostic(.{
         .tag = .todo,
@@ -144,7 +144,7 @@ pub fn genAsm(tree: *const Tree) Error!Assembly {
     };
 
     if (tree.comp.code_gen_options.debug) {
-        const sources = tree.comp.sources.values();
+        const sources = tree.source_manager.sources.values();
         for (sources) |source| {
             try codegen.data.print("  .file {d} \"{s}\"\n", .{ @intFromEnum(source.id) - 1, source.path });
         }
