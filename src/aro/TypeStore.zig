@@ -1633,10 +1633,10 @@ pub const Type = union(enum) {
             name_tok: TokenIndex,
         };
 
-        pub fn isAnonymous(record: Record, comp: *const Compilation) bool {
+        pub fn isAnonymous(@"enum": Enum, comp: *const Compilation) bool {
             // anonymous enums can be recognized by their names which are in
             // the format "(anonymous TAG at path:line:col)".
-            return record.name.lookup(comp)[0] == '(';
+            return @"enum".name.lookup(comp)[0] == '(';
         }
     };
 
