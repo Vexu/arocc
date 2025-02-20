@@ -2152,26 +2152,27 @@ test "C23 keywords" {
 }
 
 test "Tokenizer fuzz test" {
-    return std.testing.fuzz(testTokenizerFuzz, .{});
-}
+    const Context = struct {
+        fn testOne(_: @This(), input_bytes: []const u8) anyerror!void {
+            var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+            defer comp.deinit();
 
-fn testTokenizerFuzz(input_bytes: []const u8) anyerror!void {
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
-    defer comp.deinit();
+            const source = try comp.addSourceFromBuffer("fuzz.c", input_bytes);
 
-    const source = try comp.addSourceFromBuffer("fuzz.c", input_bytes);
-
-    var tokenizer: Tokenizer = .{
-        .buf = source.buf,
-        .source = source.id,
-        .langopts = comp.langopts,
+            var tokenizer: Tokenizer = .{
+                .buf = source.buf,
+                .source = source.id,
+                .langopts = comp.langopts,
+            };
+            while (true) {
+                const prev_index = tokenizer.index;
+                const tok = tokenizer.next();
+                if (tok.id == .eof) break;
+                try std.testing.expect(prev_index < tokenizer.index); // ensure that the tokenizer always makes progress
+            }
+        }
     };
-    while (true) {
-        const prev_index = tokenizer.index;
-        const tok = tokenizer.next();
-        if (tok.id == .eof) break;
-        try std.testing.expect(prev_index < tokenizer.index); // ensure that the tokenizer always makes progress
-    }
+    return std.testing.fuzz(Context{}, Context.testOne, .{});
 }
 
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {

@@ -1072,7 +1072,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
     const kernel_or_kext: bool = d.mkernel or d.apple_kext;
 
     // Android-specific defaults for PIC/PIE
-    if (target.isAndroid()) {
+    if (target.abi.isAndroid()) {
         switch (target.cpu.arch) {
             .arm,
             .armeb,
@@ -1148,7 +1148,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
         }
     }
 
-    if (pic and (target.isDarwin() or target_util.isPS(target))) {
+    if (pic and (target.os.tag.isDarwin() or target_util.isPS(target))) {
         is_piclevel_two = is_piclevel_two or is_pic_default;
     }
 
@@ -1163,7 +1163,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
     }
 
     if (d.dynamic_nopic == true) {
-        if (!target.isDarwin()) {
+        if (!target.os.tag.isDarwin()) {
             try d.unsupportedOptionForTarget(target, "-mdynamic-no-pic");
         }
         pic = is_pic_default or forced;

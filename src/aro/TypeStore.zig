@@ -602,7 +602,7 @@ pub const QualType = packed struct(u32) {
                 .ulong => comp.target.cTypeAlignment(.ulong),
                 .long_long => comp.target.cTypeAlignment(.longlong),
                 .ulong_long => comp.target.cTypeAlignment(.ulonglong),
-                .int128, .uint128 => if (comp.target.cpu.arch == .s390x and comp.target.os.tag == .linux and comp.target.isGnu()) 8 else 16,
+                .int128, .uint128 => if (comp.target.cpu.arch == .s390x and comp.target.os.tag == .linux and comp.target.abi.isGnu()) 8 else 16,
             },
             .float => |float_ty| switch (float_ty) {
                 .float => comp.target.cTypeAlignment(.float),
@@ -1632,6 +1632,12 @@ pub const Type = union(enum) {
             name: StringId,
             name_tok: TokenIndex,
         };
+
+        pub fn isAnonymous(record: Record, comp: *const Compilation) bool {
+            // anonymous enums can be recognized by their names which are in
+            // the format "(anonymous TAG at path:line:col)".
+            return record.name.lookup(comp)[0] == '(';
+        }
     };
 
     pub const TypeOf = struct {
