@@ -4296,9 +4296,9 @@ fn convertInitList(p: *Parser, il: InitList, init_qt: QualType) Error!Node.Index
     if (scalar_kind != .none and scalar_kind.isReal()) {
         return il.node.unpack() orelse
             try p.addNode(.{ .default_init_expr = .{
-            .last_tok = il.tok,
-            .qt = init_qt,
-        } });
+                .last_tok = il.tok,
+                .qt = init_qt,
+            } });
     }
 
     switch (init_qt.base(p.comp).type) {

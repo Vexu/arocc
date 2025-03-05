@@ -1,7 +1,11 @@
 .{
-    .name = "aro",
+    .name = .aro,
 
     .version = "0.0.0",
+
+    .fingerprint = 0x76501fb842f52025, // Changing this has security and trust implications.
+
+    .minimum_zig_version = "0.14.0",
 
     .dependencies = .{},
 
