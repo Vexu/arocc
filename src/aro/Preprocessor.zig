@@ -60,7 +60,7 @@ const IfContext = struct {
     const default: IfContext = .{ .kind = @splat(0xFF), .level = 0 };
 };
 
-const Macro = struct {
+pub const Macro = struct {
     /// Parameters of the function type macro
     params: []const []const u8,
 
@@ -769,7 +769,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
 
 /// Get raw token source string.
 /// Returned slice is invalidated when comp.generated_buf is updated.
-pub fn tokSlice(pp: *Preprocessor, token: anytype) []const u8 {
+pub fn tokSlice(pp: *const Preprocessor, token: anytype) []const u8 {
     if (token.id.lexeme()) |some| return some;
     const source = pp.comp.getSource(token.source);
     return source.buf[token.start..token.end];
@@ -2658,7 +2658,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
     try pp.defineMacro(define_tok, macro_name, .{
         .loc = tokFromRaw(macro_name).loc,
         .tokens = list,
-        .params = undefined,
+        .params = &.{},
         .is_func = false,
         .var_args = false,
     });
