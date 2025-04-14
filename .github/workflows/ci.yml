@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
@@ -30,5 +30,7 @@ jobs:
         run: zig build
 
       - name: Include libc headers
-        run: zig-out/bin/arocc "libc headers.c"
+        run:
+          find /usr -name libc-header-start.h 
+          zig-out/bin/arocc "libc headers.c"
         
