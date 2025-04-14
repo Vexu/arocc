@@ -803,6 +803,11 @@ invalid_cast_type
     .extra = .str
     .kind = .@"error"
 
+invalid_cast_operand_type
+    .msg = "operand of type '{s}' where arithmetic or pointer type is required"
+    .extra = .str
+    .kind = .@"error"
+
 qual_cast
     .msg = "cast to type '{s}' will not preserve qualifiers"
     .extra = .str

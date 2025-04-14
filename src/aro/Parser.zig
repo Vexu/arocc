@@ -5704,7 +5704,7 @@ pub const Result = struct {
             inline .addr_of_expr, .deref_expr, .plus_expr, .negate_expr,
             .bit_not_expr, .bool_not_expr, .pre_inc_expr, .pre_dec_expr,
             .imag_expr, .real_expr, .post_inc_expr,.post_dec_expr,
-            .paren_expr, .stmt_expr, .imaginary_literal,
+            .paren_expr, .stmt_expr, .imaginary_literal, .compound_assign_dummy_expr,
             // zig fmt: on
             => |tag| operand.node = try p.addNode(@unionInit(Node, @tagName(tag), un_data)),
             else => unreachable,
@@ -6381,6 +6381,9 @@ pub const Result = struct {
             // everything can cast to void
             cast_kind = .to_void;
             res.val = .{};
+        } else if (res.qt.is(p.comp, .void)) {
+            try p.errStr(.invalid_cast_operand_type, operand_tok, try p.typeStr(res.qt));
+            return error.ParsingFailed;
         } else if (dest_sk == .nullptr_t) {
             res.val = .{};
             if (src_sk == .nullptr_t) {
@@ -6493,7 +6496,7 @@ pub const Result = struct {
                 } else if (res.qt.is(p.comp, .func)) {
                     cast_kind = .function_to_pointer;
                 } else {
-                    try p.errStr(.cond_expr_type, operand_tok, try p.typeStr(res.qt));
+                    try p.errStr(.invalid_cast_operand_type, operand_tok, try p.typeStr(res.qt));
                     return error.ParsingFailed;
                 }
             } else if (dest_sk.isFloat()) {
@@ -6839,6 +6842,22 @@ fn eatTag(p: *Parser, id: Token.Id) ?std.meta.Tag(Node) {
     } else return null;
 }
 
+fn nonAssignExpr(assign_node: std.meta.Tag(Node)) std.meta.Tag(Node) {
+    return switch (assign_node) {
+        .mul_assign_expr => .mul_expr,
+        .div_assign_expr => .div_expr,
+        .mod_assign_expr => .mod_expr,
+        .add_assign_expr => .add_expr,
+        .sub_assign_expr => .sub_expr,
+        .shl_assign_expr => .shl_expr,
+        .shr_assign_expr => .shr_expr,
+        .bit_and_assign_expr => .bit_and_expr,
+        .bit_xor_assign_expr => .bit_xor_expr,
+        .bit_or_assign_expr => .bit_or_expr,
+        else => unreachable,
+    };
+}
+
 /// assignExpr
 ///  : condExpr
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
@@ -6866,15 +6885,24 @@ fn assignExpr(p: *Parser) Error!?Result {
         lhs.qt = .invalid;
     }
 
-    // adjustTypes will do do lvalue conversion but we do not want that
-    var lhs_copy = lhs;
+    if (tag == .assign_expr) {
+        try rhs.coerce(p, lhs.qt, tok, .assign);
+
+        try lhs.bin(p, tag, rhs, tok);
+        return lhs;
+    }
+
+    var lhs_dummy = blk: {
+        var lhs_copy = lhs;
+        try lhs_copy.un(p, .compound_assign_dummy_expr, tok);
+        try lhs_copy.lvalConversion(p, tok);
+        break :blk lhs_copy;
+    };
     switch (tag) {
-        .assign_expr => {}, // handle plain assignment separately
         .mul_assign_expr,
         .div_assign_expr,
         .mod_assign_expr,
         => {
-            try rhs.lvalConversion(p, tok);
             if (!lhs.qt.isInvalid() and rhs.val.isZero(p.comp) and lhs.qt.isInt(p.comp) and rhs.qt.isInt(p.comp)) {
                 switch (tag) {
                     .div_assign_expr => try p.errStr(.division_by_zero, tok, "division"),
@@ -6882,21 +6910,17 @@ fn assignExpr(p: *Parser) Error!?Result {
                     else => {},
                 }
             }
-            _ = try lhs_copy.adjustTypes(tok, &rhs, p, if (tag == .mod_assign_expr) .integer else .arithmetic);
-            try lhs.bin(p, tag, rhs, tok);
-            return lhs;
+            _ = try lhs_dummy.adjustTypes(tok, &rhs, p, if (tag == .mod_assign_expr) .integer else .arithmetic);
         },
         .sub_assign_expr,
         .add_assign_expr,
         => {
-            try rhs.lvalConversion(p, tok);
             if (!lhs.qt.isInvalid() and lhs.qt.isPointer(p.comp) and rhs.qt.isInt(p.comp)) {
-                try rhs.castToPointer(p, lhs.qt, tok);
+                try rhs.lvalConversion(p, tok);
+                try rhs.castToPointer(p, lhs_dummy.qt, tok);
             } else {
-                _ = try lhs_copy.adjustTypes(tok, &rhs, p, .arithmetic);
+                _ = try lhs_dummy.adjustTypes(tok, &rhs, p, .arithmetic);
             }
-            try lhs.bin(p, tag, rhs, tok);
-            return lhs;
         },
         .shl_assign_expr,
         .shr_assign_expr,
@@ -6904,17 +6928,14 @@ fn assignExpr(p: *Parser) Error!?Result {
         .bit_xor_assign_expr,
         .bit_or_assign_expr,
         => {
-            try rhs.lvalConversion(p, tok);
-            _ = try lhs_copy.adjustTypes(tok, &rhs, p, .integer);
-            try lhs.bin(p, tag, rhs, tok);
-            return lhs;
+            _ = try lhs_dummy.adjustTypes(tok, &rhs, p, .integer);
         },
         else => unreachable,
     }
 
-    try rhs.coerce(p, lhs.qt, tok, .assign);
-
-    try lhs.bin(p, tag, rhs, tok);
+    _ = try lhs_dummy.bin(p, nonAssignExpr(tag), rhs, tok);
+    try lhs_dummy.coerce(p, lhs.qt, tok, .assign);
+    try lhs.bin(p, tag, lhs_dummy, tok);
     return lhs;
 }
 

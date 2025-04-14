@@ -172,7 +172,6 @@ pub const Node = union(enum) {
     return_stmt: ReturnStmt,
     gnu_asm_simple: SimpleAsm,
 
-    comma_expr: Binary,
     assign_expr: Binary,
     mul_assign_expr: Binary,
     div_assign_expr: Binary,
@@ -184,6 +183,9 @@ pub const Node = union(enum) {
     bit_and_assign_expr: Binary,
     bit_xor_assign_expr: Binary,
     bit_or_assign_expr: Binary,
+    compound_assign_dummy_expr: Unary,
+
+    comma_expr: Binary,
     bool_or_expr: Binary,
     bool_and_expr: Binary,
     bit_or_expr: Binary,
@@ -994,14 +996,6 @@ pub const Node = union(enum) {
                         .asm_str = @enumFromInt(node_data[0]),
                     },
                 },
-                .comma_expr => .{
-                    .comma_expr = .{
-                        .op_tok = node_tok,
-                        .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
-                    },
-                },
                 .assign_expr => .{
                     .assign_expr = .{
                         .op_tok = node_tok,
@@ -1084,6 +1078,21 @@ pub const Node = union(enum) {
                 },
                 .bit_or_assign_expr => .{
                     .bit_or_assign_expr = .{
+                        .op_tok = node_tok,
+                        .qt = @bitCast(node_data[0]),
+                        .lhs = @enumFromInt(node_data[1]),
+                        .rhs = @enumFromInt(node_data[2]),
+                    },
+                },
+                .compound_assign_dummy_expr => .{
+                    .compound_assign_dummy_expr = .{
+                        .op_tok = node_tok,
+                        .qt = @bitCast(node_data[0]),
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
+                .comma_expr => .{
+                    .comma_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
                         .lhs = @enumFromInt(node_data[1]),
@@ -1763,6 +1772,7 @@ pub const Node = union(enum) {
             bit_and_assign_expr,
             bit_xor_assign_expr,
             bit_or_assign_expr,
+            compound_assign_dummy_expr,
             bool_or_expr,
             bool_and_expr,
             bit_or_expr,
@@ -1842,6 +1852,7 @@ pub const Node = union(enum) {
             .array_filler_expr,
             .default_init_expr,
             .cond_dummy_expr,
+            .compound_assign_dummy_expr,
             => true,
             .return_stmt => |ret| ret.operand == .implicit,
             .cast => |cast| cast.implicit,
@@ -2115,13 +2126,6 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[0] = @intFromEnum(gnu_asm_simple.asm_str);
             repr.tok = gnu_asm_simple.asm_tok;
         },
-        .comma_expr => |bin| {
-            repr.tag = .comma_expr;
-            repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
-            repr.tok = bin.op_tok;
-        },
         .assign_expr => |bin| {
             repr.tag = .assign_expr;
             repr.data[0] = @bitCast(bin.qt);
@@ -2194,6 +2198,19 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .bit_or_assign_expr => |bin| {
             repr.tag = .bit_or_assign_expr;
+            repr.data[0] = @bitCast(bin.qt);
+            repr.data[1] = @intFromEnum(bin.lhs);
+            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.tok = bin.op_tok;
+        },
+        .compound_assign_dummy_expr => |un| {
+            repr.tag = .compound_assign_dummy_expr;
+            repr.data[0] = @bitCast(un.qt);
+            repr.data[1] = @intFromEnum(un.operand);
+            repr.tok = un.op_tok;
+        },
+        .comma_expr => |bin| {
+            repr.tag = .comma_expr;
             repr.data[0] = @bitCast(bin.qt);
             repr.data[1] = @intFromEnum(bin.lhs);
             repr.data[2] = @intFromEnum(bin.rhs);
@@ -2808,6 +2825,7 @@ pub fn isLvalExtra(tree: *const Tree, node: Node.Index, is_const: *bool) bool {
             }
             return false;
         },
+        .compound_assign_dummy_expr => return true,
         else => return false,
     }
 }
@@ -3342,7 +3360,6 @@ fn dumpNode(
                 }
             }
         },
-        .comma_expr,
         .assign_expr,
         .mul_assign_expr,
         .div_assign_expr,
@@ -3354,6 +3371,7 @@ fn dumpNode(
         .bit_and_assign_expr,
         .bit_xor_assign_expr,
         .bit_or_assign_expr,
+        .comma_expr,
         .bool_or_expr,
         .bool_and_expr,
         .bit_or_expr,
@@ -3495,6 +3513,7 @@ fn dumpNode(
         .enum_forward_decl,
         .default_init_expr,
         .cond_dummy_expr,
+        .compound_assign_dummy_expr,
         => {},
     }
 }

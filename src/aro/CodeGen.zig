@@ -52,6 +52,7 @@ cond_dummy_ref: Ir.Ref = undefined,
 continue_label: Ir.Ref = undefined,
 break_label: Ir.Ref = undefined,
 return_label: Ir.Ref = undefined,
+compound_assign_dummy: ?Ir.Ref = null,
 
 fn fail(c: *CodeGen, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
     try c.comp.diagnostics.list.append(c.comp.gpa, .{
@@ -506,16 +507,16 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             try c.builder.addStore(lhs, rhs);
             return rhs;
         },
-        .mul_assign_expr => |bin| return c.genCompoundAssign(bin, .mul),
-        .div_assign_expr => |bin| return c.genCompoundAssign(bin, .div),
-        .mod_assign_expr => |bin| return c.genCompoundAssign(bin, .mod),
-        .add_assign_expr => |bin| return c.genCompoundAssign(bin, .add),
-        .sub_assign_expr => |bin| return c.genCompoundAssign(bin, .sub),
-        .shl_assign_expr => |bin| return c.genCompoundAssign(bin, .bit_shl),
-        .shr_assign_expr => |bin| return c.genCompoundAssign(bin, .bit_shr),
-        .bit_and_assign_expr => |bin| return c.genCompoundAssign(bin, .bit_and),
-        .bit_xor_assign_expr => |bin| return c.genCompoundAssign(bin, .bit_xor),
-        .bit_or_assign_expr => |bin| return c.genCompoundAssign(bin, .bit_or),
+        .mul_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .div_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .mod_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .add_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .sub_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .shl_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .shr_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .bit_and_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .bit_xor_assign_expr => |bin| return c.genCompoundAssign(bin),
+        .bit_or_assign_expr => |bin| return c.genCompoundAssign(bin),
         .bit_or_expr => |bin| return c.genBinOp(bin, .bit_or),
         .bit_xor_expr => |bin| return c.genBinOp(bin, .bit_xor),
         .bit_and_expr => |bin| return c.genBinOp(bin, .bit_and),
@@ -850,7 +851,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             const old_sym_len = c.symbols.items.len;
             c.symbols.items.len = old_sym_len;
 
-            for (compound_stmt.body[0 .. compound_stmt.body.len - 1]) |stmt| try c.genStmt(stmt);
+            for (compound_stmt.body[0..compound_stmt.body.len -| 1]) |stmt| try c.genStmt(stmt);
             return c.genExpr(compound_stmt.body[compound_stmt.body.len - 1]);
         },
         .builtin_call_expr => |call| {
@@ -911,6 +912,9 @@ fn genLval(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             } else {
                 return c.genLval(conditional.else_expr);
             }
+        },
+        .compound_assign_dummy_expr => {
+            return c.compound_assign_dummy.?;
         },
         .member_access_expr,
         .member_access_ptr_expr,
@@ -1127,12 +1131,16 @@ fn genCall(c: *CodeGen, call: Node.Call) Error!Ir.Ref {
     return c.builder.addInst(.call, .{ .call = call_inst }, try c.genType(call.qt));
 }
 
-fn genCompoundAssign(c: *CodeGen, bin: Node.Binary, tag: Ir.Inst.Tag) Error!Ir.Ref {
-    const rhs = try c.genExpr(bin.rhs);
+fn genCompoundAssign(c: *CodeGen, bin: Node.Binary) Error!Ir.Ref {
     const lhs = try c.genLval(bin.lhs);
-    const res = try c.addBin(tag, lhs, rhs, bin.qt);
-    try c.builder.addStore(lhs, res);
-    return res;
+
+    const old_dummy = c.compound_assign_dummy;
+    defer c.compound_assign_dummy = old_dummy;
+    c.compound_assign_dummy = lhs;
+
+    const rhs = try c.genExpr(bin.rhs);
+    try c.builder.addStore(lhs, rhs);
+    return rhs;
 }
 
 fn genBinOp(c: *CodeGen, bin: Node.Binary, tag: Ir.Inst.Tag) Error!Ir.Ref {

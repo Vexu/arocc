@@ -930,7 +930,7 @@ pub fn fixedEnumTagType(comp: *const Compilation) ?QualType {
 }
 
 pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
-    return comp.langopts.char_signedness_override orelse comp.target.charSignedness();
+    return comp.langopts.char_signedness_override orelse comp.target.cCharSignedness();
 }
 
 /// Add built-in aro headers directory to system include paths

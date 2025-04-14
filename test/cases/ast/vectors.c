@@ -46,9 +46,14 @@ fn_def: 'fn () void'
       decl_ref_expr: 'f2v: vector(2, float)' lvalue
        name: a
      rhs:
-      implicit cast: (vector_splat) 'float'
-        implicit cast: (int_to_float) 'float' (value: 2)
-          int_literal: 'int' (value: 2)
+      mul_expr: 'f2v: vector(2, float)'
+       lhs:
+        implicit cast: (lval_to_rval) 'f2v: vector(2, float)'
+          implicit compound_assign_dummy_expr: 'f2v: vector(2, float)' lvalue
+       rhs:
+        implicit cast: (vector_splat) 'float'
+          implicit cast: (int_to_float) 'float' (value: 2)
+            int_literal: 'int' (value: 2)
 
     implicit return_stmt: 'void'
 

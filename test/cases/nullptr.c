@@ -88,7 +88,7 @@ void baz(void) {
 void bad_nullptr_use(void) {
     static_assert(nullptr != 1);
     static_assert(nullptr != true);
-    bool b = nullptr;
+    bool b = nullptr; // TODO clang allows this
     int x = nullptr;
     nullptr_t p = 0;
     float f = (float)nullptr;
@@ -105,6 +105,8 @@ void bad_nullptr_use(void) {
     vp = (nullptr_t)0;
     vp = (nullptr_t)(void *)0;
 }
+
+#define TESTS_SKIPPED 1
 
 #define EXPECTED_ERRORS "nullptr.c:89:27: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
     "nullptr.c:90:27: error: invalid operands to binary expression ('nullptr_t' and 'bool')" \

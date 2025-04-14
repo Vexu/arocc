@@ -91,8 +91,13 @@ fn_def: 'fn () void'
       decl_ref_expr: '_Atomic(int)' lvalue
        name: a
      rhs:
-      implicit cast: (int_cast) '_Atomic(int)' (value: 1)
-        int_literal: 'int' (value: 1)
+      add_expr: '_Atomic(int)'
+       lhs:
+        implicit cast: (lval_to_rval) '_Atomic(int)'
+          implicit compound_assign_dummy_expr: '_Atomic(int)' lvalue
+       rhs:
+        implicit cast: (int_cast) '_Atomic(int)' (value: 1)
+          int_literal: 'int' (value: 1)
 
     variable: '_Atomic(float)'
      name: f
