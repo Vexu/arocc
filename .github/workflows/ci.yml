@@ -30,7 +30,7 @@ jobs:
         run: zig build
 
       - name: Include libc headers
-        run:
+        run: |
           find /usr -name libc-header-start.h 
           zig-out/bin/arocc "libc headers.c"
         
