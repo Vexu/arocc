@@ -6912,15 +6912,11 @@ fn assignExpr(p: *Parser) Error!?Result {
             }
             _ = try lhs_dummy.adjustTypes(tok, &rhs, p, if (tag == .mod_assign_expr) .integer else .arithmetic);
         },
-        .sub_assign_expr,
-        .add_assign_expr,
-        => {
-            if (!lhs.qt.isInvalid() and lhs.qt.isPointer(p.comp) and rhs.qt.isInt(p.comp)) {
-                try rhs.lvalConversion(p, tok);
-                try rhs.castToPointer(p, lhs_dummy.qt, tok);
-            } else {
-                _ = try lhs_dummy.adjustTypes(tok, &rhs, p, .arithmetic);
-            }
+        .sub_assign_expr => {
+            _ = try lhs_dummy.adjustTypes(tok, &rhs, p, .sub);
+        },
+        .add_assign_expr => {
+            _ = try lhs_dummy.adjustTypes(tok, &rhs, p, .add);
         },
         .shl_assign_expr,
         .shr_assign_expr,

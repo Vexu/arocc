@@ -73,8 +73,7 @@ fn_def: 'fn (a: decayed *const I: [2]int, b: decayed *const I: [2]int) void'
         implicit cast: (lval_to_rval) 'decayed *const I: [2]int'
           implicit compound_assign_dummy_expr: 'decayed *const I: [2]int' lvalue
        rhs:
-        implicit cast: (int_to_pointer) 'decayed *const I: [2]int'
-          int_literal: 'int' (value: 1)
+        int_literal: 'int' (value: 1)
 
     add_assign_expr: 'decayed *const I: [2]int'
      lhs:
@@ -86,8 +85,7 @@ fn_def: 'fn (a: decayed *const I: [2]int, b: decayed *const I: [2]int) void'
         implicit cast: (lval_to_rval) 'decayed *const I: [2]int'
           implicit compound_assign_dummy_expr: 'decayed *const I: [2]int' lvalue
        rhs:
-        implicit cast: (int_to_pointer) 'decayed *const I: [2]int'
-          int_literal: 'int' (value: 1)
+        int_literal: 'int' (value: 1)
 
     implicit return_stmt: 'void'
 
