@@ -1006,7 +1006,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .tok_ids = pp.tokens.items(.id),
         .tok_i = @intCast(token_state.tokens_len),
         .in_macro = true,
-        .strings = std.ArrayListAligned(u8, 4).init(pp.comp.gpa),
+        .strings = std.ArrayListAligned(u8, .@"4").init(pp.comp.gpa),
 
         .tree = undefined,
         .labels = undefined,

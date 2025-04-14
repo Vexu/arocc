@@ -109,7 +109,7 @@ tree: Tree,
 
 // buffers used during compilation
 syms: SymbolStack = .{},
-strings: std.ArrayListAligned(u8, 4),
+strings: std.ArrayListAligned(u8, .@"4"),
 labels: std.ArrayList(Label),
 list_buf: NodeList,
 decl_buf: NodeList,
