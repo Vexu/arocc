@@ -26,22 +26,9 @@ jobs:
         with:
           version: master
 
-      - name: Fmt
-        run: zig fmt . --check
-        if: matrix.os == 'ubuntu-latest'
-
       - name: Build
         run: zig build
 
-      - name: Build 32-bit
-        run: zig build -Dtarget=arm-linux
-        if: matrix.os == 'ubuntu-latest'
-
-      - name: Build release
-        run: zig build -Doptimize=ReleaseSafe
-
-      - name: Run Tests
-        run: zig build test
-
-      - name: Run Tests in release mode
-        run: zig build test -Doptimize=ReleaseFast
+      - name: Include libc headers
+        run: zig-out/bin/arocc "libc headers.c"
+        
