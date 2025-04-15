@@ -9,6 +9,8 @@ const Filesystem = @import("Driver/Filesystem.zig").Filesystem;
 const Multilib = @import("Driver/Multilib.zig");
 const target_util = @import("target.zig");
 const Linux = @import("toolchains/Linux.zig");
+const Msvc = @import("toolchains/Msvc.zig");
+const Darwin = @import("toolchains/Darwin.zig");
 
 pub const PathList = std.ArrayListUnmanaged([]const u8);
 
@@ -38,12 +40,14 @@ pub const UnwindLibKind = enum {
 const Inner = union(enum) {
     uninitialized,
     linux: Linux,
+    darwin: void,
+    msvc: Msvc,
     unknown: void,
 
     fn deinit(self: *Inner, allocator: mem.Allocator) void {
         switch (self.*) {
             .linux => |*linux| linux.deinit(allocator),
-            .uninitialized, .unknown => {},
+            .msvc, .darwin, .uninitialized, .unknown => {},
         }
     }
 };
@@ -75,7 +79,7 @@ fn getDefaultLinker(tc: *const Toolchain) []const u8 {
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |linux| linux.getDefaultLinker(tc.getTarget()),
-        .unknown => "ld",
+        .msvc, .darwin, .unknown => "ld",
     };
 }
 
@@ -97,12 +101,28 @@ pub fn discover(tc: *Toolchain) !void {
             .{ .unknown = {} } // TODO
         else
             .{ .linux = .{} },
+        .macos,
+        .ios,
+        .tvos,
+        .watchos,
+        .visionos,
+        .driverkit,
+        => .{ .darwin = {} },
+        .windows => if (target.abi == .msvc)
+            (if (std.ascii.eqlIgnoreCase(tc.driver.use_linker orelse @import("system_defaults").linker, "bfd"))
+                .{ .unknown = {} } // TODO cross windows
+            else
+                .{ .msvc = .{} })
+        else if (target.abi.isGnu())
+            .{ .unknown = {} } // TODO mingw
+        else
+            .{ .unknown = {} }, // TODO
         else => .{ .unknown = {} }, // TODO
     };
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |*linux| linux.discover(tc),
-        .unknown => {},
+        .msvc, .darwin, .unknown => {},
     };
 }
 
@@ -350,7 +370,7 @@ pub fn buildLinkerArgs(tc: *Toolchain, argv: *std.ArrayList([]const u8)) !void {
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |*linux| linux.buildLinkerArgs(tc, argv),
-        .unknown => @panic("This toolchain does not support linking yet"),
+        .msvc, .darwin, .unknown => @panic("This toolchain does not support linking yet"),
     };
 }
 
@@ -504,7 +524,8 @@ pub fn defineSystemIncludes(tc: *Toolchain) !void {
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |*linux| linux.defineSystemIncludes(tc),
-        .unknown => {
+        .msvc => Msvc.defineSystemIncludes(tc),
+        .darwin, .unknown => {
             if (tc.driver.nostdinc) return;
 
             const comp = tc.driver.comp;
