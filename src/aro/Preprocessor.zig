@@ -17,7 +17,7 @@ const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenWithExpansionLocs = Tree.TokenWithExpansionLocs;
 
-const DefineMap = std.StringHashMapUnmanaged(Macro);
+const DefineMap = std.StringArrayHashMapUnmanaged(Macro);
 const RawTokenList = std.ArrayList(RawToken);
 const max_include_depth = 200;
 
@@ -658,7 +658,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             try pp.addToken(tokFromRaw(directive));
                         }
 
-                        _ = pp.defines.remove(macro_name);
+                        _ = pp.defines.orderedRemove(macro_name);
                         try pp.expectNl(&tokenizer);
                     },
                     .keyword_include => {
@@ -3361,8 +3361,7 @@ fn prettyPrintMacro(pp: *Preprocessor, w: anytype, loc: Source.Location, parts: 
 }
 
 fn prettyPrintMacrosOnly(pp: *Preprocessor, w: anytype) !void {
-    var it = pp.defines.valueIterator();
-    while (it.next()) |macro| {
+    for (pp.defines.values()) |macro| {
         if (macro.is_builtin) continue;
 
         try w.writeAll("#define ");
