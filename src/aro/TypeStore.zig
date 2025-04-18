@@ -1315,14 +1315,6 @@ pub const QualType = packed struct(u32) {
 
                 const static = array.len == .static;
                 if (static) try w.writeAll("static");
-                // if (qt.@"const") {
-                //     if (static) try w.writeByte(' ');
-                //     try w.writeAll("const");
-                // }
-                // if (qt.@"volatile") {
-                //     if (static or qt.@"const") try w.writeByte(' ');
-                //     try w.writeAll("volatile");
-                // }
                 if (qt.restrict) {
                     if (static or qt.@"const" or qt.@"volatile") try w.writeByte(' ');
                     try w.writeAll("restrict");
