@@ -571,6 +571,26 @@ not_assignable
     .msg = "expression is not assignable"
     .kind = .@"error"
 
+assign_to_const_var
+    .msg = "cannot assign to variable '{s}"
+    .kind = .@"error"
+    .extra = .str
+
+array_not_assignable
+    .msg = "array type '{s}' is not assignable"
+    .kind = .@"error"
+    .extra = .str
+
+non_object_not_assignable
+    .msg = "non-object type '{s}' is not assignable"
+    .kind = .@"error"
+    .extra = .str
+
+declared_const_here
+    .msg = "variable '{s}' declared const here"
+    .kind = .note
+    .extra = .str
+
 ident_or_l_brace
     .msg = "expected identifier or '{'"
     .kind = .@"error"
