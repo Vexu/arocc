@@ -712,6 +712,7 @@ const attributes = struct {
             };
         },
     };
+    pub const unaligned = struct {};
 };
 
 pub const Tag = std.meta.DeclEnum(attributes);
@@ -811,7 +812,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
         .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
-        .noinit, .retain, .persistent, .section, .mode, .asm_label, .nullability,
+        .noinit, .retain, .persistent, .section, .mode, .asm_label, .nullability, .unaligned,
          => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .common => if (nocommon) {
@@ -869,7 +870,7 @@ pub fn applyFieldAttributes(p: *Parser, field_ty: *QualType, attr_buf_start: usi
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
         .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned,
-        .mode, .warn_unused_result, .nodiscard, .nullability,
+        .mode, .warn_unused_result, .nodiscard, .nullability, .unaligned,
         => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .vector_size => try attr.applyVectorSize(p, tok, field_ty),
@@ -886,7 +887,7 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, tag:
     var base_qt = qt;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
-        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode, .nullability,
+        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode, .nullability, .unaligned,
          => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .transparent_union => try attr.applyTransparentUnion(p, tok, base_qt),
@@ -921,7 +922,7 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .noreturn, .unused, .used, .warning, .deprecated, .unavailable, .weak, .pure, .leaf,
         .@"const", .warn_unused_result, .section, .returns_nonnull, .returns_twice, .@"error",
         .externally_visible, .retain, .flatten, .gnu_inline, .alias, .asm_label, .nodiscard,
-        .reproducible, .unsequenced, .nothrow, .nullability,
+        .reproducible, .unsequenced, .nothrow, .nullability, .unaligned,
          => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .hot => if (cold) {
@@ -951,8 +952,8 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .aligned => try attr.applyAligned(p, base_qt, null),
         .format => try attr.applyFormat(p, base_qt),
         .calling_convention => switch (attr.args.calling_convention.cc) {
-            .C => continue,
-            .stdcall, .thiscall => switch (p.comp.target.cpu.arch) {
+            .c => continue,
+            .stdcall, .thiscall, .fastcall, .regcall => switch (p.comp.target.cpu.arch) {
                 .x86 => try p.attr_application_buf.append(p.gpa, attr),
                 else => try p.errStr(.callconv_not_supported, tok, p.tok_ids[tok].lexeme().?),
             },

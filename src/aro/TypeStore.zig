@@ -2090,7 +2090,7 @@ pub const Builder = struct {
     atomic: ?TokenIndex = null,
     @"volatile": ?TokenIndex = null,
     restrict: ?TokenIndex = null,
-
+    unaligned: ?TokenIndex = null,
     nullability: union(enum) {
         none,
         nonnull: TokenIndex,
@@ -2468,7 +2468,12 @@ pub const Builder = struct {
             }
         }
 
-        // if (b.nullability != .none) {
+        if (b.unaligned != null and !qt.isPointer(b.parser.comp)) {
+            result_qt = (try b.parser.comp.type_store.put(b.parser.gpa, .{ .attributed = .{
+                .base = result_qt,
+                .attributes = &.{.{ .tag = .unaligned, .args = .{ .unaligned = .{} }, .syntax = .keyword }},
+            } })).withQualifiers(result_qt);
+        }
         switch (b.nullability) {
             .none => {},
             .nonnull,

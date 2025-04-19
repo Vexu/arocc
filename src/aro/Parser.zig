@@ -1577,6 +1577,14 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                 p.tok_i += 1;
                 continue;
             },
+            .keyword_forceinline, .keyword_forceinline2 => {
+                try p.attr_buf.append(p.gpa, .{
+                    .attr = .{ .tag = .always_inline, .args = .{ .always_inline = .{} }, .syntax = .keyword },
+                    .tok = p.tok_i,
+                });
+                p.tok_i += 1;
+                continue;
+            },
             else => {},
         }
 
@@ -2049,7 +2057,7 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
             try builder.combineFromTypeof(typeof_qt, start);
             continue;
         }
-        if (try p.typeQual(builder)) continue;
+        if (try p.typeQual(builder, true)) continue;
         switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try builder.combine(.void, p.tok_i),
             .keyword_bool, .keyword_c23_bool => try builder.combine(.bool, p.tok_i),
@@ -2133,29 +2141,6 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                 try p.expectClosing(l_paren, .r_paren);
                 continue;
             },
-            .keyword_stdcall,
-            .keyword_stdcall2,
-            .keyword_thiscall,
-            .keyword_thiscall2,
-            .keyword_vectorcall,
-            .keyword_vectorcall2,
-            => try p.attr_buf.append(p.gpa, .{
-                .attr = .{ .tag = .calling_convention, .args = .{
-                    .calling_convention = .{ .cc = switch (p.tok_ids[p.tok_i]) {
-                        .keyword_stdcall,
-                        .keyword_stdcall2,
-                        => .stdcall,
-                        .keyword_thiscall,
-                        .keyword_thiscall2,
-                        => .thiscall,
-                        .keyword_vectorcall,
-                        .keyword_vectorcall2,
-                        => .vectorcall,
-                        else => unreachable,
-                    } },
-                }, .syntax = .keyword },
-                .tok = p.tok_i,
-            }),
             .keyword_struct, .keyword_union => {
                 const tag_tok = p.tok_i;
                 const record_ty = try p.recordSpec();
@@ -3114,7 +3099,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 }
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
-fn typeQual(p: *Parser, b: *TypeStore.Builder) Error!bool {
+fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_cc_attr: bool) Error!bool {
     var any = false;
     while (true) {
         switch (p.tok_ids[p.tok_i]) {
@@ -3143,6 +3128,51 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder) Error!bool {
                     try p.errStr(.duplicate_decl_spec, p.tok_i, "atomic")
                 else
                     b.atomic = p.tok_i;
+            },
+            .keyword_unaligned, .keyword_unaligned2 => {
+                if (b.unaligned != null)
+                    try p.errStr(.duplicate_decl_spec, p.tok_i, "__unaligned")
+                else
+                    b.unaligned = p.tok_i;
+            },
+            .keyword_stdcall,
+            .keyword_stdcall2,
+            .keyword_thiscall,
+            .keyword_thiscall2,
+            .keyword_vectorcall,
+            .keyword_vectorcall2,
+            .keyword_fastcall,
+            .keyword_fastcall2,
+            .keyword_regcall,
+            .keyword_cdecl,
+            .keyword_cdecl2,
+            => {
+                if (!allow_cc_attr) break;
+                try p.attr_buf.append(p.gpa, .{
+                    .attr = .{ .tag = .calling_convention, .args = .{
+                        .calling_convention = .{ .cc = switch (p.tok_ids[p.tok_i]) {
+                            .keyword_stdcall,
+                            .keyword_stdcall2,
+                            => .stdcall,
+                            .keyword_thiscall,
+                            .keyword_thiscall2,
+                            => .thiscall,
+                            .keyword_vectorcall,
+                            .keyword_vectorcall2,
+                            => .vectorcall,
+                            .keyword_fastcall,
+                            .keyword_fastcall2,
+                            => .fastcall,
+                            .keyword_regcall,
+                            => .regcall,
+                            .keyword_cdecl,
+                            .keyword_cdecl2,
+                            => .c,
+                            else => unreachable,
+                        } },
+                    }, .syntax = .keyword },
+                    .tok = p.tok_i,
+                });
             },
             .keyword_nonnull, .keyword_nullable, .keyword_nullable_result, .keyword_null_unspecified => |tok_id| {
                 const sym_str = p.tok_ids[p.tok_i].symbol();
@@ -3306,7 +3336,7 @@ fn declarator(
     while (p.eatToken(.asterisk)) |_| {
         d.declarator_type = .pointer;
         var builder: TypeStore.Builder = .{ .parser = p };
-        _ = try p.typeQual(&builder);
+        _ = try p.typeQual(&builder, true);
 
         const pointer_qt = try p.comp.type_store.put(p.gpa, .{ .pointer = .{
             .child = d.qt,
@@ -3433,9 +3463,9 @@ fn directDeclarator(
 
         var builder: TypeStore.Builder = .{ .parser = p };
 
-        var got_quals = try p.typeQual(&builder);
+        var got_quals = try p.typeQual(&builder, false);
         var static = p.eatToken(.keyword_static);
-        if (static != null and !got_quals) got_quals = try p.typeQual(&builder);
+        if (static != null and !got_quals) got_quals = try p.typeQual(&builder, false);
         var star = p.eatToken(.asterisk);
         const size_tok = p.tok_i;
 
