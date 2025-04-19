@@ -11,6 +11,11 @@ pub const CallingConvention = enum {
     vectorcall,
     fastcall,
     regcall,
+    riscv_vector,
+    aarch64_sve_pcs,
+    aarch64_vector_pcs,
+    arm_aapcs,
+    arm_aapcs_vfp,
 };
 
 pub const version_str = @import("build_options").version_str;

@@ -713,6 +713,19 @@ const attributes = struct {
         },
     };
     pub const unaligned = struct {};
+    pub const pcs = struct {
+        kind: enum {
+            aapcs,
+            @"aapcs-vfp",
+
+            const opts = struct {
+                const enum_kind = .string;
+            };
+        },
+    };
+    pub const riscv_vector_cc = struct {};
+    pub const aarch64_sve_pcs = struct {};
+    pub const aarch64_vector_pcs = struct {};
 };
 
 pub const Tag = std.meta.DeclEnum(attributes);
@@ -961,6 +974,51 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
                 .x86, .aarch64, .aarch64_be => try p.attr_application_buf.append(p.gpa, attr),
                 else => try p.errStr(.callconv_not_supported, tok, p.tok_ids[tok].lexeme().?),
             },
+            .riscv_vector,
+            .aarch64_sve_pcs,
+            .aarch64_vector_pcs,
+            .arm_aapcs,
+            .arm_aapcs_vfp,
+            => unreachable, // These can't come from keyword syntax
+        },
+        .pcs => if (p.comp.target.cpu.arch.isArm()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = switch (attr.args.pcs.kind) {
+                    .aapcs => .arm_aapcs,
+                    .@"aapcs-vfp" => .arm_aapcs_vfp,
+                } } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "pcs");
+        },
+        .riscv_vector_cc => if (p.comp.target.cpu.arch.isRISCV()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .riscv_vector } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "pcs");
+        },
+        .aarch64_sve_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .aarch64_sve_pcs } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "pcs");
+        },
+        .aarch64_vector_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .aarch64_vector_pcs } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "pcs");
         },
         .malloc => {
             if (base_qt.get(p.comp, .func).?.return_type.isPointer(p.comp)) {

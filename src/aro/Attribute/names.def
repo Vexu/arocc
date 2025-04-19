@@ -364,6 +364,22 @@ zero_call_used_regs
     .tag = .zero_call_used_regs
     .gnu = true
 
+pcs
+    .tag = .pcs
+    .gnu = true
+
+riscv_vector_cc
+    .tag = .riscv_vector_cc
+    .gnu = true
+
+aarch64_sve_pcs
+    .tag = .aarch64_sve_pcs
+    .gnu = true
+
+aarch64_vector_pcs
+    .tag = .aarch64_vector_pcs
+    .gnu = true
+
 # declspec only
 align
     .tag = .aligned
