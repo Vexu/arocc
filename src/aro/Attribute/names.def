@@ -380,6 +380,27 @@ aarch64_vector_pcs
     .tag = .aarch64_vector_pcs
     .gnu = true
 
+fastcall
+    .tag = .fastcall
+    .gnu = true
+
+stdcall
+    .tag = .stdcall
+    .gnu = true
+
+vectorcall
+    .tag = .vectorcall
+    .gnu = true
+
+cdecl
+    .tag = .cdecl
+    .gnu = true
+
+thiscall
+    .tag = .thiscall
+    .gnu = true
+
+
 # declspec only
 align
     .tag = .aligned
