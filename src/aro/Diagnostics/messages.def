@@ -2648,3 +2648,25 @@ empty_if_body_note
     .msg = "put the semicolon on a separate line to silence this warning"
     .kind = .note
     .opt = W("empty-body")
+
+nullability_extension
+    .msg = "type nullability specifier '{s}' is a Clang extension"
+    .extra = .str
+    .kind = .off
+    .opt = W("nullability-extension")
+
+duplicate_nullability
+    .msg = "duplicate nullability specifier '{s}'"
+    .extra = .str
+    .kind = .warning
+    .opt = W("nullability")
+
+conflicting_nullability
+    .msg = "nullaibility specifier '{s}' conflicts with existing specifier '{s}'"
+    .extra = .tok_id
+    .kind = .@"error"
+
+invalid_nullability
+    .msg = "nullability specifier cannot be applied to non-pointer type '{s}'"
+    .extra = .str
+    .kind = .@"error"

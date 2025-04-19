@@ -224,6 +224,8 @@ pub const Options = struct {
     @"atomic-access": Kind = .default,
     @"gnu-designator": Kind = .default,
     @"empty-body": Kind = .default,
+    @"nullability-extension": Kind = .default,
+    nullability: Kind = .default,
 };
 
 const Diagnostics = @This();

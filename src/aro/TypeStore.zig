@@ -2091,6 +2091,14 @@ pub const Builder = struct {
     @"volatile": ?TokenIndex = null,
     restrict: ?TokenIndex = null,
 
+    nullability: union(enum) {
+        none,
+        nonnull: TokenIndex,
+        nullable: TokenIndex,
+        nullable_result: TokenIndex,
+        null_unspecified: TokenIndex,
+    } = .none,
+
     complex_tok: ?TokenIndex = null,
     bit_int_tok: ?TokenIndex = null,
     typedef: bool = false,
@@ -2458,6 +2466,18 @@ pub const Builder = struct {
                     result_qt = try b.parser.comp.type_store.put(b.parser.gpa, .{ .atomic = result_qt });
                 },
             }
+        }
+
+        // if (b.nullability != .none) {
+        switch (b.nullability) {
+            .none => {},
+            .nonnull,
+            .nullable,
+            .nullable_result,
+            .null_unspecified,
+            => |tok| if (!qt.isPointer(b.parser.comp)) {
+                try b.parser.errStr(.invalid_nullability, tok, try b.parser.typeStr(qt));
+            },
         }
 
         if (b.@"const" != null) result_qt.@"const" = true;

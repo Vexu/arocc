@@ -292,6 +292,12 @@ pub const Token = struct {
         keyword_vectorcall,
         keyword_vectorcall2,
 
+        // Type nullability
+        keyword_nonnull,
+        keyword_nullable,
+        keyword_nullable_result,
+        keyword_null_unspecified,
+
         // builtins that require special parsing
         builtin_choose_expr,
         builtin_va_arg,
@@ -445,6 +451,10 @@ pub const Token = struct {
                 .keyword_thiscall2,
                 .keyword_vectorcall,
                 .keyword_vectorcall2,
+                .keyword_nonnull,
+                .keyword_nullable,
+                .keyword_nullable_result,
+                .keyword_null_unspecified,
                 .keyword_bit_int,
                 .keyword_c23_alignas,
                 .keyword_c23_alignof,
@@ -731,6 +741,10 @@ pub const Token = struct {
                 .keyword_thiscall2 => "_thiscall",
                 .keyword_vectorcall => "__vectorcall",
                 .keyword_vectorcall2 => "_vectorcall",
+                .keyword_nonnull => "_Nonnull",
+                .keyword_nullable => "_Nullable",
+                .keyword_nullable_result => "_Nullable_result",
+                .keyword_null_unspecified => "_Null_unspecified",
             };
         }
 
@@ -1014,6 +1028,12 @@ pub const Token = struct {
         .{ "_thiscall", .keyword_thiscall2 },
         .{ "__vectorcall", .keyword_vectorcall },
         .{ "_vectorcall", .keyword_vectorcall2 },
+
+        // Type nullability
+        .{ "_Nonnull", .keyword_nonnull },
+        .{ "_Nullable", .keyword_nullable },
+        .{ "_Nullable_result", .keyword_nullable_result },
+        .{ "_Null_unspecified", .keyword_null_unspecified },
 
         // builtins that require special parsing
         .{ "__builtin_choose_expr", .builtin_choose_expr },

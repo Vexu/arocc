@@ -3144,6 +3144,41 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder) Error!bool {
                 else
                     b.atomic = p.tok_i;
             },
+            .keyword_nonnull, .keyword_nullable, .keyword_nullable_result, .keyword_null_unspecified => |tok_id| {
+                const sym_str = p.tok_ids[p.tok_i].symbol();
+                try p.errStr(.nullability_extension, p.tok_i, sym_str);
+                const new: @FieldType(TypeStore.Builder, "nullability") = switch (tok_id) {
+                    .keyword_nonnull => .{ .nonnull = p.tok_i },
+                    .keyword_nullable => .{ .nullable = p.tok_i },
+                    .keyword_nullable_result => .{ .nullable_result = p.tok_i },
+                    .keyword_null_unspecified => .{ .null_unspecified = p.tok_i },
+                    else => unreachable,
+                };
+                if (std.meta.activeTag(b.nullability) == new) {
+                    try p.errStr(.duplicate_nullability, p.tok_i, sym_str);
+                } else switch (b.nullability) {
+                    .none => {
+                        b.nullability = new;
+                        try p.attr_buf.append(p.gpa, .{
+                            .attr = .{ .tag = .nullability, .args = .{
+                                .nullability = .{ .kind = switch (tok_id) {
+                                    .keyword_nonnull => .nonnull,
+                                    .keyword_nullable => .nullable,
+                                    .keyword_nullable_result => .nullable_result,
+                                    .keyword_null_unspecified => .unspecified,
+                                    else => unreachable,
+                                } },
+                            }, .syntax = .keyword },
+                            .tok = p.tok_i,
+                        });
+                    },
+                    .nonnull,
+                    .nullable,
+                    .nullable_result,
+                    .null_unspecified,
+                    => |prev| try p.errExtra(.conflicting_nullability, p.tok_i, .{ .tok_id = .{ .expected = p.tok_ids[p.tok_i], .actual = p.tok_ids[prev] } }),
+                }
+            },
             else => break,
         }
         p.tok_i += 1;
