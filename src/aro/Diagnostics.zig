@@ -227,6 +227,8 @@ pub const Options = struct {
     @"assign-to-const-var": Kind = .default,
     @"array-not-assignable": Kind = .default,
     @"non-object-not-assignable": Kind = .default,
+    @"nullability-extension": Kind = .default,
+    nullability: Kind = .default,
 };
 
 const Diagnostics = @This();

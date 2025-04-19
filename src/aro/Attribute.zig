@@ -700,6 +700,37 @@ const attributes = struct {
     pub const calling_convention = struct {
         cc: CallingConvention,
     };
+    pub const nullability = struct {
+        kind: enum {
+            nonnull,
+            nullable,
+            nullable_result,
+            unspecified,
+
+            const opts = struct {
+                const enum_kind = .identifier;
+            };
+        },
+    };
+    pub const unaligned = struct {};
+    pub const pcs = struct {
+        kind: enum {
+            aapcs,
+            @"aapcs-vfp",
+
+            const opts = struct {
+                const enum_kind = .string;
+            };
+        },
+    };
+    pub const riscv_vector_cc = struct {};
+    pub const aarch64_sve_pcs = struct {};
+    pub const aarch64_vector_pcs = struct {};
+    pub const fastcall = struct {};
+    pub const stdcall = struct {};
+    pub const vectorcall = struct {};
+    pub const cdecl = struct {};
+    pub const thiscall = struct {};
 };
 
 pub const Tag = std.meta.DeclEnum(attributes);
@@ -799,7 +830,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
         .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
-        .noinit, .retain, .persistent, .section, .mode, .asm_label,
+        .noinit, .retain, .persistent, .section, .mode, .asm_label, .nullability, .unaligned,
          => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .common => if (nocommon) {
@@ -856,7 +887,8 @@ pub fn applyFieldAttributes(p: *Parser, field_ty: *QualType, attr_buf_start: usi
     p.attr_application_buf.items.len = 0;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
-        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode, .warn_unused_result, .nodiscard,
+        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned,
+        .mode, .warn_unused_result, .nodiscard, .nullability, .unaligned,
         => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .vector_size => try attr.applyVectorSize(p, tok, field_ty),
@@ -873,7 +905,7 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, tag:
     var base_qt = qt;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
-        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode,
+        .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode, .nullability, .unaligned,
          => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .transparent_union => try attr.applyTransparentUnion(p, tok, base_qt),
@@ -908,7 +940,7 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .noreturn, .unused, .used, .warning, .deprecated, .unavailable, .weak, .pure, .leaf,
         .@"const", .warn_unused_result, .section, .returns_nonnull, .returns_twice, .@"error",
         .externally_visible, .retain, .flatten, .gnu_inline, .alias, .asm_label, .nodiscard,
-        .reproducible, .unsequenced, .nothrow,
+        .reproducible, .unsequenced, .nothrow, .nullability, .unaligned,
          => try p.attr_application_buf.append(p.gpa, attr),
         // zig fmt: on
         .hot => if (cold) {
@@ -938,8 +970,8 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .aligned => try attr.applyAligned(p, base_qt, null),
         .format => try attr.applyFormat(p, base_qt),
         .calling_convention => switch (attr.args.calling_convention.cc) {
-            .C => continue,
-            .stdcall, .thiscall => switch (p.comp.target.cpu.arch) {
+            .c => continue,
+            .stdcall, .thiscall, .fastcall, .regcall => switch (p.comp.target.cpu.arch) {
                 .x86 => try p.attr_application_buf.append(p.gpa, attr),
                 else => try p.errStr(.callconv_not_supported, tok, p.tok_ids[tok].lexeme().?),
             },
@@ -947,6 +979,88 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
                 .x86, .aarch64, .aarch64_be => try p.attr_application_buf.append(p.gpa, attr),
                 else => try p.errStr(.callconv_not_supported, tok, p.tok_ids[tok].lexeme().?),
             },
+            .riscv_vector,
+            .aarch64_sve_pcs,
+            .aarch64_vector_pcs,
+            .arm_aapcs,
+            .arm_aapcs_vfp,
+            => unreachable, // These can't come from keyword syntax
+        },
+        .fastcall => if (p.comp.target.cpu.arch == .x86) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .fastcall } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "fastcall");
+        },
+        .stdcall => if (p.comp.target.cpu.arch == .x86) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .stdcall } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "stdcall");
+        },
+        .thiscall => if (p.comp.target.cpu.arch == .x86) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .thiscall } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "thiscall");
+        },
+        .vectorcall => if (p.comp.target.cpu.arch == .x86 or p.comp.target.cpu.arch.isAARCH64()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .vectorcall } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "vectorcall");
+        },
+        .cdecl => {},
+        .pcs => if (p.comp.target.cpu.arch.isArm()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = switch (attr.args.pcs.kind) {
+                    .aapcs => .arm_aapcs,
+                    .@"aapcs-vfp" => .arm_aapcs_vfp,
+                } } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "pcs");
+        },
+        .riscv_vector_cc => if (p.comp.target.cpu.arch.isRISCV()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .riscv_vector } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "pcs");
+        },
+        .aarch64_sve_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .aarch64_sve_pcs } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "pcs");
+        },
+        .aarch64_vector_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .aarch64_vector_pcs } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.errStr(.callconv_not_supported, tok, "pcs");
         },
         .malloc => {
             if (base_qt.get(p.comp, .func).?.return_type.isPointer(p.comp)) {
