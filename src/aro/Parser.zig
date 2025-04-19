@@ -2211,10 +2211,12 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) !StringId {
         else => "record field",
     };
 
+    const anon_name_path = std.fs.path.basename(source.path);
+
     const str = std.fmt.allocPrint(
         p.comp.diagnostics.arena.allocator(), // TODO horrible
         "(anonymous {s} at {s}:{d}:{d})",
-        .{ kind_str, source.path, line_col.line_no, line_col.col },
+        .{ kind_str, anon_name_path, line_col.line_no, line_col.col },
     ) catch unreachable;
     return p.comp.internString(str);
 }
@@ -6823,7 +6825,21 @@ pub const Result = struct {
             }
         } else {
             if (c == .assign and (dest_unqual.is(p.comp, .array) or dest_unqual.is(p.comp, .func))) {
-                try p.errTok(.not_assignable, tok);
+                const type_name = blk: {
+                    const strings_top = p.strings.items.len;
+                    defer p.strings.items.len = strings_top;
+
+                    const writer = p.strings.writer();
+
+                    try dest_unqual.print(p.comp, writer);
+
+                    break :blk try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+                };
+                try p.errExtra(switch (dest_unqual.type(p.comp)) {
+                    .array => .array_not_assignable,
+                    .func => .non_object_not_assignable,
+                    else => unreachable,
+                }, tok, .{ .str = type_name });
                 return;
             } else if (c == .test_coerce) {
                 return error.CoercionFailed;
@@ -6923,6 +6939,20 @@ fn nonAssignExpr(assign_node: std.meta.Tag(Node)) std.meta.Tag(Node) {
     };
 }
 
+fn assignToConstVarStr(p: *Parser, var_name: []const u8, qt: QualType) ![]const u8 {
+    const strings_top = p.strings.items.len;
+    defer p.strings.items.len = strings_top;
+
+    const writer = p.strings.writer();
+
+    try writer.writeAll(var_name);
+    try writer.writeAll("' with const-qualified type '");
+    try qt.print(p.comp, writer);
+    try writer.writeByte('\'');
+
+    return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
+}
+
 /// assignExpr
 ///  : condExpr
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
@@ -6946,7 +6976,30 @@ fn assignExpr(p: *Parser) Error!?Result {
 
     var is_const: bool = undefined;
     if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
-        try p.errTok(.not_assignable, tok);
+        if (p.getNode(lhs.node, .decl_ref_expr)) |decl_ref| {
+            const var_name = p.tokSlice(decl_ref.name_tok);
+            const decl_tok = p.getNode(decl_ref.decl, .variable).?.name_tok;
+            try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(var_name, decl_ref.qt));
+            try p.errExtra(.declared_const_here, decl_tok, .{ .str = var_name });
+        } else if (p.getNode(lhs.node, .array_access_expr)) |array_access| {
+            if (p.getNode(array_access.base, .cast)) |arr_cast| {
+                if (p.getNode(arr_cast.operand, .decl_ref_expr)) |arr_cast_delc_ref| {
+                    const arr_ref_var_name = p.tokSlice(arr_cast_delc_ref.name_tok);
+                    const arr_ref_decl = p.getNode(arr_cast_delc_ref.decl, .variable).?.name_tok;
+                    try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(arr_ref_var_name, arr_cast_delc_ref.qt));
+                    try p.errExtra(.declared_const_here, arr_ref_decl, .{ .str = arr_ref_var_name });
+                }
+            }
+        } else if (p.getNode(lhs.node, .member_access_ptr_expr)) |member_access| {
+            if (p.getNode(member_access.base, .decl_ref_expr)) |memb_acc_decl_ref| {
+                const struct_name = p.tokSlice(memb_acc_decl_ref.name_tok);
+                const struct_decl = p.getNode(memb_acc_decl_ref.decl, .variable).?.name_tok;
+                try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(struct_name, memb_acc_decl_ref.qt));
+                try p.errExtra(.declared_const_here, struct_decl, .{ .str = struct_name });
+            }
+        } else {
+            try p.errTok(.not_assignable, tok);
+        }
         lhs.qt = .invalid;
     }
 

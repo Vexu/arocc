@@ -224,6 +224,9 @@ pub const Options = struct {
     @"atomic-access": Kind = .default,
     @"gnu-designator": Kind = .default,
     @"empty-body": Kind = .default,
+    @"assign-to-const-var": Kind = .default,
+    @"array-not-assignable": Kind = .default,
+    @"non-object-not-assignable": Kind = .default,
     @"nullability-extension": Kind = .default,
     nullability: Kind = .default,
 };
