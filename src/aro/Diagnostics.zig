@@ -335,6 +335,7 @@ pub fn add(d: *Diagnostics, msg: Message) Compilation.Error!void {
     copy.kind = d.effectiveKind(msg);
     if (copy.kind == .off) return;
     try d.addMessage(copy);
+    if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
 pub fn addWithLocation(
@@ -397,91 +398,6 @@ pub fn addWithLocation(
     if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
-fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
-    switch (msg.kind) {
-        .off => unreachable,
-        .@"error", .@"fatal error" => d.errors += 1,
-        .warning => d.warnings += 1,
-        .note => {},
-    }
-    d.total += 1;
-
-    switch (d.output) {
-        .to_file => |to_file| {
-            _ = to_file;
-
-            //     var line: ?[]const u8 = null;
-            //     var end_with_splice = false;
-            //     const width = if (msg.loc.id != .unused) blk: {
-            //         var loc = msg.loc;
-            //         switch (msg.tag) {
-            //             .escape_sequence_overflow,
-            //             .invalid_universal_character,
-            //             => loc.byte_offset += @truncate(msg.extra.offset),
-            //             .non_standard_escape_char,
-            //             .unknown_escape_sequence,
-            //             => loc.byte_offset += msg.extra.invalid_escape.offset,
-            //             else => {},
-            //         }
-            //         const source = comp.getSource(loc.id);
-            //         var line_col = source.lineCol(loc);
-            //         line = line_col.line;
-            //         end_with_splice = line_col.end_with_splice;
-            //         if (msg.tag == .backslash_newline_escape) {
-            //             line = line_col.line[0 .. line_col.col - 1];
-            //             line_col.col += 1;
-            //             line_col.width += 1;
-            //         }
-            //         m.location(source.path, line_col.line_no, line_col.col);
-            //         break :blk line_col.width;
-            //     } else 0;
-
-            //     if (prop.opt) |some| {
-            //         if (msg.kind == .@"error" and prop.kind != .@"error") {
-            //             m.print(" [-Werror,-W{s}]", .{@tagName(some)});
-            //         } else if (msg.kind != .note) {
-            //             m.print(" [-W{s}]", .{@tagName(some)});
-            //         }
-            //     } else if (prop.extension) {
-            //         if (msg.kind == .@"error") {
-            //             m.write(" [-Werror,-Wpedantic]");
-            //         } else {
-            //             m.write(" [-Wpedantic]");
-            //         }
-            //     }
-
-            //     fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32, end_with_splice: bool) void {
-            //         const line = maybe_line orelse {
-            //             m.write("\n");
-            //             m.setColor(.reset);
-            //             return;
-            //         };
-            //         const trailer = if (end_with_splice) "\\ " else "";
-            //         m.setColor(.reset);
-            //         m.print("\n{s}{s}\n{s: >[3]}", .{ line, trailer, "", col });
-            //         m.setColor(.bold);
-            //         m.setColor(.bright_green);
-            //         m.write("^\n");
-            //         m.setColor(.reset);
-        },
-        .to_list => |*to_list| {
-            const arena = to_list.arena.allocator();
-            try to_list.messages.append(to_list.arena.child_allocator, .{
-                .kind = msg.kind,
-                .text = try arena.dupe(u8, msg.text),
-                .location = if (msg.location) |some| .{
-                    .path = try arena.dupe(u8, some.path),
-                    .line = try arena.dupe(u8, some.line),
-                    .col = some.col,
-                    .line_no = some.line_no,
-                    .width = some.width,
-                    .end_with_splice = some.end_with_splice,
-                } else null,
-            });
-        },
-    }
-}
-
 pub fn formatArgs(w: anytype, fmt: []const u8, args: anytype) !void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
@@ -510,4 +426,77 @@ pub fn formatInt(w: anytype, fmt: []const u8, int: anytype) !usize {
     try w.writeAll(fmt[0..i]);
     try std.fmt.formatInt(int, 10, .lower, .{}, w);
     return i;
+}
+
+fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
+    switch (msg.kind) {
+        .off => unreachable,
+        .@"error", .@"fatal error" => d.errors += 1,
+        .warning => d.warnings += 1,
+        .note => {},
+    }
+    d.total += 1;
+
+    switch (d.output) {
+        .to_file => |to_file| {
+            d.writeToFile(msg, to_file.file, to_file.config) catch {
+                return error.FatalError;
+            };
+        },
+        .to_list => |*to_list| {
+            const arena = to_list.arena.allocator();
+            try to_list.messages.append(to_list.arena.child_allocator, .{
+                .kind = msg.kind,
+                .text = try arena.dupe(u8, msg.text),
+                .opt = msg.opt,
+                .extension = msg.extension,
+                .location = msg.location,
+            });
+        },
+    }
+}
+
+fn writeToFile(d: *Diagnostics, msg: Message, file: std.fs.File, config: std.io.tty.Config) !void {
+    const w = file.writer();
+
+    try config.setColor(w, .bold);
+    if (msg.location) |loc| {
+        try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
+    }
+    switch (msg.kind) {
+        .@"fatal error", .@"error" => try config.setColor(w, .bright_red),
+        .note => try config.setColor(w, .bright_cyan),
+        .warning => try config.setColor(w, .bright_magenta),
+        .off => unreachable,
+    }
+    try w.print("{s}: ", .{@tagName(msg.kind)});
+
+    try config.setColor(w, .white);
+    try w.writeAll(msg.text);
+    if (msg.opt) |some| {
+        if (msg.kind == .@"error" and d.state.options.get(some) == .@"error") {
+            try w.print(" [-Werror,-W{s}]", .{@tagName(some)});
+        } else if (msg.kind != .note) {
+            try w.print(" [-W{s}]", .{@tagName(some)});
+        }
+    } else if (msg.extension) {
+        if (msg.kind == .@"error") {
+            try w.writeAll(" [-Werror,-Wpedantic]");
+        } else {
+            try w.writeAll(" [-Wpedantic]");
+        }
+    }
+
+    if (msg.location) |loc| {
+        const trailer = if (loc.end_with_splice) "\\ " else "";
+        try config.setColor(w, .reset);
+        try w.print("\n{s}{s}\n{s: >[3]}", .{ loc.line, trailer, "", loc.col });
+        try config.setColor(w, .bold);
+        try config.setColor(w, .bright_green);
+        try w.writeAll("^\n");
+        try config.setColor(w, .reset);
+    } else {
+        try w.writeAll("\n");
+        try config.setColor(w, .reset);
+    }
 }

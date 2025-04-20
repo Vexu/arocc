@@ -796,7 +796,7 @@ fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) !
 
     try Diagnostics.formatArgs(buf.writer(), diagnostic.fmt, args);
     try pp.diagnostics.addWithLocation(pp.comp, .{
-        .kind = .@"fatal error",
+        .kind = diagnostic.kind,
         .text = buf.items,
         .opt = diagnostic.opt,
         .extension = diagnostic.extension,
@@ -816,7 +816,6 @@ fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) !
         Source.Location => &.{},
         else => @compileError("invalid token type"),
     }, true);
-    unreachable;
 }
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
