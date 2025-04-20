@@ -96,7 +96,7 @@ pub const Environment = struct {
 const Compilation = @This();
 
 gpa: Allocator,
-diagnostics: Diagnostics,
+diagnostics: *Diagnostics,
 
 code_gen_options: CodeGenOptions = .default,
 environment: Environment = .{},
@@ -116,21 +116,21 @@ type_store: TypeStore = .{},
 ms_cwd_source_id: ?Source.Id = null,
 cwd: std.fs.Dir,
 
-pub fn init(gpa: Allocator, cwd: std.fs.Dir) Compilation {
+pub fn init(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) Compilation {
     return .{
         .gpa = gpa,
-        .diagnostics = Diagnostics.init(gpa),
+        .diagnostic = diagnostics,
         .cwd = cwd,
     };
 }
 
 /// Initialize Compilation with default environment,
 /// pragma handlers and emulation mode set to target.
-pub fn initDefault(gpa: Allocator, cwd: std.fs.Dir) !Compilation {
+pub fn initDefault(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) !Compilation {
     var comp: Compilation = .{
         .gpa = gpa,
+        .diagnostics = diagnostics,
         .environment = try Environment.loadAll(gpa),
-        .diagnostics = Diagnostics.init(gpa),
         .cwd = cwd,
     };
     errdefer comp.deinit();
@@ -532,9 +532,9 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
 
 /// Generate builtin macros trying to use mtime as timestamp
 pub fn generateBuiltinMacrosFromPath(comp: *Compilation, system_defines_mode: SystemDefinesMode, path: []const u8) !Source {
-    const stat = comp.cwd.statFile(path) catch return try generateBuiltinMacros(comp, system_defines_mode, null);
+    const stat = comp.cwd.statFile(path) catch return try comp.generateBuiltinMacros(system_defines_mode, null);
     const timestamp: i64 = @intCast(@divTrunc(stat.mtime, std.time.ns_per_s));
-    return try generateBuiltinMacros(comp, system_defines_mode, @intCast(std.math.clamp(timestamp, 0, max_timestamp)));
+    return try comp.generateBuiltinMacros(system_defines_mode, @intCast(std.math.clamp(timestamp, 0, max_timestamp)));
 }
 
 /// Generate builtin macros that will be available to each source file.
@@ -575,10 +575,8 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
     }
 
     const provided: ?u47 = comp.getSourceEpoch(max_timestamp) catch blk: {
-        try comp.addDiagnostic(.{
-            .tag = .invalid_source_epoch,
-            .loc = .{ .id = .unused, .byte_offset = 0, .line = 0 },
-        }, &.{});
+        const diagnostic: Diagnostic = .invalid_source_epoch;
+        try comp.diagnostics.add(.{ .text = diagnostic.fmt, .kind = diagnostic.kind, .opt = diagnostic.opt, .location = null });
         break :blk null;
     };
     if (provided) |epoch| {
@@ -1022,10 +1020,13 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                         i = backslash_loc;
                         try splice_list.append(i);
                         if (state == .trailing_ws) {
-                            try comp.addDiagnostic(.{
-                                .tag = .backslash_newline_escape,
-                                .loc = .{ .id = source_id, .byte_offset = i, .line = line },
-                            }, &.{});
+                            const diagnostic: Diagnostic = .backslash_newline_escape;
+                            try comp.diagnostics.add(.{
+                                .text = diagnostic.fmt,
+                                .kind = diagnostic.kind,
+                                .opt = diagnostic.opt,
+                                .location = (Source.Location{ .id = source_id, .byte_offset = i, .line = line }).expand(comp),
+                            });
                         }
                         state = if (state == .back_slash_cr) .cr else .back_slash_cr;
                     },
@@ -1046,10 +1047,13 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                             try splice_list.append(i);
                         }
                         if (state == .trailing_ws) {
-                            try comp.addDiagnostic(.{
-                                .tag = .backslash_newline_escape,
-                                .loc = .{ .id = source_id, .byte_offset = i, .line = line },
-                            }, &.{});
+                            const diagnostic: Diagnostic = .backslash_newline_escape;
+                            try comp.diagnostics.add(.{
+                                .text = diagnostic.fmt,
+                                .kind = diagnostic.kind,
+                                .opt = diagnostic.opt,
+                                .location = (Source.Location{ .id = source_id, .byte_offset = i, .line = line }).expand(comp),
+                            });
                         }
                     },
                     .bom1, .bom2 => break,
@@ -1359,15 +1363,17 @@ pub fn findInclude(
         defer sf_allocator.free(found.path);
         if (comp.addSourceFromPathExtra(found.path, found.kind)) |some| {
             if (it.tried_ms_cwd) {
-                try comp.addDiagnostic(.{
-                    .tag = .ms_search_rule,
-                    .extra = .{ .str = some.path },
-                    .loc = .{
+                const diagnostic: Diagnostic = .ms_search_rule;
+                try comp.diagnostics.add(.{
+                    .text = diagnostic.fmt,
+                    .kind = diagnostic.kind,
+                    .opt = diagnostic.opt,
+                    .location = (Source.Location{
                         .id = includer_token.source,
                         .byte_offset = includer_token.start,
                         .line = includer_token.line,
-                    },
-                }, &.{});
+                    }).expand(comp),
+                });
             }
             return some;
         } else |err| switch (err) {
@@ -1472,7 +1478,34 @@ pub const CharUnitSize = enum(u32) {
     }
 };
 
-pub const addDiagnostic = Diagnostics.add;
+pub const Diagnostic = struct {
+    fmt: []const u8,
+    kind: Diagnostics.Message.Kind,
+    opt: ?Diagnostics.Option = null,
+
+    pub const invalid_source_epoch: Diagnostic = .{
+        .fmt = "environment variable SOURCE_DATE_EPOCH must expand to a non-negative integer less than or equal to 253402300799",
+        .kind = .@"error",
+    };
+
+    pub const backslash_newline_escape: Diagnostic = .{
+        .fmt = "backslash and newline separated by space",
+        .kind = .warning,
+        .opt = .@"backslash-newline-escape",
+    };
+
+    pub const ms_search_rule: Diagnostic = .{
+        .fmt = "#include resolved using non-portable Microsoft search rules as: {s}",
+        .kind = .warning,
+        .opt = .@"microsoft-include",
+    };
+
+    pub const ctrl_z_eof: Diagnostic = .{
+        .fmt = "treating Ctrl-Z as end-of-file is a Microsoft extension",
+        .kind = .off,
+        .opt = .@"microsoft-end-of-file",
+    };
+};
 
 test "addSourceFromReader" {
     const Test = struct {
@@ -1484,7 +1517,7 @@ test "addSourceFromReader" {
             const source = try comp.addSourceFromReader(buf_reader.reader(), "path", .user);
 
             try std.testing.expectEqualStrings(expected, source.buf);
-            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diagnostics.list.items.len)));
+            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diagnostics.warnings)));
             try std.testing.expectEqualSlices(u32, splices, source.splice_locs);
         }
 

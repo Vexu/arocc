@@ -111,7 +111,9 @@ const TokenState = struct {
 };
 
 comp: *Compilation,
+diagnostics: *Diagnostics,
 gpa: mem.Allocator,
+
 arena: std.heap.ArenaAllocator,
 defines: DefineMap = .{},
 /// Do not directly mutate this; use addToken / addTokenAssumeCapacity / ensureTotalTokenCapacity / ensureUnusedTokenCapacity
@@ -163,6 +165,7 @@ pub const Linemarkers = enum {
 pub fn init(comp: *Compilation) Preprocessor {
     const pp = Preprocessor{
         .comp = comp,
+        .diagnostics = comp.diagnostics,
         .gpa = comp.gpa,
         .arena = std.heap.ArenaAllocator.init(comp.gpa),
         .token_buf = RawTokenList.init(comp.gpa),
@@ -383,7 +386,7 @@ pub fn addIncludeResume(pp: *Preprocessor, source: Source.Id, offset: u32, line:
     } });
 }
 
-fn invalidTokenDiagnostic(tok_id: Token.Id) Diagnostics.Tag {
+fn invalidTokenDiagnostic(tok_id: Token.Id) Diagnostic {
     return switch (tok_id) {
         .unterminated_string_literal => .unterminated_string_literal_warning,
         .empty_char_literal => .empty_char_literal_warning,
@@ -431,6 +434,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
         switch (tok.id) {
             .hash => if (!start_of_line) try pp.addToken(tokFromRaw(tok)) else {
                 const directive = tokenizer.nextNoWS();
+                const directive_loc: Source.Location = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line };
                 switch (directive.id) {
                     .keyword_error, .keyword_warning => {
                         // #error tokens..
@@ -446,13 +450,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }
                         try pp.stringify(pp.top_expansion_buf.items);
                         const slice = pp.char_buf.items[char_top + 1 .. pp.char_buf.items.len - 2];
-                        const duped = try pp.comp.diagnostics.arena.allocator().dupe(u8, slice);
 
-                        try pp.comp.addDiagnostic(.{
-                            .tag = if (directive.id == .keyword_error) .error_directive else .warning_directive,
-                            .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
-                            .extra = .{ .str = duped },
-                        }, &.{});
+                        try pp.err(
+                            directive_loc,
+                            if (directive.id == .keyword_error) .error_directive else .warning_directive,
+                            .{slice},
+                        );
                     },
                     .keyword_if => {
                         const overflowed = if_context.increment();
@@ -508,7 +511,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                     },
                     .keyword_elif => {
                         if (if_context.level == 0) {
-                            try pp.err(directive, .elif_without_if);
+                            try pp.err(directive, .elif_without_if, .{});
                             _ = if_context.increment();
                             if_context.set(.until_else);
                         } else if (if_context.level == 1) {
@@ -528,14 +531,14 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             },
                             .until_endif => try pp.skip(&tokenizer, .until_endif),
                             .until_endif_seen_else => {
-                                try pp.err(directive, .elif_after_else);
+                                try pp.err(directive, .elif_after_else, .{});
                                 skipToNl(&tokenizer);
                             },
                         }
                     },
                     .keyword_elifdef => {
                         if (if_context.level == 0) {
-                            try pp.err(directive, .elifdef_without_if);
+                            try pp.err(directive, .elifdef_without_if, .{});
                             _ = if_context.increment();
                             if_context.set(.until_else);
                         } else if (if_context.level == 1) {
@@ -568,14 +571,14 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             },
                             .until_endif => try pp.skip(&tokenizer, .until_endif),
                             .until_endif_seen_else => {
-                                try pp.err(directive, .elifdef_after_else);
+                                try pp.err(directive, .elifdef_after_else, .{});
                                 skipToNl(&tokenizer);
                             },
                         }
                     },
                     .keyword_elifndef => {
                         if (if_context.level == 0) {
-                            try pp.err(directive, .elifdef_without_if);
+                            try pp.err(directive, .elifndef_without_if, .{});
                             _ = if_context.increment();
                             if_context.set(.until_else);
                         } else if (if_context.level == 1) {
@@ -608,7 +611,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             },
                             .until_endif => try pp.skip(&tokenizer, .until_endif),
                             .until_endif_seen_else => {
-                                try pp.err(directive, .elifdef_after_else);
+                                try pp.err(directive, .elifdef_after_else, .{});
                                 skipToNl(&tokenizer);
                             },
                         }
@@ -616,7 +619,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                     .keyword_else => {
                         try pp.expectNl(&tokenizer);
                         if (if_context.level == 0) {
-                            try pp.err(directive, .else_without_if);
+                            try pp.err(directive, .else_without_if, .{});
                             continue;
                         } else if (if_context.level == 1) {
                             guard_name = null;
@@ -630,7 +633,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             },
                             .until_endif => try pp.skip(&tokenizer, .until_endif_seen_else),
                             .until_endif_seen_else => {
-                                try pp.err(directive, .else_after_else);
+                                try pp.err(directive, .else_after_else, .{});
                                 skipToNl(&tokenizer);
                             },
                         }
@@ -639,7 +642,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         try pp.expectNl(&tokenizer);
                         if (if_context.level == 0) {
                             guard_name = null;
-                            try pp.err(directive, .endif_without_if);
+                            try pp.err(directive, .endif_without_if, .{});
                             continue;
                         } else if (if_context.level == 1) {
                             const saved_tokenizer = tokenizer;
@@ -666,15 +669,10 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         continue;
                     },
                     .keyword_include_next => {
-                        try pp.comp.addDiagnostic(.{
-                            .tag = .include_next,
-                            .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
-                        }, &.{});
+                        try pp.err(directive_loc, .include_next, .{});
+
                         if (pp.include_depth == 0) {
-                            try pp.comp.addDiagnostic(.{
-                                .tag = .include_next_outside_header,
-                                .loc = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line },
-                            }, &.{});
+                            try pp.err(directive_loc, .include_next_outside_header, .{});
                             try pp.include(&tokenizer, .first);
                         } else {
                             try pp.include(&tokenizer, .next);
@@ -688,13 +686,13 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                     .keyword_line => {
                         // #line number "file"
                         const digits = tokenizer.nextNoWS();
-                        if (digits.id != .pp_num) try pp.err(digits, .line_simple_digit);
+                        if (digits.id != .pp_num) try pp.err(digits, .line_simple_digit, .{});
                         // TODO: validate that the pp_num token is solely digits
 
                         if (digits.id == .eof or digits.id == .nl) continue;
                         const name = tokenizer.nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
-                        if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
+                        if (name.id != .string_literal) try pp.err(name, .line_invalid_filename, .{});
                         try pp.expectNl(&tokenizer);
                     },
                     .pp_num => {
@@ -703,7 +701,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         // if not, emit `GNU line marker directive requires a simple digit sequence`
                         const name = tokenizer.nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
-                        if (name.id != .string_literal) try pp.err(name, .line_invalid_filename);
+                        if (name.id != .string_literal) try pp.err(name, .line_invalid_filename, .{});
 
                         const flag_1 = tokenizer.nextNoWS();
                         if (flag_1.id == .eof or flag_1.id == .nl) continue;
@@ -717,11 +715,11 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                     },
                     .nl => {},
                     .eof => {
-                        if (if_context.level != 0) try pp.err(tok, .unterminated_conditional_directive);
+                        if (if_context.level != 0) try pp.err(tok, .unterminated_conditional_directive, .{});
                         return tokFromRaw(directive);
                     },
                     else => {
-                        try pp.err(tok, .invalid_preprocessing_directive);
+                        try pp.err(tok, .invalid_preprocessing_directive, .{});
                         skipToNl(&tokenizer);
                     },
                 }
@@ -736,11 +734,11 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                 if (pp.preserve_whitespace) try pp.addToken(tokFromRaw(tok));
             },
             .eof => {
-                if (if_context.level != 0) try pp.err(tok, .unterminated_conditional_directive);
+                if (if_context.level != 0) try pp.err(tok, .unterminated_conditional_directive, .{});
                 // The following check needs to occur here and not at the top of the function
                 // because a pragma may change the level during preprocessing
                 if (source.buf.len > 0 and source.buf[source.buf.len - 1] != '\n') {
-                    try pp.err(tok, .newline_eof);
+                    try pp.err(tok, .newline_eof, .{});
                 }
                 if (guard_name) |name| {
                     if (try pp.include_guards.fetchPut(pp.gpa, source.id, name)) |prev| {
@@ -751,13 +749,13 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
             },
             .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
                 start_of_line = false;
-                try pp.err(tok, invalidTokenDiagnostic(tag));
+                try pp.err(tok, invalidTokenDiagnostic(tag), .{});
                 try pp.expandMacro(&tokenizer, tok);
             },
-            .unterminated_comment => try pp.err(tok, .unterminated_comment),
+            .unterminated_comment => try pp.err(tok, .unterminated_comment, .{}),
             else => {
                 if (tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSlice(tok)) != null) {
-                    try pp.err(tok, .poisoned_identifier);
+                    try pp.err(tok, .poisoned_identifier, .{});
                 }
                 // Add the token to the buffer doing any necessary expansions.
                 start_of_line = false;
@@ -787,48 +785,74 @@ fn tokFromRaw(raw: RawToken) TokenWithExpansionLocs {
     };
 }
 
-fn err(pp: *Preprocessor, raw: RawToken, tag: Diagnostics.Tag) !void {
-    try pp.comp.addDiagnostic(.{
-        .tag = tag,
-        .loc = .{
-            .id = raw.source,
-            .byte_offset = raw.start,
-            .line = raw.line,
-        },
-    }, &.{});
-}
+pub const Diagnostic = @import("Preprocessor/Diagnostic.zig");
 
-fn errStr(pp: *Preprocessor, tok: TokenWithExpansionLocs, tag: Diagnostics.Tag, str: []const u8) !void {
-    try pp.comp.addDiagnostic(.{
-        .tag = tag,
-        .loc = tok.loc,
-        .extra = .{ .str = str },
-    }, tok.expansionSlice());
+fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) !void {
+    if (pp.diagnostics.effectiveKind(diagnostic) == .off) return;
+
+    var sf = std.heap.stackFallback(1024, pp.gpa);
+    var buf = std.ArrayList(u8).init(sf.get());
+    defer buf.deinit();
+
+    try Diagnostics.formatArgs(buf.writer(), diagnostic.fmt, args);
+    try pp.diagnostics.addWithLocation(pp.comp, .{
+        .kind = .@"fatal error",
+        .text = buf.items,
+        .opt = diagnostic.opt,
+        .extension = diagnostic.extension,
+        .location = switch (@TypeOf(loc)) {
+            RawToken => (Source.Location{
+                .id = loc.source,
+                .byte_offset = loc.start,
+                .line = loc.line,
+            }).expand(pp.comp),
+            TokenWithExpansionLocs, *TokenWithExpansionLocs => loc.loc.expand(pp.comp),
+            Source.Location => loc.expand(pp.comp),
+            else => @compileError("invalid token type " ++ @typeName(@TypeOf(loc))),
+        },
+    }, switch (@TypeOf(loc)) {
+        RawToken => &.{},
+        TokenWithExpansionLocs, *TokenWithExpansionLocs => loc.expansionSlice(),
+        Source.Location => &.{},
+        else => @compileError("invalid token type"),
+    }, true);
+    unreachable;
 }
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
-    try pp.comp.diagnostics.list.append(pp.gpa, .{
-        .tag = .cli_error,
+    var sf = std.heap.stackFallback(1024, pp.gpa);
+    var buf = std.ArrayList(u8).init(sf.get());
+    defer buf.deinit();
+
+    try Diagnostics.formatArgs(buf.writer(), fmt, args);
+    try pp.diagnostics.add(.{
         .kind = .@"fatal error",
-        .extra = .{ .str = try std.fmt.allocPrint(pp.comp.diagnostics.arena.allocator(), fmt, args) },
-        .loc = .{
+        .text = buf.items,
+        .location = (Source.Location{
             .id = raw.source,
             .byte_offset = raw.start,
             .line = raw.line,
-        },
+        }).expand(pp.comp),
     });
-    return error.FatalError;
+    unreachable;
 }
 
 fn fatalNotFound(pp: *Preprocessor, tok: TokenWithExpansionLocs, filename: []const u8) Compilation.Error {
-    const old = pp.comp.diagnostics.state.fatal_errors;
-    pp.comp.diagnostics.state.fatal_errors = true;
-    defer pp.comp.diagnostics.state.fatal_errors = old;
+    const old = pp.diagnostics.state.fatal_errors;
+    pp.diagnostics.state.fatal_errors = true;
+    defer pp.diagnostics.state.fatal_errors = old;
 
-    try pp.comp.diagnostics.addExtra(pp.comp.langopts, .{ .tag = .cli_error, .loc = tok.loc, .extra = .{
-        .str = try std.fmt.allocPrint(pp.comp.diagnostics.arena.allocator(), "'{s}' not found", .{filename}),
-    } }, tok.expansionSlice(), false);
-    unreachable; // addExtra should've returned FatalError
+    var sf = std.heap.stackFallback(1024, pp.gpa);
+    var buf = std.ArrayList(u8).init(sf.get());
+    defer buf.deinit();
+
+    try Diagnostics.formatArgs(buf.writer(), "'{s}' not found", .{filename});
+    try pp.diagnostics.addWithLocation(pp.comp, .{
+        .kind = .@"fatal error",
+        .text = buf.items,
+        .location = tok.loc.expand(pp.comp),
+    }, tok.expansionSlice(), true);
+    unreachable; // should've returned FatalError
 }
 
 fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) void {
@@ -850,7 +874,7 @@ fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: 
 fn expectMacroName(pp: *Preprocessor, tokenizer: *Tokenizer) Error!?[]const u8 {
     const macro_name = tokenizer.nextNoWS();
     if (!macro_name.id.isMacroIdentifier()) {
-        try pp.err(macro_name, .macro_name_missing);
+        try pp.err(macro_name, .macro_name_missing, .{});
         skipToNl(tokenizer);
         return null;
     }
@@ -866,7 +890,7 @@ fn expectNl(pp: *Preprocessor, tokenizer: *Tokenizer) Error!void {
         if (tok.id == .whitespace or tok.id == .comment) continue;
         if (!sent_err) {
             sent_err = true;
-            try pp.err(tok, .extra_tokens_directive_end);
+            try pp.err(tok, .extra_tokens_directive_end, .{});
         }
     }
 }
@@ -909,15 +933,12 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     for (pp.top_expansion_buf.items) |tok| {
         if (tok.id == .macro_ws) continue;
         if (!tok.id.validPreprocessorExprStart()) {
-            try pp.comp.addDiagnostic(.{
-                .tag = .invalid_preproc_expr_start,
-                .loc = tok.loc,
-            }, tok.expansionSlice());
+            try pp.err(tok, .invalid_preproc_expr_start, .{});
             return false;
         }
         break;
     } else {
-        try pp.err(eof, .expected_value_in_expr);
+        try pp.err(eof, .expected_value_in_expr, .{});
         return false;
     }
 
@@ -934,10 +955,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .string_literal_utf_32,
             .string_literal_wide,
             => {
-                try pp.comp.addDiagnostic(.{
-                    .tag = .string_literal_in_pp_expr,
-                    .loc = tok.loc,
-                }, tok.expansionSlice());
+                try pp.err(tok, .string_literal_in_pp_expr, .{});
                 return false;
             },
             .plus_plus,
@@ -964,10 +982,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .arrow,
             .period,
             => {
-                try pp.comp.addDiagnostic(.{
-                    .tag = .invalid_preproc_operator,
-                    .loc = tok.loc,
-                }, tok.expansionSlice());
+                try pp.err(tok, .invalid_preproc_operator, .{});
                 return false;
             },
             .macro_ws, .whitespace => continue,
@@ -978,12 +993,12 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                     const tokens_consumed = try pp.handleKeywordDefined(&tok, items[i + 1 ..], eof);
                     i += tokens_consumed;
                 } else {
-                    try pp.errStr(tok, .undefined_macro, pp.expandedSlice(tok));
+                    try pp.err(tok, .undefined_macro, .{pp.expandedSlice(tok)});
 
                     if (i + 1 < pp.top_expansion_buf.items.len and
                         pp.top_expansion_buf.items[i + 1].id == .l_paren)
                     {
-                        try pp.errStr(tok, .fn_macro_undefined, pp.expandedSlice(tok));
+                        try pp.err(tok, .fn_macro_undefined, .{pp.expandedSlice(tok)});
                         return false;
                     }
 
@@ -1002,6 +1017,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     var parser: Parser = .{
         .pp = pp,
         .comp = pp.comp,
+        .diagnostics = pp.diagnostics,
         .gpa = pp.gpa,
         .tok_ids = pp.tokens.items(.id),
         .tok_i = @intCast(token_state.tokens_len),
@@ -1028,28 +1044,25 @@ fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *TokenWithExpansionLocs, t
     std.debug.assert(macro_tok.id == .keyword_defined);
     var it = TokenIterator.init(tokens);
     const first = it.nextNoWS() orelse {
-        try pp.err(eof, .macro_name_missing);
+        try pp.err(eof, .macro_name_missing, .{});
         return it.i;
     };
     switch (first.id) {
         .l_paren => {},
         else => {
             if (!first.id.isMacroIdentifier()) {
-                try pp.errStr(first, .macro_name_must_be_identifier, pp.expandedSlice(first));
+                try pp.err(first, .macro_name_must_be_identifier, .{});
             }
             macro_tok.id = if (pp.defines.contains(pp.expandedSlice(first))) .one else .zero;
             return it.i;
         },
     }
     const second = it.nextNoWS() orelse {
-        try pp.err(eof, .macro_name_missing);
+        try pp.err(eof, .macro_name_missing, .{});
         return it.i;
     };
     if (!second.id.isMacroIdentifier()) {
-        try pp.comp.addDiagnostic(.{
-            .tag = .macro_name_must_be_identifier,
-            .loc = second.loc,
-        }, second.expansionSlice());
+        try pp.err(second, .macro_name_must_be_identifier, .{});
         return it.i;
     }
     macro_tok.id = if (pp.defines.contains(pp.expandedSlice(second))) .one else .zero;
@@ -1057,14 +1070,8 @@ fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *TokenWithExpansionLocs, t
     const last = it.nextNoWS();
     if (last == null or last.?.id != .r_paren) {
         const tok = last orelse tokFromRaw(eof);
-        try pp.comp.addDiagnostic(.{
-            .tag = .closing_paren,
-            .loc = tok.loc,
-        }, tok.expansionSlice());
-        try pp.comp.addDiagnostic(.{
-            .tag = .to_match_paren,
-            .loc = first.loc,
-        }, first.expansionSlice());
+        try pp.err(tok, .closing_paren, .{});
+        try pp.err(first, .to_match_paren, .{});
     }
 
     return it.i;
@@ -1091,7 +1098,7 @@ fn skip(
                 .keyword_else => {
                     if (ifs_seen != 0) continue;
                     if (cont == .until_endif_seen_else) {
-                        try pp.err(directive, .else_after_else);
+                        try pp.err(directive, .else_after_else, .{});
                         continue;
                     }
                     tokenizer.* = saved_tokenizer;
@@ -1100,7 +1107,7 @@ fn skip(
                 .keyword_elif => {
                     if (ifs_seen != 0 or cont == .until_endif) continue;
                     if (cont == .until_endif_seen_else) {
-                        try pp.err(directive, .elif_after_else);
+                        try pp.err(directive, .elif_after_else, .{});
                         continue;
                     }
                     tokenizer.* = saved_tokenizer;
@@ -1109,7 +1116,7 @@ fn skip(
                 .keyword_elifdef => {
                     if (ifs_seen != 0 or cont == .until_endif) continue;
                     if (cont == .until_endif_seen_else) {
-                        try pp.err(directive, .elifdef_after_else);
+                        try pp.err(directive, .elifdef_after_else, .{});
                         continue;
                     }
                     tokenizer.* = saved_tokenizer;
@@ -1118,7 +1125,7 @@ fn skip(
                 .keyword_elifndef => {
                     if (ifs_seen != 0 or cont == .until_endif) continue;
                     if (cont == .until_endif_seen_else) {
-                        try pp.err(directive, .elifndef_after_else);
+                        try pp.err(directive, .elifndef_after_else, .{});
                         continue;
                     }
                     tokenizer.* = saved_tokenizer;
@@ -1150,7 +1157,7 @@ fn skip(
         }
     } else {
         const eof = tokenizer.next();
-        return pp.err(eof, .unterminated_conditional_directive);
+        return pp.err(eof, .unterminated_conditional_directive, .{});
     }
 }
 
@@ -1373,10 +1380,7 @@ fn stringify(pp: *Preprocessor, tokens: []const TokenWithExpansionLocs) !void {
     const item = tokenizer.next();
     if (item.id == .unterminated_string_literal) {
         const tok = tokens[tokens.len - 1];
-        try pp.comp.addDiagnostic(.{
-            .tag = .invalid_pp_stringify_escape,
-            .loc = tok.loc,
-        }, tok.expansionSlice());
+        try pp.err(tok, .invalid_pp_stringify_escape, .{});
         pp.char_buf.items.len -= 2; // erase unpaired backslash and appended end quote
         pp.char_buf.appendAssumeCapacity('"');
     }
@@ -1385,10 +1389,7 @@ fn stringify(pp: *Preprocessor, tokens: []const TokenWithExpansionLocs) !void {
 
 fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpansionLocs, embed_args: ?*[]const TokenWithExpansionLocs, first: TokenWithExpansionLocs) !?[]const u8 {
     if (param_toks.len == 0) {
-        try pp.comp.addDiagnostic(.{
-            .tag = .expected_filename,
-            .loc = first.loc,
-        }, first.expansionSlice());
+        try pp.err(first, .expected_filename, .{});
         return null;
     }
 
@@ -1403,18 +1404,12 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpa
     const params = param_toks[begin..end];
 
     if (params.len == 0) {
-        try pp.comp.addDiagnostic(.{
-            .tag = .expected_filename,
-            .loc = first.loc,
-        }, first.expansionSlice());
+        try pp.err(first, .expected_filename, .{});
         return null;
     }
     // no string pasting
     if (embed_args == null and params[0].id == .string_literal and params.len > 1) {
-        try pp.comp.addDiagnostic(.{
-            .tag = .closing_paren,
-            .loc = params[1].loc,
-        }, params[1].expansionSlice());
+        try pp.err(params[1], .closing_paren, .{});
         return null;
     }
 
@@ -1432,16 +1427,10 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpa
     const include_str = pp.char_buf.items[char_top..];
     if (include_str.len < 3) {
         if (include_str.len == 0) {
-            try pp.comp.addDiagnostic(.{
-                .tag = .expected_filename,
-                .loc = first.loc,
-            }, first.expansionSlice());
+            try pp.err(first, .expected_filename, .{});
             return null;
         }
-        try pp.comp.addDiagnostic(.{
-            .tag = .empty_filename,
-            .loc = params[0].loc,
-        }, params[0].expansionSlice());
+        try pp.err(params[0], .empty_filename, .{});
         return null;
     }
 
@@ -1449,25 +1438,18 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpa
         '<' => {
             if (include_str[include_str.len - 1] != '>') {
                 // Ugly hack to find out where the '>' should go, since we don't have the closing ')' location
-                const start = params[0].loc;
-                try pp.comp.addDiagnostic(.{
-                    .tag = .header_str_closing,
-                    .loc = .{ .id = start.id, .byte_offset = start.byte_offset + @as(u32, @intCast(include_str.len)) + 1, .line = start.line },
-                }, params[0].expansionSlice());
-                try pp.comp.addDiagnostic(.{
-                    .tag = .header_str_match,
-                    .loc = params[0].loc,
-                }, params[0].expansionSlice());
+                var closing = params[0];
+                closing.loc.byte_offset += @as(u32, @intCast(include_str.len)) + 1;
+                try pp.err(closing, .header_str_closing, .{});
+
+                try pp.err(params[0], .header_str_match, .{});
                 return null;
             }
             return include_str;
         },
         '"' => return include_str,
         else => {
-            try pp.comp.addDiagnostic(.{
-                .tag = .expected_filename,
-                .loc = params[0].loc,
-            }, params[0].expansionSlice());
+            try pp.err(params[0], .expected_filename, .{});
             return null;
         },
     }
@@ -1494,10 +1476,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             }
             if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
-                try pp.comp.addDiagnostic(
-                    .{ .tag = .feature_check_requires_identifier, .loc = some.loc },
-                    some.expansionSlice(),
-                );
+                try pp.err(some, .feature_check_requires_identifier, .{});
                 return false;
             }
 
@@ -1519,13 +1498,13 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
         .macro_param_has_warning => {
             const actual_param = pp.pasteStringsUnsafe(param_toks) catch |er| switch (er) {
                 error.ExpectedStringLiteral => {
-                    try pp.errStr(param_toks[0], .expected_str_literal_in, "__has_warning");
+                    try pp.err(param_toks[0], .expected_str_literal_in, .{"__has_warning"});
                     return false;
                 },
                 else => |e| return e,
             };
             if (!mem.startsWith(u8, actual_param, "-W")) {
-                try pp.errStr(param_toks[0], .malformed_warning_check, "__has_warning");
+                try pp.err(param_toks[0], .malformed_warning_check, .{"__has_warning"});
                 return false;
             }
             const warning_name = actual_param[2..];
@@ -1543,11 +1522,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             };
             if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
-                try pp.comp.addDiagnostic(.{
-                    .tag = .missing_tok_builtin,
-                    .loc = some.loc,
-                    .extra = .{ .tok_id_expected = .r_paren },
-                }, some.expansionSlice());
+                try pp.err(some, .builtin_missing_r_paren, .{});
                 return false;
             }
 
@@ -1564,10 +1539,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const filename = include_str[1 .. include_str.len - 1];
             if (builtin == .macro_param_has_include or pp.include_depth == 0) {
                 if (builtin == .macro_param_has_include_next) {
-                    try pp.comp.addDiagnostic(.{
-                        .tag = .include_next_outside_header,
-                        .loc = src_loc,
-                    }, &.{});
+                    try pp.err(src_loc, .include_next_outside_header, .{});
                 }
                 return pp.comp.hasInclude(filename, src_loc.id, include_type, .first);
             }
@@ -1699,8 +1671,7 @@ fn expandFuncMacro(
             => {
                 const arg = expanded_args.items[0];
                 const result = if (arg.len == 0) blk: {
-                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = macro_tok.loc, .extra = extra }, &.{});
+                    try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
                     break :blk false;
                 } else try pp.handleBuiltinMacro(raw.id, arg, macro_tok.loc);
                 const start = pp.comp.generated_buf.items.len;
@@ -1712,8 +1683,7 @@ fn expandFuncMacro(
                 const arg = expanded_args.items[0];
                 const not_found = "0\n";
                 const result = if (arg.len == 0) blk: {
-                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = macro_tok.loc, .extra = extra }, &.{});
+                    try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
                     break :blk not_found;
                 } else res: {
                     var invalid: ?TokenWithExpansionLocs = null;
@@ -1748,10 +1718,7 @@ fn expandFuncMacro(
                         invalid = .{ .id = .eof, .loc = macro_tok.loc };
                     }
                     if (invalid) |some| {
-                        try pp.comp.addDiagnostic(
-                            .{ .tag = .feature_check_requires_identifier, .loc = some.loc },
-                            some.expansionSlice(),
-                        );
+                        try pp.err(some, .feature_check_requires_identifier, .{});
                         break :res not_found;
                     }
                     if (vendor_ident) |some| {
@@ -1788,8 +1755,7 @@ fn expandFuncMacro(
                 const arg = expanded_args.items[0];
                 const not_found = "0\n";
                 const result = if (arg.len == 0) blk: {
-                    const extra = Diagnostics.Message.Extra{ .arguments = .{ .expected = 1, .actual = 0 } };
-                    try pp.comp.addDiagnostic(.{ .tag = .expected_arguments, .loc = macro_tok.loc, .extra = extra }, &.{});
+                    try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
                     break :blk not_found;
                 } else res: {
                     var embed_args: []const TokenWithExpansionLocs = &.{};
@@ -1818,10 +1784,7 @@ fn expandFuncMacro(
                         const param_first = it.next();
                         if (param_first.id == .eof) break;
                         if (param_first.id != .identifier) {
-                            try pp.comp.addDiagnostic(
-                                .{ .tag = .malformed_embed_param, .loc = param_first.loc },
-                                param_first.expansionSlice(),
-                            );
+                            try pp.err(param_first, .malformed_embed_param, .{});
                             continue;
                         }
 
@@ -1834,28 +1797,19 @@ fn expandFuncMacro(
                                 // vendor::param
                                 const param = it.next();
                                 if (param.id != .identifier) {
-                                    try pp.comp.addDiagnostic(
-                                        .{ .tag = .malformed_embed_param, .loc = param.loc },
-                                        param.expansionSlice(),
-                                    );
+                                    try pp.err(param, .malformed_embed_param, .{});
                                     continue;
                                 }
                                 const l_paren = it.next();
                                 if (l_paren.id != .l_paren) {
-                                    try pp.comp.addDiagnostic(
-                                        .{ .tag = .malformed_embed_param, .loc = l_paren.loc },
-                                        l_paren.expansionSlice(),
-                                    );
+                                    try pp.err(l_paren, .malformed_embed_param, .{});
                                     continue;
                                 }
                                 break :blk "doesn't exist";
                             },
                             .l_paren => Attribute.normalize(pp.expandedSlice(param_first)),
                             else => {
-                                try pp.comp.addDiagnostic(
-                                    .{ .tag = .malformed_embed_param, .loc = maybe_colon.loc },
-                                    maybe_colon.expansionSlice(),
-                                );
+                                try pp.err(maybe_colon, .malformed_embed_param, .{});
                                 continue;
                             },
                         };
@@ -1865,10 +1819,7 @@ fn expandFuncMacro(
                         while (true) {
                             const next = it.next();
                             if (next.id == .eof) {
-                                try pp.comp.addDiagnostic(
-                                    .{ .tag = .malformed_embed_limit, .loc = param_first.loc },
-                                    param_first.expansionSlice(),
-                                );
+                                try pp.err(param_first, .malformed_embed_limit, .{});
                                 break;
                             }
                             if (next.id == .r_paren) break;
@@ -1878,17 +1829,11 @@ fn expandFuncMacro(
 
                         if (std.mem.eql(u8, param, "limit")) {
                             if (arg_count != 1) {
-                                try pp.comp.addDiagnostic(
-                                    .{ .tag = .malformed_embed_limit, .loc = param_first.loc },
-                                    param_first.expansionSlice(),
-                                );
+                                try pp.err(param_first, .malformed_embed_limit, .{});
                                 continue;
                             }
                             if (first_arg.id != .pp_num) {
-                                try pp.comp.addDiagnostic(
-                                    .{ .tag = .malformed_embed_limit, .loc = param_first.loc },
-                                    param_first.expansionSlice(),
-                                );
+                                try pp.err(param_first, .malformed_embed_limit, .{});
                                 continue;
                             }
                             _ = std.fmt.parseInt(u32, pp.expandedSlice(first_arg), 10) catch {
@@ -1936,10 +1881,10 @@ fn expandFuncMacro(
                     },
                 };
                 if (string == null and invalid == null) invalid = .{ .loc = macro_tok.loc, .id = .eof };
-                if (invalid) |some| try pp.comp.addDiagnostic(
-                    .{ .tag = .pragma_operator_string_literal, .loc = some.loc },
-                    some.expansionSlice(),
-                ) else try pp.pragmaOperator(string.?, macro_tok.loc);
+                if (invalid) |some|
+                    try pp.err(some, .pragma_operator_string_literal, .{})
+                else
+                    try pp.pragmaOperator(string.?, macro_tok.loc);
             },
             .comma => {
                 if (tok_i + 2 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
@@ -1955,12 +1900,12 @@ fn expandFuncMacro(
                         tok_i += consumed;
                         if (func_macro.params.len == expanded_args.items.len) {
                             // Empty __VA_ARGS__, drop the comma
-                            try pp.err(hash_hash, .comma_deletion_va_args);
+                            try pp.err(hash_hash, .comma_deletion_va_args, .{});
                         } else if (func_macro.params.len == 0 and expanded_args.items.len == 1 and expanded_args.items[0].len == 0) {
                             // Ambiguous whether this is "empty __VA_ARGS__" or "__VA_ARGS__ omitted"
                             if (pp.comp.langopts.standard.isGNU()) {
                                 // GNU standard, drop the comma
-                                try pp.err(hash_hash, .comma_deletion_va_args);
+                                try pp.err(hash_hash, .comma_deletion_va_args, .{});
                             } else {
                                 // C standard, retain the comma
                                 try buf.append(tokFromRaw(raw));
@@ -1968,7 +1913,7 @@ fn expandFuncMacro(
                         } else {
                             try buf.append(tokFromRaw(raw));
                             if (expanded_variable_arguments.items.len > 0 or variable_arguments.items.len == func_macro.params.len) {
-                                try pp.err(hash_hash, .comma_deletion_va_args);
+                                try pp.err(hash_hash, .comma_deletion_va_args, .{});
                             }
                             const raw_loc = Source.Location{
                                 .id = maybe_va_args.source,
@@ -2046,7 +1991,7 @@ fn nextBufToken(
             const raw_tok = tokenizer.next();
             if (raw_tok.id.isMacroIdentifier() and
                 pp.poisoned_identifiers.get(pp.tokSlice(raw_tok)) != null)
-                try pp.err(raw_tok, .poisoned_identifier);
+                try pp.err(raw_tok, .poisoned_identifier, .{});
 
             if (raw_tok.id == .nl) pp.add_expansion_nl += 1;
 
@@ -2083,7 +2028,7 @@ fn collectMacroFuncArguments(
             .l_paren => break,
             else => {
                 if (is_builtin) {
-                    try pp.errStr(name_tok, .missing_lparen_after_builtin, pp.expandedSlice(name_tok));
+                    try pp.err(name_tok, .missing_lparen_after_builtin, .{pp.expandedSlice(name_tok)});
                 }
                 // Not a macro function call, go over normal identifier, rewind
                 tokenizer.* = saved_tokenizer;
@@ -2141,10 +2086,7 @@ fn collectMacroFuncArguments(
                     try args.append(owned);
                 }
                 tokenizer.* = saved_tokenizer;
-                try pp.comp.addDiagnostic(
-                    .{ .tag = .unterminated_macro_arg_list, .loc = name_tok.loc },
-                    name_tok.expansionSlice(),
-                );
+                try pp.err(name_tok, .unterminated_macro_arg_list, .{});
                 return error.Unterminated;
             },
             .nl, .whitespace => {
@@ -2299,25 +2241,16 @@ fn expandMacroExhaustive(
                     }
 
                     // Validate argument count.
-                    const extra = Diagnostics.Message.Extra{
-                        .arguments = .{ .expected = @intCast(macro.params.len), .actual = args_count },
-                    };
                     if (macro.var_args and args_count < macro.params.len) {
                         free_arg_expansion_locs = true;
-                        try pp.comp.addDiagnostic(
-                            .{ .tag = .expected_at_least_arguments, .loc = buf.items[idx].loc, .extra = extra },
-                            buf.items[idx].expansionSlice(),
-                        );
+                        try pp.err(buf.items[idx], .expected_at_least_arguments, .{ macro.params.len, args_count });
                         idx += 1;
                         try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx + 1, &moving_end_idx);
                         continue;
                     }
                     if (!macro.var_args and args_count != macro.params.len) {
                         free_arg_expansion_locs = true;
-                        try pp.comp.addDiagnostic(
-                            .{ .tag = .expected_arguments, .loc = buf.items[idx].loc, .extra = extra },
-                            buf.items[idx].expansionSlice(),
-                        );
+                        try pp.err(buf.items[idx], .expected_arguments, .{ macro.params.len, args_count });
                         idx += 1;
                         try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx + 1, &moving_end_idx);
                         continue;
@@ -2366,10 +2299,7 @@ fn expandMacroExhaustive(
                         try pp.hideset.put(tok.loc, new_hidelist);
 
                         if (tok.id == .keyword_defined and eval_ctx == .expr) {
-                            try pp.comp.addDiagnostic(.{
-                                .tag = .expansion_to_defined,
-                                .loc = tok.loc,
-                            }, tok.expansionSlice());
+                            try pp.err(tok, .expansion_to_defined, .{});
                         }
 
                         if (i < increment_idx_by and (tok.id == .keyword_defined or pp.defines.contains(pp.expandedSlice(tok.*)))) {
@@ -2513,11 +2443,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const TokenW
     try lhs_toks.append(try pp.makeGeneratedToken(start, pasted_id, lhs));
 
     if (next.id != .nl and next.id != .eof) {
-        try pp.errStr(
-            lhs,
-            .pasting_formed_invalid,
-            try pp.comp.diagnostics.arena.allocator().dupe(u8, pp.comp.generated_buf.items[start..end]),
-        );
+        try pp.err(lhs, .pasting_formed_invalid, .{pp.comp.generated_buf.items[start..end]});
         try lhs_toks.append(tokFromRaw(next));
     }
 
@@ -2541,18 +2467,12 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macr
     const name_str = pp.tokSlice(name_tok);
     const gop = try pp.defines.getOrPut(pp.gpa, name_str);
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
-        const tag: Diagnostics.Tag = if (gop.value_ptr.is_builtin) .builtin_macro_redefined else .macro_redefined;
-        const start = pp.comp.diagnostics.list.items.len;
-        try pp.comp.addDiagnostic(.{
-            .tag = tag,
-            .loc = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line },
-            .extra = .{ .str = name_str },
-        }, &.{});
-        if (!gop.value_ptr.is_builtin and pp.comp.diagnostics.list.items.len != start) {
-            try pp.comp.addDiagnostic(.{
-                .tag = .previous_definition,
-                .loc = gop.value_ptr.loc,
-            }, &.{});
+        const loc: Source.Location = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line };
+        const prev_total = pp.diagnostics.total;
+        try pp.err(loc, if (gop.value_ptr.is_builtin) .builtin_macro_redefined else .macro_redefined, .{name_str});
+
+        if (!gop.value_ptr.is_builtin and pp.diagnostics.total != prev_total) {
+            try pp.err(gop.value_ptr.loc, .previous_definition, .{});
         }
     }
     if (pp.verbose) {
@@ -2569,11 +2489,11 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
     // Get macro name and validate it.
     const macro_name = tokenizer.nextNoWS();
     if (macro_name.id == .keyword_defined) {
-        try pp.err(macro_name, .defined_as_macro_name);
+        try pp.err(macro_name, .defined_as_macro_name, .{});
         return skipToNl(tokenizer);
     }
     if (!macro_name.id.isMacroIdentifier()) {
-        try pp.err(macro_name, .macro_name_must_be_identifier);
+        try pp.err(macro_name, .macro_name_must_be_identifier, .{});
         return skipToNl(tokenizer);
     }
     var macro_name_token_id = macro_name.id;
@@ -2581,7 +2501,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
     switch (macro_name_token_id) {
         .identifier, .extended_identifier => {},
         else => if (macro_name_token_id.isMacroIdentifier()) {
-            try pp.err(macro_name, .keyword_macro);
+            try pp.err(macro_name, .keyword_macro, .{});
         },
     }
 
@@ -2597,10 +2517,10 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
         }),
         .whitespace => first = tokenizer.next(),
         .l_paren => return pp.defineFn(tokenizer, define_tok, macro_name, first),
-        else => try pp.err(first, .whitespace_after_macro_name),
+        else => try pp.err(first, .whitespace_after_macro_name, .{}),
     }
     if (first.id == .hash_hash) {
-        try pp.err(first, .hash_hash_at_start);
+        try pp.err(first, .hash_hash_at_start, .{});
         return skipToNl(tokenizer);
     }
     first.id.simplifyMacroKeyword();
@@ -2617,11 +2537,11 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
                 const next = tokenizer.nextNoWSComments();
                 switch (next.id) {
                     .nl, .eof => {
-                        try pp.err(tok, .hash_hash_at_end);
+                        try pp.err(tok, .hash_hash_at_end, .{});
                         return;
                     },
                     .hash_hash => {
-                        try pp.err(next, .hash_hash_at_end);
+                        try pp.err(next, .hash_hash_at_end, .{});
                         return;
                     },
                     else => {},
@@ -2639,10 +2559,10 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
             },
             .whitespace => need_ws = true,
             .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
-                try pp.err(tok, invalidTokenDiagnostic(tag));
+                try pp.err(tok, invalidTokenDiagnostic(tag), .{});
                 try pp.token_buf.append(tok);
             },
-            .unterminated_comment => try pp.err(tok, .unterminated_comment),
+            .unterminated_comment => try pp.err(tok, .unterminated_comment, .{}),
             else => {
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
@@ -2676,19 +2596,19 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
     while (true) {
         var tok = tokenizer.nextNoWS();
         if (tok.id == .r_paren) break;
-        if (tok.id == .eof) return pp.err(tok, .unterminated_macro_param_list);
+        if (tok.id == .eof) return pp.err(tok, .unterminated_macro_param_list, .{});
         if (tok.id == .ellipsis) {
             var_args = true;
             const r_paren = tokenizer.nextNoWS();
             if (r_paren.id != .r_paren) {
-                try pp.err(r_paren, .missing_paren_param_list);
-                try pp.err(l_paren, .to_match_paren);
+                try pp.err(r_paren, .missing_paren_param_list, .{});
+                try pp.err(l_paren, .to_match_paren, .{});
                 return skipToNl(tokenizer);
             }
             break;
         }
         if (!tok.id.isMacroIdentifier()) {
-            try pp.err(tok, .invalid_token_param_list);
+            try pp.err(tok, .invalid_token_param_list, .{});
             return skipToNl(tokenizer);
         }
 
@@ -2696,19 +2616,19 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
 
         tok = tokenizer.nextNoWS();
         if (tok.id == .ellipsis) {
-            try pp.err(tok, .gnu_va_macro);
+            try pp.err(tok, .gnu_va_macro, .{});
             gnu_var_args = params.pop().?;
             const r_paren = tokenizer.nextNoWS();
             if (r_paren.id != .r_paren) {
-                try pp.err(r_paren, .missing_paren_param_list);
-                try pp.err(l_paren, .to_match_paren);
+                try pp.err(r_paren, .missing_paren_param_list, .{});
+                try pp.err(l_paren, .to_match_paren, .{});
                 return skipToNl(tokenizer);
             }
             break;
         } else if (tok.id == .r_paren) {
             break;
         } else if (tok.id != .comma) {
-            try pp.err(tok, .expected_comma_param_list);
+            try pp.err(tok, .expected_comma_param_list, .{});
             return skipToNl(tokenizer);
         }
     }
@@ -2756,7 +2676,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
                         }
                     }
                 }
-                try pp.err(param, .hash_not_followed_param);
+                try pp.err(param, .hash_not_followed_param, .{});
                 return skipToNl(tokenizer);
             },
             .hash_hash => {
@@ -2764,13 +2684,13 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
                 // if ## appears at the beginning, the token buf is still empty
                 // in this case, error out
                 if (pp.token_buf.items.len == 0) {
-                    try pp.err(tok, .hash_hash_at_start);
+                    try pp.err(tok, .hash_hash_at_start, .{});
                     return skipToNl(tokenizer);
                 }
                 const saved_tokenizer = tokenizer.*;
                 const next = tokenizer.nextNoWSComments();
                 if (next.id == .nl or next.id == .eof) {
-                    try pp.err(tok, .hash_hash_at_end);
+                    try pp.err(tok, .hash_hash_at_end, .{});
                     return;
                 }
                 tokenizer.* = saved_tokenizer;
@@ -2781,10 +2701,10 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
                 try pp.token_buf.append(tok);
             },
             .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
-                try pp.err(tok, invalidTokenDiagnostic(tag));
+                try pp.err(tok, invalidTokenDiagnostic(tag), .{});
                 try pp.token_buf.append(tok);
             },
-            .unterminated_comment => try pp.err(tok, .unterminated_comment),
+            .unterminated_comment => try pp.err(tok, .unterminated_comment, .{}),
             else => {
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
@@ -2795,7 +2715,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
                 } else if (var_args and tok.id == .keyword_va_opt) {
                     const opt_l_paren = tokenizer.next();
                     if (opt_l_paren.id != .l_paren) {
-                        try pp.err(opt_l_paren, .va_opt_lparen);
+                        try pp.err(opt_l_paren, .va_opt_lparen, .{});
                         return skipToNl(tokenizer);
                     }
                     tok.start = opt_l_paren.end;
@@ -2811,8 +2731,8 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
                                 parens -= 1;
                             },
                             .nl, .eof => {
-                                try pp.err(opt_tok, .va_opt_rparen);
-                                try pp.err(opt_l_paren, .to_match_paren);
+                                try pp.err(opt_tok, .va_opt_rparen, .{});
+                                try pp.err(opt_l_paren, .to_match_paren, .{});
                                 return skipToNl(tokenizer);
                             },
                             .whitespace => {},
@@ -2865,7 +2785,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     // Check for empty filename.
     const tok_slice = pp.expandedSliceExtra(filename_tok, .single_macro_ws);
     if (tok_slice.len < 3) {
-        try pp.err(first, .empty_filename);
+        try pp.err(first, .empty_filename, .{});
         return;
     }
     const filename = tok_slice[1 .. tok_slice.len - 1];
@@ -2900,7 +2820,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
             .nl, .eof => break,
             .identifier => {},
             else => {
-                try pp.err(param_first, .malformed_embed_param);
+                try pp.err(param_first, .malformed_embed_param, .{});
                 continue;
             },
         }
@@ -2914,12 +2834,12 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
                 // vendor::param
                 const param = tokenizer.nextNoWS();
                 if (param.id != .identifier) {
-                    try pp.err(param, .malformed_embed_param);
+                    try pp.err(param, .malformed_embed_param, .{});
                     continue;
                 }
                 const l_paren = tokenizer.nextNoWS();
                 if (l_paren.id != .l_paren) {
-                    try pp.err(l_paren, .malformed_embed_param);
+                    try pp.err(l_paren, .malformed_embed_param, .{});
                     continue;
                 }
                 try pp.char_buf.appendSlice(Attribute.normalize(pp.tokSlice(param_first)));
@@ -2929,7 +2849,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
             },
             .l_paren => Attribute.normalize(pp.tokSlice(param_first)),
             else => {
-                try pp.err(maybe_colon, .malformed_embed_param);
+                try pp.err(maybe_colon, .malformed_embed_param, .{});
                 continue;
             },
         };
@@ -2939,7 +2859,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
             const next = tokenizer.nextNoWS();
             if (next.id == .r_paren) break;
             if (next.id == .eof) {
-                try pp.err(maybe_colon, .malformed_embed_param);
+                try pp.err(maybe_colon, .malformed_embed_param, .{});
                 break;
             }
             try pp.token_buf.append(next);
@@ -2948,47 +2868,43 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
 
         if (std.mem.eql(u8, param, "limit")) {
             if (limit != null) {
-                try pp.errStr(tokFromRaw(param_first), .duplicate_embed_param, "limit");
+                try pp.err(tokFromRaw(param_first), .duplicate_embed_param, .{"limit"});
                 continue;
             }
             if (start + 1 != end) {
-                try pp.err(param_first, .malformed_embed_limit);
+                try pp.err(param_first, .malformed_embed_limit, .{});
                 continue;
             }
             const limit_tok = pp.token_buf.items[start];
             if (limit_tok.id != .pp_num) {
-                try pp.err(param_first, .malformed_embed_limit);
+                try pp.err(param_first, .malformed_embed_limit, .{});
                 continue;
             }
             limit = std.fmt.parseInt(u32, pp.tokSlice(limit_tok), 10) catch {
-                try pp.err(limit_tok, .malformed_embed_limit);
+                try pp.err(limit_tok, .malformed_embed_limit, .{});
                 continue;
             };
             pp.token_buf.items.len = start;
         } else if (std.mem.eql(u8, param, "prefix")) {
             if (prefix != null) {
-                try pp.errStr(tokFromRaw(param_first), .duplicate_embed_param, "prefix");
+                try pp.err(tokFromRaw(param_first), .duplicate_embed_param, .{"prefix"});
                 continue;
             }
             prefix = .{ .start = start, .end = end };
         } else if (std.mem.eql(u8, param, "suffix")) {
             if (suffix != null) {
-                try pp.errStr(tokFromRaw(param_first), .duplicate_embed_param, "suffix");
+                try pp.err(tokFromRaw(param_first), .duplicate_embed_param, .{"suffix"});
                 continue;
             }
             suffix = .{ .start = start, .end = end };
         } else if (std.mem.eql(u8, param, "if_empty")) {
             if (if_empty != null) {
-                try pp.errStr(tokFromRaw(param_first), .duplicate_embed_param, "if_empty");
+                try pp.err(tokFromRaw(param_first), .duplicate_embed_param, .{"if_empty"});
                 continue;
             }
             if_empty = .{ .start = start, .end = end };
         } else {
-            try pp.errStr(
-                tokFromRaw(param_first),
-                .unsupported_embed_param,
-                try pp.comp.diagnostics.arena.allocator().dupe(u8, param),
-            );
+            try pp.err(tokFromRaw(param_first), .unsupported_embed_param, .{param});
             pp.token_buf.items.len = start;
         }
     }
@@ -3042,10 +2958,8 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     pp.include_depth += 1;
     defer pp.include_depth -= 1;
     if (pp.include_depth > max_include_depth) {
-        try pp.comp.addDiagnostic(.{
-            .tag = .too_many_includes,
-            .loc = .{ .id = first.source, .byte_offset = first.start, .line = first.line },
-        }, &.{});
+        const loc: Source.Location = .{ .id = first.source, .byte_offset = first.start, .line = first.line };
+        try pp.err(loc, .too_many_includes, .{});
         return error.StopPreprocessing;
     }
 
@@ -3154,10 +3068,8 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
             else => |e| return e,
         };
     }
-    return pp.comp.addDiagnostic(.{
-        .tag = .unknown_pragma,
-        .loc = pragma_name_tok.loc,
-    }, pragma_name_tok.expansionSlice());
+
+    try pp.err(pragma_name_tok, .unknown_pragma, .{});
 }
 
 fn findIncludeFilenameToken(
@@ -3182,11 +3094,9 @@ fn findIncludeFilenameToken(
                 else => {},
             }
         }
-        try pp.comp.addDiagnostic(.{
-            .tag = .header_str_closing,
-            .loc = .{ .id = first.source, .byte_offset = tokenizer.index, .line = first.line },
-        }, &.{});
-        try pp.err(first, .header_str_match);
+        const loc: Source.Location = .{ .id = first.source, .byte_offset = tokenizer.index, .line = first.line };
+        try pp.err(loc, .header_str_closing, .{});
+        try pp.err(first, .header_str_match, .{});
     }
 
     const source_tok = tokFromRaw(first);
@@ -3222,17 +3132,11 @@ fn findIncludeFilenameToken(
             const nl = tokenizer.nextNoWS();
             if ((nl.id != .nl and nl.id != .eof) or expanded_trailing) {
                 skipToNl(tokenizer);
-                try pp.comp.diagnostics.addExtra(pp.comp.langopts, .{
-                    .tag = .extra_tokens_directive_end,
-                    .loc = filename_tok.loc,
-                }, filename_tok.expansionSlice(), false);
+                try pp.err(filename_tok, .extra_tokens_directive_end, .{});
             }
         },
         .ignore_trailing_tokens => if (expanded_trailing) {
-            try pp.comp.diagnostics.addExtra(pp.comp.langopts, .{
-                .tag = .extra_tokens_directive_end,
-                .loc = filename_tok.loc,
-            }, filename_tok.expansionSlice(), false);
+            try pp.err(filename_tok, .extra_tokens_directive_end, .{});
         },
     }
     return filename_tok;
@@ -3245,7 +3149,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
     // Check for empty filename.
     const tok_slice = pp.expandedSliceExtra(filename_tok, .single_macro_ws);
     if (tok_slice.len < 3) {
-        try pp.err(first, .empty_filename);
+        try pp.err(first, .empty_filename, .{});
         return error.InvalidInclude;
     }
 

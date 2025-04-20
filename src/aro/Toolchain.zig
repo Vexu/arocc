@@ -158,7 +158,12 @@ pub fn getLinkerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
     // to a relative path is surprising. This is more complex due to priorities
     // among -B, COMPILER_PATH and PATH. --ld-path= should be used instead.
     if (mem.indexOfScalar(u8, use_linker, '/') != null) {
-        try tc.driver.comp.addDiagnostic(.{ .tag = .fuse_ld_path }, &.{});
+        try tc.driver.comp.diagnostics.add(.{
+            .text = "'-fuse-ld=' taking a path is deprecated; use '--ld-path=' instead",
+            .kind = .off,
+            .opt = .@"fuse-ld-path",
+            .location = null,
+        });
     }
 
     if (std.fs.path.isAbsolute(use_linker)) {
@@ -405,7 +410,7 @@ fn getUnwindLibKind(tc: *const Toolchain) !UnwindLibKind {
         return .libgcc;
     } else if (mem.eql(u8, libname, "libunwind")) {
         if (tc.getRuntimeLibKind() == .libgcc) {
-            try tc.driver.comp.addDiagnostic(.{ .tag = .incompatible_unwindlib }, &.{});
+            try tc.driver.err("--rtlib=libgcc requires --unwindlib=libgcc", .{});
         }
         return .compiler_rt;
     } else {
@@ -482,7 +487,7 @@ pub fn addRuntimeLibs(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !v
             if (target_util.isKnownWindowsMSVCEnvironment(target)) {
                 const rtlib_str = tc.driver.rtlib orelse system_defaults.rtlib;
                 if (!mem.eql(u8, rtlib_str, "platform")) {
-                    try tc.driver.comp.addDiagnostic(.{ .tag = .unsupported_rtlib_gcc, .extra = .{ .str = "MSVC" } }, &.{});
+                    try tc.driver.err("unsupported runtime library 'libgcc' for platform 'MSVC'", .{});
                 }
             } else {
                 try tc.addLibGCC(argv);

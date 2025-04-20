@@ -146,7 +146,7 @@ fn getPIE(self: *const Linux, d: *const Driver) bool {
 fn getStaticPIE(self: *const Linux, d: *Driver) !bool {
     _ = self;
     if (d.static_pie and d.pie != null) {
-        try d.err("cannot specify 'nopie' along with 'static-pie'");
+        try d.err("cannot specify 'nopie' along with 'static-pie'", .{});
     }
     return d.static_pie;
 }
@@ -198,7 +198,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
     if (target_util.ldEmulationOption(d.comp.target, null)) |emulation| {
         try argv.appendSlice(&.{ "-m", emulation });
     } else {
-        try d.err("Unknown target triple");
+        try d.err("Unknown target triple", .{});
         return;
     }
     if (d.comp.target.cpu.arch.isRISCV()) {
@@ -219,7 +219,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
             if (dynamic_linker.get()) |path| {
                 try argv.appendSlice(&.{ "-dynamic-linker", try tc.arena.dupe(u8, path) });
             } else {
-                try d.err("Could not find dynamic linker path");
+                try d.err("Could not find dynamic linker path", .{});
             }
         }
     }

@@ -70,11 +70,16 @@ fn serializeFloat(comptime T: type, value: T, w: Writer) !void {
 pub fn todo(c: *AsmCodeGen, msg: []const u8, tok: Tree.TokenIndex) Error {
     const loc: Source.Location = c.tree.tokens.items(.loc)[tok];
 
-    try c.comp.addDiagnostic(.{
-        .tag = .todo,
-        .loc = loc,
-        .extra = .{ .str = msg },
-    }, &.{});
+    var sf = std.heap.stackFallback(1024, c.comp.gpa);
+    var buf = std.ArrayList(u8).init(sf.get());
+    defer buf.deinit();
+
+    try buf.writer().print("TODO: {s}", .{msg});
+    try c.comp.diagnostics.add(.{
+        .text = buf.items,
+        .kind = .@"error",
+        .location = loc.expand(c.comp),
+    });
     return error.FatalError;
 }
 

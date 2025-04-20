@@ -2,98 +2,25 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 
-const Attribute = @import("Attribute.zig");
-const Builtins = @import("Builtins.zig");
-const Builtin = Builtins.Builtin;
-const Header = @import("Builtins/Properties.zig").Header;
 const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const Source = @import("Source.zig");
-const Tree = @import("Tree.zig");
-
-const is_windows = @import("builtin").os.tag == .windows;
 
 pub const Message = struct {
-    tag: Tag,
-    kind: Kind = undefined,
-    loc: Source.Location = .{},
-    extra: Extra = .{ .none = {} },
-
-    pub const Extra = union {
-        str: []const u8,
-        tok_id: struct {
-            expected: Tree.Token.Id,
-            actual: Tree.Token.Id,
-        },
-        tok_id_expected: Tree.Token.Id,
-        arguments: struct {
-            expected: u32,
-            actual: u32,
-        },
-        codepoints: struct {
-            actual: u21,
-            resembles: u21,
-        },
-        attr_arg_count: struct {
-            attribute: Attribute.Tag,
-            expected: u32,
-        },
-        attr_arg_type: struct {
-            expected: Attribute.ArgumentType,
-            actual: Attribute.ArgumentType,
-        },
-        attr_enum: struct {
-            tag: Attribute.Tag,
-        },
-        ignored_record_attr: struct {
-            tag: Attribute.Tag,
-            tag_kind: enum { @"struct", @"union", @"enum" },
-        },
-        attribute_todo: struct {
-            tag: Attribute.Tag,
-            kind: enum { variables, fields, types, functions },
-        },
-        builtin_with_header: struct {
-            builtin: Builtin.Tag,
-            header: Header,
-        },
-        invalid_escape: struct {
-            offset: u32,
-            char: u8,
-        },
-        actual_codepoint: u21,
-        ascii: u7,
-        unsigned: u64,
-        offset: u64,
-        pow_2_as_string: u8,
-        signed: i64,
-        normalized: []const u8,
-        none: void,
-    };
-};
-
-const Properties = struct {
-    msg: []const u8,
     kind: Kind,
-    extra: std.meta.FieldEnum(Message.Extra) = .none,
+    text: []const u8,
+
     opt: ?Option = null,
     extension: bool = false,
+    location: ?Source.ExpandedLocation,
 
-    // TODO look into removing these
-    suppress_version: ?LangOpts.Standard = null,
-    suppress_unless_version: ?LangOpts.Standard = null,
-
-    pub const max_bits = Compilation.bit_int_max_bits;
-};
-
-pub const Tag = @import("Diagnostics/messages.def").with(Properties).Tag;
-
-pub const Kind = enum {
-    off,
-    note,
-    warning,
-    @"error",
-    @"fatal error",
+    pub const Kind = enum {
+        off,
+        note,
+        warning,
+        @"error",
+        @"fatal error",
+    };
 };
 
 pub const Option = enum {
@@ -297,18 +224,41 @@ pub const State = struct {
     /// Ignore all warnings, set by -w
     ignore_warnings: bool = false,
     /// How to treat extension diagnostics, set by -Wpedantic
-    extensions: Kind = .off,
+    extensions: Message.Kind = .off,
     /// How to treat individual options, set by -W<name>
-    options: std.EnumMap(Option, Kind) = .{},
+    options: std.EnumMap(Option, Message.Kind) = .{},
 };
 
 const Diagnostics = @This();
 
-list: std.ArrayListUnmanaged(Message) = .{},
-arena: std.heap.ArenaAllocator,
+output: union(enum) {
+    to_file: struct {
+        file: std.fs.File,
+        config: std.io.tty.Config,
+    },
+    to_list: struct {
+        messages: std.ArrayListUnmanaged(Message),
+        arena: std.heap.ArenaAllocator,
+    },
+},
 state: State = .{},
+/// Amount of error or fatal error messages that have been sent to `output`.
 errors: u32 = 0,
+/// Amount of warnings that have been sent to `output`.
+warnings: u32 = 0,
+// Total amount of diagnostics messages sent to `output`.
+total: u32 = 0,
 macro_backtrace_limit: u32 = 6,
+
+pub fn deinit(d: *Diagnostics) void {
+    switch (d.output) {
+        .to_file => {},
+        .to_list => |*list| {
+            list.messages.deinit(list.arena.child_allocator);
+            list.arena.deinit();
+        },
+    }
+}
 
 /// Used by the __has_warning builtin macro.
 pub fn warningExists(name: []const u8) bool {
@@ -319,7 +269,7 @@ pub fn warningExists(name: []const u8) bool {
     return std.meta.stringToEnum(Option, name) != null;
 }
 
-pub fn set(d: *Diagnostics, name: []const u8, to: Kind) !void {
+pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) !void {
     if (std.mem.eql(u8, name, "pedantic")) {
         d.state.extensions = to;
         return;
@@ -331,300 +281,33 @@ pub fn set(d: *Diagnostics, name: []const u8, to: Kind) !void {
 
     inline for (comptime std.meta.declarations(Option)) |group| {
         if (std.mem.eql(u8, name, group.name)) {
-            d.setGroup(&@field(Option, group.name), to);
+            for (@field(Option, group.name)) |option| {
+                d.state.options.put(option, to);
+            }
             return;
         }
     }
 
-    try d.addExtra(.{}, .{
-        .tag = .unknown_warning,
-        .extra = .{ .str = name },
-    }, &.{}, true);
+    var buf: [256]u8 = undefined;
+    const slice = std.fmt.bufPrint(&buf, "unknown warning '{s}'", .{name}) catch &buf;
+
+    try d.add(.{
+        .text = slice,
+        .kind = .warning,
+        .opt = .@"unknown-warning-option",
+        .location = null,
+    });
 }
 
-fn setGroup(d: *Diagnostics, group: []const Option, to: Kind) void {
-    for (group) |option| {
-        d.state.options.put(option, to);
-    }
-}
-
-pub fn init(gpa: Allocator) Diagnostics {
-    return .{
-        .arena = std.heap.ArenaAllocator.init(gpa),
-    };
-}
-
-pub fn deinit(d: *Diagnostics) void {
-    d.list.deinit(d.arena.child_allocator);
-    d.arena.deinit();
-}
-
-pub fn add(comp: *Compilation, msg: Message, expansion_locs: []const Source.Location) Compilation.Error!void {
-    return comp.diagnostics.addExtra(comp.langopts, msg, expansion_locs, true);
-}
-
-pub fn addExtra(
-    d: *Diagnostics,
-    langopts: LangOpts,
-    msg: Message,
-    expansion_locs: []const Source.Location,
-    note_msg_loc: bool,
-) Compilation.Error!void {
-    const kind = d.tagKind(msg.tag, langopts);
-    if (kind == .off) return;
-    var copy = msg;
-    copy.kind = kind;
-
-    if (expansion_locs.len != 0) copy.loc = expansion_locs[expansion_locs.len - 1];
-    try d.list.append(d.arena.child_allocator, copy);
-    if (kind == .@"error" or kind == .@"fatal error") d.errors += 1;
-
-    if (expansion_locs.len != 0) {
-        // Add macro backtrace notes in reverse order omitting from the middle if needed.
-        var i = expansion_locs.len - 1;
-        const half = d.macro_backtrace_limit / 2;
-        const limit = if (i < d.macro_backtrace_limit) 0 else i - half;
-        try d.list.ensureUnusedCapacity(
-            d.arena.child_allocator,
-            if (limit == 0) expansion_locs.len else d.macro_backtrace_limit + 1,
-        );
-        while (i > limit) {
-            i -= 1;
-            d.list.appendAssumeCapacity(.{
-                .tag = .expanded_from_here,
-                .kind = .note,
-                .loc = expansion_locs[i],
-            });
-        }
-        if (limit != 0) {
-            d.list.appendAssumeCapacity(.{
-                .tag = .skipping_macro_backtrace,
-                .kind = .note,
-                .extra = .{ .unsigned = expansion_locs.len - d.macro_backtrace_limit },
-            });
-            i = half -| 1;
-            while (i > 0) {
-                i -= 1;
-                d.list.appendAssumeCapacity(.{
-                    .tag = .expanded_from_here,
-                    .kind = .note,
-                    .loc = expansion_locs[i],
-                });
-            }
-        }
-
-        if (note_msg_loc) d.list.appendAssumeCapacity(.{
-            .tag = .expanded_from_here,
-            .kind = .note,
-            .loc = msg.loc,
-        });
-    }
-    if (kind == .@"fatal error") return error.FatalError;
-}
-
-pub fn render(comp: *Compilation, config: std.io.tty.Config) void {
-    if (comp.diagnostics.list.items.len == 0) return;
-    var m = defaultMsgWriter(config);
-    defer m.deinit();
-    renderMessages(comp, &m);
-}
-pub fn defaultMsgWriter(config: std.io.tty.Config) MsgWriter {
-    return MsgWriter.init(config);
-}
-
-pub fn renderMessages(comp: *Compilation, m: anytype) void {
-    var errors: u32 = 0;
-    var warnings: u32 = 0;
-    for (comp.diagnostics.list.items) |msg| {
-        switch (msg.kind) {
-            .@"fatal error", .@"error" => errors += 1,
-            .warning => warnings += 1,
-            .note => {},
-            .off => continue, // happens if an error is added before it is disabled
-        }
-        renderMessage(comp, m, msg);
-    }
-    const w_s: []const u8 = if (warnings == 1) "" else "s";
-    const e_s: []const u8 = if (errors == 1) "" else "s";
-    if (errors != 0 and warnings != 0) {
-        m.print("{d} warning{s} and {d} error{s} generated.\n", .{ warnings, w_s, errors, e_s });
-    } else if (warnings != 0) {
-        m.print("{d} warning{s} generated.\n", .{ warnings, w_s });
-    } else if (errors != 0) {
-        m.print("{d} error{s} generated.\n", .{ errors, e_s });
-    }
-
-    comp.diagnostics.list.items.len = 0;
-}
-
-pub fn renderMessage(comp: *Compilation, m: anytype, msg: Message) void {
-    var line: ?[]const u8 = null;
-    var end_with_splice = false;
-    const width = if (msg.loc.id != .unused) blk: {
-        var loc = msg.loc;
-        switch (msg.tag) {
-            .escape_sequence_overflow,
-            .invalid_universal_character,
-            => loc.byte_offset += @truncate(msg.extra.offset),
-            .non_standard_escape_char,
-            .unknown_escape_sequence,
-            => loc.byte_offset += msg.extra.invalid_escape.offset,
-            else => {},
-        }
-        const source = comp.getSource(loc.id);
-        var line_col = source.lineCol(loc);
-        line = line_col.line;
-        end_with_splice = line_col.end_with_splice;
-        if (msg.tag == .backslash_newline_escape) {
-            line = line_col.line[0 .. line_col.col - 1];
-            line_col.col += 1;
-            line_col.width += 1;
-        }
-        m.location(source.path, line_col.line_no, line_col.col);
-        break :blk line_col.width;
-    } else 0;
-
-    m.start(msg.kind);
-    const prop = msg.tag.property();
-    switch (prop.extra) {
-        .str => printRt(m, prop.msg, .{"{s}"}, .{msg.extra.str}),
-        .tok_id => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
-            msg.extra.tok_id.expected.symbol(),
-            msg.extra.tok_id.actual.symbol(),
-        }),
-        .tok_id_expected => printRt(m, prop.msg, .{"{s}"}, .{msg.extra.tok_id_expected.symbol()}),
-        .arguments => printRt(m, prop.msg, .{ "{d}", "{d}" }, .{
-            msg.extra.arguments.expected,
-            msg.extra.arguments.actual,
-        }),
-        .codepoints => printRt(m, prop.msg, .{ "{X:0>4}", "{u}" }, .{
-            msg.extra.codepoints.actual,
-            msg.extra.codepoints.resembles,
-        }),
-        .attr_arg_count => printRt(m, prop.msg, .{ "{s}", "{d}" }, .{
-            @tagName(msg.extra.attr_arg_count.attribute),
-            msg.extra.attr_arg_count.expected,
-        }),
-        .attr_arg_type => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
-            msg.extra.attr_arg_type.expected.toString(),
-            msg.extra.attr_arg_type.actual.toString(),
-        }),
-        .actual_codepoint => printRt(m, prop.msg, .{"{X:0>4}"}, .{msg.extra.actual_codepoint}),
-        .ascii => printRt(m, prop.msg, .{"{c}"}, .{msg.extra.ascii}),
-        .unsigned => printRt(m, prop.msg, .{"{d}"}, .{msg.extra.unsigned}),
-        .pow_2_as_string => printRt(m, prop.msg, .{"{s}"}, .{switch (msg.extra.pow_2_as_string) {
-            63 => "9223372036854775808",
-            64 => "18446744073709551616",
-            127 => "170141183460469231731687303715884105728",
-            128 => "340282366920938463463374607431768211456",
-            else => unreachable,
-        }}),
-        .signed => printRt(m, prop.msg, .{"{d}"}, .{msg.extra.signed}),
-        .attr_enum => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
-            @tagName(msg.extra.attr_enum.tag),
-            Attribute.Formatting.choices(msg.extra.attr_enum.tag),
-        }),
-        .ignored_record_attr => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
-            @tagName(msg.extra.ignored_record_attr.tag),
-            @tagName(msg.extra.ignored_record_attr.tag_kind),
-        }),
-        .attribute_todo => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
-            @tagName(msg.extra.attribute_todo.tag),
-            @tagName(msg.extra.attribute_todo.kind),
-        }),
-        .builtin_with_header => printRt(m, prop.msg, .{ "{s}", "{s}" }, .{
-            @tagName(msg.extra.builtin_with_header.header),
-            Builtin.nameFromTag(msg.extra.builtin_with_header.builtin).span(),
-        }),
-        .invalid_escape => {
-            if (std.ascii.isPrint(msg.extra.invalid_escape.char)) {
-                const str: [1]u8 = .{msg.extra.invalid_escape.char};
-                printRt(m, prop.msg, .{"{s}"}, .{&str});
-            } else {
-                var buf: [3]u8 = undefined;
-                const str = std.fmt.bufPrint(&buf, "x{x}", .{std.fmt.fmtSliceHexLower(&.{msg.extra.invalid_escape.char})}) catch unreachable;
-                printRt(m, prop.msg, .{"{s}"}, .{str});
-            }
-        },
-        .normalized => {
-            const f = struct {
-                pub fn f(
-                    bytes: []const u8,
-                    comptime _: []const u8,
-                    _: std.fmt.FormatOptions,
-                    writer: anytype,
-                ) !void {
-                    var it: std.unicode.Utf8Iterator = .{
-                        .bytes = bytes,
-                        .i = 0,
-                    };
-                    while (it.nextCodepoint()) |codepoint| {
-                        if (codepoint < 0x7F) {
-                            try writer.writeByte(@intCast(codepoint));
-                        } else if (codepoint < 0xFFFF) {
-                            try writer.writeAll("\\u");
-                            try std.fmt.formatInt(codepoint, 16, .upper, .{
-                                .fill = '0',
-                                .width = 4,
-                            }, writer);
-                        } else {
-                            try writer.writeAll("\\U");
-                            try std.fmt.formatInt(codepoint, 16, .upper, .{
-                                .fill = '0',
-                                .width = 8,
-                            }, writer);
-                        }
-                    }
-                }
-            }.f;
-            printRt(m, prop.msg, .{"{s}"}, .{
-                std.fmt.Formatter(f){ .data = msg.extra.normalized },
-            });
-        },
-        .none, .offset => m.write(prop.msg),
-    }
-
-    if (prop.opt) |some| {
-        if (msg.kind == .@"error" and prop.kind != .@"error") {
-            m.print(" [-Werror,-W{s}]", .{@tagName(some)});
-        } else if (msg.kind != .note) {
-            m.print(" [-W{s}]", .{@tagName(some)});
-        }
-    } else if (prop.extension) {
-        if (msg.kind == .@"error") {
-            m.write(" [-Werror,-Wpedantic]");
-        } else {
-            m.write(" [-Wpedantic]");
-        }
-    }
-
-    m.end(line, width, end_with_splice);
-}
-
-fn printRt(m: anytype, str: []const u8, comptime fmts: anytype, args: anytype) void {
-    var i: usize = 0;
-    inline for (fmts, args) |fmt, arg| {
-        const new = std.mem.indexOfPos(u8, str, i, fmt).?;
-        m.write(str[i..new]);
-        i = new + fmt.len;
-        m.print(fmt, .{arg});
-    }
-    m.write(str[i..]);
-}
-
-fn tagKind(d: *Diagnostics, tag: Tag, langopts: LangOpts) Kind {
-    const prop = tag.property();
-    var kind = prop.kind;
-
-    if (prop.suppress_version) |some| if (langopts.standard.atLeast(some)) return .off;
-    if (prop.suppress_unless_version) |some| if (!langopts.standard.atLeast(some)) return .off;
+pub fn effectiveKind(d: *Diagnostics, message: anytype) Message.Kind {
+    var kind = message.kind;
 
     // -w disregards explicit kind set with -W<name>
-    if (d.state.ignore_warnings and prop.kind == .warning) return .off;
+    if (d.state.ignore_warnings and kind == .warning) return .off;
 
     // Get explicit kind set by -W<name>=
     var set_explicit = false;
-    if (prop.opt) |option| {
+    if (message.opt) |option| {
         if (d.state.options.get(option)) |explicit| {
             kind = explicit;
             set_explicit = true;
@@ -632,7 +315,7 @@ fn tagKind(d: *Diagnostics, tag: Tag, langopts: LangOpts) Kind {
     }
 
     // Use extension diagnostic behavior if not set explicitly.
-    if (prop.extension and !set_explicit) {
+    if (message.extension and !set_explicit) {
         kind = @enumFromInt(@max(@intFromEnum(kind), @intFromEnum(d.state.extensions)));
     }
 
@@ -647,69 +330,184 @@ fn tagKind(d: *Diagnostics, tag: Tag, langopts: LangOpts) Kind {
     return kind;
 }
 
-const MsgWriter = struct {
-    w: std.io.BufferedWriter(4096, std.fs.File.Writer),
-    config: std.io.tty.Config,
+pub fn add(d: *Diagnostics, msg: Message) Compilation.Error!void {
+    var copy = msg;
+    copy.kind = d.effectiveKind(msg);
+    if (copy.kind == .off) return;
+    try d.addMessage(copy);
+}
 
-    fn init(config: std.io.tty.Config) MsgWriter {
-        std.debug.lockStdErr();
-        return .{
-            .w = std.io.bufferedWriter(std.io.getStdErr().writer()),
-            .config = config,
-        };
-    }
+pub fn addWithLocation(
+    d: *Diagnostics,
+    comp: *const Compilation,
+    msg: Message,
+    expansion_locs: []const Source.Location,
+    note_msg_loc: bool,
+) Compilation.Error!void {
+    var copy = msg;
+    copy.kind = d.effectiveKind(msg);
+    if (copy.kind == .off) return;
+    if (copy.kind == .@"error" or copy.kind == .@"fatal error") d.errors += 1;
+    if (expansion_locs.len != 0) copy.location = expansion_locs[expansion_locs.len - 1].expand(comp);
+    try d.addMessage(copy);
 
-    pub fn deinit(m: *MsgWriter) void {
-        m.w.flush() catch {};
-        std.debug.unlockStdErr();
-    }
-
-    pub fn print(m: *MsgWriter, comptime fmt: []const u8, args: anytype) void {
-        m.w.writer().print(fmt, args) catch {};
-    }
-
-    fn write(m: *MsgWriter, msg: []const u8) void {
-        m.w.writer().writeAll(msg) catch {};
-    }
-
-    fn setColor(m: *MsgWriter, color: std.io.tty.Color) void {
-        m.config.setColor(m.w.writer(), color) catch {};
-    }
-
-    fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
-        m.setColor(.bold);
-        m.print("{s}:{d}:{d}: ", .{ path, line, col });
-    }
-
-    fn start(m: *MsgWriter, kind: Kind) void {
-        switch (kind) {
-            .@"fatal error", .@"error" => m.setColor(.bright_red),
-            .note => m.setColor(.bright_cyan),
-            .warning => m.setColor(.bright_magenta),
-            .off => unreachable,
+    if (expansion_locs.len != 0) {
+        // Add macro backtrace notes in reverse order omitting from the middle if needed.
+        var i = expansion_locs.len - 1;
+        const half = d.macro_backtrace_limit / 2;
+        const limit = if (i < d.macro_backtrace_limit) 0 else i - half;
+        while (i > limit) {
+            i -= 1;
+            try d.addMessage(.{
+                .kind = .note,
+                .text = "expanded from here",
+                .location = expansion_locs[i].expand(comp),
+            });
         }
-        m.write(switch (kind) {
-            .@"fatal error" => "fatal error: ",
-            .@"error" => "error: ",
-            .note => "note: ",
-            .warning => "warning: ",
-            .off => unreachable,
-        });
-        m.setColor(.white);
-    }
+        if (limit != 0) {
+            var buf: [256]u8 = undefined;
+            try d.addMessage(.{
+                .kind = .note,
+                .text = std.fmt.bufPrint(
+                    &buf,
+                    "(skipping {d} expansions in backtrace; use -fmacro-backtrace-limit=0 to see all)",
+                    .{expansion_locs.len - d.macro_backtrace_limit},
+                ) catch unreachable,
+                .location = null,
+            });
+            i = half -| 1;
+            while (i > 0) {
+                i -= 1;
+                try d.addMessage(.{
+                    .kind = .note,
+                    .text = "expanded from here",
+                    .location = expansion_locs[i].expand(comp),
+                });
+            }
+        }
 
-    fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32, end_with_splice: bool) void {
-        const line = maybe_line orelse {
-            m.write("\n");
-            m.setColor(.reset);
-            return;
-        };
-        const trailer = if (end_with_splice) "\\ " else "";
-        m.setColor(.reset);
-        m.print("\n{s}{s}\n{s: >[3]}", .{ line, trailer, "", col });
-        m.setColor(.bold);
-        m.setColor(.bright_green);
-        m.write("^\n");
-        m.setColor(.reset);
+        if (note_msg_loc) {
+            try d.add(.{
+                .kind = .note,
+                .text = "expanded from here",
+                .location = msg.location.?,
+            });
+        }
     }
-};
+    if (copy.kind == .@"fatal error") return error.FatalError;
+}
+
+fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
+    switch (msg.kind) {
+        .off => unreachable,
+        .@"error", .@"fatal error" => d.errors += 1,
+        .warning => d.warnings += 1,
+        .note => {},
+    }
+    d.total += 1;
+
+    switch (d.output) {
+        .to_file => |to_file| {
+            _ = to_file;
+
+            //     var line: ?[]const u8 = null;
+            //     var end_with_splice = false;
+            //     const width = if (msg.loc.id != .unused) blk: {
+            //         var loc = msg.loc;
+            //         switch (msg.tag) {
+            //             .escape_sequence_overflow,
+            //             .invalid_universal_character,
+            //             => loc.byte_offset += @truncate(msg.extra.offset),
+            //             .non_standard_escape_char,
+            //             .unknown_escape_sequence,
+            //             => loc.byte_offset += msg.extra.invalid_escape.offset,
+            //             else => {},
+            //         }
+            //         const source = comp.getSource(loc.id);
+            //         var line_col = source.lineCol(loc);
+            //         line = line_col.line;
+            //         end_with_splice = line_col.end_with_splice;
+            //         if (msg.tag == .backslash_newline_escape) {
+            //             line = line_col.line[0 .. line_col.col - 1];
+            //             line_col.col += 1;
+            //             line_col.width += 1;
+            //         }
+            //         m.location(source.path, line_col.line_no, line_col.col);
+            //         break :blk line_col.width;
+            //     } else 0;
+
+            //     if (prop.opt) |some| {
+            //         if (msg.kind == .@"error" and prop.kind != .@"error") {
+            //             m.print(" [-Werror,-W{s}]", .{@tagName(some)});
+            //         } else if (msg.kind != .note) {
+            //             m.print(" [-W{s}]", .{@tagName(some)});
+            //         }
+            //     } else if (prop.extension) {
+            //         if (msg.kind == .@"error") {
+            //             m.write(" [-Werror,-Wpedantic]");
+            //         } else {
+            //             m.write(" [-Wpedantic]");
+            //         }
+            //     }
+
+            //     fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32, end_with_splice: bool) void {
+            //         const line = maybe_line orelse {
+            //             m.write("\n");
+            //             m.setColor(.reset);
+            //             return;
+            //         };
+            //         const trailer = if (end_with_splice) "\\ " else "";
+            //         m.setColor(.reset);
+            //         m.print("\n{s}{s}\n{s: >[3]}", .{ line, trailer, "", col });
+            //         m.setColor(.bold);
+            //         m.setColor(.bright_green);
+            //         m.write("^\n");
+            //         m.setColor(.reset);
+        },
+        .to_list => |*to_list| {
+            const arena = to_list.arena.allocator();
+            try to_list.messages.append(to_list.arena.child_allocator, .{
+                .kind = msg.kind,
+                .text = try arena.dupe(u8, msg.text),
+                .location = if (msg.location) |some| .{
+                    .path = try arena.dupe(u8, some.path),
+                    .line = try arena.dupe(u8, some.line),
+                    .col = some.col,
+                    .line_no = some.line_no,
+                    .width = some.width,
+                    .end_with_splice = some.end_with_splice,
+                } else null,
+            });
+        },
+    }
+}
+
+pub fn formatArgs(w: anytype, fmt: []const u8, args: anytype) !void {
+    var i: usize = 0;
+    inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
+        const arg = @field(args, arg_info.name);
+        i += switch (@TypeOf(arg)) {
+            []const u8 => try formatString(w, fmt[i..], arg),
+            else => switch (@typeInfo(@TypeOf(arg))) {
+                .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
+                .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
+                else => unreachable,
+            },
+        };
+    }
+    try w.writeAll(fmt[i..]);
+}
+
+pub fn formatString(w: anytype, fmt: []const u8, str: []const u8) !usize {
+    const i = std.mem.indexOf(u8, fmt, "{s}").?;
+    try w.writeAll(fmt[0..i]);
+    try w.writeAll(str);
+    return i;
+}
+
+pub fn formatInt(w: anytype, fmt: []const u8, int: anytype) !usize {
+    const i = std.mem.indexOf(u8, fmt, "{d}").?;
+    try w.writeAll(fmt[0..i]);
+    try std.fmt.formatInt(int, 10, .lower, .{}, w);
+    return i;
+}
