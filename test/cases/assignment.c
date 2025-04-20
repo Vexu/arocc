@@ -50,15 +50,26 @@ void foo(void) {
     }
     (int){1} = 1;
     (const int){2} = 1;
-    const struct {
-        int a;
-    } *j;
-    j->a = 1;
     const int k[3];
     k[2] = 1;
     const int *l;
     *l = 1;
     foo = 0;
+}
+
+void various_assignments_to_consts(
+    const int a,
+    const int *b
+) {
+    a = 1;
+    b[2] = 2;
+    struct C {
+        int c;
+    };
+    const struct C c1;
+    const struct C *c2;
+    c1.c = 3;
+    c2->c = 4;
 }
 
 void bar(void) {
@@ -113,18 +124,21 @@ void constant_sign_conversion(void) {
     "assignment.c:43:18: warning: initializing 'int *' from incompatible type 'const int *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
     "assignment.c:44:11: warning: assigning to 'int *' from incompatible type 'const int *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
     "assignment.c:52:20: error: expression is not assignable" \
-    "assignment.c:56:10: error: cannot assign to variable 'j' with const-qualified type 'const struct (anonymous struct at assignment.c:53:11) *'" \
-    "assignment.c:55:8: note: variable 'j' declared const here" \
-    "assignment.c:58:10: error: cannot assign to variable 'k' with const-qualified type 'const int [3]'" \
-    "assignment.c:57:15: note: variable 'k' declared const here" \
-    "assignment.c:60:8: error: expression is not assignable" \
-    "assignment.c:61:9: error: non-object type 'void (void)' is not assignable" \
-    "assignment.c:72:12: error: variable has incomplete type 'enum E'" \
-    "assignment.c:79:7: error: cannot assign to variable 'a' with const-qualified type 'A'" \
-    "assignment.c:78:7: note: variable 'a' declared const here" \
-    "assignment.c:86:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *'  converts between pointers to integer types with different sign [-Wpointer-sign]" \
-    "assignment.c:90:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
-    "assignment.c:94:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]" \
-    
-
-
+    "assignment.c:54:10: error: cannot assign to variable 'k' with const-qualified type 'const int [3]'" \
+    "assignment.c:53:15: note: variable 'k' declared const here" \
+    "assignment.c:56:8: error: expression is not assignable" \
+    "assignment.c:57:9: error: non-object type 'void (void)' is not assignable" \
+    "assignment.c:64:7: error: cannot assign to variable 'a' with const-qualified type 'const int'" \
+    "assignment.c:61:15: note: variable 'a' declared const here" \
+    "assignment.c:65:10: error: cannot assign to variable 'b' with const-qualified type 'const int *'" \
+    "assignment.c:62:16: note: variable 'b' declared const here" \
+    "assignment.c:71:10: error: cannot assign to variable 'c1' with const-qualified type 'const struct C'" \
+    "assignment.c:69:20: note: variable 'c1' declared const here" \
+    "assignment.c:72:11: error: cannot assign to variable 'c2' with const-qualified type 'const struct C *'" \
+    "assignment.c:70:21: note: variable 'c2' declared const here" \
+    "assignment.c:83:12: error: variable has incomplete type 'enum E'" \
+    "assignment.c:90:7: error: cannot assign to variable 'a' with const-qualified type 'A'" \
+    "assignment.c:89:7: note: variable 'a' declared const here" \
+    "assignment.c:97:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *'  converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "assignment.c:101:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
+    "assignment.c:105:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]" \
