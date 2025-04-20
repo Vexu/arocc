@@ -9673,7 +9673,8 @@ fn genericSelection(p: *Parser) Error!?Result {
 }
 
 test "Node locations" {
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    var diagnostics: Diagnostics = .{ .output = .ignore };
+    var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     const file = try comp.addSourceFromBuffer("file.c",

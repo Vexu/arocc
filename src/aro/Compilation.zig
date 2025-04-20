@@ -119,7 +119,7 @@ cwd: std.fs.Dir,
 pub fn init(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) Compilation {
     return .{
         .gpa = gpa,
-        .diagnostic = diagnostics,
+        .diagnostics = diagnostics,
         .cwd = cwd,
     };
 }
@@ -149,7 +149,6 @@ pub fn deinit(comp: *Compilation) void {
         comp.gpa.free(source.splice_locs);
     }
     comp.sources.deinit(comp.gpa);
-    comp.diagnostics.deinit();
     comp.include_dirs.deinit(comp.gpa);
     for (comp.system_include_dirs.items) |path| comp.gpa.free(path);
     comp.system_include_dirs.deinit(comp.gpa);
@@ -1003,6 +1002,15 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
     } = .beginning_of_file;
     var line: u32 = 1;
 
+    // Temporary source for getting the location for errors.
+    var tmp_source: Source = .{
+        .path = path,
+        .buf = buf,
+        .id = source_id,
+        .kind = kind,
+        .splice_locs = undefined,
+    };
+
     for (contents) |byte| {
         contents[i] = byte;
 
@@ -1020,12 +1028,13 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                         i = backslash_loc;
                         try splice_list.append(i);
                         if (state == .trailing_ws) {
+                            tmp_source.splice_locs = splice_list.items;
                             const diagnostic: Diagnostic = .backslash_newline_escape;
                             try comp.diagnostics.add(.{
                                 .text = diagnostic.fmt,
                                 .kind = diagnostic.kind,
                                 .opt = diagnostic.opt,
-                                .location = (Source.Location{ .id = source_id, .byte_offset = i, .line = line }).expand(comp),
+                                .location = tmp_source.lineCol(.{ .id = source_id, .byte_offset = i, .line = line }),
                             });
                         }
                         state = if (state == .back_slash_cr) .cr else .back_slash_cr;
@@ -1047,12 +1056,13 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                             try splice_list.append(i);
                         }
                         if (state == .trailing_ws) {
+                            tmp_source.splice_locs = splice_list.items;
                             const diagnostic: Diagnostic = .backslash_newline_escape;
                             try comp.diagnostics.add(.{
                                 .text = diagnostic.fmt,
                                 .kind = diagnostic.kind,
                                 .opt = diagnostic.opt,
-                                .location = (Source.Location{ .id = source_id, .byte_offset = i, .line = line }).expand(comp),
+                                .location = tmp_source.lineCol(.{ .id = source_id, .byte_offset = i, .line = line }),
                             });
                         }
                     },
@@ -1510,19 +1520,21 @@ pub const Diagnostic = struct {
 test "addSourceFromReader" {
     const Test = struct {
         fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
-            var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+            var diagnostics: Diagnostics = .{ .output = .ignore };
+            var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(str);
             const source = try comp.addSourceFromReader(buf_reader.reader(), "path", .user);
 
             try std.testing.expectEqualStrings(expected, source.buf);
-            try std.testing.expectEqual(warning_count, @as(u32, @intCast(comp.diagnostics.warnings)));
+            try std.testing.expectEqual(warning_count, @as(u32, @intCast(diagnostics.warnings)));
             try std.testing.expectEqualSlices(u32, splices, source.splice_locs);
         }
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator, std.fs.cwd());
+            var diagnostics: Diagnostics = .{ .output = .ignore };
+            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
             _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
@@ -1564,7 +1576,8 @@ test "addSourceFromReader - exhaustive check for carriage return elimination" {
     const alen = alphabet.len;
     var buf: [alphabet.len]u8 = [1]u8{alphabet[0]} ** alen;
 
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    var diagnostics: Diagnostics = .{ .output = .ignore };
+    var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     var source_count: u32 = 0;
@@ -1592,7 +1605,8 @@ test "ignore BOM at beginning of file" {
 
     const Test = struct {
         fn run(buf: []const u8) !void {
-            var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+            var diagnostics: Diagnostics = .{ .output = .ignore };
+            var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(buf);

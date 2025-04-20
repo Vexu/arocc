@@ -237,9 +237,10 @@ output: union(enum) {
         config: std.io.tty.Config,
     },
     to_list: struct {
-        messages: std.ArrayListUnmanaged(Message),
+        messages: std.ArrayListUnmanaged(Message) = .empty,
         arena: std.heap.ArenaAllocator,
     },
+    ignore,
 },
 state: State = .{},
 /// Amount of error or fatal error messages that have been sent to `output`.
@@ -252,6 +253,7 @@ macro_backtrace_limit: u32 = 6,
 
 pub fn deinit(d: *Diagnostics) void {
     switch (d.output) {
+        .ignore => {},
         .to_file => {},
         .to_list => |*list| {
             list.messages.deinit(list.arena.child_allocator);
@@ -438,6 +440,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
     d.total += 1;
 
     switch (d.output) {
+        .ignore => {},
         .to_file => |to_file| {
             d.writeToFile(msg, to_file.file, to_file.config) catch {
                 return error.FatalError;
