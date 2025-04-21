@@ -15,8 +15,8 @@ void foo(int x, float y) {
     z = ~z;
 }
 
-#define EXPECTED_ERRORS "complex numbers clang.c:6:20: error: static_assert expression is not an integral constant expression" \
-    "complex numbers clang.c:7:20: error: static_assert expression is not an integral constant expression" \
+#define EXPECTED_ERRORS "complex numbers clang.c:6:20: error: static assertion expression is not an integral constant expression" \
+    "complex numbers clang.c:7:20: error: static assertion expression is not an integral constant expression" \
     "complex numbers clang.c:9:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]" \
     "complex numbers clang.c:10:6: warning: ISO C does not support '++'/'--' on complex type '_Complex double' [-Wpedantic]" \
     "complex numbers clang.c:12:32: error: argument type 'int' is not a real floating point type" \

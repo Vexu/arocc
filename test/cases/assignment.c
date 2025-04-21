@@ -118,7 +118,7 @@ void constant_sign_conversion(void) {
     "assignment.c:61:9: error: expression is not assignable" \
     "assignment.c:72:12: error: variable has incomplete type 'enum E'" \
     "assignment.c:79:7: error: expression is not assignable" \
-    "assignment.c:86:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *'  converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "assignment.c:86:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
     "assignment.c:90:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
     "assignment.c:94:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]" \
     

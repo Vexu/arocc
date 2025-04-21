@@ -42,7 +42,7 @@ void test_member_access() {
 #define TESTS_SKIPPED 6
 
 #define EXPECTED_ERRORS \
-    "atomic.c:2:1: error: _Atomic cannot be applied to qualified type 'int'" \
+    "atomic.c:2:1: error: _Atomic cannot be applied to qualified type 'const int'" \
     "atomic.c:3:1: error: _Atomic cannot be applied to array type 'int [2]'" \
     "atomic.c:4:1: error: _Atomic cannot be applied to function type 'int (int)'" \
     "atomic.c:5:1: error: _Atomic cannot be applied to incomplete type 'struct A'" \

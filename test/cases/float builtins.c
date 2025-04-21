@@ -15,6 +15,6 @@ _Static_assert(__builtin_isinf(__builtin_infl()), "");
 _Static_assert(__builtin_isinf(1.0 / 0.0), "");
 _Static_assert(!__builtin_isinf(2.0 + 3.0), "");
 
-#define EXPECTED_ERRORS "float builtins.c:5:16: error: static_assert expression is not an integral constant expression" \
-	"float builtins.c:6:16: error: static_assert expression is not an integral constant expression" \
+#define EXPECTED_ERRORS "float builtins.c:5:16: error: static assertion expression is not an integral constant expression" \
+	"float builtins.c:6:16: error: static assertion expression is not an integral constant expression" \
 

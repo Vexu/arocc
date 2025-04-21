@@ -1660,6 +1660,7 @@ pub const Type = union(enum) {
 types: std.MultiArrayList(Repr) = .empty,
 extra: std.ArrayListUnmanaged(u32) = .empty,
 attributes: std.ArrayListUnmanaged(Attribute) = .empty,
+anon_name_arena: std.heap.ArenaAllocator.State = .{},
 
 wchar: QualType = .invalid,
 uint_least16_t: QualType = .invalid,
@@ -1682,6 +1683,7 @@ pub fn deinit(ts: *TypeStore, gpa: std.mem.Allocator) void {
     ts.types.deinit(gpa);
     ts.extra.deinit(gpa);
     ts.attributes.deinit(gpa);
+    ts.anon_name_arena.promote(gpa).deinit();
     ts.* = undefined;
 }
 
@@ -2291,9 +2293,9 @@ pub const Builder = struct {
         const qt: QualType = switch (b.type) {
             .none => blk: {
                 if (b.parser.comp.langopts.standard.atLeast(.c23)) {
-                    try b.parser.err(.missing_type_specifier_c23);
+                    try b.parser.err(b.parser.tok_i, .missing_type_specifier_c23, .{});
                 } else {
-                    try b.parser.err(.missing_type_specifier);
+                    try b.parser.err(b.parser.tok_i, .missing_type_specifier, .{});
                 }
                 break :blk .int;
             },
@@ -2367,7 +2369,7 @@ pub const Builder = struct {
                     .complex_uint128 => .uint128,
                     else => unreachable,
                 };
-                if (b.complex_tok) |tok| try b.parser.errTok(.complex_int, tok);
+                if (b.complex_tok) |tok| try b.parser.err(tok, .complex_int, .{});
                 break :blk try base_qt.toComplex(b.parser.comp);
             },
 
@@ -2378,20 +2380,20 @@ pub const Builder = struct {
 
                 if (unsigned) {
                     if (bits < 1) {
-                        try b.parser.errStr(.unsigned_bit_int_too_small, b.bit_int_tok.?, complex_str);
+                        try b.parser.err(b.bit_int_tok.?, .unsigned_bit_int_too_small, .{complex_str});
                         return .invalid;
                     }
                 } else {
                     if (bits < 2) {
-                        try b.parser.errStr(.signed_bit_int_too_small, b.bit_int_tok.?, complex_str);
+                        try b.parser.err(b.bit_int_tok.?, .signed_bit_int_too_small, .{complex_str});
                         return .invalid;
                     }
                 }
                 if (bits > Compilation.bit_int_max_bits) {
-                    try b.parser.errStr(if (unsigned) .unsigned_bit_int_too_big else .signed_bit_int_too_big, b.bit_int_tok.?, complex_str);
+                    try b.parser.err(b.bit_int_tok.?, if (unsigned) .unsigned_bit_int_too_big else .signed_bit_int_too_big, .{complex_str});
                     return .invalid;
                 }
-                if (b.complex_tok) |tok| try b.parser.errTok(.complex_int, tok);
+                if (b.complex_tok) |tok| try b.parser.err(tok, .complex_int, .{});
 
                 const qt = try b.parser.comp.type_store.put(b.parser.gpa, .{ .bit_int = .{
                     .signedness = if (unsigned) .unsigned else .signed,
@@ -2423,7 +2425,7 @@ pub const Builder = struct {
                     .complex => .double,
                     else => unreachable,
                 };
-                if (b.type == .complex) try b.parser.errTok(.plain_complex, b.parser.tok_i - 1);
+                if (b.type == .complex) try b.parser.err(b.parser.tok_i - 1, .plain_complex, .{});
                 break :blk try base_qt.toComplex(b.parser.comp);
             },
 
@@ -2438,28 +2440,28 @@ pub const Builder = struct {
         if (b.atomic_type orelse b.atomic) |atomic_tok| {
             if (result_qt.isAutoType()) return b.parser.todo("_Atomic __auto_type");
             if (result_qt.isC23Auto()) {
-                try b.parser.errTok(.atomic_auto, atomic_tok);
+                try b.parser.err(atomic_tok, .atomic_auto, .{});
                 return .invalid;
             }
             if (result_qt.hasIncompleteSize(b.parser.comp)) {
-                try b.parser.errStr(.atomic_incomplete, atomic_tok, try b.parser.typeStr(qt));
+                try b.parser.err(atomic_tok, .atomic_incomplete, .{qt});
                 return .invalid;
             }
             switch (result_qt.base(b.parser.comp).type) {
                 .array => {
-                    try b.parser.errStr(.atomic_array, atomic_tok, try b.parser.typeStr(qt));
+                    try b.parser.err(atomic_tok, .atomic_array, .{qt});
                     return .invalid;
                 },
                 .func => {
-                    try b.parser.errStr(.atomic_func, atomic_tok, try b.parser.typeStr(qt));
+                    try b.parser.err(atomic_tok, .atomic_func, .{qt});
                     return .invalid;
                 },
                 .atomic => {
-                    try b.parser.errStr(.atomic_atomic, atomic_tok, try b.parser.typeStr(qt));
+                    try b.parser.err(atomic_tok, .atomic_atomic, .{qt});
                     return .invalid;
                 },
                 .complex => {
-                    try b.parser.errStr(.atomic_complex, atomic_tok, try b.parser.typeStr(qt));
+                    try b.parser.err(atomic_tok, .atomic_complex, .{qt});
                     return .invalid;
                 },
                 else => {
@@ -2481,7 +2483,7 @@ pub const Builder = struct {
             .nullable_result,
             .null_unspecified,
             => |tok| if (!qt.isPointer(b.parser.comp)) {
-                try b.parser.errStr(.invalid_nullability, tok, try b.parser.typeStr(qt));
+                try b.parser.err(tok, .invalid_nullability, .{qt});
             },
         }
 
@@ -2492,7 +2494,7 @@ pub const Builder = struct {
             switch (qt.base(b.parser.comp).type) {
                 .array, .pointer => result_qt.restrict = true,
                 else => {
-                    try b.parser.errStr(.restrict_non_pointer, restrict_tok, try b.parser.typeStr(qt));
+                    try b.parser.err(restrict_tok, .restrict_non_pointer, .{qt});
                 },
             }
         }
@@ -2500,28 +2502,30 @@ pub const Builder = struct {
     }
 
     fn cannotCombine(b: Builder, source_tok: TokenIndex) !void {
-        const ty_str = b.type.str(b.parser.comp.langopts) orelse try b.parser.typeStr(try b.finish());
-        try b.parser.errExtra(.cannot_combine_spec, source_tok, .{ .str = ty_str });
+        if (b.type.str(b.parser.comp.langopts)) |some| {
+            return b.parser.err(source_tok, .cannot_combine_spec, .{some});
+        }
+        try b.parser.err(source_tok, .cannot_combine_spec_qt, .{try b.finish()});
     }
 
     fn duplicateSpec(b: *Builder, source_tok: TokenIndex, spec: []const u8) !void {
         if (b.parser.comp.langopts.emulate != .clang) return b.cannotCombine(source_tok);
-        try b.parser.errStr(.duplicate_decl_spec, b.parser.tok_i, spec);
+        try b.parser.err(b.parser.tok_i, .duplicate_decl_spec, .{spec});
     }
 
     pub fn combineFromTypeof(b: *Builder, new: QualType, source_tok: TokenIndex) Compilation.Error!void {
-        if (b.atomic_type != null) return b.parser.errStr(.cannot_combine_spec, source_tok, "_Atomic");
-        if (b.typedef) return b.parser.errStr(.cannot_combine_spec, source_tok, "type-name");
-        if (b.typeof) return b.parser.errStr(.cannot_combine_spec, source_tok, "typeof");
-        if (b.type != .none) return b.parser.errStr(.cannot_combine_with_typeof, source_tok, @tagName(b.type));
+        if (b.atomic_type != null) return b.parser.err(source_tok, .cannot_combine_spec, .{"_Atomic"});
+        if (b.typedef) return b.parser.err(source_tok, .cannot_combine_spec, .{"type-name"});
+        if (b.typeof) return b.parser.err(source_tok, .cannot_combine_spec, .{"typeof"});
+        if (b.type != .none) return b.parser.err(source_tok, .cannot_combine_with_typeof, .{@tagName(b.type)});
         b.typeof = true;
         b.type = .{ .other = new };
     }
 
     pub fn combineAtomic(b: *Builder, base_qt: QualType, source_tok: TokenIndex) !void {
-        if (b.atomic_type != null) return b.parser.errStr(.cannot_combine_spec, source_tok, "_Atomic");
-        if (b.typedef) return b.parser.errStr(.cannot_combine_spec, source_tok, "type-name");
-        if (b.typeof) return b.parser.errStr(.cannot_combine_spec, source_tok, "typeof");
+        if (b.atomic_type != null) return b.parser.err(source_tok, .cannot_combine_spec, .{"_Atomic"});
+        if (b.typedef) return b.parser.err(source_tok, .cannot_combine_spec, .{"type-name"});
+        if (b.typeof) return b.parser.err(source_tok, .cannot_combine_spec, .{"typeof"});
 
         const new_spec = TypeStore.Builder.fromType(b.parser.comp, base_qt);
         try b.combine(new_spec, source_tok);
@@ -2540,13 +2544,13 @@ pub const Builder = struct {
 
     pub fn combine(b: *Builder, new: Builder.Specifier, source_tok: TokenIndex) !void {
         if (b.typeof) {
-            return b.parser.errStr(.cannot_combine_with_typeof, source_tok, @tagName(new));
+            return b.parser.err(source_tok, .cannot_combine_with_typeof, .{@tagName(new)});
         }
         if (b.atomic_type != null) {
-            return b.parser.errStr(.cannot_combine_spec, source_tok, "_Atomic");
+            return b.parser.err(source_tok, .cannot_combine_spec, .{"_Atomic"});
         }
         if (b.typedef) {
-            return b.parser.errStr(.cannot_combine_spec, source_tok, "type-name");
+            return b.parser.err(source_tok, .cannot_combine_spec, .{"type-name"});
         }
         if (b.type == .other and b.type.other.isInvalid()) return;
 
@@ -2557,7 +2561,7 @@ pub const Builder = struct {
         }
 
         if (new == .int128 and !target_util.hasInt128(b.parser.comp.target)) {
-            try b.parser.errStr(.type_not_supported_on_target, source_tok, "__int128");
+            try b.parser.err(source_tok, .type_not_supported_on_target, .{"__int128"});
         }
 
         b.type = switch (new) {
