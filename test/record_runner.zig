@@ -224,7 +224,14 @@ fn runTestCases(allocator: std.mem.Allocator, test_dir: []const u8, wg: *std.Thr
 fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, stats: *Stats) !void {
     const path = test_case.path;
 
-    var comp = aro.Compilation.init(alloc, std.fs.cwd());
+    var diagnostics: aro.Diagnostics = .{
+        .output = .{ .to_list = .{
+            .arena = .init(alloc),
+        } },
+    };
+    defer diagnostics.deinit();
+
+    var comp = aro.Compilation.init(alloc, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
@@ -300,7 +307,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     tree.dump(.no_color, std.io.null_writer) catch {};
 
     if (test_single_target) {
-        aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
+        printDiagnostics(&diagnostics);
         return;
     }
 
@@ -315,19 +322,17 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
 
     const expected = compErr.get(buf[0..buf_strm.pos]) orelse ExpectedFailure{};
 
-    if (comp.diagnostics.list.items.len == 0 and expected.any()) {
+    if (diagnostics.total == 0 and expected.any()) {
         std.debug.print("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
+        stats.recordResult(.fail);
     } else {
-        var m = aro.Diagnostics.defaultMsgWriter(std.io.tty.detectConfig(std.io.getStdErr()));
-        defer m.deinit();
         var actual = ExpectedFailure{};
-        for (comp.diagnostics.list.items) |msg| {
+        for (diagnostics.output.to_list.messages.items) |msg| {
             switch (msg.kind) {
                 .@"fatal error", .@"error" => {},
                 else => continue,
             }
-            const src = comp.getSource(msg.loc.id);
-            const line = src.lineCol(msg.loc).line;
+            const line = msg.location.?.line;
             if (std.ascii.indexOfIgnoreCase(line, "_Static_assert") != null) {
                 if (std.ascii.indexOfIgnoreCase(line, "_extra_") != null) {
                     actual.extra = true;
@@ -343,15 +348,25 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
             }
         }
         if (!expected.eql(actual)) {
-            m.print("\nexp:{any}\nact:{any}\n", .{ expected, actual });
-            for (comp.diagnostics.list.items) |msg| {
-                aro.Diagnostics.renderMessage(&comp, &m, msg);
-            }
+            std.debug.print("\nexp:{any}\nact:{any}\n", .{ expected, actual });
+            printDiagnostics(&diagnostics);
             stats.recordResult(.fail);
         } else if (actual.any()) {
             stats.recordResult(.skip);
         } else {
             stats.recordResult(.ok);
+        }
+    }
+}
+
+fn printDiagnostics(diagnostics: *aro.Diagnostics) void {
+    for (diagnostics.output.to_list.messages.items) |msg| {
+        if (msg.location) |loc| {
+            std.debug.print("{s}:{d}:{d}: {s}: {s}\n{s}\n", .{
+                loc.path, loc.line_no, loc.col, @tagName(msg.kind), msg.text, loc.line,
+            });
+        } else {
+            std.debug.print("{s}: {s}\n", .{ @tagName(msg.kind), msg.text });
         }
     }
 }
