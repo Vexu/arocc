@@ -31,5 +31,5 @@ jobs:
 
       - name: Include libc headers
         run: |
-          zig-out/bin/arocc "libc headers.c"
+          zig-out/bin/arocc "libc headers.c" -fsyntax-only
         
