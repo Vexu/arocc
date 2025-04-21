@@ -1660,6 +1660,7 @@ pub const Type = union(enum) {
 types: std.MultiArrayList(Repr) = .empty,
 extra: std.ArrayListUnmanaged(u32) = .empty,
 attributes: std.ArrayListUnmanaged(Attribute) = .empty,
+anon_name_arena: std.heap.ArenaAllocator.State = .{},
 
 wchar: QualType = .invalid,
 uint_least16_t: QualType = .invalid,
@@ -1682,6 +1683,7 @@ pub fn deinit(ts: *TypeStore, gpa: std.mem.Allocator) void {
     ts.types.deinit(gpa);
     ts.extra.deinit(gpa);
     ts.attributes.deinit(gpa);
+    ts.anon_name_arena.promote(gpa).deinit();
     ts.* = undefined;
 }
 
@@ -2500,7 +2502,10 @@ pub const Builder = struct {
     }
 
     fn cannotCombine(b: Builder, source_tok: TokenIndex) !void {
-        try b.parser.err(source_tok, .cannot_combine_spec, .{try b.finish()});
+        if (b.type.str(b.parser.comp.langopts)) |some| {
+            return b.parser.err(source_tok, .cannot_combine_spec, .{some});
+        }
+        try b.parser.err(source_tok, .cannot_combine_spec_qt, .{try b.finish()});
     }
 
     fn duplicateSpec(b: *Builder, source_tok: TokenIndex, spec: []const u8) !void {

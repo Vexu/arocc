@@ -115,6 +115,11 @@ pub const cannot_combine_spec: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const cannot_combine_spec_qt: Diagnostic = .{
+    .fmt = "cannot combine with previous '{qt}' specifier",
+    .kind = .@"error",
+};
+
 pub const cannot_combine_with_typeof: Diagnostic = .{
     .fmt = "'{s} typeof' is invalid",
     .kind = .@"error",
@@ -325,7 +330,7 @@ pub const case_not_in_switch: Diagnostic = .{
 };
 
 pub const duplicate_switch_case: Diagnostic = .{
-    .fmt = "duplicate case value '{s}'",
+    .fmt = "duplicate case value '{value}'",
     .kind = .@"error",
 };
 
@@ -582,17 +587,17 @@ pub const generic_no_match: Diagnostic = .{
 };
 
 pub const must_use_struct: Diagnostic = .{
-    .fmt = "must use 'struct' tag to refer to type '{qt}'",
+    .fmt = "must use 'struct' tag to refer to type '{s}'",
     .kind = .@"error",
 };
 
 pub const must_use_union: Diagnostic = .{
-    .fmt = "must use 'union' tag to refer to type '{qt}'",
+    .fmt = "must use 'union' tag to refer to type '{s}'",
     .kind = .@"error",
 };
 
 pub const must_use_enum: Diagnostic = .{
-    .fmt = "must use 'enum' tag to refer to type '{qt}'",
+    .fmt = "must use 'enum' tag to refer to type '{s}'",
     .kind = .@"error",
 };
 
@@ -686,13 +691,13 @@ pub const invalid_subscript: Diagnostic = .{
 };
 
 pub const array_after: Diagnostic = .{
-    .fmt = "array index {s} is past the end of the array",
+    .fmt = "array index {value} is past the end of the array",
     .opt = .@"array-bounds",
     .kind = .warning,
 };
 
 pub const array_before: Diagnostic = .{
-    .fmt = "array index {s} is before the beginning of the array",
+    .fmt = "array index {value} is before the beginning of the array",
     .opt = .@"array-bounds",
     .kind = .warning,
 };
@@ -846,12 +851,12 @@ pub const minimum_alignment: Diagnostic = .{
 };
 
 pub const maximum_alignment: Diagnostic = .{
-    .fmt = "requested alignment of {s} is too large",
+    .fmt = "requested alignment of {value} is too large",
     .kind = .@"error",
 };
 
 pub const negative_alignment: Diagnostic = .{
-    .fmt = "requested negative alignment of {s} is invalid",
+    .fmt = "requested negative alignment of {value} is invalid",
     .kind = .@"error",
 };
 
@@ -1048,12 +1053,12 @@ pub const invalid_array_designator: Diagnostic = .{
 };
 
 pub const negative_array_designator: Diagnostic = .{
-    .fmt = "array designator value {s} is negative",
+    .fmt = "array designator value {value} is negative",
     .kind = .@"error",
 };
 
 pub const oob_array_designator: Diagnostic = .{
-    .fmt = "array designator index {s} exceeds array bounds",
+    .fmt = "array designator index {value} exceeds array bounds",
     .kind = .@"error",
 };
 
@@ -1175,7 +1180,7 @@ pub const non_int_bitfield: Diagnostic = .{
 };
 
 pub const negative_bitwidth: Diagnostic = .{
-    .fmt = "bit-field has negative width ({s})",
+    .fmt = "bit-field has negative width ({value})",
     .kind = .@"error",
 };
 
@@ -1434,7 +1439,7 @@ pub const attribute_requires_identifier: Diagnostic = .{
 };
 
 pub const attribute_int_out_of_range: Diagnostic = .{
-    .fmt = "attribute value '{s}' out of range",
+    .fmt = "attribute value '{value}' out of range",
     .kind = .@"error",
 };
 
@@ -1912,7 +1917,7 @@ pub const array_address_to_bool: Diagnostic = .{
 };
 
 pub const string_literal_to_bool: Diagnostic = .{
-    .fmt = "implicit conversion turns string literal into bool: '{qt}' to '{qt}",
+    .fmt = "implicit conversion turns string literal into bool: '{qt}' to '{qt}'",
     .kind = .off,
     .opt = .@"string-conversion",
 };
@@ -1979,7 +1984,7 @@ pub const auto_type_from_bitfield: Diagnostic = .{
 };
 
 pub const auto_type_array: Diagnostic = .{
-    .fmt = "'{qt}' declared as array of '__auto_type'",
+    .fmt = "'{s}' declared as array of '__auto_type'",
     .kind = .@"error",
 };
 
@@ -1999,7 +2004,7 @@ pub const tentative_definition_incomplete: Diagnostic = .{
 };
 
 pub const forward_declaration_here: Diagnostic = .{
-    .fmt = "forward declaration of '{s}'",
+    .fmt = "forward declaration of '{qt}'",
     .kind = .note,
 };
 
@@ -2120,7 +2125,7 @@ pub const invalid_compound_literal_storage_class: Diagnostic = .{
 };
 
 pub const identifier_not_normalized: Diagnostic = .{
-    .fmt = "'{s}' is not in NFC",
+    .fmt = "'{normalized}' is not in NFC",
     .kind = .warning,
     .opt = .normalized,
 };
@@ -2146,7 +2151,7 @@ pub const c23_auto_with_init_list: Diagnostic = .{
 };
 
 pub const c23_auto_array: Diagnostic = .{
-    .fmt = "'{qt}' declared as array of 'auto'",
+    .fmt = "'{s}' declared as array of 'auto'",
     .kind = .@"error",
 };
 

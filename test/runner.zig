@@ -31,7 +31,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
         var it = std.mem.tokenizeScalar(u8, file.buf[0..nl], ' ');
         while (it.next()) |some| try test_args.append(some);
 
-        var driver: aro.Driver = .{ .comp = comp };
+        var driver: aro.Driver = .{ .comp = comp, .diagnostics = comp.diagnostics };
         defer driver.deinit();
         _ = try driver.parseArgs(std.io.null_writer, macro_buf, test_args.items);
         only_preprocess = driver.only_preprocess;
@@ -167,8 +167,13 @@ pub fn main() !void {
         .estimated_total_items = cases.items.len,
     });
 
+    var diagnostics: aro.Diagnostics = .{
+        .output = .{ .to_buffer = .init(gpa) },
+    };
+    defer diagnostics.deinit();
+
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa, std.fs.cwd());
+    var initial_comp = aro.Compilation.init(gpa, &diagnostics, std.fs.cwd());
     defer initial_comp.deinit();
 
     const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });
@@ -196,6 +201,12 @@ pub fn main() !void {
     var fail_count: u32 = 0;
     var skip_count: u32 = 0;
     next_test: for (cases.items) |path| {
+        const diag_buf = diagnostics.output.to_buffer;
+        diagnostics = .{
+            .output = .{ .to_buffer = diag_buf },
+        };
+        diagnostics.output.to_buffer.items.len = 0;
+
         var comp = initial_comp;
         defer {
             // preserve some values
@@ -225,7 +236,6 @@ pub fn main() !void {
 
         const builtin_macros = try comp.generateBuiltinMacrosFromPath(system_defines, file.path);
 
-        comp.diagnostics.errors = 0;
         var pp = aro.Preprocessor.init(&comp);
         defer pp.deinit();
         if (only_preprocess) {
@@ -271,7 +281,9 @@ pub fn main() !void {
                     continue;
                 }
             } else {
-                aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
+                const stderr = std.io.getStdErr();
+                try stderr.writeAll(pp.diagnostics.output.to_buffer.items);
+
                 if (comp.diagnostics.errors != 0) {
                     std.debug.print("in case {s}\n", .{case});
                     fail_count += 1;
@@ -364,7 +376,7 @@ pub fn main() !void {
             var actual = StmtTypeDumper.init(gpa);
             defer actual.deinit(gpa);
 
-            try actual.dump(&tree, test_fn.body, gpa);
+            try actual.dump(&tree, test_fn.body);
 
             var i: usize = 0;
             for (types.tokens) |str| {
@@ -409,13 +421,9 @@ pub fn main() !void {
             continue;
         }
 
-        if (pp.defines.contains("NO_ERROR_VALIDATION")) {
-            var m = MsgWriter.init(pp.comp.gpa);
-            defer m.deinit();
-            aro.Diagnostics.renderMessages(pp.comp, &m);
-            continue;
-        }
-        aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
+        if (pp.defines.contains("NO_ERROR_VALIDATION")) continue;
+        const stderr = std.io.getStdErr();
+        try stderr.writeAll(pp.diagnostics.output.to_buffer.items);
 
         if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
             if (comp.diagnostics.errors != 0) break :blk;
@@ -508,10 +516,8 @@ pub fn main() !void {
 fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
     const macro = pp.defines.get("EXPECTED_ERRORS") orelse return null;
 
-    const expected_count = pp.comp.diagnostics.list.items.len;
-    var m = MsgWriter.init(pp.comp.gpa);
-    defer m.deinit();
-    aro.Diagnostics.renderMessages(pp.comp, &m);
+    const expected_count = pp.diagnostics.total;
+    const errors = pp.diagnostics.output.to_buffer.items;
 
     if (macro.is_func) {
         std.debug.print("invalid EXPECTED_ERRORS {}\n", .{macro});
@@ -535,7 +541,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
         try buf.append('\n');
         const expected_error = buf.items[start..];
 
-        const index = std.mem.indexOf(u8, m.buf.items, expected_error);
+        const index = std.mem.indexOf(u8, errors, expected_error);
         if (index == null) {
             std.debug.print(
                 \\
@@ -546,7 +552,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
                 \\{s}
                 \\
                 \\
-            , .{ expected_error, m.buf.items });
+            , .{ expected_error, errors });
             return false;
         }
     }
@@ -556,7 +562,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
             \\EXPECTED_ERRORS missing errors, expected {d} found {d},
             \\
         , .{ count, expected_count });
-        var it = std.mem.tokenizeScalar(u8, m.buf.items, '\n');
+        var it = std.mem.tokenizeScalar(u8, errors, '\n');
         while (it.next()) |msg| {
             const start = std.mem.indexOf(u8, msg, ".c:") orelse continue;
             const index = std.mem.indexOf(u8, buf.items, msg[start..]);
@@ -577,46 +583,6 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
     return true;
 }
 
-const MsgWriter = struct {
-    buf: std.ArrayList(u8),
-
-    fn init(gpa: std.mem.Allocator) MsgWriter {
-        return .{
-            .buf = std.ArrayList(u8).init(gpa),
-        };
-    }
-
-    fn deinit(m: *MsgWriter) void {
-        m.buf.deinit();
-    }
-
-    pub fn print(m: *MsgWriter, comptime fmt: []const u8, args: anytype) void {
-        m.buf.writer().print(fmt, args) catch {};
-    }
-
-    pub fn write(m: *MsgWriter, msg: []const u8) void {
-        m.buf.writer().writeAll(msg) catch {};
-    }
-
-    pub fn location(m: *MsgWriter, path: []const u8, line: u32, col: u32) void {
-        m.print("{s}:{d}:{d}: ", .{ path, line, col });
-    }
-
-    pub fn start(m: *MsgWriter, kind: aro.Diagnostics.Kind) void {
-        m.print("{s}: ", .{@tagName(kind)});
-    }
-
-    pub fn end(m: *MsgWriter, maybe_line: ?[]const u8, col: u32, end_with_splice: bool) void {
-        const line = maybe_line orelse {
-            m.write("\n");
-            return;
-        };
-        const trailer = if (end_with_splice) "\\ " else "";
-        m.print("\n{s}{s}\n", .{ line, trailer });
-        m.print("{s: >[1]}^\n", .{ "", col });
-    }
-};
-
 const StmtTypeDumper = struct {
     types: std.ArrayList([]const u8),
 
@@ -633,22 +599,24 @@ const StmtTypeDumper = struct {
         };
     }
 
-    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: Node.Index, m: *MsgWriter) AllocatorError!void {
+    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: Node.Index) AllocatorError!void {
         const maybe_ret = node.get(tree);
         if (maybe_ret == .return_stmt and maybe_ret.return_stmt.operand == .implicit) return;
-        node.qt(tree).dump(tree.comp, m.buf.writer()) catch {};
-        const owned = try m.buf.toOwnedSlice();
-        errdefer m.buf.allocator.free(owned);
+
+        var buf = std.ArrayList(u8).init(self.types.allocator);
+        defer buf.deinit();
+
+        node.qt(tree).dump(tree.comp, buf.writer()) catch {};
+        const owned = try buf.toOwnedSlice();
+        errdefer buf.allocator.free(owned);
+
         try self.types.append(owned);
     }
 
-    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, body: Node.Index, allocator: std.mem.Allocator) AllocatorError!void {
-        var m = MsgWriter.init(allocator);
-        defer m.deinit();
-
+    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, body: Node.Index) AllocatorError!void {
         const compound = body.get(tree).compound_stmt;
         for (compound.body) |stmt| {
-            try self.dumpNode(tree, stmt, &m);
+            try self.dumpNode(tree, stmt);
         }
     }
 };

@@ -2468,7 +2468,11 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macr
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
         const loc: Source.Location = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line };
         const prev_total = pp.diagnostics.total;
-        try pp.err(loc, if (gop.value_ptr.is_builtin) .builtin_macro_redefined else .macro_redefined, .{name_str});
+        if (gop.value_ptr.is_builtin) {
+            try pp.err(loc, .builtin_macro_redefined, .{});
+        } else {
+            try pp.err(loc, .macro_redefined, .{name_str});
+        }
 
         if (!gop.value_ptr.is_builtin and pp.diagnostics.total != prev_total) {
             try pp.err(gop.value_ptr.loc, .previous_definition, .{});

@@ -1002,15 +1002,6 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
     } = .beginning_of_file;
     var line: u32 = 1;
 
-    // Temporary source for getting the location for errors.
-    var tmp_source: Source = .{
-        .path = path,
-        .buf = buf,
-        .id = source_id,
-        .kind = kind,
-        .splice_locs = undefined,
-    };
-
     for (contents) |byte| {
         contents[i] = byte;
 
@@ -1028,14 +1019,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                         i = backslash_loc;
                         try splice_list.append(i);
                         if (state == .trailing_ws) {
-                            tmp_source.splice_locs = splice_list.items;
-                            const diagnostic: Diagnostic = .backslash_newline_escape;
-                            try comp.diagnostics.add(.{
-                                .text = diagnostic.fmt,
-                                .kind = diagnostic.kind,
-                                .opt = diagnostic.opt,
-                                .location = tmp_source.lineCol(.{ .id = source_id, .byte_offset = i, .line = line }),
-                            });
+                            try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line);
                         }
                         state = if (state == .back_slash_cr) .cr else .back_slash_cr;
                     },
@@ -1056,14 +1040,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
                             try splice_list.append(i);
                         }
                         if (state == .trailing_ws) {
-                            tmp_source.splice_locs = splice_list.items;
-                            const diagnostic: Diagnostic = .backslash_newline_escape;
-                            try comp.diagnostics.add(.{
-                                .text = diagnostic.fmt,
-                                .kind = diagnostic.kind,
-                                .opt = diagnostic.opt,
-                                .location = tmp_source.lineCol(.{ .id = source_id, .byte_offset = i, .line = line }),
-                            });
+                            try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line);
                         }
                     },
                     .bom1, .bom2 => break,
@@ -1129,6 +1106,30 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
 
     comp.sources.putAssumeCapacityNoClobber(duped_path, source);
     return source;
+}
+
+fn addNewlineEscapeError(comp: *Compilation, path: []const u8, buf: []const u8, splice_locs: []const u32, byte_offset: u32, line: u32) !void {
+    // Temporary source for getting the location for errors.
+    var tmp_source: Source = .{
+        .path = path,
+        .buf = buf,
+        .id = undefined,
+        .kind = undefined,
+        .splice_locs = splice_locs,
+    };
+
+    const diagnostic: Diagnostic = .backslash_newline_escape;
+    var loc = tmp_source.lineCol(.{ .id = undefined, .byte_offset = byte_offset, .line = line });
+    loc.line = loc.line[0 .. loc.line.len - 1];
+    loc.width += 1;
+    loc.col += 1;
+
+    try comp.diagnostics.add(.{
+        .text = diagnostic.fmt,
+        .kind = diagnostic.kind,
+        .opt = diagnostic.opt,
+        .location = loc,
+    });
 }
 
 /// Caller retains ownership of `path` and `buf`.

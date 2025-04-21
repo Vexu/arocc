@@ -421,6 +421,8 @@ pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype)
     if (p.extension_suppressed) {
         if (diagnostic.extension and diagnostic.kind == .off) return;
     }
+    if (diagnostic.suppress_version) |some| if (p.comp.langopts.standard.atLeast(some)) return;
+    if (diagnostic.suppress_unless_version) |some| if (!p.comp.langopts.standard.atLeast(some)) return;
     if (p.diagnostics.effectiveKind(diagnostic) == .off) return;
 
     var sf = std.heap.stackFallback(1024, p.gpa);
@@ -428,12 +430,21 @@ pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype)
     defer buf.deinit();
 
     try p.formatArgs(buf.writer(), diagnostic.fmt, args);
+
+    const tok = p.pp.tokens.get(tok_i);
+    var loc = tok.loc;
+    if (tok_i != 0 and tok.id == .eof) {
+        // if the token is EOF, point at the end of the previous token instead
+        const prev = p.pp.tokens.get(tok_i - 1);
+        loc = prev.loc;
+        loc.byte_offset += @intCast(p.tokSlice(tok_i - 1).len);
+    }
     try p.diagnostics.addWithLocation(p.comp, .{
         .kind = diagnostic.kind,
         .text = buf.items,
         .opt = diagnostic.opt,
         .extension = diagnostic.extension,
-        .location = p.pp.tokens.items(.loc)[tok_i].expand(p.comp),
+        .location = loc.expand(p.comp),
     }, p.pp.expansionSlice(tok_i), true);
 }
 
@@ -453,6 +464,9 @@ fn formatArgs(p: *Parser, w: anytype, fmt: []const u8, args: anytype) !void {
                 .val = arg.val,
                 .qt = arg.qt,
             }),
+            Codepoint => try arg.format(w, fmt[i..]),
+            Normalized => try arg.format(w, fmt[i..]),
+            Escaped => try arg.format(w, fmt[i..]),
             else => switch (@typeInfo(@TypeOf(arg))) {
                 .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
                 .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
@@ -464,21 +478,24 @@ fn formatArgs(p: *Parser, w: anytype, fmt: []const u8, args: anytype) !void {
 }
 
 fn formatTokenId(w: anytype, fmt: []const u8, tok_id: Tree.Token.Id) !usize {
-    const i = std.mem.indexOf(u8, fmt, "{tok_id}").?;
+    const template = "{tok_id}";
+    const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
     try w.writeAll(tok_id.symbol());
-    return i;
+    return i + template.len;
 }
 
 fn formatQualType(p: *Parser, w: anytype, fmt: []const u8, qt: QualType) !usize {
-    const i = std.mem.indexOf(u8, fmt, "{qt}").?;
+    const template = "{qt}";
+    const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
     try qt.print(p.comp, w);
-    return i;
+    return i + template.len;
 }
 
 fn formatResult(p: *Parser, w: anytype, fmt: []const u8, res: Result) !usize {
-    const i = std.mem.indexOf(u8, fmt, "{value}").?;
+    const template = "{value}";
+    const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
 
     switch (res.val.opt_ref) {
@@ -493,7 +510,7 @@ fn formatResult(p: *Parser, w: anytype, fmt: []const u8, res: Result) !usize {
         },
     }
 
-    return i;
+    return i + template.len;
 }
 
 const Normalized = struct {
@@ -503,8 +520,9 @@ const Normalized = struct {
         return .{ .str = str };
     }
 
-    pub fn format(w: anytype, fmt_str: []const u8, ctx: Normalized) !usize {
-        const i = std.mem.indexOf(u8, fmt_str, "{normalized}").?;
+    pub fn format(ctx: Normalized, w: anytype, fmt_str: []const u8) !usize {
+        const template = "{normalized}";
+        const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
         var it: std.unicode.Utf8Iterator = .{
             .bytes = ctx.str,
@@ -527,7 +545,7 @@ const Normalized = struct {
                 }, w);
             }
         }
-        return i;
+        return i + template.len;
     }
 };
 
@@ -538,11 +556,28 @@ const Codepoint = struct {
         return .{ .codepoint = codepoint };
     }
 
-    pub fn write(w: anytype, fmt_str: []const u8, ctx: Codepoint) !usize {
-        const i = std.mem.indexOf(u8, fmt_str, "{codepoint}").?;
+    pub fn format(ctx: Codepoint, w: anytype, fmt_str: []const u8) !usize {
+        const template = "{codepoint}";
+        const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
         try w.print("{X:0>4}", .{ctx.codepoint});
-        return i;
+        return i + template.len;
+    }
+};
+
+const Escaped = struct {
+    str: []const u8,
+
+    fn init(str: []const u8) Escaped {
+        return .{ .str = str };
+    }
+
+    pub fn format(ctx: Escaped, w: anytype, fmt_str: []const u8) !usize {
+        const template = "{s}";
+        const i = std.mem.indexOf(u8, fmt_str, template).?;
+        try w.writeAll(fmt_str[0..i]);
+        try w.print("{}", .{std.zig.fmtEscapes(ctx.str)});
+        return i + template.len;
     }
 };
 
@@ -561,9 +596,19 @@ pub fn removeNull(p: *Parser, str: Value) !Value {
     return Value.intern(p.comp, .{ .bytes = p.strings.items[strings_top..] });
 }
 
-pub fn errValueChanged(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, res: Result, old_res: Result, int_qt: QualType) !void {
+pub fn errValueChanged(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, res: Result, old_val: Value, int_qt: QualType) !void {
     const zero_str = if (res.val.isZero(p.comp)) "non-zero " else "";
-    try p.err(tok_i, diagnostic, .{ res.qt, int_qt, zero_str, old_res, res });
+    const old_res: Result = .{
+        .node = undefined,
+        .val = old_val,
+        .qt = res.qt,
+    };
+    const new_res: Result = .{
+        .node = undefined,
+        .val = res.val,
+        .qt = int_qt,
+    };
+    try p.err(tok_i, diagnostic, .{ res.qt, int_qt, zero_str, old_res, new_res });
 }
 
 fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
@@ -588,8 +633,8 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, d
 
 fn errDeprecated(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, msg: ?Value) Compilation.Error!void {
     const colon_str: []const u8 = if (msg != null) ": " else "";
-    const msg_str = std.zig.fmtEscapes(if (msg) |m| p.comp.interner.get(m.ref()).bytes else "");
-    return p.err(tok_i, diagnostic, .{ p.tokSlice(tok_i), colon_str, msg_str });
+    const msg_str: []const u8 = if (msg) |m| p.comp.interner.get(m.ref()).bytes else "";
+    return p.err(tok_i, diagnostic, .{ p.tokSlice(tok_i), colon_str, Escaped.init(msg_str) });
 }
 
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!Node.Index {
@@ -1981,7 +2026,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
             init_d.d.qt = some.qt.withQualifiers(init_d.d.qt);
         } else {
             if (init_d.d.qt.isC23Auto()) {
-                try p.err(name, .c23_auto_requires_initializer, .{p.tokSlice(name)});
+                try p.err(name, .c23_auto_requires_initializer, .{});
             } else {
                 try p.err(name, .auto_type_requires_initializer, .{p.tokSlice(name)});
             }
@@ -2011,7 +2056,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
             switch (init_type) {
                 .array => |array_ty| if (array_ty.len == .incomplete) {
                     // TODO properly check this after finishing parsing
-                    try p.err(name, .tentative_array, .{init_d.d.qt});
+                    try p.err(name, .tentative_array, .{});
                     break :incomplete;
                 },
                 .@"struct", .@"union" => |record_ty| {
@@ -2219,11 +2264,13 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) !StringId {
         else => "record field",
     };
 
-    const str = std.fmt.allocPrint(
-        p.gpa, // TODO horrible
+    var arena = p.comp.type_store.anon_name_arena.promote(p.gpa);
+    defer p.comp.type_store.anon_name_arena = arena.state;
+    const str = try std.fmt.allocPrint(
+        arena.allocator(),
         "(anonymous {s} at {s}:{d}:{d})",
         .{ kind_str, source.path, line_col.line_no, line_col.col },
-    ) catch unreachable;
+    );
     return p.comp.internString(str);
 }
 
@@ -2970,8 +3017,14 @@ const Enumerator = struct {
                 e.qt = larger;
             } else {
                 const signed = e.qt.signedness(p.comp) == .signed;
-                const bit_size: u8 = @intCast(e.qt.bitSizeof(p.comp) - @intFromBool(signed));
-                try p.err(tok, .enum_not_representable, .{std.math.pow(usize, bit_size, 2)});
+                const bit_size = e.qt.bitSizeof(p.comp) - @intFromBool(signed);
+                try p.err(tok, .enum_not_representable, .{switch (bit_size) {
+                    63 => "9223372036854775808",
+                    64 => "18446744073709551616",
+                    127 => "170141183460469231731687303715884105728",
+                    128 => "340282366920938463463374607431768211456",
+                    else => unreachable,
+                }});
                 e.qt = .ulong_long;
             }
             _ = try e.val.add(old_val, .one, e.qt, p.comp);
@@ -4616,7 +4669,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
     }
 
     if (!quals.goto and (p.tok_ids[p.tok_i] != .r_paren or ate_extra_colon)) {
-        try p.err(p.tok_i, .expected_token, .{ p.tok_ids[p.tok_i], Tree.Token.Id.r_paren });
+        try p.err(p.tok_i, .expected_token, .{ Tree.Token.Id.r_paren, p.tok_ids[p.tok_i] });
         return error.ParsingFailed;
     }
 
@@ -4650,7 +4703,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
             if (p.eatToken(.comma) == null) break;
         }
     } else if (quals.goto) {
-        try p.err(p.tok_i, .expected_token, .{ p.tok_ids[p.tok_i], .colon });
+        try p.err(p.tok_i, .expected_token, .{ Token.Id.colon, p.tok_ids[p.tok_i] });
         return error.ParsingFailed;
     }
 
@@ -6064,9 +6117,9 @@ pub const Result = struct {
             res.qt = bool_qt;
             try res.implicitCast(p, .int_to_bool, tok);
         } else if (src_sk.isFloat()) {
-            const old_res = res.*;
+            const old_val = res.val;
             const value_change_kind = try res.val.floatToInt(bool_qt, p.comp);
-            try res.floatToIntWarning(p, bool_qt, old_res, value_change_kind, tok);
+            try res.floatToIntWarning(p, bool_qt, old_val, value_change_kind, tok);
             if (!src_sk.isReal()) {
                 res.qt = res.qt.toReal(p.comp);
                 try res.implicitCast(p, .complex_float_to_real, tok);
@@ -6102,9 +6155,9 @@ pub const Result = struct {
                 try res.implicitCast(p, .real_to_complex_int, tok);
             }
         } else if (res.qt.isFloat(p.comp)) {
-            const old_res = res.*;
+            const old_val = res.val;
             const value_change_kind = try res.val.floatToInt(int_qt, p.comp);
-            try res.floatToIntWarning(p, int_qt, old_res, value_change_kind, tok);
+            try res.floatToIntWarning(p, int_qt, old_val, value_change_kind, tok);
             if (src_sk.isReal() and dest_sk.isReal()) {
                 res.qt = int_qt;
                 try res.implicitCast(p, .float_to_int, tok);
@@ -6123,11 +6176,11 @@ pub const Result = struct {
                 try res.implicitCast(p, .complex_float_to_complex_int, tok);
             }
         } else if (!res.qt.eql(int_qt, p.comp)) {
-            const old_res = res.*;
+            const old_val = res.val;
             const value_change_kind = try res.val.intCast(int_qt, p.comp);
             switch (value_change_kind) {
                 .none => {},
-                .truncated => try p.errValueChanged(tok, .int_value_changed, res.*, old_res, int_qt),
+                .truncated => try p.errValueChanged(tok, .int_value_changed, res.*, old_val, int_qt),
                 .sign_changed => try p.err(tok, .sign_conversion, .{ res.qt, int_qt }),
             }
 
@@ -6158,7 +6211,7 @@ pub const Result = struct {
         res: Result,
         p: *Parser,
         int_qt: QualType,
-        old_res: Result,
+        old_val: Value,
         change_kind: Value.FloatToIntChangeKind,
         tok: TokenIndex,
     ) !void {
@@ -6166,8 +6219,8 @@ pub const Result = struct {
             .none => return p.err(tok, .float_to_int, .{ res.qt, int_qt }),
             .out_of_range => return p.err(tok, .float_out_of_range, .{ res.qt, int_qt }),
             .overflow => return p.err(tok, .float_overflow_conversion, .{ res.qt, int_qt }),
-            .nonzero_to_zero => return p.errValueChanged(tok, .float_zero_conversion, res, old_res, int_qt),
-            .value_changed => return p.errValueChanged(tok, .float_value_changed, res, old_res, int_qt),
+            .nonzero_to_zero => return p.errValueChanged(tok, .float_zero_conversion, res, old_val, int_qt),
+            .value_changed => return p.errValueChanged(tok, .float_value_changed, res, old_val, int_qt),
         }
     }
 
@@ -6758,13 +6811,13 @@ pub const Result = struct {
                 }
 
                 const different_sign_only = src_child.sameRankDifferentSign(dest_child, p.comp);
-                try p.err(tok, switch (c) {
-                    .assign => if (different_sign_only) .incompatible_ptr_assign_sign else .incompatible_ptr_assign,
-                    .init => if (different_sign_only) .incompatible_ptr_init_sign else .incompatible_ptr_init,
-                    .ret => if (different_sign_only) .incompatible_return_sign else .incompatible_return,
-                    .arg => if (different_sign_only) .incompatible_ptr_arg_sign else .incompatible_ptr_arg,
+                switch (c) {
+                    .assign => try p.err(tok, if (different_sign_only) .incompatible_ptr_assign_sign else .incompatible_ptr_assign, .{ dest_qt, src_original_qt }),
+                    .init => try p.err(tok, if (different_sign_only) .incompatible_ptr_init_sign else .incompatible_ptr_init, .{ dest_qt, src_original_qt }),
+                    .ret => try p.err(tok, if (different_sign_only) .incompatible_return_sign else .incompatible_return, .{ src_original_qt, dest_qt }),
+                    .arg => try p.err(tok, if (different_sign_only) .incompatible_ptr_arg_sign else .incompatible_ptr_arg, .{ src_original_qt, dest_qt }),
                     .test_coerce => return error.CoercionFailed,
-                }, .{ dest_qt, src_original_qt });
+                }
                 try c.note(p);
 
                 res.qt = dest_unqual;
@@ -6807,13 +6860,13 @@ pub const Result = struct {
             return error.ParsingFailed;
         }
 
-        try p.err(tok, switch (c) {
-            .assign => .incompatible_assign,
-            .init => .incompatible_init,
-            .ret => .incompatible_return,
-            .arg => .incompatible_arg,
+        switch (c) {
+            .assign => try p.err(tok, .incompatible_assign, .{ dest_unqual, res.qt }),
+            .init => try p.err(tok, .incompatible_init, .{ dest_unqual, res.qt }),
+            .ret => try p.err(tok, .incompatible_return, .{ res.qt, dest_unqual }),
+            .arg => try p.err(tok, .incompatible_arg, .{ res.qt, dest_unqual }),
             .test_coerce => return error.CoercionFailed,
-        }, .{ dest_unqual, res.qt });
+        }
         try c.note(p);
     }
 };
@@ -7232,10 +7285,10 @@ fn shiftExpr(p: *Parser) Error!?Result {
 
         if (try lhs.adjustTypes(tok, &rhs, p, .integer)) {
             if (rhs.val.compare(.lt, .zero, p.comp)) {
-                try p.err(tok, .negative_shift_count, .{rhs});
+                try p.err(tok, .negative_shift_count, .{});
             }
             if (rhs.val.compare(.gte, try Value.int(lhs.qt.bitSizeof(p.comp), p.comp), p.comp)) {
-                try p.err(tok, .too_big_shift_count, .{rhs});
+                try p.err(tok, .too_big_shift_count, .{});
             }
             if (tag == .shl_expr) {
                 if (try lhs.val.shl(lhs.val, rhs.val, lhs.qt, p.comp) and
@@ -7725,8 +7778,8 @@ fn unExpr(p: *Parser) Error!?Result {
                 if (lhs_qt.hasAttribute(p.comp, .@"packed")) {
                     const record_ty = lhs_qt.getRecord(p.comp).?;
                     try p.err(orig_tok_i, .packed_member_address, .{
-                        record_ty.name.lookup(p.comp),
                         record_ty.fields[access.member_index].name.lookup(p.comp),
+                        record_ty.name.lookup(p.comp),
                     });
                 }
             }
@@ -7947,7 +8000,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 switch (base_type.type) {
                     .void => try p.err(tok, .pointer_arith_void, .{"sizeof"}),
                     .pointer => |pointer_ty| if (pointer_ty.decayed) |decayed_qt| {
-                        try p.err(tok, .sizeof_array_arg, .{.{ res.qt, decayed_qt }});
+                        try p.err(tok, .sizeof_array_arg, .{ res.qt, decayed_qt });
                     },
                     else => {},
                 }
@@ -8528,7 +8581,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
     if (call_expr.paramCountOverride()) |expected| {
         if (expected != arg_count) {
-            try p.err(first_after, .expected_arguments, .{ params_len, arg_count });
+            try p.err(first_after, .expected_arguments, .{ expected, arg_count });
         }
     } else switch (func_kind) {
         .normal => if (params_len != arg_count) {
@@ -8955,6 +9008,7 @@ fn stringLiteral(p: *Parser) Error!Result {
             .max_codepoint = 0x10ffff,
             .loc = p.pp.tokens.items(.loc)[p.tok_i],
             .expansion_locs = p.pp.expansionSlice(p.tok_i),
+            .incorrect_encoding_is_error = count > 1,
         };
 
         try p.strings.ensureUnusedCapacity((slice.len + 1) * @intFromEnum(char_width)); // +1 for null terminator
@@ -8993,7 +9047,6 @@ fn stringLiteral(p: *Parser) Error!Result {
             },
             .improperly_encoded => |bytes| {
                 if (count > 1) {
-                    try char_literal_parser.err(.illegal_char_encoding_error, .{});
                     return error.ParsingFailed;
                 }
                 p.strings.appendSliceAssumeCapacity(bytes);
@@ -9089,7 +9142,6 @@ fn charLiteral(p: *Parser) Error!?Result {
             .loc = p.pp.tokens.items(.loc)[p.tok_i],
             .expansion_locs = p.pp.expansionSlice(p.tok_i),
         };
-        //  .init(slice, char_kind, max_codepoint, p.comp);
 
         const max_chars_expected = 4;
         var stack_fallback = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), p.comp.gpa);
