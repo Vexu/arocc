@@ -255,7 +255,8 @@ pub fn main() !void {
         _ = try pp.preprocess(user_macros);
         const eof = pp.preprocess(file) catch |err| {
             fail_count += 1;
-            aro.Diagnostics.render(&comp, std.io.tty.detectConfig(std.io.getStdErr()));
+            const stderr = std.io.getStdErr();
+            try stderr.writeAll(pp.diagnostics.output.to_buffer.items);
             std.debug.print("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
