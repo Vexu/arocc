@@ -389,7 +389,7 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
     if (tc.driver.nostdlibinc) return;
 
     const sysroot = tc.getSysroot();
-    const local_include = try std.fmt.allocPrint(comp.gpa, "{s}{s}", .{ sysroot, "/usr/local/include" });
+    const local_include = try std.fs.path.join(comp.gpa, &.{ sysroot, "/usr/local/include" });
     defer comp.gpa.free(local_include);
     try comp.addSystemIncludeDir(local_include);
 
@@ -400,7 +400,7 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
     }
 
     if (getMultiarchTriple(target)) |triple| {
-        const joined = try std.fs.path.join(comp.gpa, &.{ sysroot, "usr", "include", triple });
+        const joined = try std.fs.path.join(comp.gpa, &.{ sysroot, "/usr/include", triple });
         defer comp.gpa.free(joined);
         if (tc.filesystem.exists(joined)) {
             try comp.addSystemIncludeDir(joined);
