@@ -6942,6 +6942,77 @@ fn assignToConstVarStr(p: *Parser, var_name: []const u8, qt: QualType) ![]const 
     return try p.comp.diagnostics.arena.allocator().dupe(u8, p.strings.items[strings_top..]);
 }
 
+fn unwrapArrayOperation(p: *Parser, node_idx: Node.Index) ?Node.Index {
+    var result: ?Node.Index = null;
+    const tags = [_]std.meta.Tag(Node){
+        .pre_inc_expr,
+        .post_inc_expr,
+        .pre_dec_expr,
+        .post_dec_expr,
+        .add_expr,
+        .sub_expr,
+    };
+    inline for (tags) |tag| {
+        if (p.getNode(node_idx, tag)) |unwrapped| {
+            switch (@TypeOf(unwrapped)) {
+                Node.Binary => result = unwrapped.lhs,
+                Node.Unary => result = unwrapped.operand,
+                else => comptime unreachable,
+            }
+        }
+    }
+    return result;
+}
+
+fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIndex) Compilation.Error!void {
+    const tags = comptime std.meta.tags(std.meta.Tag(Node));
+    inline for (tags) |tag| {
+        if (tag != .paren_expr)
+            if (p.getNode(node_idx, tag)) |node| {
+                switch (tag) {
+                    .member_access_expr, .member_access_ptr_expr => {
+                        if (p.getNode(node.base, .decl_ref_expr)) |memb_ptr_acc_decl_ref| {
+                            const struct_name = p.tokSlice(memb_ptr_acc_decl_ref.name_tok);
+                            const struct_name_extra: Diagnostics.Message.Extra = .{ .str = struct_name };
+                            try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(struct_name, memb_ptr_acc_decl_ref.qt));
+                            if (p.getNode(memb_ptr_acc_decl_ref.decl, .variable)) |struct_var| {
+                                try p.errExtra(.declared_const_here, struct_var.name_tok, struct_name_extra);
+                            } else if (p.getNode(memb_ptr_acc_decl_ref.decl, .param)) |struct_param| {
+                                try p.errExtra(.declared_const_here, struct_param.name_tok, struct_name_extra);
+                            }
+                        }
+                    },
+                    .array_access_expr => {
+                        const inspected_node_idx = if (p.unwrapArrayOperation(node.base)) |unwrapped_node| unwrapped_node else node.base;
+                        if (p.getNode(inspected_node_idx, .cast)) |arr_cast| {
+                            if (p.getNode(arr_cast.operand, .decl_ref_expr)) |arr_cast_delc_ref| {
+                                const arr_ref_var_name = p.tokSlice(arr_cast_delc_ref.name_tok);
+                                const arr_ref_extra: Diagnostics.Message.Extra = .{ .str = arr_ref_var_name };
+                                try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(arr_ref_var_name, arr_cast_delc_ref.qt));
+                                if (p.getNode(arr_cast_delc_ref.decl, .variable)) |arr_ref_var| {
+                                    try p.errExtra(.declared_const_here, arr_ref_var.name_tok, arr_ref_extra);
+                                } else if (p.getNode(arr_cast_delc_ref.decl, .param)) |arr_ref_param| {
+                                    try p.errExtra(.declared_const_here, arr_ref_param.name_tok, arr_ref_extra);
+                                }
+                            }
+                        }
+                    },
+                    .decl_ref_expr => {
+                        const var_name = p.tokSlice(node.name_tok);
+                        const var_name_extra: Diagnostics.Message.Extra = .{ .str = var_name };
+                        try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(var_name, node.qt));
+                        if (p.getNode(node.decl, .variable)) |var_decl| {
+                            try p.errExtra(.declared_const_here, var_decl.name_tok, var_name_extra);
+                        } else if (p.getNode(node.decl, .param)) |param_decl| {
+                            try p.errExtra(.declared_const_here, param_decl.name_tok, var_name_extra);
+                        }
+                    },
+                    else => try p.errTok(.not_assignable, tok),
+                }
+            };
+    }
+}
+
 /// assignExpr
 ///  : condExpr
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
@@ -6965,53 +7036,7 @@ fn assignExpr(p: *Parser) Error!?Result {
 
     var is_const: bool = undefined;
     if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
-        if (p.getNode(lhs.node, .decl_ref_expr)) |decl_ref| {
-            const var_name = p.tokSlice(decl_ref.name_tok);
-            const var_name_extra: Diagnostics.Message.Extra = .{ .str = var_name };
-            try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(var_name, decl_ref.qt));
-            if (p.getNode(decl_ref.decl, .variable)) |var_decl| {
-                try p.errExtra(.declared_const_here, var_decl.name_tok, var_name_extra);
-            } else if (p.getNode(decl_ref.decl, .param)) |param_decl| {
-                try p.errExtra(.declared_const_here, param_decl.name_tok, var_name_extra);
-            }
-        } else if (p.getNode(lhs.node, .array_access_expr)) |array_access| {
-            if (p.getNode(array_access.base, .cast)) |arr_cast| {
-                if (p.getNode(arr_cast.operand, .decl_ref_expr)) |arr_cast_delc_ref| {
-                    const arr_ref_var_name = p.tokSlice(arr_cast_delc_ref.name_tok);
-                    const arr_ref_extra: Diagnostics.Message.Extra = .{ .str = arr_ref_var_name };
-                    try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(arr_ref_var_name, arr_cast_delc_ref.qt));
-                    if (p.getNode(arr_cast_delc_ref.decl, .variable)) |arr_ref_var| {
-                        try p.errExtra(.declared_const_here, arr_ref_var.name_tok, arr_ref_extra);
-                    } else if (p.getNode(arr_cast_delc_ref.decl, .param)) |arr_ref_param| {
-                        try p.errExtra(.declared_const_here, arr_ref_param.name_tok, arr_ref_extra);
-                    }
-                }
-            }
-        } else if (p.getNode(lhs.node, .member_access_ptr_expr)) |member_access_ptr| {
-            if (p.getNode(member_access_ptr.base, .decl_ref_expr)) |memb_ptr_acc_decl_ref| {
-                const struct_name = p.tokSlice(memb_ptr_acc_decl_ref.name_tok);
-                const struct_name_extra: Diagnostics.Message.Extra = .{ .str = struct_name };
-                try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(struct_name, memb_ptr_acc_decl_ref.qt));
-                if (p.getNode(memb_ptr_acc_decl_ref.decl, .variable)) |struct_var| {
-                    try p.errExtra(.declared_const_here, struct_var.name_tok, struct_name_extra);
-                } else if (p.getNode(memb_ptr_acc_decl_ref.decl, .param)) |struct_param| {
-                    try p.errExtra(.declared_const_here, struct_param.name_tok, struct_name_extra);
-                }
-            }
-        } else if (p.getNode(lhs.node, .member_access_expr)) |member_access| {
-            if (p.getNode(member_access.base, .decl_ref_expr)) |memb_acc_decl_ref| {
-                const struct_name = p.tokSlice(memb_acc_decl_ref.name_tok);
-                const struct_name_extra: Diagnostics.Message.Extra = .{ .str = struct_name };
-                try p.errStr(.assign_to_const_var, tok, try p.assignToConstVarStr(struct_name, memb_acc_decl_ref.qt));
-                if (p.getNode(memb_acc_decl_ref.decl, .variable)) |struct_var| {
-                    try p.errExtra(.declared_const_here, struct_var.name_tok, struct_name_extra);
-                } else if (p.getNode(memb_acc_decl_ref.decl, .param)) |struct_param| {
-                    try p.errExtra(.declared_const_here, struct_param.name_tok, struct_name_extra);
-                }
-            }
-        } else {
-            try p.errTok(.not_assignable, tok);
-        }
+        try p.issueConstAssignmetDiagnostics(lhs.node, tok);
         lhs.qt = .invalid;
     }
 
