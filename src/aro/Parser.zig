@@ -3162,6 +3162,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_cc_attr: bool) Error!bool {
     var any = false;
     while (true) {
+        if (allow_cc_attr and try p.msTypeAttribute()) continue;
         switch (p.tok_ids[p.tok_i]) {
             .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => {
                 if (b.restrict != null)
@@ -3194,45 +3195,6 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_cc_attr: bool) Error!bool {
                     try p.err(p.tok_i, .duplicate_decl_spec, .{"__unaligned"})
                 else
                     b.unaligned = p.tok_i;
-            },
-            .keyword_stdcall,
-            .keyword_stdcall2,
-            .keyword_thiscall,
-            .keyword_thiscall2,
-            .keyword_vectorcall,
-            .keyword_vectorcall2,
-            .keyword_fastcall,
-            .keyword_fastcall2,
-            .keyword_regcall,
-            .keyword_cdecl,
-            .keyword_cdecl2,
-            => {
-                if (!allow_cc_attr) break;
-                try p.attr_buf.append(p.gpa, .{
-                    .attr = .{ .tag = .calling_convention, .args = .{
-                        .calling_convention = .{ .cc = switch (p.tok_ids[p.tok_i]) {
-                            .keyword_stdcall,
-                            .keyword_stdcall2,
-                            => .stdcall,
-                            .keyword_thiscall,
-                            .keyword_thiscall2,
-                            => .thiscall,
-                            .keyword_vectorcall,
-                            .keyword_vectorcall2,
-                            => .vectorcall,
-                            .keyword_fastcall,
-                            .keyword_fastcall2,
-                            => .fastcall,
-                            .keyword_regcall,
-                            => .regcall,
-                            .keyword_cdecl,
-                            .keyword_cdecl2,
-                            => .c,
-                            else => unreachable,
-                        } },
-                    }, .syntax = .keyword },
-                    .tok = p.tok_i,
-                });
             },
             .keyword_nonnull, .keyword_nullable, .keyword_nullable_result, .keyword_null_unspecified => |tok_id| {
                 const sym_str = p.tok_ids[p.tok_i].symbol();
@@ -3273,6 +3235,56 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_cc_attr: bool) Error!bool {
         }
         p.tok_i += 1;
         any = true;
+    }
+    return any;
+}
+
+fn msTypeAttribute(p: *Parser) !bool {
+    var any = false;
+    while (true) {
+        switch (p.tok_ids[p.tok_i]) {
+            .keyword_stdcall,
+            .keyword_stdcall2,
+            .keyword_thiscall,
+            .keyword_thiscall2,
+            .keyword_vectorcall,
+            .keyword_vectorcall2,
+            .keyword_fastcall,
+            .keyword_fastcall2,
+            .keyword_regcall,
+            .keyword_cdecl,
+            .keyword_cdecl2,
+            => {
+                try p.attr_buf.append(p.gpa, .{
+                    .attr = .{ .tag = .calling_convention, .args = .{
+                        .calling_convention = .{ .cc = switch (p.tok_ids[p.tok_i]) {
+                            .keyword_stdcall,
+                            .keyword_stdcall2,
+                            => .stdcall,
+                            .keyword_thiscall,
+                            .keyword_thiscall2,
+                            => .thiscall,
+                            .keyword_vectorcall,
+                            .keyword_vectorcall2,
+                            => .vectorcall,
+                            .keyword_fastcall,
+                            .keyword_fastcall2,
+                            => .fastcall,
+                            .keyword_regcall,
+                            => .regcall,
+                            .keyword_cdecl,
+                            .keyword_cdecl2,
+                            => .c,
+                            else => unreachable,
+                        } },
+                    }, .syntax = .keyword },
+                    .tok = p.tok_i,
+                });
+                any = true;
+                p.tok_i += 1;
+            },
+            else => break,
+        }
     }
     return any;
 }
@@ -3413,6 +3425,9 @@ fn declarator(
         try d.validate(p, combine_tok);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
+        // Parse Microsoft keyword type attributes.
+        _ = try p.msTypeAttribute();
+
         const special_marker: QualType = .{ ._index = .declarator_combine };
         var res = (try p.declarator(special_marker, kind)) orelse {
             p.tok_i = l_paren;

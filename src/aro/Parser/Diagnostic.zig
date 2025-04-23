@@ -1908,8 +1908,14 @@ pub const ptr_arithmetic_incomplete: Diagnostic = .{
 
 pub const callconv_not_supported: Diagnostic = .{
     .fmt = "'{s}' calling convention is not supported for this target",
-    .opt = .@"ignored-attributes",
     .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const callconv_non_func: Diagnostic = .{
+    .fmt = "'{s}' only applies to function types; type here is '{qt}'",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
 };
 
 pub const pointer_arith_void: Diagnostic = .{
