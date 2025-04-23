@@ -14,6 +14,8 @@ pub const Message = struct {
     extension: bool = false,
     location: ?Source.ExpandedLocation,
 
+    effective_kind: Kind = .off,
+
     pub const Kind = enum {
         off,
         note,
@@ -336,10 +338,10 @@ pub fn effectiveKind(d: *Diagnostics, message: anytype) Message.Kind {
 
 pub fn add(d: *Diagnostics, msg: Message) Compilation.Error!void {
     var copy = msg;
-    copy.kind = d.effectiveKind(msg);
-    if (copy.kind == .off) return;
+    copy.effective_kind = d.effectiveKind(msg);
+    if (copy.effective_kind == .off) return;
     try d.addMessage(copy);
-    if (copy.kind == .@"fatal error") return error.FatalError;
+    if (copy.effective_kind == .@"fatal error") return error.FatalError;
 }
 
 pub fn addWithLocation(
@@ -350,9 +352,9 @@ pub fn addWithLocation(
     note_msg_loc: bool,
 ) Compilation.Error!void {
     var copy = msg;
-    copy.kind = d.effectiveKind(msg);
-    if (copy.kind == .off) return;
-    if (copy.kind == .@"error" or copy.kind == .@"fatal error") d.errors += 1;
+    copy.effective_kind = d.effectiveKind(msg);
+    if (copy.effective_kind == .off) return;
+    if (copy.effective_kind == .@"error" or copy.effective_kind == .@"fatal error") d.errors += 1;
     if (expansion_locs.len != 0) copy.location = expansion_locs[expansion_locs.len - 1].expand(comp);
     try d.addMessage(copy);
 
@@ -365,6 +367,7 @@ pub fn addWithLocation(
             i -= 1;
             try d.addMessage(.{
                 .kind = .note,
+                .effective_kind = .note,
                 .text = "expanded from here",
                 .location = expansion_locs[i].expand(comp),
             });
@@ -373,6 +376,7 @@ pub fn addWithLocation(
             var buf: [256]u8 = undefined;
             try d.addMessage(.{
                 .kind = .note,
+                .effective_kind = .note,
                 .text = std.fmt.bufPrint(
                     &buf,
                     "(skipping {d} expansions in backtrace; use -fmacro-backtrace-limit=0 to see all)",
@@ -385,6 +389,7 @@ pub fn addWithLocation(
                 i -= 1;
                 try d.addMessage(.{
                     .kind = .note,
+                    .effective_kind = .note,
                     .text = "expanded from here",
                     .location = expansion_locs[i].expand(comp),
                 });
@@ -392,8 +397,9 @@ pub fn addWithLocation(
         }
 
         if (note_msg_loc) {
-            try d.add(.{
+            try d.addMessage(.{
                 .kind = .note,
+                .effective_kind = .note,
                 .text = "expanded from here",
                 .location = msg.location.?,
             });
@@ -435,7 +441,8 @@ pub fn formatInt(w: anytype, fmt: []const u8, int: anytype) !usize {
 }
 
 fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
-    switch (msg.kind) {
+    std.debug.assert(msg.effective_kind != .off);
+    switch (msg.effective_kind) {
         .off => unreachable,
         .@"error", .@"fatal error" => d.errors += 1,
         .warning => d.warnings += 1,
@@ -446,7 +453,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
     switch (d.output) {
         .ignore => {},
         .to_file => |to_file| {
-            d.writeToWriter(msg, to_file.file.writer(), to_file.config) catch {
+            writeToWriter(msg, to_file.file.writer(), to_file.config) catch {
                 return error.FatalError;
             };
         },
@@ -454,6 +461,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
             const arena = list.arena.allocator();
             try list.messages.append(list.arena.child_allocator, .{
                 .kind = msg.kind,
+                .effective_kind = msg.effective_kind,
                 .text = try arena.dupe(u8, msg.text),
                 .opt = msg.opt,
                 .extension = msg.extension,
@@ -461,36 +469,36 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
             });
         },
         .to_buffer => |*buf| {
-            d.writeToWriter(msg, buf.writer(), .no_color) catch return error.OutOfMemory;
+            writeToWriter(msg, buf.writer(), .no_color) catch return error.OutOfMemory;
         },
     }
 }
 
-fn writeToWriter(d: *Diagnostics, msg: Message, w: anytype, config: std.io.tty.Config) !void {
+fn writeToWriter(msg: Message, w: anytype, config: std.io.tty.Config) !void {
     try config.setColor(w, .bold);
     if (msg.location) |loc| {
         try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
     }
-    switch (msg.kind) {
+    switch (msg.effective_kind) {
         .@"fatal error", .@"error" => try config.setColor(w, .bright_red),
         .note => try config.setColor(w, .bright_cyan),
         .warning => try config.setColor(w, .bright_magenta),
         .off => unreachable,
     }
-    try w.print("{s}: ", .{@tagName(msg.kind)});
+    try w.print("{s}: ", .{@tagName(msg.effective_kind)});
 
     try config.setColor(w, .white);
     try w.writeAll(msg.text);
     if (msg.opt) |some| {
-        if (msg.kind == .@"error" and d.state.options.get(some) == .@"error") {
+        if (msg.effective_kind == .@"error" and msg.kind != .@"error") {
             try w.print(" [-Werror,-W{s}]", .{@tagName(some)});
-        } else if (msg.kind != .note) {
+        } else if (msg.effective_kind != .note) {
             try w.print(" [-W{s}]", .{@tagName(some)});
         }
     } else if (msg.extension) {
-        if (msg.kind == .@"error") {
+        if (msg.effective_kind == .@"error") {
             try w.writeAll(" [-Werror,-Wpedantic]");
-        } else {
+        } else if (msg.effective_kind != msg.kind) {
             try w.writeAll(" [-Wpedantic]");
         }
     }

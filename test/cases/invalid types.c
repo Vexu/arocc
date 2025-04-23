@@ -42,7 +42,7 @@ ArrayOfIncomplete a;
     "invalid types.c:8:12: error: tentative definition has type 'struct Bar' that is never completed" \
     "invalid types.c:8:8: note: forward declaration of 'struct Bar'" \
     "invalid types.c:9:6: error: array is too large" \
-    "invalid types.c:11:1: warning: plain '_Complex' requires a type specifier; assuming '_Complex double' [-Wpedantic]" \
+    "invalid types.c:11:1: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'" \
     "invalid types.c:14:6: note: previous definition is here" \
     "invalid types.c:16:15: error: expected identifier or '('" \
     "invalid types.c:17:17: error: array has incomplete element type 'struct bar'" \
