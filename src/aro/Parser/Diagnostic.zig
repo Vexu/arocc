@@ -88,6 +88,7 @@ pub const param_not_declared: Diagnostic = .{
     .fmt = "parameter '{s}' was not declared, defaults to 'int'",
     .opt = .@"implicit-int",
     .kind = .warning,
+    .extension = true,
 };
 
 pub const multiple_storage_class: Diagnostic = .{
@@ -150,6 +151,7 @@ pub const missing_declaration: Diagnostic = .{
     .fmt = "declaration does not declare anything",
     .opt = .@"missing-declaration",
     .kind = .warning,
+    .extension = true,
 };
 
 pub const func_not_in_root: Diagnostic = .{
@@ -432,7 +434,7 @@ pub const qualifier_non_outermost_array: Diagnostic = .{
 };
 
 pub const array_overflow: Diagnostic = .{
-    .fmt = "The pointer incremented by {value} refers past the last possible element in {d}-bit address space containing {d}-bit ({d}-byte) elements (max possible {d} elements)",
+    .fmt = "the pointer incremented by {value} refers past the last possible element in {d}-bit address space containing {d}-bit ({d}-byte) elements (max possible {d} elements)",
     .opt = .@"array-bounds",
     .kind = .warning,
 };
@@ -625,12 +627,14 @@ pub const comparison_ptr_int: Diagnostic = .{
     .fmt = "comparison between pointer and integer ('{qt}' and '{qt}')",
     .kind = .warning,
     .opt = .@"pointer-integer-compare",
+    .extension = true,
 };
 
 pub const comparison_distinct_ptr: Diagnostic = .{
     .fmt = "comparison of distinct pointer types ('{qt}' and '{qt}')",
     .kind = .warning,
     .opt = .@"compare-distinct-pointer-types",
+    .extension = true,
 };
 
 pub const incompatible_pointers: Diagnostic = .{
@@ -879,6 +883,7 @@ pub const pointer_mismatch: Diagnostic = .{
     .fmt = "pointer type mismatch ('{qt}' and '{qt}')",
     .opt = .@"pointer-type-mismatch",
     .kind = .warning,
+    .extension = true,
 };
 
 pub const static_assert_not_constant: Diagnostic = .{
@@ -988,6 +993,7 @@ pub const str_init_too_long: Diagnostic = .{
     .fmt = "initializer-string for char array is too long",
     .opt = .@"excess-initializers",
     .kind = .warning,
+    .extension = true,
 };
 
 pub const arr_init_too_long: Diagnostic = .{
@@ -1164,6 +1170,7 @@ pub const empty_translation_unit: Diagnostic = .{
     .fmt = "ISO C requires a translation unit to contain at least one declaration",
     .opt = .@"empty-translation-unit",
     .kind = .off,
+    .extension = true,
 };
 
 pub const omitting_parameter_name: Diagnostic = .{
@@ -1203,6 +1210,7 @@ pub const implicitly_unsigned_literal: Diagnostic = .{
     .fmt = "integer literal is too large to be represented in a signed integer type, interpreting as unsigned",
     .opt = .@"implicitly-unsigned-literal",
     .kind = .warning,
+    .extension = true,
 };
 
 pub const invalid_preproc_operator: Diagnostic = .{
@@ -1280,6 +1288,7 @@ pub const too_many_scalar_init_braces: Diagnostic = .{
     .fmt = "too many braces around scalar initializer",
     .opt = .@"many-braces-around-scalar-init",
     .kind = .warning,
+    .extension = true,
 };
 
 // pub const uninitialized_in_own_init: Diagnostic = .{
@@ -1310,6 +1319,7 @@ pub const gnu_imaginary_constant: Diagnostic = .{
 pub const plain_complex: Diagnostic = .{
     .fmt = "plain '_Complex' requires a type specifier; assuming '_Complex double'",
     .kind = .warning,
+    .extension = true,
 };
 
 pub const complex_int: Diagnostic = .{
@@ -1624,12 +1634,14 @@ pub const enum_not_representable: Diagnostic = .{
     .fmt = "incremented enumerator value {s} is not representable in the largest integer type",
     .kind = .warning,
     .opt = .@"enum-too-large",
+    .extension = true,
 };
 
 pub const enum_too_large: Diagnostic = .{
     .fmt = "enumeration values exceed range of largest integer",
     .kind = .warning,
     .opt = .@"enum-too-large",
+    .extension = true,
 };
 
 pub const enum_fixed: Diagnostic = .{
@@ -1795,6 +1807,7 @@ pub const zero_length_array: Diagnostic = .{
     .fmt = "zero size arrays are an extension",
     .kind = .off,
     .opt = .@"zero-length-array",
+    .extension = true,
 };
 
 pub const old_style_flexible_struct: Diagnostic = .{
@@ -1807,6 +1820,7 @@ pub const main_return_type: Diagnostic = .{
     .fmt = "return type of 'main' is not 'int'",
     .kind = .warning,
     .opt = .@"main-return-type",
+    .extension = true,
 };
 
 pub const invalid_int_suffix: Diagnostic = .{
@@ -1902,6 +1916,7 @@ pub const pointer_arith_void: Diagnostic = .{
     .fmt = "invalid application of '{s}' to a void type",
     .kind = .off,
     .opt = .@"pointer-arith",
+    .extension = true,
 };
 
 pub const sizeof_array_arg: Diagnostic = .{
@@ -1942,6 +1957,7 @@ pub const bitint_suffix: Diagnostic = .{
     .opt = .@"c23-extensions",
     .kind = .warning,
     .suppress_version = .c23,
+    .extension = true,
 };
 
 pub const auto_type_extension: Diagnostic = .{
@@ -1996,6 +2012,7 @@ pub const auto_type_with_init_list: Diagnostic = .{
 pub const missing_semicolon: Diagnostic = .{
     .fmt = "expected ';' at end of declaration list",
     .kind = .warning,
+    .extension = true,
 };
 
 pub const tentative_definition_incomplete: Diagnostic = .{
@@ -2062,17 +2079,6 @@ pub const argument_types_differ: Diagnostic = .{
 
 pub const attribute_requires_string: Diagnostic = .{
     .fmt = "attribute '{s}' requires an ordinary string",
-    .kind = .@"error",
-};
-
-pub const unterminated_string_literal_warning: Diagnostic = .{
-    .fmt = "missing terminating '\"' character",
-    .kind = .warning,
-    .opt = .@"invalid-pp-token",
-};
-
-pub const unterminated_string_literal_error: Diagnostic = .{
-    .fmt = "missing terminating '\"' character",
     .kind = .@"error",
 };
 

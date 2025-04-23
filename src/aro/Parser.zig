@@ -8982,7 +8982,7 @@ fn stringLiteral(p: *Parser) Error!Result {
             return error.ParsingFailed;
         };
         if (string_kind == .unterminated) {
-            try p.err(string_end, .unterminated_string_literal_error, .{});
+            // Diagnostic issued in preprocessor.
             p.tok_i = string_end + 1;
             return error.ParsingFailed;
         }

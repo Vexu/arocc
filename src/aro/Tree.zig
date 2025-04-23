@@ -95,6 +95,8 @@ pub const TokenWithExpansionLocs = struct {
             try comp.diagnostics.add(.{
                 .text = diagnostic.fmt,
                 .kind = diagnostic.kind,
+                .opt = diagnostic.opt,
+                .extension = diagnostic.extension,
                 .location = source.lineCol(.{
                     .id = source.id,
                     .byte_offset = tok.loc.byte_offset,

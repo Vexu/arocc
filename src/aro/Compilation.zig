@@ -1379,6 +1379,7 @@ pub fn findInclude(
                     .text = diagnostic.fmt,
                     .kind = diagnostic.kind,
                     .opt = diagnostic.opt,
+                    .extension = diagnostic.extension,
                     .location = (Source.Location{
                         .id = includer_token.source,
                         .byte_offset = includer_token.start,
@@ -1493,6 +1494,7 @@ pub const Diagnostic = struct {
     fmt: []const u8,
     kind: Diagnostics.Message.Kind,
     opt: ?Diagnostics.Option = null,
+    extension: bool = false,
 
     pub const invalid_source_epoch: Diagnostic = .{
         .fmt = "environment variable SOURCE_DATE_EPOCH must expand to a non-negative integer less than or equal to 253402300799",
@@ -1509,12 +1511,14 @@ pub const Diagnostic = struct {
         .fmt = "#include resolved using non-portable Microsoft search rules as: {s}",
         .kind = .warning,
         .opt = .@"microsoft-include",
+        .extension = true,
     };
 
     pub const ctrl_z_eof: Diagnostic = .{
         .fmt = "treating Ctrl-Z as end-of-file is a Microsoft extension",
         .kind = .off,
         .opt = .@"microsoft-end-of-file",
+        .extension = true,
     };
 };
 

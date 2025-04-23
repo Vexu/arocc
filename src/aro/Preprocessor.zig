@@ -2298,7 +2298,11 @@ fn expandMacroExhaustive(
                         try pp.hideset.put(tok.loc, new_hidelist);
 
                         if (tok.id == .keyword_defined and eval_ctx == .expr) {
-                            try pp.err(tok, .expansion_to_defined, .{});
+                            if (macro.is_func) {
+                                try pp.err(tok, .expansion_to_defined_func, .{});
+                            } else {
+                                try pp.err(tok, .expansion_to_defined_obj, .{});
+                            }
                         }
 
                         if (i < increment_idx_by and (tok.id == .keyword_defined or pp.defines.contains(pp.expandedSlice(tok.*)))) {
