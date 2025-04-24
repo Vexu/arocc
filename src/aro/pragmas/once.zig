@@ -15,6 +15,7 @@ pragma: Pragma = .{
     .afterParse = afterParse,
     .deinit = deinit,
     .preprocessorHandler = preprocessorHandler,
+    .preserveTokens = preserveTokens,
 },
 pragma_once: std.AutoHashMap(Source.Id, void),
 preprocess_count: u32 = 0,
@@ -57,4 +58,8 @@ fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex
         return error.StopPreprocessing;
     }
     self.preprocess_count = pp.preprocess_count;
+}
+
+fn preserveTokens(_: *Pragma, _: *Preprocessor, _: TokenIndex) bool {
+    return false;
 }
