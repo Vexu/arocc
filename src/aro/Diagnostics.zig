@@ -354,7 +354,6 @@ pub fn addWithLocation(
     var copy = msg;
     copy.effective_kind = d.effectiveKind(msg);
     if (copy.effective_kind == .off) return;
-    if (copy.effective_kind == .@"error" or copy.effective_kind == .@"fatal error") d.errors += 1;
     if (expansion_locs.len != 0) copy.location = expansion_locs[expansion_locs.len - 1].expand(comp);
     try d.addMessage(copy);
 
@@ -506,7 +505,8 @@ fn writeToWriter(msg: Message, w: anytype, config: std.io.tty.Config) !void {
     if (msg.location) |loc| {
         const trailer = if (loc.end_with_splice) "\\ " else "";
         try config.setColor(w, .reset);
-        try w.print("\n{s}{s}\n{s: >[3]}", .{ loc.line, trailer, "", loc.col });
+        try w.print("\n{s}{s}\n", .{ loc.line, trailer });
+        try w.writeByteNTimes(' ', loc.width);
         try config.setColor(w, .bold);
         try config.setColor(w, .bright_green);
         try w.writeAll("^\n");

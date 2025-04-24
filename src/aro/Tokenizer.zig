@@ -148,6 +148,10 @@ pub const Token = struct {
         macro_counter,
         /// Special token for implementing _Pragma
         macro_param_pragma_operator,
+        /// Special token for implementing __identifier (MS extension)
+        macro_param_ms_identifier,
+        /// Special token for implementing __pragma (MS extension)
+        macro_param_ms_pragma,
 
         /// Special identifier for implementing __func__
         macro_func,
@@ -577,6 +581,8 @@ pub const Token = struct {
                 .macro_line,
                 .macro_counter,
                 .macro_param_pragma_operator,
+                .macro_param_ms_identifier,
+                .macro_param_ms_pragma,
                 .placemarker,
                 => "",
                 .macro_ws => " ",
@@ -805,7 +811,7 @@ pub const Token = struct {
                 .unterminated_char_literal,
                 .empty_char_literal,
                 => "a character literal",
-                .pp_num, .embed_byte => "A number",
+                .pp_num, .embed_byte => "a number",
                 else => id.lexeme().?,
             };
         }

@@ -204,6 +204,13 @@ pub const unterminated_char_literal_warning: Diagnostic = .{
     .extension = true,
 };
 
+pub const unterminated_string_literal_warning: Diagnostic = .{
+    .fmt = "missing terminating '\"' character",
+    .kind = .warning,
+    .opt = .@"invalid-pp-token",
+    .extension = true,
+};
+
 pub const unterminated_comment: Diagnostic = .{
     .fmt = "unterminated comment",
     .kind = .@"error",
@@ -409,13 +416,16 @@ pub const expected_str_literal_in: Diagnostic = .{
 };
 
 pub const builtin_missing_r_paren: Diagnostic = .{
-    .fmt = "missing ')', after builtin feature-check macro",
+    .fmt = "missing ')', after {s}",
     .kind = .@"error",
 };
 
-pub const unterminated_string_literal_warning: Diagnostic = .{
-    .fmt = "missing terminating '\"' character",
-    .kind = .warning,
-    .opt = .@"invalid-pp-token",
-    .extension = true,
+pub const cannot_convert_to_identifier: Diagnostic = .{
+    .fmt = "cannot convert {s} to an identifier",
+    .kind = .@"error",
+};
+
+pub const expected_identifier: Diagnostic = .{
+    .fmt = "expected identifier argument",
+    .kind = .@"error",
 };
