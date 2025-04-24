@@ -2197,7 +2197,7 @@ pub const overflow_result_requires_ptr: Diagnostic = .{
 
 pub const attribute_todo: Diagnostic = .{
     .fmt = "TODO: implement '{s}' attribute for {s}",
-    .kind = .@"error",
+    .kind = .warning,
 };
 
 pub const invalid_type_underlying_enum: Diagnostic = .{
