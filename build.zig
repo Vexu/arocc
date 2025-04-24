@@ -58,6 +58,7 @@ pub fn build(b: *Build) !void {
     const tracy_allocation = b.option(bool, "tracy-allocation", "Include allocation information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
     const use_llvm = b.option(bool, "llvm", "Use LLVM backend to generate aro executable");
     const no_bin = b.option(bool, "no-bin", "skip emitting compiler binary") orelse false;
+    const test_filter = b.option([]const []const u8, "test-filter", "Test filter for unit tests") orelse &.{};
 
     const system_defaults = b.addOptions();
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
@@ -218,7 +219,10 @@ pub fn build(b: *Build) !void {
     }
 
     const unit_tests_step = step: {
-        var unit_tests = b.addTest(.{ .root_source_file = b.path("src/aro.zig") });
+        var unit_tests = b.addTest(.{
+            .root_source_file = b.path("src/aro.zig"),
+            .filters = test_filter,
+        });
         for (aro_module.import_table.keys(), aro_module.import_table.values()) |name, module| {
             unit_tests.root_module.addImport(name, module);
         }
