@@ -2912,6 +2912,7 @@ fn enumSpec(p: *Parser) Error!QualType {
 
             const symbol = p.syms.getPtr(field.name, .vars);
             _ = try symbol.val.intCast(dest_ty, p.comp);
+            try p.tree.value_map.put(p.gpa, field_node, symbol.val);
 
             symbol.qt = dest_ty;
             field.qt = dest_ty;
@@ -8717,11 +8718,14 @@ fn primaryExpr(p: *Parser) Error!?Result {
                         .qt = sym.qt,
                         .decl = sym.node.unpack().?,
                     } });
-                return .{
+
+                const res: Result = .{
                     .val = if (p.const_decl_folding == .no_const_decl_folding and sym.kind != .enumeration) Value{} else sym.val,
                     .qt = sym.qt,
                     .node = node,
                 };
+                try res.putValue(p);
+                return res;
             }
 
             // Check if this is a builtin call.
