@@ -133,7 +133,7 @@ pub const duplicate_decl_spec: Diagnostic = .{
 };
 
 pub const restrict_non_pointer: Diagnostic = .{
-    .fmt = "restrict requires a pointer or reference ('{s}' is invalid)",
+    .fmt = "restrict requires a pointer or reference ('{qt}' is invalid)",
     .kind = .@"error",
 };
 

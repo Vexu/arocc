@@ -36,3 +36,11 @@ fn_proto: 'attributed(fn () *int)'
  attr: nullability kind: unspecified
  name: e
 
+struct_decl: 'struct __sFILE'
+  record_field: '*fn (*void) int'
+   name: _close
+   field attr: nullability kind: nullable
+
+typedef: 'struct __sFILE'
+ name: FILE
+
