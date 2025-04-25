@@ -1738,10 +1738,12 @@ const InitDeclarator = struct { d: Declarator, initializer: ?Result = null };
 ///  | attrIdentifier '(' (expr (',' expr)*)? ')'
 fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?TentativeAttribute {
     const name_tok = p.tok_i;
-    switch (p.tok_ids[p.tok_i]) {
-        .keyword_const, .keyword_const1, .keyword_const2 => p.tok_i += 1,
-        else => _ = try p.expectIdentifier(),
+    if (!p.tok_ids[p.tok_i].isMacroIdentifier()) {
+        return p.errExpectedToken(.identifier, p.tok_ids[p.tok_i]);
     }
+    _ = (try p.eatIdentifier()) orelse {
+        p.tok_i += 1;
+    };
     const name = p.tokSlice(name_tok);
 
     const attr = Attribute.fromString(kind, namespace, name) orelse {
