@@ -2562,6 +2562,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
         return skipToNl(tokenizer);
     }
     const macro_name = try pp.unescapeUcn(tokFromRaw(escaped_macro_name));
+    defer TokenWithExpansionLocs.free(macro_name.expansion_locs, pp.gpa);
 
     var macro_name_token_id = macro_name.id;
     macro_name_token_id.simplifyMacroKeyword();
