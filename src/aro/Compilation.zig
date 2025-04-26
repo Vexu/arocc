@@ -261,14 +261,42 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
                 try define(w, "_WIN64");
             }
 
-            if (comp.target.isMinGW()) {
+            if (comp.target.abi.isGnu()) {
                 try defineStd(w, "WIN32", is_gnu);
                 try defineStd(w, "WINNT", is_gnu);
                 if (ptr_width == 64) {
                     try defineStd(w, "WIN64", is_gnu);
+                    try define(w, "__MINGW64__");
                 }
                 try define(w, "__MSVCRT__");
                 try define(w, "__MINGW32__");
+            } else if (comp.target.abi == .cygnus) {
+                try define(w, "__CYGWIN__");
+                if (ptr_width == 64) {
+                    try define(w, "__CYGWIN64__");
+                } else {
+                    try define(w, "__CYGWIN32__");
+                }
+            }
+
+            if (comp.target.abi.isGnu() or comp.target.abi == .cygnus) {
+                // MinGW and Cygwin define __declspec(a) to __attribute((a)).
+                // Like Clang we make the define no op if -fdeclspec is enabled.
+                if (comp.langopts.declspec_attrs) {
+                    try w.writeAll("#define __declspec __declspec\n");
+                } else {
+                    try w.writeAll("#define __declspec(a) __attribute__((a))\n");
+                }
+                if (!comp.langopts.ms_extensions) {
+                    // Provide aliases for the calling convention keywords.
+                    for ([_][]const u8{ "cdecl", "stdcall", "fastcall", "thiscall" }) |keyword| {
+                        try w.print(
+                            \\#define _{[0]s} __attribute__((__{[0]s}__))
+                            \\#define __{[0]s} __attribute__((__{[0]s}__))
+                            \\
+                        , .{keyword});
+                    }
+                }
             }
         },
         .uefi => try define(w, "__UEFI__"),
@@ -302,6 +330,9 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
         .aix,
         .emscripten,
         => try defineStd(w, "unix", is_gnu),
+        .windows => if (comp.target.abi.isGnu() or comp.target.abi == .cygnus) {
+            try defineStd(w, "unix", is_gnu);
+        },
         else => {},
     }
     if (comp.target.abi.isAndroid()) {
