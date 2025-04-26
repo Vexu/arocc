@@ -2582,11 +2582,11 @@ fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: Tok
 }
 
 /// Defines a new macro and warns if it is a duplicate
-fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macro: Macro) Error!void {
-    const name_str = pp.tokSlice(name_tok);
+fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: TokenWithExpansionLocs, macro: Macro) Error!void {
+    const name_str = pp.expandedSlice(name_tok);
     const gop = try pp.defines.getOrPut(pp.gpa, name_str);
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
-        const loc: Source.Location = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line };
+        const loc = name_tok.loc;
         const prev_total = pp.diagnostics.total;
         if (gop.value_ptr.is_builtin) {
             try pp.err(loc, .builtin_macro_redefined, .{});
@@ -2599,7 +2599,7 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macr
         }
     }
     if (pp.verbose) {
-        pp.verboseLog(name_tok, "macro {s} defined", .{name_str});
+        // pp.verboseLog(name_tok, "macro {s} defined", .{name_str});
     }
     if (pp.store_macro_tokens) {
         try pp.addToken(tokFromRaw(define_tok));
@@ -2610,15 +2610,17 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macr
 /// Handle a #define directive.
 fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!void {
     // Get macro name and validate it.
-    const macro_name = tokenizer.nextNoWS();
-    if (macro_name.id == .keyword_defined) {
-        try pp.err(macro_name, .defined_as_macro_name, .{});
+    const escaped_macro_name = tokenizer.nextNoWS();
+    if (escaped_macro_name.id == .keyword_defined) {
+        try pp.err(escaped_macro_name, .defined_as_macro_name, .{});
         return skipToNl(tokenizer);
     }
-    if (!macro_name.id.isMacroIdentifier()) {
-        try pp.err(macro_name, .macro_name_must_be_identifier, .{});
+    if (!escaped_macro_name.id.isMacroIdentifier()) {
+        try pp.err(escaped_macro_name, .macro_name_must_be_identifier, .{});
         return skipToNl(tokenizer);
     }
+    const macro_name = try pp.unescapeUcn(tokFromRaw(escaped_macro_name));
+
     var macro_name_token_id = macro_name.id;
     macro_name_token_id.simplifyMacroKeyword();
     switch (macro_name_token_id) {
@@ -2638,7 +2640,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
             .params = &.{},
             .tokens = &.{},
             .var_args = false,
-            .loc = tokFromRaw(macro_name).loc,
+            .loc = macro_name.loc,
             .is_func = false,
         }),
         .whitespace => first = tokenizer.next(),
@@ -2702,7 +2704,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
 
     const list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
     try pp.defineMacro(define_tok, macro_name, .{
-        .loc = tokFromRaw(macro_name).loc,
+        .loc = macro_name.loc,
         .tokens = list,
         .params = &.{},
         .is_func = false,
@@ -2711,7 +2713,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
 }
 
 /// Handle a function like #define directive.
-fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macro_name: RawToken, l_paren: RawToken) Error!void {
+fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macro_name: TokenWithExpansionLocs, l_paren: RawToken) Error!void {
     assert(macro_name.id.isMacroIdentifier());
     var params = std.ArrayList([]const u8).init(pp.gpa);
     defer params.deinit();
@@ -2893,7 +2895,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
         .params = param_list,
         .var_args = var_args or gnu_var_args.len != 0,
         .tokens = token_list,
-        .loc = tokFromRaw(macro_name).loc,
+        .loc = macro_name.loc,
     });
 }
 
