@@ -2341,59 +2341,6 @@ fn expandMacroExhaustive(
     buf.items.len = moving_end_idx;
 }
 
-// fn writeUnescapedChar(pp: *Preprocessor, decoded: ucn.DecodedUniversalChar, loc: Source.Location, offset: u32) !void {
-//     pp.comp.generated_buf.appendSliceAssumeCapacity(decoded.buf);
-//     _ = offset;
-//     switch (decoded.kind) {
-//         .normal => {},
-//         .ucn => {
-//             // TODO: UCN not allowed before C99
-//         },
-//         .control => {
-//             try pp.err(loc, .ucn_control_char_error, .{});
-//         },
-//         .not_allowed => {
-//             // try pp.err(loc, .ucn_basic_char_error, .{Ascii.init(val)}); // todo offset
-//             // try pp.comp.addDiagnostic(.{
-//             //     .tag = .ucn_basic_char_error,
-//             //     .loc = .{
-//             //         .id = loc.id,
-//             //         .byte_offset = loc.byte_offset + offset,
-//             //         .line = loc.line,
-//             //     },
-//             //     .extra = .{ .ascii = @intCast(decoded.buf[0]) },
-//             // }, &.{});
-//         },
-//         .incomplete_ucn => {
-//             // try pp.comp.addDiagnostic(.{
-//             //     .tag = .incomplete_universal_character,
-//             //     .loc = .{
-//             //         .id = loc.id,
-//             //         .byte_offset = loc.byte_offset + offset,
-//             //         .line = loc.line,
-//             //     },
-//             // }, &.{});
-//         },
-//         .invalid_utf_8 => {
-//             // try pp.comp.addDiagnostic(.{
-//             //     .tag = .invalid_utf8,
-//             //     .loc = .{
-//             //         .id = loc.id,
-//             //         .byte_offset = loc.byte_offset + offset,
-//             //         .line = loc.line,
-//             //     },
-//             // }, &.{});
-//         },
-//         .invalid_codepoint => {
-//             // try pp.comp.addDiagnostic(.{
-//             //     .tag = .invalid_universal_character,
-//             //     .loc = loc,
-//             //     .extra = .{ .offset = offset },
-//             // }, &.{});
-//         },
-//     }
-// }
-
 fn unescapeUcn(pp: *Preprocessor, tok: TokenWithExpansionLocs) !TokenWithExpansionLocs {
     switch (tok.id) {
         .incomplete_ucn => {
@@ -2432,13 +2379,6 @@ fn unescapeUcn(pp: *Preprocessor, tok: TokenWithExpansionLocs) !TokenWithExpansi
                         },
                     }
                 }
-
-                // var offset: u32 = 0;
-                // while (it.next()) |decoded| {
-                //     try pp.writeUnescapedChar(decoded, tok.loc, offset);
-                //     std.debug.assert(decoded.consumed <= 10);
-                //     offset += @truncate(decoded.consumed);
-                // }
                 pp.comp.generated_buf.appendAssumeCapacity('\n');
                 defer TokenWithExpansionLocs.free(tok.expansion_locs, pp.gpa);
                 return pp.makeGeneratedToken(start, .extended_identifier, tok);
