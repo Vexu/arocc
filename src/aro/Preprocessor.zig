@@ -2635,6 +2635,10 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
             },
             .unterminated_comment => try pp.err(tok, .unterminated_comment, .{}),
             else => {
+                if (tok.id == .incomplete_ucn) {
+                    @branchHint(.cold);
+                    try pp.err(tok, .incomplete_ucn, .{});
+                }
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
                     try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });

@@ -3,6 +3,8 @@ _Static_assert(🔥 == 42, "");
 
 #define FOO \u4F60 ## \u597D
 
+#define INCOMPLETE_UCN \u4F ## 60
+
 int foo(void) {
     int FOO = 0;
     \u4F60\u597D = 5;
@@ -25,7 +27,8 @@ int bar(int x) {
 
 int \UFFFFFFFF = 42;
 
-#define EXPECTED_ERRORS "ucn identifiers.c:9:9: error: character 'a' cannot be specified by a universal character name" \
-    "ucn identifiers.c:10:9: error: universal character name refers to a control character" \
-    "ucn identifiers.c:26:7: error: invalid universal character" \
+#define EXPECTED_ERRORS "ucn identifiers.c:6:24: warning: incomplete universal character name; treating as '\\' followed by identifier [-Wunicode]" \
+    "ucn identifiers.c:11:9: error: character 'a' cannot be specified by a universal character name" \
+    "ucn identifiers.c:12:9: error: universal character name refers to a control character" \
+    "ucn identifiers.c:28:7: error: invalid universal character" \
 
