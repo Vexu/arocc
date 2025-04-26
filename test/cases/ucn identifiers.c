@@ -1,3 +1,6 @@
+#define \U0001F525 42
+_Static_assert(🔥 == 42, "");
+
 #define FOO \u4F60 ## \u597D
 
 int foo(void) {
@@ -22,7 +25,7 @@ int bar(int x) {
 
 int \UFFFFFFFF = 42;
 
-#define EXPECTED_ERRORS "ucn identifiers.c:6:9: error: character 'a' cannot be specified by a universal character name" \
-    "ucn identifiers.c:7:12: error: universal character name refers to a control character" \
-    "ucn identifiers.c:23:5: error: invalid universal character" \
+#define EXPECTED_ERRORS "ucn identifiers.c:9:9: error: character 'a' cannot be specified by a universal character name" \
+    "ucn identifiers.c:10:9: error: universal character name refers to a control character" \
+    "ucn identifiers.c:26:7: error: invalid universal character" \
 
