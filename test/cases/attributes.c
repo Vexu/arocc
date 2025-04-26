@@ -123,6 +123,6 @@ __attribute__(()) // test attribute at eof
     "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
     "attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement" \
     "attributes.c:76:6: error: cannot call non function type 'int'" \
-    "attributes.c:110:24: error: Attribute argument is invalid, expected a string but got an integer constant" \
+    "attributes.c:110:24: error: attribute argument is invalid, expected a string but got an integer constant" \
     "attributes.c:112:16: warning: unknown attribute 'void' ignored [-Wunknown-attributes]" \
     "attributes.c:114:18: error: expected identifier or '('" \

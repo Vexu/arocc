@@ -1434,13 +1434,14 @@ pub const attribute_too_many_args: Diagnostic = .{
 };
 
 pub const attribute_arg_invalid: Diagnostic = .{
-    .fmt = "Attribute argument is invalid, expected {s} but got {s}",
+    .fmt = "attribute argument is invalid, expected {s} but got {s}",
     .kind = .@"error",
 };
 
 pub const unknown_attr_enum: Diagnostic = .{
-    .fmt = "Unknown `{s}` argument. Possible values are: {s}",
-    .kind = .@"error",
+    .fmt = "unknown `{s}` argument. Possible values are: {s}",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
 };
 
 pub const attribute_requires_identifier: Diagnostic = .{

@@ -3162,10 +3162,11 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 }
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
-fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_cc_attr: bool) Error!bool {
+fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
     var any = false;
     while (true) {
-        if (allow_cc_attr and try p.msTypeAttribute()) continue;
+        if (allow_attr and try p.msTypeAttribute()) continue;
+        if (allow_attr) try p.attributeSpecifier();
         switch (p.tok_ids[p.tok_i]) {
             .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => {
                 if (b.restrict != null)
