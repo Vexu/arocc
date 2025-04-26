@@ -2515,7 +2515,10 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
     macro_name_token_id.simplifyMacroKeyword();
     switch (macro_name_token_id) {
         .identifier, .extended_identifier => {},
-        else => if (macro_name_token_id.isMacroIdentifier()) {
+        // TODO allow #define <keyword> <keyword> and #define extern|inline|static|const
+        else => if (macro_name_token_id.isMacroIdentifier() and
+            !mem.eql(u8, pp.comp.getSource(tokenizer.source).path, "<builtin>"))
+        {
             try pp.err(macro_name, .keyword_macro, .{});
         },
     }
