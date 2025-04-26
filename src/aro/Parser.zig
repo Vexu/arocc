@@ -3429,6 +3429,9 @@ fn declarator(
         try d.validate(p, combine_tok);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
+        // C23 and declspec attributes are not allowed here
+        while (try p.gnuAttribute()) {}
+
         // Parse Microsoft keyword type attributes.
         _ = try p.msTypeAttribute();
 
