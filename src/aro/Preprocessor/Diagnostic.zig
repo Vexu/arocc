@@ -429,3 +429,9 @@ pub const expected_identifier: Diagnostic = .{
     .fmt = "expected identifier argument",
     .kind = .@"error",
 };
+
+pub const incomplete_ucn: Diagnostic = .{
+    .fmt = "incomplete universal character name; treating as '\\' followed by identifier",
+    .kind = .warning,
+    .opt = .unicode,
+};
