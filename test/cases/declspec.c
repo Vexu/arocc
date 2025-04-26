@@ -1,4 +1,4 @@
-//aro-args -fdeclspec
+//aro-args -fdeclspec --target=x86_64-linux
 
 #pragma GCC diagnostic ignored "-Wgnu-alignof-expression"
 
