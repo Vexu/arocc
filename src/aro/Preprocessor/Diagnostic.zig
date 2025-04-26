@@ -435,13 +435,3 @@ pub const incomplete_ucn: Diagnostic = .{
     .kind = .warning,
     .opt = .unicode,
 };
-
-pub const ucn_control_char_error: Diagnostic = .{
-    .fmt = "universal character name refers to a control character",
-    .kind = .@"error",
-};
-
-pub const ucn_basic_char_error: Diagnostic = .{
-    .fmt = "character '{c}' cannot be specified by a universal character name",
-    .kind = .@"error",
-};

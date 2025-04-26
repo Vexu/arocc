@@ -9,7 +9,7 @@ const Source = @import("Source.zig");
 const UCNKind = enum(u8) {
     /// Just `\`
     none,
-    /// \u or \U
+    /// \u or \U followed by an insufficient number of hex digits
     incomplete,
     /// `\uxxxx`
     hex4 = 5,
