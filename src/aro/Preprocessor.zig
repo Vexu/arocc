@@ -407,13 +407,13 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         if (try pp.expr(&tokenizer)) {
                             if_context.set(.until_endif);
                             if (pp.verbose) {
-                                pp.verboseLog(tokFromRaw(directive), "entering then branch of #if", .{});
+                                pp.verboseLog(directive, "entering then branch of #if", .{});
                             }
                         } else {
                             if_context.set(.until_else);
                             try pp.skip(&tokenizer, .until_else);
                             if (pp.verbose) {
-                                pp.verboseLog(tokFromRaw(directive), "entering else branch of #if", .{});
+                                pp.verboseLog(directive, "entering else branch of #if", .{});
                             }
                         }
                     },
@@ -427,13 +427,13 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         if (pp.defines.get(macro_name) != null) {
                             if_context.set(.until_endif);
                             if (pp.verbose) {
-                                pp.verboseLog(tokFromRaw(directive), "entering then branch of #ifdef", .{});
+                                pp.verboseLog(directive, "entering then branch of #ifdef", .{});
                             }
                         } else {
                             if_context.set(.until_else);
                             try pp.skip(&tokenizer, .until_else);
                             if (pp.verbose) {
-                                pp.verboseLog(tokFromRaw(directive), "entering else branch of #ifdef", .{});
+                                pp.verboseLog(directive, "entering else branch of #ifdef", .{});
                             }
                         }
                     },
@@ -463,12 +463,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             .until_else => if (try pp.expr(&tokenizer)) {
                                 if_context.set(.until_endif);
                                 if (pp.verbose) {
-                                    pp.verboseLog(tokFromRaw(directive), "entering then branch of #elif", .{});
+                                    pp.verboseLog(directive, "entering then branch of #elif", .{});
                                 }
                             } else {
                                 try pp.skip(&tokenizer, .until_else);
                                 if (pp.verbose) {
-                                    pp.verboseLog(tokFromRaw(directive), "entering else branch of #elif", .{});
+                                    pp.verboseLog(directive, "entering else branch of #elif", .{});
                                 }
                             },
                             .until_endif => try pp.skip(&tokenizer, .until_endif),
@@ -493,20 +493,20 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                                     if_context.set(.until_else);
                                     try pp.skip(&tokenizer, .until_else);
                                     if (pp.verbose) {
-                                        pp.verboseLog(tokFromRaw(directive), "entering else branch of #elifdef", .{});
+                                        pp.verboseLog(directive, "entering else branch of #elifdef", .{});
                                     }
                                 } else {
                                     try pp.expectNl(&tokenizer);
                                     if (pp.defines.get(macro_name.?) != null) {
                                         if_context.set(.until_endif);
                                         if (pp.verbose) {
-                                            pp.verboseLog(tokFromRaw(directive), "entering then branch of #elifdef", .{});
+                                            pp.verboseLog(directive, "entering then branch of #elifdef", .{});
                                         }
                                     } else {
                                         if_context.set(.until_else);
                                         try pp.skip(&tokenizer, .until_else);
                                         if (pp.verbose) {
-                                            pp.verboseLog(tokFromRaw(directive), "entering else branch of #elifdef", .{});
+                                            pp.verboseLog(directive, "entering else branch of #elifdef", .{});
                                         }
                                     }
                                 }
@@ -533,20 +533,20 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                                     if_context.set(.until_else);
                                     try pp.skip(&tokenizer, .until_else);
                                     if (pp.verbose) {
-                                        pp.verboseLog(tokFromRaw(directive), "entering else branch of #elifndef", .{});
+                                        pp.verboseLog(directive, "entering else branch of #elifndef", .{});
                                     }
                                 } else {
                                     try pp.expectNl(&tokenizer);
                                     if (pp.defines.get(macro_name.?) == null) {
                                         if_context.set(.until_endif);
                                         if (pp.verbose) {
-                                            pp.verboseLog(tokFromRaw(directive), "entering then branch of #elifndef", .{});
+                                            pp.verboseLog(directive, "entering then branch of #elifndef", .{});
                                         }
                                     } else {
                                         if_context.set(.until_else);
                                         try pp.skip(&tokenizer, .until_else);
                                         if (pp.verbose) {
-                                            pp.verboseLog(tokFromRaw(directive), "entering else branch of #elifndef", .{});
+                                            pp.verboseLog(directive, "entering else branch of #elifndef", .{});
                                         }
                                     }
                                 }
@@ -570,7 +570,7 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             .until_else => {
                                 if_context.set(.until_endif_seen_else);
                                 if (pp.verbose) {
-                                    pp.verboseLog(tokFromRaw(directive), "#else branch here", .{});
+                                    pp.verboseLog(directive, "#else branch here", .{});
                                 }
                             },
                             .until_endif => try pp.skip(&tokenizer, .until_endif_seen_else),
@@ -796,10 +796,10 @@ fn fatalNotFound(pp: *Preprocessor, tok: TokenWithExpansionLocs, filename: []con
     unreachable; // should've returned FatalError
 }
 
-fn verboseLog(pp: *Preprocessor, tok: TokenWithExpansionLocs, comptime fmt: []const u8, args: anytype) void {
+fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) void {
     @branchHint(.cold);
-    const source = pp.comp.getSource(tok.loc.id);
-    const line_col = source.lineCol(tok.loc);
+    const source = pp.comp.getSource(raw.source);
+    const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
 
     const stderr = std.io.getStdErr().writer();
     var buf_writer = std.io.bufferedWriter(stderr);
@@ -2541,7 +2541,8 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: TokenWithExpan
         }
     }
     if (pp.verbose) {
-        pp.verboseLog(name_tok, "macro {s} defined", .{name_str});
+        const raw: RawToken = .{ .id = name_tok.id, .source = name_tok.loc.id, .start = name_tok.loc.byte_offset, .line = name_tok.loc.line };
+        pp.verboseLog(raw, "macro {s} defined", .{name_str});
     }
     if (pp.store_macro_tokens) {
         try pp.addToken(tokFromRaw(define_tok));
@@ -3043,7 +3044,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     }
 
     if (pp.verbose) {
-        pp.verboseLog(tokFromRaw(first), "include file {s}", .{new_source.path});
+        pp.verboseLog(first, "include file {s}", .{new_source.path});
     }
 
     const token_state = pp.getTokenState();
