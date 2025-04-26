@@ -380,6 +380,9 @@ pub const Token = struct {
         comment,
 
         /// Incomplete universal character name
+        /// This happens if the source text contains `\u` or `\U` followed by an insufficient number of hex
+        /// digits. This token id represents just the backslash; the subsequent `u` or `U` will be treated as the
+        /// leading character of the following identifier token.
         incomplete_ucn,
 
         /// Return true if token is identifier or keyword.
