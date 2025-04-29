@@ -169,7 +169,7 @@ pub const Node = union(enum) {
     do_while_stmt: DoWhileStmt,
     for_stmt: ForStmt,
     goto_stmt: GotoStmt,
-    computed_goto_stmt: CompoutedGotoStmt,
+    computed_goto_stmt: ComputedGotoStmt,
     continue_stmt: ContinueStmt,
     break_stmt: BreakStmt,
     null_stmt: NullStmt,
@@ -430,7 +430,7 @@ pub const Node = union(enum) {
         label_tok: TokenIndex,
     };
 
-    pub const CompoutedGotoStmt = struct {
+    pub const ComputedGotoStmt = struct {
         goto_tok: TokenIndex,
         expr: Node.Index,
     };
