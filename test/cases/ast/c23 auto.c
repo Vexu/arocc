@@ -54,6 +54,11 @@ fn_def: 'fn () void'
      init:
       implicit default_init_expr: 'invalid'
 
+    variable: 'int'
+     name: g
+     init:
+      int_literal: 'int' (value: 1)
+
     implicit return_stmt: 'void'
 
 fn_def: 'fn () void'

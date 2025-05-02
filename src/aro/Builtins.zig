@@ -53,10 +53,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
     for (desc.prefix) |prefix| {
         switch (prefix) {
             .L => builder.combine(.long, 0) catch unreachable,
-            .LL => {
-                builder.combine(.long, 0) catch unreachable;
-                builder.combine(.long, 0) catch unreachable;
-            },
+            .LL => builder.combine(.long_long, 0) catch unreachable,
             .LLL => {
                 switch (builder.type) {
                     .none => builder.type = .int128,

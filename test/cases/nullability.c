@@ -6,6 +6,11 @@ int _Nullable d(void);
 
 #pragma GCC diagnostic warning "-Wnullability-extension"
 int *_Null_unspecified e(void);
+#pragma GCC diagnostic pop
+
+typedef	struct __sFILE {
+	int	(* _Nullable _close)(void *);
+} FILE;
 
 #define EXPECTED_ERRORS \
     "nullability.c:2:15: warning: duplicate nullability specifier '_Nonnull' [-Wnullability]" \

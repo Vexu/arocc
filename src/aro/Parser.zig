@@ -1738,10 +1738,12 @@ const InitDeclarator = struct { d: Declarator, initializer: ?Result = null };
 ///  | attrIdentifier '(' (expr (',' expr)*)? ')'
 fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?TentativeAttribute {
     const name_tok = p.tok_i;
-    switch (p.tok_ids[p.tok_i]) {
-        .keyword_const, .keyword_const1, .keyword_const2 => p.tok_i += 1,
-        else => _ = try p.expectIdentifier(),
+    if (!p.tok_ids[p.tok_i].isMacroIdentifier()) {
+        return p.errExpectedToken(.identifier, p.tok_ids[p.tok_i]);
     }
+    _ = (try p.eatIdentifier()) orelse {
+        p.tok_i += 1;
+    };
     const name = p.tokSlice(name_tok);
 
     const attr = Attribute.fromString(kind, namespace, name) orelse {
@@ -2912,6 +2914,7 @@ fn enumSpec(p: *Parser) Error!QualType {
 
             const symbol = p.syms.getPtr(field.name, .vars);
             _ = try symbol.val.intCast(dest_ty, p.comp);
+            try p.tree.value_map.put(p.gpa, field_node, symbol.val);
 
             symbol.qt = dest_ty;
             field.qt = dest_ty;
@@ -3159,9 +3162,11 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 }
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
-fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_cc_attr: bool) Error!bool {
+fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
     var any = false;
     while (true) {
+        if (allow_attr and try p.msTypeAttribute()) continue;
+        if (allow_attr) try p.attributeSpecifier();
         switch (p.tok_ids[p.tok_i]) {
             .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => {
                 if (b.restrict != null)
@@ -3194,45 +3199,6 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_cc_attr: bool) Error!bool {
                     try p.err(p.tok_i, .duplicate_decl_spec, .{"__unaligned"})
                 else
                     b.unaligned = p.tok_i;
-            },
-            .keyword_stdcall,
-            .keyword_stdcall2,
-            .keyword_thiscall,
-            .keyword_thiscall2,
-            .keyword_vectorcall,
-            .keyword_vectorcall2,
-            .keyword_fastcall,
-            .keyword_fastcall2,
-            .keyword_regcall,
-            .keyword_cdecl,
-            .keyword_cdecl2,
-            => {
-                if (!allow_cc_attr) break;
-                try p.attr_buf.append(p.gpa, .{
-                    .attr = .{ .tag = .calling_convention, .args = .{
-                        .calling_convention = .{ .cc = switch (p.tok_ids[p.tok_i]) {
-                            .keyword_stdcall,
-                            .keyword_stdcall2,
-                            => .stdcall,
-                            .keyword_thiscall,
-                            .keyword_thiscall2,
-                            => .thiscall,
-                            .keyword_vectorcall,
-                            .keyword_vectorcall2,
-                            => .vectorcall,
-                            .keyword_fastcall,
-                            .keyword_fastcall2,
-                            => .fastcall,
-                            .keyword_regcall,
-                            => .regcall,
-                            .keyword_cdecl,
-                            .keyword_cdecl2,
-                            => .c,
-                            else => unreachable,
-                        } },
-                    }, .syntax = .keyword },
-                    .tok = p.tok_i,
-                });
             },
             .keyword_nonnull, .keyword_nullable, .keyword_nullable_result, .keyword_null_unspecified => |tok_id| {
                 const sym_str = p.tok_ids[p.tok_i].symbol();
@@ -3273,6 +3239,56 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_cc_attr: bool) Error!bool {
         }
         p.tok_i += 1;
         any = true;
+    }
+    return any;
+}
+
+fn msTypeAttribute(p: *Parser) !bool {
+    var any = false;
+    while (true) {
+        switch (p.tok_ids[p.tok_i]) {
+            .keyword_stdcall,
+            .keyword_stdcall2,
+            .keyword_thiscall,
+            .keyword_thiscall2,
+            .keyword_vectorcall,
+            .keyword_vectorcall2,
+            .keyword_fastcall,
+            .keyword_fastcall2,
+            .keyword_regcall,
+            .keyword_cdecl,
+            .keyword_cdecl2,
+            => {
+                try p.attr_buf.append(p.gpa, .{
+                    .attr = .{ .tag = .calling_convention, .args = .{
+                        .calling_convention = .{ .cc = switch (p.tok_ids[p.tok_i]) {
+                            .keyword_stdcall,
+                            .keyword_stdcall2,
+                            => .stdcall,
+                            .keyword_thiscall,
+                            .keyword_thiscall2,
+                            => .thiscall,
+                            .keyword_vectorcall,
+                            .keyword_vectorcall2,
+                            => .vectorcall,
+                            .keyword_fastcall,
+                            .keyword_fastcall2,
+                            => .fastcall,
+                            .keyword_regcall,
+                            => .regcall,
+                            .keyword_cdecl,
+                            .keyword_cdecl2,
+                            => .c,
+                            else => unreachable,
+                        } },
+                    }, .syntax = .keyword },
+                    .tok = p.tok_i,
+                });
+                any = true;
+                p.tok_i += 1;
+            },
+            else => break,
+        }
     }
     return any;
 }
@@ -3413,6 +3429,12 @@ fn declarator(
         try d.validate(p, combine_tok);
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
+        // C23 and declspec attributes are not allowed here
+        while (try p.gnuAttribute()) {}
+
+        // Parse Microsoft keyword type attributes.
+        _ = try p.msTypeAttribute();
+
         const special_marker: QualType = .{ ._index = .declarator_combine };
         var res = (try p.declarator(special_marker, kind)) orelse {
             p.tok_i = l_paren;
@@ -8775,11 +8797,14 @@ fn primaryExpr(p: *Parser) Error!?Result {
                         .qt = sym.qt,
                         .decl = sym.node.unpack().?,
                     } });
-                return .{
+
+                const res: Result = .{
                     .val = if (p.const_decl_folding == .no_const_decl_folding and sym.kind != .enumeration) Value{} else sym.val,
                     .qt = sym.qt,
                     .node = node,
                 };
+                try res.putValue(p);
+                return res;
             }
 
             // Check if this is a builtin call.
@@ -9055,7 +9080,7 @@ fn stringLiteral(p: *Parser) Error!Result {
             return error.ParsingFailed;
         };
         if (string_kind == .unterminated) {
-            try p.err(string_end, .unterminated_string_literal_error, .{});
+            // Diagnostic issued in preprocessor.
             p.tok_i = string_end + 1;
             return error.ParsingFailed;
         }

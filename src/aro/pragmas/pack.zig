@@ -14,7 +14,6 @@ const Pack = @This();
 pragma: Pragma = .{
     .deinit = deinit,
     .parserHandler = parserHandler,
-    .preserveTokens = preserveTokens,
 },
 stack: std.ArrayListUnmanaged(struct { label: []const u8, val: u8 }) = .{},
 
@@ -155,10 +154,4 @@ fn pop(pack: *Pack, p: *Parser, maybe_label: ?[]const u8) void {
         };
         p.pragma_pack = prev.val;
     }
-}
-
-fn preserveTokens(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) bool {
-    _ = pp;
-    _ = start_idx;
-    return true;
 }

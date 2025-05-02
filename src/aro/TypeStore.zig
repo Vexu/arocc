@@ -1144,11 +1144,19 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn print(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+        if (qt.isC23Auto()) {
+            try w.writeAll("auto");
+            return;
+        }
         _ = try qt.printPrologue(comp, w);
         try qt.printEpilogue(comp, w);
     }
 
     pub fn printNamed(qt: QualType, name: []const u8, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+        if (qt.isC23Auto()) {
+            try w.print("auto {s}", .{name});
+            return;
+        }
         const simple = try qt.printPrologue(comp, w);
         if (simple) try w.writeByte(' ');
         try w.writeAll(name);
@@ -2472,7 +2480,10 @@ pub const Builder = struct {
             }
         }
 
-        if (b.unaligned != null and !qt.isPointer(b.parser.comp)) {
+        // We can't use `qt.isPointer()` because `qt` might contain a `.declarator_combine`.
+        const is_pointer = qt.isAutoType() or qt.isC23Auto() or qt.base(b.parser.comp).type == .pointer;
+
+        if (b.unaligned != null and !is_pointer) {
             result_qt = (try b.parser.comp.type_store.put(b.parser.gpa, .{ .attributed = .{
                 .base = result_qt,
                 .attributes = &.{.{ .tag = .unaligned, .args = .{ .unaligned = .{} }, .syntax = .keyword }},
@@ -2484,7 +2495,8 @@ pub const Builder = struct {
             .nullable,
             .nullable_result,
             .null_unspecified,
-            => |tok| if (!qt.isPointer(b.parser.comp)) {
+            => |tok| if (!is_pointer) {
+                // TODO this should be checked later so that auto types can be properly validated.
                 try b.parser.err(tok, .invalid_nullability, .{qt});
             },
         }
@@ -2493,6 +2505,11 @@ pub const Builder = struct {
         if (b.@"volatile" != null) result_qt.@"volatile" = true;
 
         if (b.restrict) |restrict_tok| {
+            if (result_qt.isAutoType()) return b.parser.todo("restrict __auto_type");
+            if (result_qt.isC23Auto()) {
+                try b.parser.err(restrict_tok, .restrict_non_pointer, .{qt});
+                return result_qt;
+            }
             switch (qt.base(b.parser.comp).type) {
                 .array, .pointer => result_qt.restrict = true,
                 else => {
@@ -2718,7 +2735,7 @@ pub const Builder = struct {
                 .double => .long_double,
                 .long => .long_long,
                 .unsigned => .ulong,
-                .signed => .long,
+                .signed => .slong,
                 .int => .long_int,
                 .sint => .slong_int,
                 .ulong => .ulong_long,
@@ -2729,6 +2746,30 @@ pub const Builder = struct {
                 .complex_slong => .complex_slong_long,
                 .complex_ulong => .complex_ulong_long,
                 .complex_double => .complex_long_double,
+                else => return b.cannotCombine(source_tok),
+            },
+            .long_long => switch (b.type) {
+                .none => .long_long,
+                .unsigned => .ulong_long,
+                .signed => .slong_long,
+                .int => .long_long_int,
+                .sint => .slong_long_int,
+                .long => .long_long,
+                .slong => .slong_long,
+                .ulong => .ulong_long,
+                .complex => .complex_long,
+                .complex_signed => .complex_slong_long,
+                .complex_unsigned => .complex_ulong_long,
+                .complex_long => .complex_long_long,
+                .complex_slong => .complex_slong_long,
+                .complex_ulong => .complex_ulong_long,
+                .long_long,
+                .ulong_long,
+                .ulong_long_int,
+                .complex_long_long,
+                .complex_ulong_long,
+                .complex_ulong_long_int,
+                => return b.duplicateSpec(source_tok, "long"),
                 else => return b.cannotCombine(source_tok),
             },
             .int128 => switch (b.type) {

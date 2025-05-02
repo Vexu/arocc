@@ -47,3 +47,9 @@ enum Huge {
 	L = 18446744073709551615ULL
 };
 _Static_assert(sizeof(enum Huge) == 8, "Huge");
+
+#pragma GCC diagnostic ignored "-Wenum-too-large"
+enum EnumWithInits {
+    Negative = -2,
+    Positive = 0xFFFFFFFFFFFFFFFF,
+};

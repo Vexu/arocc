@@ -33,7 +33,7 @@ int big __attribute__((vector_size(4294967296)));
 typedef float f2v __attribute__((vector_size(8.0i)));
 
 #define EXPECTED_ERRORS "attribute errors.c:4:24: error: 'access' attribute takes at least 2 argument(s)" \
-    "attribute errors.c:5:31: error: Unknown `access` argument. Possible values are: 'read_only', 'read_write', 'write_only', 'none'" \
+    "attribute errors.c:5:31: warning: unknown `access` argument. Possible values are: 'read_only', 'read_write', 'write_only', 'none' [-Wignored-attributes]" \
     "attribute errors.c:6:24: warning: attribute 'access' ignored on variables [-Wignored-attributes]" \
     "attribute errors.c:7:30: error: use of undeclared identifier 'bar'" \
     "attribute errors.c:11:35: error: 'aligned' attribute takes at most 1 argument(s)" \
@@ -43,15 +43,15 @@ typedef float f2v __attribute__((vector_size(8.0i)));
     "attribute errors.c:15:24: warning: attribute 'assume_aligned' ignored on variables [-Wignored-attributes]" \
     "attribute errors.c:16:24: warning: attribute 'hot' ignored on variables [-Wignored-attributes]" \
     "attribute errors.c:16:29: warning: attribute 'pure' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:18:32: error: Attribute argument is invalid, expected an identifier but got a string" \
+    "attribute errors.c:18:32: error: attribute argument is invalid, expected an identifier but got a string" \
     "attribute errors.c:19:24: warning: attribute 'simd' ignored on variables [-Wignored-attributes]" \
     "attribute errors.c:20:24: warning: attribute 'simd' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:21:29: error: Unknown `simd` argument. Possible values are: \"notinbranch\", \"inbranch\"" \
+    "attribute errors.c:21:29: warning: unknown `simd` argument. Possible values are: \"notinbranch\", \"inbranch\" [-Wignored-attributes]" \
     "attribute errors.c:22:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
     "attribute errors.c:23:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
     "attribute errors.c:24:49: error: 'deprecated' attribute takes at most 1 argument(s)" \
     "attribute errors.c:28:24: warning: attribute 'cold' ignored on fields [-Wignored-attributes]" \
     "attribute errors.c:31:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]" \
     "attribute errors.c:32:36: error: attribute value '4294967296' out of range" \
-    "attribute errors.c:33:46: error: Attribute argument is invalid, expected an integer constant but got a complex floating point number" \
+    "attribute errors.c:33:46: error: attribute argument is invalid, expected an integer constant but got a complex floating point number" \
 

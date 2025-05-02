@@ -865,7 +865,7 @@ fn processSource(
     asm_gen_fn: ?AsmCodeGenFn,
 ) !void {
     d.comp.generated_buf.items.len = 0;
-    const prev_total = d.diagnostics.total;
+    const prev_total = d.diagnostics.errors;
 
     var pp = try Preprocessor.initDefault(d.comp);
     defer pp.deinit();
@@ -891,7 +891,7 @@ fn processSource(
     if (d.only_preprocess) {
         d.printDiagnosticsStats();
 
-        if (d.diagnostics.total != prev_total) {
+        if (d.diagnostics.errors != prev_total) {
             if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
             return;
         }

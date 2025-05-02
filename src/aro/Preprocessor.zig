@@ -11,6 +11,7 @@ const features = @import("features.zig");
 const Hideset = @import("Hideset.zig");
 const Parser = @import("Parser.zig");
 const Source = @import("Source.zig");
+const text_literal = @import("text_literal.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const RawToken = Tokenizer.Token;
 const Tree = @import("Tree.zig");
@@ -186,78 +187,14 @@ pub fn initDefault(comp: *Compilation) !Preprocessor {
     return pp;
 }
 
-const builtin_macros = struct {
-    const args = [1][]const u8{"X"};
-
-    const has_attribute = [1]RawToken{.{
-        .id = .macro_param_has_attribute,
-        .source = .generated,
-    }};
-    const has_c_attribute = [1]RawToken{.{
-        .id = .macro_param_has_c_attribute,
-        .source = .generated,
-    }};
-    const has_declspec_attribute = [1]RawToken{.{
-        .id = .macro_param_has_declspec_attribute,
-        .source = .generated,
-    }};
-    const has_warning = [1]RawToken{.{
-        .id = .macro_param_has_warning,
-        .source = .generated,
-    }};
-    const has_feature = [1]RawToken{.{
-        .id = .macro_param_has_feature,
-        .source = .generated,
-    }};
-    const has_extension = [1]RawToken{.{
-        .id = .macro_param_has_extension,
-        .source = .generated,
-    }};
-    const has_builtin = [1]RawToken{.{
-        .id = .macro_param_has_builtin,
-        .source = .generated,
-    }};
-    const has_include = [1]RawToken{.{
-        .id = .macro_param_has_include,
-        .source = .generated,
-    }};
-    const has_include_next = [1]RawToken{.{
-        .id = .macro_param_has_include_next,
-        .source = .generated,
-    }};
-    const has_embed = [1]RawToken{.{
-        .id = .macro_param_has_embed,
-        .source = .generated,
-    }};
-
-    const is_identifier = [1]RawToken{.{
-        .id = .macro_param_is_identifier,
-        .source = .generated,
-    }};
-
-    const pragma_operator = [1]RawToken{.{
-        .id = .macro_param_pragma_operator,
-        .source = .generated,
-    }};
-
-    const file = [1]RawToken{.{
-        .id = .macro_file,
-        .source = .generated,
-    }};
-    const line = [1]RawToken{.{
-        .id = .macro_line,
-        .source = .generated,
-    }};
-    const counter = [1]RawToken{.{
-        .id = .macro_counter,
-        .source = .generated,
-    }};
-};
-
-fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: []const RawToken) !void {
+// `param_tok_id` is comptime so that the generated `tokens` list is unique for every macro.
+fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, comptime param_tok_id: Token.Id) !void {
     try pp.defines.putNoClobber(pp.gpa, name, .{
-        .params = &builtin_macros.args,
-        .tokens = tokens,
+        .params = &[1][]const u8{"X"},
+        .tokens = &[1]RawToken{.{
+            .id = param_tok_id,
+            .source = .generated,
+        }},
         .var_args = false,
         .is_func = is_func,
         .loc = .{ .id = .generated },
@@ -266,22 +203,27 @@ fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, tokens: [
 }
 
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
-    try pp.addBuiltinMacro("__has_attribute", true, &builtin_macros.has_attribute);
-    try pp.addBuiltinMacro("__has_c_attribute", true, &builtin_macros.has_c_attribute);
-    try pp.addBuiltinMacro("__has_declspec_attribute", true, &builtin_macros.has_declspec_attribute);
-    try pp.addBuiltinMacro("__has_warning", true, &builtin_macros.has_warning);
-    try pp.addBuiltinMacro("__has_feature", true, &builtin_macros.has_feature);
-    try pp.addBuiltinMacro("__has_extension", true, &builtin_macros.has_extension);
-    try pp.addBuiltinMacro("__has_builtin", true, &builtin_macros.has_builtin);
-    try pp.addBuiltinMacro("__has_include", true, &builtin_macros.has_include);
-    try pp.addBuiltinMacro("__has_include_next", true, &builtin_macros.has_include_next);
-    try pp.addBuiltinMacro("__has_embed", true, &builtin_macros.has_embed);
-    try pp.addBuiltinMacro("__is_identifier", true, &builtin_macros.is_identifier);
-    try pp.addBuiltinMacro("_Pragma", true, &builtin_macros.pragma_operator);
+    try pp.addBuiltinMacro("__has_attribute", true, .macro_param_has_attribute);
+    try pp.addBuiltinMacro("__has_c_attribute", true, .macro_param_has_c_attribute);
+    try pp.addBuiltinMacro("__has_declspec_attribute", true, .macro_param_has_declspec_attribute);
+    try pp.addBuiltinMacro("__has_warning", true, .macro_param_has_warning);
+    try pp.addBuiltinMacro("__has_feature", true, .macro_param_has_feature);
+    try pp.addBuiltinMacro("__has_extension", true, .macro_param_has_extension);
+    try pp.addBuiltinMacro("__has_builtin", true, .macro_param_has_builtin);
+    try pp.addBuiltinMacro("__has_include", true, .macro_param_has_include);
+    try pp.addBuiltinMacro("__has_include_next", true, .macro_param_has_include_next);
+    try pp.addBuiltinMacro("__has_embed", true, .macro_param_has_embed);
+    try pp.addBuiltinMacro("__is_identifier", true, .macro_param_is_identifier);
+    try pp.addBuiltinMacro("_Pragma", true, .macro_param_pragma_operator);
 
-    try pp.addBuiltinMacro("__FILE__", false, &builtin_macros.file);
-    try pp.addBuiltinMacro("__LINE__", false, &builtin_macros.line);
-    try pp.addBuiltinMacro("__COUNTER__", false, &builtin_macros.counter);
+    if (pp.comp.langopts.ms_extensions) {
+        try pp.addBuiltinMacro("__identifier", true, .macro_param_ms_identifier);
+        try pp.addBuiltinMacro("__pragma", true, .macro_param_ms_pragma);
+    }
+
+    try pp.addBuiltinMacro("__FILE__", false, .macro_file);
+    try pp.addBuiltinMacro("__LINE__", false, .macro_line);
+    try pp.addBuiltinMacro("__COUNTER__", false, .macro_counter);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -855,6 +797,7 @@ fn fatalNotFound(pp: *Preprocessor, tok: TokenWithExpansionLocs, filename: []con
 }
 
 fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) void {
+    @branchHint(.cold);
     const source = pp.comp.getSource(raw.source);
     const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
 
@@ -1005,7 +948,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
                 }
             },
         }
-        pp.addTokenAssumeCapacity(tok);
+        pp.addTokenAssumeCapacity(try pp.unescapeUcn(tok));
     }
     try pp.addToken(.{
         .id = .eof,
@@ -1302,6 +1245,39 @@ fn pragmaOperator(pp: *Preprocessor, arg_tok: TokenWithExpansionLocs, operator_l
     try pp.pragma(&tmp_tokenizer, pragma_tok, operator_loc, arg_tok.expansionSlice());
 }
 
+/// Handle Microsoft __pragma operator
+fn msPragmaOperator(pp: *Preprocessor, pragma_tok: TokenWithExpansionLocs, args: []const TokenWithExpansionLocs) !void {
+    if (args.len == 0) {
+        try pp.err(pragma_tok, .unknown_pragma, .{});
+        return;
+    }
+
+    {
+        var copy = try pragma_tok.dupe(pp.gpa);
+        copy.id = .keyword_pragma;
+        try pp.addToken(copy);
+    }
+
+    const pragma_start: u32 = @intCast(pp.tokens.len);
+    for (args) |tok| {
+        switch (tok.id) {
+            .macro_ws, .comment => continue,
+            else => try pp.addToken(try tok.dupe(pp.gpa)),
+        }
+    }
+    try pp.addToken(.{ .id = .nl, .loc = .{ .id = .generated } });
+
+    const name = pp.expandedSlice(pp.tokens.get(pragma_start));
+    if (pp.comp.getPragma(name)) |prag| unknown: {
+        return prag.preprocessorCB(pp, pragma_start) catch |er| switch (er) {
+            error.UnknownPragma => break :unknown,
+            else => |e| return e,
+        };
+    }
+
+    try pp.err(args[0], .unknown_pragma, .{});
+}
+
 /// Inverts the output of the preprocessor stringify (#) operation
 /// (except all whitespace is condensed to a single space)
 /// writes output to pp.char_buf; assumes capacity is sufficient
@@ -1521,7 +1497,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             };
             if (identifier == null and invalid == null) invalid = .{ .id = .eof, .loc = src_loc };
             if (invalid) |some| {
-                try pp.err(some, .builtin_missing_r_paren, .{});
+                try pp.err(some, .builtin_missing_r_paren, .{"builtin feature-check macro"});
                 return false;
             }
 
@@ -1862,28 +1838,62 @@ fn expandFuncMacro(
                 try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
             },
             .macro_param_pragma_operator => {
-                const param_toks = expanded_args.items[0];
                 // Clang and GCC require exactly one token (so, no parentheses or string pasting)
                 // even though their error messages indicate otherwise. Ours is slightly more
                 // descriptive.
                 var invalid: ?TokenWithExpansionLocs = null;
                 var string: ?TokenWithExpansionLocs = null;
-                for (param_toks) |tok| switch (tok.id) {
-                    .string_literal => {
-                        if (string) |_| invalid = tok else string = tok;
-                    },
-                    .macro_ws => continue,
-                    .comment => continue,
-                    else => {
-                        invalid = tok;
-                        break;
-                    },
-                };
-                if (string == null and invalid == null) invalid = .{ .loc = macro_tok.loc, .id = .eof };
+                for (expanded_args.items[0]) |tok| {
+                    switch (tok.id) {
+                        .string_literal => {
+                            if (string) |_| {
+                                invalid = tok;
+                                break;
+                            }
+                            string = tok;
+                        },
+                        .macro_ws => continue,
+                        .comment => continue,
+                        else => {
+                            invalid = tok;
+                            break;
+                        },
+                    }
+                }
+                if (string == null and invalid == null) invalid = macro_tok;
                 if (invalid) |some|
                     try pp.err(some, .pragma_operator_string_literal, .{})
                 else
                     try pp.pragmaOperator(string.?, macro_tok.loc);
+            },
+            .macro_param_ms_identifier => blk: {
+                // Expect '__identifier' '(' macro-identifier ')'
+                var ident: ?TokenWithExpansionLocs = null;
+                for (expanded_args.items[0]) |tok| {
+                    switch (tok.id) {
+                        .macro_ws => continue,
+                        .comment => continue,
+                        else => {},
+                    }
+                    if (ident) |_| {
+                        try pp.err(tok, .builtin_missing_r_paren, .{"identifier"});
+                        break :blk;
+                    } else if (tok.id.isMacroIdentifier()) {
+                        ident = tok;
+                    } else {
+                        try pp.err(tok, .cannot_convert_to_identifier, .{tok.id.symbol()});
+                        break :blk;
+                    }
+                }
+                if (ident) |*some| {
+                    some.id = .identifier;
+                    try buf.append(some.*);
+                } else {
+                    try pp.err(macro_tok, .expected_identifier, .{});
+                }
+            },
+            .macro_param_ms_pragma => {
+                try pp.msPragmaOperator(macro_tok, expanded_args.items[0]);
             },
             .comma => {
                 if (tok_i + 2 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
@@ -2298,7 +2308,11 @@ fn expandMacroExhaustive(
                         try pp.hideset.put(tok.loc, new_hidelist);
 
                         if (tok.id == .keyword_defined and eval_ctx == .expr) {
-                            try pp.err(tok, .expansion_to_defined, .{});
+                            if (macro.is_func) {
+                                try pp.err(tok, .expansion_to_defined_func, .{});
+                            } else {
+                                try pp.err(tok, .expansion_to_defined_obj, .{});
+                            }
                         }
 
                         if (i < increment_idx_by and (tok.id == .keyword_defined or pp.defines.contains(pp.expandedSlice(tok.*)))) {
@@ -2325,6 +2339,54 @@ fn expandMacroExhaustive(
         TokenWithExpansionLocs.free(item.expansion_locs, pp.gpa);
     }
     buf.items.len = moving_end_idx;
+}
+
+fn unescapeUcn(pp: *Preprocessor, tok: TokenWithExpansionLocs) !TokenWithExpansionLocs {
+    switch (tok.id) {
+        .incomplete_ucn => {
+            @branchHint(.cold);
+            try pp.err(tok, .incomplete_ucn, .{});
+        },
+        .extended_identifier => {
+            @branchHint(.cold);
+            const identifier = pp.expandedSlice(tok);
+            if (mem.indexOfScalar(u8, identifier, '\\') != null) {
+                @branchHint(.cold);
+                const start = pp.comp.generated_buf.items.len;
+                try pp.comp.generated_buf.ensureUnusedCapacity(pp.gpa, identifier.len + 1);
+                var identifier_parser: text_literal.Parser = .{
+                    .comp = pp.comp,
+                    .literal = pp.expandedSlice(tok), // re-expand since previous line may have caused a reallocation, invalidating `identifier`
+                    .kind = .utf_8,
+                    .max_codepoint = 0x10ffff,
+                    .loc = tok.loc,
+                    .expansion_locs = tok.expansionSlice(),
+                    .diagnose_incorrect_encoding = false,
+                };
+                while (try identifier_parser.next()) |decoded| {
+                    switch (decoded) {
+                        .value => unreachable, // validated by tokenizer
+                        .codepoint => |c| {
+                            var buf: [4]u8 = undefined;
+                            const written = std.unicode.utf8Encode(c, &buf) catch unreachable;
+                            pp.comp.generated_buf.appendSliceAssumeCapacity(buf[0..written]);
+                        },
+                        .improperly_encoded => |bytes| {
+                            pp.comp.generated_buf.appendSliceAssumeCapacity(bytes);
+                        },
+                        .utf8_text => |view| {
+                            pp.comp.generated_buf.appendSliceAssumeCapacity(view.bytes);
+                        },
+                    }
+                }
+                pp.comp.generated_buf.appendAssumeCapacity('\n');
+                defer TokenWithExpansionLocs.free(tok.expansion_locs, pp.gpa);
+                return pp.makeGeneratedToken(start, .extended_identifier, tok);
+            }
+        },
+        else => {},
+    }
+    return tok;
 }
 
 /// Try to expand a macro after a possible candidate has been read from the `tokenizer`
@@ -2356,7 +2418,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
             continue;
         }
         tok.id.simplifyMacroKeywordExtra(true);
-        pp.addTokenAssumeCapacity(tok.*);
+        pp.addTokenAssumeCapacity(try pp.unescapeUcn(tok.*));
     }
     if (pp.preserve_whitespace) {
         try pp.ensureUnusedTokenCapacity(pp.add_expansion_nl);
@@ -2462,11 +2524,11 @@ fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: Tok
 }
 
 /// Defines a new macro and warns if it is a duplicate
-fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macro: Macro) Error!void {
-    const name_str = pp.tokSlice(name_tok);
+fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: TokenWithExpansionLocs, macro: Macro) Error!void {
+    const name_str = pp.expandedSlice(name_tok);
     const gop = try pp.defines.getOrPut(pp.gpa, name_str);
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
-        const loc: Source.Location = .{ .id = name_tok.source, .byte_offset = name_tok.start, .line = name_tok.line };
+        const loc = name_tok.loc;
         const prev_total = pp.diagnostics.total;
         if (gop.value_ptr.is_builtin) {
             try pp.err(loc, .builtin_macro_redefined, .{});
@@ -2479,7 +2541,8 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macr
         }
     }
     if (pp.verbose) {
-        pp.verboseLog(name_tok, "macro {s} defined", .{name_str});
+        const raw: RawToken = .{ .id = name_tok.id, .source = name_tok.loc.id, .start = name_tok.loc.byte_offset, .line = name_tok.loc.line };
+        pp.verboseLog(raw, "macro {s} defined", .{name_str});
     }
     if (pp.store_macro_tokens) {
         try pp.addToken(tokFromRaw(define_tok));
@@ -2490,20 +2553,26 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: RawToken, macr
 /// Handle a #define directive.
 fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!void {
     // Get macro name and validate it.
-    const macro_name = tokenizer.nextNoWS();
-    if (macro_name.id == .keyword_defined) {
-        try pp.err(macro_name, .defined_as_macro_name, .{});
+    const escaped_macro_name = tokenizer.nextNoWS();
+    if (escaped_macro_name.id == .keyword_defined) {
+        try pp.err(escaped_macro_name, .defined_as_macro_name, .{});
         return skipToNl(tokenizer);
     }
-    if (!macro_name.id.isMacroIdentifier()) {
-        try pp.err(macro_name, .macro_name_must_be_identifier, .{});
+    if (!escaped_macro_name.id.isMacroIdentifier()) {
+        try pp.err(escaped_macro_name, .macro_name_must_be_identifier, .{});
         return skipToNl(tokenizer);
     }
+    const macro_name = try pp.unescapeUcn(tokFromRaw(escaped_macro_name));
+    defer TokenWithExpansionLocs.free(macro_name.expansion_locs, pp.gpa);
+
     var macro_name_token_id = macro_name.id;
     macro_name_token_id.simplifyMacroKeyword();
     switch (macro_name_token_id) {
         .identifier, .extended_identifier => {},
-        else => if (macro_name_token_id.isMacroIdentifier()) {
+        // TODO allow #define <keyword> <keyword> and #define extern|inline|static|const
+        else => if (macro_name_token_id.isMacroIdentifier() and
+            !mem.eql(u8, pp.comp.getSource(tokenizer.source).path, "<builtin>"))
+        {
             try pp.err(macro_name, .keyword_macro, .{});
         },
     }
@@ -2515,7 +2584,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
             .params = &.{},
             .tokens = &.{},
             .var_args = false,
-            .loc = tokFromRaw(macro_name).loc,
+            .loc = macro_name.loc,
             .is_func = false,
         }),
         .whitespace => first = tokenizer.next(),
@@ -2567,6 +2636,10 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
             },
             .unterminated_comment => try pp.err(tok, .unterminated_comment, .{}),
             else => {
+                if (tok.id == .incomplete_ucn) {
+                    @branchHint(.cold);
+                    try pp.err(tok, .incomplete_ucn, .{});
+                }
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
                     try pp.token_buf.append(.{ .id = .macro_ws, .source = .generated });
@@ -2579,7 +2652,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
 
     const list = try pp.arena.allocator().dupe(RawToken, pp.token_buf.items);
     try pp.defineMacro(define_tok, macro_name, .{
-        .loc = tokFromRaw(macro_name).loc,
+        .loc = macro_name.loc,
         .tokens = list,
         .params = &.{},
         .is_func = false,
@@ -2588,7 +2661,7 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
 }
 
 /// Handle a function like #define directive.
-fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macro_name: RawToken, l_paren: RawToken) Error!void {
+fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macro_name: TokenWithExpansionLocs, l_paren: RawToken) Error!void {
     assert(macro_name.id.isMacroIdentifier());
     var params = std.ArrayList([]const u8).init(pp.gpa);
     defer params.deinit();
@@ -2770,7 +2843,7 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
         .params = param_list,
         .var_args = var_args or gnu_var_args.len != 0,
         .tokens = token_list,
-        .loc = tokFromRaw(macro_name).loc,
+        .loc = macro_name.loc,
     });
 }
 
@@ -3017,7 +3090,8 @@ fn makePragmaToken(pp: *Preprocessor, raw: RawToken, operator_loc: ?Source.Locat
     return tok;
 }
 
-pub fn addToken(pp: *Preprocessor, tok: TokenWithExpansionLocs) !void {
+pub fn addToken(pp: *Preprocessor, tok_arg: TokenWithExpansionLocs) !void {
+    const tok = try pp.unescapeUcn(tok_arg);
     if (tok.expansion_locs) |expansion_locs| {
         try pp.expansion_entries.append(pp.gpa, .{ .idx = @intCast(pp.tokens.len), .locs = expansion_locs });
     }
@@ -3046,10 +3120,10 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, operat
     const name_tok = tokenizer.nextNoWS();
     if (name_tok.id == .nl or name_tok.id == .eof) return;
 
-    const name = pp.tokSlice(name_tok);
     try pp.addToken(try pp.makePragmaToken(pragma_tok, operator_loc, arg_locs));
     const pragma_start: u32 = @intCast(pp.tokens.len);
 
+    const name = pp.tokSlice(name_tok);
     const pragma_name_tok = try pp.makePragmaToken(name_tok, operator_loc, arg_locs);
     try pp.addToken(pragma_name_tok);
     while (true) {

@@ -71,7 +71,7 @@ pub fn pasteTokens(pp: *Preprocessor, start_idx: TokenIndex) ![]const u8 {
 
 pub fn shouldPreserveTokens(self: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) bool {
     if (self.preserveTokens) |func| return func(self, pp, start_idx);
-    return false;
+    return true;
 }
 
 pub fn preprocessorCB(self: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Error!void {
@@ -88,6 +88,7 @@ pub const Diagnostic = struct {
     fmt: []const u8,
     kind: Diagnostics.Message.Kind,
     opt: ?Diagnostics.Option = null,
+    extension: bool = false,
 
     pub const pragma_warning_message: Diagnostic = .{
         .fmt = "{s}",
@@ -135,12 +136,14 @@ pub const Diagnostic = struct {
         .fmt = "pragma GCC diagnostic expected 'error', 'warning', 'ignored', 'fatal', 'push', or 'pop'",
         .kind = .warning,
         .opt = .@"unknown-pragmas",
+        .extension = true,
     };
 
     pub const malformed_warning_check: Diagnostic = .{
         .fmt = "{s} expected option name (e.g. \"-Wundef\")",
         .opt = .@"malformed-warning-check",
         .kind = .warning,
+        .extension = true,
     };
 
     pub const pragma_pack_lparen: Diagnostic = .{
@@ -202,5 +205,6 @@ pub fn err(pp: *Preprocessor, tok_i: TokenIndex, diagnostic: Diagnostic, args: a
         .opt = diagnostic.opt,
         .text = buf.items,
         .location = pp.tokens.items(.loc)[tok_i].expand(pp.comp),
+        .extension = diagnostic.extension,
     }, pp.expansionSlice(tok_i), true);
 }
