@@ -159,7 +159,7 @@ void array_members(void) {
     "initializers.c:6:17: warning: excess elements in scalar initializer [-Wexcess-initializers]" \
     "initializers.c:7:30: warning: excess elements in string initializer [-Wexcess-initializers]" \
     "initializers.c:8:23: warning: initializer-string for char array is too long [-Wexcess-initializers]" \
-    "initializers.c:9:16: error: cannot initialize type ('int [2]' with array of type 'int [3]')" \
+    "initializers.c:9:16: error: cannot initialize type 'int [2]' with array of type 'int [3]'" \
     "initializers.c:10:15: error: cannot initialize array of type 'int []' with array of type 'char [4]'" \
     "initializers.c:11:15: error: array designator used for non-array type 'int'" \
     "initializers.c:12:19: error: array designator value -1 is negative" \

@@ -146,7 +146,7 @@ fn getPIE(self: *const Linux, d: *const Driver) bool {
 fn getStaticPIE(self: *const Linux, d: *Driver) !bool {
     _ = self;
     if (d.static_pie and d.pie != null) {
-        try d.err("cannot specify 'nopie' along with 'static-pie'");
+        try d.err("cannot specify 'nopie' along with 'static-pie'", .{});
     }
     return d.static_pie;
 }
@@ -198,7 +198,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
     if (target_util.ldEmulationOption(d.comp.target, null)) |emulation| {
         try argv.appendSlice(&.{ "-m", emulation });
     } else {
-        try d.err("Unknown target triple");
+        try d.err("Unknown target triple", .{});
         return;
     }
     if (d.comp.target.cpu.arch.isRISCV()) {
@@ -219,7 +219,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
             if (dynamic_linker.get()) |path| {
                 try argv.appendSlice(&.{ "-dynamic-linker", try tc.arena.dupe(u8, path) });
             } else {
-                try d.err("Could not find dynamic linker path");
+                try d.err("Could not find dynamic linker path", .{});
             }
         }
     }
@@ -389,7 +389,7 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
     if (tc.driver.nostdlibinc) return;
 
     const sysroot = tc.getSysroot();
-    const local_include = try std.fmt.allocPrint(comp.gpa, "{s}{s}", .{ sysroot, "/usr/local/include" });
+    const local_include = try std.fs.path.join(comp.gpa, &.{ sysroot, "/usr/local/include" });
     defer comp.gpa.free(local_include);
     try comp.addSystemIncludeDir(local_include);
 
@@ -400,7 +400,7 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
     }
 
     if (getMultiarchTriple(target)) |triple| {
-        const joined = try std.fs.path.join(comp.gpa, &.{ sysroot, "usr", "include", triple });
+        const joined = try std.fs.path.join(comp.gpa, &.{ sysroot, "/usr/include", triple });
         defer comp.gpa.free(joined);
         if (tc.filesystem.exists(joined)) {
             try comp.addSystemIncludeDir(joined);
@@ -425,7 +425,7 @@ test Linux {
     defer arena_instance.deinit();
     const arena = arena_instance.allocator();
 
-    var comp = Compilation.init(std.testing.allocator, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator, undefined, std.fs.cwd());
     defer comp.deinit();
     comp.environment = .{
         .path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
@@ -437,7 +437,7 @@ test Linux {
     comp.target = try std.zig.system.resolveTargetQuery(target_query);
     comp.langopts.setEmulatedCompiler(.gcc);
 
-    var driver: Driver = .{ .comp = &comp };
+    var driver: Driver = .{ .comp = &comp, .diagnostics = undefined };
     defer driver.deinit();
     driver.raw_target_triple = raw_triple;
 

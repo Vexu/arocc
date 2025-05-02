@@ -55,11 +55,12 @@ return_label: Ir.Ref = undefined,
 compound_assign_dummy: ?Ir.Ref = null,
 
 fn fail(c: *CodeGen, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
-    try c.comp.diagnostics.list.append(c.comp.gpa, .{
-        .tag = .cli_error,
-        .kind = .@"fatal error",
-        .extra = .{ .str = try std.fmt.allocPrint(c.comp.diagnostics.arena.allocator(), fmt, args) },
-    });
+    var sf = std.heap.stackFallback(1024, c.comp.gpa);
+    var buf = std.ArrayList(u8).init(sf.get());
+    defer buf.deinit();
+
+    try buf.writer().print(fmt, args);
+    try c.comp.diagnostics.add(.{ .text = buf.items, .kind = .@"fatal error", .location = null });
     return error.FatalError;
 }
 

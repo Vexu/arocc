@@ -10,4 +10,4 @@ _Static_assert((-9223372036854775807LL - 1LL) % -1 != 0, "failed");
 #error Should not get here
 #endif
 
-#define EXPECTED_ERRORS "signed remainder.c:7:16: error: static_assert expression is not an integral constant expression" \
+#define EXPECTED_ERRORS "signed remainder.c:7:16: error: static assertion expression is not an integral constant expression" \

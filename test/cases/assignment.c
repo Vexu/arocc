@@ -143,6 +143,6 @@ void constant_sign_conversion(void) {
     "assignment.c:85:12: error: variable has incomplete type 'enum E'" \
     "assignment.c:92:7: error: cannot assign to variable 'a' with const-qualified type 'A'" \
     "assignment.c:91:7: note: variable 'a' declared const here" \
-    "assignment.c:99:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *'  converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "assignment.c:99:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
     "assignment.c:103:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
     "assignment.c:107:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]"

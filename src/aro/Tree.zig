@@ -91,14 +91,16 @@ pub const TokenWithExpansionLocs = struct {
     pub fn checkMsEof(tok: TokenWithExpansionLocs, source: Source, comp: *Compilation) !void {
         std.debug.assert(tok.id == .eof);
         if (source.buf.len > tok.loc.byte_offset and source.buf[tok.loc.byte_offset] == 0x1A) {
-            try comp.addDiagnostic(.{
-                .tag = .ctrl_z_eof,
-                .loc = .{
+            const diagnostic: Compilation.Diagnostic = .ctrl_z_eof;
+            try comp.diagnostics.add(.{
+                .text = diagnostic.fmt,
+                .kind = diagnostic.kind,
+                .location = source.lineCol(.{
                     .id = source.id,
                     .byte_offset = tok.loc.byte_offset,
                     .line = tok.loc.line,
-                },
-            }, &.{});
+                }),
+            });
         }
     }
 };

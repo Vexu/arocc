@@ -7,6 +7,6 @@ void foo(int x) {
 }
 
 #define EXPECTED_ERRORS \
-    "sizeof variably modified types.c:3:20: error: static_assert expression is not an integral constant expression" \
-    "sizeof variably modified types.c:6:20: error: static_assert expression is not an integral constant expression" \
+    "sizeof variably modified types.c:3:20: error: static assertion expression is not an integral constant expression" \
+    "sizeof variably modified types.c:6:20: error: static assertion expression is not an integral constant expression" \
 

@@ -4,6 +4,7 @@ const mem = std.mem;
 const process = std.process;
 const aro = @import("aro");
 const Compilation = aro.Compilation;
+const Diagnostics = aro.Diagnostics;
 const Driver = aro.Driver;
 const Toolchain = aro.Toolchain;
 const assembly_backend = @import("assembly_backend");
@@ -38,7 +39,15 @@ pub fn main() u8 {
     };
     defer gpa.free(aro_name);
 
-    var comp = Compilation.initDefault(gpa, std.fs.cwd()) catch |er| switch (er) {
+    const stderr_file = std.io.getStdErr();
+    var diagnostics: Diagnostics = .{
+        .output = .{ .to_file = .{
+            .config = std.io.tty.detectConfig(stderr_file),
+            .file = stderr_file,
+        } },
+    };
+
+    var comp = Compilation.initDefault(gpa, &diagnostics, std.fs.cwd()) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) process.exit(1);
@@ -47,7 +56,7 @@ pub fn main() u8 {
     };
     defer comp.deinit();
 
-    var driver: Driver = .{ .comp = &comp, .aro_name = aro_name };
+    var driver: Driver = .{ .comp = &comp, .aro_name = aro_name, .diagnostics = &diagnostics };
     defer driver.deinit();
 
     var toolchain: Toolchain = .{ .driver = &driver, .arena = arena, .filesystem = .{ .real = comp.cwd } };
@@ -60,11 +69,11 @@ pub fn main() u8 {
             return 1;
         },
         error.FatalError => {
-            driver.renderErrors();
+            driver.printDiagnosticsStats();
             if (fast_exit) process.exit(1);
             return 1;
         },
     };
     if (fast_exit) process.exit(@intFromBool(comp.diagnostics.errors != 0));
-    return @intFromBool(comp.diagnostics.errors != 0);
+    return @intFromBool(diagnostics.errors != 0);
 }

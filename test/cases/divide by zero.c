@@ -20,4 +20,4 @@ void foo(void) {
     "divide by zero.c:7:13: warning: division by zero is undefined [-Wdivision-by-zero]" \
     "divide by zero.c:8:13: warning: remainder by zero is undefined [-Wdivision-by-zero]" \
     "divide by zero.c:9:21: warning: division by zero is undefined [-Wdivision-by-zero]" \
-    "divide by zero.c:9:20: error: static_assert expression is not an integral constant expression" \
+    "divide by zero.c:9:20: error: static assertion expression is not an integral constant expression" \

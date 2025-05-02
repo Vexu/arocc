@@ -2,7 +2,7 @@ __extension__;
 __extension__ int a;
 
 void foo(void) {
-    __extension__ int a;
+    __extension__ __auto_type a = 1;
     __extension__;
     __extension__ 1;
 }
