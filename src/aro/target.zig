@@ -420,7 +420,7 @@ pub fn defaultFpEvalMethod(target: std.Target) LangOpts.FPEvalMethod {
 /// Value of the `-m` flag for `ld` for this target
 pub fn ldEmulationOption(target: std.Target, arm_endianness: ?std.builtin.Endian) ?[]const u8 {
     return switch (target.cpu.arch) {
-        .x86 => if (target.os.tag == .elfiamcu) "elf_iamcu" else "elf_i386",
+        .x86 => "elf_i386",
         .arm,
         .armeb,
         .thumb,
@@ -654,7 +654,6 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .amdhsa => "amdhsa",
         .ps4 => "ps4",
         .ps5 => "ps5",
-        .elfiamcu => "elfiamcu",
         .mesa3d => "mesa3d",
         .contiki => "contiki",
         .amdpal => "amdpal",
@@ -699,7 +698,6 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .gnuf32 => "gnuf32",
         .gnusf => "gnusf",
         .gnux32 => "gnux32",
-        .gnuilp32 => "gnu_ilp32",
         .code16 => "code16",
         .eabi => "eabi",
         .eabihf => "eabihf",
@@ -760,9 +758,7 @@ pub fn isPIEDefault(target: std.Target) DefaultPIStatus {
         .fuchsia,
         => .yes,
 
-        .linux,
-        .elfiamcu,
-        => {
+        .linux => {
             if (target.abi == .ohos)
                 return .yes;
 
@@ -836,9 +832,7 @@ pub fn isPICdefault(target: std.Target) DefaultPIStatus {
             };
         },
 
-        .linux,
-        .elfiamcu,
-        => {
+        .linux => {
             if (target.abi == .ohos)
                 return .no;
 
@@ -894,7 +888,6 @@ pub fn isPICDefaultForced(target: std.Target) DefaultPIStatus {
         .ps5,
         .hurd,
         .linux,
-        .elfiamcu,
         .fuchsia,
         .zos,
         => .no,
