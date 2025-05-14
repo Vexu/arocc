@@ -8905,7 +8905,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     .decl_ref_expr = .{
                         .name_tok = p.tok_i,
                         .qt = qt,
-                        .decl = undefined, // TODO
+                        .decl = p.func.pretty_ident.?.node,
                     },
                 }),
             };
