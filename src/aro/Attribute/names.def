@@ -400,6 +400,10 @@ thiscall
     .tag = .thiscall
     .gnu = true
 
+sysv_abi
+    .tag = .sysv_abi
+    .gnu = true
+
 
 # declspec only
 align
