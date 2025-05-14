@@ -404,6 +404,10 @@ sysv_abi
     .tag = .sysv_abi
     .gnu = true
 
+ms_abi
+    .tag = .ms_abi
+    .gnu = true
+
 
 # declspec only
 align

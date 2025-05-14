@@ -713,6 +713,7 @@ const attributes = struct {
     pub const cdecl = struct {};
     pub const thiscall = struct {};
     pub const sysv_abi = struct {};
+    pub const ms_abi = struct {};
 };
 
 pub const Tag = std.meta.DeclEnum(attributes);
@@ -1026,6 +1027,20 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         } else {
             try p.err(tok, .callconv_not_supported, .{"pcs"});
         },
+        .sysv_abi => if (p.comp.target.cpu.arch == .x86_64 and p.comp.target.os.tag == .windows) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .x86_64_sysv } },
+                .syntax = attr.syntax,
+            });
+        },
+        .ms_abi => if (p.comp.target.cpu.arch == .x86_64 and p.comp.target.os.tag != .windows) {
+            try p.attr_application_buf.append(p.gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .x86_64_win } },
+                .syntax = attr.syntax,
+            });
+        },
         .malloc => {
             if (base_qt.get(p.comp, .func).?.return_type.isPointer(p.comp)) {
                 try p.attr_application_buf.append(p.gpa, attr);
@@ -1242,6 +1257,8 @@ fn applyCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, qt: Qual
         .aarch64_vector_pcs,
         .arm_aapcs,
         .arm_aapcs_vfp,
+        .x86_64_sysv,
+        .x86_64_win,
         => unreachable, // These can't come from keyword syntax
     }
 }
