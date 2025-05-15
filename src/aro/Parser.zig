@@ -674,14 +674,15 @@ fn nodeIs(p: *Parser, node: Node.Index, comptime tag: std.meta.Tag(Tree.Node)) b
 }
 
 pub fn getDecayedStringLiteral(p: *Parser, node: Node.Index) ?Value {
-    const cast = p.getNode(node, .cast) orelse return null;
-    if (cast.kind != .array_to_pointer) return null;
-
-    var cur = cast.operand;
+    var cur = node;
     while (true) {
         switch (cur.get(&p.tree)) {
             .paren_expr => |un| cur = un.operand,
             .string_literal_expr => return p.tree.value_map.get(cur),
+            .cast => |cast| switch (cast.kind) {
+                .bitcast, .array_to_pointer => cur = cast.operand,
+                else => return null,
+            },
             else => return null,
         }
     }
@@ -6002,7 +6003,12 @@ pub const Result = struct {
                         const b_elem = b.qt.childType(p.comp);
                         if (!a_elem.eql(b_elem, p.comp)) {
                             try p.err(tok, .comparison_distinct_ptr, .{ a.qt, b.qt });
+                            try b.castToPointer(p, a.qt, tok);
                         }
+                    } else if (a_sk == .void_pointer) {
+                        try b.castToPointer(p, a.qt, tok);
+                    } else if (b_sk == .void_pointer) {
+                        try a.castToPointer(p, b.qt, tok);
                     }
                 } else if (a_sk.isPointer()) {
                     try b.castToPointer(p, a.qt, tok);
@@ -6313,6 +6319,9 @@ pub const Result = struct {
             _ = try res.val.intCast(ptr_qt, p.comp);
             res.qt = ptr_qt;
             try res.implicitCast(p, .int_to_pointer, tok);
+        } else if (src_sk.isPointer() and !res.qt.eql(ptr_qt, p.comp)) {
+            res.qt = ptr_qt;
+            try res.implicitCast(p, .bitcast, tok);
         }
     }
 
@@ -6809,9 +6818,9 @@ pub const Result = struct {
                 try res.castToPointer(p, dest_unqual, tok);
                 return;
             } else if (src_sk == .void_pointer or dest_unqual.eql(res.qt, p.comp)) {
-                return; // ok
-            } else if (dest_sk == .void_pointer and src_sk.isPointer() or (res.qt.isInt(p.comp) and src_sk.isReal())) {
-                return; // ok
+                return res.castToPointer(p, dest_unqual, tok);
+            } else if (dest_sk == .void_pointer and src_sk.isPointer()) {
+                return res.castToPointer(p, dest_unqual, tok);
             } else if (src_sk.isPointer()) {
                 const src_child = res.qt.childType(p.comp);
                 const dest_child = dest_unqual.childType(p.comp);

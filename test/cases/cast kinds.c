@@ -52,4 +52,9 @@ void foo(void) {
 
     u = (union U)x; // to_union
     u = (union U)f; // to_union
+
+
+    void *vp;
+    vp = p; // bitcast
+    p = vp; // bitcast
 }

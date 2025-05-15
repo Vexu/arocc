@@ -243,5 +243,28 @@ fn_def: 'fn () void'
           decl_ref_expr: 'float' lvalue
            name: f
 
+    variable: '*void'
+     name: vp
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: vp
+     rhs:
+      implicit cast: (bitcast) '*void'
+        implicit cast: (lval_to_rval) '*int'
+          decl_ref_expr: '*int' lvalue
+           name: p
+
+    assign_expr: '*int'
+     lhs:
+      decl_ref_expr: '*int' lvalue
+       name: p
+     rhs:
+      implicit cast: (bitcast) '*int'
+        implicit cast: (lval_to_rval) '*void'
+          decl_ref_expr: '*void' lvalue
+           name: vp
+
     implicit return_stmt: 'void'
 
