@@ -53,8 +53,16 @@ void foo(void) {
     u = (union U)x; // to_union
     u = (union U)f; // to_union
 
-
     void *vp;
     vp = p; // bitcast
     p = vp; // bitcast
+
+    #pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
+    const int *const_p;
+    const_p = p; // no_op
+    p = const_p; // bitcast
+
+    volatile int *volatile_p;
+    volatile_p = p; // no_op
+    p = volatile_p; // bitcast
 }

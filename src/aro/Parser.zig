@@ -680,7 +680,7 @@ pub fn getDecayedStringLiteral(p: *Parser, node: Node.Index) ?Value {
             .paren_expr => |un| cur = un.operand,
             .string_literal_expr => return p.tree.value_map.get(cur),
             .cast => |cast| switch (cast.kind) {
-                .bitcast, .array_to_pointer => cur = cast.operand,
+                .no_op, .bitcast, .array_to_pointer => cur = cast.operand,
                 else => return null,
             },
             else => return null,
@@ -6319,9 +6319,27 @@ pub const Result = struct {
             _ = try res.val.intCast(ptr_qt, p.comp);
             res.qt = ptr_qt;
             try res.implicitCast(p, .int_to_pointer, tok);
+        } else if (src_sk == .nullptr_t) {
+            try res.nullToPointer(p, ptr_qt, tok);
         } else if (src_sk.isPointer() and !res.qt.eql(ptr_qt, p.comp)) {
+            if (ptr_qt.is(p.comp, .nullptr_t)) {
+                res.qt = .invalid;
+                return;
+            }
+
+            const src_elem = res.qt.childType(p.comp);
+            const dest_elem = ptr_qt.childType(p.comp);
             res.qt = ptr_qt;
-            try res.implicitCast(p, .bitcast, tok);
+
+            if (dest_elem.eql(src_elem, p.comp) and
+                (dest_elem.@"const" == src_elem.@"const" or dest_elem.@"const") and
+                (dest_elem.@"volatile" == src_elem.@"volatile" or dest_elem.@"volatile"))
+            {
+                // Gaining qualifiers is a no-op.
+                try res.implicitCast(p, .no_op, tok);
+            } else {
+                try res.implicitCast(p, .bitcast, tok);
+            }
         }
     }
 
