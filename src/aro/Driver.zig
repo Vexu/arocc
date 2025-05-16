@@ -767,22 +767,17 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         error.StreamTooLong => return d.fatal("user provided macro source exceeded max size", .{}),
         else => |e| return e,
     };
-
+    const builtin_macros = d.comp.generateBuiltinMacros(d.system_defines) catch |er| switch (er) {
+        error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
+        else => |e| return e,
+    };
     if (fast_exit and d.inputs.items.len == 1) {
-        const builtin = d.comp.generateBuiltinMacrosFromPath(d.system_defines, d.inputs.items[0].path) catch |er| switch (er) {
-            error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
-            else => |e| return e,
-        };
-        try d.processSource(tc, d.inputs.items[0], builtin, user_macros, fast_exit, asm_gen_fn);
+        try d.processSource(tc, d.inputs.items[0], builtin_macros, user_macros, fast_exit, asm_gen_fn);
         unreachable;
     }
 
     for (d.inputs.items) |source| {
-        const builtin = d.comp.generateBuiltinMacrosFromPath(d.system_defines, source.path) catch |er| switch (er) {
-            error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
-            else => |e| return e,
-        };
-        try d.processSource(tc, source, builtin, user_macros, fast_exit, asm_gen_fn);
+        try d.processSource(tc, source, builtin_macros, user_macros, fast_exit, asm_gen_fn);
     }
     if (d.diagnostics.errors != 0) {
         if (fast_exit) d.exitWithCleanup(1);

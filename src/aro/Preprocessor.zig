@@ -224,6 +224,9 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__FILE__", false, .macro_file);
     try pp.addBuiltinMacro("__LINE__", false, .macro_line);
     try pp.addBuiltinMacro("__COUNTER__", false, .macro_counter);
+    try pp.addBuiltinMacro("__DATE__", false, .macro_date);
+    try pp.addBuiltinMacro("__TIME__", false, .macro_time);
+    try pp.addBuiltinMacro("__TIMESTAMP__", false, .macro_timestamp);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -1185,11 +1188,89 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
+            .macro_date, .macro_time => {
+                const start = pp.comp.generated_buf.items.len;
+                const timestamp = switch (pp.comp.source_epoch) {
+                    .system, .provided => |ts| ts,
+                };
+                try pp.writeDateTimeStamp(.fromTokId(raw.id), timestamp);
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+            },
+            .macro_timestamp => {
+                const start = pp.comp.generated_buf.items.len;
+                const timestamp = switch (pp.comp.source_epoch) {
+                    .provided => |ts| ts,
+                    .system => try pp.comp.mTime(pp.expansion_source_loc.id),
+                };
+
+                try pp.writeDateTimeStamp(.fromTokId(raw.id), timestamp);
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+            },
             else => buf.appendAssumeCapacity(tok),
         }
     }
 
     return buf;
+}
+
+const DateTimeStampKind = enum {
+    date,
+    time,
+    timestamp,
+
+    fn fromTokId(tok_id: RawToken.Id) DateTimeStampKind {
+        return switch (tok_id) {
+            .macro_date => .date,
+            .macro_time => .time,
+            .macro_timestamp => .timestamp,
+            else => unreachable,
+        };
+    }
+};
+
+fn writeDateTimeStamp(pp: *Preprocessor, kind: DateTimeStampKind, timestamp: u64) !void {
+    std.debug.assert(std.time.epoch.Month.jan.numeric() == 1);
+
+    const w = pp.comp.generated_buf.writer(pp.gpa);
+
+    const epoch_seconds = std.time.epoch.EpochSeconds{ .secs = timestamp };
+    const epoch_day = epoch_seconds.getEpochDay();
+    const day_seconds = epoch_seconds.getDaySeconds();
+    const year_day = epoch_day.calculateYearDay();
+    const month_day = year_day.calculateMonthDay();
+
+    const day_names = [_][]const u8{ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    const month_names = [_][]const u8{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    const day_name = day_names[@intCast((epoch_day.day + 3) % 7)];
+    const month_name = month_names[month_day.month.numeric() - 1];
+
+    switch (kind) {
+        .date => {
+            try w.print("\"{s} {d: >2} {d}\"", .{
+                month_name,
+                month_day.day_index + 1,
+                year_day.year,
+            });
+        },
+        .time => {
+            try w.print("\"{d:0>2}:{d:0>2}:{d:0>2}\"", .{
+                day_seconds.getHoursIntoDay(),
+                day_seconds.getMinutesIntoHour(),
+                day_seconds.getSecondsIntoMinute(),
+            });
+        },
+        .timestamp => {
+            try w.print("\"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"", .{
+                day_name,
+                month_name,
+                month_day.day_index + 1,
+                day_seconds.getHoursIntoDay(),
+                day_seconds.getMinutesIntoHour(),
+                day_seconds.getSecondsIntoMinute(),
+                year_day.year,
+            });
+        },
+    }
 }
 
 /// Join a possibly-parenthesized series of string literal tokens into a single string without
@@ -3476,7 +3557,7 @@ test "Preserve pragma tokens sometimes" {
             defer buf.deinit();
 
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
             defer comp.deinit();
 
             try comp.addDefaultPragmaHandlers();
@@ -3537,7 +3618,7 @@ test "destringify" {
         }
     };
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
+    var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
     defer comp.deinit();
     var pp = Preprocessor.init(&comp);
     defer pp.deinit();
@@ -3596,7 +3677,7 @@ test "Include guards" {
 
         fn testIncludeGuard(allocator: std.mem.Allocator, comptime template: []const u8, tok_id: RawToken.Id, expected_guards: u32) !void {
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
             defer comp.deinit();
             var pp = Preprocessor.init(&comp);
             defer pp.deinit();

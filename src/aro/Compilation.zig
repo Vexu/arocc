@@ -58,7 +58,7 @@ pub const Environment = struct {
     /// TODO: not implemented yet
     c_include_path: ?[]const u8 = null,
 
-    /// UNIX timestamp to be used instead of the current date and time in the __DATE__ and __TIME__ macros
+    /// UNIX timestamp to be used instead of the current date and time in the __DATE__, __TIME__, and __TIMESTAMP__ macros
     source_date_epoch: ?[]const u8 = null,
 
     /// Load all of the environment variables using the std.process API. Do not use if using Aro as a shared library on Linux without libc
@@ -91,6 +91,19 @@ pub const Environment = struct {
         }
         self.* = undefined;
     }
+
+    fn sourceEpoch(self: *const Environment) !SourceEpoch {
+        const max_timestamp = 253402300799; // Dec 31 9999 23:59:59
+
+        if (self.source_date_epoch) |epoch| {
+            const parsed = std.fmt.parseInt(u64, epoch, 10) catch return error.InvalidEpoch;
+            if (parsed > max_timestamp) return error.InvalidEpoch;
+            return .{ .provided = parsed };
+        } else {
+            const timestamp = std.math.cast(u64, std.time.timestamp()) orelse return error.InvalidEpoch;
+            return .{ .system = std.math.clamp(timestamp, 0, max_timestamp) };
+        }
+    }
 };
 
 const Compilation = @This();
@@ -115,12 +128,15 @@ type_store: TypeStore = .{},
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
 ms_cwd_source_id: ?Source.Id = null,
 cwd: std.fs.Dir,
+source_epoch: SourceEpoch,
+m_times: std.AutoHashMapUnmanaged(Source.Id, u64) = .{},
 
-pub fn init(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) Compilation {
+pub fn init(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir, source_epoch: SourceEpoch) Compilation {
     return .{
         .gpa = gpa,
         .diagnostics = diagnostics,
         .cwd = cwd,
+        .source_epoch = source_epoch,
     };
 }
 
@@ -132,8 +148,10 @@ pub fn initDefault(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) !
         .diagnostics = diagnostics,
         .environment = try Environment.loadAll(gpa),
         .cwd = cwd,
+        .source_epoch = undefined,
     };
     errdefer comp.deinit();
+    try comp.loadSourceEpochFromEnvironment();
     try comp.addDefaultPragmaHandlers();
     comp.langopts.setEmulatedCompiler(target_util.systemCompiler(comp.target));
     return comp;
@@ -159,6 +177,7 @@ pub fn deinit(comp: *Compilation) void {
     comp.interner.deinit(comp.gpa);
     comp.environment.deinit(comp.gpa);
     comp.type_store.deinit(comp.gpa);
+    comp.m_times.deinit(comp.gpa);
     comp.* = undefined;
 }
 
@@ -166,56 +185,27 @@ pub fn internString(comp: *Compilation, str: []const u8) !StringInterner.StringI
     return comp.string_interner.intern(comp.gpa, str);
 }
 
-pub fn getSourceEpoch(self: *const Compilation, max: i64) !?u47 {
-    const provided = self.environment.source_date_epoch orelse return null;
-    const parsed = std.fmt.parseInt(i64, provided, 10) catch return error.InvalidEpoch;
-    if (parsed < 0 or parsed > max) return error.InvalidEpoch;
-    return @intCast(std.math.clamp(parsed, 0, max_timestamp));
+pub fn mTime(comp: *Compilation, source_id: Source.Id) !u64 {
+    const gop = try comp.m_times.getOrPut(comp.gpa, source_id);
+    if (!gop.found_existing) {
+        const source = comp.getSource(source_id);
+        if (comp.cwd.statFile(source.path)) |stat| {
+            const mtime = @divTrunc(stat.mtime, std.time.ns_per_s);
+            gop.value_ptr.* = std.math.cast(u64, mtime) orelse 0;
+        } else |_| {
+            gop.value_ptr.* = 0;
+        }
+    }
+    return gop.value_ptr.*;
 }
 
-/// Dec 31 9999 23:59:59
-const max_timestamp = 253402300799;
-
-fn generateDateAndTime(w: anytype, opt_timestamp: ?u47) !void {
-    const timestamp = opt_timestamp orelse {
-        try w.print("#define __DATE__ \"??? ?? ????\"\n", .{});
-        try w.print("#define __TIME__ \"??:??:??\"\n", .{});
-        try w.print("#define __TIMESTAMP__ \"??? ??? ?? ??:??:?? ????\"\n", .{});
-        return;
-    };
-    const epoch_seconds = EpochSeconds{ .secs = timestamp };
-    const epoch_day = epoch_seconds.getEpochDay();
-    const day_seconds = epoch_seconds.getDaySeconds();
-    const year_day = epoch_day.calculateYearDay();
-    const month_day = year_day.calculateMonthDay();
-
-    const month_names = [_][]const u8{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-    std.debug.assert(std.time.epoch.Month.jan.numeric() == 1);
-
-    const month_name = month_names[month_day.month.numeric() - 1];
-    try w.print("#define __DATE__ \"{s} {d: >2} {d}\"\n", .{
-        month_name,
-        month_day.day_index + 1,
-        year_day.year,
-    });
-    try w.print("#define __TIME__ \"{d:0>2}:{d:0>2}:{d:0>2}\"\n", .{
-        day_seconds.getHoursIntoDay(),
-        day_seconds.getMinutesIntoHour(),
-        day_seconds.getSecondsIntoMinute(),
-    });
-
-    const day_names = [_][]const u8{ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-    const day_name = day_names[@intCast((epoch_day.day + 3) % 7)];
-    try w.print("#define __TIMESTAMP__ \"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"\n", .{
-        day_name,
-        month_name,
-        month_day.day_index + 1,
-        day_seconds.getHoursIntoDay(),
-        day_seconds.getMinutesIntoHour(),
-        day_seconds.getSecondsIntoMinute(),
-        year_day.year,
-    });
-}
+pub const SourceEpoch = union(enum) {
+    /// Represents system time when aro is invoked; used for __DATE__ and __TIME__ macros
+    system: u64,
+    /// Represents a user-provided time (typically via the SOURCE_DATE_EPOCH environment variable)
+    /// used for __DATE__, __TIME__, and __TIMESTAMP__
+    provided: u64,
+};
 
 /// Which set of system defines to generate via generateBuiltinMacros
 pub const SystemDefinesMode = enum {
@@ -614,15 +604,18 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     }
 }
 
-/// Generate builtin macros trying to use mtime as timestamp
-pub fn generateBuiltinMacrosFromPath(comp: *Compilation, system_defines_mode: SystemDefinesMode, path: []const u8) !Source {
-    const stat = comp.cwd.statFile(path) catch return try comp.generateBuiltinMacros(system_defines_mode, null);
-    const timestamp: i64 = @intCast(@divTrunc(stat.mtime, std.time.ns_per_s));
-    return try comp.generateBuiltinMacros(system_defines_mode, @intCast(std.math.clamp(timestamp, 0, max_timestamp)));
+pub fn loadSourceEpochFromEnvironment(comp: *Compilation) !void {
+    comp.source_epoch = comp.environment.sourceEpoch() catch |err| switch (err) {
+        error.InvalidEpoch => blk: {
+            const diagnostic: Diagnostic = .invalid_source_epoch;
+            try comp.diagnostics.add(.{ .text = diagnostic.fmt, .kind = diagnostic.kind, .opt = diagnostic.opt, .location = null });
+            break :blk .{ .provided = 0 };
+        },
+    };
 }
 
 /// Generate builtin macros that will be available to each source file.
-pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode, timestamp: ?u47) !Source {
+pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) !Source {
     try comp.type_store.initNamedTypes(comp);
 
     var buf = std.ArrayList(u8).init(comp.gpa);
@@ -656,17 +649,6 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         try buf.appendSlice("#define __STDC_VERSION__ ");
         try buf.appendSlice(stdc_version);
         try buf.append('\n');
-    }
-
-    const provided: ?u47 = comp.getSourceEpoch(max_timestamp) catch blk: {
-        const diagnostic: Diagnostic = .invalid_source_epoch;
-        try comp.diagnostics.add(.{ .text = diagnostic.fmt, .kind = diagnostic.kind, .opt = diagnostic.opt, .location = null });
-        break :blk null;
-    };
-    if (provided) |epoch| {
-        try generateDateAndTime(buf.writer(), epoch);
-    } else {
-        try generateDateAndTime(buf.writer(), timestamp);
     }
 
     if (system_defines_mode == .include_system_defines) {
@@ -1583,7 +1565,7 @@ pub const Diagnostic = struct {
 
     pub const invalid_source_epoch: Diagnostic = .{
         .fmt = "environment variable SOURCE_DATE_EPOCH must expand to a non-negative integer less than or equal to 253402300799",
-        .kind = .@"error",
+        .kind = .@"fatal error",
     };
 
     pub const backslash_newline_escape: Diagnostic = .{
@@ -1611,7 +1593,7 @@ test "addSourceFromReader" {
     const Test = struct {
         fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(str);
@@ -1624,7 +1606,7 @@ test "addSourceFromReader" {
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
             defer comp.deinit();
 
             _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
@@ -1667,7 +1649,7 @@ test "addSourceFromReader - exhaustive check for carriage return elimination" {
     var buf: [alphabet.len]u8 = [1]u8{alphabet[0]} ** alen;
 
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
     defer comp.deinit();
 
     var source_count: u32 = 0;
@@ -1696,7 +1678,7 @@ test "ignore BOM at beginning of file" {
     const Test = struct {
         fn run(buf: []const u8) !void {
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(buf);

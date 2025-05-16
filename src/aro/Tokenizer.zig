@@ -195,6 +195,12 @@ pub const Token = struct {
         macro_function,
         /// Special identifier for implementing __PRETTY_FUNCTION__
         macro_pretty_func,
+        /// Special identifier for implementing __DATE__
+        macro_date,
+        /// Special identifier for implementing __TIME__
+        macro_time,
+        /// Special identifier for implementing __TIMESTAMP__
+        macro_timestamp,
 
         keyword_auto,
         keyword_auto_type,
@@ -409,6 +415,9 @@ pub const Token = struct {
                 .macro_func,
                 .macro_function,
                 .macro_pretty_func,
+                .macro_date,
+                .macro_time,
+                .macro_timestamp,
                 .keyword_auto,
                 .keyword_auto_type,
                 .keyword_break,
@@ -622,6 +631,9 @@ pub const Token = struct {
                 .macro_file,
                 .macro_line,
                 .macro_counter,
+                .macro_time,
+                .macro_date,
+                .macro_timestamp,
                 .macro_param_pragma_operator,
                 .macro_param_ms_identifier,
                 .macro_param_ms_pragma,
@@ -2334,7 +2346,7 @@ test "Universal character names" {
 test "Tokenizer fuzz test" {
     const Context = struct {
         fn testOne(_: @This(), input_bytes: []const u8) anyerror!void {
-            var comp = Compilation.init(std.testing.allocator, undefined, std.fs.cwd());
+            var comp = Compilation.init(std.testing.allocator, undefined, std.fs.cwd(), .{ .provided = 0 });
             defer comp.deinit();
 
             const source = try comp.addSourceFromBuffer("fuzz.c", input_bytes);
@@ -2356,7 +2368,7 @@ test "Tokenizer fuzz test" {
 }
 
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {
-    var comp = Compilation.init(std.testing.allocator, undefined, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator, undefined, std.fs.cwd(), .{ .provided = 0 });
     defer comp.deinit();
     if (standard) |provided| {
         comp.langopts.standard = provided;

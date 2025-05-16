@@ -76,7 +76,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
     _, _, const system_defines, _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
-    const builtin_macros = try comp.generateBuiltinMacrosFromPath(system_defines, path);
+    const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
     var pp = aro.Preprocessor.init(&comp);
     defer pp.deinit();
@@ -173,7 +173,7 @@ pub fn main() !void {
     defer diagnostics.deinit();
 
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa, &diagnostics, std.fs.cwd());
+    var initial_comp = aro.Compilation.init(gpa, &diagnostics, std.fs.cwd(), .{ .system = 0 });
     defer initial_comp.deinit();
 
     const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });
@@ -232,9 +232,10 @@ pub fn main() !void {
         defer macro_buf.deinit();
 
         const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, macro_buf.writer());
+        try comp.loadSourceEpochFromEnvironment();
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
-        const builtin_macros = try comp.generateBuiltinMacrosFromPath(system_defines, file.path);
+        const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
         var pp = aro.Preprocessor.init(&comp);
         defer pp.deinit();

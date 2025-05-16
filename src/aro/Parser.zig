@@ -9841,7 +9841,7 @@ fn genericSelection(p: *Parser) Error!?Result {
 
 test "Node locations" {
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
     defer comp.deinit();
 
     const file = try comp.addSourceFromBuffer("file.c",
@@ -9851,7 +9851,7 @@ test "Node locations" {
         \\
     );
 
-    const builtin_macros = try comp.generateBuiltinMacros(.no_system_defines, null);
+    const builtin_macros = try comp.generateBuiltinMacros(.no_system_defines);
 
     var pp = Preprocessor.init(&comp);
     defer pp.deinit();
