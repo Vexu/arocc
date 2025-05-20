@@ -1312,7 +1312,7 @@ fn decl(p: *Parser) Error!bool {
         } else {
             try decl_spec.validateDecl(p);
             var node_qt = init_d.d.qt;
-            if (p.func.qt == null) {
+            if (p.func.qt == null and decl_spec.storage_class != .@"extern") {
                 if (node_qt.get(p.comp, .array)) |array_ty| {
                     if (array_ty.len == .incomplete) {
                         // Create tentative array node with fixed type.
