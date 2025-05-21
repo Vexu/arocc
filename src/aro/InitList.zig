@@ -22,7 +22,7 @@ const Item = struct {
 
 const InitList = @This();
 
-list: std.ArrayListUnmanaged(Item) = .{},
+list: std.ArrayListUnmanaged(Item) = .empty,
 node: Node.OptIndex = .null,
 tok: TokenIndex = 0,
 
@@ -31,50 +31,6 @@ pub fn deinit(il: *InitList, gpa: Allocator) void {
     for (il.list.items) |*item| item.list.deinit(gpa);
     il.list.deinit(gpa);
     il.* = undefined;
-}
-
-/// Insert initializer at index, returning previous entry if one exists.
-pub fn put(il: *InitList, gpa: Allocator, index: usize, node: Node.Index, tok: TokenIndex) !?TokenIndex {
-    const items = il.list.items;
-    var left: usize = 0;
-    var right: usize = items.len;
-
-    // Append new value to empty list
-    if (left == right) {
-        const item = try il.list.addOne(gpa);
-        item.* = .{
-            .list = .{ .node = .pack(node), .tok = tok },
-            .index = index,
-        };
-        return null;
-    }
-
-    while (left < right) {
-        // Avoid overflowing in the midpoint calculation
-        const mid = left + (right - left) / 2;
-        // Compare the key with the midpoint element
-        switch (std.math.order(index, items[mid].index)) {
-            .eq => {
-                // Replace previous entry.
-                const prev = items[mid].list.tok;
-                items[mid].list.deinit(gpa);
-                items[mid] = .{
-                    .list = .{ .node = .pack(node), .tok = tok },
-                    .index = index,
-                };
-                return prev;
-            },
-            .gt => left = mid + 1,
-            .lt => right = mid,
-        }
-    }
-
-    // Insert a new value into a sorted position.
-    try il.list.insert(gpa, left, .{
-        .list = .{ .node = .pack(node), .tok = tok },
-        .index = index,
-    });
-    return null;
 }
 
 /// Find item at index, create new if one does not exist.

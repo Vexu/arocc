@@ -989,6 +989,12 @@ pub const excess_array_init: Diagnostic = .{
     .opt = .@"excess-initializers",
 };
 
+pub const excess_vector_init: Diagnostic = .{
+    .fmt = "excess elements in vector initializer",
+    .kind = .warning,
+    .opt = .@"excess-initializers",
+};
+
 pub const str_init_too_long: Diagnostic = .{
     .fmt = "initializer-string for char array is too long",
     .opt = .@"excess-initializers",
