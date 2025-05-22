@@ -960,11 +960,6 @@ pub const incompatible_init: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const empty_scalar_init: Diagnostic = .{
-    .fmt = "scalar initializer cannot be empty",
-    .kind = .@"error",
-};
-
 pub const excess_scalar_init: Diagnostic = .{
     .fmt = "excess elements in scalar initializer",
     .kind = .warning,
@@ -983,8 +978,20 @@ pub const excess_struct_init: Diagnostic = .{
     .opt = .@"excess-initializers",
 };
 
+pub const excess_union_init: Diagnostic = .{
+    .fmt = "excess elements in union initializer",
+    .kind = .warning,
+    .opt = .@"excess-initializers",
+};
+
 pub const excess_array_init: Diagnostic = .{
     .fmt = "excess elements in array initializer",
+    .kind = .warning,
+    .opt = .@"excess-initializers",
+};
+
+pub const excess_vector_init: Diagnostic = .{
+    .fmt = "excess elements in vector initializer",
     .kind = .warning,
     .opt = .@"excess-initializers",
 };
@@ -999,6 +1006,14 @@ pub const str_init_too_long: Diagnostic = .{
 pub const arr_init_too_long: Diagnostic = .{
     .fmt = "cannot initialize type '{qt}' with array of type '{qt}'",
     .kind = .@"error",
+};
+
+pub const empty_initializer: Diagnostic = .{
+    .fmt = "use of an empty initializer is a C23 extension",
+    .opt = .@"c23-extensions",
+    .kind = .off,
+    .suppress_version = .c23,
+    .extension = true,
 };
 
 pub const division_by_zero: Diagnostic = .{

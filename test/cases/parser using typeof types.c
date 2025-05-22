@@ -73,8 +73,8 @@ void bool_init(void) {
     "parser using typeof types.c:28:22: warning: array index 5 is past the end of the array [-Warray-bounds]" \
     "parser using typeof types.c:33:31: warning: excess elements in struct initializer [-Wexcess-initializers]" \
     "parser using typeof types.c:34:25: warning: excess elements in struct initializer [-Wexcess-initializers]" \
-    "parser using typeof types.c:37:30: warning: excess elements in struct initializer [-Wexcess-initializers]" \
-    "parser using typeof types.c:38:26: warning: excess elements in struct initializer [-Wexcess-initializers]" \
+    "parser using typeof types.c:37:30: warning: excess elements in union initializer [-Wexcess-initializers]" \
+    "parser using typeof types.c:38:26: warning: excess elements in union initializer [-Wexcess-initializers]" \
     "parser using typeof types.c:46:35: error: 'void' must be the only parameter if specified" \
     "parser using typeof types.c:46:35: error: 'void' parameter cannot be qualified" \
     "parser using typeof types.c:49:28: warning: initializer-string for char array is too long [-Wexcess-initializers]" \
