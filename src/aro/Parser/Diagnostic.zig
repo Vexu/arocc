@@ -983,6 +983,12 @@ pub const excess_struct_init: Diagnostic = .{
     .opt = .@"excess-initializers",
 };
 
+pub const excess_union_init: Diagnostic = .{
+    .fmt = "excess elements in union initializer",
+    .kind = .warning,
+    .opt = .@"excess-initializers",
+};
+
 pub const excess_array_init: Diagnostic = .{
     .fmt = "excess elements in array initializer",
     .kind = .warning,
