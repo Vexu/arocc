@@ -189,7 +189,6 @@ int empty_initializer[2] = {};
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
     "initializers.c:4:14: error: initializing 'int *' from incompatible type 'float'" \
-    "initializers.c:5:13: error: scalar initializer cannot be empty" \
     "initializers.c:6:17: warning: excess elements in scalar initializer [-Wexcess-initializers]" \
     "initializers.c:7:30: warning: excess elements in string initializer [-Wexcess-initializers]" \
     "initializers.c:8:23: warning: initializer-string for char array is too long [-Wexcess-initializers]" \

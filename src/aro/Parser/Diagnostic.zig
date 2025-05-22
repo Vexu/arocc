@@ -960,11 +960,6 @@ pub const incompatible_init: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const empty_scalar_init: Diagnostic = .{
-    .fmt = "scalar initializer cannot be empty",
-    .kind = .@"error",
-};
-
 pub const excess_scalar_init: Diagnostic = .{
     .fmt = "excess elements in scalar initializer",
     .kind = .warning,
