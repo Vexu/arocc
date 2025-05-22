@@ -3870,6 +3870,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType, l_brace: TokenI
     const is_scalar = !init_qt.isInvalid() and init_qt.scalarKind(p.comp) != .none;
 
     if (p.eatToken(.r_brace)) |_| {
+        try p.err(l_brace, .empty_initializer, .{});
         if (is_scalar) try p.err(l_brace, .empty_scalar_init, .{});
         if (il.tok != 0 and !init_qt.isInvalid()) {
             try p.err(l_brace, .initializer_overrides, .{});

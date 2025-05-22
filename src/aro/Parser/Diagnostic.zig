@@ -1013,6 +1013,14 @@ pub const arr_init_too_long: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const empty_initializer: Diagnostic = .{
+    .fmt = "use of an empty initializer is a C23 extension",
+    .opt = .@"c23-extensions",
+    .kind = .off,
+    .suppress_version = .c23,
+    .extension = true,
+};
+
 pub const division_by_zero: Diagnostic = .{
     .fmt = "{s} by zero is undefined",
     .kind = .warning,
