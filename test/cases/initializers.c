@@ -115,7 +115,7 @@ union {
 } empty = {{'a', 'b'}};
 
 int invalid_init[] = (int){1};
-int array_2d[3][2] = { 1, 2, [2] = 3, [1][1] = 1, 4}; // TODO 4 overrides 3
+int array_2d[3][2] = { 1, 2, [2] = 3, [1][1] = 1, 4};
 
 void quux(void) {
     struct Foo {
@@ -151,7 +151,11 @@ void array_members(void) {
     char b[32] = (char[32]){"ABC"};
 }
 
-#define TESTS_SKIPPED 3
+struct {
+    int sec, min, hour, day;
+} s1 = {.day = 3, .sec = 0, 1, 2};
+
+#define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
     "initializers.c:4:14: error: initializing 'int *' from incompatible type 'float'" \
@@ -174,8 +178,7 @@ void array_members(void) {
     "initializers.c:20:62: warning: excess elements in struct initializer [-Wexcess-initializers]" \
     "initializers.c:21:23: warning: excess elements in array initializer [-Wexcess-initializers]" \
     "initializers.c:21:44: warning: excess elements in array initializer [-Wexcess-initializers]" \
-    /* "initializers.c:23:37: warning: excess elements in array initializer [-Wexcess-initializers]" */ \
-    "initializers.c:23:34: warning: excess elements in array initializer [-Wexcess-initializers]" \
+    "initializers.c:23:37: warning: excess elements in array initializer [-Wexcess-initializers]" \
     "initializers.c:30:43: warning: excess elements in array initializer [-Wexcess-initializers]" \
     "initializers.c:31:27: error: initializer for aggregate with no elements requires explicit braces" \
     "initializers.c:32:15: error: array initializer must be an initializer list or wide string literal" \
@@ -195,11 +198,10 @@ void array_members(void) {
     /* "initializers.c:79:31: warning: variable 's2' is uninitialized when used within its own initialization" */ \
     /* "initializers.c:80:38: warning: variable 's3' is uninitialized when used within its own initialization" */ \
     "initializers.c:104:32: warning: excess elements in array initializer [-Wexcess-initializers]" \
-    "initializers.c:115:18: warning: excess elements in struct initializer [-Wexcess-initializers]" \
-    "initializers.c:115:12: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
-    "initializers.c:115:13: note: previous initialization" \
-    "initializers.c:115:12: warning: excess elements in struct initializer [-Wexcess-initializers]" \
+    "initializers.c:115:12: warning: excess elements in scalar initializer [-Wexcess-initializers]" \
     "initializers.c:117:22: error: array initializer must be an initializer list or wide string literal" \
+    "initializers.c:118:51: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
+    "initializers.c:118:36: note: previous initialization" \
     "initializers.c:128:17: error: initializing 'void *' from incompatible type 'double'" \
     "initializers.c:129:17: error: initializing 'void *' from incompatible type 'struct Foo'" \
     "initializers.c:131:15: warning: incompatible pointer types initializing 'long *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \

@@ -74,22 +74,6 @@ test "basic usage" {
     defer il.deinit(gpa);
 
     {
-        var i: usize = 0;
-        while (i < 5) : (i += 1) {
-            const prev = try il.put(gpa, i, undefined, 0);
-            try testing.expect(prev == null);
-        }
-    }
-
-    {
-        const failing = testing.failing_allocator;
-        var i: usize = 0;
-        while (i < 5) : (i += 1) {
-            _ = try il.find(failing, i);
-        }
-    }
-
-    {
         var item = try il.find(gpa, 0);
         var i: usize = 1;
         while (i < 5) : (i += 1) {
