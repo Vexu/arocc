@@ -3826,67 +3826,6 @@ fn typeName(p: *Parser) Error!?QualType {
     return try Attribute.applyTypeAttributes(p, ty, attr_buf_top, .align_ignored);
 }
 
-fn complexInitializer(p: *Parser, init_qt: QualType, l_brace: TokenIndex) Error!Result {
-    assert(init_qt.is(p.comp, .complex));
-
-    const real_ty = init_qt.toReal(p.comp);
-    if (real_ty.isInt(p.comp)) {
-        return p.todo("Complex integer initializers");
-    }
-    try p.err(l_brace, .complex_component_init, .{});
-
-    const first_tok = p.tok_i;
-    var first = try p.expect(assignExpr);
-    try p.coerceInit(&first, first_tok, real_ty);
-
-    const second = if (p.eatToken(.comma)) |_| second: {
-        const second_tok = p.tok_i;
-        var second = (try p.assignExpr()) orelse break :second null;
-        try p.coerceInit(&second, second_tok, real_ty);
-        break :second second;
-    } else null;
-
-    // Eat excess initializers
-    var extra_tok: ?TokenIndex = null;
-    while (p.eatToken(.comma)) |_| {
-        if (p.tok_ids[p.tok_i] == .r_brace) break;
-        extra_tok = p.tok_i;
-        if ((try p.assignExpr()) == null) {
-            try p.err(p.tok_i, .expected_expr, .{});
-            p.skipTo(.r_brace);
-            return error.ParsingFailed;
-        }
-    }
-    try p.expectClosing(l_brace, .r_brace);
-    if (extra_tok) |tok| {
-        try p.err(tok, .excess_scalar_init, .{});
-    }
-
-    var res: Result = .{
-        .node = try p.addNode(.{ .array_init_expr = .{
-            .container_qt = init_qt,
-            .items = if (second) |some|
-                &.{ first.node, some.node }
-            else
-                &.{first.node},
-            .l_brace_tok = l_brace,
-        } }),
-        .qt = init_qt,
-    };
-
-    const first_val = p.tree.value_map.get(first.node) orelse return res;
-    const second_val = if (second) |some| p.tree.value_map.get(some.node) orelse return res else Value.zero;
-    res.val = try Value.intern(p.comp, switch (real_ty.bitSizeof(p.comp)) {
-        32 => .{ .complex = .{ .cf32 = .{ first_val.toFloat(f32, p.comp), second_val.toFloat(f32, p.comp) } } },
-        64 => .{ .complex = .{ .cf64 = .{ first_val.toFloat(f64, p.comp), second_val.toFloat(f64, p.comp) } } },
-        80 => .{ .complex = .{ .cf80 = .{ first_val.toFloat(f80, p.comp), second_val.toFloat(f80, p.comp) } } },
-        128 => .{ .complex = .{ .cf128 = .{ first_val.toFloat(f128, p.comp), second_val.toFloat(f128, p.comp) } } },
-        else => unreachable,
-    });
-    try res.putValue(p);
-    return res;
-}
-
 /// initializer
 ///  : assignExpr
 ///  | '{' initializerItems '}'
@@ -3911,28 +3850,24 @@ fn initializer(p: *Parser, init_qt: QualType) Error!Result {
         final_init_qt = .invalid;
     }
 
-    // TODO get rid of
-    if (final_init_qt.is(p.comp, .complex)) {
-        return p.complexInitializer(final_init_qt, l_brace);
-    }
     var il: InitList = .{};
     defer il.deinit(p.gpa);
 
     try p.initializerItem(&il, final_init_qt, l_brace);
 
-    const res = try p.convertInitList(il, final_init_qt);
-    return .{ .qt = res.qt(&p.tree).withQualifiers(final_init_qt), .node = res };
+    const list_node = try p.convertInitList(il, final_init_qt);
+    return .{
+        .qt = list_node.qt(&p.tree).withQualifiers(final_init_qt),
+        .node = list_node,
+        .val = p.tree.value_map.get(list_node) orelse .{},
+    };
 }
 
 const IndexList = std.ArrayListUnmanaged(u64);
 
 /// initializerItems : designation? initializer (',' designation? initializer)* ','?
 fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType, l_brace: TokenIndex) Error!void {
-    const is_scalar, const is_complex = blk: {
-        if (init_qt.isInvalid()) break :blk .{ false, false };
-        const scalar_kind = init_qt.scalarKind(p.comp);
-        break :blk .{ scalar_kind != .none, !scalar_kind.isReal() };
-    };
+    const is_scalar = !init_qt.isInvalid() and init_qt.scalarKind(p.comp) != .none;
 
     if (p.eatToken(.r_brace)) |_| {
         if (is_scalar) try p.err(l_brace, .empty_scalar_init, .{});
@@ -3948,9 +3883,9 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType, l_brace: TokenI
     var index_list: IndexList = .empty;
     defer index_list.deinit(p.gpa);
 
-    var count: u64 = 0;
+    var seen_any = false;
     var warned_excess = init_qt.isInvalid();
-    while (true) {
+    while (true) : (seen_any = true) {
         errdefer p.skipTo(.r_brace);
 
         const designated = try p.designation(il, init_qt, &index_list);
@@ -3987,20 +3922,14 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType, l_brace: TokenI
             } else {
                 _ = try p.findScalarInitializer(il, init_qt, res, first_tok, &warned_excess, &index_list, 0);
             }
-        } else if (designated) {
+        } else if (designated or (seen_any and p.tok_ids[p.tok_i] != .r_brace)) {
             try p.err(p.tok_i, .expected_expr, .{});
-            return error.ParsingFailed;
         } else break;
 
-        count += 1;
         if (p.eatToken(.comma) == null) break;
     }
     try p.expectClosing(l_brace, .r_brace);
 
-    if (is_scalar and is_complex and count == 2) {
-        // TODO move to convertInitList
-        try p.err(l_brace, .complex_component_init, .{});
-    }
     if (il.tok == 0) il.tok = l_brace;
 }
 
@@ -4477,7 +4406,48 @@ fn convertInitList(p: *Parser, il: InitList, init_qt: QualType) Error!Node.Index
     if (il.node.unpack()) |some| return some;
 
     switch (init_qt.base(p.comp).type) {
-        // .complex => TODO
+        .complex => |complex_ty| {
+            if (il.list.items.len == 0) {
+                return p.addNode(.{ .default_init_expr = .{
+                    .last_tok = p.tok_i - 1,
+                    .qt = init_qt,
+                } });
+            }
+            const first = try p.convertInitList(il.list.items[0].list, complex_ty);
+            const second = if (il.list.items.len > 1)
+                try p.convertInitList(il.list.items[1].list, complex_ty)
+            else
+                null;
+
+            if (il.list.items.len == 2) {
+                try p.err(il.tok, .complex_component_init, .{});
+            }
+
+            const node = try p.addNode(.{ .array_init_expr = .{
+                .container_qt = init_qt,
+                .items = if (second) |some|
+                    &.{ first, some }
+                else
+                    &.{first},
+                .l_brace_tok = il.tok,
+            } });
+            if (!complex_ty.isFloat(p.comp)) return node;
+
+            const first_node = il.list.items[0].list.node.unpack() orelse return node;
+            const second_node = if (il.list.items.len > 1) il.list.items[1].list.node else .null;
+
+            const first_val = p.tree.value_map.get(first_node) orelse return node;
+            const second_val = if (second_node.unpack()) |some| p.tree.value_map.get(some) orelse return node else Value.zero;
+            const complex_val = try Value.intern(p.comp, switch (complex_ty.bitSizeof(p.comp)) {
+                32 => .{ .complex = .{ .cf32 = .{ first_val.toFloat(f32, p.comp), second_val.toFloat(f32, p.comp) } } },
+                64 => .{ .complex = .{ .cf64 = .{ first_val.toFloat(f64, p.comp), second_val.toFloat(f64, p.comp) } } },
+                80 => .{ .complex = .{ .cf80 = .{ first_val.toFloat(f80, p.comp), second_val.toFloat(f80, p.comp) } } },
+                128 => .{ .complex = .{ .cf128 = .{ first_val.toFloat(f128, p.comp), second_val.toFloat(f128, p.comp) } } },
+                else => unreachable,
+            });
+            try p.tree.value_map.put(p.gpa, node, complex_val);
+            return node;
+        },
         .vector => |vector_ty| {
             const list_buf_top = p.list_buf.items.len;
             defer p.list_buf.items.len = list_buf_top;
