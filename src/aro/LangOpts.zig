@@ -152,7 +152,7 @@ pub fn enableMSExtensions(self: *LangOpts) void {
 
 pub fn disableMSExtensions(self: *LangOpts) void {
     self.declspec_attrs = false;
-    self.ms_extensions = true;
+    self.ms_extensions = false;
 }
 
 pub fn hasChar8_T(self: *const LangOpts) bool {

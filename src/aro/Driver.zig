@@ -406,10 +406,8 @@ pub fn parseArgs(
                 hosted = true;
             } else if (mem.eql(u8, arg, "-fms-extensions")) {
                 d.comp.langopts.enableMSExtensions();
-                try d.diagnostics.set("microsoft", .off);
             } else if (mem.eql(u8, arg, "-fno-ms-extensions")) {
                 d.comp.langopts.disableMSExtensions();
-                try d.diagnostics.set("microsoft", .warning);
             } else if (mem.startsWith(u8, arg, "-I")) {
                 var path = arg["-I".len..];
                 if (path.len == 0) {

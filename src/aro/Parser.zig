@@ -2632,9 +2632,21 @@ fn recordDecl(p: *Parser) Error!bool {
         try p.comp.type_store.attributes.appendSlice(p.gpa, to_append);
 
         if (name_tok == 0 and bits == null) unnamed: {
-            if (!qt.isInvalid()) switch (qt.base(p.comp).type) {
+            var is_typedef = false;
+            if (!qt.isInvalid()) loop: switch (qt.type(p.comp)) {
+                .attributed => |attributed_ty| continue :loop attributed_ty.base.type(p.comp),
+                .typedef => |typedef_ty| {
+                    is_typedef = true;
+                    continue :loop typedef_ty.base.type(p.comp);
+                },
+                // typeof intentionally ignored here
                 .@"enum" => break :unnamed,
-                .@"struct", .@"union" => |record_ty| if (record_ty.isAnonymous(p.comp)) {
+                .@"struct", .@"union" => |record_ty| if ((record_ty.isAnonymous(p.comp) and !is_typedef) or
+                    (p.comp.langopts.ms_extensions and is_typedef))
+                {
+                    if (!(record_ty.isAnonymous(p.comp) and !is_typedef)) {
+                        try p.err(first_tok, .anonymous_struct, .{});
+                    }
                     // An anonymous record appears as indirect fields on the parent
                     try p.record_buf.append(.{
                         .name = try p.getAnonymousName(first_tok),

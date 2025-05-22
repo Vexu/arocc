@@ -1405,6 +1405,13 @@ pub const flexible_in_empty_msvc: Diagnostic = .{
     .extension = true,
 };
 
+pub const anonymous_struct: Diagnostic = .{
+    .fmt = "anonymous structs are a Microsoft extension",
+    .kind = .warning,
+    .opt = .@"microsoft-anon-tag",
+    .extension = true,
+};
+
 pub const duplicate_member: Diagnostic = .{
     .fmt = "duplicate member '{s}'",
     .kind = .@"error",
