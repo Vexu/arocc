@@ -191,6 +191,10 @@ void braced_init_overrides(void) {
     } aa, a[2] = {aa, aa, [0] = {2}, {3}};
 }
 
+union { int x; char c[4]; }
+  ua = {1},
+  ub = {.c={'a','b','b','a'}};
+
 #define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \

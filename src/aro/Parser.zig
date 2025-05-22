@@ -4309,8 +4309,7 @@ fn findBracedInitializer(
         .@"struct" => |struct_ty| {
             if (il.node != .null) return null;
 
-            const field_count = struct_ty.fields.len;
-            if (index < field_count) {
+            if (index < struct_ty.fields.len) {
                 index_list.items[0] = index + 1;
                 index_list.items.len = 1;
                 const field_qt = struct_ty.fields[@intCast(index)].qt;
@@ -4321,9 +4320,12 @@ fn findBracedInitializer(
             if (il.node != .null) return null;
             if (union_ty.fields.len == 0) return null;
 
-            index_list.items[0] = index + 1;
-            index_list.items.len = 1;
-            return .{ .il = try il.find(p.gpa, 0), .qt = union_ty.fields[0].qt };
+            if (index < union_ty.fields.len) {
+                index_list.items[0] = index + 1;
+                index_list.items.len = 1;
+                const field_qt = union_ty.fields[@intCast(index)].qt;
+                return .{ .il = try il.find(p.gpa, index), .qt = field_qt };
+            }
         },
         else => {
             try p.err(first_tok, .too_many_scalar_init_braces, .{});
