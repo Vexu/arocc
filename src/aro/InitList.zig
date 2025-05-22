@@ -40,13 +40,21 @@ pub fn find(il: *InitList, gpa: Allocator, index: u64) !*InitList {
     var right: usize = items.len;
 
     // Append new value to empty list
-    if (left == right) {
+    if (il.list.items.len == 0) {
         const item = try il.list.addOne(gpa);
         item.* = .{
-            .list = .{ .node = .null, .tok = 0 },
+            .list = .{},
             .index = index,
         };
         return &item.list;
+    } else if (il.list.items[il.list.items.len - 1].index < index) {
+        // Append a new value to the end of the list.
+        const new = try il.list.addOne(gpa);
+        new.* = .{
+            .list = .{},
+            .index = index,
+        };
+        return &new.list;
     }
 
     while (left < right) {
@@ -62,7 +70,7 @@ pub fn find(il: *InitList, gpa: Allocator, index: u64) !*InitList {
 
     // Insert a new value into a sorted position.
     try il.list.insert(gpa, left, .{
-        .list = .{ .node = .null, .tok = 0 },
+        .list = .{},
         .index = index,
     });
     return &il.list.items[left].list;

@@ -3895,13 +3895,19 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType, l_brace: TokenI
 
         const first_tok = p.tok_i;
         if (p.eatToken(.l_brace)) |inner_l_brace| {
-            if (try p.findAggregateInitializer(il, init_qt, first_tok, &index_list)) |item| {
+            if (try p.findBracedInitializer(il, init_qt, first_tok, &index_list)) |item| {
+                if (item.il.tok != 0 and !init_qt.isInvalid()) {
+                    try p.err(first_tok, .initializer_overrides, .{});
+                    try p.err(item.il.tok, .previous_initializer, .{});
+                    item.il.deinit(p.gpa);
+                    item.il.* = .{};
+                }
                 try p.initializerItem(item.il, item.qt, inner_l_brace);
             } else {
                 // discard further values
                 var tmp_il: InitList = .{};
                 defer tmp_il.deinit(p.gpa);
-                try p.initializerItem(&tmp_il, .void, inner_l_brace);
+                try p.initializerItem(&tmp_il, .invalid, inner_l_brace);
                 if (!warned_excess) try p.err(first_tok, switch (init_qt.base(p.comp).type) {
                     .array => if (il.node != .null and p.isStringInit(init_qt, il.node.unpack().?))
                         .excess_str_init
@@ -4049,7 +4055,6 @@ fn findScalarInitializer(
     const index = index_list.items[index_list_top];
 
     switch (qt.base(p.comp).type) {
-        .void => return true,
         .complex => |complex_ty| {
             if (il.node != .null or index >= 2) {
                 if (!warned_excess.*) try p.err(first_tok, .excess_scalar_init, .{});
@@ -4243,7 +4248,7 @@ fn setInitializerIfEqual(p: *Parser, il: *InitList, init_qt: QualType, tok: Toke
 
 const InitItem = struct { il: *InitList, qt: QualType };
 
-fn findAggregateInitializer(
+fn findBracedInitializer(
     p: *Parser,
     il: *InitList,
     qt: QualType,
@@ -4361,7 +4366,7 @@ fn coerceArrayInit(p: *Parser, item: Result, tok: TokenIndex, target: QualType) 
 }
 
 fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: QualType) !void {
-    if (target.is(p.comp, .void)) return; // Do not do type coercion on excess items
+    if (target.isInvalid()) return;
 
     const node = item.node;
     if (target.isAutoType() or target.isC23Auto()) {

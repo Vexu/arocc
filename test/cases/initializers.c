@@ -185,6 +185,12 @@ void vector_excess(void) {
 #pragma GCC diagnostic warning "-Wc23-extensions"
 int empty_initializer[2] = {};
 
+void braced_init_overrides(void) {
+    struct {
+        int a;
+    } aa, a[2] = {aa, aa, [0] = {2}, {3}};
+}
+
 #define TESTS_SKIPPED 1
 #define EXPECTED_ERRORS "initializers.c:2:17: error: variable-sized object may not be initialized" \
     "initializers.c:3:15: error: illegal initializer type" \
@@ -251,3 +257,7 @@ int empty_initializer[2] = {};
     "initializers.c:179:28: warning: excess elements in vector initializer [-Wexcess-initializers]" \
     "initializers.c:182:19: error: initializing 'int' from incompatible type 'vec'" \
     "initializers.c:186:28: warning: use of an empty initializer is a C23 extension [-Wc23-extensions]" \
+    "initializers.c:191:33: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
+    "initializers.c:191:19: note: previous initialization" \
+    "initializers.c:191:38: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
+    "initializers.c:191:23: note: previous initialization" \
