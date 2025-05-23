@@ -13,6 +13,11 @@ void foo(void) {
 typedef _BitInt(4) invalid3 __attribute__((vector_size(4 * 2)));
 typedef _BitInt(11) invalid4 __attribute__((vector_size(11 * 2)));
 
+float subscript(f2v vec, int index) {
+    vec[index] = 1;
+    return vec[index];
+}
+
 #define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \
     "vectors.c:3:39: error: vector size not an integral multiple of component size" \
     "vectors.c:10:5: error: cannot cast to non arithmetic or pointer type 'f2v'" \

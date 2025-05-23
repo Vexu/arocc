@@ -8406,6 +8406,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                     try p.err(l_bracket, .invalid_index, .{});
                 }
                 std.mem.swap(Result, &ptr, &index);
+            } else if (ptr.qt.get(p.comp, .vector)) |vector_ty| {
+                ptr = array_before_conversion;
+                ptr.qt = vector_ty.elem;
+                if (!index.qt.isInt(p.comp)) {
+                    try p.err(l_bracket, .invalid_index, .{});
+                }
             } else {
                 try p.err(l_bracket, .invalid_subscript, .{});
             }

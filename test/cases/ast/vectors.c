@@ -57,3 +57,33 @@ fn_def: 'fn () void'
 
     implicit return_stmt: 'void'
 
+fn_def: 'fn (vec: f2v: vector(2, float), index: int) float'
+ name: subscript
+ body:
+  compound_stmt
+    assign_expr: 'float'
+     lhs:
+      array_access_expr: 'float' lvalue
+       base:
+        decl_ref_expr: 'f2v: vector(2, float)' lvalue
+         name: vec
+       index:
+        implicit cast: (lval_to_rval) 'int'
+          decl_ref_expr: 'int' lvalue
+           name: index
+     rhs:
+      implicit cast: (int_to_float) 'float'
+        int_literal: 'int' (value: 1)
+
+    return_stmt: 'float'
+     expr:
+      implicit cast: (lval_to_rval) 'float'
+        array_access_expr: 'float' lvalue
+         base:
+          decl_ref_expr: 'f2v: vector(2, float)' lvalue
+           name: vec
+         index:
+          implicit cast: (lval_to_rval) 'int'
+            decl_ref_expr: 'int' lvalue
+             name: index
+

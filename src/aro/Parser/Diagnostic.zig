@@ -690,7 +690,7 @@ pub const invalid_index: Diagnostic = .{
 };
 
 pub const invalid_subscript: Diagnostic = .{
-    .fmt = "subscripted value is not an array or pointer",
+    .fmt = "subscripted value is not an array, pointer or vector",
     .kind = .@"error",
 };
 
