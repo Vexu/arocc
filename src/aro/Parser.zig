@@ -489,7 +489,38 @@ fn formatQualType(p: *Parser, w: anytype, fmt: []const u8, qt: QualType) !usize 
     const template = "{qt}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
+    try w.writeByte('\'');
     try qt.print(p.comp, w);
+    try w.writeByte('\'');
+    if (qt.isInvalid() or qt.isC23Auto() or qt.isAutoType()) return i + template.len;
+
+    var desugar = false;
+    loop: switch (qt.type(p.comp)) {
+        .vector => |vector_ty| {
+            try w.print(" (vector of {d} '", .{vector_ty.len});
+            try vector_ty.elem.printDesugared(p.comp, w);
+            try w.writeAll("' values)");
+            return i + template.len;
+        },
+        .attributed => |attributed_ty| continue :loop attributed_ty.base.type(p.comp),
+        .pointer => |pointer_ty| continue :loop pointer_ty.child.type(p.comp),
+        // TODO .func
+        .typeof => |typeof_ty| {
+            desugar = true;
+            continue :loop typeof_ty.base.type(p.comp);
+        },
+        .typedef => |typedef_ty| {
+            desugar = true;
+            continue :loop typedef_ty.base.type(p.comp);
+        },
+        .nullptr_t => desugar = false,
+        else => {},
+    }
+    if (desugar) {
+        try w.writeAll(" (aka '");
+        try qt.printDesugared(p.comp, w);
+        try w.writeAll("')");
+    }
     return i + template.len;
 }
 

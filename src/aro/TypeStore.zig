@@ -1148,7 +1148,7 @@ pub const QualType = packed struct(u32) {
             try w.writeAll("auto");
             return;
         }
-        _ = try qt.printPrologue(comp, w);
+        _ = try qt.printPrologue(comp, false, w);
         try qt.printEpilogue(comp, w);
     }
 
@@ -1157,16 +1157,21 @@ pub const QualType = packed struct(u32) {
             try w.print("auto {s}", .{name});
             return;
         }
-        const simple = try qt.printPrologue(comp, w);
+        const simple = try qt.printPrologue(comp, false, w);
         if (simple) try w.writeByte(' ');
         try w.writeAll(name);
         try qt.printEpilogue(comp, w);
     }
 
-    fn printPrologue(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!bool {
+    pub fn printDesugared(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+        _ = try qt.printPrologue(comp, true, w);
+        try qt.printEpilogue(comp, w);
+    }
+
+    fn printPrologue(qt: QualType, comp: *const Compilation, desugar: bool, w: anytype) @TypeOf(w).Error!bool {
         loop: switch (qt.type(comp)) {
             .pointer => |pointer| {
-                const simple = try pointer.child.printPrologue(comp, w);
+                const simple = try pointer.child.printPrologue(comp, desugar, w);
                 if (simple) try w.writeByte(' ');
                 switch (pointer.child.base(comp).type) {
                     .func, .array => try w.writeByte('('),
@@ -1185,24 +1190,28 @@ pub const QualType = packed struct(u32) {
                 return false;
             },
             .func => |func| {
-                const simple = try func.return_type.printPrologue(comp, w);
+                const simple = try func.return_type.printPrologue(comp, desugar, w);
                 if (simple) try w.writeByte(' ');
                 return false;
             },
             .array => |array| {
-                const simple = try array.elem.printPrologue(comp, w);
+                const simple = try array.elem.printPrologue(comp, desugar, w);
                 if (simple) try w.writeByte(' ');
                 return false;
             },
-            .typeof => |typeof| {
+            .typeof => |typeof| if (!desugar) {
                 try w.writeAll("typeof(");
                 try typeof.base.print(comp, w);
                 try w.writeAll(")");
                 return true;
+            } else {
+                continue :loop typeof.base.type(comp);
             },
-            .typedef => |typedef| {
+            .typedef => |typedef| if (!desugar) {
                 try w.writeAll(typedef.name.lookup(comp));
                 return true;
+            } else {
+                continue :loop typedef.base.type(comp);
             },
             .attributed => |attributed| continue :loop attributed.base.type(comp),
             else => {},
@@ -1247,30 +1256,27 @@ pub const QualType = packed struct(u32) {
             },
             .complex => |complex| {
                 try w.writeAll("_Complex ");
-                _ = try complex.printPrologue(comp, w);
+                _ = try complex.printPrologue(comp, desugar, w);
             },
             .atomic => |atomic| {
                 try w.writeAll("_Atomic(");
-                _ = try atomic.printPrologue(comp, w);
+                _ = try atomic.printPrologue(comp, desugar, w);
                 try atomic.printEpilogue(comp, w);
                 try w.writeAll(")");
             },
 
             .vector => |vector| {
                 try w.print("__attribute__((__vector_size__({d} * sizeof(", .{vector.len});
-                _ = try vector.elem.printPrologue(comp, w);
+                _ = try vector.elem.printPrologue(comp, desugar, w);
                 try w.writeAll(")))) ");
-                _ = try vector.elem.printPrologue(comp, w);
-                try w.print(" (vector of {d} '", .{vector.len});
-                _ = try vector.elem.printPrologue(comp, w);
-                try w.writeAll("' values)");
+                _ = try vector.elem.printPrologue(comp, desugar, w);
             },
 
             .@"struct" => |struct_ty| try w.print("struct {s}", .{struct_ty.name.lookup(comp)}),
             .@"union" => |union_ty| try w.print("union {s}", .{union_ty.name.lookup(comp)}),
             .@"enum" => |enum_ty| if (enum_ty.fixed) {
                 try w.print("enum {s}: ", .{enum_ty.name.lookup(comp)});
-                _ = try enum_ty.tag.?.printPrologue(comp, w);
+                _ = try enum_ty.tag.?.printPrologue(comp, desugar, w);
             } else {
                 try w.print("enum {s}", .{enum_ty.name.lookup(comp)});
             },

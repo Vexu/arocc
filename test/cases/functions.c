@@ -87,8 +87,8 @@ int invalid_int = invalid_func;
     "functions.c:22:13: error: variable length array must be bound in function definition" \
     "functions.c:42:35: error: parameter has incomplete type 'struct S'" \
     "functions.c:44:10: error: parameter has incomplete type 'struct S'" \
-    "functions.c:48:30: error: parameter has incomplete type 'U'" \
-    "functions.c:50:3: error: parameter has incomplete type 'U'" \
+    "functions.c:48:30: error: parameter has incomplete type 'U' (aka 'union Union')" \
+    "functions.c:50:3: error: parameter has incomplete type 'U' (aka 'union Union')" \
     "functions.c:53:30: error: parameter has incomplete type 'enum E'" \
     "functions.c:55:9: error: parameter has incomplete type 'enum EE'" \
     "functions.c:79:6: error: redefinition of 'no_params' with a different type" \

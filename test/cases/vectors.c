@@ -30,7 +30,7 @@ void vector_conversions(f2v a, i2v b, i3v c) {
 
 #define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \
     "vectors.c:3:39: error: vector size not an integral multiple of component size" \
-    "vectors.c:10:5: error: cannot cast to non arithmetic or pointer type 'f2v'" \
+    "vectors.c:10:5: error: cannot cast to non arithmetic or pointer type 'f2v' (vector of 2 'float' values)" \
     "vectors.c:13:44: error: '_BitInt' vector element width must be at least as wide as 'CHAR_BIT'" \
     "vectors.c:14:45: error: '_BitInt' vector element width must be a power of 2" \
-    "vectors.c:28:7: error: cannot convert between vector type 'f2v' and vector type 'i3v' as implicit conversion would cause truncation" \
+    "vectors.c:28:7: error: cannot convert between vector type 'f2v' (vector of 2 'float' values) and vector type 'i3v' (vector of 3 'int' values) as implicit conversion would cause truncation" \
