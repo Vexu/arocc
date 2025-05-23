@@ -282,7 +282,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     const mac_writer = macro_buf.writer();
     try mac_writer.print("#define {s}\n", .{test_case.c_define});
     if (comp.langopts.emulate == .msvc) {
-        comp.langopts.enableMSExtensions();
+        comp.langopts.setMSExtensions(true);
         try mac_writer.writeAll("#define MSVC\n");
     }
 

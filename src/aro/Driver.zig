@@ -255,6 +255,8 @@ pub fn parseArgs(
     var hosted: ?bool = null;
     var gnuc_version: []const u8 = "4.2.1"; // default value set by clang
     var pic_arg: []const u8 = "";
+    var declspec_attrs: ?bool = null;
+    var ms_extensions: ?bool = null;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
@@ -356,12 +358,12 @@ pub fn parseArgs(
                 d.comp.code_gen_options.debug = false;
             } else if (mem.eql(u8, arg, "-fdigraphs")) {
                 d.comp.langopts.digraphs = true;
+            } else if (mem.eql(u8, arg, "-fno-digraphs")) {
+                d.comp.langopts.digraphs = false;
             } else if (mem.eql(u8, arg, "-fgnu-inline-asm")) {
                 d.comp.langopts.gnu_asm = true;
             } else if (mem.eql(u8, arg, "-fno-gnu-inline-asm")) {
                 d.comp.langopts.gnu_asm = false;
-            } else if (mem.eql(u8, arg, "-fno-digraphs")) {
-                d.comp.langopts.digraphs = false;
             } else if (option(arg, "-fmacro-backtrace-limit=")) |limit_str| {
                 var limit = std.fmt.parseInt(u32, limit_str, 10) catch {
                     try d.err("-fmacro-backtrace-limit takes a number argument", .{});
@@ -397,17 +399,17 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fno-unsigned-char")) {
                 d.comp.langopts.setCharSignedness(.signed);
             } else if (mem.eql(u8, arg, "-fdeclspec")) {
-                d.comp.langopts.declspec_attrs = true;
+                declspec_attrs = true;
             } else if (mem.eql(u8, arg, "-fno-declspec")) {
-                d.comp.langopts.declspec_attrs = false;
+                declspec_attrs = false;
             } else if (mem.eql(u8, arg, "-ffreestanding")) {
                 hosted = false;
             } else if (mem.eql(u8, arg, "-fhosted")) {
                 hosted = true;
             } else if (mem.eql(u8, arg, "-fms-extensions")) {
-                d.comp.langopts.enableMSExtensions();
+                ms_extensions = true;
             } else if (mem.eql(u8, arg, "-fno-ms-extensions")) {
-                d.comp.langopts.disableMSExtensions();
+                ms_extensions = false;
             } else if (mem.startsWith(u8, arg, "-I")) {
                 var path = arg["-I".len..];
                 if (path.len == 0) {
@@ -509,21 +511,14 @@ pub fn parseArgs(
                     try d.err("invalid standard '{s}'", .{arg});
             } else if (mem.eql(u8, arg, "-S") or mem.eql(u8, arg, "--assemble")) {
                 d.only_preprocess_and_compile = true;
-            } else if (option(arg, "--target=")) |triple| {
-                const query = std.Target.Query.parse(.{ .arch_os_abi = triple }) catch {
-                    try d.err("invalid target '{s}'", .{arg});
+            } else if (mem.eql(u8, arg, "-target")) {
+                i += 1;
+                if (i >= args.len) {
+                    try d.err("expected argument after -target", .{});
                     continue;
-                };
-                const target = std.zig.system.resolveTargetQuery(query) catch |e| {
-                    return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
-                };
-                d.comp.target = target;
-                d.comp.langopts.setEmulatedCompiler(target_util.systemCompiler(target));
-                switch (d.comp.langopts.emulate) {
-                    .clang => try d.diagnostics.set("clang", .off),
-                    .gcc => try d.diagnostics.set("gnu", .off),
-                    .msvc => try d.diagnostics.set("microsoft", .off),
                 }
+                d.raw_target_triple = args[i];
+            } else if (option(arg, "--target=")) |triple| {
                 d.raw_target_triple = triple;
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
@@ -602,6 +597,23 @@ pub fn parseArgs(
             try d.inputs.append(d.comp.gpa, source);
         }
     }
+    if (d.raw_target_triple) |triple| triple: {
+        const query = std.Target.Query.parse(.{ .arch_os_abi = triple }) catch {
+            try d.err("invalid target '{s}'", .{triple});
+            d.raw_target_triple = null;
+            break :triple;
+        };
+        const target = std.zig.system.resolveTargetQuery(query) catch |e| {
+            return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
+        };
+        d.comp.target = target;
+        d.comp.langopts.setEmulatedCompiler(target_util.systemCompiler(target));
+        switch (d.comp.langopts.emulate) {
+            .clang => try d.diagnostics.set("clang", .off),
+            .gcc => try d.diagnostics.set("gnu", .off),
+            .msvc => try d.diagnostics.set("microsoft", .off),
+        }
+    }
     if (d.comp.langopts.preserve_comments and !d.only_preprocess) {
         return d.fatal("invalid argument '{s}' only allowed with '-E'", .{comment_arg});
     }
@@ -622,6 +634,8 @@ pub fn parseArgs(
     const pic_level, const is_pie = try d.getPICMode(pic_arg);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
+    if (declspec_attrs) |some| d.comp.langopts.declspec_attrs = some;
+    if (ms_extensions) |some| d.comp.langopts.setMSExtensions(some);
     return false;
 }
 
