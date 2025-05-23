@@ -6608,6 +6608,9 @@ pub const Result = struct {
         const dest_sk = dest_qt.scalarKind(p.comp);
         const src_sk = res.qt.scalarKind(p.comp);
 
+        const dest_vec = dest_qt.is(p.comp, .vector);
+        const src_vec = res.qt.is(p.comp, .vector);
+
         if (dest_qt.is(p.comp, .void)) {
             // everything can cast to void
             cast_kind = .to_void;
@@ -6615,6 +6618,32 @@ pub const Result = struct {
         } else if (res.qt.is(p.comp, .void)) {
             try p.err(operand_tok, .invalid_cast_operand_type, .{res.qt});
             return error.ParsingFailed;
+        } else if (dest_vec and src_vec) {
+            if (dest_qt.eql(res.qt, p.comp)) {
+                cast_kind = .no_op;
+            } else if (dest_qt.sizeCompare(res.qt, p.comp) == .eq) {
+                cast_kind = .bitcast;
+            } else {
+                try p.err(l_paren, .invalid_vec_conversion, .{ dest_qt, res.qt });
+                return error.ParsingFailed;
+            }
+        } else if (dest_vec or src_vec) {
+            const non_vec_sk = if (dest_vec) src_sk else dest_sk;
+            const vec_qt = if (dest_vec) dest_qt else res.qt;
+            const non_vec_qt = if (dest_vec) res.qt else dest_qt;
+            const non_vec_tok = if (dest_vec) operand_tok else l_paren;
+            if (non_vec_sk == .none) {
+                try p.err(non_vec_tok, .invalid_cast_operand_type, .{non_vec_qt});
+                return error.ParsingFailed;
+            } else if (!non_vec_sk.isInt()) {
+                try p.err(non_vec_tok, .invalid_vec_conversion_scalar, .{ vec_qt, non_vec_qt });
+                return error.ParsingFailed;
+            } else if (dest_qt.sizeCompare(res.qt, p.comp) != .eq) {
+                try p.err(non_vec_tok, .invalid_vec_conversion_int, .{ vec_qt, non_vec_qt });
+                return error.ParsingFailed;
+            } else {
+                cast_kind = .bitcast;
+            }
         } else if (dest_sk == .nullptr_t) {
             res.val = .{};
             if (src_sk == .nullptr_t) {

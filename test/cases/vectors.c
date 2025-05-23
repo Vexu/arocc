@@ -28,9 +28,30 @@ void vector_conversions(f2v a, i2v b, i3v c) {
     a + c;
 }
 
+void explicit_casts(f2v a, i2v b, i3v c) {
+    (f2v)b;
+    (i2v)b;
+    (i3v)b;
+    (long)b;
+    (int)b;
+    (double)b;
+    (struct S { long a; })b;
+    (f2v)1L;
+    (i3v)1L;
+    (f2v)1.2;
+    (f2v)(struct S){1};
+}
+
 #define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \
     "vectors.c:3:39: error: vector size not an integral multiple of component size" \
-    "vectors.c:10:5: error: cannot cast to non arithmetic or pointer type 'f2v' (vector of 2 'float' values)" \
+    "vectors.c:10:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and integer type 'int' of different size" \
     "vectors.c:13:44: error: '_BitInt' vector element width must be at least as wide as 'CHAR_BIT'" \
     "vectors.c:14:45: error: '_BitInt' vector element width must be a power of 2" \
     "vectors.c:28:7: error: cannot convert between vector type 'f2v' (vector of 2 'float' values) and vector type 'i3v' (vector of 3 'int' values) as implicit conversion would cause truncation" \
+    "vectors.c:34:5: error: invalid conversion between vector type 'i3v' (vector of 3 'int' values) and 'i2v' (vector of 2 'int' values) of different size" \
+    "vectors.c:36:5: error: invalid conversion between vector type 'i2v' (vector of 2 'int' values) and integer type 'int' of different size" \
+    "vectors.c:37:5: error: invalid conversion between vector type 'i2v' (vector of 2 'int' values) and scalar type 'double'" \
+    "vectors.c:38:5: error: operand of type 'struct S' where arithmetic or pointer type is required" \
+    "vectors.c:40:10: error: invalid conversion between vector type 'i3v' (vector of 3 'int' values) and integer type 'long' of different size" \
+    "vectors.c:41:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and scalar type 'double'" \
+    "vectors.c:42:10: error: operand of type 'struct S' where arithmetic or pointer type is required" \

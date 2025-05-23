@@ -689,6 +689,21 @@ pub const qual_cast: Diagnostic = .{
     .kind = .warning,
 };
 
+pub const invalid_vec_conversion: Diagnostic = .{
+    .fmt = "invalid conversion between vector type {qt} and {qt} of different size",
+    .kind = .@"error",
+};
+
+pub const invalid_vec_conversion_scalar: Diagnostic = .{
+    .fmt = "invalid conversion between vector type {qt} and scalar type {qt}",
+    .kind = .@"error",
+};
+
+pub const invalid_vec_conversion_int: Diagnostic = .{
+    .fmt = "invalid conversion between vector type {qt} and integer type {qt} of different size",
+    .kind = .@"error",
+};
+
 pub const invalid_index: Diagnostic = .{
     .fmt = "array subscript is not an integer",
     .kind = .@"error",
