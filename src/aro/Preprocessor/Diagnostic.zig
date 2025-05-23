@@ -435,3 +435,8 @@ pub const incomplete_ucn: Diagnostic = .{
     .kind = .warning,
     .opt = .unicode,
 };
+
+pub const invalid_source_epoch: Diagnostic = .{
+    .fmt = "environment variable SOURCE_DATE_EPOCH must expand to a non-negative integer less than or equal to 253402300799",
+    .kind = .@"error",
+};

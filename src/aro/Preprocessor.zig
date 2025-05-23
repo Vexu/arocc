@@ -14,6 +14,7 @@ const Source = @import("Source.zig");
 const text_literal = @import("text_literal.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const RawToken = Tokenizer.Token;
+const SourceEpoch = Compilation.Environment.SourceEpoch;
 const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenWithExpansionLocs = Tree.TokenWithExpansionLocs;
@@ -152,6 +153,10 @@ linemarkers: Linemarkers = .none,
 
 hideset: Hideset,
 
+/// Epoch used for __DATE__, __TIME__, and possibly __TIMESTAMP__
+source_epoch: SourceEpoch,
+m_times: std.AutoHashMapUnmanaged(Source.Id, u64) = .{},
+
 pub const parse = Parser.parse;
 
 pub const Linemarkers = enum {
@@ -163,7 +168,7 @@ pub const Linemarkers = enum {
     numeric_directives,
 };
 
-pub fn init(comp: *Compilation) Preprocessor {
+pub fn init(comp: *Compilation, source_epoch: SourceEpoch) Preprocessor {
     const pp = Preprocessor{
         .comp = comp,
         .diagnostics = comp.diagnostics,
@@ -174,6 +179,7 @@ pub fn init(comp: *Compilation) Preprocessor {
         .poisoned_identifiers = std.StringHashMap(void).init(comp.gpa),
         .top_expansion_buf = ExpandBuf.init(comp.gpa),
         .hideset = .{ .comp = comp },
+        .source_epoch = source_epoch,
     };
     comp.pragmaEvent(.before_preprocess);
     return pp;
@@ -181,7 +187,15 @@ pub fn init(comp: *Compilation) Preprocessor {
 
 /// Initialize Preprocessor with builtin macros.
 pub fn initDefault(comp: *Compilation) !Preprocessor {
-    var pp = init(comp);
+    const source_epoch: SourceEpoch = comp.environment.sourceEpoch() catch |er| switch (er) {
+        error.InvalidEpoch => blk: {
+            const diagnostic: Diagnostic = .invalid_source_epoch;
+            try comp.diagnostics.add(.{ .text = diagnostic.fmt, .kind = diagnostic.kind, .opt = diagnostic.opt, .location = null });
+            break :blk .default;
+        },
+    };
+
+    var pp = init(comp, source_epoch);
     errdefer pp.deinit();
     try pp.addBuiltinMacros();
     return pp;
@@ -224,6 +238,9 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__FILE__", false, .macro_file);
     try pp.addBuiltinMacro("__LINE__", false, .macro_line);
     try pp.addBuiltinMacro("__COUNTER__", false, .macro_counter);
+    try pp.addBuiltinMacro("__DATE__", false, .macro_date);
+    try pp.addBuiltinMacro("__TIME__", false, .macro_time);
+    try pp.addBuiltinMacro("__TIMESTAMP__", false, .macro_timestamp);
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -238,6 +255,7 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.hideset.deinit();
     for (pp.expansion_entries.items(.locs)) |locs| TokenWithExpansionLocs.free(locs, pp.gpa);
     pp.expansion_entries.deinit(pp.gpa);
+    pp.m_times.deinit(pp.gpa);
 }
 
 /// Free buffers that are not needed after preprocessing
@@ -246,6 +264,14 @@ fn clearBuffers(pp: *Preprocessor) void {
     pp.char_buf.clearAndFree();
     pp.top_expansion_buf.clearAndFree();
     pp.hideset.clearAndFree();
+}
+
+fn mTime(pp: *Preprocessor, source_id: Source.Id) !u64 {
+    const gop = try pp.m_times.getOrPut(pp.gpa, source_id);
+    if (!gop.found_existing) {
+        gop.value_ptr.* = pp.comp.getSourceMTimeUncached(source_id) orelse 0;
+    }
+    return gop.value_ptr.*;
 }
 
 pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location {
@@ -1185,11 +1211,89 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
+            .macro_date, .macro_time => {
+                const start = pp.comp.generated_buf.items.len;
+                const timestamp = switch (pp.source_epoch) {
+                    .system, .provided => |ts| ts,
+                };
+                try pp.writeDateTimeStamp(.fromTokId(raw.id), timestamp);
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+            },
+            .macro_timestamp => {
+                const start = pp.comp.generated_buf.items.len;
+                const timestamp = switch (pp.source_epoch) {
+                    .provided => |ts| ts,
+                    .system => try pp.mTime(pp.expansion_source_loc.id),
+                };
+
+                try pp.writeDateTimeStamp(.fromTokId(raw.id), timestamp);
+                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+            },
             else => buf.appendAssumeCapacity(tok),
         }
     }
 
     return buf;
+}
+
+const DateTimeStampKind = enum {
+    date,
+    time,
+    timestamp,
+
+    fn fromTokId(tok_id: RawToken.Id) DateTimeStampKind {
+        return switch (tok_id) {
+            .macro_date => .date,
+            .macro_time => .time,
+            .macro_timestamp => .timestamp,
+            else => unreachable,
+        };
+    }
+};
+
+fn writeDateTimeStamp(pp: *Preprocessor, kind: DateTimeStampKind, timestamp: u64) !void {
+    std.debug.assert(std.time.epoch.Month.jan.numeric() == 1);
+
+    const w = pp.comp.generated_buf.writer(pp.gpa);
+
+    const epoch_seconds = std.time.epoch.EpochSeconds{ .secs = timestamp };
+    const epoch_day = epoch_seconds.getEpochDay();
+    const day_seconds = epoch_seconds.getDaySeconds();
+    const year_day = epoch_day.calculateYearDay();
+    const month_day = year_day.calculateMonthDay();
+
+    const day_names = [_][]const u8{ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    const month_names = [_][]const u8{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    const day_name = day_names[@intCast((epoch_day.day + 3) % 7)];
+    const month_name = month_names[month_day.month.numeric() - 1];
+
+    switch (kind) {
+        .date => {
+            try w.print("\"{s} {d: >2} {d}\"", .{
+                month_name,
+                month_day.day_index + 1,
+                year_day.year,
+            });
+        },
+        .time => {
+            try w.print("\"{d:0>2}:{d:0>2}:{d:0>2}\"", .{
+                day_seconds.getHoursIntoDay(),
+                day_seconds.getMinutesIntoHour(),
+                day_seconds.getSecondsIntoMinute(),
+            });
+        },
+        .timestamp => {
+            try w.print("\"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"", .{
+                day_name,
+                month_name,
+                month_day.day_index + 1,
+                day_seconds.getHoursIntoDay(),
+                day_seconds.getMinutesIntoHour(),
+                day_seconds.getSecondsIntoMinute(),
+                year_day.year,
+            });
+        },
+    }
 }
 
 /// Join a possibly-parenthesized series of string literal tokens into a single string without
@@ -3481,7 +3585,7 @@ test "Preserve pragma tokens sometimes" {
 
             try comp.addDefaultPragmaHandlers();
 
-            var pp = Preprocessor.init(&comp);
+            var pp = Preprocessor.init(&comp, .default);
             defer pp.deinit();
 
             pp.preserve_whitespace = true;
@@ -3539,7 +3643,7 @@ test "destringify" {
     var diagnostics: Diagnostics = .{ .output = .ignore };
     var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
     defer comp.deinit();
-    var pp = Preprocessor.init(&comp);
+    var pp = Preprocessor.init(&comp, .default);
     defer pp.deinit();
 
     try Test.testDestringify(&pp, "hello\tworld\n", "hello\tworld\n");
@@ -3598,7 +3702,7 @@ test "Include guards" {
             var diagnostics: Diagnostics = .{ .output = .ignore };
             var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
             defer comp.deinit();
-            var pp = Preprocessor.init(&comp);
+            var pp = Preprocessor.init(&comp, .default);
             defer pp.deinit();
 
             const path = try std.fs.path.join(allocator, &.{ ".", "bar.h" });

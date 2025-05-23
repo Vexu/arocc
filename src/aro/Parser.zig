@@ -9851,9 +9851,9 @@ test "Node locations" {
         \\
     );
 
-    const builtin_macros = try comp.generateBuiltinMacros(.no_system_defines, null);
+    const builtin_macros = try comp.generateBuiltinMacros(.no_system_defines);
 
-    var pp = Preprocessor.init(&comp);
+    var pp = Preprocessor.init(&comp, .default);
     defer pp.deinit();
     try pp.addBuiltinMacros();
 

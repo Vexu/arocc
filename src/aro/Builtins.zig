@@ -367,7 +367,7 @@ test "Allocation failures" {
         fn testOne(allocator: std.mem.Allocator) !void {
             var comp = Compilation.init(allocator, undefined, std.fs.cwd());
             defer comp.deinit();
-            _ = try comp.generateBuiltinMacros(.include_system_defines, null);
+            _ = try comp.generateBuiltinMacros(.include_system_defines);
 
             const num_builtins = 40;
             var builtin_it = Iterator{};
