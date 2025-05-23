@@ -58,7 +58,8 @@ pub const Environment = struct {
     /// TODO: not implemented yet
     c_include_path: ?[]const u8 = null,
 
-    /// UNIX timestamp to be used instead of the current date and time in the __DATE__, __TIME__, and __TIMESTAMP__ macros
+    /// UNIX timestamp to be used instead of the current date and time in the __DATE__ and __TIME__ macros, and instead of the
+    /// file modification time in the __TIMESTAMP__ macro
     source_date_epoch: ?[]const u8 = null,
 
     pub const SourceEpoch = union(enum) {
