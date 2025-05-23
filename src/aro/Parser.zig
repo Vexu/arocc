@@ -492,31 +492,13 @@ fn formatQualType(p: *Parser, w: anytype, fmt: []const u8, qt: QualType) !usize 
     try w.writeByte('\'');
     try qt.print(p.comp, w);
     try w.writeByte('\'');
-    if (qt.isInvalid() or qt.isC23Auto() or qt.isAutoType()) return i + template.len;
 
-    var desugar = false;
-    loop: switch (qt.type(p.comp)) {
-        .vector => |vector_ty| {
-            try w.print(" (vector of {d} '", .{vector_ty.len});
-            try vector_ty.elem.printDesugared(p.comp, w);
-            try w.writeAll("' values)");
-            return i + template.len;
-        },
-        .attributed => |attributed_ty| continue :loop attributed_ty.base.type(p.comp),
-        .pointer => |pointer_ty| continue :loop pointer_ty.child.type(p.comp),
-        // TODO .func
-        .typeof => |typeof_ty| {
-            desugar = true;
-            continue :loop typeof_ty.base.type(p.comp);
-        },
-        .typedef => |typedef_ty| {
-            desugar = true;
-            continue :loop typedef_ty.base.type(p.comp);
-        },
-        .nullptr_t => desugar = false,
-        else => {},
-    }
-    if (desugar) {
+    if (qt.isC23Auto()) return i + template.len;
+    if (qt.get(p.comp, .vector)) |vector_ty| {
+        try w.print(" (vector of {d} '", .{vector_ty.len});
+        try vector_ty.elem.printDesugared(p.comp, w);
+        try w.writeAll("' values)");
+    } else if (qt.shouldDesugar(p.comp)) {
         try w.writeAll(" (aka '");
         try qt.printDesugared(p.comp, w);
         try w.writeAll("')");

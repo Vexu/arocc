@@ -81,6 +81,12 @@ void no_params(int x){}
 void invalid_func(__auto_type);
 int invalid_int = invalid_func;
 
+void desugar_func_ty(void) {
+    typedef int foo;
+    foo bar(foo);
+    int *ptr = bar;
+}
+
 #define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing" \
     "functions.c:20:14: error: illegal initializer (only variables can be initialized)" \
     "functions.c:18:2: warning: non-void function 'foooo' does not return a value [-Wreturn-type]" \
@@ -94,4 +100,4 @@ int invalid_int = invalid_func;
     "functions.c:79:6: error: redefinition of 'no_params' with a different type" \
     "functions.c:78:6: note: previous definition is here" \
     "functions.c:81:19: error: '__auto_type' not allowed in function prototype" \
-
+    "functions.c:87:16: warning: incompatible pointer types initializing 'int *' from incompatible type 'foo (foo)' (aka 'int (int)') [-Wincompatible-pointer-types]" \

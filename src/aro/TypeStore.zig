@@ -1143,13 +1143,29 @@ pub const QualType = packed struct(u32) {
         return comp.langopts.short_enums or target_util.packAllEnums(comp.target) or qt.hasAttribute(comp, .@"packed");
     }
 
+    pub fn shouldDesugar(qt: QualType, comp: *const Compilation) bool {
+        loop: switch (qt.type(comp)) {
+            .attributed => |attributed| continue :loop attributed.base.type(comp),
+            .pointer => |pointer| continue :loop pointer.child.type(comp),
+            .func => |func| {
+                for (func.params) |param| {
+                    if (param.qt.shouldDesugar(comp)) return true;
+                }
+                continue :loop func.return_type.type(comp);
+            },
+            .typeof => return true,
+            .typedef => |typedef| return !typedef.base.is(comp, .nullptr_t),
+            else => return false,
+        }
+    }
+
     pub fn print(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
         if (qt.isC23Auto()) {
             try w.writeAll("auto");
             return;
         }
         _ = try qt.printPrologue(comp, false, w);
-        try qt.printEpilogue(comp, w);
+        try qt.printEpilogue(comp, false, w);
     }
 
     pub fn printNamed(qt: QualType, name: []const u8, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
@@ -1160,12 +1176,12 @@ pub const QualType = packed struct(u32) {
         const simple = try qt.printPrologue(comp, false, w);
         if (simple) try w.writeByte(' ');
         try w.writeAll(name);
-        try qt.printEpilogue(comp, w);
+        try qt.printEpilogue(comp, false, w);
     }
 
     pub fn printDesugared(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
         _ = try qt.printPrologue(comp, true, w);
-        try qt.printEpilogue(comp, w);
+        try qt.printEpilogue(comp, true, w);
     }
 
     fn printPrologue(qt: QualType, comp: *const Compilation, desugar: bool, w: anytype) @TypeOf(w).Error!bool {
@@ -1199,19 +1215,19 @@ pub const QualType = packed struct(u32) {
                 if (simple) try w.writeByte(' ');
                 return false;
             },
-            .typeof => |typeof| if (!desugar) {
+            .typeof => |typeof| if (desugar) {
+                continue :loop typeof.base.type(comp);
+            } else {
                 try w.writeAll("typeof(");
                 try typeof.base.print(comp, w);
                 try w.writeAll(")");
                 return true;
-            } else {
-                continue :loop typeof.base.type(comp);
             },
-            .typedef => |typedef| if (!desugar) {
+            .typedef => |typedef| if (desugar) {
+                continue :loop typedef.base.type(comp);
+            } else {
                 try w.writeAll(typedef.name.lookup(comp));
                 return true;
-            } else {
-                continue :loop typedef.base.type(comp);
             },
             .attributed => |attributed| continue :loop attributed.base.type(comp),
             else => {},
@@ -1261,7 +1277,7 @@ pub const QualType = packed struct(u32) {
             .atomic => |atomic| {
                 try w.writeAll("_Atomic(");
                 _ = try atomic.printPrologue(comp, desugar, w);
-                try atomic.printEpilogue(comp, w);
+                try atomic.printEpilogue(comp, desugar, w);
                 try w.writeAll(")");
             },
 
@@ -1284,7 +1300,7 @@ pub const QualType = packed struct(u32) {
         return true;
     }
 
-    fn printEpilogue(qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+    fn printEpilogue(qt: QualType, comp: *const Compilation, desugar: bool, w: anytype) @TypeOf(w).Error!void {
         loop: switch (qt.type(comp)) {
             .pointer => |pointer| {
                 switch (pointer.child.base(comp).type) {
@@ -1297,7 +1313,8 @@ pub const QualType = packed struct(u32) {
                 try w.writeByte('(');
                 for (func.params, 0..) |param, i| {
                     if (i != 0) try w.writeAll(", ");
-                    try param.qt.print(comp, w);
+                    _ = try param.qt.printPrologue(comp, desugar, w);
+                    try param.qt.printEpilogue(comp, desugar, w);
                 }
                 if (func.kind != .normal) {
                     if (func.params.len != 0) try w.writeAll(", ");
