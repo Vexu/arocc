@@ -1219,6 +1219,15 @@ fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType) 
         try p.err(tok, .invalid_vec_elem_ty, .{qt.*});
         return error.ParsingFailed;
     }
+    if (qt.get(p.comp, .bit_int)) |bit_int| {
+        if (bit_int.bits < 8) {
+            try p.err(tok, .bit_int_vec_too_small, .{});
+            return error.ParsingFailed;
+        } else if (!std.math.isPowerOfTwo(bit_int.bits)) {
+            try p.err(tok, .bit_int_vec_not_pow2, .{});
+            return error.ParsingFailed;
+        }
+    }
 
     const vec_bytes = attr.args.vector_size.bytes;
     const elem_size = qt.sizeof(p.comp);

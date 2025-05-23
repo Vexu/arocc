@@ -1811,6 +1811,16 @@ pub const invalid_vec_elem_ty: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const bit_int_vec_too_small: Diagnostic = .{
+    .fmt = "'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'",
+    .kind = .@"error",
+};
+
+pub const bit_int_vec_not_pow2: Diagnostic = .{
+    .fmt = "'_BitInt' vector element width must be a power of 2",
+    .kind = .@"error",
+};
+
 pub const vec_size_not_multiple: Diagnostic = .{
     .fmt = "vector size not an integral multiple of component size",
     .kind = .@"error",
