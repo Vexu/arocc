@@ -1057,6 +1057,16 @@ pub const builtin_choose_cond: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const convertvector_arg: Diagnostic = .{
+    .fmt = "{s} argument to __builtin_convertvector must be a vector type",
+    .kind = .@"error",
+};
+
+pub const convertvector_size: Diagnostic = .{
+    .fmt = "first two arguments to __builtin_convertvector must have the same number of elements",
+    .kind = .@"error",
+};
+
 pub const alignas_unavailable: Diagnostic = .{
     .fmt = "'_Alignas' attribute requires integer constant expression",
     .kind = .@"error",

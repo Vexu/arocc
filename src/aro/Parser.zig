@@ -7615,10 +7615,58 @@ fn castExpr(p: *Parser) Error!?Result {
         .builtin_offsetof => return try p.builtinOffsetof(.bytes),
         .builtin_bitoffsetof => return try p.builtinOffsetof(.bits),
         .builtin_types_compatible_p => return try p.typesCompatible(),
+        .builtin_convertvector => return try p.convertvector(),
         // TODO: other special-cased builtins
         else => {},
     }
     return p.unExpr();
+}
+
+fn convertvector(p: *Parser) Error!Result {
+    const builtin_tok = p.tok_i;
+    p.tok_i += 1;
+    const l_paren = try p.expectToken(.l_paren);
+
+    const operand = try p.expect(assignExpr);
+    _ = try p.expectToken(.comma);
+
+    var dest_qt = (try p.typeName()) orelse {
+        try p.err(p.tok_i, .expected_type, .{});
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    };
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    if (operand.qt.isInvalid() or operand.qt.isInvalid()) {
+        dest_qt = .invalid;
+    } else check: {
+        const operand_vec = operand.qt.get(p.comp, .vector) orelse {
+            try p.err(builtin_tok, .convertvector_arg, .{"first"});
+            dest_qt = .invalid;
+            break :check;
+        };
+        const dest_vec = dest_qt.get(p.comp, .vector) orelse {
+            try p.err(builtin_tok, .convertvector_arg, .{"second"});
+            dest_qt = .invalid;
+            break :check;
+        };
+        if (operand_vec.len != dest_vec.len or operand_vec.elem.sizeCompare(dest_vec.elem, p.comp) != .eq) {
+            try p.err(builtin_tok, .convertvector_size, .{});
+            dest_qt = .invalid;
+        }
+    }
+
+    return .{
+        .qt = dest_qt,
+        .node = try p.addNode(.{
+            .builtin_convertvector = .{
+                .builtin_tok = builtin_tok,
+                .dest_qt = dest_qt,
+                .operand = operand.node,
+            },
+        }),
+    };
 }
 
 fn typesCompatible(p: *Parser) Error!Result {

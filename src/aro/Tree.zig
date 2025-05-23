@@ -241,6 +241,7 @@ pub const Node = union(enum) {
     builtin_ref: BuiltinRef,
     builtin_types_compatible_p: TypesCompatible,
     builtin_choose_expr: Conditional,
+    builtin_convertvector: Convertvector,
 
     /// C23 bool literal `true` / `false`
     bool_literal: Literal,
@@ -604,6 +605,12 @@ pub const Node = union(enum) {
         builtin_tok: TokenIndex,
         lhs: QualType,
         rhs: QualType,
+    };
+
+    pub const Convertvector = struct {
+        builtin_tok: TokenIndex,
+        dest_qt: QualType,
+        operand: Node.Index,
     };
 
     pub const Literal = struct {
@@ -1577,6 +1584,13 @@ pub const Node = union(enum) {
                         .rhs = @bitCast(node_data[1]),
                     },
                 },
+                .builtin_convertvector => .{
+                    .builtin_convertvector = .{
+                        .builtin_tok = node_tok,
+                        .dest_qt = @bitCast(node_data[0]),
+                        .operand = @enumFromInt(node_data[1]),
+                    },
+                },
                 .array_init_expr_two => .{
                     .array_init_expr = .{
                         .l_brace_tok = node_tok,
@@ -1840,6 +1854,7 @@ pub const Node = union(enum) {
             cond_expr,
             builtin_choose_expr,
             builtin_types_compatible_p,
+            builtin_convertvector,
             array_init_expr,
             array_init_expr_two,
             struct_init_expr,
@@ -2623,6 +2638,12 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[1] = @bitCast(builtin.rhs);
             repr.tok = builtin.builtin_tok;
         },
+        .builtin_convertvector => |builtin| {
+            repr.tag = .builtin_convertvector;
+            repr.data[0] = @bitCast(builtin.dest_qt);
+            repr.data[1] = @intFromEnum(builtin.operand);
+            repr.tok = builtin.builtin_tok;
+        },
         .array_init_expr => |init| {
             repr.data[0] = @bitCast(init.container_qt);
             if (init.items.len > 2) {
@@ -3232,6 +3253,11 @@ fn dumpNode(
             try call.rhs.dump(tree.comp, w);
             try w.writeByte('\n');
             try config.setColor(w, .reset);
+        },
+        .builtin_convertvector => |convert| {
+            try w.writeByteNTimes(' ', level + half);
+            try w.writeAll("operand: ");
+            try tree.dumpNode(convert.operand, level + delta, config, w);
         },
         .if_stmt => |@"if"| {
             try w.writeByteNTimes(' ', level + half);

@@ -2025,10 +2025,6 @@ __builtin_constant_p
     .param_str = "i."
     .attributes = .{ .@"const" = true, .custom_typecheck = true, .eval_args = false, .const_evaluable = true }
 
-__builtin_convertvector
-    .param_str = "v."
-    .attributes = .{ .@"const" = true, .custom_typecheck = true }
-
 __builtin_copysign
     .param_str = "ddd"
     .attributes = .{ .@"const" = true, .lib_function_with_builtin_prefix = true, .const_evaluable = true }
