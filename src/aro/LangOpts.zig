@@ -165,7 +165,10 @@ pub fn hasDigraphs(self: *const LangOpts) bool {
 
 pub fn setEmulatedCompiler(self: *LangOpts, compiler: Compiler) void {
     self.emulate = compiler;
-    if (compiler == .msvc) self.enableMSExtensions();
+    if (compiler == .msvc)
+        self.enableMSExtensions()
+    else
+        self.disableMSExtensions();
 }
 
 pub fn setFpEvalMethod(self: *LangOpts, fp_eval_method: FPEvalMethod) void {
