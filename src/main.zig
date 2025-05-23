@@ -53,10 +53,6 @@ pub fn main() u8 {
             if (fast_exit) process.exit(1);
             return 1;
         },
-        error.FatalError => {
-            if (fast_exit) process.exit(1);
-            return 1;
-        },
     };
     defer comp.deinit();
 

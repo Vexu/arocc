@@ -173,7 +173,7 @@ pub fn main() !void {
     defer diagnostics.deinit();
 
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa, &diagnostics, std.fs.cwd(), .{ .system = 0 });
+    var initial_comp = aro.Compilation.init(gpa, &diagnostics, std.fs.cwd());
     defer initial_comp.deinit();
 
     const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });
@@ -232,12 +232,11 @@ pub fn main() !void {
         defer macro_buf.deinit();
 
         const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, macro_buf.writer());
-        try comp.loadSourceEpochFromEnvironment();
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
         const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
-        var pp = aro.Preprocessor.init(&comp);
+        var pp = try aro.Preprocessor.initDefault(&comp);
         defer pp.deinit();
         if (only_preprocess) {
             pp.preserve_whitespace = true;
@@ -246,7 +245,6 @@ pub fn main() !void {
                 pp.store_macro_tokens = true;
             }
         }
-        try pp.addBuiltinMacros();
 
         if (comp.langopts.ms_extensions) {
             comp.ms_cwd_source_id = file.id;

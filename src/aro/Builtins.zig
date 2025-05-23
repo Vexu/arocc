@@ -339,7 +339,7 @@ test Iterator {
 }
 
 test "All builtins" {
-    var comp = Compilation.init(std.testing.allocator, undefined, std.fs.cwd(), .{ .provided = 0 });
+    var comp = Compilation.init(std.testing.allocator, undefined, std.fs.cwd());
     defer comp.deinit();
 
     try comp.type_store.initNamedTypes(&comp);
@@ -365,7 +365,7 @@ test "All builtins" {
 test "Allocation failures" {
     const Test = struct {
         fn testOne(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator, undefined, std.fs.cwd(), .{ .provided = 0 });
+            var comp = Compilation.init(allocator, undefined, std.fs.cwd());
             defer comp.deinit();
             _ = try comp.generateBuiltinMacros(.include_system_defines);
 

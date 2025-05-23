@@ -231,7 +231,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     };
     defer diagnostics.deinit();
 
-    var comp = aro.Compilation.init(alloc, &diagnostics, std.fs.cwd(), .{ .provided = 0 });
+    var comp = aro.Compilation.init(alloc, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
@@ -289,9 +289,8 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
     const builtin_macros = try comp.generateBuiltinMacros(.include_system_defines);
 
-    var pp = aro.Preprocessor.init(&comp);
+    var pp = try aro.Preprocessor.initDefault(&comp);
     defer pp.deinit();
-    try pp.addBuiltinMacros();
 
     _ = try pp.preprocess(builtin_macros);
     _ = try pp.preprocess(user_macros);
