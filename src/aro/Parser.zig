@@ -7561,10 +7561,6 @@ fn mulExpr(p: *Parser) Error!?Result {
 ///  :  '(' compoundStmt ')' suffixExpr*
 ///  |  '(' typeName ')' castExpr
 ///  | '(' typeName ')' '{' initializerItems '}'
-///  | __builtin_choose_expr '(' integerConstExpr ',' assignExpr ',' assignExpr ')'
-///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
-///  | __builtin_offsetof '(' typeName ',' offsetofMemberDesignator ')'
-///  | __builtin_bitoffsetof '(' typeName ',' offsetofMemberDesignator ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.l_paren)) |l_paren| cast_expr: {
@@ -7578,7 +7574,7 @@ fn castExpr(p: *Parser) Error!?Result {
             var stmt_expr_state: StmtExprState = .{};
             const body_node = (try p.compoundStmt(false, &stmt_expr_state)).?; // compoundStmt only returns null if .l_brace isn't the first token
 
-            var res = Result{
+            var res: Result = .{
                 .node = body_node,
                 .qt = stmt_expr_state.last_expr_qt,
             };
@@ -7609,22 +7605,11 @@ fn castExpr(p: *Parser) Error!?Result {
         try operand.castType(p, ty, operand_tok, l_paren);
         return operand;
     }
-    switch (p.tok_ids[p.tok_i]) {
-        .builtin_choose_expr => return try p.builtinChooseExpr(),
-        .builtin_va_arg => return try p.builtinVaArg(),
-        .builtin_offsetof => return try p.builtinOffsetof(.bytes),
-        .builtin_bitoffsetof => return try p.builtinOffsetof(.bits),
-        .builtin_types_compatible_p => return try p.typesCompatible(),
-        .builtin_convertvector => return try p.convertvector(),
-        // TODO: other special-cased builtins
-        else => {},
-    }
     return p.unExpr();
 }
 
-fn convertvector(p: *Parser) Error!Result {
-    const builtin_tok = p.tok_i;
-    p.tok_i += 1;
+/// convertvector : __builtin_convertvector '(' assignExpr ',' typeName ')'
+fn convertvector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
 
     const operand = try p.expect(assignExpr);
@@ -7669,9 +7654,8 @@ fn convertvector(p: *Parser) Error!Result {
     };
 }
 
-fn typesCompatible(p: *Parser) Error!Result {
-    const builtin_tok = p.tok_i;
-    p.tok_i += 1;
+/// typesCompatible : __builtin_types_compatible_p '(' typeName ',' typeName ')'
+fn typesCompatible(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
 
     const lhs = (try p.typeName()) orelse {
@@ -7705,8 +7689,8 @@ fn typesCompatible(p: *Parser) Error!Result {
     return res;
 }
 
+/// chooseExpr : __builtin_choose_expr '(' integerConstExpr ',' assignExpr ',' assignExpr ')'
 fn builtinChooseExpr(p: *Parser) Error!Result {
-    p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     const cond_tok = p.tok_i;
     var cond = try p.integerConstExpr(.no_const_decl_folding);
@@ -7750,10 +7734,8 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
     return cond;
 }
 
-fn builtinVaArg(p: *Parser) Error!Result {
-    const builtin_tok = p.tok_i;
-    p.tok_i += 1;
-
+/// vaStart : __builtin_va_arg '(' assignExpr ',' typeName ')'
+fn builtinVaArg(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
     const va_list_tok = p.tok_i;
     var va_list = try p.expect(assignExpr);
@@ -7786,10 +7768,10 @@ fn builtinVaArg(p: *Parser) Error!Result {
 
 const OffsetKind = enum { bits, bytes };
 
-fn builtinOffsetof(p: *Parser, offset_kind: OffsetKind) Error!Result {
-    const builtin_tok = p.tok_i;
-    p.tok_i += 1;
-
+/// offsetof
+///  : __builtin_offsetof '(' typeName ',' offsetofMemberDesignator ')'
+///  | __builtin_bitoffsetof '(' typeName ',' offsetofMemberDesignator ')'
+fn builtinOffsetof(p: *Parser, builtin_tok: TokenIndex, offset_kind: OffsetKind) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
     const ty_tok = p.tok_i;
 
@@ -7830,7 +7812,7 @@ fn builtinOffsetof(p: *Parser, offset_kind: OffsetKind) Error!Result {
     };
 }
 
-/// offsetofMemberDesignator: IDENTIFIER ('.' IDENTIFIER | '[' expr ']' )*
+/// offsetofMemberDesignator : IDENTIFIER ('.' IDENTIFIER | '[' expr ']' )*
 fn offsetofMemberDesignator(
     p: *Parser,
     base_record_ty: Type.Record,
@@ -8868,6 +8850,11 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 ///  | STRING_LITERAL
 ///  | '(' expr ')'
 ///  | genericSelection
+///  | convertvector
+///  | typesCompatible
+///  | chooseExpr
+///  | vaStart
+///  | offsetof
 fn primaryExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         var grouped_expr = try p.expect(expr);
@@ -8952,6 +8939,16 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     });
                 }
 
+                switch (some.builtin.tag) {
+                    .__builtin_choose_expr => return try p.builtinChooseExpr(),
+                    .__builtin_va_arg => return try p.builtinVaArg(name_tok),
+                    .__builtin_offsetof => return try p.builtinOffsetof(name_tok, .bytes),
+                    .__builtin_bitoffsetof => return try p.builtinOffsetof(name_tok, .bits),
+                    .__builtin_types_compatible_p => return try p.typesCompatible(name_tok),
+                    .__builtin_convertvector => return try p.convertvector(name_tok),
+                    else => {},
+                }
+
                 return .{
                     .qt = some.qt,
                     .node = try p.addNode(.{
@@ -9024,7 +9021,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
         .keyword_nullptr => {
             defer p.tok_i += 1;
             try p.err(p.tok_i, .pre_c23_compat, .{"'nullptr'"});
-            return Result{
+            return .{
                 .val = .null,
                 .qt = .nullptr_t,
                 .node = try p.addNode(.{
