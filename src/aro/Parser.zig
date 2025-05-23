@@ -5976,10 +5976,20 @@ pub const Result = struct {
             if (a.qt.eql(b.qt, p.comp)) {
                 return a.shouldEval(b, p);
             }
-            return a.invalidBinTy(tok, b, p);
+            if (a.qt.sizeCompare(b.qt, p.comp) == .eq) {
+                b.qt = a.qt;
+                try b.implicitCast(p, .bitcast, tok);
+                return a.shouldEval(b, p);
+            }
+            try p.err(tok, .incompatible_vec_types, .{ a.qt, b.qt });
+            a.val = .{};
+            b.val = .{};
+            a.qt = .invalid;
+            return false;
         } else if (a_vec) {
             if (b.coerceExtra(p, a.qt.childType(p.comp), tok, .test_coerce)) {
                 try b.saveValue(p);
+                b.qt = a.qt;
                 try b.implicitCast(p, .vector_splat, tok);
                 return a.shouldEval(b, p);
             } else |er| switch (er) {
@@ -5989,6 +5999,7 @@ pub const Result = struct {
         } else if (b_vec) {
             if (a.coerceExtra(p, b.qt.childType(p.comp), tok, .test_coerce)) {
                 try a.saveValue(p);
+                a.qt = b.qt;
                 try a.implicitCast(p, .vector_splat, tok);
                 return a.shouldEval(b, p);
             } else |er| switch (er) {

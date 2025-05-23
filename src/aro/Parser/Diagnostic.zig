@@ -623,6 +623,11 @@ pub const invalid_bin_types: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const incompatible_vec_types: Diagnostic = .{
+    .fmt = "cannot convert between vector type '{qt}' and vector type '{qt}' as implicit conversion would cause truncation",
+    .kind = .@"error",
+};
+
 pub const comparison_ptr_int: Diagnostic = .{
     .fmt = "comparison between pointer and integer ('{qt}' and '{qt}')",
     .kind = .warning,
