@@ -68,6 +68,11 @@ pub const expected_expr: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const unexpected_type_name: Diagnostic = .{
+    .fmt = "unexpected type name '{s}': expected expression",
+    .kind = .@"error",
+};
+
 pub const expected_integer_constant_expr: Diagnostic = .{
     .fmt = "expression is not an integer constant expression",
     .kind = .@"error",

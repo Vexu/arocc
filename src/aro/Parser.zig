@@ -8839,6 +8839,10 @@ fn primaryExpr(p: *Parser) Error!?Result {
             }
 
             if (p.syms.findSymbol(interned_name)) |sym| {
+                if (sym.kind == .typedef) {
+                    try p.err(name_tok, .unexpected_type_name, .{name});
+                    return error.ParsingFailed;
+                }
                 try p.checkDeprecatedUnavailable(sym.qt, name_tok, sym.tok);
                 if (sym.kind == .constexpr) {
                     return .{
