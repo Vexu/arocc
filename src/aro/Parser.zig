@@ -6955,8 +6955,13 @@ pub const Result = struct {
                 return; // ok
             }
         } else {
-            if (c == .assign and (dest_unqual.is(p.comp, .array) or dest_unqual.is(p.comp, .func))) {
-                try p.err(tok, .not_assignable, .{});
+            if (c == .assign) {
+                const base_ty = dest_unqual.base(p.comp).qt;
+                if (base_ty.type(p.comp) == .array) {
+                    try p.err(tok, .array_not_assignable, .{base_ty});
+                } else if (base_ty.type(p.comp) == .func) {
+                    try p.err(tok, .non_object_not_assignable, .{base_ty});
+                }
                 return;
             } else if (c == .test_coerce) {
                 return error.CoercionFailed;
@@ -7056,6 +7061,89 @@ fn nonAssignExpr(assign_node: std.meta.Tag(Node)) std.meta.Tag(Node) {
     };
 }
 
+fn unwrapArrayOperation(p: *Parser, node_idx: Node.Index) ?Node.Index {
+    var result: ?Node.Index = null;
+    const tags = [_]std.meta.Tag(Node){
+        .pre_inc_expr,
+        .post_inc_expr,
+        .pre_dec_expr,
+        .post_dec_expr,
+        .add_expr,
+        .sub_expr,
+    };
+    inline for (tags) |tag| {
+        if (p.getNode(node_idx, tag)) |unwrapped| {
+            switch (@TypeOf(unwrapped)) {
+                Node.Binary => result = unwrapped.lhs,
+                Node.Unary => result = unwrapped.operand,
+                else => comptime unreachable,
+            }
+        }
+    }
+    if (result) |result_not_null| {
+        if (p.getNode(result_not_null, .cast)) |cast| {
+            result = cast.operand;
+        }
+    } else if (p.getNode(node_idx, .cast)) |cast| {
+        result = cast.operand;
+    }
+    return result;
+}
+
+fn issueDeclaredConstHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name: []const u8) Compilation.Error!void {
+    const tags = [_]std.meta.Tag(Node){
+        .variable,
+        .param,
+    };
+    inline for (tags) |tag| {
+        if (p.getNode(decl_ref.decl, tag)) |ref| {
+            try p.err(ref.name_tok, .declared_const_here, .{var_name});
+        }
+    }
+}
+
+fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIndex) Compilation.Error!void {
+    const tags = comptime std.meta.tags(std.meta.Tag(Node));
+    inline for (tags) |tag| {
+        if (tag != .paren_expr)
+            if (p.getNode(node_idx, tag)) |node| {
+                switch (tag) {
+                    .member_access_expr, .member_access_ptr_expr => {
+                        if (p.getNode(node.base, .decl_ref_expr)) |memb_ptr_acc_decl_ref| {
+                            const struct_name = p.tokSlice(memb_ptr_acc_decl_ref.name_tok);
+                            try p.err(tok, .const_var_assignment, .{ struct_name, memb_ptr_acc_decl_ref.qt });
+                            try p.issueDeclaredConstHereNote(memb_ptr_acc_decl_ref, struct_name);
+                        } else if (p.getNode(node.base, .array_access_expr)) |memb_arr_access| {
+                            const unwrapped_node_idx = if (p.unwrapArrayOperation(memb_arr_access.base)) |unwrapped|
+                                unwrapped
+                            else
+                                memb_arr_access.base;
+                            if (p.getNode(unwrapped_node_idx, .decl_ref_expr)) |memb_arr_decl_ref| {
+                                const decl_ref_var_name = p.tokSlice(memb_arr_decl_ref.name_tok);
+                                try p.err(tok, .const_var_assignment, .{ decl_ref_var_name, memb_arr_decl_ref.qt });
+                                try p.issueDeclaredConstHereNote(memb_arr_decl_ref, decl_ref_var_name);
+                            }
+                        }
+                    },
+                    .array_access_expr => {
+                        const unwrapped_node_idx = if (p.unwrapArrayOperation(node.base)) |unwrapped| unwrapped else node.base;
+                        if (p.getNode(unwrapped_node_idx, .decl_ref_expr)) |arr_cast_delc_ref| {
+                            const arr_ref_var_name = p.tokSlice(arr_cast_delc_ref.name_tok);
+                            try p.err(tok, .const_var_assignment, .{ arr_ref_var_name, arr_cast_delc_ref.qt });
+                            try p.issueDeclaredConstHereNote(arr_cast_delc_ref, arr_ref_var_name);
+                        }
+                    },
+                    .decl_ref_expr => {
+                        const var_name = p.tokSlice(node.name_tok);
+                        try p.err(tok, .const_var_assignment, .{ var_name, node.qt });
+                        try p.issueDeclaredConstHereNote(node, var_name);
+                    },
+                    else => try p.err(tok, .not_assignable, .{}),
+                }
+            };
+    }
+}
+
 /// assignExpr
 ///  : condExpr
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
@@ -7079,7 +7167,7 @@ fn assignExpr(p: *Parser) Error!?Result {
 
     var is_const: bool = undefined;
     if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
-        try p.err(tok, .not_assignable, .{});
+        try p.issueConstAssignmetDiagnostics(lhs.node, tok);
         lhs.qt = .invalid;
     }
 
