@@ -131,10 +131,10 @@ void initializers(void) {
 #define TESTS_SKIPPED 1
 
 #define EXPECTED_ERRORS \
-    "typeof.c:24:9: warning: incompatible pointer types assigning to 'typeof(typeof(int)) *' from incompatible type 'typeof(float) *' [-Wincompatible-pointer-types]" \
+    "typeof.c:24:9: warning: incompatible pointer types assigning to 'typeof(typeof(int)) *' (aka 'int *') from incompatible type 'typeof(float) *' (aka 'float *') [-Wincompatible-pointer-types]" \
     "typeof.c:28:7: error: expression is not assignable" \
     "typeof.c:30:7: error: expression is not assignable" \
-    "typeof.c:34:30: error: initializing 'typeof(int *)' from incompatible type 'float'" \
+    "typeof.c:34:30: error: initializing 'typeof(int *)' (aka 'int *') from incompatible type 'float'" \
     "typeof.c:35:8: error: expected expression" \
     "typeof.c:59:13: error: expression is not assignable" \
     "typeof.c:61:13: error: expression is not assignable" \
@@ -144,7 +144,7 @@ void initializers(void) {
     "typeof.c:71:13: error: expression is not assignable" \
     "typeof.c:74:13: error: expression is not assignable" \
     "typeof.c:77:13: error: expression is not assignable" \
-    "typeof.c:98:29: warning: initializing 'typeof(int *)' from incompatible type 'const int [2]' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
+    "typeof.c:98:29: warning: initializing 'typeof(int *)' (aka 'int *const') from incompatible type 'const int [2]' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
     "typeof.c:113:5: error: invalid argument type 'char *' to unary expression" \
     "typeof.c:119:5: warning: declaration does not declare anything [-Wmissing-declaration]" \
     "typeof.c:128:26: error: array initializer must be an initializer list or wide string literal" \

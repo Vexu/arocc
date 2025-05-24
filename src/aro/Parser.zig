@@ -489,7 +489,20 @@ fn formatQualType(p: *Parser, w: anytype, fmt: []const u8, qt: QualType) !usize 
     const template = "{qt}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
+    try w.writeByte('\'');
     try qt.print(p.comp, w);
+    try w.writeByte('\'');
+
+    if (qt.isC23Auto()) return i + template.len;
+    if (qt.get(p.comp, .vector)) |vector_ty| {
+        try w.print(" (vector of {d} '", .{vector_ty.len});
+        try vector_ty.elem.printDesugared(p.comp, w);
+        try w.writeAll("' values)");
+    } else if (qt.shouldDesugar(p.comp)) {
+        try w.writeAll(" (aka '");
+        try qt.printDesugared(p.comp, w);
+        try w.writeAll("')");
+    }
     return i + template.len;
 }
 
@@ -5976,10 +5989,20 @@ pub const Result = struct {
             if (a.qt.eql(b.qt, p.comp)) {
                 return a.shouldEval(b, p);
             }
-            return a.invalidBinTy(tok, b, p);
+            if (a.qt.sizeCompare(b.qt, p.comp) == .eq) {
+                b.qt = a.qt;
+                try b.implicitCast(p, .bitcast, tok);
+                return a.shouldEval(b, p);
+            }
+            try p.err(tok, .incompatible_vec_types, .{ a.qt, b.qt });
+            a.val = .{};
+            b.val = .{};
+            a.qt = .invalid;
+            return false;
         } else if (a_vec) {
             if (b.coerceExtra(p, a.qt.childType(p.comp), tok, .test_coerce)) {
                 try b.saveValue(p);
+                b.qt = a.qt;
                 try b.implicitCast(p, .vector_splat, tok);
                 return a.shouldEval(b, p);
             } else |er| switch (er) {
@@ -5989,6 +6012,7 @@ pub const Result = struct {
         } else if (b_vec) {
             if (a.coerceExtra(p, b.qt.childType(p.comp), tok, .test_coerce)) {
                 try a.saveValue(p);
+                a.qt = b.qt;
                 try a.implicitCast(p, .vector_splat, tok);
                 return a.shouldEval(b, p);
             } else |er| switch (er) {
@@ -6584,6 +6608,9 @@ pub const Result = struct {
         const dest_sk = dest_qt.scalarKind(p.comp);
         const src_sk = res.qt.scalarKind(p.comp);
 
+        const dest_vec = dest_qt.is(p.comp, .vector);
+        const src_vec = res.qt.is(p.comp, .vector);
+
         if (dest_qt.is(p.comp, .void)) {
             // everything can cast to void
             cast_kind = .to_void;
@@ -6591,6 +6618,32 @@ pub const Result = struct {
         } else if (res.qt.is(p.comp, .void)) {
             try p.err(operand_tok, .invalid_cast_operand_type, .{res.qt});
             return error.ParsingFailed;
+        } else if (dest_vec and src_vec) {
+            if (dest_qt.eql(res.qt, p.comp)) {
+                cast_kind = .no_op;
+            } else if (dest_qt.sizeCompare(res.qt, p.comp) == .eq) {
+                cast_kind = .bitcast;
+            } else {
+                try p.err(l_paren, .invalid_vec_conversion, .{ dest_qt, res.qt });
+                return error.ParsingFailed;
+            }
+        } else if (dest_vec or src_vec) {
+            const non_vec_sk = if (dest_vec) src_sk else dest_sk;
+            const vec_qt = if (dest_vec) dest_qt else res.qt;
+            const non_vec_qt = if (dest_vec) res.qt else dest_qt;
+            const non_vec_tok = if (dest_vec) operand_tok else l_paren;
+            if (non_vec_sk == .none) {
+                try p.err(non_vec_tok, .invalid_cast_operand_type, .{non_vec_qt});
+                return error.ParsingFailed;
+            } else if (!non_vec_sk.isInt()) {
+                try p.err(non_vec_tok, .invalid_vec_conversion_scalar, .{ vec_qt, non_vec_qt });
+                return error.ParsingFailed;
+            } else if (dest_qt.sizeCompare(res.qt, p.comp) != .eq) {
+                try p.err(non_vec_tok, .invalid_vec_conversion_int, .{ vec_qt, non_vec_qt });
+                return error.ParsingFailed;
+            } else {
+                cast_kind = .bitcast;
+            }
         } else if (dest_sk == .nullptr_t) {
             res.val = .{};
             if (src_sk == .nullptr_t) {
@@ -7508,10 +7561,6 @@ fn mulExpr(p: *Parser) Error!?Result {
 ///  :  '(' compoundStmt ')' suffixExpr*
 ///  |  '(' typeName ')' castExpr
 ///  | '(' typeName ')' '{' initializerItems '}'
-///  | __builtin_choose_expr '(' integerConstExpr ',' assignExpr ',' assignExpr ')'
-///  | __builtin_va_arg '(' assignExpr ',' typeName ')'
-///  | __builtin_offsetof '(' typeName ',' offsetofMemberDesignator ')'
-///  | __builtin_bitoffsetof '(' typeName ',' offsetofMemberDesignator ')'
 ///  | unExpr
 fn castExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.l_paren)) |l_paren| cast_expr: {
@@ -7525,7 +7574,7 @@ fn castExpr(p: *Parser) Error!?Result {
             var stmt_expr_state: StmtExprState = .{};
             const body_node = (try p.compoundStmt(false, &stmt_expr_state)).?; // compoundStmt only returns null if .l_brace isn't the first token
 
-            var res = Result{
+            var res: Result = .{
                 .node = body_node,
                 .qt = stmt_expr_state.last_expr_qt,
             };
@@ -7556,21 +7605,121 @@ fn castExpr(p: *Parser) Error!?Result {
         try operand.castType(p, ty, operand_tok, l_paren);
         return operand;
     }
-    switch (p.tok_ids[p.tok_i]) {
-        .builtin_choose_expr => return try p.builtinChooseExpr(),
-        .builtin_va_arg => return try p.builtinVaArg(),
-        .builtin_offsetof => return try p.builtinOffsetof(.bytes),
-        .builtin_bitoffsetof => return try p.builtinOffsetof(.bits),
-        .builtin_types_compatible_p => return try p.typesCompatible(),
-        // TODO: other special-cased builtins
-        else => {},
-    }
     return p.unExpr();
 }
 
-fn typesCompatible(p: *Parser) Error!Result {
-    const builtin_tok = p.tok_i;
-    p.tok_i += 1;
+/// shufflevector : __builtin_shufflevector '(' assignExpr ',' assignExpr (',' integerConstExpr)* ')'
+fn shufflevector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
+    const l_paren = try p.expectToken(.l_paren);
+
+    const first_tok = p.tok_i;
+    const lhs = try p.expect(assignExpr);
+    _ = try p.expectToken(.comma);
+    const second_tok = p.tok_i;
+    const rhs = try p.expect(assignExpr);
+
+    const max_index: ?Value = blk: {
+        if (lhs.qt.isInvalid() or rhs.qt.isInvalid()) break :blk null;
+        const lhs_vec = lhs.qt.get(p.comp, .vector) orelse break :blk null;
+        const rhs_vec = rhs.qt.get(p.comp, .vector) orelse break :blk null;
+
+        break :blk try Value.int(lhs_vec.len + rhs_vec.len, p.comp);
+    };
+    const negative_one = try Value.intern(p.comp, .{ .int = .{ .i64 = -1 } });
+
+    const list_buf_top = p.list_buf.items.len;
+    defer p.list_buf.items.len = list_buf_top;
+    while (p.eatToken(.comma)) |_| {
+        const index_tok = p.tok_i;
+        const index = try p.integerConstExpr(.gnu_folding_extension);
+        try p.list_buf.append(index.node);
+        if (index.val.compare(.lt, negative_one, p.comp)) {
+            try p.err(index_tok, .shufflevector_negative_index, .{});
+        } else if (max_index != null and index.val.compare(.gte, max_index.?, p.comp)) {
+            try p.err(index_tok, .shufflevector_index_too_big, .{});
+        }
+    }
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    var res_qt: QualType = .invalid;
+    if (!lhs.qt.isInvalid() and !lhs.qt.is(p.comp, .vector)) {
+        try p.err(first_tok, .shufflevector_arg, .{"first"});
+    } else if (!rhs.qt.isInvalid() and !rhs.qt.is(p.comp, .vector)) {
+        try p.err(second_tok, .shufflevector_arg, .{"second"});
+    } else if (!lhs.qt.eql(rhs.qt, p.comp)) {
+        try p.err(builtin_tok, .shufflevector_same_type, .{});
+    } else if (p.list_buf.items.len == list_buf_top) {
+        res_qt = lhs.qt;
+    } else {
+        res_qt = try p.comp.type_store.put(p.gpa, .{ .vector = .{
+            .elem = lhs.qt.childType(p.comp),
+            .len = @intCast(p.list_buf.items.len - list_buf_top),
+        } });
+    }
+
+    return .{
+        .qt = res_qt,
+        .node = try p.addNode(.{
+            .builtin_shufflevector = .{
+                .builtin_tok = builtin_tok,
+                .qt = res_qt,
+                .lhs = lhs.node,
+                .rhs = rhs.node,
+                .indexes = p.list_buf.items[list_buf_top..],
+            },
+        }),
+    };
+}
+
+/// convertvector : __builtin_convertvector '(' assignExpr ',' typeName ')'
+fn convertvector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
+    const l_paren = try p.expectToken(.l_paren);
+
+    const operand = try p.expect(assignExpr);
+    _ = try p.expectToken(.comma);
+
+    var dest_qt = (try p.typeName()) orelse {
+        try p.err(p.tok_i, .expected_type, .{});
+        p.skipTo(.r_paren);
+        return error.ParsingFailed;
+    };
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    if (operand.qt.isInvalid() or operand.qt.isInvalid()) {
+        dest_qt = .invalid;
+    } else check: {
+        const operand_vec = operand.qt.get(p.comp, .vector) orelse {
+            try p.err(builtin_tok, .convertvector_arg, .{"first"});
+            dest_qt = .invalid;
+            break :check;
+        };
+        const dest_vec = dest_qt.get(p.comp, .vector) orelse {
+            try p.err(builtin_tok, .convertvector_arg, .{"second"});
+            dest_qt = .invalid;
+            break :check;
+        };
+        if (operand_vec.len != dest_vec.len or operand_vec.elem.sizeCompare(dest_vec.elem, p.comp) != .eq) {
+            try p.err(builtin_tok, .convertvector_size, .{});
+            dest_qt = .invalid;
+        }
+    }
+
+    return .{
+        .qt = dest_qt,
+        .node = try p.addNode(.{
+            .builtin_convertvector = .{
+                .builtin_tok = builtin_tok,
+                .dest_qt = dest_qt,
+                .operand = operand.node,
+            },
+        }),
+    };
+}
+
+/// typesCompatible : __builtin_types_compatible_p '(' typeName ',' typeName ')'
+fn typesCompatible(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
 
     const lhs = (try p.typeName()) orelse {
@@ -7604,8 +7753,8 @@ fn typesCompatible(p: *Parser) Error!Result {
     return res;
 }
 
+/// chooseExpr : __builtin_choose_expr '(' integerConstExpr ',' assignExpr ',' assignExpr ')'
 fn builtinChooseExpr(p: *Parser) Error!Result {
-    p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     const cond_tok = p.tok_i;
     var cond = try p.integerConstExpr(.no_const_decl_folding);
@@ -7649,10 +7798,8 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
     return cond;
 }
 
-fn builtinVaArg(p: *Parser) Error!Result {
-    const builtin_tok = p.tok_i;
-    p.tok_i += 1;
-
+/// vaStart : __builtin_va_arg '(' assignExpr ',' typeName ')'
+fn builtinVaArg(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
     const va_list_tok = p.tok_i;
     var va_list = try p.expect(assignExpr);
@@ -7685,10 +7832,10 @@ fn builtinVaArg(p: *Parser) Error!Result {
 
 const OffsetKind = enum { bits, bytes };
 
-fn builtinOffsetof(p: *Parser, offset_kind: OffsetKind) Error!Result {
-    const builtin_tok = p.tok_i;
-    p.tok_i += 1;
-
+/// offsetof
+///  : __builtin_offsetof '(' typeName ',' offsetofMemberDesignator ')'
+///  | __builtin_bitoffsetof '(' typeName ',' offsetofMemberDesignator ')'
+fn builtinOffsetof(p: *Parser, builtin_tok: TokenIndex, offset_kind: OffsetKind) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
     const ty_tok = p.tok_i;
 
@@ -7729,7 +7876,7 @@ fn builtinOffsetof(p: *Parser, offset_kind: OffsetKind) Error!Result {
     };
 }
 
-/// offsetofMemberDesignator: IDENTIFIER ('.' IDENTIFIER | '[' expr ']' )*
+/// offsetofMemberDesignator : IDENTIFIER ('.' IDENTIFIER | '[' expr ']' )*
 fn offsetofMemberDesignator(
     p: *Parser,
     base_record_ty: Type.Record,
@@ -8406,6 +8553,12 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                     try p.err(l_bracket, .invalid_index, .{});
                 }
                 std.mem.swap(Result, &ptr, &index);
+            } else if (ptr.qt.get(p.comp, .vector)) |vector_ty| {
+                ptr = array_before_conversion;
+                ptr.qt = vector_ty.elem;
+                if (!index.qt.isInt(p.comp)) {
+                    try p.err(l_bracket, .invalid_index, .{});
+                }
             } else {
                 try p.err(l_bracket, .invalid_subscript, .{});
             }
@@ -8761,6 +8914,12 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 ///  | STRING_LITERAL
 ///  | '(' expr ')'
 ///  | genericSelection
+///  | shufflevector
+///  | convertvector
+///  | typesCompatible
+///  | chooseExpr
+///  | vaStart
+///  | offsetof
 fn primaryExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         var grouped_expr = try p.expect(expr);
@@ -8780,6 +8939,10 @@ fn primaryExpr(p: *Parser) Error!?Result {
             }
 
             if (p.syms.findSymbol(interned_name)) |sym| {
+                if (sym.kind == .typedef) {
+                    try p.err(name_tok, .unexpected_type_name, .{name});
+                    return error.ParsingFailed;
+                }
                 try p.checkDeprecatedUnavailable(sym.qt, name_tok, sym.tok);
                 if (sym.kind == .constexpr) {
                     return .{
@@ -8839,6 +9002,17 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     try p.err(name_tok, .implicit_builtin_header_note, .{
                         @tagName(some.builtin.properties.header), Builtin.nameFromTag(some.builtin.tag).span(),
                     });
+                }
+
+                switch (some.builtin.tag) {
+                    .__builtin_choose_expr => return try p.builtinChooseExpr(),
+                    .__builtin_va_arg => return try p.builtinVaArg(name_tok),
+                    .__builtin_offsetof => return try p.builtinOffsetof(name_tok, .bytes),
+                    .__builtin_bitoffsetof => return try p.builtinOffsetof(name_tok, .bits),
+                    .__builtin_types_compatible_p => return try p.typesCompatible(name_tok),
+                    .__builtin_convertvector => return try p.convertvector(name_tok),
+                    .__builtin_shufflevector => return try p.shufflevector(name_tok),
+                    else => {},
                 }
 
                 return .{
@@ -8913,7 +9087,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
         .keyword_nullptr => {
             defer p.tok_i += 1;
             try p.err(p.tok_i, .pre_c23_compat, .{"'nullptr'"});
-            return Result{
+            return .{
                 .val = .null,
                 .qt = .nullptr_t,
                 .node = try p.addNode(.{
