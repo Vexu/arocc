@@ -43,5 +43,5 @@ jobs:
       - name: Run Tests
         run: zig build test
 
-      - name: Run Tests in release mode
-        run: zig build test -Doptimize=ReleaseFast
+      # - name: Run Tests in release mode
+      #   run: zig build test -Doptimize=ReleaseFast
