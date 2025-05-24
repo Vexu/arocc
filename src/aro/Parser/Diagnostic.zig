@@ -1067,6 +1067,26 @@ pub const convertvector_size: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const shufflevector_arg: Diagnostic = .{
+    .fmt = "{s} argument to __builtin_shufflevector must be a vector type",
+    .kind = .@"error",
+};
+
+pub const shufflevector_same_type: Diagnostic = .{
+    .fmt = "first two arguments to '__builtin_shufflevector' must have the same type",
+    .kind = .@"error",
+};
+
+pub const shufflevector_negative_index: Diagnostic = .{
+    .fmt = "index for __builtin_shufflevector must be positive or -1",
+    .kind = .@"error",
+};
+
+pub const shufflevector_index_too_big: Diagnostic = .{
+    .fmt = "index for __builtin_shufflevector must be less than the total number of vector elements",
+    .kind = .@"error",
+};
+
 pub const alignas_unavailable: Diagnostic = .{
     .fmt = "'_Alignas' attribute requires integer constant expression",
     .kind = .@"error",

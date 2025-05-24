@@ -31,6 +31,11 @@ __builtin_convertvector
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
+__builtin_shufflevector
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+
 _Block_object_assign
     .param_str = "vv*vC*iC"
     .header = .blocks
@@ -7350,10 +7355,6 @@ __builtin_setps
 __builtin_setrnd
     .param_str = "di"
     .target_set = TargetSet.initOne(.ppc)
-
-__builtin_shufflevector
-    .param_str = "v."
-    .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
 __builtin_signbit
     .param_str = "i."
