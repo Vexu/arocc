@@ -499,6 +499,7 @@ pub fn get32BitArchVariant(target: std.Target) ?std.Target {
         .loongarch32,
         .xtensa,
         .propeller,
+        .or1k,
         => {}, // Already 32 bit
 
         .aarch64 => copy.cpu.arch = .arm,
@@ -532,6 +533,7 @@ pub fn get64BitArchVariant(target: std.Target) ?std.Target {
         .xcore,
         .xtensa,
         .propeller,
+        .or1k,
         => return null,
 
         .aarch64,
@@ -626,9 +628,10 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .wasm32 => "wasm32",
         .wasm64 => "wasm64",
         .ve => "ve",
-        // Note: propeller1 and kalimba are not supported in LLVM; this is the Zig arch name
+        // Note: propeller1, kalimba and or1k are not supported in LLVM; this is the Zig arch name
         .kalimba => "kalimba",
         .propeller => "propeller",
+        .or1k => "or1k",
     };
     writer.writeAll(llvm_arch) catch unreachable;
     writer.writeByte('-') catch unreachable;

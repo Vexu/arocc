@@ -145,6 +145,7 @@ pub const Option = enum {
     @"nullability-extension",
     nullability,
     @"microsoft-flexible-array",
+    @"microsoft-anon-tag",
 
     /// GNU extensions
     pub const gnu = [_]Option{
@@ -178,6 +179,7 @@ pub const Option = enum {
         .@"microsoft-end-of-file",
         .@"microsoft-include",
         .@"microsoft-flexible-array",
+        .@"microsoft-anon-tag",
     };
 
     pub const extra = [_]Option{

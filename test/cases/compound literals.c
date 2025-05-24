@@ -30,7 +30,11 @@ void baz() {
     &(register int){0};
     &(static thread_local int){0};
     &(extern int){0};
-} 
+}
+
+unsigned long qux(unsigned long x) {
+    return ((union{unsigned long _x;}){x})._x;
+}
 
 #define EXPECTED_ERRORS \
     "compound literals.c:21:32: warning: array index 10 is past the end of the array [-Warray-bounds]" \

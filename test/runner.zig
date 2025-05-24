@@ -76,7 +76,7 @@ fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8)
     _, _, const system_defines, _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
-    const builtin_macros = try comp.generateBuiltinMacrosFromPath(system_defines, path);
+    const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
     var pp = aro.Preprocessor.init(&comp);
     defer pp.deinit();
@@ -234,9 +234,9 @@ pub fn main() !void {
         const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, macro_buf.writer());
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
-        const builtin_macros = try comp.generateBuiltinMacrosFromPath(system_defines, file.path);
+        const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
-        var pp = aro.Preprocessor.init(&comp);
+        var pp = try aro.Preprocessor.initDefault(&comp);
         defer pp.deinit();
         if (only_preprocess) {
             pp.preserve_whitespace = true;
@@ -245,7 +245,6 @@ pub fn main() !void {
                 pp.store_macro_tokens = true;
             }
         }
-        try pp.addBuiltinMacros();
 
         if (comp.langopts.ms_extensions) {
             comp.ms_cwd_source_id = file.id;
