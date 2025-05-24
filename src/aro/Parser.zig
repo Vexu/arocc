@@ -6955,13 +6955,13 @@ pub const Result = struct {
                 return; // ok
             }
         } else {
-            if (c == .assign and (dest_unqual.is(p.comp, .array) or dest_unqual.is(p.comp, .func))) {
+            if (c == .assign) {
                 const base_ty = dest_unqual.base(p.comp).qt;
-                try p.err(tok, switch (base_ty.type(p.comp)) {
-                    .array => .array_not_assignable,
-                    .func => .non_object_not_assignable,
-                    else => unreachable,
-                }, .{base_ty});
+                if (base_ty.type(p.comp) == .array) {
+                    try p.err(tok, .array_not_assignable, .{base_ty});
+                } else if (base_ty.type(p.comp) == .func) {
+                    try p.err(tok, .non_object_not_assignable, .{base_ty});
+                }
                 return;
             } else if (c == .test_coerce) {
                 return error.CoercionFailed;
