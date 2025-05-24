@@ -6996,7 +6996,26 @@ fn unwrapArrayOperation(p: *Parser, node_idx: Node.Index) ?Node.Index {
             }
         }
     }
+    if (result) |result_not_null| {
+        if (p.getNode(result_not_null, .cast)) |cast| {
+            result = cast.operand;
+        }
+    } else if (p.getNode(node_idx, .cast)) |cast| {
+        result = cast.operand;
+    }
     return result;
+}
+
+fn issueDeclaredConstHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name: []const u8) Compilation.Error!void {
+    const tags = [_]std.meta.Tag(Node){
+        .variable,
+        .param,
+    };
+    inline for (tags) |tag| {
+        if (p.getNode(decl_ref.decl, tag)) |ref| {
+            try p.err(ref.name_tok, .declared_const_here, .{var_name});
+        }
+    }
 }
 
 fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIndex) Compilation.Error!void {
@@ -7009,35 +7028,31 @@ fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIn
                         if (p.getNode(node.base, .decl_ref_expr)) |memb_ptr_acc_decl_ref| {
                             const struct_name = p.tokSlice(memb_ptr_acc_decl_ref.name_tok);
                             try p.err(tok, .const_var_assignment, .{ struct_name, memb_ptr_acc_decl_ref.qt });
-                            if (p.getNode(memb_ptr_acc_decl_ref.decl, .variable)) |struct_var| {
-                                try p.err(struct_var.name_tok, .declared_const_here, .{struct_name});
-                            } else if (p.getNode(memb_ptr_acc_decl_ref.decl, .param)) |struct_param| {
-                                try p.err(struct_param.name_tok, .declared_const_here, .{struct_name});
+                            try p.issueDeclaredConstHereNote(memb_ptr_acc_decl_ref, struct_name);
+                        } else if (p.getNode(node.base, .array_access_expr)) |memb_arr_access| {
+                            const unwrapped_node_idx = if (p.unwrapArrayOperation(memb_arr_access.base)) |unwrapped|
+                                unwrapped
+                            else
+                                memb_arr_access.base;
+                            if (p.getNode(unwrapped_node_idx, .decl_ref_expr)) |memb_arr_decl_ref| {
+                                const decl_ref_var_name = p.tokSlice(memb_arr_decl_ref.name_tok);
+                                try p.err(tok, .const_var_assignment, .{ decl_ref_var_name, memb_arr_decl_ref.qt });
+                                try p.issueDeclaredConstHereNote(memb_arr_decl_ref, decl_ref_var_name);
                             }
                         }
                     },
                     .array_access_expr => {
-                        const inspected_node_idx = if (p.unwrapArrayOperation(node.base)) |unwrapped_node| unwrapped_node else node.base;
-                        if (p.getNode(inspected_node_idx, .cast)) |arr_cast| {
-                            if (p.getNode(arr_cast.operand, .decl_ref_expr)) |arr_cast_delc_ref| {
-                                const arr_ref_var_name = p.tokSlice(arr_cast_delc_ref.name_tok);
-                                try p.err(tok, .const_var_assignment, .{ arr_ref_var_name, arr_cast_delc_ref.qt });
-                                if (p.getNode(arr_cast_delc_ref.decl, .variable)) |arr_ref_var| {
-                                    try p.err(arr_ref_var.name_tok, .declared_const_here, .{arr_ref_var_name});
-                                } else if (p.getNode(arr_cast_delc_ref.decl, .param)) |arr_ref_param| {
-                                    try p.err(arr_ref_param.name_tok, .declared_const_here, .{arr_ref_var_name});
-                                }
-                            }
+                        const unwrapped_node_idx = if (p.unwrapArrayOperation(node.base)) |unwrapped| unwrapped else node.base;
+                        if (p.getNode(unwrapped_node_idx, .decl_ref_expr)) |arr_cast_delc_ref| {
+                            const arr_ref_var_name = p.tokSlice(arr_cast_delc_ref.name_tok);
+                            try p.err(tok, .const_var_assignment, .{ arr_ref_var_name, arr_cast_delc_ref.qt });
+                            try p.issueDeclaredConstHereNote(arr_cast_delc_ref, arr_ref_var_name);
                         }
                     },
                     .decl_ref_expr => {
                         const var_name = p.tokSlice(node.name_tok);
                         try p.err(tok, .const_var_assignment, .{ var_name, node.qt });
-                        if (p.getNode(node.decl, .variable)) |var_decl| {
-                            try p.err(var_decl.name_tok, .declared_const_here, .{var_name});
-                        } else if (p.getNode(node.decl, .param)) |param_decl| {
-                            try p.err(param_decl.name_tok, .declared_const_here, .{var_name});
-                        }
+                        try p.issueDeclaredConstHereNote(node, var_name);
                     },
                     else => try p.err(tok, .not_assignable, .{}),
                 }

@@ -72,6 +72,10 @@ void various_assignments_to_consts(
     const struct C *c2;
     c1.c = 3;
     c2->c = 4;
+
+    struct Dummy { int a; };
+    const struct Dummy d[1];
+    d[0].a = 1;
 }
 
 void bar(void) {
@@ -134,15 +138,19 @@ void constant_sign_conversion(void) {
     "assignment.c:61:15: note: variable 'a' declared const here" \
     "assignment.c:65:10: error: cannot assign to variable 'b' with const-qualified type 'const int *'" \
     "assignment.c:62:16: note: variable 'b' declared const here" \
+    "assignment.c:66:14: error: cannot assign to variable 'b' with const-qualified type 'const int *'" \
+    "assignment.c:62:16: note: variable 'b' declared const here" \
     "assignment.c:67:20: error: cannot assign to variable 'b' with const-qualified type 'const int *'" \
     "assignment.c:62:16: note: variable 'b' declared const here" \
     "assignment.c:73:10: error: cannot assign to variable 'c1' with const-qualified type 'const struct C'" \
     "assignment.c:71:20: note: variable 'c1' declared const here" \
     "assignment.c:74:11: error: cannot assign to variable 'c2' with const-qualified type 'const struct C *'" \
     "assignment.c:72:21: note: variable 'c2' declared const here" \
-    "assignment.c:85:12: error: variable has incomplete type 'enum E'" \
-    "assignment.c:92:7: error: cannot assign to variable 'a' with const-qualified type 'A'" \
-    "assignment.c:91:7: note: variable 'a' declared const here" \
-    "assignment.c:99:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
-    "assignment.c:103:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
-    "assignment.c:107:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]"
+    "assignment.c:78:12: error: cannot assign to variable 'd' with const-qualified type 'const struct Dummy [1]'" \
+    "assignment.c:77:24: note: variable 'd' declared const here" \
+    "assignment.c:89:12: error: variable has incomplete type 'enum E'" \
+    "assignment.c:96:7: error: cannot assign to variable 'a' with const-qualified type 'A'" \
+    "assignment.c:95:7: note: variable 'a' declared const here" \
+    "assignment.c:103:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "assignment.c:107:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
+    "assignment.c:111:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]"
