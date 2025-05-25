@@ -5,6 +5,37 @@ const TargetSet = Properties.TargetSet;
 
 pub const max_param_count = 12;
 
+# Special cased builtins
+
+__builtin_choose_expr
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_va_arg
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_offsetof
+    .param_str = "z."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_bitoffsetof
+    .param_str = "z."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_types_compatible_p
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_convertvector
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_shufflevector
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+
 _Block_object_assign
     .param_str = "vv*vC*iC"
     .header = .blocks
@@ -2024,10 +2055,6 @@ __builtin_conjl
 __builtin_constant_p
     .param_str = "i."
     .attributes = .{ .@"const" = true, .custom_typecheck = true, .eval_args = false, .const_evaluable = true }
-
-__builtin_convertvector
-    .param_str = "v."
-    .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
 __builtin_copysign
     .param_str = "ddd"
@@ -7328,10 +7355,6 @@ __builtin_setps
 __builtin_setrnd
     .param_str = "di"
     .target_set = TargetSet.initOne(.ppc)
-
-__builtin_shufflevector
-    .param_str = "v."
-    .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
 __builtin_signbit
     .param_str = "i."

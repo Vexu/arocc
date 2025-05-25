@@ -68,6 +68,11 @@ pub const expected_expr: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const unexpected_type_name: Diagnostic = .{
+    .fmt = "unexpected type name '{s}': expected expression",
+    .kind = .@"error",
+};
+
 pub const expected_integer_constant_expr: Diagnostic = .{
     .fmt = "expression is not an integer constant expression",
     .kind = .@"error",
@@ -117,7 +122,7 @@ pub const cannot_combine_spec: Diagnostic = .{
 };
 
 pub const cannot_combine_spec_qt: Diagnostic = .{
-    .fmt = "cannot combine with previous '{qt}' specifier",
+    .fmt = "cannot combine with previous {qt} specifier",
     .kind = .@"error",
 };
 
@@ -133,7 +138,7 @@ pub const duplicate_decl_spec: Diagnostic = .{
 };
 
 pub const restrict_non_pointer: Diagnostic = .{
-    .fmt = "restrict requires a pointer or reference ('{qt}' is invalid)",
+    .fmt = "restrict requires a pointer or reference ({qt} is invalid)",
     .kind = .@"error",
 };
 
@@ -237,7 +242,7 @@ pub const undeclared_identifier: Diagnostic = .{
 };
 
 pub const not_callable: Diagnostic = .{
-    .fmt = "cannot call non function type '{qt}'",
+    .fmt = "cannot call non function type {qt}",
     .kind = .@"error",
 };
 
@@ -414,7 +419,7 @@ pub const negative_array_size: Diagnostic = .{
 };
 
 pub const array_incomplete_elem: Diagnostic = .{
-    .fmt = "array has incomplete element type '{qt}'",
+    .fmt = "array has incomplete element type {qt}",
     .kind = .@"error",
 };
 
@@ -541,12 +546,12 @@ pub const alignof_expr: Diagnostic = .{
 };
 
 pub const invalid_alignof: Diagnostic = .{
-    .fmt = "invalid application of 'alignof' to an incomplete type '{qt}'",
+    .fmt = "invalid application of 'alignof' to an incomplete type {qt}",
     .kind = .@"error",
 };
 
 pub const invalid_sizeof: Diagnostic = .{
-    .fmt = "invalid application of 'sizeof' to an incomplete type '{qt}'",
+    .fmt = "invalid application of 'sizeof' to an incomplete type {qt}",
     .kind = .@"error",
 };
 
@@ -569,12 +574,12 @@ pub const generic_func_type: Diagnostic = .{
 };
 
 pub const generic_duplicate: Diagnostic = .{
-    .fmt = "type '{qt}' in generic association compatible with previously specified type",
+    .fmt = "type {qt} in generic association compatible with previously specified type",
     .kind = .@"error",
 };
 
 pub const generic_duplicate_here: Diagnostic = .{
-    .fmt = "compatible type '{qt}' specified here",
+    .fmt = "compatible type {qt} specified here",
     .kind = .note,
 };
 
@@ -584,7 +589,7 @@ pub const generic_duplicate_default: Diagnostic = .{
 };
 
 pub const generic_no_match: Diagnostic = .{
-    .fmt = "controlling expression type '{qt}' not compatible with any generic association type",
+    .fmt = "controlling expression type {qt} not compatible with any generic association type",
     .kind = .@"error",
 };
 
@@ -619,69 +624,89 @@ pub const redefinition_of_parameter: Diagnostic = .{
 };
 
 pub const invalid_bin_types: Diagnostic = .{
-    .fmt = "invalid operands to binary expression ('{qt}' and '{qt}')",
+    .fmt = "invalid operands to binary expression ({qt} and {qt})",
+    .kind = .@"error",
+};
+
+pub const incompatible_vec_types: Diagnostic = .{
+    .fmt = "cannot convert between vector type {qt} and vector type {qt} as implicit conversion would cause truncation",
     .kind = .@"error",
 };
 
 pub const comparison_ptr_int: Diagnostic = .{
-    .fmt = "comparison between pointer and integer ('{qt}' and '{qt}')",
+    .fmt = "comparison between pointer and integer ({qt} and {qt})",
     .kind = .warning,
     .opt = .@"pointer-integer-compare",
     .extension = true,
 };
 
 pub const comparison_distinct_ptr: Diagnostic = .{
-    .fmt = "comparison of distinct pointer types ('{qt}' and '{qt}')",
+    .fmt = "comparison of distinct pointer types ({qt} and {qt})",
     .kind = .warning,
     .opt = .@"compare-distinct-pointer-types",
     .extension = true,
 };
 
 pub const incompatible_pointers: Diagnostic = .{
-    .fmt = "incompatible pointer types ('{qt}' and '{qt}')",
+    .fmt = "incompatible pointer types ({qt} and {qt})",
     .kind = .@"error",
 };
 
 pub const invalid_argument_un: Diagnostic = .{
-    .fmt = "invalid argument type '{qt}' to unary expression",
+    .fmt = "invalid argument type {qt} to unary expression",
     .kind = .@"error",
 };
 
 pub const incompatible_assign: Diagnostic = .{
-    .fmt = "assignment to '{qt}' from incompatible type '{qt}'",
+    .fmt = "assignment to {qt} from incompatible type {qt}",
     .kind = .@"error",
 };
 
 pub const implicit_ptr_to_int: Diagnostic = .{
-    .fmt = "implicit pointer to integer conversion from '{qt}' to '{qt}'",
+    .fmt = "implicit pointer to integer conversion from {qt} to {qt}",
     .kind = .warning,
     .opt = .@"int-conversion",
 };
 
 pub const invalid_cast_to_float: Diagnostic = .{
-    .fmt = "pointer cannot be cast to type '{qt}'",
+    .fmt = "pointer cannot be cast to type {qt}",
     .kind = .@"error",
 };
 
 pub const invalid_cast_to_pointer: Diagnostic = .{
-    .fmt = "operand of type '{qt}' cannot be cast to a pointer type",
+    .fmt = "operand of type {qt} cannot be cast to a pointer type",
     .kind = .@"error",
 };
 
 pub const invalid_cast_type: Diagnostic = .{
-    .fmt = "cannot cast to non arithmetic or pointer type '{qt}'",
+    .fmt = "cannot cast to non arithmetic or pointer type {qt}",
     .kind = .@"error",
 };
 
 pub const invalid_cast_operand_type: Diagnostic = .{
-    .fmt = "operand of type '{qt}' where arithmetic or pointer type is required",
+    .fmt = "operand of type {qt} where arithmetic or pointer type is required",
     .kind = .@"error",
 };
 
 pub const qual_cast: Diagnostic = .{
-    .fmt = "cast to type '{qt}' will not preserve qualifiers",
+    .fmt = "cast to type {qt} will not preserve qualifiers",
     .opt = .@"cast-qualifiers",
     .kind = .warning,
+};
+
+pub const invalid_vec_conversion: Diagnostic = .{
+    .fmt = "invalid conversion between vector type {qt} and {qt} of different size",
+    .kind = .@"error",
+};
+
+pub const invalid_vec_conversion_scalar: Diagnostic = .{
+    .fmt = "invalid conversion between vector type {qt} and scalar type {qt}",
+    .kind = .@"error",
+};
+
+pub const invalid_vec_conversion_int: Diagnostic = .{
+    .fmt = "invalid conversion between vector type {qt} and integer type {qt} of different size",
+    .kind = .@"error",
 };
 
 pub const invalid_index: Diagnostic = .{
@@ -690,7 +715,7 @@ pub const invalid_index: Diagnostic = .{
 };
 
 pub const invalid_subscript: Diagnostic = .{
-    .fmt = "subscripted value is not an array or pointer",
+    .fmt = "subscripted value is not an array, pointer or vector",
     .kind = .@"error",
 };
 
@@ -707,12 +732,12 @@ pub const array_before: Diagnostic = .{
 };
 
 pub const statement_int: Diagnostic = .{
-    .fmt = "statement requires expression with integer type ('{qt}' invalid)",
+    .fmt = "statement requires expression with integer type ({qt} invalid)",
     .kind = .@"error",
 };
 
 pub const statement_scalar: Diagnostic = .{
-    .fmt = "statement requires expression with scalar type ('{qt}' invalid)",
+    .fmt = "statement requires expression with scalar type ({qt} invalid)",
     .kind = .@"error",
 };
 
@@ -723,7 +748,7 @@ pub const func_should_return: Diagnostic = .{
 };
 
 pub const incompatible_return: Diagnostic = .{
-    .fmt = "returning '{qt}' from a function with incompatible result type '{qt}'",
+    .fmt = "returning {qt} from a function with incompatible result type {qt}",
     .kind = .@"error",
 };
 
@@ -734,7 +759,7 @@ pub const incompatible_return_sign: Diagnostic = .{
 };
 
 pub const implicit_int_to_ptr: Diagnostic = .{
-    .fmt = "implicit integer to pointer conversion from '{qt}' to '{qt}'",
+    .fmt = "implicit integer to pointer conversion from {qt} to {qt}",
     .opt = .@"int-conversion",
     .kind = .warning,
 };
@@ -752,12 +777,12 @@ pub const void_func_returns_value: Diagnostic = .{
 };
 
 pub const incompatible_arg: Diagnostic = .{
-    .fmt = "passing '{qt}' to parameter of incompatible type '{qt}'",
+    .fmt = "passing {qt} to parameter of incompatible type {qt}",
     .kind = .@"error",
 };
 
 pub const incompatible_ptr_arg: Diagnostic = .{
-    .fmt = "passing '{qt}' to parameter of incompatible type '{qt}'",
+    .fmt = "passing {qt} to parameter of incompatible type {qt}",
     .kind = .warning,
     .opt = .@"incompatible-pointer-types",
 };
@@ -774,32 +799,32 @@ pub const parameter_here: Diagnostic = .{
 };
 
 pub const atomic_array: Diagnostic = .{
-    .fmt = "_Atomic cannot be applied to array type '{qt}'",
+    .fmt = "_Atomic cannot be applied to array type {qt}",
     .kind = .@"error",
 };
 
 pub const atomic_func: Diagnostic = .{
-    .fmt = "_Atomic cannot be applied to function type '{qt}'",
+    .fmt = "_Atomic cannot be applied to function type {qt}",
     .kind = .@"error",
 };
 
 pub const atomic_incomplete: Diagnostic = .{
-    .fmt = "_Atomic cannot be applied to incomplete type '{qt}'",
+    .fmt = "_Atomic cannot be applied to incomplete type {qt}",
     .kind = .@"error",
 };
 
 pub const atomic_atomic: Diagnostic = .{
-    .fmt = "_Atomic cannot be applied to atomic type '{qt}'",
+    .fmt = "_Atomic cannot be applied to atomic type {qt}",
     .kind = .@"error",
 };
 
 pub const atomic_complex: Diagnostic = .{
-    .fmt = "_Atomic cannot be applied to complex type '{qt}'",
+    .fmt = "_Atomic cannot be applied to complex type {qt}",
     .kind = .@"error",
 };
 
 pub const atomic_qualified: Diagnostic = .{
-    .fmt = "_Atomic cannot be applied to qualified type '{qt}'",
+    .fmt = "_Atomic cannot be applied to qualified type {qt}",
     .kind = .@"error",
 };
 
@@ -820,12 +845,12 @@ pub const addr_of_register: Diagnostic = .{
 };
 
 pub const variable_incomplete_ty: Diagnostic = .{
-    .fmt = "variable has incomplete type '{qt}'",
+    .fmt = "variable has incomplete type {qt}",
     .kind = .@"error",
 };
 
 pub const parameter_incomplete_ty: Diagnostic = .{
-    .fmt = "parameter has incomplete type '{qt}'",
+    .fmt = "parameter has incomplete type {qt}",
     .kind = .@"error",
 };
 
@@ -835,7 +860,7 @@ pub const tentative_array: Diagnostic = .{
 };
 
 pub const deref_incomplete_ty_ptr: Diagnostic = .{
-    .fmt = "dereferencing pointer to incomplete type '{qt}'",
+    .fmt = "dereferencing pointer to incomplete type {qt}",
     .kind = .@"error",
 };
 
@@ -880,7 +905,7 @@ pub const non_pow2_align: Diagnostic = .{
 };
 
 pub const pointer_mismatch: Diagnostic = .{
-    .fmt = "pointer type mismatch ('{qt}' and '{qt}')",
+    .fmt = "pointer type mismatch ({qt} and {qt})",
     .opt = .@"pointer-type-mismatch",
     .kind = .warning,
     .extension = true,
@@ -917,12 +942,12 @@ pub const array_too_large: Diagnostic = .{
 };
 
 pub const record_too_large: Diagnostic = .{
-    .fmt = "type '{qt}' is too large",
+    .fmt = "type {qt} is too large",
     .kind = .@"error",
 };
 
 pub const incompatible_ptr_init: Diagnostic = .{
-    .fmt = "incompatible pointer types initializing '{qt}' from incompatible type '{qt}'",
+    .fmt = "incompatible pointer types initializing {qt} from incompatible type {qt}",
     .opt = .@"incompatible-pointer-types",
     .kind = .warning,
 };
@@ -934,7 +959,7 @@ pub const incompatible_ptr_init_sign: Diagnostic = .{
 };
 
 pub const incompatible_ptr_assign: Diagnostic = .{
-    .fmt = "incompatible pointer types assigning to '{qt}' from incompatible type '{qt}'",
+    .fmt = "incompatible pointer types assigning to {qt} from incompatible type {qt}",
     .opt = .@"incompatible-pointer-types",
     .kind = .warning,
 };
@@ -956,7 +981,7 @@ pub const func_init: Diagnostic = .{
 };
 
 pub const incompatible_init: Diagnostic = .{
-    .fmt = "initializing '{qt}' from incompatible type '{qt}'",
+    .fmt = "initializing {qt} from incompatible type {qt}",
     .kind = .@"error",
 };
 
@@ -1004,7 +1029,7 @@ pub const str_init_too_long: Diagnostic = .{
 };
 
 pub const arr_init_too_long: Diagnostic = .{
-    .fmt = "cannot initialize type '{qt}' with array of type '{qt}'",
+    .fmt = "cannot initialize type {qt} with array of type {qt}",
     .kind = .@"error",
 };
 
@@ -1032,6 +1057,36 @@ pub const builtin_choose_cond: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const convertvector_arg: Diagnostic = .{
+    .fmt = "{s} argument to __builtin_convertvector must be a vector type",
+    .kind = .@"error",
+};
+
+pub const convertvector_size: Diagnostic = .{
+    .fmt = "first two arguments to __builtin_convertvector must have the same number of elements",
+    .kind = .@"error",
+};
+
+pub const shufflevector_arg: Diagnostic = .{
+    .fmt = "{s} argument to __builtin_shufflevector must be a vector type",
+    .kind = .@"error",
+};
+
+pub const shufflevector_same_type: Diagnostic = .{
+    .fmt = "first two arguments to '__builtin_shufflevector' must have the same type",
+    .kind = .@"error",
+};
+
+pub const shufflevector_negative_index: Diagnostic = .{
+    .fmt = "index for __builtin_shufflevector must be positive or -1",
+    .kind = .@"error",
+};
+
+pub const shufflevector_index_too_big: Diagnostic = .{
+    .fmt = "index for __builtin_shufflevector must be less than the total number of vector elements",
+    .kind = .@"error",
+};
+
 pub const alignas_unavailable: Diagnostic = .{
     .fmt = "'_Alignas' attribute requires integer constant expression",
     .kind = .@"error",
@@ -1048,7 +1103,7 @@ pub const enum_val_unavailable: Diagnostic = .{
 };
 
 pub const incompatible_array_init: Diagnostic = .{
-    .fmt = "cannot initialize array of type '{qt}' with array of type '{qt}'",
+    .fmt = "cannot initialize array of type {qt} with array of type {qt}",
     .kind = .@"error",
 };
 
@@ -1069,7 +1124,7 @@ pub const previous_initializer: Diagnostic = .{
 };
 
 pub const invalid_array_designator: Diagnostic = .{
-    .fmt = "array designator used for non-array type '{qt}'",
+    .fmt = "array designator used for non-array type {qt}",
     .kind = .@"error",
 };
 
@@ -1084,7 +1139,7 @@ pub const oob_array_designator: Diagnostic = .{
 };
 
 pub const invalid_field_designator: Diagnostic = .{
-    .fmt = "field designator used for non-record type '{qt}'",
+    .fmt = "field designator used for non-record type {qt}",
     .kind = .@"error",
 };
 
@@ -1099,25 +1154,25 @@ pub const empty_aggregate_init_braces: Diagnostic = .{
 };
 
 pub const ptr_init_discards_quals: Diagnostic = .{
-    .fmt = "initializing '{qt}' from incompatible type '{qt}' discards qualifiers",
+    .fmt = "initializing {qt} from incompatible type {qt} discards qualifiers",
     .kind = .warning,
     .opt = .@"incompatible-pointer-types-discards-qualifiers",
 };
 
 pub const ptr_assign_discards_quals: Diagnostic = .{
-    .fmt = "assigning to '{qt}' from incompatible type '{qt}' discards qualifiers",
+    .fmt = "assigning to {qt} from incompatible type {qt} discards qualifiers",
     .kind = .warning,
     .opt = .@"incompatible-pointer-types-discards-qualifiers",
 };
 
 pub const ptr_ret_discards_quals: Diagnostic = .{
-    .fmt = "returning '{qt}' from a function with incompatible result type '{qt}' discards qualifiers",
+    .fmt = "returning {qt} from a function with incompatible result type {qt} discards qualifiers",
     .kind = .warning,
     .opt = .@"incompatible-pointer-types-discards-qualifiers",
 };
 
 pub const ptr_arg_discards_quals: Diagnostic = .{
-    .fmt = "passing '{qt}' to parameter of incompatible type '{qt}' discards qualifiers",
+    .fmt = "passing {qt} to parameter of incompatible type {qt} discards qualifiers",
     .kind = .warning,
     .opt = .@"incompatible-pointer-types-discards-qualifiers",
 };
@@ -1152,27 +1207,27 @@ pub const gnu_label_as_value: Diagnostic = .{
 };
 
 pub const expected_record_ty: Diagnostic = .{
-    .fmt = "member reference base type '{qt}' is not a structure or union",
+    .fmt = "member reference base type {qt} is not a structure or union",
     .kind = .@"error",
 };
 
 pub const member_expr_not_ptr: Diagnostic = .{
-    .fmt = "member reference type '{qt}' is not a pointer; did you mean to use '.'?",
+    .fmt = "member reference type {qt} is not a pointer; did you mean to use '.'?",
     .kind = .@"error",
 };
 
 pub const member_expr_ptr: Diagnostic = .{
-    .fmt = "member reference type '{qt}' is a pointer; did you mean to use '->'?",
+    .fmt = "member reference type {qt} is a pointer; did you mean to use '->'?",
     .kind = .@"error",
 };
 
 pub const member_expr_atomic: Diagnostic = .{
-    .fmt = "accessing a member of atomic type '{qt}' is undefined behavior",
+    .fmt = "accessing a member of atomic type {qt} is undefined behavior",
     .kind = .@"error",
 };
 
 pub const no_such_member: Diagnostic = .{
-    .fmt = "no member named '{s}' in '{qt}'",
+    .fmt = "no member named '{s}' in {qt}",
     .kind = .@"error",
 };
 
@@ -1197,7 +1252,7 @@ pub const omitting_parameter_name: Diagnostic = .{
 };
 
 pub const non_int_bitfield: Diagnostic = .{
-    .fmt = "bit-field has non-integer type '{qt}'",
+    .fmt = "bit-field has non-integer type {qt}",
     .kind = .@"error",
 };
 
@@ -1295,7 +1350,7 @@ pub const predefined_top_level: Diagnostic = .{
 };
 
 pub const incompatible_va_arg: Diagnostic = .{
-    .fmt = "first argument to va_arg, is of type '{qt}' and not 'va_list'",
+    .fmt = "first argument to va_arg, is of type {qt} and not 'va_list'",
     .kind = .@"error",
 };
 
@@ -1372,7 +1427,7 @@ pub const vla_field: Diagnostic = .{
 };
 
 pub const field_incomplete_ty: Diagnostic = .{
-    .fmt = "field has incomplete type '{qt}'",
+    .fmt = "field has incomplete type {qt}",
     .kind = .@"error",
 };
 
@@ -1527,12 +1582,12 @@ pub const ignored_record_attr: Diagnostic = .{
 };
 
 pub const array_size_non_int: Diagnostic = .{
-    .fmt = "size of array has non-integer type '{qt}'",
+    .fmt = "size of array has non-integer type {qt}",
     .kind = .@"error",
 };
 
 pub const cast_to_smaller_int: Diagnostic = .{
-    .fmt = "cast to smaller integer type '{qt}' from '{qt}'",
+    .fmt = "cast to smaller integer type {qt} from {qt}",
     .kind = .warning,
     .opt = .@"pointer-to-int-cast",
 };
@@ -1556,43 +1611,43 @@ pub const vla: Diagnostic = .{
 };
 
 pub const int_value_changed: Diagnostic = .{
-    .fmt = "implicit conversion from '{qt}' to '{qt}' changes {s}value from {value} to {value}",
+    .fmt = "implicit conversion from {qt} to {qt} changes {s}value from {value} to {value}",
     .kind = .warning,
     .opt = .@"constant-conversion",
 };
 
 pub const sign_conversion: Diagnostic = .{
-    .fmt = "implicit conversion changes signedness: '{qt}' to '{qt}'",
+    .fmt = "implicit conversion changes signedness: {qt} to {qt}",
     .kind = .off,
     .opt = .@"sign-conversion",
 };
 
 pub const float_overflow_conversion: Diagnostic = .{
-    .fmt = "implicit conversion of non-finite value from '{qt}' to '{qt}' is undefined",
+    .fmt = "implicit conversion of non-finite value from {qt} to {qt} is undefined",
     .kind = .off,
     .opt = .@"float-overflow-conversion",
 };
 
 pub const float_out_of_range: Diagnostic = .{
-    .fmt = "implicit conversion of out of range value from '{qt}' to '{qt}' is undefined",
+    .fmt = "implicit conversion of out of range value from {qt} to {qt} is undefined",
     .kind = .warning,
     .opt = .@"literal-conversion",
 };
 
 pub const float_zero_conversion: Diagnostic = .{
-    .fmt = "implicit conversion from '{qt}' to '{qt}' changes {s}value from {value} to {value}",
+    .fmt = "implicit conversion from {qt} to {qt} changes {s}value from {value} to {value}",
     .kind = .off,
     .opt = .@"float-zero-conversion",
 };
 
 pub const float_value_changed: Diagnostic = .{
-    .fmt = "implicit conversion from '{qt}' to '{qt}' changes {s}value from {value} to {value}",
+    .fmt = "implicit conversion from {qt} to {qt} changes {s}value from {value} to {value}",
     .kind = .warning,
     .opt = .@"float-conversion",
 };
 
 pub const float_to_int: Diagnostic = .{
-    .fmt = "implicit conversion turns floating-point number into integer: '{qt}' to '{qt}'",
+    .fmt = "implicit conversion turns floating-point number into integer: {qt} to {qt}",
     .kind = .off,
     .opt = .@"literal-conversion",
 };
@@ -1612,27 +1667,27 @@ pub const const_decl_folded_vla: Diagnostic = .{
 };
 
 pub const redefinition_of_typedef: Diagnostic = .{
-    .fmt = "typedef redefinition with different types ('{qt}' vs '{qt}')",
+    .fmt = "typedef redefinition with different types ({qt} vs {qt})",
     .kind = .@"error",
 };
 
 pub const offsetof_ty: Diagnostic = .{
-    .fmt = "offsetof requires struct or union type, '{qt}' invalid",
+    .fmt = "offsetof requires struct or union type, {qt} invalid",
     .kind = .@"error",
 };
 
 pub const offsetof_incomplete: Diagnostic = .{
-    .fmt = "offsetof of incomplete type '{qt}'",
+    .fmt = "offsetof of incomplete type {qt}",
     .kind = .@"error",
 };
 
 pub const offsetof_array: Diagnostic = .{
-    .fmt = "offsetof requires array type, '{qt}' invalid",
+    .fmt = "offsetof requires array type, {qt} invalid",
     .kind = .@"error",
 };
 
 pub const cond_expr_type: Diagnostic = .{
-    .fmt = "used type '{qt}' where arithmetic or pointer type is required",
+    .fmt = "used type {qt} where arithmetic or pointer type is required",
     .kind = .@"error",
 };
 
@@ -1685,12 +1740,12 @@ pub const enum_prev_fixed: Diagnostic = .{
 };
 
 pub const enum_different_explicit_ty: Diagnostic = .{
-    .fmt = "enumeration redeclared with different underlying type '{qt}' (was '{qt}')",
+    .fmt = "enumeration redeclared with different underlying type {qt} (was {qt})",
     .kind = .@"error",
 };
 
 pub const enum_not_representable_fixed: Diagnostic = .{
-    .fmt = "enumerator value is not representable in the underlying type '{qt}'",
+    .fmt = "enumerator value is not representable in the underlying type {qt}",
     .kind = .@"error",
 };
 
@@ -1741,7 +1796,7 @@ pub const ignore_nocommon: Diagnostic = .{
 };
 
 pub const non_string_ignored: Diagnostic = .{
-    .fmt = "'nonstring' attribute ignored on objects of type '{qt}'",
+    .fmt = "'nonstring' attribute ignored on objects of type {qt}",
     .opt = .@"ignored-attributes",
     .kind = .warning,
 };
@@ -1807,7 +1862,17 @@ pub const unused_value: Diagnostic = .{
 };
 
 pub const invalid_vec_elem_ty: Diagnostic = .{
-    .fmt = "invalid vector element type '{qt}'",
+    .fmt = "invalid vector element type {qt}",
+    .kind = .@"error",
+};
+
+pub const bit_int_vec_too_small: Diagnostic = .{
+    .fmt = "'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'",
+    .kind = .@"error",
+};
+
+pub const bit_int_vec_not_pow2: Diagnostic = .{
+    .fmt = "'_BitInt' vector element width must be a power of 2",
     .kind = .@"error",
 };
 
@@ -1817,12 +1882,12 @@ pub const vec_size_not_multiple: Diagnostic = .{
 };
 
 pub const invalid_imag: Diagnostic = .{
-    .fmt = "invalid type '{qt}' to __imag operator",
+    .fmt = "invalid type {qt} to __imag operator",
     .kind = .@"error",
 };
 
 pub const invalid_real: Diagnostic = .{
-    .fmt = "invalid type '{qt}' to __real operator",
+    .fmt = "invalid type {qt} to __real operator",
     .kind = .@"error",
 };
 
@@ -1925,7 +1990,7 @@ pub const signed_bit_int_too_big: Diagnostic = .{
 };
 
 pub const ptr_arithmetic_incomplete: Diagnostic = .{
-    .fmt = "arithmetic on a pointer to an incomplete type '{qt}'",
+    .fmt = "arithmetic on a pointer to an incomplete type {qt}",
     .kind = .@"error",
 };
 
@@ -1936,7 +2001,7 @@ pub const callconv_not_supported: Diagnostic = .{
 };
 
 pub const callconv_non_func: Diagnostic = .{
-    .fmt = "'{s}' only applies to function types; type here is '{qt}'",
+    .fmt = "'{s}' only applies to function types; type here is {qt}",
     .kind = .warning,
     .opt = .@"ignored-attributes",
 };
@@ -1949,7 +2014,7 @@ pub const pointer_arith_void: Diagnostic = .{
 };
 
 pub const sizeof_array_arg: Diagnostic = .{
-    .fmt = "sizeof on array function parameter will return size of '{qt}' instead of '{qt}'",
+    .fmt = "sizeof on array function parameter will return size of {qt} instead of {qt}",
     .kind = .warning,
     .opt = .@"sizeof-array-argument",
 };
@@ -1961,7 +2026,7 @@ pub const array_address_to_bool: Diagnostic = .{
 };
 
 pub const string_literal_to_bool: Diagnostic = .{
-    .fmt = "implicit conversion turns string literal into bool: '{qt}' to '{qt}'",
+    .fmt = "implicit conversion turns string literal into bool: {qt} to {qt}",
     .kind = .off,
     .opt = .@"string-conversion",
 };
@@ -1972,7 +2037,7 @@ pub const string_literal_to_bool: Diagnostic = .{
 // };
 
 pub const invalid_object_cast: Diagnostic = .{
-    .fmt = "cannot cast an object of type '{qt}' to '{qt}'",
+    .fmt = "cannot cast an object of type {qt} to {qt}",
     .kind = .@"error",
 };
 
@@ -2045,12 +2110,12 @@ pub const missing_semicolon: Diagnostic = .{
 };
 
 pub const tentative_definition_incomplete: Diagnostic = .{
-    .fmt = "tentative definition has type '{qt}' that is never completed",
+    .fmt = "tentative definition has type {qt} that is never completed",
     .kind = .@"error",
 };
 
 pub const forward_declaration_here: Diagnostic = .{
-    .fmt = "forward declaration of '{qt}'",
+    .fmt = "forward declaration of {qt}",
     .kind = .note,
 };
 
@@ -2062,12 +2127,12 @@ pub const gnu_union_cast: Diagnostic = .{
 };
 
 pub const invalid_union_cast: Diagnostic = .{
-    .fmt = "cast to union type from type '{qt}' not present in union",
+    .fmt = "cast to union type from type {qt} not present in union",
     .kind = .@"error",
 };
 
 pub const cast_to_incomplete_type: Diagnostic = .{
-    .fmt = "cast to incomplete type '{qt}'",
+    .fmt = "cast to incomplete type {qt}",
     .kind = .@"error",
 };
 
@@ -2091,18 +2156,18 @@ pub const complex_component_init: Diagnostic = .{
 };
 
 pub const complex_prefix_postfix_op: Diagnostic = .{
-    .fmt = "ISO C does not support '++'/'--' on complex type '{qt}'",
+    .fmt = "ISO C does not support '++'/'--' on complex type {qt}",
     .kind = .off,
     .extension = true,
 };
 
 pub const not_floating_type: Diagnostic = .{
-    .fmt = "argument type '{qt}' is not a real floating point type",
+    .fmt = "argument type {qt} is not a real floating point type",
     .kind = .@"error",
 };
 
 pub const argument_types_differ: Diagnostic = .{
-    .fmt = "arguments are of different types ('{qt}' vs '{qt}')",
+    .fmt = "arguments are of different types ({qt} vs {qt})",
     .kind = .@"error",
 };
 
@@ -2203,18 +2268,18 @@ pub const too_big_shift_count: Diagnostic = .{
 };
 
 pub const complex_conj: Diagnostic = .{
-    .fmt = "ISO C does not support '~' for complex conjugation of '{qt}'",
+    .fmt = "ISO C does not support '~' for complex conjugation of {qt}",
     .kind = .off,
     .extension = true,
 };
 
 pub const overflow_builtin_requires_int: Diagnostic = .{
-    .fmt = "operand argument to overflow builtin must be an integer ('{qt}' invalid)",
+    .fmt = "operand argument to overflow builtin must be an integer ({qt} invalid)",
     .kind = .@"error",
 };
 
 pub const overflow_result_requires_ptr: Diagnostic = .{
-    .fmt = "result argument to overflow builtin must be a pointer to a non-const integer ('{qt}' invalid)",
+    .fmt = "result argument to overflow builtin must be a pointer to a non-const integer ({qt} invalid)",
     .kind = .@"error",
 };
 
@@ -2224,7 +2289,7 @@ pub const attribute_todo: Diagnostic = .{
 };
 
 pub const invalid_type_underlying_enum: Diagnostic = .{
-    .fmt = "non-integral type '{qt}' is an invalid underlying type",
+    .fmt = "non-integral type {qt} is an invalid underlying type",
     .kind = .@"error",
 };
 
@@ -2244,7 +2309,7 @@ pub const constexpr_requires_const: Diagnostic = .{
 };
 
 pub const subtract_pointers_zero_elem_size: Diagnostic = .{
-    .fmt = "subtraction of pointers to type '{qt}' of zero size has undefined behavior",
+    .fmt = "subtraction of pointers to type {qt} of zero size has undefined behavior",
     .kind = .warning,
     .opt = .@"pointer-arith",
 };
@@ -2309,6 +2374,6 @@ pub const conflicting_nullability: Diagnostic = .{
 };
 
 pub const invalid_nullability: Diagnostic = .{
-    .fmt = "nullability specifier cannot be applied to non-pointer type '{qt}'",
+    .fmt = "nullability specifier cannot be applied to non-pointer type {qt}",
     .kind = .@"error",
 };
