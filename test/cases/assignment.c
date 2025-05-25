@@ -76,6 +76,9 @@ void various_assignments_to_consts(
     struct Dummy { int a; };
     const struct Dummy d[1];
     d[0].a = 1;
+
+    const int arr[2][2] = { 0, 1, 2, 3};
+    arr[0][0] = 1;
 }
 
 void bar(void) {
@@ -148,9 +151,11 @@ void constant_sign_conversion(void) {
     "assignment.c:72:21: note: variable 'c2' declared const here" \
     "assignment.c:78:12: error: cannot assign to variable 'd' with const-qualified type 'const struct Dummy [1]'" \
     "assignment.c:77:24: note: variable 'd' declared const here" \
-    "assignment.c:89:12: error: variable has incomplete type 'enum E'" \
-    "assignment.c:96:7: error: cannot assign to variable 'a' with const-qualified type 'A'" \
-    "assignment.c:95:7: note: variable 'a' declared const here" \
-    "assignment.c:103:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
-    "assignment.c:107:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
-    "assignment.c:111:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]"
+    "assignment.c:81:15: error: cannot assign to variable 'arr' with const-qualified type 'const int [2][2]'" \
+    "assignment.c:80:15: note: variable 'arr' declared const here" \
+    "assignment.c:92:12: error: variable has incomplete type 'enum E'" \
+    "assignment.c:99:7: error: cannot assign to variable 'a' with const-qualified type 'A'" \
+    "assignment.c:98:7: note: variable 'a' declared const here" \
+    "assignment.c:106:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
+    "assignment.c:110:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
+    "assignment.c:114:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]" \

@@ -7061,33 +7061,22 @@ fn nonAssignExpr(assign_node: std.meta.Tag(Node)) std.meta.Tag(Node) {
     };
 }
 
-fn unwrapArrayOperation(p: *Parser, node_idx: Node.Index) ?Node.Index {
-    var result: ?Node.Index = null;
-    const tags = [_]std.meta.Tag(Node){
+fn unwrapArrayOperation(p: *Parser, node_idx: Node.Index) ?Node.DeclRef {
+    return loop: switch (node_idx.get(&p.tree)) {
+        .array_access_expr => |arr_access| continue :loop arr_access.base.get(&p.tree),
+        inline .cast,
+        .paren_expr,
         .pre_inc_expr,
         .post_inc_expr,
         .pre_dec_expr,
         .post_dec_expr,
-        .add_expr,
+        => |cast_or_unary| continue :loop cast_or_unary.operand.get(&p.tree),
         .sub_expr,
+        .add_expr,
+        => |bin| continue :loop bin.lhs.get(&p.tree),
+        .decl_ref_expr => |decl_ref| decl_ref,
+        else => null,
     };
-    inline for (tags) |tag| {
-        if (p.getNode(node_idx, tag)) |unwrapped| {
-            switch (@TypeOf(unwrapped)) {
-                Node.Binary => result = unwrapped.lhs,
-                Node.Unary => result = unwrapped.operand,
-                else => comptime unreachable,
-            }
-        }
-    }
-    if (result) |result_not_null| {
-        if (p.getNode(result_not_null, .cast)) |cast| {
-            result = cast.operand;
-        }
-    } else if (p.getNode(node_idx, .cast)) |cast| {
-        result = cast.operand;
-    }
-    return result;
 }
 
 fn issueDeclaredConstHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name: []const u8) Compilation.Error!void {
@@ -7099,6 +7088,14 @@ fn issueDeclaredConstHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name:
         if (p.getNode(decl_ref.decl, tag)) |ref| {
             try p.err(ref.name_tok, .declared_const_here, .{var_name});
         }
+    }
+}
+
+fn issueArrayConstAssignmetDiagnostics(p: *Parser, array_access: Node.ArrayAccess, tok: TokenIndex) Compilation.Error!void {
+    if (p.unwrapArrayOperation(array_access.base)) |unwrapped| {
+        const decl_ref_var_name = p.tokSlice(unwrapped.name_tok);
+        try p.err(tok, .const_var_assignment, .{ decl_ref_var_name, unwrapped.qt });
+        try p.issueDeclaredConstHereNote(unwrapped, decl_ref_var_name);
     }
 }
 
@@ -7114,24 +7111,11 @@ fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIn
                             try p.err(tok, .const_var_assignment, .{ struct_name, memb_ptr_acc_decl_ref.qt });
                             try p.issueDeclaredConstHereNote(memb_ptr_acc_decl_ref, struct_name);
                         } else if (p.getNode(node.base, .array_access_expr)) |memb_arr_access| {
-                            const unwrapped_node_idx = if (p.unwrapArrayOperation(memb_arr_access.base)) |unwrapped|
-                                unwrapped
-                            else
-                                memb_arr_access.base;
-                            if (p.getNode(unwrapped_node_idx, .decl_ref_expr)) |memb_arr_decl_ref| {
-                                const decl_ref_var_name = p.tokSlice(memb_arr_decl_ref.name_tok);
-                                try p.err(tok, .const_var_assignment, .{ decl_ref_var_name, memb_arr_decl_ref.qt });
-                                try p.issueDeclaredConstHereNote(memb_arr_decl_ref, decl_ref_var_name);
-                            }
+                            try p.issueArrayConstAssignmetDiagnostics(memb_arr_access, tok);
                         }
                     },
                     .array_access_expr => {
-                        const unwrapped_node_idx = if (p.unwrapArrayOperation(node.base)) |unwrapped| unwrapped else node.base;
-                        if (p.getNode(unwrapped_node_idx, .decl_ref_expr)) |arr_cast_delc_ref| {
-                            const arr_ref_var_name = p.tokSlice(arr_cast_delc_ref.name_tok);
-                            try p.err(tok, .const_var_assignment, .{ arr_ref_var_name, arr_cast_delc_ref.qt });
-                            try p.issueDeclaredConstHereNote(arr_cast_delc_ref, arr_ref_var_name);
-                        }
+                        try p.issueArrayConstAssignmetDiagnostics(node, tok);
                     },
                     .decl_ref_expr => {
                         const var_name = p.tokSlice(node.name_tok);
