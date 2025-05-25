@@ -259,7 +259,7 @@ union { int x; char c[4]; }
     "initializers.c:169:26: note: previous initialization" \
     "initializers.c:175:19: error: initializing 'int' from incompatible type 'struct A'" \
     "initializers.c:179:28: warning: excess elements in vector initializer [-Wexcess-initializers]" \
-    "initializers.c:182:19: error: initializing 'int' from incompatible type 'vec'" \
+    "initializers.c:182:19: error: initializing 'int' from incompatible type 'vec' (vector of 4 'int' values)" \
     "initializers.c:186:28: warning: use of an empty initializer is a C23 extension [-Wc23-extensions]" \
     "initializers.c:191:33: warning: initializer overrides previous initialization [-Winitializer-overrides]" \
     "initializers.c:191:19: note: previous initialization" \
