@@ -8793,7 +8793,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         if (call_expr.shouldPerformLvalConversion(arg_count)) {
             try arg.lvalConversion(p, param_tok);
         }
-        if (arg.qt.hasIncompleteSize(p.comp) and !arg.qt.is(p.comp, .void)) return error.ParsingFailed;
+        if ((arg.qt.hasIncompleteSize(p.comp) and !arg.qt.is(p.comp, .void)) or arg.qt.isInvalid()) return error.ParsingFailed;
 
         if (arg_count >= params_len) {
             if (call_expr.shouldPromoteVarArg(arg_count)) switch (arg.qt.base(p.comp).type) {
