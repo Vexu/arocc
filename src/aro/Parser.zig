@@ -7700,7 +7700,7 @@ fn convertvector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
             dest_qt = .invalid;
             break :check;
         };
-        if (operand_vec.len != dest_vec.len or operand_vec.elem.sizeCompare(dest_vec.elem, p.comp) != .eq) {
+        if (operand_vec.len != dest_vec.len) {
             try p.err(builtin_tok, .convertvector_size, .{});
             dest_qt = .invalid;
         }
