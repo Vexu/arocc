@@ -178,3 +178,71 @@ fn_def: 'fn (a: f2v: vector(2, float), b: i2v: vector(2, int), c: i3v: vector(3,
 
     implicit return_stmt: 'void'
 
+typedef: 'vector(8, char)'
+ name: vec_a
+
+typedef: 'vector(2, float)'
+ name: vec_b
+
+fn_def: 'fn (a: vec_a: vector(8, char)) vec_b: vector(2, float)'
+ name: bitcast_vector
+ body:
+  compound_stmt
+    return_stmt: 'vec_b: vector(2, float)'
+     expr:
+      implicit cast: (bitcast) 'vec_b: vector(2, float)'
+        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+           name: a
+
+fn_def: 'fn () int'
+ name: main
+ body:
+  compound_stmt
+    variable: 'vec_b: vector(2, float)'
+     name: b
+     init:
+      array_init_expr: 'vec_b: vector(2, float)'
+        float_literal: 'float' (value: 1.4)
+
+        float_literal: 'float' (value: 2.4)
+
+    variable: 'vec_a: vector(8, char)'
+     name: a
+     init:
+      implicit cast: (bitcast) 'vec_a: vector(8, char)'
+        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+           name: b
+
+    variable: 'vec_a: vector(8, char)'
+     name: a2
+     init:
+      implicit cast: (bitcast) 'vec_a: vector(8, char)'
+        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+           name: b
+
+    assign_expr: 'vec_a: vector(8, char)'
+     lhs:
+      decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+       name: a
+     rhs:
+      implicit cast: (bitcast) 'vec_a: vector(8, char)'
+        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+           name: b
+
+    call_expr: 'vec_b: vector(2, float)'
+     callee:
+      implicit cast: (function_to_pointer) '*fn (a: vec_a: vector(8, char)) vec_b: vector(2, float)'
+        decl_ref_expr: 'fn (a: vec_a: vector(8, char)) vec_b: vector(2, float)' lvalue
+         name: bitcast_vector
+     args:
+      implicit cast: (bitcast) 'vec_a: vector(8, char)'
+        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+           name: b
+
+    implicit return_stmt: 'int' (value: 0)
+

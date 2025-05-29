@@ -44,6 +44,20 @@ void explicit_casts(f2v a, i2v b, i3v c) {
 
 typedef _Bool invalid5 __attribute__((vector_size(sizeof(_Bool) * 2)));
 
+typedef char vec_a __attribute__((vector_size(8)));
+typedef float vec_b __attribute__((vector_size(8)));
+
+vec_b bitcast_vector(vec_a a) {
+    return a;
+}
+int main(void) {
+    vec_b b = { 1.4f, 2.4f };
+    vec_a a = b;
+    vec_a a2 = {b};
+    a = b;
+    bitcast_vector(b);
+}
+
 #define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \
     "vectors.c:3:39: error: vector size not an integral multiple of component size" \
     "vectors.c:10:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and integer type 'int' of different size" \

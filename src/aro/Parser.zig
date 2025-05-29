@@ -4117,7 +4117,9 @@ fn findScalarInitializer(
                 warned_excess.* = true;
                 return true;
             }
-            if (res.qt.eql(qt, p.comp) and il.list.items.len == 0) {
+            if (il.list.items.len == 0 and (res.qt.eql(qt, p.comp) or
+                (res.qt.is(p.comp, .vector) and res.qt.sizeCompare(qt, p.comp) == .eq)))
+            {
                 try p.setInitializer(il, qt, first_tok, res);
                 return true;
             }
@@ -6911,7 +6913,13 @@ pub const Result = struct {
         const dest_sk = dest_unqual.scalarKind(p.comp);
         const src_sk = res.qt.scalarKind(p.comp);
 
-        if (dest_sk == .nullptr_t) {
+        if (dest_qt.is(p.comp, .vector) and res.qt.is(p.comp, .vector)) {
+            if (dest_unqual.eql(res.qt, p.comp)) return;
+            if (dest_unqual.sizeCompare(res.qt, p.comp) == .eq) {
+                res.qt = dest_unqual;
+                return res.implicitCast(p, .bitcast, tok);
+            }
+        } else if (dest_sk == .nullptr_t) {
             if (src_sk == .nullptr_t) return;
         } else if (dest_sk == .bool) {
             if (src_sk != .none and src_sk != .nullptr_t) {
