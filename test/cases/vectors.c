@@ -42,6 +42,8 @@ void explicit_casts(f2v a, i2v b, i3v c) {
     (f2v)(struct S){1};
 }
 
+typedef _Bool invalid5 __attribute__((vector_size(sizeof(_Bool) * 2)));
+
 #define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \
     "vectors.c:3:39: error: vector size not an integral multiple of component size" \
     "vectors.c:10:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and integer type 'int' of different size" \
@@ -55,3 +57,4 @@ void explicit_casts(f2v a, i2v b, i3v c) {
     "vectors.c:40:10: error: invalid conversion between vector type 'i3v' (vector of 3 'int' values) and integer type 'long' of different size" \
     "vectors.c:41:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and scalar type 'double'" \
     "vectors.c:42:10: error: operand of type 'struct S' where arithmetic or pointer type is required" \
+    "vectors.c:45:39: error: invalid vector element type '_Bool'" \
