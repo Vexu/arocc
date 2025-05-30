@@ -331,6 +331,8 @@ pub const Node = union(enum) {
         /// Implies `static == true`.
         implicit: bool,
         initializer: ?Node.Index,
+        /// Actual, non-tentative definition of this variable.
+        definition: ?Node.Index,
     };
 
     pub const Typedef = struct {
@@ -738,8 +740,7 @@ pub const Node = union(enum) {
                             .qt = @bitCast(node_data[0]),
                             .static = attr.static,
                             .@"inline" = attr.@"inline",
-                            // TODO decide how to handle definition
-                            .definition = null,
+                            .definition = unpackOptIndex(node_data[2]),
                         },
                     };
                 },
@@ -784,7 +785,29 @@ pub const Node = union(enum) {
                                 .auto,
                             .thread_local = attr.thread_local,
                             .implicit = attr.implicit,
+                            .initializer = null,
+                            .definition = unpackOptIndex(node_data[2]),
+                        },
+                    };
+                },
+                .variable_def => {
+                    const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
+                    return .{
+                        .variable = .{
+                            .name_tok = node_tok,
+                            .qt = @bitCast(node_data[0]),
+                            .storage_class = if (attr.static)
+                                .static
+                            else if (attr.@"extern")
+                                .@"extern"
+                            else if (attr.register)
+                                .register
+                            else
+                                .auto,
+                            .thread_local = attr.thread_local,
+                            .implicit = attr.implicit,
                             .initializer = unpackOptIndex(node_data[2]),
+                            .definition = null,
                         },
                     };
                 },
@@ -1763,6 +1786,7 @@ pub const Node = union(enum) {
             fn_def,
             param,
             variable,
+            variable_def,
             typedef,
             global_asm,
             struct_decl,
@@ -1927,8 +1951,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 .static = proto.static,
                 .@"inline" = proto.@"inline",
             });
-            // TODO decide how to handle definition
-            // repr.data[2] = proto.definition;
+            repr.data[2] = packOptIndex(proto.definition);
             repr.tok = proto.name_tok;
         },
         .fn_def => |def| {
@@ -1950,7 +1973,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = param.name_tok;
         },
         .variable => |variable| {
-            repr.tag = .variable;
+            repr.tag = if (variable.initializer != null) .variable_def else .variable;
             repr.data[0] = @bitCast(variable.qt);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
                 .@"extern" = variable.storage_class == .@"extern",
@@ -1959,7 +1982,11 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 .implicit = variable.implicit,
                 .register = variable.storage_class == .register,
             });
-            repr.data[2] = packOptIndex(variable.initializer);
+            if (variable.initializer) |some| {
+                repr.data[2] = @intFromEnum(some);
+            } else {
+                repr.data[2] = packOptIndex(variable.definition);
+            }
             repr.tok = variable.name_tok;
         },
         .typedef => |typedef| {
@@ -3058,6 +3085,14 @@ fn dumpNode(
             try config.setColor(w, NAME);
             try w.print("{s}\n", .{tree.tokSlice(proto.name_tok)});
             try config.setColor(w, .reset);
+
+            if (proto.definition) |definition| {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("definition: ");
+                try config.setColor(w, NAME);
+                try w.print("0x{X}\n", .{@intFromEnum(definition)});
+                try config.setColor(w, .reset);
+            }
         },
         .fn_def => |def| {
             try w.writeByteNTimes(' ', level + half);
@@ -3123,6 +3158,13 @@ fn dumpNode(
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("init:\n");
                 try tree.dumpNode(some, level + delta, config, w);
+            }
+            if (variable.definition) |definition| {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("definition: ");
+                try config.setColor(w, NAME);
+                try w.print("0x{X}\n", .{@intFromEnum(definition)});
+                try config.setColor(w, .reset);
             }
         },
         .enum_field => |field| {

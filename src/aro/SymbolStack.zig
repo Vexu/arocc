@@ -19,6 +19,7 @@ pub const Symbol = struct {
     qt: QualType,
     tok: TokenIndex,
     node: Node.OptIndex = .null,
+    out_of_scope: bool = false,
     kind: Kind,
     val: Value,
 };
@@ -226,6 +227,8 @@ pub fn defineSymbol(
                     if (qt.isInvalid()) return;
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
+                } else {
+                    if (prev.node.unpack()) |some| p.setTentativeDeclDefinition(some, node);
                 }
             },
             .def, .constexpr => if (!prev.qt.isInvalid()) {
@@ -281,6 +284,8 @@ pub fn declareSymbol(
                     if (qt.isInvalid()) return;
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
+                } else {
+                    if (prev.node.unpack()) |some| p.setTentativeDeclDefinition(node, some);
                 }
             },
             .def, .constexpr => {
@@ -289,6 +294,7 @@ pub fn declareSymbol(
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
+                    if (prev.node.unpack()) |some| p.setTentativeDeclDefinition(node, some);
                     return;
                 }
             },
@@ -308,6 +314,19 @@ pub fn declareSymbol(
         .node = .pack(node),
         .val = .{},
     });
+
+    // Declare out of scope symbol for functions declared in functions.
+    if (s.active_len > 1 and !p.comp.langopts.standard.atLeast(.c23) and qt.is(p.comp, .func)) {
+        try s.scopes.items[0].vars.put(p.gpa, name, .{
+            .kind = .decl,
+            .name = name,
+            .tok = tok,
+            .qt = qt,
+            .node = .pack(node),
+            .val = .{},
+            .out_of_scope = true,
+        });
+    }
 }
 
 pub fn defineParam(

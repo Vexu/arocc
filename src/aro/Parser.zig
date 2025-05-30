@@ -672,6 +672,51 @@ fn addList(p: *Parser, nodes: []const Node.Index) Allocator.Error!Tree.Node.Rang
     return Tree.Node.Range{ .start = start, .end = end };
 }
 
+/// Recursively sets the defintion field of `tentative_decl` to `definition`.
+pub fn setTentativeDeclDefinition(p: *Parser, tentative_decl: Node.Index, definition: Node.Index) void {
+    const node_data = &p.tree.nodes.items(.data)[@intFromEnum(tentative_decl)];
+    switch (p.tree.nodes.items(.tag)[@intFromEnum(tentative_decl)]) {
+        .fn_proto => {},
+        .variable => {},
+        else => return,
+    }
+
+    const prev: Node.OptIndex = @enumFromInt(node_data[2]);
+
+    node_data[2] = @intFromEnum(definition);
+    if (prev.unpack()) |some| {
+        p.setTentativeDeclDefinition(some, definition);
+    }
+}
+
+/// Clears the defintion field of declarations that were not defined so that
+/// the field always contains a _def if present.
+fn clearNonTentativeDefinitions(p: *Parser) void {
+    const tags = p.tree.nodes.items(.tag);
+    const data = p.tree.nodes.items(.data);
+    for (p.tree.root_decls.items) |root_decl| {
+        switch (tags[@intFromEnum(root_decl)]) {
+            .fn_proto => {
+                const node_data = &data[@intFromEnum(root_decl)];
+                if (node_data[2] != @intFromEnum(Node.OptIndex.null)) {
+                    if (tags[node_data[2]] != .fn_def) {
+                        node_data[2] = @intFromEnum(Node.OptIndex.null);
+                    }
+                }
+            },
+            .variable => {
+                const node_data = &data[@intFromEnum(root_decl)];
+                if (node_data[2] != @intFromEnum(Node.OptIndex.null)) {
+                    if (tags[node_data[2]] != .variable_def) {
+                        node_data[2] = @intFromEnum(Node.OptIndex.null);
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+}
+
 fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
     for (p.labels.items) |item| {
         switch (item) {
@@ -878,6 +923,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.err(p.tok_i - 1, .empty_translation_unit, .{});
     }
     pp.comp.pragmaEvent(.after_parse);
+
+    p.clearNonTentativeDefinitions();
 
     return p.tree;
 }
@@ -1351,6 +1398,7 @@ fn decl(p: *Parser) Error!bool {
                         else => .auto, // Error reported in `validate`
                     },
                     .initializer = if (init_d.initializer) |some| some.node else null,
+                    .definition = null,
                 },
             }, @intFromEnum(decl_node));
         }
@@ -1379,6 +1427,8 @@ fn decl(p: *Parser) Error!bool {
                 if (init_d.d.qt.@"const" or decl_spec.constexpr != null) init.val else .{},
                 decl_spec.constexpr != null,
             );
+        } else if (init_d.d.qt.is(p.comp, .func)) {
+            try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
         } else if (p.func.qt != null and decl_spec.storage_class != .@"extern") {
             try p.syms.defineSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
         } else {
@@ -8956,6 +9006,10 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     try p.err(name_tok, .unexpected_type_name, .{name});
                     return error.ParsingFailed;
                 }
+                if (sym.out_of_scope) {
+                    try p.err(name_tok, .out_of_scope_use, .{name});
+                    try p.err(sym.tok, .previous_definition, .{});
+                }
                 try p.checkDeprecatedUnavailable(sym.qt, name_tok, sym.tok);
                 if (sym.kind == .constexpr) {
                     return .{
@@ -9269,6 +9323,7 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
             .thread_local = false,
             .implicit = true,
             .initializer = str_lit,
+            .definition = null,
         },
     }) };
 }
