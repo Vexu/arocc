@@ -13,7 +13,7 @@ implicit typedef: '*char'
 implicit typedef: 'struct __NSConstantString_tag'
  name: __NSConstantString
 
-fn_def: 'fn () void'
+function: 'fn () void'
  name: foo
  body:
   compound_stmt

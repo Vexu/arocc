@@ -27,7 +27,7 @@ struct_decl: 'struct S'
    bits:
     int_literal: 'int' (value: 5)
 
-fn_def: 'fn () void'
+function: 'fn () void'
  name: foo
  body:
   compound_stmt

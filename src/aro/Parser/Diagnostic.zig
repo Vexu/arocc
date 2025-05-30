@@ -495,6 +495,17 @@ pub const previous_definition: Diagnostic = .{
     .kind = .note,
 };
 
+pub const previous_declaration: Diagnostic = .{
+    .fmt = "previous declaration is here",
+    .kind = .note,
+};
+
+pub const out_of_scope_use: Diagnostic = .{
+    .fmt = "use of out-of-scope declaration of '{s}'",
+    .kind = .warning,
+    .opt = .@"out-of-scope-function",
+};
+
 pub const expected_identifier: Diagnostic = .{
     .fmt = "expected identifier",
     .kind = .@"error",

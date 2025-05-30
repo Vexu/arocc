@@ -56,7 +56,7 @@ variable: '_Atomic(int)'
 variable: 'invalid'
  name: l
 
-fn_def: 'fn () void'
+function: 'fn () void'
  name: test_coerce
  body:
   compound_stmt
@@ -124,7 +124,7 @@ fn_def: 'fn () void'
 
     implicit return_stmt: 'void'
 
-fn_def: 'fn () void'
+function: 'fn () void'
  name: test_member_access
  body:
   compound_stmt
