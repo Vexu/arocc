@@ -5222,16 +5222,24 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
             .label_tok = name_tok,
         } });
     } else if (p.eatToken(.keyword_case)) |case| {
-        const first_item = try p.integerConstExpr(.gnu_folding_extension);
+        var first_item = try p.integerConstExpr(.gnu_folding_extension);
         const ellipsis = p.tok_i;
-        const second_item = if (p.eatToken(.ellipsis) != null) blk: {
+        var second_item = if (p.eatToken(.ellipsis) != null) blk: {
             try p.err(ellipsis, .gnu_switch_range, .{});
             break :blk try p.integerConstExpr(.gnu_folding_extension);
         } else null;
         _ = try p.expectToken(.colon);
 
-        if (p.@"switch") |some| check: {
-            if (some.qt.hasIncompleteSize(p.comp)) break :check; // error already reported for incomplete size
+        if (p.@"switch") |@"switch"| check: {
+            if (@"switch".qt.hasIncompleteSize(p.comp)) break :check; // error already reported for incomplete size
+
+            // Coerce to switch condition type
+            try first_item.coerce(p, @"switch".qt, case + 1, .assign);
+            try first_item.putValue(p);
+            if (second_item) |*item| {
+                try item.coerce(p, @"switch".qt, ellipsis + 1, .assign);
+                try item.putValue(p);
+            }
 
             const first = first_item.val;
             const last = if (second_item) |second| second.val else first;
@@ -5247,7 +5255,7 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
             }
 
             // TODO cast to target type
-            const prev = (try some.add(first, last, case + 1)) orelse break :check;
+            const prev = (try @"switch".add(first, last, case + 1)) orelse break :check;
 
             // TODO check which value was already handled
             try p.err(case + 1, .duplicate_switch_case, .{first_item});
@@ -6585,8 +6593,7 @@ pub const Result = struct {
     /// Saves value and replaces it with `.unavailable`.
     fn saveValue(res: *Result, p: *Parser) !void {
         assert(!p.in_macro);
-        if (res.val.opt_ref == .none or res.val.opt_ref == .null) return;
-        if (!p.in_macro) try p.tree.value_map.put(p.gpa, res.node, res.val);
+        try res.putValue(p);
         res.val = .{};
     }
 
@@ -7217,9 +7224,7 @@ fn constExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
 
     if (res.qt.isInvalid() or res.val.opt_ref == .none) return res;
 
-    // saveValue sets val to unavailable
-    var copy = res;
-    try copy.saveValue(p);
+    try res.putValue(p);
     return res;
 }
 
