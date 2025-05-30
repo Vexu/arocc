@@ -28,11 +28,11 @@ variable: 'attributed(int)'
  attr: nullability kind: nonnull
  name: c
 
-fn_proto: 'attributed(fn () int)'
+function: 'attributed(fn () int)'
  attr: nullability kind: nullable
  name: d
 
-fn_proto: 'attributed(fn () *int)'
+function: 'attributed(fn () *int)'
  attr: nullability kind: unspecified
  name: e
 

@@ -16,7 +16,7 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
-fn_def: 'fn (x: unsigned int) int'
+function: 'fn (x: unsigned int) int'
  name: lottery
  body:
   compound_stmt

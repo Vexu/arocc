@@ -1321,12 +1321,13 @@ fn decl(p: *Parser) Error!bool {
         };
 
         try decl_spec.validateFnDef(p);
-        try p.tree.setNode(.{ .fn_def = .{
+        try p.tree.setNode(.{ .function = .{
             .name_tok = init_d.d.name,
             .@"inline" = decl_spec.@"inline" != null,
             .static = decl_spec.storage_class == .static,
             .qt = p.func.qt.?,
             .body = body,
+            .definition = null,
         } }, @intFromEnum(decl_node));
 
         try p.decl_buf.append(decl_node);
@@ -1362,11 +1363,12 @@ fn decl(p: *Parser) Error!bool {
             } }, @intFromEnum(decl_node));
         } else if (init_d.d.declarator_type == .func or init_d.d.qt.is(p.comp, .func)) {
             try decl_spec.validateFnDecl(p);
-            try p.tree.setNode(.{ .fn_proto = .{
+            try p.tree.setNode(.{ .function = .{
                 .name_tok = init_d.d.name,
                 .qt = init_d.d.qt,
                 .static = decl_spec.storage_class == .static,
                 .@"inline" = decl_spec.@"inline" != null,
+                .body = null,
                 .definition = null,
             } }, @intFromEnum(decl_node));
         } else {
@@ -9107,12 +9109,13 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     .params = &.{},
                 } });
                 const node = try p.addNode(.{
-                    .fn_proto = .{
+                    .function = .{
                         .name_tok = name_tok,
                         .qt = func_qt,
                         .static = false,
                         .@"inline" = false,
                         .definition = null,
+                        .body = null,
                     },
                 });
 

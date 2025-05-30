@@ -142,8 +142,7 @@ pub const GNUAssemblyQualifiers = struct {
 pub const Node = union(enum) {
     empty_decl: EmptyDecl,
     static_assert: StaticAssert,
-    fn_proto: FnProto,
-    fn_def: FnDef,
+    function: Function,
     param: Param,
     variable: Variable,
     typedef: Typedef,
@@ -291,21 +290,14 @@ pub const Node = union(enum) {
         message: ?Node.Index,
     };
 
-    pub const FnProto = struct {
+    pub const Function = struct {
         name_tok: TokenIndex,
         qt: QualType,
         static: bool,
         @"inline": bool,
-        /// The definition for this prototype if one exists.
+        body: ?Node.Index,
+        /// Actual, non-tentative definition of this function.
         definition: ?Node.Index,
-    };
-
-    pub const FnDef = struct {
-        name_tok: TokenIndex,
-        qt: QualType,
-        static: bool,
-        @"inline": bool,
-        body: Node.Index,
     };
 
     pub const Param = struct {
@@ -735,11 +727,12 @@ pub const Node = union(enum) {
                 .fn_proto => {
                     const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
                     return .{
-                        .fn_proto = .{
+                        .function = .{
                             .name_tok = node_tok,
                             .qt = @bitCast(node_data[0]),
                             .static = attr.static,
                             .@"inline" = attr.@"inline",
+                            .body = null,
                             .definition = unpackOptIndex(node_data[2]),
                         },
                     };
@@ -747,12 +740,13 @@ pub const Node = union(enum) {
                 .fn_def => {
                     const attr: Node.Repr.DeclAttr = @bitCast(node_data[1]);
                     return .{
-                        .fn_def = .{
+                        .function = .{
                             .name_tok = node_tok,
                             .qt = @bitCast(node_data[0]),
                             .static = attr.static,
                             .@"inline" = attr.@"inline",
                             .body = @enumFromInt(node_data[2]),
+                            .definition = null,
                         },
                     };
                 },
@@ -1944,25 +1938,19 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[1] = packOptIndex(assert.message);
             repr.tok = assert.assert_tok;
         },
-        .fn_proto => |proto| {
-            repr.tag = .fn_proto;
-            repr.data[0] = @bitCast(proto.qt);
+        .function => |function| {
+            repr.tag = if (function.body != null) .fn_def else .fn_proto;
+            repr.data[0] = @bitCast(function.qt);
             repr.data[1] = @bitCast(Node.Repr.DeclAttr{
-                .static = proto.static,
-                .@"inline" = proto.@"inline",
+                .static = function.static,
+                .@"inline" = function.@"inline",
             });
-            repr.data[2] = packOptIndex(proto.definition);
-            repr.tok = proto.name_tok;
-        },
-        .fn_def => |def| {
-            repr.tag = .fn_def;
-            repr.data[0] = @bitCast(def.qt);
-            repr.data[1] = @bitCast(Node.Repr.DeclAttr{
-                .static = def.static,
-                .@"inline" = def.@"inline",
-            });
-            repr.data[2] = @intFromEnum(def.body);
-            repr.tok = def.name_tok;
+            if (function.body) |some| {
+                repr.data[2] = @intFromEnum(some);
+            } else {
+                repr.data[2] = packOptIndex(function.definition);
+            }
+            repr.tok = function.name_tok;
         },
         .param => |param| {
             repr.tag = .param;
@@ -3073,43 +3061,31 @@ fn dumpNode(
                 try tree.dumpNode(some, level + delta, config, w);
             }
         },
-        .fn_proto => |proto| {
+        .function => |function| {
             try w.writeByteNTimes(' ', level + half);
 
             try config.setColor(w, ATTRIBUTE);
-            if (proto.static) try w.writeAll("static ");
-            if (proto.@"inline") try w.writeAll("inline ");
+            if (function.static) try w.writeAll("static ");
+            if (function.@"inline") try w.writeAll("inline ");
 
             try config.setColor(w, .reset);
             try w.writeAll("name: ");
             try config.setColor(w, NAME);
-            try w.print("{s}\n", .{tree.tokSlice(proto.name_tok)});
+            try w.print("{s}\n", .{tree.tokSlice(function.name_tok)});
             try config.setColor(w, .reset);
 
-            if (proto.definition) |definition| {
+            if (function.body) |body| {
+                try w.writeByteNTimes(' ', level + half);
+                try w.writeAll("body:\n");
+                try tree.dumpNode(body, level + delta, config, w);
+            }
+            if (function.definition) |definition| {
                 try w.writeByteNTimes(' ', level + half);
                 try w.writeAll("definition: ");
                 try config.setColor(w, NAME);
                 try w.print("0x{X}\n", .{@intFromEnum(definition)});
                 try config.setColor(w, .reset);
             }
-        },
-        .fn_def => |def| {
-            try w.writeByteNTimes(' ', level + half);
-
-            try config.setColor(w, ATTRIBUTE);
-            if (def.static) try w.writeAll("static ");
-            if (def.@"inline") try w.writeAll("inline ");
-
-            try config.setColor(w, .reset);
-            try w.writeAll("name: ");
-            try config.setColor(w, NAME);
-            try w.print("{s}\n", .{tree.tokSlice(def.name_tok)});
-
-            try config.setColor(w, .reset);
-            try w.writeByteNTimes(' ', level + half);
-            try w.writeAll("body:\n");
-            try tree.dumpNode(def.body, level + delta, config, w);
         },
         .typedef => |typedef| {
             try w.writeByteNTimes(' ', level + half);
