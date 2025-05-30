@@ -879,6 +879,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     }
     pp.comp.pragmaEvent(.after_parse);
 
+    p.tree.cleanupRootDecls();
+
     return p.tree;
 }
 
@@ -1351,6 +1353,7 @@ fn decl(p: *Parser) Error!bool {
                         else => .auto, // Error reported in `validate`
                     },
                     .initializer = if (init_d.initializer) |some| some.node else null,
+                    .definition = null,
                 },
             }, @intFromEnum(decl_node));
         }
@@ -1379,6 +1382,8 @@ fn decl(p: *Parser) Error!bool {
                 if (init_d.d.qt.@"const" or decl_spec.constexpr != null) init.val else .{},
                 decl_spec.constexpr != null,
             );
+        } else if (init_d.d.qt.is(p.comp, .func)) {
+            try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
         } else if (p.func.qt != null and decl_spec.storage_class != .@"extern") {
             try p.syms.defineSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
         } else {
@@ -8951,6 +8956,10 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     try p.err(name_tok, .unexpected_type_name, .{name});
                     return error.ParsingFailed;
                 }
+                if (sym.out_of_scope) {
+                    try p.err(name_tok, .out_of_scope_use, .{name});
+                    try p.err(sym.tok, .previous_definition, .{});
+                }
                 try p.checkDeprecatedUnavailable(sym.qt, name_tok, sym.tok);
                 if (sym.kind == .constexpr) {
                     return .{
@@ -9264,6 +9273,7 @@ fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
             .thread_local = false,
             .implicit = true,
             .initializer = str_lit,
+            .definition = null,
         },
     }) };
 }
