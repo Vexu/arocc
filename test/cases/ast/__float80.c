@@ -16,7 +16,7 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
-fn_def: 'fn () void'
+function: 'fn () void'
  name: foo
  body:
   compound_stmt
