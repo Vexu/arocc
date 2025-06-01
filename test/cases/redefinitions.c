@@ -127,7 +127,7 @@ enum E {
     "redefinitions.c:53:9: note: previous definition is here" \
     "redefinitions.c:57:17: error: duplicate member 'a'" \
     "redefinitions.c:54:11: note: previous definition is here" \
-    "redefinitions.c:64:17: error: typedef redefinition with different types ('MyFloat' vs 'int')" \
+    "redefinitions.c:64:17: error: typedef redefinition with different types ('MyFloat' (aka 'float') vs 'int')" \
     "redefinitions.c:62:13: note: previous definition is here" \
     "redefinitions.c:67:19: error: typedef redefinition with different types ('const int' vs 'int')" \
     "redefinitions.c:66:13: note: previous definition is here" \

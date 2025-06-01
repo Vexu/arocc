@@ -9,13 +9,13 @@ The project intends to support standard C and all common extensions:
 | Version          | status                                                                                                     |
 | ---------------- | ---------------------------------------------------------------------------------------------------------- |
 | C23              | Complete excluding [Add IEEE 754 interchange and extended types](https://github.com/Vexu/arocc/issues/552) |
-| C17              | Complete excluding warnings [Ensure C1/ compatibility](https://github.com/Vexu/arocc/issues/820)           |
+| C17              | Complete excluding warnings [Ensure C17 compatibility](https://github.com/Vexu/arocc/issues/820)           |
 | C11              | Complete excluding warnings [Ensure C11 compatibility](https://github.com/Vexu/arocc/issues/821)           |
 | C99              | Complete excluding warnings [Ensure C99 compatibility](https://github.com/Vexu/arocc/issues/822)           |
 | C95              | Complete                                                                                                   |
 | C89              | Complete                                                                                                   |
 | GNU extensions   | [Ensure GNU C extension compatibility](https://github.com/Vexu/arocc/issues/824)                           |
-| Clang extensions | [ Ensure Clang C extension compatibility](https://github.com/Vexu/arocc/issues/825)                        |
+| Clang extensions | [Ensure Clang C extension compatibility](https://github.com/Vexu/arocc/issues/825)                         |
 
 Aro will be used as the C frontend for [C to Zig translation](https://github.com/ziglang/translate-c/) in the Zig toolchain.
 

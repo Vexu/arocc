@@ -131,7 +131,8 @@ void initializers(void) {
 #define TESTS_SKIPPED 1
 
 #define EXPECTED_ERRORS \
-    "typeof.c:24:9: warning: incompatible pointer types assigning to 'typeof(typeof(int)) *' from incompatible type 'typeof(float) *' [-Wincompatible-pointer-types]" \
+<<<<<<< HEAD
+    "typeof.c:24:9: warning: incompatible pointer types assigning to 'typeof(typeof(int)) *' from incompatible type 'typeof(float) *' (aka 'float *') [-Wincompatible-pointer-types]" \
     "typeof.c:28:7: error: cannot assign to variable 'x' with const-qualified type 'typeof(const int)'" \
     "typeof.c:27:22: note: variable 'x' declared const here" \
     "typeof.c:30:7: error: cannot assign to variable 'y' with const-qualified type 'const typeof(typeof(typeof(int)))'" \

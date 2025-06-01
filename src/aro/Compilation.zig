@@ -1485,12 +1485,6 @@ pub fn pragmaEvent(comp: *Compilation, event: PragmaEvent) void {
 }
 
 pub fn hasBuiltin(comp: *const Compilation, name: []const u8) bool {
-    if (std.mem.eql(u8, name, "__builtin_va_arg") or
-        std.mem.eql(u8, name, "__builtin_choose_expr") or
-        std.mem.eql(u8, name, "__builtin_bitoffsetof") or
-        std.mem.eql(u8, name, "__builtin_offsetof") or
-        std.mem.eql(u8, name, "__builtin_types_compatible_p")) return true;
-
     const builtin = Builtin.fromName(name) orelse return false;
     return comp.hasBuiltinFunction(builtin);
 }
