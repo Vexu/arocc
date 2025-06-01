@@ -1218,14 +1218,6 @@ pub const QualType = packed struct(u32) {
                     try w.writeAll("volatile");
                 }
 
-                const simple = try array.elem.printPrologue(comp, w);
-                if (simple) try w.writeByte(' ');
-                return false;
-            },
-            .typeof => |typeof| {
-                const is_array = typeof.base.type(comp) == .array;
-                if (qt.@"const" and (!typeof.base.@"const" or is_array)) try w.writeAll("const ");
-                if (qt.@"volatile" and (!typeof.base.@"volatile" or is_array)) try w.writeAll("volatile ");
                 const simple = try array.elem.printPrologue(comp, desugar, w);
                 if (simple) try w.writeByte(' ');
                 return false;
