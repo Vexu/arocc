@@ -98,11 +98,12 @@ pub fn genIr(tree: *const Tree) Compilation.Error!Ir {
             .enum_forward_decl,
             => {},
 
-            .fn_proto => {},
-
-            .fn_def => |def| c.genFn(def) catch |err| switch (err) {
-                error.FatalError => return error.FatalError,
-                error.OutOfMemory => return error.OutOfMemory,
+            .function => |function| {
+                if (function.body == null) continue;
+                c.genFn(function) catch |err| switch (err) {
+                    error.FatalError => return error.FatalError,
+                    error.OutOfMemory => return error.OutOfMemory,
+                };
             },
 
             .variable => |variable| c.genVar(variable) catch |err| switch (err) {
@@ -174,9 +175,9 @@ fn genType(c: *CodeGen, qt: QualType) !Interner.Ref {
     return c.builder.interner.put(c.builder.gpa, key);
 }
 
-fn genFn(c: *CodeGen, def: Node.FnDef) Error!void {
-    const name = c.tree.tokSlice(def.name_tok);
-    const func_ty = def.qt.base(c.comp).type.func;
+fn genFn(c: *CodeGen, function: Node.Function) Error!void {
+    const name = c.tree.tokSlice(function.name_tok);
+    const func_ty = function.qt.base(c.comp).type.func;
     c.ret_nodes.items.len = 0;
 
     try c.builder.startFn();
@@ -194,7 +195,7 @@ fn genFn(c: *CodeGen, def: Node.FnDef) Error!void {
 
     // Generate body
     c.return_label = try c.builder.makeLabel("return");
-    try c.genStmt(def.body);
+    try c.genStmt(function.body.?);
 
     // Relocate returns
     if (c.ret_nodes.items.len == 0) {
@@ -257,10 +258,8 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .string_literal_expr,
         .alignof_expr,
         => unreachable, // These should have an entry in value_map.
-        .fn_def,
-        => unreachable,
         .static_assert,
-        .fn_proto,
+        .function,
         .typedef,
         .struct_decl,
         .union_decl,

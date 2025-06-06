@@ -22,7 +22,7 @@ typedef: '__builtin_va_list: [1]struct __va_list_tag'
 typedef: '__builtin_va_list: [1]struct __va_list_tag'
  name: __gnuc_va_list
 
-fn_def: 'fn (x: _Float16, y: _Float16) _Float16'
+function: 'fn (x: _Float16, y: _Float16) _Float16'
  name: foo
  body:
   compound_stmt
@@ -38,7 +38,7 @@ fn_def: 'fn (x: _Float16, y: _Float16) _Float16'
           decl_ref_expr: '_Float16' lvalue
            name: y
 
-fn_def: 'fn (x: int, ...) void'
+function: 'fn (x: int, ...) void'
  name: bar
  body:
   compound_stmt
@@ -63,7 +63,7 @@ fn_def: 'fn (x: int, ...) void'
 
     implicit return_stmt: 'void'
 
-fn_def: 'fn () void'
+function: 'fn () void'
  name: quux
  body:
   compound_stmt
@@ -85,7 +85,7 @@ fn_def: 'fn () void'
 
     implicit return_stmt: 'void'
 
-fn_def: 'fn () void'
+function: 'fn () void'
  name: conversions
  body:
   compound_stmt

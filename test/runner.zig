@@ -364,7 +364,7 @@ pub fn main() !void {
         if (expected_types) |types| {
             const test_fn = for (tree.root_decls.items) |decl| {
                 const node = decl.get(&tree);
-                if (node == .fn_def) break node.fn_def;
+                if (node == .function and node.function.body != null) break node.function;
             } else {
                 fail_count += 1;
                 std.debug.print("{s}:\n", .{case});
@@ -375,7 +375,7 @@ pub fn main() !void {
             var actual = StmtTypeDumper.init(gpa);
             defer actual.deinit(gpa);
 
-            try actual.dump(&tree, test_fn.body);
+            try actual.dump(&tree, test_fn.body.?);
 
             var i: usize = 0;
             for (types.tokens) |str| {
