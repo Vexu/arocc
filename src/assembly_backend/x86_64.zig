@@ -164,9 +164,10 @@ pub fn genAsm(tree: *const Tree) Error!Assembly {
             .enum_decl,
             => {},
 
-            .fn_proto => {},
-
-            .fn_def => |def| try codegen.genFn(def),
+            .function => |function| {
+                if (function.body == null) continue;
+                try codegen.genFn(function);
+            },
 
             .variable => |variable| try codegen.genVar(variable),
 
@@ -183,8 +184,8 @@ pub fn genAsm(tree: *const Tree) Error!Assembly {
     };
 }
 
-fn genFn(c: *AsmCodeGen, def: Node.FnDef) !void {
-    return c.todo("Codegen functions", def.name_tok);
+fn genFn(c: *AsmCodeGen, function: Node.Function) !void {
+    return c.todo("Codegen functions", function.name_tok);
 }
 
 fn genVar(c: *AsmCodeGen, variable: Node.Variable) !void {
