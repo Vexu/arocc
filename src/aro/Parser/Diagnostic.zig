@@ -2390,17 +2390,17 @@ pub const invalid_nullability: Diagnostic = .{
 };
 
 pub const array_not_assignable: Diagnostic = .{
-    .fmt = "array type '{qt}' is not assignable",
+    .fmt = "array type {qt} is not assignable",
     .kind = .@"error",
 };
 
 pub const non_object_not_assignable: Diagnostic = .{
-    .fmt = "non-object type '{qt}' is not assignable",
+    .fmt = "non-object type {qt} is not assignable",
     .kind = .@"error",
 };
 
 pub const const_var_assignment: Diagnostic = .{
-    .fmt = "cannot assign to variable '{s}' with const-qualified type '{qt}'",
+    .fmt = "cannot assign to variable '{s}' with const-qualified type {qt}",
     .kind = .@"error",
 };
 

@@ -154,7 +154,7 @@ void constant_sign_conversion(void) {
     "assignment.c:81:15: error: cannot assign to variable 'arr' with const-qualified type 'const int [2][2]'" \
     "assignment.c:80:15: note: variable 'arr' declared const here" \
     "assignment.c:92:12: error: variable has incomplete type 'enum E'" \
-    "assignment.c:99:7: error: cannot assign to variable 'a' with const-qualified type 'A'" \
+    "assignment.c:99:7: error: cannot assign to variable 'a' with const-qualified type 'A' (aka 'const int')" \
     "assignment.c:98:7: note: variable 'a' declared const here" \
     "assignment.c:106:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
     "assignment.c:110:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]" \
