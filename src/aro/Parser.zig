@@ -803,6 +803,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     assert(pp.linemarkers == .none);
     pp.comp.pragmaEvent(.before_parse);
 
+    const expected_implicit_typedef_max = 7;
+    try pp.tokens.ensureUnusedCapacity(pp.gpa, expected_implicit_typedef_max);
+
     var p: Parser = .{
         .pp = pp,
         .comp = pp.comp,
@@ -810,7 +813,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         .gpa = pp.comp.gpa,
         .tree = .{
             .comp = pp.comp,
-            .tokens = pp.tokens.slice(),
+            .tokens = undefined, // Set after implicit typedefs
         },
         .tok_ids = pp.tokens.items(.id),
         .strings = .init(pp.comp.gpa),
@@ -866,8 +869,12 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         if (p.comp.float80Type()) |float80_ty| {
             try p.addImplicitTypedef("__float80", float80_ty);
         }
+
+        // Set here so that the newly generated tokens are included.
+        p.tree.tokens = p.pp.tokens.slice();
     }
     const implicit_typedef_count = p.decl_buf.items.len;
+    assert(implicit_typedef_count <= expected_implicit_typedef_max);
 
     while (p.eatToken(.eof) == null) {
         if (try p.pragma()) continue;
@@ -935,15 +942,12 @@ fn addImplicitTypedef(p: *Parser, name: []const u8, qt: QualType) !void {
     try p.comp.generated_buf.append(p.comp.gpa, '\n');
 
     const name_tok: u32 = @intCast(p.pp.tokens.len);
-    try p.pp.tokens.append(p.gpa, .{ .id = .identifier, .loc = .{
+    p.pp.tokens.appendAssumeCapacity(.{ .id = .identifier, .loc = .{
         .id = .generated,
         .byte_offset = @intCast(start),
         .line = p.pp.generated_line,
     } });
     p.pp.generated_line += 1;
-
-    // Reset in case there was an allocation.
-    p.tree.tokens = p.pp.tokens.slice();
 
     const node = try p.addNode(.{
         .typedef = .{
