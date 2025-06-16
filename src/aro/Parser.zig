@@ -2664,7 +2664,9 @@ fn recordDecl(p: *Parser) Error!bool {
         if (p.eatToken(.colon)) |_| bits: {
             const bits_tok = p.tok_i;
             const res = try p.integerConstExpr(.gnu_folding_extension);
-            if (!qt.isInt(p.comp)) {
+
+            const field_sk = qt.scalarKind(p.comp);
+            if (!field_sk.isInt() or !field_sk.isReal()) {
                 try p.err(first_tok, .non_int_bitfield, .{qt});
                 break :bits;
             }
@@ -2855,7 +2857,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         };
 
         const fixed_sk = fixed.scalarKind(p.comp);
-        if (fixed_sk == .@"enum" or !fixed_sk.isInt()) {
+        if (fixed_sk == .@"enum" or !fixed_sk.isInt() or !fixed_sk.isReal()) {
             try p.err(ty_start, .invalid_type_underlying_enum, .{fixed});
             break :fixed null;
         }
@@ -3662,9 +3664,12 @@ fn directDeclarator(
         // array type from here.
         base_declarator.declarator_type = .array;
 
-        if (opt_size != null and !opt_size.?.qt.isInt(p.comp)) {
-            try p.err(size_tok, .array_size_non_int, .{opt_size.?.qt});
-            return error.ParsingFailed;
+        if (opt_size) |size| {
+            const size_sk = size.qt.scalarKind(p.comp);
+            if (!size_sk.isInt() or !size_sk.isReal()) {
+                try p.err(size_tok, .array_size_non_int, .{opt_size.?.qt});
+                return error.ParsingFailed;
+            }
         }
 
         if (opt_size) |size| {
@@ -5026,8 +5031,13 @@ fn stmt(p: *Parser) Error!Node.Index {
         try cond.lvalConversion(p, cond_tok);
         try cond.usualUnaryConversion(p, cond_tok);
 
-        if (!cond.qt.isInvalid() and !cond.qt.isInt(p.comp))
-            try p.err(l_paren + 1, .statement_int, .{cond.qt});
+        // Switch condition can't be complex.
+        if (!cond.qt.isInvalid()) {
+            const sk = cond.qt.scalarKind(p.comp);
+            if (!sk.isInt() or !sk.isReal())
+                try p.err(l_paren + 1, .statement_int, .{cond.qt});
+        }
+
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
@@ -5184,7 +5194,8 @@ fn stmt(p: *Parser) Error!Node.Index {
                     .child = .{ .@"const" = true, ._index = .void },
                     .decayed = null,
                 } });
-                if (!goto_expr.qt.isInt(p.comp)) {
+                const expr_sk = goto_expr.qt.scalarKind(p.comp);
+                if (!expr_sk.isInt() or !expr_sk.isReal()) {
                     try p.err(expr_tok, .incompatible_arg, .{ goto_expr.qt, result_qt });
                     return error.ParsingFailed;
                 }
@@ -6737,7 +6748,7 @@ pub const Result = struct {
             if (dest_sk.isFloat() and src_sk.isPointer()) {
                 try p.err(l_paren, .invalid_cast_to_float, .{dest_qt});
                 return error.ParsingFailed;
-            } else if (src_sk.isFloat() and dest_sk.isPointer()) {
+            } else if ((src_sk.isFloat() or !src_sk.isReal()) and dest_sk.isPointer()) {
                 try p.err(l_paren, .invalid_cast_to_pointer, .{res.qt});
                 return error.ParsingFailed;
             }
@@ -6991,7 +7002,7 @@ pub const Result = struct {
                 return;
             }
         } else if (dest_sk.isInt()) {
-            if (res.qt.isInt(p.comp) or res.qt.isFloat(p.comp)) {
+            if (src_sk.isInt() or src_sk.isFloat()) {
                 try res.castToInt(p, dest_unqual, tok);
                 return;
             } else if (src_sk.isPointer()) {
@@ -7002,7 +7013,7 @@ pub const Result = struct {
                 return;
             }
         } else if (dest_sk.isFloat()) {
-            if (res.qt.isInt(p.comp) or res.qt.isFloat(p.comp)) {
+            if (src_sk.isInt() or src_sk.isFloat()) {
                 try res.castToFloat(p, dest_unqual, tok);
                 return;
             }
@@ -7262,9 +7273,12 @@ fn assignExpr(p: *Parser) Error!?Result {
 fn integerConstExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
     const start = p.tok_i;
     const res = try p.constExpr(decl_folding);
-    if (!res.qt.isInvalid() and !res.qt.isInt(p.comp)) {
-        try p.err(start, .expected_integer_constant_expr, .{});
-        return error.ParsingFailed;
+    if (!res.qt.isInvalid()) {
+        const res_sk = res.qt.scalarKind(p.comp);
+        if (!res_sk.isInt() or !res_sk.isReal()) {
+            try p.err(start, .expected_integer_constant_expr, .{});
+            return error.ParsingFailed;
+        }
     }
     return res;
 }
@@ -7998,7 +8012,8 @@ fn offsetofMemberDesignator(
             try ptr.lvalConversion(p, l_bracket_tok);
             try index.lvalConversion(p, l_bracket_tok);
 
-            if (index.qt.isInt(p.comp)) {
+            const index_sk = index.qt.scalarKind(p.comp);
+            if (index_sk.isInt() and index_sk.isReal()) {
                 try p.checkArrayBounds(index, lhs, l_bracket_tok);
             } else {
                 try p.err(l_bracket_tok, .invalid_index, .{});
@@ -8272,14 +8287,14 @@ fn unExpr(p: *Parser) Error!?Result {
             try operand.lvalConversion(p, tok);
             try operand.usualUnaryConversion(p, tok);
             const scalar_kind = operand.qt.scalarKind(p.comp);
-            if (scalar_kind.isInt()) {
-                if (operand.val.is(.int, p.comp)) {
-                    operand.val = try operand.val.bitNot(operand.qt, p.comp);
-                }
-            } else if (!scalar_kind.isReal()) {
+            if (!scalar_kind.isReal()) {
                 try p.err(tok, .complex_conj, .{operand.qt});
                 if (operand.val.is(.complex, p.comp)) {
                     operand.val = try operand.val.complexConj(operand.qt, p.comp);
+                }
+            } else if (scalar_kind.isInt()) {
+                if (operand.val.is(.int, p.comp)) {
+                    operand.val = try operand.val.bitNot(operand.qt, p.comp);
                 }
             } else {
                 try p.err(tok, .invalid_argument_un, .{operand.qt});
@@ -8629,14 +8644,16 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             try index.lvalConversion(p, l_bracket);
             if (ptr.qt.get(p.comp, .pointer)) |pointer_ty| {
                 ptr.qt = pointer_ty.child;
-                if (index.qt.isInt(p.comp)) {
+                const index_sk = index.qt.scalarKind(p.comp);
+                if (index_sk.isInt() and index_sk.isReal()) {
                     try p.checkArrayBounds(index_before_conversion, array_before_conversion, l_bracket);
                 } else {
                     try p.err(l_bracket, .invalid_index, .{});
                 }
             } else if (index.qt.get(p.comp, .pointer)) |pointer_ty| {
                 index.qt = pointer_ty.child;
-                if (ptr.qt.isInt(p.comp)) {
+                const index_sk = ptr.qt.scalarKind(p.comp);
+                if (index_sk.isInt() and index_sk.isReal()) {
                     try p.checkArrayBounds(array_before_conversion, index_before_conversion, l_bracket);
                 } else {
                     try p.err(l_bracket, .invalid_index, .{});
@@ -8645,7 +8662,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             } else if (ptr.qt.get(p.comp, .vector)) |vector_ty| {
                 ptr = array_before_conversion;
                 ptr.qt = vector_ty.elem;
-                if (!index.qt.isInt(p.comp)) {
+                const index_sk = index.qt.scalarKind(p.comp);
+                if (!index_sk.isInt() or !index_sk.isReal()) {
                     try p.err(l_bracket, .invalid_index, .{});
                 }
             } else {
@@ -8812,14 +8830,15 @@ fn checkArithOverflowArg(p: *Parser, builtin_tok: TokenIndex, first_after: Token
     _ = builtin_tok;
     _ = first_after;
     if (idx <= 1) {
-        if (!arg.qt.isInt(p.comp)) {
+        const arg_sk = arg.qt.scalarKind(p.comp);
+        if (!arg_sk.isInt() or !arg_sk.isReal()) {
             return p.err(param_tok, .overflow_builtin_requires_int, .{arg.qt});
         }
     } else if (idx == 2) {
         if (!arg.qt.isPointer(p.comp)) return p.err(param_tok, .overflow_result_requires_ptr, .{arg.qt});
         const child = arg.qt.childType(p.comp);
         const child_sk = child.scalarKind(p.comp);
-        if (!child_sk.isInt() or child_sk == .bool or child_sk == .@"enum" or child.@"const") return p.err(param_tok, .overflow_result_requires_ptr, .{arg.qt});
+        if (child_sk != .int or child.@"const") return p.err(param_tok, .overflow_result_requires_ptr, .{arg.qt});
     }
 }
 

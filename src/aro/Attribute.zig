@@ -1053,10 +1053,15 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
             if (func_ty.return_type.isPointer(p.comp)) {
                 if (attr.args.alloc_align.position == 0 or attr.args.alloc_align.position > func_ty.params.len) {
                     try p.err(tok, .attribute_param_out_of_bounds, .{ "alloc_align", 1 });
-                } else if (!func_ty.params[attr.args.alloc_align.position - 1].qt.isInt(p.comp)) {
-                    try p.err(tok, .alloc_align_required_int_param, .{});
                 } else {
-                    try p.attr_application_buf.append(p.gpa, attr);
+                    const arg_qt = func_ty.params[attr.args.alloc_align.position - 1].qt;
+                    if (arg_qt.isInvalid()) continue;
+                    const arg_sk = arg_qt.scalarKind(p.comp);
+                    if (!arg_sk.isInt() or !arg_sk.isReal()) {
+                        try p.err(tok, .alloc_align_required_int_param, .{});
+                    } else {
+                        try p.attr_application_buf.append(p.gpa, attr);
+                    }
                 }
             } else {
                 try p.err(tok, .alloc_align_requires_ptr_return, .{});
