@@ -256,6 +256,9 @@ warnings: u32 = 0,
 // Total amount of diagnostics messages sent to `output`.
 total: u32 = 0,
 macro_backtrace_limit: u32 = 6,
+/// If `effectiveKind` causes us to skip a diagnostic, this is temporarily set to
+/// `true` to signal that associated notes should also be skipped.
+hide_notes: bool = false,
 
 pub fn deinit(d: *Diagnostics) void {
     switch (d.output) {
@@ -308,11 +311,20 @@ pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) !void {
     });
 }
 
+/// This mutates the `Diagnostics`, so may only be called when `message` is being added.
+/// If `.off` is returned, `message` will not be included, so the caller should give up.
 pub fn effectiveKind(d: *Diagnostics, message: anytype) Message.Kind {
-    var kind = message.kind;
+    if (d.hide_notes and message.kind == .note) {
+        return .off;
+    }
 
     // -w disregards explicit kind set with -W<name>
-    if (d.state.ignore_warnings and kind == .warning) return .off;
+    if (d.state.ignore_warnings and message.kind == .warning) {
+        d.hide_notes = true;
+        return .off;
+    }
+
+    var kind = message.kind;
 
     // Get explicit kind set by -W<name>=
     var set_explicit = false;
@@ -336,6 +348,8 @@ pub fn effectiveKind(d: *Diagnostics, message: anytype) Message.Kind {
 
     // Upgrade errors to fatal errors if -Wfatal-errors is set
     if (kind == .@"error" and d.state.fatal_errors) kind = .@"fatal error";
+
+    if (kind == .off) d.hide_notes = true;
     return kind;
 }
 
@@ -451,6 +465,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
         .note => {},
     }
     d.total += 1;
+    d.hide_notes = false;
 
     switch (d.output) {
         .ignore => {},
