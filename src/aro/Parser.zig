@@ -7932,7 +7932,7 @@ fn builtinOffsetof(p: *Parser, builtin_tok: TokenIndex, offset_kind: OffsetKind)
 
     try p.expectClosing(l_paren, .r_paren);
 
-    return .{
+    const res: Result = .{
         .qt = p.comp.type_store.size,
         .val = offsetof_expr.val,
         .node = try p.addNode(.{
@@ -7943,6 +7943,8 @@ fn builtinOffsetof(p: *Parser, builtin_tok: TokenIndex, offset_kind: OffsetKind)
             },
         }),
     };
+    try res.putValue(p);
+    return res;
 }
 
 /// offsetofMemberDesignator : IDENTIFIER ('.' IDENTIFIER | '[' expr ']' )*
@@ -7966,7 +7968,8 @@ fn offsetofMemberDesignator(
     var cur_offset: u64 = 0;
     var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, access_tok, &cur_offset);
 
-    var total_offset = cur_offset;
+    var total_offset: i64 = @intCast(cur_offset);
+    var runtime_offset = false;
     while (true) switch (p.tok_ids[p.tok_i]) {
         .period => {
             p.tok_i += 1;
@@ -7979,7 +7982,7 @@ fn offsetofMemberDesignator(
             };
             try p.validateFieldAccess(lhs_record_ty, lhs.qt, field_name_tok, field_name);
             lhs = try p.fieldAccessExtra(lhs.node, lhs_record_ty, field_name, false, access_tok, &cur_offset);
-            total_offset += cur_offset;
+            total_offset += @intCast(cur_offset);
         },
         .l_bracket => {
             const l_bracket_tok = p.tok_i;
@@ -7987,10 +7990,10 @@ fn offsetofMemberDesignator(
             var index = try p.expect(expr);
             _ = try p.expectClosing(l_bracket_tok, .r_bracket);
 
-            if (!lhs.qt.is(p.comp, .array)) {
+            const array_ty = lhs.qt.get(p.comp, .array) orelse {
                 try p.err(l_bracket_tok, .offsetof_array, .{lhs.qt});
                 return error.ParsingFailed;
-            }
+            };
             var ptr = lhs;
             try ptr.lvalConversion(p, l_bracket_tok);
             try index.lvalConversion(p, l_bracket_tok);
@@ -8001,14 +8004,31 @@ fn offsetofMemberDesignator(
                 try p.err(l_bracket_tok, .invalid_index, .{});
             }
 
+            if (index.val.toInt(i64, p.comp)) |index_int| {
+                total_offset += @as(i64, @intCast(array_ty.elem.bitSizeof(p.comp))) * index_int;
+            } else {
+                runtime_offset = true;
+            }
+
             try index.saveValue(p);
-            try ptr.bin(p, .array_access_expr, index, l_bracket_tok);
+            ptr.node = try p.addNode(.{ .array_access_expr = .{
+                .l_bracket_tok = l_bracket_tok,
+                .base = ptr.node,
+                .index = index.node,
+                .qt = ptr.qt,
+            } });
             lhs = ptr;
         },
         else => break,
     };
-    const val = try Value.int(if (offset_kind == .bits) total_offset else total_offset / 8, p.comp);
-    return .{ .qt = base_qt, .val = val, .node = lhs.node };
+    return .{
+        .qt = base_qt,
+        .val = if (runtime_offset)
+            .{}
+        else
+            try Value.int(if (offset_kind == .bits) total_offset else @divExact(total_offset, 8), p.comp),
+        .node = lhs.node,
+    };
 }
 
 fn computeOffsetExtra(p: *Parser, node: Node.Index, offset_so_far: *Value) !Value {
