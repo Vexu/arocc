@@ -971,16 +971,20 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
 }
 
 /// Add built-in aro headers directory to system include paths
-pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8) !void {
+pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8, override_resource_dir: ?[]const u8) !void {
+    const gpa = comp.gpa;
+    try comp.system_include_dirs.ensureUnusedCapacity(gpa, 1);
+    if (override_resource_dir) |resource_dir| {
+        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(gpa, &.{ resource_dir, "include" }));
+        return;
+    }
     var search_path = aro_dir;
     while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
         var base_dir = comp.cwd.openDir(dirname, .{}) catch continue;
         defer base_dir.close();
 
         base_dir.access("include/stddef.h", .{}) catch continue;
-        const path = try std.fs.path.join(comp.gpa, &.{ dirname, "include" });
-        errdefer comp.gpa.free(path);
-        try comp.system_include_dirs.append(comp.gpa, path);
+        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(gpa, &.{ dirname, "include" }));
         break;
     } else return error.AroIncludeNotFound;
 }

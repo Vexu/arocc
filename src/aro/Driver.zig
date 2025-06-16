@@ -48,6 +48,7 @@ inputs: std.ArrayListUnmanaged(Source) = .{},
 link_objects: std.ArrayListUnmanaged([]const u8) = .{},
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
+resource_dir: ?[]const u8 = null,
 system_defines: Compilation.SystemDefinesMode = .include_system_defines,
 temp_file_count: u32 = 0,
 /// If false, do not emit line directives in -E mode
@@ -195,6 +196,7 @@ pub const usage =
     \\  -mcmodel=<code-model>   Generate code for the given code model
     \\  -mkernel                Enable kernel development mode
     \\  -nobuiltininc           Do not search the compiler's builtin directory for include files
+    \\  -resource-dir <dir>     Override the path to the compiler's builtin resource directory
     \\  -nostdinc, --no-standard-includes
     \\                          Do not search the standard system directories or compiler builtin directories for include files.
     \\  -nostdlibinc            Do not search the standard system directories for include files, but do search compiler builtin include directories
@@ -567,6 +569,13 @@ pub fn parseArgs(
                 d.nolibc = true;
             } else if (mem.eql(u8, arg, "-nobuiltininc")) {
                 d.nobuiltininc = true;
+            } else if (mem.eql(u8, arg, "-resource-dir")) {
+                i += 1;
+                if (i >= args.len) {
+                    try d.err("expected argument after -resource-dir", .{});
+                    continue;
+                }
+                d.resource_dir = args[i];
             } else if (mem.eql(u8, arg, "-nostdinc") or mem.eql(u8, arg, "--no-standard-includes")) {
                 d.nostdinc = true;
             } else if (mem.eql(u8, arg, "-nostdlibinc")) {
