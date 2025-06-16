@@ -188,7 +188,8 @@ pub const usage =
     \\  -fno-use-line-directives
     \\                          Use `# <num>` linemarkers in preprocessed output
     \\  -I <dir>                Add directory to include search path
-    \\  -isystem                Add directory to SYSTEM include search path
+    \\  -isystem <dir>          Add directory to SYSTEM include search path
+    \\  --embed-dir=<dir>       Add directory to `#embed` search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
     \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
@@ -444,6 +445,8 @@ pub fn parseArgs(
                 const duped = try d.comp.gpa.dupe(u8, path);
                 errdefer d.comp.gpa.free(duped);
                 try d.comp.system_include_dirs.append(d.comp.gpa, duped);
+            } else if (option(arg, "--embed-dir=")) |path| {
+                try d.comp.embed_dirs.append(d.comp.gpa, path);
             } else if (option(arg, "--emulate=")) |compiler_str| {
                 const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
                     try d.err("invalid compiler '{s}'", .{arg});

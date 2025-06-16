@@ -180,11 +180,13 @@ pub fn main() !void {
     defer gpa.free(cases_include_dir);
 
     try initial_comp.include_dirs.append(gpa, cases_include_dir);
+    try initial_comp.embed_dirs.append(gpa, cases_include_dir);
 
     const cases_next_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include", "next" });
     defer gpa.free(cases_next_include_dir);
 
     try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
+    try initial_comp.embed_dirs.append(gpa, cases_next_include_dir);
 
     try initial_comp.addDefaultPragmaHandlers();
     try initial_comp.addBuiltinIncludeDir(test_dir, null);
@@ -212,6 +214,7 @@ pub fn main() !void {
             // preserve some values
             comp.include_dirs = .{};
             comp.system_include_dirs = .{};
+            comp.embed_dirs = .{};
             comp.pragma_handlers = .{};
             comp.environment = .{};
             // reset everything else
