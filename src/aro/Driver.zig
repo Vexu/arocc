@@ -48,6 +48,7 @@ inputs: std.ArrayListUnmanaged(Source) = .{},
 link_objects: std.ArrayListUnmanaged([]const u8) = .{},
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
+resource_dir: ?[]const u8 = null,
 system_defines: Compilation.SystemDefinesMode = .include_system_defines,
 temp_file_count: u32 = 0,
 /// If false, do not emit line directives in -E mode
@@ -187,7 +188,8 @@ pub const usage =
     \\  -fno-use-line-directives
     \\                          Use `# <num>` linemarkers in preprocessed output
     \\  -I <dir>                Add directory to include search path
-    \\  -isystem                Add directory to SYSTEM include search path
+    \\  -isystem <dir>          Add directory to SYSTEM include search path
+    \\  --embed-dir=<dir>       Add directory to `#embed` search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
     \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
@@ -195,6 +197,7 @@ pub const usage =
     \\  -mcmodel=<code-model>   Generate code for the given code model
     \\  -mkernel                Enable kernel development mode
     \\  -nobuiltininc           Do not search the compiler's builtin directory for include files
+    \\  -resource-dir <dir>     Override the path to the compiler's builtin resource directory
     \\  -nostdinc, --no-standard-includes
     \\                          Do not search the standard system directories or compiler builtin directories for include files.
     \\  -nostdlibinc            Do not search the standard system directories for include files, but do search compiler builtin include directories
@@ -442,6 +445,8 @@ pub fn parseArgs(
                 const duped = try d.comp.gpa.dupe(u8, path);
                 errdefer d.comp.gpa.free(duped);
                 try d.comp.system_include_dirs.append(d.comp.gpa, duped);
+            } else if (option(arg, "--embed-dir=")) |path| {
+                try d.comp.embed_dirs.append(d.comp.gpa, path);
             } else if (option(arg, "--emulate=")) |compiler_str| {
                 const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
                     try d.err("invalid compiler '{s}'", .{arg});
@@ -567,6 +572,13 @@ pub fn parseArgs(
                 d.nolibc = true;
             } else if (mem.eql(u8, arg, "-nobuiltininc")) {
                 d.nobuiltininc = true;
+            } else if (mem.eql(u8, arg, "-resource-dir")) {
+                i += 1;
+                if (i >= args.len) {
+                    try d.err("expected argument after -resource-dir", .{});
+                    continue;
+                }
+                d.resource_dir = args[i];
             } else if (mem.eql(u8, arg, "-nostdinc") or mem.eql(u8, arg, "--no-standard-includes")) {
                 d.nostdinc = true;
             } else if (mem.eql(u8, arg, "-nostdlibinc")) {

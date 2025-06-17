@@ -507,7 +507,7 @@ pub fn defineSystemIncludes(tc: *Toolchain) !void {
 
             const comp = tc.driver.comp;
             if (!tc.driver.nobuiltininc) {
-                try comp.addBuiltinIncludeDir(tc.driver.aro_name);
+                try comp.addBuiltinIncludeDir(tc.driver.aro_name, tc.driver.resource_dir);
             }
 
             if (!tc.driver.nostdlibinc) {

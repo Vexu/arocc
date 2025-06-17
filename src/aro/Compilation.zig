@@ -127,6 +127,7 @@ environment: Environment = .{},
 sources: std.StringArrayHashMapUnmanaged(Source) = .{},
 include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
 system_include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
+embed_dirs: std.ArrayListUnmanaged([]const u8) = .{},
 target: std.Target = @import("builtin").target,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .{},
 langopts: LangOpts = .{},
@@ -176,6 +177,7 @@ pub fn deinit(comp: *Compilation) void {
     comp.include_dirs.deinit(comp.gpa);
     for (comp.system_include_dirs.items) |path| comp.gpa.free(path);
     comp.system_include_dirs.deinit(comp.gpa);
+    comp.embed_dirs.deinit(comp.gpa);
     comp.pragma_handlers.deinit(comp.gpa);
     comp.generated_buf.deinit(comp.gpa);
     comp.builtins.deinit(comp.gpa);
@@ -971,16 +973,20 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
 }
 
 /// Add built-in aro headers directory to system include paths
-pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8) !void {
+pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8, override_resource_dir: ?[]const u8) !void {
+    const gpa = comp.gpa;
+    try comp.system_include_dirs.ensureUnusedCapacity(gpa, 1);
+    if (override_resource_dir) |resource_dir| {
+        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(gpa, &.{ resource_dir, "include" }));
+        return;
+    }
     var search_path = aro_dir;
     while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
         var base_dir = comp.cwd.openDir(dirname, .{}) catch continue;
         defer base_dir.close();
 
         base_dir.access("include/stddef.h", .{}) catch continue;
-        const path = try std.fs.path.join(comp.gpa, &.{ dirname, "include" });
-        errdefer comp.gpa.free(path);
-        try comp.system_include_dirs.append(comp.gpa, path);
+        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(gpa, &.{ dirname, "include" }));
         break;
     } else return error.AroIncludeNotFound;
 }
@@ -1293,7 +1299,7 @@ pub fn hasInclude(
         },
         .angle_brackets => null,
     };
-    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id };
+    var it: IncludeDirIterator = .{ .comp = comp, .cwd_source_id = cwd_source_id };
     if (which == .next) {
         it.skipUntilDirMatch(includer_token_source);
     }
@@ -1355,19 +1361,35 @@ pub fn findEmbed(
         };
     }
 
-    const cwd_source_id = switch (include_type) {
-        .quotes => includer_token_source,
-        .angle_brackets => null,
-    };
-    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id };
     var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
     const sf_allocator = stack_fallback.get();
 
-    while (try it.nextWithFile(filename, sf_allocator)) |found| {
-        defer sf_allocator.free(found.path);
-        if (comp.getFileContents(found.path, limit)) |some|
-            return some
-        else |err| switch (err) {
+    switch (include_type) {
+        .quotes => {
+            const dir = std.fs.path.dirname(comp.getSource(includer_token_source).path) orelse ".";
+            const path = try std.fs.path.join(sf_allocator, &.{ dir, filename });
+            defer sf_allocator.free(path);
+            if (comp.langopts.ms_extensions) {
+                std.mem.replaceScalar(u8, path, '\\', '/');
+            }
+            if (comp.getFileContents(path, limit)) |some| {
+                return some;
+            } else |err| switch (err) {
+                error.OutOfMemory => return error.OutOfMemory,
+                else => {},
+            }
+        },
+        .angle_brackets => {},
+    }
+    for (comp.embed_dirs.items) |embed_dir| {
+        const path = try std.fs.path.join(sf_allocator, &.{ embed_dir, filename });
+        defer sf_allocator.free(path);
+        if (comp.langopts.ms_extensions) {
+            std.mem.replaceScalar(u8, path, '\\', '/');
+        }
+        if (comp.getFileContents(path, limit)) |some| {
+            return some;
+        } else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             else => {},
         }
@@ -1401,7 +1423,7 @@ pub fn findInclude(
         },
         .angle_brackets => null,
     };
-    var it = IncludeDirIterator{ .comp = comp, .cwd_source_id = cwd_source_id };
+    var it: IncludeDirIterator = .{ .comp = comp, .cwd_source_id = cwd_source_id };
 
     if (which == .next) {
         it.skipUntilDirMatch(includer_token.source);
