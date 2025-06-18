@@ -949,6 +949,11 @@ pub const QualType = packed struct(u32) {
         return qt.scalarKind(comp).isInt();
     }
 
+    pub fn isRealInt(qt: QualType, comp: *const Compilation) bool {
+        const sk = qt.scalarKind(comp);
+        return sk.isInt() and sk.isReal();
+    }
+
     // Prefer calling scalarKind directly if checking multiple kinds.
     pub fn isFloat(qt: QualType, comp: *const Compilation) bool {
         return qt.scalarKind(comp).isFloat();

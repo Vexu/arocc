@@ -2664,9 +2664,7 @@ fn recordDecl(p: *Parser) Error!bool {
         if (p.eatToken(.colon)) |_| bits: {
             const bits_tok = p.tok_i;
             const res = try p.integerConstExpr(.gnu_folding_extension);
-
-            const field_sk = qt.scalarKind(p.comp);
-            if (!field_sk.isInt() or !field_sk.isReal()) {
+            if (!qt.isInvalid() and !qt.isRealInt(p.comp)) {
                 try p.err(first_tok, .non_int_bitfield, .{qt});
                 break :bits;
             }
@@ -3664,12 +3662,9 @@ fn directDeclarator(
         // array type from here.
         base_declarator.declarator_type = .array;
 
-        if (opt_size) |size| {
-            const size_sk = size.qt.scalarKind(p.comp);
-            if (!size_sk.isInt() or !size_sk.isReal()) {
-                try p.err(size_tok, .array_size_non_int, .{opt_size.?.qt});
-                return error.ParsingFailed;
-            }
+        if (opt_size != null and !opt_size.?.qt.isInvalid() and !opt_size.?.qt.isRealInt(p.comp)) {
+            try p.err(size_tok, .array_size_non_int, .{opt_size.?.qt});
+            return error.ParsingFailed;
         }
 
         if (opt_size) |size| {
@@ -5032,10 +5027,8 @@ fn stmt(p: *Parser) Error!Node.Index {
         try cond.usualUnaryConversion(p, cond_tok);
 
         // Switch condition can't be complex.
-        if (!cond.qt.isInvalid()) {
-            const sk = cond.qt.scalarKind(p.comp);
-            if (!sk.isInt() or !sk.isReal())
-                try p.err(l_paren + 1, .statement_int, .{cond.qt});
+        if (!cond.qt.isInvalid() and !cond.qt.isRealInt(p.comp)) {
+            try p.err(l_paren + 1, .statement_int, .{cond.qt});
         }
 
         try cond.saveValue(p);
@@ -5194,8 +5187,7 @@ fn stmt(p: *Parser) Error!Node.Index {
                     .child = .{ .@"const" = true, ._index = .void },
                     .decayed = null,
                 } });
-                const expr_sk = goto_expr.qt.scalarKind(p.comp);
-                if (!expr_sk.isInt() or !expr_sk.isReal()) {
+                if (!goto_expr.qt.isRealInt(p.comp)) {
                     try p.err(expr_tok, .incompatible_arg, .{ goto_expr.qt, result_qt });
                     return error.ParsingFailed;
                 }
@@ -7273,12 +7265,9 @@ fn assignExpr(p: *Parser) Error!?Result {
 fn integerConstExpr(p: *Parser, decl_folding: ConstDeclFoldingMode) Error!Result {
     const start = p.tok_i;
     const res = try p.constExpr(decl_folding);
-    if (!res.qt.isInvalid()) {
-        const res_sk = res.qt.scalarKind(p.comp);
-        if (!res_sk.isInt() or !res_sk.isReal()) {
-            try p.err(start, .expected_integer_constant_expr, .{});
-            return error.ParsingFailed;
-        }
+    if (!res.qt.isInvalid() and !res.qt.isRealInt(p.comp)) {
+        try p.err(start, .expected_integer_constant_expr, .{});
+        return error.ParsingFailed;
     }
     return res;
 }
@@ -8012,10 +8001,9 @@ fn offsetofMemberDesignator(
             try ptr.lvalConversion(p, l_bracket_tok);
             try index.lvalConversion(p, l_bracket_tok);
 
-            const index_sk = index.qt.scalarKind(p.comp);
-            if (index_sk.isInt() and index_sk.isReal()) {
+            if (!index.qt.isInvalid() and index.qt.isRealInt(p.comp)) {
                 try p.checkArrayBounds(index, lhs, l_bracket_tok);
-            } else {
+            } else if (!index.qt.isInvalid()) {
                 try p.err(l_bracket_tok, .invalid_index, .{});
             }
 
@@ -8644,16 +8632,14 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             try index.lvalConversion(p, l_bracket);
             if (ptr.qt.get(p.comp, .pointer)) |pointer_ty| {
                 ptr.qt = pointer_ty.child;
-                const index_sk = index.qt.scalarKind(p.comp);
-                if (index_sk.isInt() and index_sk.isReal()) {
+                if (index.qt.isRealInt(p.comp)) {
                     try p.checkArrayBounds(index_before_conversion, array_before_conversion, l_bracket);
                 } else {
                     try p.err(l_bracket, .invalid_index, .{});
                 }
             } else if (index.qt.get(p.comp, .pointer)) |pointer_ty| {
                 index.qt = pointer_ty.child;
-                const index_sk = ptr.qt.scalarKind(p.comp);
-                if (index_sk.isInt() and index_sk.isReal()) {
+                if (ptr.qt.isRealInt(p.comp)) {
                     try p.checkArrayBounds(array_before_conversion, index_before_conversion, l_bracket);
                 } else {
                     try p.err(l_bracket, .invalid_index, .{});
@@ -8662,11 +8648,10 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             } else if (ptr.qt.get(p.comp, .vector)) |vector_ty| {
                 ptr = array_before_conversion;
                 ptr.qt = vector_ty.elem;
-                const index_sk = index.qt.scalarKind(p.comp);
-                if (!index_sk.isInt() or !index_sk.isReal()) {
+                if (!index.qt.isRealInt(p.comp)) {
                     try p.err(l_bracket, .invalid_index, .{});
                 }
-            } else {
+            } else if (!index.qt.isInvalid() and !ptr.qt.isInvalid()) {
                 try p.err(l_bracket, .invalid_subscript, .{});
             }
 
@@ -8830,15 +8815,13 @@ fn checkArithOverflowArg(p: *Parser, builtin_tok: TokenIndex, first_after: Token
     _ = builtin_tok;
     _ = first_after;
     if (idx <= 1) {
-        const arg_sk = arg.qt.scalarKind(p.comp);
-        if (!arg_sk.isInt() or !arg_sk.isReal()) {
+        if (!arg.qt.isRealInt(p.comp)) {
             return p.err(param_tok, .overflow_builtin_requires_int, .{arg.qt});
         }
     } else if (idx == 2) {
         if (!arg.qt.isPointer(p.comp)) return p.err(param_tok, .overflow_result_requires_ptr, .{arg.qt});
         const child = arg.qt.childType(p.comp);
-        const child_sk = child.scalarKind(p.comp);
-        if (child_sk != .int or child.@"const") return p.err(param_tok, .overflow_result_requires_ptr, .{arg.qt});
+        if (child.scalarKind(p.comp) != .int or child.@"const") return p.err(param_tok, .overflow_result_requires_ptr, .{arg.qt});
     }
 }
 
