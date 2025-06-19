@@ -3573,14 +3573,17 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype, macro_dump_mode: DumpMod
 }
 
 test "Preserve pragma tokens sometimes" {
-    const allocator = std.testing.allocator;
+    const gpa = std.testing.allocator;
     const Test = struct {
         fn runPreprocessor(source_text: []const u8) ![]const u8 {
-            var buf = std.ArrayList(u8).init(allocator);
+            var arena: std.heap.ArenaAllocator = .init(gpa);
+            defer arena.deinit();
+
+            var buf = std.ArrayList(u8).init(gpa);
             defer buf.deinit();
 
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(gpa, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
             try comp.addDefaultPragmaHandlers();
@@ -3595,12 +3598,12 @@ test "Preserve pragma tokens sometimes" {
             const eof = try pp.preprocess(test_runner_macros);
             try pp.addToken(eof);
             try pp.prettyPrintTokens(buf.writer(), .result_only);
-            return allocator.dupe(u8, buf.items);
+            return gpa.dupe(u8, buf.items);
         }
 
         fn check(source_text: []const u8, expected: []const u8) !void {
             const output = try runPreprocessor(source_text);
-            defer allocator.free(output);
+            defer gpa.free(output);
 
             try std.testing.expectEqualStrings(expected, output);
         }
@@ -3631,7 +3634,7 @@ test "Preserve pragma tokens sometimes" {
 }
 
 test "destringify" {
-    const allocator = std.testing.allocator;
+    const gpa = std.testing.allocator;
     const Test = struct {
         fn testDestringify(pp: *Preprocessor, stringified: []const u8, destringified: []const u8) !void {
             pp.char_buf.clearRetainingCapacity();
@@ -3640,8 +3643,10 @@ test "destringify" {
             try std.testing.expectEqualStrings(destringified, pp.char_buf.items);
         }
     };
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
+    var comp = Compilation.init(gpa, arena.allocator(), &diagnostics, std.fs.cwd());
     defer comp.deinit();
     var pp = Preprocessor.init(&comp, .default);
     defer pp.deinit();
@@ -3698,19 +3703,22 @@ test "Include guards" {
             };
         }
 
-        fn testIncludeGuard(allocator: std.mem.Allocator, comptime template: []const u8, tok_id: RawToken.Id, expected_guards: u32) !void {
+        fn testIncludeGuard(gpa: std.mem.Allocator, comptime template: []const u8, tok_id: RawToken.Id, expected_guards: u32) !void {
+            var arena_state: std.heap.ArenaAllocator = .init(gpa);
+            defer arena_state.deinit();
+            const arena = arena_state.allocator();
+
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(gpa, arena, &diagnostics, std.fs.cwd());
             defer comp.deinit();
             var pp = Preprocessor.init(&comp, .default);
             defer pp.deinit();
 
-            const path = try std.fs.path.join(allocator, &.{ ".", "bar.h" });
-            defer allocator.free(path);
+            const path = try std.fs.path.join(arena, &.{ ".", "bar.h" });
 
             _ = try comp.addSourceFromBuffer(path, "int bar = 5;\n");
 
-            var buf = std.ArrayList(u8).init(allocator);
+            var buf = std.ArrayList(u8).init(gpa);
             defer buf.deinit();
 
             var writer = buf.writer();

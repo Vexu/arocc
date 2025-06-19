@@ -120,13 +120,18 @@ pub const Environment = struct {
 const Compilation = @This();
 
 gpa: Allocator,
+/// Allocations in this arena live all the way until `Compilation.deinit`.
+arena: Allocator,
 diagnostics: *Diagnostics,
 
 code_gen_options: CodeGenOptions = .default,
 environment: Environment = .{},
 sources: std.StringArrayHashMapUnmanaged(Source) = .{},
+/// Allocated into `gpa`, but keys are externally managed.
 include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
+/// Allocated into `gpa`, but keys are externally managed.
 system_include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
+/// Allocated into `gpa`, but keys are externally managed.
 embed_dirs: std.ArrayListUnmanaged([]const u8) = .{},
 target: std.Target = @import("builtin").target,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .{},
@@ -141,9 +146,10 @@ type_store: TypeStore = .{},
 ms_cwd_source_id: ?Source.Id = null,
 cwd: std.fs.Dir,
 
-pub fn init(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) Compilation {
+pub fn init(gpa: Allocator, arena: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) Compilation {
     return .{
         .gpa = gpa,
+        .arena = arena,
         .diagnostics = diagnostics,
         .cwd = cwd,
     };
@@ -151,9 +157,10 @@ pub fn init(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) Compilat
 
 /// Initialize Compilation with default environment,
 /// pragma handlers and emulation mode set to target.
-pub fn initDefault(gpa: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) !Compilation {
+pub fn initDefault(gpa: Allocator, arena: Allocator, diagnostics: *Diagnostics, cwd: std.fs.Dir) !Compilation {
     var comp: Compilation = .{
         .gpa = gpa,
+        .arena = arena,
         .diagnostics = diagnostics,
         .environment = try Environment.loadAll(gpa),
         .cwd = cwd,
@@ -175,7 +182,6 @@ pub fn deinit(comp: *Compilation) void {
     }
     comp.sources.deinit(comp.gpa);
     comp.include_dirs.deinit(comp.gpa);
-    for (comp.system_include_dirs.items) |path| comp.gpa.free(path);
     comp.system_include_dirs.deinit(comp.gpa);
     comp.embed_dirs.deinit(comp.gpa);
     comp.pragma_handlers.deinit(comp.gpa);
@@ -975,9 +981,10 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
 /// Add built-in aro headers directory to system include paths
 pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8, override_resource_dir: ?[]const u8) !void {
     const gpa = comp.gpa;
+    const arena = comp.arena;
     try comp.system_include_dirs.ensureUnusedCapacity(gpa, 1);
     if (override_resource_dir) |resource_dir| {
-        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(gpa, &.{ resource_dir, "include" }));
+        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(arena, &.{ resource_dir, "include" }));
         return;
     }
     var search_path = aro_dir;
@@ -986,15 +993,13 @@ pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8, override_re
         defer base_dir.close();
 
         base_dir.access("include/stddef.h", .{}) catch continue;
-        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(gpa, &.{ dirname, "include" }));
+        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(arena, &.{ dirname, "include" }));
         break;
     } else return error.AroIncludeNotFound;
 }
 
 pub fn addSystemIncludeDir(comp: *Compilation, path: []const u8) !void {
-    const duped = try comp.gpa.dupe(u8, path);
-    errdefer comp.gpa.free(duped);
-    try comp.system_include_dirs.append(comp.gpa, duped);
+    try comp.system_include_dirs.append(comp.gpa, try comp.arena.dupe(u8, path));
 }
 
 pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
@@ -1586,8 +1591,10 @@ pub const Diagnostic = struct {
 test "addSourceFromReader" {
     const Test = struct {
         fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
+            var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+            defer arena.deinit();
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(std.testing.allocator, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(str);
@@ -1599,8 +1606,10 @@ test "addSourceFromReader" {
         }
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
+            var arena: std.heap.ArenaAllocator = .init(allocator);
+            defer arena.deinit();
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(allocator, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
             _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
@@ -1638,12 +1647,15 @@ test "addSourceFromReader" {
 }
 
 test "addSourceFromReader - exhaustive check for carriage return elimination" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+
     const alphabet = [_]u8{ '\r', '\n', ' ', '\\', 'a' };
     const alen = alphabet.len;
     var buf: [alphabet.len]u8 = [1]u8{alphabet[0]} ** alen;
 
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator, arena.allocator(), &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     var source_count: u32 = 0;
@@ -1668,11 +1680,10 @@ test "addSourceFromReader - exhaustive check for carriage return elimination" {
 
 test "ignore BOM at beginning of file" {
     const BOM = "\xEF\xBB\xBF";
-
     const Test = struct {
-        fn run(buf: []const u8) !void {
+        fn run(arena: Allocator, buf: []const u8) !void {
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(std.testing.allocator, arena, &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
             var buf_reader = std.io.fixedBufferStream(buf);
@@ -1682,15 +1693,19 @@ test "ignore BOM at beginning of file" {
         }
     };
 
-    try Test.run(BOM);
-    try Test.run(BOM ++ "x");
-    try Test.run("x" ++ BOM);
-    try Test.run(BOM ++ " ");
-    try Test.run(BOM ++ "\n");
-    try Test.run(BOM ++ "\\");
+    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
 
-    try Test.run(BOM[0..1] ++ "x");
-    try Test.run(BOM[0..2] ++ "x");
-    try Test.run(BOM[1..] ++ "x");
-    try Test.run(BOM[2..] ++ "x");
+    try Test.run(arena, BOM);
+    try Test.run(arena, BOM ++ "x");
+    try Test.run(arena, "x" ++ BOM);
+    try Test.run(arena, BOM ++ " ");
+    try Test.run(arena, BOM ++ "\n");
+    try Test.run(arena, BOM ++ "\\");
+
+    try Test.run(arena, BOM[0..1] ++ "x");
+    try Test.run(arena, BOM[0..2] ++ "x");
+    try Test.run(arena, BOM[1..] ++ "x");
+    try Test.run(arena, BOM[2..] ++ "x");
 }

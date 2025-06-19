@@ -52,7 +52,6 @@ const Toolchain = @This();
 
 filesystem: Filesystem,
 driver: *Driver,
-arena: mem.Allocator,
 
 /// The list of toolchain specific path prefixes to search for libraries.
 library_paths: PathList = .{},
@@ -218,7 +217,7 @@ pub fn addFilePathLibArgs(tc: *const Toolchain, argv: *std.ArrayList([]const u8)
     for (tc.file_paths.items) |path| {
         bytes_needed += path.len + 2; // +2 for `-L`
     }
-    var bytes = try tc.arena.alloc(u8, bytes_needed);
+    var bytes = try tc.driver.comp.arena.alloc(u8, bytes_needed);
     var index: usize = 0;
     for (tc.file_paths.items) |path| {
         @memcpy(bytes[index..][0..2], "-L");
@@ -265,6 +264,7 @@ pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
     const allocator = fib.allocator();
+    const arena = tc.driver.comp.arena;
 
     const sysroot = tc.getSysroot();
 
@@ -273,15 +273,15 @@ pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
     const aro_dir = std.fs.path.dirname(tc.driver.aro_name) orelse "";
     const candidate = try std.fs.path.join(allocator, &.{ aro_dir, "..", name });
     if (tc.filesystem.exists(candidate)) {
-        return tc.arena.dupe(u8, candidate);
+        return arena.dupe(u8, candidate);
     }
 
     if (tc.searchPaths(&fib, sysroot, tc.library_paths.items, name)) |path| {
-        return tc.arena.dupe(u8, path);
+        return arena.dupe(u8, path);
     }
 
     if (tc.searchPaths(&fib, sysroot, tc.file_paths.items, name)) |path| {
-        return try tc.arena.dupe(u8, path);
+        return try arena.dupe(u8, path);
     }
 
     return name;
@@ -312,7 +312,7 @@ const PathKind = enum {
     program,
 };
 
-/// Join `components` into a path. If the path exists, dupe it into the toolchain arena and
+/// Join `components` into a path. If the path exists, dupe it into the Compilation arena and
 /// add it to the specified path list.
 pub fn addPathIfExists(tc: *Toolchain, components: []const []const u8, dest_kind: PathKind) !void {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
@@ -321,7 +321,7 @@ pub fn addPathIfExists(tc: *Toolchain, components: []const []const u8, dest_kind
     const candidate = try std.fs.path.join(fib.allocator(), components);
 
     if (tc.filesystem.exists(candidate)) {
-        const duped = try tc.arena.dupe(u8, candidate);
+        const duped = try tc.driver.comp.arena.dupe(u8, candidate);
         const dest = switch (dest_kind) {
             .library => &tc.library_paths,
             .file => &tc.file_paths,
@@ -331,10 +331,10 @@ pub fn addPathIfExists(tc: *Toolchain, components: []const []const u8, dest_kind
     }
 }
 
-/// Join `components` using the toolchain arena and add the resulting path to `dest_kind`. Does not check
+/// Join `components` using the Compilation arena and add the resulting path to `dest_kind`. Does not check
 /// whether the path actually exists
 pub fn addPathFromComponents(tc: *Toolchain, components: []const []const u8, dest_kind: PathKind) !void {
-    const full_path = try std.fs.path.join(tc.arena, components);
+    const full_path = try std.fs.path.join(tc.driver.comp.arena, components);
     const dest = switch (dest_kind) {
         .library => &tc.library_paths,
         .file => &tc.file_paths,
@@ -344,7 +344,7 @@ pub fn addPathFromComponents(tc: *Toolchain, components: []const []const u8, des
 }
 
 /// Add linker args to `argv`. Does not add path to linker executable as first item; that must be handled separately
-/// Items added to `argv` will be string literals or owned by `tc.arena` so they must not be individually freed
+/// Items added to `argv` will be string literals or owned by `tc.driver.comp.arena` so they must not be individually freed
 pub fn buildLinkerArgs(tc: *Toolchain, argv: *std.ArrayList([]const u8)) !void {
     return switch (tc.inner) {
         .uninitialized => unreachable,

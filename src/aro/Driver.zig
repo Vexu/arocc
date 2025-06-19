@@ -442,9 +442,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                const duped = try d.comp.gpa.dupe(u8, path);
-                errdefer d.comp.gpa.free(duped);
-                try d.comp.system_include_dirs.append(d.comp.gpa, duped);
+                try d.comp.system_include_dirs.append(d.comp.gpa, path);
             } else if (option(arg, "--embed-dir=")) |path| {
                 try d.comp.embed_dirs.append(d.comp.gpa, path);
             } else if (option(arg, "--emulate=")) |compiler_str| {

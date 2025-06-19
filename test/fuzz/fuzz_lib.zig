@@ -21,20 +21,21 @@ export fn compile_c_buf(buf: [*]const u8, len: c_int) void {
 }
 
 fn compileSlice(buf: []const u8) !void {
-    var fixed_allocator = std.heap.FixedBufferAllocator.init(fixed_buffer_mem[0..]);
+    var fixed_allocator = std.heap.FixedBufferAllocator.init(&fixed_buffer_mem);
     const allocator = fixed_allocator.allocator();
 
     const aro_dir = try std.fs.selfExePathAlloc(allocator);
     defer allocator.free(aro_dir);
 
-    var comp = Compilation.init(allocator, std.fs.cwd());
+    // FBA is a valid "arena" because leaks are OK and FBA doesn't tend to reuse memory anyway.
+    var comp = Compilation.init(allocator, allocator, std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
     try comp.addSystemIncludeDir(aro_dir);
 
-    const builtin = try comp.generateBuiltinMacrosFromPath(.include_system_defines, user_source.path);
     const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
+    const builtin = try comp.generateBuiltinMacrosFromPath(.include_system_defines, user_source.path);
 
     try processSource(&comp, builtin, user_source);
     _ = comp.sources.swapRemove(user_source.path);
