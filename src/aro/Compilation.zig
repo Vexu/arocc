@@ -128,11 +128,17 @@ code_gen_options: CodeGenOptions = .default,
 environment: Environment = .{},
 sources: std.StringArrayHashMapUnmanaged(Source) = .{},
 /// Allocated into `gpa`, but keys are externally managed.
-include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
+include_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-system_include_dirs: std.ArrayListUnmanaged([]const u8) = .{},
+system_include_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-embed_dirs: std.ArrayListUnmanaged([]const u8) = .{},
+after_include_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+/// Allocated into `gpa`, but keys are externally managed.
+framework_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+/// Allocated into `gpa`, but keys are externally managed.
+system_framework_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+/// Allocated into `gpa`, but keys are externally managed.
+embed_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
 target: std.Target = @import("builtin").target,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .{},
 langopts: LangOpts = .{},
@@ -172,25 +178,29 @@ pub fn initDefault(gpa: Allocator, arena: Allocator, diagnostics: *Diagnostics, 
 }
 
 pub fn deinit(comp: *Compilation) void {
+    const gpa = comp.gpa;
     for (comp.pragma_handlers.values()) |pragma| {
         pragma.deinit(pragma, comp);
     }
     for (comp.sources.values()) |source| {
-        comp.gpa.free(source.path);
-        comp.gpa.free(source.buf);
-        comp.gpa.free(source.splice_locs);
+        gpa.free(source.path);
+        gpa.free(source.buf);
+        gpa.free(source.splice_locs);
     }
-    comp.sources.deinit(comp.gpa);
-    comp.include_dirs.deinit(comp.gpa);
-    comp.system_include_dirs.deinit(comp.gpa);
-    comp.embed_dirs.deinit(comp.gpa);
-    comp.pragma_handlers.deinit(comp.gpa);
-    comp.generated_buf.deinit(comp.gpa);
-    comp.builtins.deinit(comp.gpa);
-    comp.string_interner.deinit(comp.gpa);
-    comp.interner.deinit(comp.gpa);
-    comp.environment.deinit(comp.gpa);
-    comp.type_store.deinit(comp.gpa);
+    comp.sources.deinit(gpa);
+    comp.include_dirs.deinit(gpa);
+    comp.system_include_dirs.deinit(gpa);
+    comp.after_include_dirs.deinit(gpa);
+    comp.framework_dirs.deinit(gpa);
+    comp.system_framework_dirs.deinit(gpa);
+    comp.embed_dirs.deinit(gpa);
+    comp.pragma_handlers.deinit(gpa);
+    comp.generated_buf.deinit(gpa);
+    comp.builtins.deinit(gpa);
+    comp.string_interner.deinit(gpa);
+    comp.interner.deinit(gpa);
+    comp.environment.deinit(gpa);
+    comp.type_store.deinit(gpa);
     comp.* = undefined;
 }
 
@@ -1221,103 +1231,175 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
     return comp.addSourceFromOwnedBuffer(contents, path, kind);
 }
 
-pub const IncludeDirIterator = struct {
-    comp: *const Compilation,
-    cwd_source_id: ?Source.Id,
-    include_dirs_idx: usize = 0,
-    sys_include_dirs_idx: usize = 0,
-    tried_ms_cwd: bool = false,
-
-    const FoundSource = struct {
-        path: []const u8,
-        kind: Source.Kind,
-    };
-
-    fn next(self: *IncludeDirIterator) ?FoundSource {
-        if (self.cwd_source_id) |source_id| {
-            self.cwd_source_id = null;
-            const path = self.comp.getSource(source_id).path;
-            return .{ .path = std.fs.path.dirname(path) orelse ".", .kind = .user };
-        }
-        if (self.include_dirs_idx < self.comp.include_dirs.items.len) {
-            defer self.include_dirs_idx += 1;
-            return .{ .path = self.comp.include_dirs.items[self.include_dirs_idx], .kind = .user };
-        }
-        if (self.sys_include_dirs_idx < self.comp.system_include_dirs.items.len) {
-            defer self.sys_include_dirs_idx += 1;
-            return .{ .path = self.comp.system_include_dirs.items[self.sys_include_dirs_idx], .kind = .system };
-        }
-        if (self.comp.ms_cwd_source_id) |source_id| {
-            if (self.tried_ms_cwd) return null;
-            self.tried_ms_cwd = true;
-            const path = self.comp.getSource(source_id).path;
-            return .{ .path = std.fs.path.dirname(path) orelse ".", .kind = .user };
-        }
-        return null;
-    }
-
-    /// Returned value's path field must be freed by allocator
-    fn nextWithFile(self: *IncludeDirIterator, filename: []const u8, allocator: Allocator) !?FoundSource {
-        while (self.next()) |found| {
-            const path = try std.fs.path.join(allocator, &.{ found.path, filename });
-            if (self.comp.langopts.ms_extensions) {
-                std.mem.replaceScalar(u8, path, '\\', '/');
-            }
-            return .{ .path = path, .kind = found.kind };
-        }
-        return null;
-    }
-
-    /// Advance the iterator until it finds an include directory that matches
-    /// the directory which contains `source`.
-    fn skipUntilDirMatch(self: *IncludeDirIterator, source: Source.Id) void {
-        const path = self.comp.getSource(source).path;
-        const includer_path = std.fs.path.dirname(path) orelse ".";
-        while (self.next()) |found| {
-            if (mem.eql(u8, includer_path, found.path)) break;
-        }
-    }
-};
-
 pub fn hasInclude(
-    comp: *const Compilation,
+    comp: *Compilation,
     filename: []const u8,
     includer_token_source: Source.Id,
     /// angle bracket vs quotes
     include_type: IncludeType,
     /// __has_include vs __has_include_next
     which: WhichInclude,
-) !bool {
-    if (mem.indexOfScalar(u8, filename, 0) != null) {
+) Compilation.Error!bool {
+    if (try FindInclude.run(comp, filename, switch (which) {
+        .next => .{ .only_search_after_dir = comp.getSource(includer_token_source).path },
+        .first => switch (include_type) {
+            .quotes => .{ .allow_same_dir = comp.getSource(includer_token_source).path },
+            .angle_brackets => .only_search,
+        },
+    })) |_| {
+        return true;
+    } else {
         return false;
     }
-
-    if (std.fs.path.isAbsolute(filename)) {
-        if (which == .next) return false;
-        return !std.meta.isError(comp.cwd.access(filename, .{}));
-    }
-
-    const cwd_source_id = switch (include_type) {
-        .quotes => switch (which) {
-            .first => includer_token_source,
-            .next => null,
-        },
-        .angle_brackets => null,
-    };
-    var it: IncludeDirIterator = .{ .comp = comp, .cwd_source_id = cwd_source_id };
-    if (which == .next) {
-        it.skipUntilDirMatch(includer_token_source);
-    }
-
-    var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-    const sf_allocator = stack_fallback.get();
-
-    while (try it.nextWithFile(filename, sf_allocator)) |found| {
-        defer sf_allocator.free(found.path);
-        if (!std.meta.isError(comp.cwd.access(found.path, .{}))) return true;
-    }
-    return false;
 }
+
+const FindInclude = struct {
+    comp: *Compilation,
+    include_path: []const u8,
+    /// We won't actually consider any include directories until after this directory.
+    wait_for: ?[]const u8,
+
+    const Result = struct {
+        source: Source.Id,
+        kind: Source.Kind,
+        used_ms_search_rule: bool,
+    };
+
+    fn run(
+        comp: *Compilation,
+        include_path: []const u8,
+        search_strat: union(enum) {
+            allow_same_dir: []const u8,
+            only_search,
+            only_search_after_dir: []const u8,
+        },
+    ) Allocator.Error!?Result {
+        var find: FindInclude = .{
+            .comp = comp,
+            .include_path = include_path,
+            .wait_for = null,
+        };
+
+        if (std.fs.path.isAbsolute(include_path)) {
+            switch (search_strat) {
+                .allow_same_dir, .only_search => {},
+                .only_search_after_dir => return null,
+            }
+            return find.check("{s}", .{include_path}, .user, false);
+        }
+
+        switch (search_strat) {
+            .allow_same_dir => |other_file| {
+                const dir = std.fs.path.dirname(other_file) orelse ".";
+                if (try find.checkIncludeDir(dir, .user)) |res| return res;
+            },
+            .only_search => {},
+            .only_search_after_dir => |other_file| {
+                // TODO: this is not the correct interpretation of `#include_next` and friends,
+                // because a file might not be directly inside of an include directory. To implement
+                // this correctly, we will need to track which include directory a file has been
+                // included from.
+                find.wait_for = std.fs.path.dirname(other_file);
+            },
+        }
+
+        for (comp.include_dirs.items) |dir| {
+            if (try find.checkIncludeDir(dir, .user)) |res| return res;
+        }
+        for (comp.framework_dirs.items) |dir| {
+            if (try find.checkFrameworkDir(dir, .user)) |res| return res;
+        }
+        for (comp.system_include_dirs.items) |dir| {
+            if (try find.checkIncludeDir(dir, .system)) |res| return res;
+        }
+        for (comp.system_framework_dirs.items) |dir| {
+            if (try find.checkFrameworkDir(dir, .system)) |res| return res;
+        }
+        for (comp.after_include_dirs.items) |dir| {
+            if (try find.checkIncludeDir(dir, .user)) |res| return res;
+        }
+        if (comp.ms_cwd_source_id) |source_id| {
+            if (try find.checkMsCwdIncludeDir(source_id)) |res| return res;
+        }
+        return null;
+    }
+    fn checkIncludeDir(find: *FindInclude, include_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
+        if (find.wait_for) |wait_for| {
+            if (std.mem.eql(u8, include_dir, wait_for)) find.wait_for = null;
+            return null;
+        }
+        return find.check("{s}{c}{s}", .{
+            include_dir,
+            std.fs.path.sep,
+            find.include_path,
+        }, kind, false);
+    }
+    fn checkMsCwdIncludeDir(find: *FindInclude, source_id: Source.Id) Allocator.Error!?Result {
+        const path = find.comp.getSource(source_id).path;
+        const dir = std.fs.path.dirname(path) orelse ".";
+        if (find.wait_for) |wait_for| {
+            if (std.mem.eql(u8, dir, wait_for)) find.wait_for = null;
+            return null;
+        }
+        return find.check("{s}{c}{s}", .{
+            dir,
+            std.fs.path.sep,
+            find.include_path,
+        }, .user, true);
+    }
+    fn checkFrameworkDir(find: *FindInclude, framework_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
+        if (find.wait_for) |wait_for| {
+            match: {
+                // If this is a match, then `wait_for` looks like '.../Foo.framework/Headers'.
+                const wait_framework = std.fs.path.dirname(wait_for) orelse break :match;
+                const wait_framework_dir = std.fs.path.dirname(wait_framework) orelse break :match;
+                if (!std.mem.eql(u8, framework_dir, wait_framework_dir)) break :match;
+                find.wait_for = null;
+            }
+            return null;
+        }
+        // For an include like 'Foo/Bar.h', search in '<framework_dir>/Foo.framework/Headers/Bar.h'.
+        const framework_name: []const u8, const header_sub_path: []const u8 = f: {
+            const i = std.mem.indexOfScalar(u8, find.include_path, '/') orelse return null;
+            break :f .{ find.include_path[0..i], find.include_path[i + 1 ..] };
+        };
+        return find.check("{s}{c}{s}.framework{c}Headers{c}{s}", .{
+            framework_dir,
+            std.fs.path.sep,
+            framework_name,
+            std.fs.path.sep,
+            std.fs.path.sep,
+            header_sub_path,
+        }, kind, false);
+    }
+    fn check(
+        find: *FindInclude,
+        comptime format: []const u8,
+        args: anytype,
+        kind: Source.Kind,
+        used_ms_search_rule: bool,
+    ) Allocator.Error!?Result {
+        const comp = find.comp;
+
+        var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
+        const sfa = stack_fallback.get();
+        const header_path = try std.fmt.allocPrint(sfa, format, args);
+        defer sfa.free(header_path);
+
+        if (find.comp.langopts.ms_extensions) {
+            std.mem.replaceScalar(u8, header_path, '\\', '/');
+        }
+        const source = comp.addSourceFromPathExtra(header_path, kind) catch |err| switch (err) {
+            error.OutOfMemory => |e| return e,
+            else => return null,
+        };
+        return .{
+            .source = source.id,
+            .kind = kind,
+            .used_ms_search_rule = used_ms_search_rule,
+        };
+    }
+};
 
 pub const WhichInclude = enum {
     first,
@@ -1410,57 +1492,29 @@ pub fn findInclude(
     include_type: IncludeType,
     /// include vs include_next
     which: WhichInclude,
-) !?Source {
-    if (std.fs.path.isAbsolute(filename)) {
-        if (which == .next) return null;
-        // TODO: classify absolute file as belonging to system includes or not?
-        return if (comp.addSourceFromPath(filename)) |some|
-            some
-        else |err| switch (err) {
-            error.OutOfMemory => |e| return e,
-            else => null,
-        };
-    }
-    const cwd_source_id = switch (include_type) {
-        .quotes => switch (which) {
-            .first => includer_token.source,
-            .next => null,
+) Compilation.Error!?Source {
+    const found = try FindInclude.run(comp, filename, switch (which) {
+        .next => .{ .only_search_after_dir = comp.getSource(includer_token.source).path },
+        .first => switch (include_type) {
+            .quotes => .{ .allow_same_dir = comp.getSource(includer_token.source).path },
+            .angle_brackets => .only_search,
         },
-        .angle_brackets => null,
-    };
-    var it: IncludeDirIterator = .{ .comp = comp, .cwd_source_id = cwd_source_id };
-
-    if (which == .next) {
-        it.skipUntilDirMatch(includer_token.source);
+    }) orelse return null;
+    if (found.used_ms_search_rule) {
+        const diagnostic: Diagnostic = .ms_search_rule;
+        try comp.diagnostics.add(.{
+            .text = diagnostic.fmt,
+            .kind = diagnostic.kind,
+            .opt = diagnostic.opt,
+            .extension = diagnostic.extension,
+            .location = (Source.Location{
+                .id = includer_token.source,
+                .byte_offset = includer_token.start,
+                .line = includer_token.line,
+            }).expand(comp),
+        });
     }
-
-    var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-    const sf_allocator = stack_fallback.get();
-
-    while (try it.nextWithFile(filename, sf_allocator)) |found| {
-        defer sf_allocator.free(found.path);
-        if (comp.addSourceFromPathExtra(found.path, found.kind)) |some| {
-            if (it.tried_ms_cwd) {
-                const diagnostic: Diagnostic = .ms_search_rule;
-                try comp.diagnostics.add(.{
-                    .text = diagnostic.fmt,
-                    .kind = diagnostic.kind,
-                    .opt = diagnostic.opt,
-                    .extension = diagnostic.extension,
-                    .location = (Source.Location{
-                        .id = includer_token.source,
-                        .byte_offset = includer_token.start,
-                        .line = includer_token.line,
-                    }).expand(comp),
-                });
-            }
-            return some;
-        } else |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => {},
-        }
-    }
-    return null;
+    return comp.getSource(found.source);
 }
 
 pub fn addPragmaHandler(comp: *Compilation, name: []const u8, handler: *Pragma) Allocator.Error!void {

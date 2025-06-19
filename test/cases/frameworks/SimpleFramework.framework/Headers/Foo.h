@@ -1,0 +1,1 @@
+#define SIMPLE_FRAMEWORK_FOO 123 
