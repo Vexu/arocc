@@ -339,20 +339,19 @@ test Iterator {
 }
 
 test "All builtins" {
-    var comp = Compilation.init(std.testing.allocator, undefined, std.fs.cwd());
+    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    var comp = Compilation.init(std.testing.allocator, arena, undefined, std.fs.cwd());
     defer comp.deinit();
 
     try comp.type_store.initNamedTypes(&comp);
     comp.type_store.va_list = try comp.type_store.va_list.decay(&comp);
 
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    const name_arena = arena.allocator();
-
     var builtin_it = Iterator{};
     while (builtin_it.next()) |entry| {
-        const name = try name_arena.dupe(u8, entry.name);
+        const name = try arena.dupe(u8, entry.name);
         if (try comp.builtins.getOrCreate(&comp, name)) |func_ty| {
             const get_again = (try comp.builtins.getOrCreate(&comp, name)).?;
             const found_by_lookup = comp.builtins.lookup(name);
@@ -365,7 +364,11 @@ test "All builtins" {
 test "Allocation failures" {
     const Test = struct {
         fn testOne(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.init(allocator, undefined, std.fs.cwd());
+            var arena_state: std.heap.ArenaAllocator = .init(allocator);
+            defer arena_state.deinit();
+            const arena = arena_state.allocator();
+
+            var comp = Compilation.init(allocator, arena, undefined, std.fs.cwd());
             defer comp.deinit();
             _ = try comp.generateBuiltinMacros(.include_system_defines);
 

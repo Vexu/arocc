@@ -62,8 +62,11 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
     return .{ only_preprocess, line_markers, system_defines, dump_mode };
 }
 
-fn testOne(allocator: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void {
-    var comp = aro.Compilation.init(allocator, std.fs.cwd());
+fn testOne(gpa: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void {
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+
+    var comp = aro.Compilation.init(gpa, arena.allocator(), std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
@@ -121,8 +124,11 @@ pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
     defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
 
-    const args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
+    var arena_state: std.heap.ArenaAllocator = .init(gpa);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const args = try std.process.argsAlloc(arena);
 
     if (args.len != 3) {
         print("expected test case directory and zig executable as only arguments\n", .{});
@@ -134,7 +140,6 @@ pub fn main() !void {
     var buf = std.ArrayList(u8).init(gpa);
     var cases = std.ArrayList([]const u8).init(gpa);
     defer {
-        for (cases.items) |path| gpa.free(path);
         cases.deinit();
         buf.deinit();
     }
@@ -151,10 +156,7 @@ pub fn main() !void {
                 print("skipping non file entry '{s}'\n", .{entry.name});
                 continue;
             }
-
-            defer buf.items.len = 0;
-            try buf.writer().print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
-            try cases.append(try gpa.dupe(u8, buf.items));
+            try cases.append(try std.fmt.allocPrint(arena, "{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name }));
         }
     }
     if (build_options.test_all_allocation_failures) {
@@ -173,20 +175,19 @@ pub fn main() !void {
     defer diagnostics.deinit();
 
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa, &diagnostics, std.fs.cwd());
+    var initial_comp = aro.Compilation.init(gpa, arena, &diagnostics, std.fs.cwd());
     defer initial_comp.deinit();
 
-    const cases_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include" });
-    defer gpa.free(cases_include_dir);
-
+    const cases_include_dir = try std.fs.path.join(arena, &.{ args[1], "include" });
     try initial_comp.include_dirs.append(gpa, cases_include_dir);
     try initial_comp.embed_dirs.append(gpa, cases_include_dir);
 
-    const cases_next_include_dir = try std.fs.path.join(gpa, &.{ args[1], "include", "next" });
-    defer gpa.free(cases_next_include_dir);
-
+    const cases_next_include_dir = try std.fs.path.join(arena, &.{ args[1], "include", "next" });
     try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
     try initial_comp.embed_dirs.append(gpa, cases_next_include_dir);
+
+    const cases_frameworks_dir = try std.fs.path.join(arena, &.{ args[1], "frameworks" });
+    try initial_comp.framework_dirs.append(gpa, cases_frameworks_dir);
 
     try initial_comp.addDefaultPragmaHandlers();
     try initial_comp.addBuiltinIncludeDir(test_dir, null);
@@ -214,6 +215,9 @@ pub fn main() !void {
             // preserve some values
             comp.include_dirs = .{};
             comp.system_include_dirs = .{};
+            comp.after_include_dirs = .{};
+            comp.framework_dirs = .{};
+            comp.system_framework_dirs = .{};
             comp.embed_dirs = .{};
             comp.pragma_handlers = .{};
             comp.environment = .{};

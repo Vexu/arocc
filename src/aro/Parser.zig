@@ -10111,8 +10111,12 @@ fn genericSelection(p: *Parser) Error!?Result {
 }
 
 test "Node locations" {
+    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(std.testing.allocator, &diagnostics, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator, arena, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     const file = try comp.addSourceFromBuffer("file.c",

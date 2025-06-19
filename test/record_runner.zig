@@ -221,17 +221,20 @@ fn runTestCases(allocator: std.mem.Allocator, test_dir: []const u8, wg: *std.Thr
     }
 }
 
-fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, stats: *Stats) !void {
+fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, stats: *Stats) !void {
     const path = test_case.path;
+
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
 
     var diagnostics: aro.Diagnostics = .{
         .output = .{ .to_list = .{
-            .arena = .init(alloc),
+            .arena = .init(gpa),
         } },
     };
     defer diagnostics.deinit();
 
-    var comp = aro.Compilation.init(alloc, &diagnostics, std.fs.cwd());
+    var comp = aro.Compilation.init(gpa, arena.allocator(), &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
@@ -255,7 +258,7 @@ fn singleRun(alloc: std.mem.Allocator, test_dir: []const u8, test_case: TestCase
         else => {},
     }
 
-    var case_name = std.ArrayList(u8).init(alloc);
+    var case_name = std.ArrayList(u8).init(gpa);
     defer case_name.deinit();
 
     const test_name = std.mem.sliceTo(std.fs.path.basename(path), '_');

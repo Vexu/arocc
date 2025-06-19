@@ -188,7 +188,10 @@ pub const usage =
     \\  -fno-use-line-directives
     \\                          Use `# <num>` linemarkers in preprocessed output
     \\  -I <dir>                Add directory to include search path
+    \\  -idirafter <dir>        Add directory to AFTER include search path
     \\  -isystem <dir>          Add directory to SYSTEM include search path
+    \\  -F <dir>                Add directory to macOS framework search path
+    \\  -iframework <dir>       Add directory to SYSTEM macOS framework search path
     \\  --embed-dir=<dir>       Add directory to `#embed` search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
@@ -413,6 +416,14 @@ pub fn parseArgs(
                 ms_extensions = true;
             } else if (mem.eql(u8, arg, "-fno-ms-extensions")) {
                 ms_extensions = false;
+            } else if (mem.startsWith(u8, arg, "-fsyntax-only")) {
+                d.only_syntax = true;
+            } else if (mem.startsWith(u8, arg, "-fno-syntax-only")) {
+                d.only_syntax = false;
+            } else if (mem.eql(u8, arg, "-fgnuc-version=")) {
+                gnuc_version = "0";
+            } else if (option(arg, "-fgnuc-version=")) |version| {
+                gnuc_version = version;
             } else if (mem.startsWith(u8, arg, "-I")) {
                 var path = arg["-I".len..];
                 if (path.len == 0) {
@@ -424,14 +435,17 @@ pub fn parseArgs(
                     path = args[i];
                 }
                 try d.comp.include_dirs.append(d.comp.gpa, path);
-            } else if (mem.startsWith(u8, arg, "-fsyntax-only")) {
-                d.only_syntax = true;
-            } else if (mem.startsWith(u8, arg, "-fno-syntax-only")) {
-                d.only_syntax = false;
-            } else if (mem.eql(u8, arg, "-fgnuc-version=")) {
-                gnuc_version = "0";
-            } else if (option(arg, "-fgnuc-version=")) |version| {
-                gnuc_version = version;
+            } else if (mem.startsWith(u8, arg, "-idirafter")) {
+                var path = arg["-idirafter".len..];
+                if (path.len == 0) {
+                    i += 1;
+                    if (i >= args.len) {
+                        try d.err("expected argument after -idirafter", .{});
+                        continue;
+                    }
+                    path = args[i];
+                }
+                try d.comp.after_include_dirs.append(d.comp.gpa, path);
             } else if (mem.startsWith(u8, arg, "-isystem")) {
                 var path = arg["-isystem".len..];
                 if (path.len == 0) {
@@ -442,9 +456,29 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                const duped = try d.comp.gpa.dupe(u8, path);
-                errdefer d.comp.gpa.free(duped);
-                try d.comp.system_include_dirs.append(d.comp.gpa, duped);
+                try d.comp.system_include_dirs.append(d.comp.gpa, path);
+            } else if (mem.startsWith(u8, arg, "-F")) {
+                var path = arg["-F".len..];
+                if (path.len == 0) {
+                    i += 1;
+                    if (i >= args.len) {
+                        try d.err("expected argument after -F", .{});
+                        continue;
+                    }
+                    path = args[i];
+                }
+                try d.comp.framework_dirs.append(d.comp.gpa, path);
+            } else if (mem.startsWith(u8, arg, "-iframework")) {
+                var path = arg["-iframework".len..];
+                if (path.len == 0) {
+                    i += 1;
+                    if (i >= args.len) {
+                        try d.err("expected argument after -iframework", .{});
+                        continue;
+                    }
+                    path = args[i];
+                }
+                try d.comp.system_framework_dirs.append(d.comp.gpa, path);
             } else if (option(arg, "--embed-dir=")) |path| {
                 try d.comp.embed_dirs.append(d.comp.gpa, path);
             } else if (option(arg, "--emulate=")) |compiler_str| {
