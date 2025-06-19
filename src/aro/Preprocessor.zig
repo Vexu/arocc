@@ -1191,7 +1191,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 const start = pp.comp.generated_buf.items.len;
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
                 const w = pp.comp.generated_buf.writer(pp.gpa);
-                try w.print("\"{s}\"\n", .{source.path});
+                try w.print("\"{}\"\n", .{fmtEscapes(source.path)});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
             },
@@ -3355,23 +3355,7 @@ fn printLinemarker(
 ) !void {
     try w.writeByte('#');
     if (pp.linemarkers == .line_directives) try w.writeAll("line");
-    try w.print(" {d} \"", .{line_no});
-    for (source.path) |byte| switch (byte) {
-        '\n' => try w.writeAll("\\n"),
-        '\r' => try w.writeAll("\\r"),
-        '\t' => try w.writeAll("\\t"),
-        '\\' => try w.writeAll("\\\\"),
-        '"' => try w.writeAll("\\\""),
-        ' ', '!', '#'...'&', '('...'[', ']'...'~' => try w.writeByte(byte),
-        // Use hex escapes for any non-ASCII/unprintable characters.
-        // This ensures that the parsed version of this string will end up
-        // containing the same bytes as the input regardless of encoding.
-        else => {
-            try w.writeAll("\\x");
-            try std.fmt.formatInt(byte, 16, .lower, .{ .width = 2, .fill = '0' }, w);
-        },
-    };
-    try w.writeByte('"');
+    try w.print(" {d} \"{}\"", .{ line_no, fmtEscapes(source.path) });
     if (pp.linemarkers == .numeric_directives) {
         switch (start_resume) {
             .none => {},
@@ -3571,6 +3555,31 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype, macro_dump_mode: DumpMod
         }
     }
 }
+
+/// Like `std.zig.fmtEscapes`, but for C strings. Hex escapes are used for any
+/// non-ASCII/unprintable bytes to ensure that the string bytes do not change if
+/// the encoding of the file is not UTF-8.
+fn fmtEscapes(bytes: []const u8) FmtEscapes {
+    return .{ .bytes = bytes };
+}
+const FmtEscapes = struct {
+    bytes: []const u8,
+    pub fn format(ctx: FmtEscapes, comptime fmt: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+        if (fmt.len != 0) std.fmt.invalidFmtError(fmt, ctx);
+        for (ctx.bytes) |byte| switch (byte) {
+            '\n' => try w.writeAll("\\n"),
+            '\r' => try w.writeAll("\\r"),
+            '\t' => try w.writeAll("\\t"),
+            '\\' => try w.writeAll("\\\\"),
+            '"' => try w.writeAll("\\\""),
+            ' ', '!', '#'...'&', '('...'[', ']'...'~' => try w.writeByte(byte),
+            // Use hex escapes for any non-ASCII/unprintable characters.
+            // This ensures that the parsed version of this string will end up
+            // containing the same bytes as the input regardless of encoding.
+            else => try w.print("\\x{x:0>2}", .{byte}),
+        };
+    }
+};
 
 test "Preserve pragma tokens sometimes" {
     const gpa = std.testing.allocator;
