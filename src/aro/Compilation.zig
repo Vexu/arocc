@@ -291,7 +291,22 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
             }
         },
         .uefi => try define(w, "__UEFI__"),
-        .freebsd => try w.print("#define __FreeBSD__ {d}\n", .{comp.target.os.version_range.semver.min.major}),
+        .freebsd => {
+            const release = comp.target.os.version_range.semver.min.major;
+            const cc_version = release * 10_000 + 1;
+            try w.print(
+                \\#define __FreeBSD__ {d}
+                \\#define __FreeBSD_cc_version {d}
+                \\
+            , .{ release, cc_version });
+        },
+        .ps4, .ps5 => {
+            try w.writeAll(
+                \\#define __FreeBSD__ 9
+                \\#define __FreeBSD_cc_version 900001
+                \\
+            );
+        },
         .netbsd => try define(w, "__NetBSD__"),
         .openbsd => try define(w, "__OpenBSD__"),
         .dragonfly => try define(w, "__DragonFly__"),
@@ -320,6 +335,8 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
         .solaris,
         .aix,
         .emscripten,
+        .ps4,
+        .ps5,
         => try defineStd(w, "unix", is_gnu),
         .windows => if (comp.target.abi.isGnu() or comp.target.abi == .cygnus) {
             try defineStd(w, "unix", is_gnu);
@@ -444,6 +461,10 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
     {
         try define(w, "_ILP32");
         try define(w, "__ILP32__");
+    }
+
+    if (comp.hasFloat128()) {
+        try define(w, "__FLOAT128__");
     }
 
     try w.writeAll(
@@ -621,14 +642,13 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         );
     }
 
-    try buf.appendSlice("#define __STDC__ 1\n");
+    if (comp.langopts.emulate != .msvc) {
+        try buf.appendSlice("#define __STDC__ 1\n");
+    }
     try buf.writer().print("#define __STDC_HOSTED__ {d}\n", .{@intFromBool(comp.target.os.tag != .freestanding)});
 
     // standard macros
     try buf.appendSlice(
-        \\#define __STDC_NO_COMPLEX__ 1
-        \\#define __STDC_NO_THREADS__ 1
-        \\#define __STDC_NO_VLA__ 1
         \\#define __STDC_UTF_16__ 1
         \\#define __STDC_UTF_32__ 1
         \\#define __STDC_EMBED_NOT_FOUND__ 0
@@ -636,6 +656,26 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         \\#define __STDC_EMBED_EMPTY__ 2
         \\
     );
+    if (comp.langopts.standard.atLeast(.c11)) switch (comp.target.os.tag) {
+        .openbsd, .driverkit, .ios, .macos, .tvos, .visionos, .watchos => {
+            try buf.appendSlice("#define __STDC_NO_THREADS__ 1\n");
+        },
+        .ps4, .ps5 => {
+            try buf.appendSlice(
+                \\#define __STDC_NO_THREADS__ 1
+                \\#define __STDC_NO_COMPLEX__ 1
+                \\
+            );
+        },
+        .aix => {
+            try buf.appendSlice(
+                \\#define __STDC_NO_THREADS__ 1
+                \\#define __STDC_NO_ATOMICS__ 1
+                \\
+            );
+        },
+        else => {},
+    };
     if (comp.langopts.standard.StdCVersionMacro()) |stdc_version| {
         try buf.appendSlice("#define __STDC_VERSION__ ");
         try buf.appendSlice(stdc_version);

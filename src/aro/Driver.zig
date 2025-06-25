@@ -131,8 +131,8 @@ pub const usage =
     \\Usage {s}: [options] file..
     \\
     \\General options:
-    \\  -h, --help      Print this message.
-    \\  -v, --version   Print aro version.
+    \\  --help      Print this message
+    \\  --version   Print aro version
     \\
     \\Compile options:
     \\  -c, --compile           Only run preprocess, compile, and assemble steps
@@ -266,12 +266,12 @@ pub fn parseArgs(
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
-            if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "--help")) {
+            if (mem.eql(u8, arg, "--help")) {
                 std_out.print(usage, .{args[0]}) catch |er| {
                     return d.fatal("unable to print usage: {s}", .{errorDescription(er)});
                 };
                 return true;
-            } else if (mem.eql(u8, arg, "-v") or mem.eql(u8, arg, "--version")) {
+            } else if (mem.eql(u8, arg, "--version")) {
                 std_out.writeAll(@import("backend").version_str ++ "\n") catch |er| {
                     return d.fatal("unable to print version: {s}", .{errorDescription(er)});
                 };

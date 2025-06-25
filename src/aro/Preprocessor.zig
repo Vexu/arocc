@@ -1569,7 +1569,11 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                         false;
                 },
                 .macro_param_has_feature => features.hasFeature(pp.comp, ident_str),
-                .macro_param_has_extension => features.hasExtension(pp.comp, ident_str),
+                // If -pedantic-errors is given __has_extension is equivalent to __has_feature
+                .macro_param_has_extension => if (pp.comp.diagnostics.state.extensions == .@"error")
+                    features.hasFeature(pp.comp, ident_str)
+                else
+                    features.hasExtension(pp.comp, ident_str),
                 .macro_param_has_builtin => pp.comp.hasBuiltin(ident_str),
                 else => unreachable,
             };
