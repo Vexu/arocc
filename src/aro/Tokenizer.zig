@@ -1861,7 +1861,10 @@ pub fn next(self: *Tokenizer) Token {
         }
     } else if (self.index == self.buf.len) {
         switch (state) {
-            .start, .line_comment => {},
+            .start => {},
+            .line_comment => if (self.langopts.preserve_comments) {
+                id = .comment;
+            },
             .u, .u8, .U, .L, .identifier => id = Token.getTokenId(self.langopts, self.buf[start..self.index]),
             .extended_identifier => id = .extended_identifier,
 
@@ -2235,6 +2238,15 @@ test "comments" {
         .hash,
         .identifier,
     });
+    try expectTokensExtra(
+        \\//foo
+        \\void
+        \\//bar
+    , &.{
+        .comment,      .nl,
+        .keyword_void, .nl,
+        .comment,
+    }, .{ .preserve_comments = true });
 }
 
 test "extended identifiers" {
@@ -2277,7 +2289,7 @@ test "C23 keywords" {
         .keyword_c23_thread_local,
         .keyword_nullptr,
         .keyword_typeof_unqual,
-    }, .c23);
+    }, .{ .standard = .c23 });
 }
 
 test "Universal character names" {
@@ -2340,13 +2352,13 @@ test "Tokenizer fuzz test" {
     return std.testing.fuzz(Context{}, Context.testOne, .{});
 }
 
-fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, standard: ?LangOpts.Standard) !void {
+fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, langopts: ?LangOpts) !void {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     var comp = Compilation.init(std.testing.allocator, arena.allocator(), undefined, std.fs.cwd());
     defer comp.deinit();
-    if (standard) |provided| {
-        comp.langopts.standard = provided;
+    if (langopts) |provided| {
+        comp.langopts = provided;
     }
     const source = try comp.addSourceFromBuffer("path", contents);
     var tokenizer = Tokenizer{
