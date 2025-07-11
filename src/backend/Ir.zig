@@ -382,13 +382,13 @@ const ATTRIBUTE = std.io.tty.Color.bright_yellow;
 
 const RefMap = std.AutoArrayHashMap(Ref, void);
 
-pub fn dump(ir: *const Ir, gpa: Allocator, config: std.io.tty.Config, w: anytype) !void {
+pub fn dump(ir: *const Ir, gpa: Allocator, config: std.io.tty.Config, w: *std.io.Writer) !void {
     for (ir.decls.keys(), ir.decls.values()) |name, *decl| {
         try ir.dumpDecl(decl, gpa, name, config, w);
     }
 }
 
-fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, config: std.io.tty.Config, w: anytype) !void {
+fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, config: std.io.tty.Config, w: *std.io.Writer) !void {
     const tags = decl.instructions.items(.tag);
     const data = decl.instructions.items(.data);
 
@@ -609,7 +609,7 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
     try w.writeAll("}\n\n");
 }
 
-fn writeType(ir: Ir, ty_ref: Interner.Ref, config: std.io.tty.Config, w: anytype) !void {
+fn writeType(ir: Ir, ty_ref: Interner.Ref, config: std.io.tty.Config, w: *std.io.Writer) !void {
     const ty = ir.interner.get(ty_ref);
     try config.setColor(w, TYPE);
     switch (ty) {
@@ -639,7 +639,7 @@ fn writeType(ir: Ir, ty_ref: Interner.Ref, config: std.io.tty.Config, w: anytype
     }
 }
 
-fn writeValue(ir: Ir, val: Interner.Ref, config: std.io.tty.Config, w: anytype) !void {
+fn writeValue(ir: Ir, val: Interner.Ref, config: std.io.tty.Config, w: *std.io.Writer) !void {
     try config.setColor(w, LITERAL);
     const key = ir.interner.get(val);
     switch (key) {
@@ -655,7 +655,7 @@ fn writeValue(ir: Ir, val: Interner.Ref, config: std.io.tty.Config, w: anytype) 
     }
 }
 
-fn writeRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: anytype) !void {
+fn writeRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: *std.io.Writer) !void {
     assert(ref != .none);
     const index = @intFromEnum(ref);
     const ty_ref = decl.instructions.items(.ty)[index];
@@ -678,7 +678,7 @@ fn writeRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, config: std.i
     try w.print(" %{d}", .{ref_index});
 }
 
-fn writeNewRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: anytype) !void {
+fn writeNewRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: *std.io.Writer) !void {
     try ref_map.put(ref, {});
     try w.writeAll("    ");
     try ir.writeRef(decl, ref_map, ref, config, w);
@@ -687,7 +687,7 @@ fn writeNewRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, config: st
     try config.setColor(w, INST);
 }
 
-fn writeLabel(decl: *const Decl, label_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: anytype) !void {
+fn writeLabel(decl: *const Decl, label_map: *RefMap, ref: Ref, config: std.io.tty.Config, w: *std.io.Writer) !void {
     assert(ref != .none);
     const index = @intFromEnum(ref);
     const label = decl.instructions.items(.data)[index].label;

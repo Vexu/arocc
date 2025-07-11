@@ -82,14 +82,14 @@ fn make(step: *Step, options: std.Build.Step.MakeOptions) !void {
     const sub_path_dirname = std.fs.path.dirname(sub_path).?;
 
     b.cache_root.handle.makePath(sub_path_dirname) catch |err| {
-        return step.fail("unable to make path '{}{s}': {s}", .{
+        return step.fail("unable to make path '{f}{s}': {s}", .{
             b.cache_root, sub_path_dirname, @errorName(err),
         });
     };
 
     const output = try self.generate(contents);
     b.cache_root.handle.writeFile(.{ .sub_path = sub_path, .data = output }) catch |err| {
-        return step.fail("unable to write file '{}{s}': {s}", .{
+        return step.fail("unable to write file '{f}{s}': {s}", .{
             b.cache_root, sub_path, @errorName(err),
         });
     };
@@ -198,7 +198,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
         if (self.kind == .named) {
             try writer.writeAll("pub const Tag = enum {\n");
             for (values.keys()) |property| {
-                try writer.print("    {p},\n", .{std.zig.fmtId(property)});
+                try writer.print("    {f},\n", .{std.zig.fmtIdFlags(property, .{ .allow_primitive = true })});
             }
             try writer.writeAll(
                 \\
@@ -248,7 +248,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
             \\pub const Tag = enum(u16) {
         );
         for (values_array) |value| {
-            try writer.print("    {},\n", .{std.zig.fmtId(value.name)});
+            try writer.print("    {f},\n", .{std.zig.fmtId(value.name)});
         }
         try writer.writeAll(
             \\};
@@ -466,7 +466,7 @@ fn writeData(writer: anytype, values: []const Value) !void {
     try writer.print("    @setEvalBranchQuota({d});\n", .{values.len * 7});
     try writer.writeAll("    break :blk [_]@This(){\n");
     for (values) |value| {
-        try writer.print("        .{{ .tag = .{}, .properties = .{{", .{std.zig.fmtId(value.name)});
+        try writer.print("        .{{ .tag = .{f}, .properties = .{{", .{std.zig.fmtId(value.name)});
         for (value.properties, 0..) |property, j| {
             if (j != 0) try writer.writeByte(',');
             try writer.writeByte(' ');

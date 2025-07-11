@@ -216,14 +216,14 @@ pub const SystemDefinesMode = enum {
     include_system_defines,
 };
 
-fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
+fn generateSystemDefines(comp: *Compilation, w: *std.io.Writer) !void {
     const define = struct {
-        fn define(_w: anytype, name: []const u8) !void {
+        fn define(_w: *std.io.Writer, name: []const u8) !void {
             try _w.print("#define {s} 1\n", .{name});
         }
     }.define;
     const defineStd = struct {
-        fn defineStd(_w: anytype, name: []const u8, is_gnu: bool) !void {
+        fn defineStd(_w: *std.io.Writer, name: []const u8, is_gnu: bool) !void {
             if (is_gnu) {
                 try _w.print("#define {s} 1\n", .{name});
             }
@@ -630,11 +630,19 @@ fn generateSystemDefines(comp: *Compilation, w: anytype) !void {
 pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) !Source {
     try comp.type_store.initNamedTypes(comp);
 
-    var buf = std.ArrayList(u8).init(comp.gpa);
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(comp.gpa);
+    defer allocating.deinit();
 
+    comp.writeBuiltinMacros(system_defines_mode, &allocating.writer) catch |err| switch (err) {
+        error.WriteFailed, error.OutOfMemory => return error.OutOfMemory,
+    };
+
+    return comp.addSourceFromBuffer("<builtin>", allocating.getWritten());
+}
+
+fn writeBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode, w: *std.io.Writer) !void {
     if (system_defines_mode == .include_system_defines) {
-        try buf.appendSlice(
+        try w.writeAll(
             \\#define __VERSION__ "Aro
         ++ " " ++ @import("backend").version_str ++ "\"\n" ++
             \\#define __Aro__
@@ -643,12 +651,12 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
     }
 
     if (comp.langopts.emulate != .msvc) {
-        try buf.appendSlice("#define __STDC__ 1\n");
+        try w.writeAll("#define __STDC__ 1\n");
     }
-    try buf.writer().print("#define __STDC_HOSTED__ {d}\n", .{@intFromBool(comp.target.os.tag != .freestanding)});
+    try w.print("#define __STDC_HOSTED__ {d}\n", .{@intFromBool(comp.target.os.tag != .freestanding)});
 
     // standard macros
-    try buf.appendSlice(
+    try w.writeAll(
         \\#define __STDC_UTF_16__ 1
         \\#define __STDC_UTF_32__ 1
         \\#define __STDC_EMBED_NOT_FOUND__ 0
@@ -658,17 +666,17 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
     );
     if (comp.langopts.standard.atLeast(.c11)) switch (comp.target.os.tag) {
         .openbsd, .driverkit, .ios, .macos, .tvos, .visionos, .watchos => {
-            try buf.appendSlice("#define __STDC_NO_THREADS__ 1\n");
+            try w.writeAll("#define __STDC_NO_THREADS__ 1\n");
         },
         .ps4, .ps5 => {
-            try buf.appendSlice(
+            try w.writeAll(
                 \\#define __STDC_NO_THREADS__ 1
                 \\#define __STDC_NO_COMPLEX__ 1
                 \\
             );
         },
         .aix => {
-            try buf.appendSlice(
+            try w.writeAll(
                 \\#define __STDC_NO_THREADS__ 1
                 \\#define __STDC_NO_ATOMICS__ 1
                 \\
@@ -677,19 +685,17 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         else => {},
     };
     if (comp.langopts.standard.StdCVersionMacro()) |stdc_version| {
-        try buf.appendSlice("#define __STDC_VERSION__ ");
-        try buf.appendSlice(stdc_version);
-        try buf.append('\n');
+        try w.writeAll("#define __STDC_VERSION__ ");
+        try w.writeAll(stdc_version);
+        try w.writeByte('\n');
     }
 
     if (system_defines_mode == .include_system_defines) {
-        try comp.generateSystemDefines(buf.writer());
+        try comp.generateSystemDefines(w);
     }
-
-    return comp.addSourceFromBuffer("<builtin>", buf.items);
 }
 
-fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target_util.FPSemantics, ext: []const u8) !void {
+fn generateFloatMacros(w: *std.io.Writer, prefix: []const u8, semantics: target_util.FPSemantics, ext: []const u8) !void {
     const denormMin = semantics.chooseValue(
         []const u8,
         .{
@@ -764,7 +770,7 @@ fn generateFloatMacros(w: anytype, prefix: []const u8, semantics: target_util.FP
     try w.print("#define __{s}_MIN__ {s}{s}\n", .{ prefix, min, ext });
 }
 
-fn generateTypeMacro(comp: *const Compilation, w: anytype, name: []const u8, qt: QualType) !void {
+fn generateTypeMacro(comp: *const Compilation, w: *std.io.Writer, name: []const u8, qt: QualType) !void {
     try w.print("#define {s} ", .{name});
     try qt.print(comp, w);
     try w.writeByte('\n');
@@ -799,7 +805,7 @@ fn generateFastOrLeastType(
     bits: usize,
     kind: enum { least, fast },
     signedness: std.builtin.Signedness,
-    w: anytype,
+    w: *std.io.Writer,
 ) !void {
     const ty = comp.intLeastN(bits, signedness); // defining the fast types as the least types is permitted
 
@@ -829,7 +835,7 @@ fn generateFastOrLeastType(
     try comp.generateFmt(prefix, w, ty);
 }
 
-fn generateFastAndLeastWidthTypes(comp: *Compilation, w: anytype) !void {
+fn generateFastAndLeastWidthTypes(comp: *Compilation, w: *std.io.Writer) !void {
     const sizes = [_]usize{ 8, 16, 32, 64 };
     for (sizes) |size| {
         try comp.generateFastOrLeastType(size, .least, .signed, w);
@@ -839,7 +845,7 @@ fn generateFastAndLeastWidthTypes(comp: *Compilation, w: anytype) !void {
     }
 }
 
-fn generateExactWidthTypes(comp: *Compilation, w: anytype) !void {
+fn generateExactWidthTypes(comp: *Compilation, w: *std.io.Writer) !void {
     try comp.generateExactWidthType(w, .schar);
 
     if (QualType.short.sizeof(comp) > QualType.char.sizeof(comp)) {
@@ -887,7 +893,7 @@ fn generateExactWidthTypes(comp: *Compilation, w: anytype) !void {
     }
 }
 
-fn generateFmt(comp: *const Compilation, prefix: []const u8, w: anytype, qt: QualType) !void {
+fn generateFmt(comp: *const Compilation, prefix: []const u8, w: *std.io.Writer, qt: QualType) !void {
     const unsigned = qt.signedness(comp) == .unsigned;
     const modifier = qt.formatModifier(comp);
     const formats = if (unsigned) "ouxX" else "di";
@@ -896,7 +902,7 @@ fn generateFmt(comp: *const Compilation, prefix: []const u8, w: anytype, qt: Qua
     }
 }
 
-fn generateSuffixMacro(comp: *const Compilation, prefix: []const u8, w: anytype, qt: QualType) !void {
+fn generateSuffixMacro(comp: *const Compilation, prefix: []const u8, w: *std.io.Writer, qt: QualType) !void {
     return w.print("#define {s}_C_SUFFIX__ {s}\n", .{ prefix, qt.intValueSuffix(comp) });
 }
 
@@ -904,7 +910,7 @@ fn generateSuffixMacro(comp: *const Compilation, prefix: []const u8, w: anytype,
 ///     Name macro (e.g. #define __UINT32_TYPE__ unsigned int)
 ///     Format strings (e.g. #define __UINT32_FMTu__ "u")
 ///     Suffix macro (e.g. #define __UINT32_C_SUFFIX__ U)
-fn generateExactWidthType(comp: *Compilation, w: anytype, original_qt: QualType) !void {
+fn generateExactWidthType(comp: *Compilation, w: *std.io.Writer, original_qt: QualType) !void {
     var qt = original_qt;
     const width = qt.sizeof(comp) * 8;
     const unsigned = qt.signedness(comp) == .unsigned;
@@ -937,7 +943,7 @@ pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
     return comp.langopts.allow_half_args_and_returns or target_util.hasHalfPrecisionFloatABI(comp.target);
 }
 
-fn generateIntMax(comp: *const Compilation, w: anytype, name: []const u8, qt: QualType) !void {
+fn generateIntMax(comp: *const Compilation, w: *std.io.Writer, name: []const u8, qt: QualType) !void {
     const unsigned = qt.signedness(comp) == .unsigned;
     const max: u128 = switch (qt.bitSizeof(comp)) {
         8 => if (unsigned) std.math.maxInt(u8) else std.math.maxInt(i8),
@@ -961,7 +967,7 @@ pub fn wcharMax(comp: *const Compilation) u32 {
     };
 }
 
-fn generateExactWidthIntMax(comp: *Compilation, w: anytype, original_qt: QualType) !void {
+fn generateExactWidthIntMax(comp: *Compilation, w: *std.io.Writer, original_qt: QualType) !void {
     var qt = original_qt;
     const bit_count: u8 = @intCast(qt.sizeof(comp) * 8);
     const unsigned = qt.signedness(comp) == .unsigned;
@@ -978,16 +984,16 @@ fn generateExactWidthIntMax(comp: *Compilation, w: anytype, original_qt: QualTyp
     return comp.generateIntMax(w, name, qt);
 }
 
-fn generateIntWidth(comp: *Compilation, w: anytype, name: []const u8, qt: QualType) !void {
+fn generateIntWidth(comp: *Compilation, w: *std.io.Writer, name: []const u8, qt: QualType) !void {
     try w.print("#define __{s}_WIDTH__ {d}\n", .{ name, qt.sizeof(comp) * 8 });
 }
 
-fn generateIntMaxAndWidth(comp: *Compilation, w: anytype, name: []const u8, qt: QualType) !void {
+fn generateIntMaxAndWidth(comp: *Compilation, w: *std.io.Writer, name: []const u8, qt: QualType) !void {
     try comp.generateIntMax(w, name, qt);
     try comp.generateIntWidth(w, name, qt);
 }
 
-fn generateSizeofType(comp: *Compilation, w: anytype, name: []const u8, qt: QualType) !void {
+fn generateSizeofType(comp: *Compilation, w: *std.io.Writer, name: []const u8, qt: QualType) !void {
     try w.print("#define {s} {d}\n", .{ name, qt.sizeof(comp) });
 }
 
@@ -1451,24 +1457,24 @@ pub const IncludeType = enum {
     angle_brackets,
 };
 
-fn getFileContents(comp: *Compilation, path: []const u8, limit: ?u32) ![]const u8 {
+fn getFileContents(comp: *Compilation, path: []const u8, limit: std.io.Limit) ![]const u8 {
     if (mem.indexOfScalar(u8, path, 0) != null) {
         return error.FileNotFound;
     }
 
     const file = try comp.cwd.openFile(path, .{});
     defer file.close();
+    var reader = file.reader("");
 
-    var buf = std.ArrayList(u8).init(comp.gpa);
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(comp.gpa);
+    defer allocating.deinit();
 
-    const max = limit orelse std.math.maxInt(u32);
-    file.reader().readAllArrayList(&buf, max) catch |e| switch (e) {
+    _ = allocating.writer.sendFileAll(&reader, limit) catch |e| switch (e) {
         error.StreamTooLong => if (limit == null) return e,
         else => return e,
     };
 
-    return buf.toOwnedSlice();
+    return allocating.toOwnedSlice();
 }
 
 pub fn findEmbed(
@@ -1477,7 +1483,7 @@ pub fn findEmbed(
     includer_token_source: Source.Id,
     /// angle bracket vs quotes
     include_type: IncludeType,
-    limit: ?u32,
+    limit: std.io.Limit,
 ) !?[]const u8 {
     if (std.fs.path.isAbsolute(filename)) {
         return if (comp.getFileContents(filename, limit)) |some|

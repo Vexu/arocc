@@ -1080,7 +1080,7 @@ const NestedPrint = union(enum) {
     },
 };
 
-pub fn printPointer(offset: Value, base: []const u8, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+pub fn printPointer(offset: Value, base: []const u8, comp: *const Compilation, w: *std.io.Writer) std.io.Writer.Error!void {
     try w.writeByte('&');
     try w.writeAll(base);
     if (!offset.isZero(comp)) {
@@ -1089,7 +1089,7 @@ pub fn printPointer(offset: Value, base: []const u8, comp: *const Compilation, w
     }
 }
 
-pub fn print(v: Value, qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!?NestedPrint {
+pub fn print(v: Value, qt: QualType, comp: *const Compilation, w: *std.io.Writer) std.io.Writer.Error!?NestedPrint {
     if (qt.is(comp, .bool)) {
         try w.writeAll(if (v.isZero(comp)) "false" else "true");
         return null;
@@ -1116,12 +1116,12 @@ pub fn print(v: Value, qt: QualType, comp: *const Compilation, w: anytype) @Type
     return null;
 }
 
-pub fn printString(bytes: []const u8, qt: QualType, comp: *const Compilation, w: anytype) @TypeOf(w).Error!void {
+pub fn printString(bytes: []const u8, qt: QualType, comp: *const Compilation, w: *std.io.Writer) std.io.Writer.Error!void {
     const size: Compilation.CharUnitSize = @enumFromInt(qt.childType(comp).sizeof(comp));
     const without_null = bytes[0 .. bytes.len - @intFromEnum(size)];
     try w.writeByte('"');
     switch (size) {
-        .@"1" => try w.print("{}", .{std.zig.fmtEscapes(without_null)}),
+        .@"1" => try w.print("{f}", .{std.zig.fmtString(without_null)}),
         .@"2" => {
             var items: [2]u16 = undefined;
             var i: usize = 0;

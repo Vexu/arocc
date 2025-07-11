@@ -424,7 +424,7 @@ pub fn addWithLocation(
     if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
-pub fn formatArgs(w: anytype, fmt: []const u8, args: anytype) !void {
+pub fn formatArgs(w: *std.io.Writer, fmt: []const u8, args: anytype) !void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
         const arg = @field(args, arg_info.name);
@@ -440,7 +440,7 @@ pub fn formatArgs(w: anytype, fmt: []const u8, args: anytype) !void {
     try w.writeAll(fmt[i..]);
 }
 
-pub fn formatString(w: anytype, fmt: []const u8, str: []const u8) !usize {
+pub fn formatString(w: *std.io.Writer, fmt: []const u8, str: []const u8) std.io.Writer.Error!usize {
     const template = "{s}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -448,11 +448,11 @@ pub fn formatString(w: anytype, fmt: []const u8, str: []const u8) !usize {
     return i + template.len;
 }
 
-pub fn formatInt(w: anytype, fmt: []const u8, int: anytype) !usize {
+pub fn formatInt(w: *std.io.Writer, fmt: []const u8, int: anytype) std.io.Writer.Error!usize {
     const template = "{d}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
-    try std.fmt.formatInt(int, 10, .lower, .{}, w);
+    try w.printInt(int, 10, .lower, .{});
     return i + template.len;
 }
 
@@ -470,7 +470,9 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
     switch (d.output) {
         .ignore => {},
         .to_file => |to_file| {
-            writeToWriter(msg, to_file.file.writer(), to_file.config) catch {
+            var buf: [1024]u8 = undefined;
+            var w = to_file.file.writer(&buf);
+            writeToWriter(msg, &w.interface, to_file.config) catch {
                 return error.FatalError;
             };
         },
@@ -491,7 +493,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
     }
 }
 
-fn writeToWriter(msg: Message, w: anytype, config: std.io.tty.Config) !void {
+fn writeToWriter(msg: Message, w: *std.io.Writer, config: std.io.tty.Config) !void {
     try config.setColor(w, .bold);
     if (msg.location) |loc| {
         try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
@@ -524,7 +526,7 @@ fn writeToWriter(msg: Message, w: anytype, config: std.io.tty.Config) !void {
         const trailer = if (loc.end_with_splice) "\\ " else "";
         try config.setColor(w, .reset);
         try w.print("\n{s}{s}\n", .{ loc.line, trailer });
-        try w.writeByteNTimes(' ', loc.width);
+        try w.splatByteAll(' ', loc.width);
         try config.setColor(w, .bold);
         try config.setColor(w, .bright_green);
         try w.writeAll("^\n");

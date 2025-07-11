@@ -45,13 +45,13 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
     const diagnostic: Pragma.Diagnostic = .pragma_message;
 
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), diagnostic.fmt, .{str});
+    Diagnostics.formatArgs(&allocating.writer, diagnostic.fmt, .{str}) catch return error.OutOfMemory;
 
     try pp.diagnostics.add(.{
-        .text = buf.items,
+        .text = allocating.getWritten(),
         .kind = diagnostic.kind,
         .opt = diagnostic.opt,
         .location = loc.expand(pp.comp),

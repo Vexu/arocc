@@ -252,8 +252,8 @@ pub const usage =
 /// Process command line arguments, returns true if something was written to std_out.
 pub fn parseArgs(
     d: *Driver,
-    std_out: anytype,
-    macro_buf: anytype,
+    std_out: *std.io.Writer,
+    macro_buf: *std.io.Writer,
     args: []const []const u8,
 ) Compilation.Error!bool {
     var i: usize = 1;
@@ -694,8 +694,8 @@ fn option(arg: []const u8, name: []const u8) ?[]const u8 {
 
 fn addSource(d: *Driver, path: []const u8) !Source {
     if (mem.eql(u8, "-", path)) {
-        const stdin = std.io.getStdIn().reader();
-        const input = try stdin.readAllAlloc(d.comp.gpa, std.math.maxInt(u32));
+        var stdin = std.fs.File.stdin().reader("");
+        const input = try stdin.interface.stream(d.comp.gpa, std.math.maxInt(u32));
         defer d.comp.gpa.free(input);
         return d.comp.addSourceFromBuffer("<stdin>", input);
     }
@@ -704,20 +704,20 @@ fn addSource(d: *Driver, path: []const u8) !Source {
 
 pub fn err(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), fmt, args);
-    try d.diagnostics.add(.{ .kind = .@"error", .text = buf.items, .location = null });
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
+    try d.diagnostics.add(.{ .kind = .@"error", .text = allocating.getWritten(), .location = null });
 }
 
 pub fn warn(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), fmt, args);
-    try d.diagnostics.add(.{ .kind = .warning, .text = buf.items, .location = null });
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
+    try d.diagnostics.add(.{ .kind = .warning, .text = allocating.getWritten(), .location = null });
 }
 
 pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) Compilation.Error!void {
@@ -729,11 +729,11 @@ pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), fmt, args);
-    try d.diagnostics.add(.{ .kind = .@"fatal error", .text = buf.items, .location = null });
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
+    try d.diagnostics.add(.{ .kind = .@"fatal error", .text = allocating.getWritten(), .location = null });
     unreachable;
 }
 
@@ -796,11 +796,11 @@ pub fn errorDescription(e: anyerror) []const u8 {
 /// The entry point of the Aro compiler.
 /// **MAY call `exit` if `fast_exit` is set.**
 pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) Compilation.Error!void {
-    var macro_buf = std.ArrayList(u8).init(d.comp.gpa);
-    defer macro_buf.deinit();
+    var macro_writer: std.io.Writer.Allocating = .init(d.comp.gpa);
+    defer macro_writer.deinit();
 
-    const std_out = std.io.getStdOut().writer();
-    if (try parseArgs(d, std_out, macro_buf.writer(), args)) return;
+    var std_out = std.fs.File.stderr().writer("");
+    if (try parseArgs(d, &std_out.interface, &macro_writer.writer, args)) return;
 
     const linking = !(d.only_preprocess or d.only_syntax or d.only_compile or d.only_preprocess_and_compile);
 
@@ -823,7 +823,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         error.AroIncludeNotFound => return d.fatal("unable to find Aro builtin headers", .{}),
     };
 
-    const user_macros = d.comp.addSourceFromBuffer("<command line>", macro_buf.items) catch |er| switch (er) {
+    const user_macros = d.comp.addSourceFromBuffer("<command line>", macro_writer.getWritten()) catch |er| switch (er) {
         error.StreamTooLong => return d.fatal("user provided macro source exceeded max size", .{}),
         else => |e| return e,
     };
@@ -953,16 +953,17 @@ fn processSource(
             d.comp.cwd.createFile(some, .{}) catch |er|
                 return d.fatal("unable to create output file '{s}': {s}", .{ some, errorDescription(er) })
         else
-            std.io.getStdOut();
+            std.fs.File.stdout();
         defer if (d.output_name != null) file.close();
 
-        var buf_w = std.io.bufferedWriter(file.writer());
+        var buf: [1024]u8 = undefined;
+        var writer = file.writer(&buf);
 
-        pp.prettyPrintTokens(buf_w.writer(), dump_mode) catch |er|
-            return d.fatal("unable to write result: {s}", .{errorDescription(er)});
+        pp.prettyPrintTokens(&writer.interface, dump_mode) catch
+            return d.fatal("unable to write result: {s}", .{errorDescription(writer.err.?)});
 
-        buf_w.flush() catch |er|
-            return d.fatal("unable to write result: {s}", .{errorDescription(er)});
+        writer.interface.flush() catch
+            return d.fatal("unable to write result: {s}", .{errorDescription(writer.err.?)});
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
     }

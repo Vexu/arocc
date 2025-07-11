@@ -2958,7 +2958,7 @@ fn dumpNode(
     node_index: Node.Index,
     level: u32,
     config: std.io.tty.Config,
-    w: anytype,
+    w: *std.io.Writer,
 ) !void {
     const delta = 2;
     const half = delta / 2;

@@ -39,10 +39,10 @@ pub fn main() u8 {
     };
     defer gpa.free(aro_name);
 
-    const stderr_file = std.io.getStdErr();
+    const stderr_file: std.fs.File = .stderr();
     var diagnostics: Diagnostics = .{
         .output = .{ .to_file = .{
-            .config = std.io.tty.detectConfig(stderr_file),
+            .config = .detect(stderr_file),
             .file = stderr_file,
         } },
     };

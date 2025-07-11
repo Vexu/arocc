@@ -755,17 +755,17 @@ fn tokFromRaw(raw: RawToken) TokenWithExpansionLocs {
 
 pub const Diagnostic = @import("Preprocessor/Diagnostic.zig");
 
-fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) !void {
+fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) Compilation.Error!void {
     if (pp.diagnostics.effectiveKind(diagnostic) == .off) return;
 
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), diagnostic.fmt, args);
+    Diagnostics.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
     try pp.diagnostics.addWithLocation(pp.comp, .{
         .kind = diagnostic.kind,
-        .text = buf.items,
+        .text = allocating.getWritten(),
         .opt = diagnostic.opt,
         .extension = diagnostic.extension,
         .location = switch (@TypeOf(loc)) {
@@ -788,13 +788,13 @@ fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) !
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), fmt, args);
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
     try pp.diagnostics.add(.{
         .kind = .@"fatal error",
-        .text = buf.items,
+        .text = allocating.getWritten(),
         .location = (Source.Location{
             .id = raw.source,
             .byte_offset = raw.start,
@@ -810,13 +810,13 @@ fn fatalNotFound(pp: *Preprocessor, tok: TokenWithExpansionLocs, filename: []con
     defer pp.diagnostics.state.fatal_errors = old;
 
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), "'{s}' not found", .{filename});
+    Diagnostics.formatArgs(&allocating.writer, "'{s}' not found", .{filename}) catch return error.OutOfMemory;
     try pp.diagnostics.addWithLocation(pp.comp, .{
         .kind = .@"fatal error",
-        .text = buf.items,
+        .text = allocating.getWritten(),
         .location = tok.loc.expand(pp.comp),
     }, tok.expansionSlice(), true);
     unreachable; // should've returned FatalError
@@ -827,15 +827,15 @@ fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: 
     const source = pp.comp.getSource(raw.source);
     const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
 
-    const stderr = std.io.getStdErr().writer();
-    var buf_writer = std.io.bufferedWriter(stderr);
-    const writer = buf_writer.writer();
-    defer buf_writer.flush() catch {};
-    writer.print("{s}:{d}:{d}: ", .{ source.path, line_col.line_no, line_col.col }) catch return;
-    writer.print(fmt, args) catch return;
-    writer.writeByte('\n') catch return;
-    writer.writeAll(line_col.line) catch return;
-    writer.writeByte('\n') catch return;
+    var buf: [1024]u8 = undefined;
+    var stderr = std.fs.File.stderr().writer(&buf);
+    const w = &stderr.interface;
+    defer w.flush() catch {};
+    w.print("{s}:{d}:{d}: ", .{ source.path, line_col.line_no, line_col.col }) catch return;
+    w.print(fmt, args) catch return;
+    w.writeByte('\n') catch return;
+    w.writeAll(line_col.line) catch return;
+    w.writeByte('\n') catch return;
 }
 
 /// Consume next token, error if it is not an identifier.
@@ -1191,7 +1191,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 const start = pp.comp.generated_buf.items.len;
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
                 const w = pp.comp.generated_buf.writer(pp.gpa);
-                try w.print("\"{}\"\n", .{fmtEscapes(source.path)});
+                try w.print("\"{f}\"\n", .{fmtEscapes(source.path)});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
             },
@@ -1935,7 +1935,7 @@ fn expandFuncMacro(
                         else => unreachable,
                     };
                     const filename = include_str[1 .. include_str.len - 1];
-                    const contents = (try pp.comp.findEmbed(filename, arg[0].loc.id, include_type, 1)) orelse
+                    const contents = (try pp.comp.findEmbed(filename, arg[0].loc.id, include_type, .limited(1))) orelse
                         break :res not_found;
 
                     defer pp.comp.gpa.free(contents);
@@ -2994,7 +2994,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     };
     pp.token_buf.items.len = 0;
 
-    var limit: ?u32 = null;
+    var limit: std.io.Limit = .unlimited;
     var prefix: ?Range = null;
     var suffix: ?Range = null;
     var if_empty: ?Range = null;
@@ -3051,7 +3051,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         const end: u32 = @intCast(pp.token_buf.items.len);
 
         if (std.mem.eql(u8, param, "limit")) {
-            if (limit != null) {
+            if (limit != .unlimited) {
                 try pp.err(tokFromRaw(param_first), .duplicate_embed_param, .{"limit"});
                 continue;
             }
@@ -3064,10 +3064,10 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
                 try pp.err(param_first, .malformed_embed_limit, .{});
                 continue;
             }
-            limit = std.fmt.parseInt(u32, pp.tokSlice(limit_tok), 10) catch {
+            limit = .limited(std.fmt.parseInt(u32, pp.tokSlice(limit_tok), 10) catch {
                 try pp.err(limit_tok, .malformed_embed_limit, .{});
                 continue;
-            };
+            });
             pp.token_buf.items.len = start;
         } else if (std.mem.eql(u8, param, "prefix")) {
             if (prefix != null) {
@@ -3352,14 +3352,14 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
 
 fn printLinemarker(
     pp: *Preprocessor,
-    w: anytype,
+    w: *std.io.Writer,
     line_no: u32,
     source: Source,
     start_resume: enum(u8) { start, @"resume", none },
 ) !void {
     try w.writeByte('#');
     if (pp.linemarkers == .line_directives) try w.writeAll("line");
-    try w.print(" {d} \"{}\"", .{ line_no, fmtEscapes(source.path) });
+    try w.print(" {d} \"{f}\"", .{ line_no, fmtEscapes(source.path) });
     if (pp.linemarkers == .numeric_directives) {
         switch (start_resume) {
             .none => {},
@@ -3395,7 +3395,7 @@ pub const DumpMode = enum {
 /// Pretty-print the macro define or undef at location `loc`.
 /// We re-tokenize the directive because we are printing a macro that may have the same name as one in
 /// `pp.defines` but a different definition (due to being #undef'ed and then redefined)
-fn prettyPrintMacro(pp: *Preprocessor, w: anytype, loc: Source.Location, parts: enum { name_only, name_and_body }) !void {
+fn prettyPrintMacro(pp: *Preprocessor, w: *std.io.Writer, loc: Source.Location, parts: enum { name_only, name_and_body }) !void {
     const source = pp.comp.getSource(loc.id);
     var tokenizer: Tokenizer = .{
         .buf = source.buf,
@@ -3433,7 +3433,7 @@ fn prettyPrintMacro(pp: *Preprocessor, w: anytype, loc: Source.Location, parts: 
     }
 }
 
-fn prettyPrintMacrosOnly(pp: *Preprocessor, w: anytype) !void {
+fn prettyPrintMacrosOnly(pp: *Preprocessor, w: *std.io.Writer) !void {
     for (pp.defines.values()) |macro| {
         if (macro.is_builtin) continue;
 
@@ -3444,7 +3444,7 @@ fn prettyPrintMacrosOnly(pp: *Preprocessor, w: anytype) !void {
 }
 
 /// Pretty print tokens and try to preserve whitespace.
-pub fn prettyPrintTokens(pp: *Preprocessor, w: anytype, macro_dump_mode: DumpMode) !void {
+pub fn prettyPrintTokens(pp: *Preprocessor, w: *std.io.Writer, macro_dump_mode: DumpMode) !void {
     if (macro_dump_mode == .macros_only) {
         return pp.prettyPrintMacrosOnly(w);
     }
@@ -3568,8 +3568,7 @@ fn fmtEscapes(bytes: []const u8) FmtEscapes {
 }
 const FmtEscapes = struct {
     bytes: []const u8,
-    pub fn format(ctx: FmtEscapes, comptime fmt: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
-        if (fmt.len != 0) std.fmt.invalidFmtError(fmt, ctx);
+    pub fn format(ctx: FmtEscapes, w: *std.io.Writer) !void {
         for (ctx.bytes) |byte| switch (byte) {
             '\n' => try w.writeAll("\\n"),
             '\r' => try w.writeAll("\\r"),

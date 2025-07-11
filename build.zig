@@ -100,7 +100,7 @@ pub fn build(b: *Build) !void {
 
                 const ancestor_ver = try std.SemanticVersion.parse(tagged_ancestor);
                 if (!aro_version.order(ancestor_ver).compare(.gte)) {
-                    std.debug.print("Aro version '{}' must be greater than tagged ancestor '{}'\n", .{ aro_version, ancestor_ver });
+                    std.debug.print("Aro version '{f}' must be greater than tagged ancestor '{f}'\n", .{ aro_version, ancestor_ver });
                     std.process.exit(1);
                 }
 
