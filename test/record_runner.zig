@@ -122,7 +122,7 @@ pub fn main() !void {
         var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
         defer cases_dir.close();
         var buf: [1024]u8 = undefined;
-        var buf_strm = std.io.fixedBufferStream(&buf);
+        var writer: std.io.Writer = .fixed(&buf);
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
@@ -133,9 +133,9 @@ pub fn main() !void {
             }
 
             if (std.ascii.indexOfIgnoreCase(entry.name, "_test.c") != null) {
-                buf_strm.reset();
-                try buf_strm.writer().print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
-                try cases.append(try gpa.dupe(u8, buf[0..buf_strm.pos]));
+                _ = writer.consumeAll();
+                try writer.print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
+                try cases.append(try gpa.dupe(u8, writer.buffered()));
             }
         }
     }
@@ -182,7 +182,7 @@ pub fn main() !void {
     thread_pool.waitAndWork(&wait_group);
     root_node.end();
 
-    std.debug.print("max mem used = {:.2}\n", .{std.fmt.fmtIntSizeBin(stats.max_alloc)});
+    std.debug.print("max mem used = {Bi:.2}\n", .{stats.max_alloc});
     if (stats.ok_count == cases.items.len and stats.skip_count == 0) {
         print("All {d} tests passed ({d} invalid targets)\n", .{ stats.ok_count, stats.invalid_target_count });
     } else if (stats.fail_count == 0) {
@@ -258,17 +258,17 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
         else => {},
     }
 
-    var case_name = std.ArrayList(u8).init(gpa);
-    defer case_name.deinit();
+    var name_buf: [1024]u8 = undefined;
+    var name_writer: std.io.Writer = .fixed(&name_buf);
 
     const test_name = std.mem.sliceTo(std.fs.path.basename(path), '_');
-    try case_name.writer().print("{s} | {s} | {s}", .{
+    try name_writer.print("{s} | {s} | {s}", .{
         test_name,
         test_case.target,
         test_case.c_define,
     });
 
-    var case_node = stats.root_node.start(case_name.items, 0);
+    var case_node = stats.root_node.start(name_writer.buffered(), 0);
     defer case_node.end();
 
     const file = comp.addSourceFromBuffer(path, test_case.source) catch |err| {
@@ -277,19 +277,17 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
         return;
     };
 
-    var macro_buf = std.ArrayList(u8).init(comp.gpa);
-    defer macro_buf.deinit();
-
     comp.langopts.setEmulatedCompiler(aro.target_util.systemCompiler(comp.target));
 
-    const mac_writer = macro_buf.writer();
-    try mac_writer.print("#define {s}\n", .{test_case.c_define});
+    var macro_buf: [1024]u8 = undefined;
+    var macro_writer: std.io.Writer = .fixed(&macro_buf);
+    try macro_writer.print("#define {s}\n", .{test_case.c_define});
     if (comp.langopts.emulate == .msvc) {
         comp.langopts.setMSExtensions(true);
-        try mac_writer.writeAll("#define MSVC\n");
+        try macro_writer.writeAll("#define MSVC\n");
     }
 
-    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
+    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_writer.buffered());
     const builtin_macros = try comp.generateBuiltinMacros(.include_system_defines);
 
     var pp = try aro.Preprocessor.initDefault(&comp);
@@ -306,7 +304,11 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
 
     var tree = try aro.Parser.parse(&pp);
     defer tree.deinit();
-    tree.dump(.no_color, std.io.null_writer) catch {};
+    {
+        var discard_buf: [256]u8 = undefined;
+        var discarding: std.io.Writer.Discarding = .init(&discard_buf);
+        tree.dump(.no_color, &discarding.writer) catch {};
+    }
 
     if (test_single_target) {
         printDiagnostics(&diagnostics);
@@ -319,10 +321,10 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     }
 
     var buf: [128]u8 = undefined;
-    var buf_strm = std.io.fixedBufferStream(&buf);
-    try buf_strm.writer().print("{s}|{s}", .{ test_case.target, test_name });
+    var writer: std.io.Writer = .fixed(&buf);
+    try writer.print("{s}|{s}", .{ test_case.target, test_name });
 
-    const expected = compErr.get(buf[0..buf_strm.pos]) orelse ExpectedFailure{};
+    const expected = compErr.get(writer.buffered()) orelse ExpectedFailure{};
 
     if (diagnostics.total == 0 and expected.any()) {
         std.debug.print("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});

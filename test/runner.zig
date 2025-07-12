@@ -18,7 +18,7 @@ const AddCommandLineArgsResult = struct {
 };
 
 /// Returns only_preprocess and line_markers settings if saw -E
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anytype) !AddCommandLineArgsResult {
+fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_writer: *std.io.Writer.Allocating) !AddCommandLineArgsResult {
     var only_preprocess = false;
     var line_markers: aro.Preprocessor.Linemarkers = .none;
     var system_defines: aro.Compilation.SystemDefinesMode = .include_system_defines;
@@ -33,7 +33,10 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: anyty
 
         var driver: aro.Driver = .{ .comp = comp, .diagnostics = comp.diagnostics };
         defer driver.deinit();
-        _ = try driver.parseArgs(std.io.null_writer, macro_buf, test_args.items);
+
+        var discard_buf: [256]u8 = undefined;
+        var discarding: std.io.Writer.Discarding = .init(&discard_buf);
+        _ = try driver.parseArgs(&discarding.writer, macro_writer, test_args.items);
         only_preprocess = driver.only_preprocess;
         system_defines = driver.system_defines;
         dump_mode = driver.debug_dump_letters.getPreprocessorDumpMode();
@@ -169,8 +172,14 @@ pub fn main() !void {
         .estimated_total_items = cases.items.len,
     });
 
+    var diag_buf: std.io.Writer.Allocating = .init(gpa);
+    defer diag_buf.deinit();
+
     var diagnostics: aro.Diagnostics = .{
-        .output = .{ .to_buffer = .init(gpa) },
+        .output = .{ .to_writer = .{
+            .writer = &diag_buf.writer,
+            .config = .no_color,
+        } },
     };
     defer diagnostics.deinit();
 
@@ -204,11 +213,7 @@ pub fn main() !void {
     var fail_count: u32 = 0;
     var skip_count: u32 = 0;
     next_test: for (cases.items) |path| {
-        const diag_buf = diagnostics.output.to_buffer;
-        diagnostics = .{
-            .output = .{ .to_buffer = diag_buf },
-        };
-        diagnostics.output.to_buffer.items.len = 0;
+        diag_buf.shrinkRetainingCapacity(0);
 
         var comp = initial_comp;
         defer {
@@ -235,11 +240,11 @@ pub fn main() !void {
             continue;
         };
 
-        var macro_buf = std.ArrayList(u8).init(comp.gpa);
-        defer macro_buf.deinit();
+        var macro_writer: std.io.Writer.Allocating = .init(comp.gpa);
+        defer macro_writer.deinit();
 
-        const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, macro_buf.writer());
-        const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
+        const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, &macro_writer);
+        const user_macros = try comp.addSourceFromBuffer("<command line>", macro_writer.getWritten());
 
         const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
@@ -280,15 +285,17 @@ pub fn main() !void {
         }
 
         if (only_preprocess) {
-            if (try checkExpectedErrors(&pp, &buf)) |some| {
+            if (try checkExpectedErrors(&pp, &buf, diag_buf.getWritten())) |some| {
                 if (!some) {
                     std.debug.print("in case {s}\n", .{case});
                     fail_count += 1;
                     continue;
                 }
             } else {
-                const stderr = std.io.getStdErr();
-                try stderr.writeAll(pp.diagnostics.output.to_buffer.items);
+                var stderr_buf: [4096]u8 = undefined;
+                var stderr = std.fs.File.stderr().writer(&stderr_buf);
+                try stderr.interface.writeAll(diag_buf.getWritten());
+                try stderr.interface.flush();
 
                 if (comp.diagnostics.errors != 0) {
                     std.debug.print("in case {s}\n", .{case});
@@ -309,13 +316,13 @@ pub fn main() !void {
             };
             defer gpa.free(expected_output);
 
-            var output = std.ArrayList(u8).init(gpa);
+            var output: std.io.Writer.Allocating = .init(gpa);
             defer output.deinit();
 
-            try pp.prettyPrintTokens(output.writer(), dump_mode);
+            try pp.prettyPrintTokens(&output.writer, dump_mode);
 
             if (pp.defines.contains("CHECK_PARTIAL_MATCH")) {
-                const index = std.mem.indexOf(u8, output.items, expected_output);
+                const index = std.mem.indexOf(u8, output.getWritten(), expected_output);
                 if (index != null) {
                     ok_count += 1;
                 } else {
@@ -324,11 +331,11 @@ pub fn main() !void {
                     std.debug.print("\n====== expected to find: =========\n", .{});
                     std.debug.print("{s}", .{expected_output});
                     std.debug.print("\n======== but did not find it in this: =========\n", .{});
-                    std.debug.print("{s}", .{output.items});
+                    std.debug.print("{s}", .{output.getWritten()});
                     std.debug.print("\n======================================\n", .{});
                 }
             } else {
-                if (std.testing.expectEqualStrings(expected_output, output.items))
+                if (std.testing.expectEqualStrings(expected_output, output.getWritten()))
                     ok_count += 1
                 else |_|
                     fail_count += 1;
@@ -340,7 +347,7 @@ pub fn main() !void {
 
         var tree = aro.Parser.parse(&pp) catch |err| switch (err) {
             error.FatalError => {
-                if (try checkExpectedErrors(&pp, &buf)) |some| {
+                if (try checkExpectedErrors(&pp, &buf, diag_buf.getWritten())) |some| {
                     if (some) ok_count += 1 else {
                         std.debug.print("in case {s}\n", .{case});
                         fail_count += 1;
@@ -357,16 +364,20 @@ pub fn main() !void {
         const maybe_ast = std.fs.cwd().readFileAlloc(gpa, ast_path, std.math.maxInt(u32)) catch null;
         if (maybe_ast) |expected_ast| {
             defer gpa.free(expected_ast);
-            var actual_ast = std.ArrayList(u8).init(gpa);
+            var actual_ast: std.io.Writer.Allocating = .init(gpa);
             defer actual_ast.deinit();
 
-            try tree.dump(.no_color, actual_ast.writer());
-            std.testing.expectEqualStrings(expected_ast, actual_ast.items) catch {
+            try tree.dump(.no_color, &actual_ast.writer);
+            std.testing.expectEqualStrings(expected_ast, actual_ast.getWritten()) catch {
                 std.debug.print("in case {s}\n", .{case});
                 fail_count += 1;
                 break;
             };
-        } else tree.dump(.no_color, std.io.null_writer) catch {};
+        } else {
+            var discard_buf: [256]u8 = undefined;
+            var discarding: std.io.Writer.Discarding = .init(&discard_buf);
+            tree.dump(.no_color, &discarding.writer) catch {};
+        }
 
         if (expected_types) |types| {
             const test_fn = for (tree.root_decls.items) |decl| {
@@ -419,7 +430,7 @@ pub fn main() !void {
             }
         }
 
-        if (try checkExpectedErrors(&pp, &buf)) |some| {
+        if (try checkExpectedErrors(&pp, &buf, diag_buf.getWritten())) |some| {
             if (some) ok_count += 1 else {
                 std.debug.print("in case {s}\n", .{case});
                 fail_count += 1;
@@ -428,8 +439,11 @@ pub fn main() !void {
         }
 
         if (pp.defines.contains("NO_ERROR_VALIDATION")) continue;
-        const stderr = std.io.getStdErr();
-        try stderr.writeAll(pp.diagnostics.output.to_buffer.items);
+        {
+            var stderr_buf: [4096]u8 = undefined;
+            var stderr = std.fs.File.stderr().writer(&stderr_buf);
+            try stderr.interface.writeAll(diag_buf.getWritten());
+        }
 
         if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
             if (comp.diagnostics.errors != 0) break :blk;
@@ -519,12 +533,10 @@ pub fn main() !void {
 }
 
 // returns true if passed
-fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8)) !?bool {
+fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8), errors: []const u8) !?bool {
     const macro = pp.defines.get("EXPECTED_ERRORS") orelse return null;
 
     const expected_count = pp.diagnostics.total;
-    const errors = pp.diagnostics.output.to_buffer.items;
-
     if (macro.is_func) {
         std.debug.print("invalid EXPECTED_ERRORS {}\n", .{macro});
         return false;
@@ -609,12 +621,12 @@ const StmtTypeDumper = struct {
         const maybe_ret = node.get(tree);
         if (maybe_ret == .return_stmt and maybe_ret.return_stmt.operand == .implicit) return;
 
-        var buf = std.ArrayList(u8).init(self.types.allocator);
-        defer buf.deinit();
+        var allocating: std.io.Writer.Allocating = .init(self.types.allocator);
+        defer allocating.deinit();
 
-        node.qt(tree).dump(tree.comp, buf.writer()) catch {};
-        const owned = try buf.toOwnedSlice();
-        errdefer buf.allocator.free(owned);
+        node.qt(tree).dump(tree.comp, &allocating.writer) catch {};
+        const owned = try allocating.toOwnedSlice();
+        errdefer allocating.allocator.free(owned);
 
         try self.types.append(owned);
     }
