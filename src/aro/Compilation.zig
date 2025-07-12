@@ -627,7 +627,7 @@ fn generateSystemDefines(comp: *Compilation, w: *std.io.Writer) !void {
 }
 
 /// Generate builtin macros that will be available to each source file.
-pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) !Source {
+pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) (Compilation.Error || error{StreamTooLong})!Source {
     try comp.type_store.initNamedTypes(comp);
 
     var allocating: std.io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 14);
