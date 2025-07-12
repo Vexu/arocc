@@ -162,7 +162,7 @@ pub const Ascii = struct {
         if (std.ascii.isPrint(ctx.val)) {
             try w.writeByte(ctx.val);
         } else {
-            try w.print("x{x}", .{ctx.val});
+            try w.print("x{x:0>2}", .{ctx.val});
         }
         return i + template.len;
     }

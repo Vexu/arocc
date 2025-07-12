@@ -214,6 +214,12 @@ pub fn main() !void {
     var skip_count: u32 = 0;
     next_test: for (cases.items) |path| {
         diag_buf.shrinkRetainingCapacity(0);
+        diagnostics = .{
+            .output = .{ .to_writer = .{
+                .writer = &diag_buf.writer,
+                .color = .no_color,
+            } },
+        };
 
         var comp = initial_comp;
         defer {

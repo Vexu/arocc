@@ -36,7 +36,7 @@ function: 'fn () void'
  body:
   compound_stmt
     variable: 'attributed([64]char)'
-     attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(14), .requested = 8 }
+     attr: aligned alignment: .{ .node = @enumFromInt(14), .requested = 8 }
      name: x
 
     variable: '*char'
@@ -48,10 +48,10 @@ function: 'fn () void'
          base:
           implicit cast: (array_to_pointer) 'decayed *attributed([64]char)'
             paren_expr: 'attributed([64]char)' lvalue
-             attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(14), .requested = 8 }
+             attr: aligned alignment: .{ .node = @enumFromInt(14), .requested = 8 }
              operand:
               decl_ref_expr: 'attributed([64]char)' lvalue
-               attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(14), .requested = 8 }
+               attr: aligned alignment: .{ .node = @enumFromInt(14), .requested = 8 }
                name: x
          index:
           int_literal: 'int' (value: 0)
