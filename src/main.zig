@@ -43,7 +43,7 @@ pub fn main() u8 {
     var stderr = std.fs.File.stderr().writer(&buf);
     var diagnostics: Diagnostics = .{
         .output = .{ .to_writer = .{
-            .config = .detect(stderr.file),
+            .color = .detect(stderr.file),
             .writer = &stderr.interface,
         } },
     };

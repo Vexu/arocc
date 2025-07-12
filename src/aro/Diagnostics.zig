@@ -239,7 +239,7 @@ const Diagnostics = @This();
 output: union(enum) {
     to_writer: struct {
         writer: *std.io.Writer,
-        config: std.io.tty.Config,
+        color: std.io.tty.Config,
     },
     to_list: struct {
         messages: std.ArrayListUnmanaged(Message) = .empty,
@@ -468,7 +468,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
     switch (d.output) {
         .ignore => {},
         .to_writer => |writer| {
-            writeToWriter(msg, writer.writer, writer.config) catch {
+            writeToWriter(msg, writer.writer, writer.color) catch {
                 return error.FatalError;
             };
         },
@@ -528,4 +528,5 @@ fn writeToWriter(msg: Message, w: *std.io.Writer, config: std.io.tty.Config) !vo
         try w.writeAll("\n");
         try config.setColor(w, .reset);
     }
+    try w.flush();
 }

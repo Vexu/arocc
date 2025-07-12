@@ -795,7 +795,8 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         var macro_writer: std.io.Writer.Allocating = .init(d.comp.gpa);
         defer macro_writer.deinit();
 
-        var stdout = std.fs.File.stdout().writer("");
+        var stdout_buf: [256]u8 = undefined;
+        var stdout = std.fs.File.stdout().writer(&stdout_buf);
         if (parseArgs(d, &stdout.interface, &macro_writer, args) catch |er| switch (er) {
             error.WriteFailed => return d.fatal("failed to write to stdout: {s}", .{errorDescription(er)}),
             error.OutOfMemory => return error.OutOfMemory,
