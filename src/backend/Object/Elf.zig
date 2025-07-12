@@ -170,10 +170,7 @@ pub fn addRelocation(elf: *Elf, name: []const u8, section_kind: Object.Section, 
 /// relocations
 /// strtab
 /// section headers
-pub fn finish(elf: *Elf, file: std.fs.File) !void {
-    var buf_writer = std.io.bufferedWriter(file.writer());
-    const w = buf_writer.writer();
-
+pub fn finish(elf: *Elf, w: *std.io.Writer) !void {
     var num_sections: std.elf.Half = additional_sections;
     var relocations_len: std.elf.Elf64_Off = 0;
     var sections_len: std.elf.Elf64_Off = 0;
@@ -221,7 +218,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
     }
 
     // pad to 8 bytes
-    try w.writeByteNTimes(0, @intCast(symtab_offset_aligned - symtab_offset));
+    try w.splatByteAll(0, @intCast(symtab_offset_aligned - symtab_offset));
 
     var name_offset: u32 = strtab_default.len;
     // write symbols
@@ -293,7 +290,7 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
     }
 
     // pad to 16 bytes
-    try w.writeByteNTimes(0, @intCast(sh_offset_aligned - sh_offset));
+    try w.splatByteAll(0, @intCast(sh_offset_aligned - sh_offset));
     // mandatory null header
     try w.writeStruct(std.mem.zeroes(std.elf.Elf64_Shdr));
 
@@ -374,5 +371,5 @@ pub fn finish(elf: *Elf, file: std.fs.File) !void {
             name_offset += @as(u32, @intCast(entry.key_ptr.len + ".\x00".len)) + rela_name_offset;
         }
     }
-    try buf_writer.flush();
+    try w.flush();
 }

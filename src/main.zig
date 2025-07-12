@@ -39,11 +39,12 @@ pub fn main() u8 {
     };
     defer gpa.free(aro_name);
 
-    const stderr_file: std.fs.File = .stderr();
+    var buf: [1024]u8 = undefined;
+    var stderr = std.fs.File.stderr().writer(&buf);
     var diagnostics: Diagnostics = .{
-        .output = .{ .to_file = .{
-            .config = .detect(stderr_file),
-            .file = stderr_file,
+        .output = .{ .to_writer = .{
+            .config = .detect(stderr.file),
+            .writer = &stderr.interface,
         } },
     };
 

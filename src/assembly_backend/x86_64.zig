@@ -13,12 +13,11 @@ const Value = aro.Value;
 
 const AsmCodeGen = @This();
 const Error = aro.Compilation.Error;
-const Writer = std.ArrayListUnmanaged(u8).Writer;
 
 tree: *const Tree,
 comp: *Compilation,
-text: Writer,
-data: Writer,
+text: *std.io.Writer,
+data: *std.io.Writer,
 
 const StorageUnit = enum(u8) {
     byte = 8,
@@ -36,11 +35,11 @@ const StorageUnit = enum(u8) {
     }
 };
 
-fn serializeInt(value: u64, storage_unit: StorageUnit, w: Writer) !void {
+fn serializeInt(value: u64, storage_unit: StorageUnit, w: *std.io.Writer) !void {
     try w.print("  .{s}  0x{x}\n", .{ @tagName(storage_unit), storage_unit.trunc(value) });
 }
 
-fn serializeFloat(comptime T: type, value: T, w: Writer) !void {
+fn serializeFloat(comptime T: type, value: T, w: *std.io.Writer) !void {
     switch (T) {
         f128 => {
             const bytes = std.mem.asBytes(&value);
@@ -135,28 +134,44 @@ fn emitValue(c: *AsmCodeGen, qt: QualType, node: Node.Index) !void {
 }
 
 pub fn genAsm(tree: *const Tree) Error!Assembly {
-    var data: std.ArrayListUnmanaged(u8) = .empty;
-    defer data.deinit(tree.comp.gpa);
+    var data: std.io.Writer.Allocating = .init(tree.comp.gpa);
+    defer data.deinit();
 
-    var text: std.ArrayListUnmanaged(u8) = .empty;
-    defer text.deinit(tree.comp.gpa);
+    var text: std.io.Writer.Allocating = .init(tree.comp.gpa);
+    defer text.deinit();
 
     var codegen: AsmCodeGen = .{
         .tree = tree,
         .comp = tree.comp,
-        .text = text.writer(tree.comp.gpa),
-        .data = data.writer(tree.comp.gpa),
+        .text = &text.writer,
+        .data = &data.writer,
     };
 
-    if (tree.comp.code_gen_options.debug) {
-        const sources = tree.comp.sources.values();
+    codegen.genDecls() catch |err| switch (err) {
+        error.WriteFailed => return error.OutOfMemory,
+        error.OutOfMemory => return error.OutOfMemory,
+        error.FatalError => return error.FatalError,
+    };
+
+    const text_slice = try text.toOwnedSlice();
+    errdefer tree.comp.gpa.free(text_slice);
+    const data_slice = try data.toOwnedSlice();
+    return .{
+        .text = text_slice,
+        .data = data_slice,
+    };
+}
+
+fn genDecls(c: *AsmCodeGen) !void {
+    if (c.tree.comp.code_gen_options.debug) {
+        const sources = c.tree.comp.sources.values();
         for (sources) |source| {
-            try codegen.data.print("  .file {d} \"{s}\"\n", .{ @intFromEnum(source.id) - 1, source.path });
+            try c.data.print("  .file {d} \"{s}\"\n", .{ @intFromEnum(source.id) - 1, source.path });
         }
     }
 
-    for (codegen.tree.root_decls.items) |decl| {
-        switch (decl.get(codegen.tree)) {
+    for (c.tree.root_decls.items) |decl| {
+        switch (decl.get(c.tree)) {
             .static_assert,
             .typedef,
             .struct_decl,
@@ -166,22 +181,15 @@ pub fn genAsm(tree: *const Tree) Error!Assembly {
 
             .function => |function| {
                 if (function.body == null) continue;
-                try codegen.genFn(function);
+                try c.genFn(function);
             },
 
-            .variable => |variable| try codegen.genVar(variable),
+            .variable => |variable| try c.genVar(variable),
 
             else => unreachable,
         }
     }
-    try codegen.text.writeAll("  .section  .note.GNU-stack,\"\",@progbits\n");
-    const text_slice = try text.toOwnedSlice(tree.comp.gpa);
-    errdefer tree.comp.gpa.free(text_slice);
-    const data_slice = try data.toOwnedSlice(tree.comp.gpa);
-    return .{
-        .text = text_slice,
-        .data = data_slice,
-    };
+    try c.text.writeAll("  .section  .note.GNU-stack,\"\",@progbits\n");
 }
 
 fn genFn(c: *AsmCodeGen, function: Node.Function) !void {

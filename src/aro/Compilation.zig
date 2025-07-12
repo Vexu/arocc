@@ -637,7 +637,11 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         error.WriteFailed, error.OutOfMemory => return error.OutOfMemory,
     };
 
-    return comp.addSourceFromBuffer("<builtin>", allocating.getWritten());
+    if (allocating.getWritten().len > std.math.maxInt(u32)) return error.StreamTooLong;
+
+    const contents = try allocating.toOwnedSlice();
+    errdefer comp.gpa.free(contents);
+    return comp.addSourceFromOwnedBuffer(contents, "<builtin>", .user);
 }
 
 fn writeBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode, w: *std.io.Writer) !void {
@@ -1069,21 +1073,14 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
     return comp.sources.values()[@intFromEnum(id) - 2];
 }
 
-/// Creates a Source from the contents of `reader` and adds it to the Compilation
-pub fn addSourceFromReader(comp: *Compilation, reader: anytype, path: []const u8, kind: Source.Kind) !Source {
-    const contents = try reader.readAllAlloc(comp.gpa, std.math.maxInt(u32));
-    errdefer comp.gpa.free(contents);
-    return comp.addSourceFromOwnedBuffer(contents, path, kind);
-}
-
 /// Creates a Source from `buf` and adds it to the Compilation
 /// Performs newline splicing and line-ending normalization to '\n'
 /// `buf` will be modified and the allocation will be resized if newline splicing
 /// or line-ending changes happen.
 /// caller retains ownership of `path`
-/// To add the contents of an arbitrary reader as a Source, see addSourceFromReader
 /// To add a file's contents given its path, see addSourceFromPath
 pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8, kind: Source.Kind) !Source {
+    assert(buf.len <= std.math.maxInt(u32));
     try comp.sources.ensureUnusedCapacity(comp.gpa, 1);
 
     var contents = buf;
@@ -1242,9 +1239,9 @@ fn addNewlineEscapeError(comp: *Compilation, path: []const u8, buf: []const u8, 
 /// Caller retains ownership of `path` and `buf`.
 /// Dupes the source buffer; if it is acceptable to modify the source buffer and possibly resize
 /// the allocation, please use `addSourceFromOwnedBuffer`
-pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8) !Source {
+pub fn addSourceFromBuffer(comp: *Compilation, buf: []const u8, path: []const u8) !Source {
     if (comp.sources.get(path)) |some| return some;
-    if (@as(u64, buf.len) > std.math.maxInt(u32)) return error.StreamTooLong;
+    if (buf.len > std.math.maxInt(u32)) return error.StreamTooLong;
 
     const contents = try comp.gpa.dupe(u8, buf);
     errdefer comp.gpa.free(contents);
@@ -1267,13 +1264,21 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
 
     const file = try comp.cwd.openFile(path, .{});
     defer file.close();
+    return comp.addSourceFromFile(file, path, kind);
+}
 
-    const contents = file.readToEndAlloc(comp.gpa, std.math.maxInt(u32)) catch |err| switch (err) {
-        error.FileTooBig => return error.StreamTooLong,
-        else => |e| return e,
+pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8, kind: Source.Kind) !Source {
+    var buf: [4096]u8 = undefined;
+    var reader = file.reader(&buf);
+
+    var allocating: std.io.Writer.Allocating = .init(comp.gpa);
+    _ = allocating.writer.sendFileAll(&reader, .limited(std.math.maxInt(u32))) catch |e| switch (e) {
+        error.WriteFailed => return error.OutOfMemory,
+        error.ReadFailed => return reader.err.?,
     };
+    
+    const contents = try allocating.toOwnedSlice();
     errdefer comp.gpa.free(contents);
-
     return comp.addSourceFromOwnedBuffer(contents, path, kind);
 }
 
@@ -1464,14 +1469,15 @@ fn getFileContents(comp: *Compilation, path: []const u8, limit: std.io.Limit) ![
 
     const file = try comp.cwd.openFile(path, .{});
     defer file.close();
-    var reader = file.reader("");
 
     var allocating: std.io.Writer.Allocating = .init(comp.gpa);
     defer allocating.deinit();
 
-    _ = allocating.writer.sendFileAll(&reader, limit) catch |e| switch (e) {
-        error.StreamTooLong => if (limit == null) return e,
-        else => return e,
+    var buf: [4096]u8 = undefined;
+    var reader = file.reader(&buf);
+    _ = allocating.writer.sendFileAll(&reader, limit) catch |err| switch (err) {
+        error.WriteFailed => return error.OutOfMemory,
+        error.ReadFailed => return reader.err.?,
     };
 
     return allocating.toOwnedSlice();
@@ -1688,17 +1694,16 @@ pub const Diagnostic = struct {
     };
 };
 
-test "addSourceFromReader" {
+test "addSourceFromBuffer" {
     const Test = struct {
-        fn addSourceFromReader(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
+        fn addSourceFromBuffer(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
             var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
             defer arena.deinit();
             var diagnostics: Diagnostics = .{ .output = .ignore };
             var comp = Compilation.init(std.testing.allocator, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
-            var buf_reader = std.io.fixedBufferStream(str);
-            const source = try comp.addSourceFromReader(buf_reader.reader(), "path", .user);
+            const source = try comp.addSourceFromBuffer(str, "path");
 
             try std.testing.expectEqualStrings(expected, source.buf);
             try std.testing.expectEqual(warning_count, @as(u32, @intCast(diagnostics.warnings)));
@@ -1712,41 +1717,41 @@ test "addSourceFromReader" {
             var comp = Compilation.init(allocator, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
-            _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
-            _ = try comp.addSourceFromBuffer("path", "non-spliced buffer\n");
+            _ = try comp.addSourceFromBuffer("spliced\\\nbuffer\n", "path", );
+            _ = try comp.addSourceFromBuffer("non-spliced buffer\n", "path", );
         }
     };
-    try Test.addSourceFromReader("ab\\\nc", "abc", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\rc", "abc", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\r\nc", "abc", 0, &.{2});
-    try Test.addSourceFromReader("ab\\ \nc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\\t\nc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\                     \t\nc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\\r \nc", "ab \nc", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\\\nc", "ab\\c", 0, &.{3});
-    try Test.addSourceFromReader("ab\\   \r\nc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\ \\\nc", "ab\\ c", 0, &.{4});
-    try Test.addSourceFromReader("ab\\\r\\\nc", "abc", 0, &.{ 2, 2 });
-    try Test.addSourceFromReader("ab\\  \rc", "abc", 1, &.{2});
-    try Test.addSourceFromReader("ab\\", "ab\\", 0, &.{});
-    try Test.addSourceFromReader("ab\\\\", "ab\\\\", 0, &.{});
-    try Test.addSourceFromReader("ab\\ ", "ab\\ ", 0, &.{});
-    try Test.addSourceFromReader("ab\\\n", "ab", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\r\n", "ab", 0, &.{2});
-    try Test.addSourceFromReader("ab\\\r", "ab", 0, &.{2});
+    try Test.addSourceFromBuffer("ab\\\nc", "abc", 0, &.{2});
+    try Test.addSourceFromBuffer("ab\\\rc", "abc", 0, &.{2});
+    try Test.addSourceFromBuffer("ab\\\r\nc", "abc", 0, &.{2});
+    try Test.addSourceFromBuffer("ab\\ \nc", "abc", 1, &.{2});
+    try Test.addSourceFromBuffer("ab\\\t\nc", "abc", 1, &.{2});
+    try Test.addSourceFromBuffer("ab\\                     \t\nc", "abc", 1, &.{2});
+    try Test.addSourceFromBuffer("ab\\\r \nc", "ab \nc", 0, &.{2});
+    try Test.addSourceFromBuffer("ab\\\\\nc", "ab\\c", 0, &.{3});
+    try Test.addSourceFromBuffer("ab\\   \r\nc", "abc", 1, &.{2});
+    try Test.addSourceFromBuffer("ab\\ \\\nc", "ab\\ c", 0, &.{4});
+    try Test.addSourceFromBuffer("ab\\\r\\\nc", "abc", 0, &.{ 2, 2 });
+    try Test.addSourceFromBuffer("ab\\  \rc", "abc", 1, &.{2});
+    try Test.addSourceFromBuffer("ab\\", "ab\\", 0, &.{});
+    try Test.addSourceFromBuffer("ab\\\\", "ab\\\\", 0, &.{});
+    try Test.addSourceFromBuffer("ab\\ ", "ab\\ ", 0, &.{});
+    try Test.addSourceFromBuffer("ab\\\n", "ab", 0, &.{2});
+    try Test.addSourceFromBuffer("ab\\\r\n", "ab", 0, &.{2});
+    try Test.addSourceFromBuffer("ab\\\r", "ab", 0, &.{2});
 
     // carriage return normalization
-    try Test.addSourceFromReader("ab\r", "ab\n", 0, &.{});
-    try Test.addSourceFromReader("ab\r\r", "ab\n\n", 0, &.{});
-    try Test.addSourceFromReader("ab\r\r\n", "ab\n\n", 0, &.{});
-    try Test.addSourceFromReader("ab\r\r\n\r", "ab\n\n\n", 0, &.{});
-    try Test.addSourceFromReader("\r\\", "\n\\", 0, &.{});
-    try Test.addSourceFromReader("\\\r\\", "\\", 0, &.{0});
+    try Test.addSourceFromBuffer("ab\r", "ab\n", 0, &.{});
+    try Test.addSourceFromBuffer("ab\r\r", "ab\n\n", 0, &.{});
+    try Test.addSourceFromBuffer("ab\r\r\n", "ab\n\n", 0, &.{});
+    try Test.addSourceFromBuffer("ab\r\r\n\r", "ab\n\n\n", 0, &.{});
+    try Test.addSourceFromBuffer("\r\\", "\n\\", 0, &.{});
+    try Test.addSourceFromBuffer("\\\r\\", "\\", 0, &.{0});
 
     try std.testing.checkAllAllocationFailures(std.testing.allocator, Test.withAllocationFailures, .{});
 }
 
-test "addSourceFromReader - exhaustive check for carriage return elimination" {
+test "addSourceFromBuffer - exhaustive check for carriage return elimination" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
 
@@ -1786,8 +1791,7 @@ test "ignore BOM at beginning of file" {
             var comp = Compilation.init(std.testing.allocator, arena, &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
-            var buf_reader = std.io.fixedBufferStream(buf);
-            const source = try comp.addSourceFromReader(buf_reader.reader(), "file.c", .user);
+            const source = try comp.addSourceFromBuffer(buf, "file.c");
             const expected_output = if (mem.startsWith(u8, buf, BOM)) buf[BOM.len..] else buf;
             try std.testing.expectEqualStrings(expected_output, source.buf);
         }

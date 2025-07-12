@@ -386,6 +386,7 @@ pub fn dump(ir: *const Ir, gpa: Allocator, config: std.io.tty.Config, w: *std.io
     for (ir.decls.keys(), ir.decls.values()) |name, *decl| {
         try ir.dumpDecl(decl, gpa, name, config, w);
     }
+    try w.flush();
 }
 
 fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, config: std.io.tty.Config, w: *std.io.Writer) !void {
@@ -650,7 +651,7 @@ fn writeValue(ir: Ir, val: Interner.Ref, config: std.io.tty.Config, w: *std.io.W
         .float => |repr| switch (repr) {
             inline else => |x| return w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| return std.zig.stringEscape(b, "", .{}, w),
+        .bytes => |b| return std.zig.stringEscape(b, w),
         else => unreachable, // not a value
     }
 }

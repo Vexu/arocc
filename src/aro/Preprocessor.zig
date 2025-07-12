@@ -827,15 +827,16 @@ fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: 
     const source = pp.comp.getSource(raw.source);
     const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
 
-    var buf: [1024]u8 = undefined;
+    var buf: [4096]u8 = undefined;
     var stderr = std.fs.File.stderr().writer(&buf);
     const w = &stderr.interface;
-    defer w.flush() catch {};
+
     w.print("{s}:{d}:{d}: ", .{ source.path, line_col.line_no, line_col.col }) catch return;
     w.print(fmt, args) catch return;
     w.writeByte('\n') catch return;
     w.writeAll(line_col.line) catch return;
     w.writeByte('\n') catch return;
+    w.flush() catch {};
 }
 
 /// Consume next token, error if it is not an identifier.
@@ -3458,6 +3459,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: *std.io.Writer, macro_dump_mode: 
         switch (cur.id) {
             .eof => {
                 if (!last_nl) try w.writeByte('\n');
+                try w.flush();
                 return;
             },
             .nl => {
@@ -3467,6 +3469,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: *std.io.Writer, macro_dump_mode: 
                         newlines += 1;
                     } else if (id == .eof) {
                         if (!last_nl) try w.writeByte('\n');
+                        try w.flush();
                         return;
                     } else if (id != .whitespace) {
                         if (pp.linemarkers == .none) {
@@ -3591,9 +3594,6 @@ test "Preserve pragma tokens sometimes" {
             var arena: std.heap.ArenaAllocator = .init(gpa);
             defer arena.deinit();
 
-            var buf = std.ArrayList(u8).init(gpa);
-            defer buf.deinit();
-
             var diagnostics: Diagnostics = .{ .output = .ignore };
             var comp = Compilation.init(gpa, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
@@ -3606,11 +3606,15 @@ test "Preserve pragma tokens sometimes" {
             pp.preserve_whitespace = true;
             assert(pp.linemarkers == .none);
 
-            const test_runner_macros = try comp.addSourceFromBuffer("<test_runner>", source_text);
+            const test_runner_macros = try comp.addSourceFromBuffer(source_text, "<test_runner>");
             const eof = try pp.preprocess(test_runner_macros);
             try pp.addToken(eof);
-            try pp.prettyPrintTokens(buf.writer(), .result_only);
-            return gpa.dupe(u8, buf.items);
+
+            var allocating: std.io.Writer.Allocating = .init(gpa);
+            defer allocating.deinit();
+
+            try pp.prettyPrintTokens(&allocating.writer, .result_only);
+            return allocating.toOwnedSlice();
         }
 
         fn check(source_text: []const u8, expected: []const u8) !void {
@@ -3728,7 +3732,7 @@ test "Include guards" {
 
             const path = try std.fs.path.join(arena, &.{ ".", "bar.h" });
 
-            _ = try comp.addSourceFromBuffer(path, "int bar = 5;\n");
+            _ = try comp.addSourceFromBuffer("int bar = 5;\n", path);
 
             var buf = std.ArrayList(u8).init(gpa);
             defer buf.deinit();
@@ -3744,7 +3748,7 @@ test "Include guards" {
                 => try writer.print(template, .{ tok_id.lexeme().?, " BAR\n#endif" }),
                 else => try writer.print(template, .{ tok_id.lexeme().?, "" }),
             }
-            const source = try comp.addSourceFromBuffer("test.h", buf.items);
+            const source = try comp.addSourceFromBuffer(buf.items, "test.h", );
             _ = try pp.preprocess(source);
 
             try std.testing.expectEqual(expected_guards, pp.include_guards.count());

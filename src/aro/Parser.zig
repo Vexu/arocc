@@ -213,8 +213,8 @@ fn checkIdentifierCodepointWarnings(p: *Parser, codepoint: u21, loc: Source.Loca
 
     const prev_total = p.diagnostics.total;
     var sf = std.heap.stackFallback(1024, p.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
     if (!char_info.isC99IdChar(codepoint)) {
         const diagnostic: Diagnostic = .c99_compat;
@@ -228,11 +228,11 @@ fn checkIdentifierCodepointWarnings(p: *Parser, codepoint: u21, loc: Source.Loca
     }
     if (char_info.isInvisible(codepoint)) {
         const diagnostic: Diagnostic = .unicode_zero_width;
-        try p.formatArgs(buf.writer(), diagnostic.fmt, .{Codepoint.init(codepoint)});
+        p.formatArgs(&allocating.writer, diagnostic.fmt, .{Codepoint.init(codepoint)}) catch return error.OutOfMemory;
 
         try p.diagnostics.add(.{
             .kind = diagnostic.kind,
-            .text = buf.items,
+            .text = allocating.getWritten(),
             .extension = diagnostic.extension,
             .opt = diagnostic.opt,
             .location = loc.expand(p.comp),
@@ -240,11 +240,11 @@ fn checkIdentifierCodepointWarnings(p: *Parser, codepoint: u21, loc: Source.Loca
     }
     if (char_info.homoglyph(codepoint)) |resembles| {
         const diagnostic: Diagnostic = .unicode_homoglyph;
-        try p.formatArgs(buf.writer(), diagnostic.fmt, .{ Codepoint.init(codepoint), resembles });
+        p.formatArgs(&allocating.writer, diagnostic.fmt, .{ Codepoint.init(codepoint), resembles }) catch return error.OutOfMemory;
 
         try p.diagnostics.add(.{
             .kind = diagnostic.kind,
-            .text = buf.items,
+            .text = allocating.getWritten(),
             .extension = diagnostic.extension,
             .opt = diagnostic.opt,
             .location = loc.expand(p.comp),
@@ -10112,12 +10112,12 @@ test "Node locations" {
     var comp = Compilation.init(std.testing.allocator, arena, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
-    const file = try comp.addSourceFromBuffer("file.c",
+    const file = try comp.addSourceFromBuffer(
         \\int foo = 5;
         \\int bar = 10;
         \\int main(void) {}
         \\
-    );
+    , "file.c");
 
     const builtin_macros = try comp.generateBuiltinMacros(.no_system_defines);
 

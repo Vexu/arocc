@@ -237,15 +237,14 @@ pub const State = struct {
 const Diagnostics = @This();
 
 output: union(enum) {
-    to_file: struct {
-        file: std.fs.File,
+    to_writer: struct {
+        writer: *std.io.Writer,
         config: std.io.tty.Config,
     },
     to_list: struct {
         messages: std.ArrayListUnmanaged(Message) = .empty,
         arena: std.heap.ArenaAllocator,
     },
-    to_buffer: std.ArrayList(u8),
     ignore,
 },
 state: State = .{},
@@ -263,12 +262,11 @@ hide_notes: bool = false,
 pub fn deinit(d: *Diagnostics) void {
     switch (d.output) {
         .ignore => {},
-        .to_file => {},
+        .to_writer => {},
         .to_list => |*list| {
             list.messages.deinit(list.arena.child_allocator);
             list.arena.deinit();
         },
-        .to_buffer => |*buf| buf.deinit(),
     }
 }
 
@@ -469,10 +467,8 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
 
     switch (d.output) {
         .ignore => {},
-        .to_file => |to_file| {
-            var buf: [1024]u8 = undefined;
-            var w = to_file.file.writer(&buf);
-            writeToWriter(msg, &w.interface, to_file.config) catch {
+        .to_writer => |writer| {
+            writeToWriter(msg, writer.writer, writer.config) catch {
                 return error.FatalError;
             };
         },
@@ -486,9 +482,6 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
                 .extension = msg.extension,
                 .location = msg.location,
             });
-        },
-        .to_buffer => |*buf| {
-            writeToWriter(msg, buf.writer(), .no_color) catch return error.OutOfMemory;
         },
     }
 }
