@@ -279,7 +279,7 @@ pub fn warningExists(name: []const u8) bool {
     return std.meta.stringToEnum(Option, name) != null;
 }
 
-pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) !void {
+pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) Compilation.Error!void {
     if (std.mem.eql(u8, name, "pedantic")) {
         d.state.extensions = to;
         return;
@@ -422,7 +422,7 @@ pub fn addWithLocation(
     if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
-pub fn formatArgs(w: *std.io.Writer, fmt: []const u8, args: anytype) !void {
+pub fn formatArgs(w: *std.io.Writer, fmt: []const u8, args: anytype) std.io.Writer.Error!void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
         const arg = @field(args, arg_info.name);

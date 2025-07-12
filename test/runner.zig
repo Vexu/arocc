@@ -18,7 +18,7 @@ const AddCommandLineArgsResult = struct {
 };
 
 /// Returns only_preprocess and line_markers settings if saw -E
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_writer: *std.io.Writer.Allocating) !AddCommandLineArgsResult {
+fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.ArrayListUnmanaged(u8)) !AddCommandLineArgsResult {
     var only_preprocess = false;
     var line_markers: aro.Preprocessor.Linemarkers = .none;
     var system_defines: aro.Compilation.SystemDefinesMode = .include_system_defines;
@@ -36,7 +36,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_writer: *s
 
         var discard_buf: [256]u8 = undefined;
         var discarding: std.io.Writer.Discarding = .init(&discard_buf);
-        _ = try driver.parseArgs(&discarding.writer, macro_writer, test_args.items);
+        _ = try driver.parseArgs(&discarding.writer, macro_buf, test_args.items);
         only_preprocess = driver.only_preprocess;
         system_defines = driver.system_defines;
         dump_mode = driver.debug_dump_letters.getPreprocessorDumpMode();
@@ -80,7 +80,7 @@ fn testOne(gpa: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void
     defer macro_buf.deinit();
 
     _, _, const system_defines, _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
-    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
+    const user_macros = try comp.addSourceFromBuffer(macro_buf.items, "<command line>");
 
     const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
@@ -178,7 +178,7 @@ pub fn main() !void {
     var diagnostics: aro.Diagnostics = .{
         .output = .{ .to_writer = .{
             .writer = &diag_buf.writer,
-            .config = .no_color,
+            .color = .no_color,
         } },
     };
     defer diagnostics.deinit();
@@ -240,11 +240,11 @@ pub fn main() !void {
             continue;
         };
 
-        var macro_writer: std.io.Writer.Allocating = .init(comp.gpa);
-        defer macro_writer.deinit();
+        var macro_buf: std.ArrayListUnmanaged(u8) = .empty;
+        defer macro_buf.deinit(comp.gpa);
 
-        const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, &macro_writer);
-        const user_macros = try comp.addSourceFromBuffer("<command line>", macro_writer.getWritten());
+        const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, &macro_buf);
+        const user_macros = try comp.addSourceFromBuffer(macro_buf.items, "<command line>");
 
         const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
@@ -443,6 +443,7 @@ pub fn main() !void {
             var stderr_buf: [4096]u8 = undefined;
             var stderr = std.fs.File.stderr().writer(&stderr_buf);
             try stderr.interface.writeAll(diag_buf.getWritten());
+            try stderr.interface.flush();
         }
 
         if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {

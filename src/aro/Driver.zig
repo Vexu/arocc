@@ -253,7 +253,7 @@ pub const usage =
 pub fn parseArgs(
     d: *Driver,
     stdout: *std.io.Writer,
-    macro_writer: *std.io.Writer.Allocating,
+    macro_buf: *std.ArrayListUnmanaged(u8),
     args: []const []const u8,
 ) (Compilation.Error || std.io.Writer.Error)!bool {
     var i: usize = 1;
@@ -289,7 +289,7 @@ pub fn parseArgs(
                     value = macro[some + 1 ..];
                     macro = macro[0..some];
                 }
-                macro_writer.writer.print("#define {s} {s}\n", .{ macro, value }) catch return error.OutOfMemory;
+                try macro_buf.print(d.comp.gpa, "#define {s} {s}\n", .{ macro, value });
             } else if (mem.startsWith(u8, arg, "-U")) {
                 var macro = arg["-U".len..];
                 if (macro.len == 0) {
@@ -300,7 +300,7 @@ pub fn parseArgs(
                     }
                     macro = args[i];
                 }
-                macro_writer.writer.print("#undef {s}\n", .{macro}) catch return error.OutOfMemory;
+                try macro_buf.print(d.comp.gpa, "#undef {s}\n", .{macro});
             } else if (mem.eql(u8, arg, "-O")) {
                 d.comp.code_gen_options.optimization_level = .@"0";
             } else if (mem.startsWith(u8, arg, "-O")) {
@@ -792,20 +792,20 @@ pub fn errorDescription(e: anyerror) []const u8 {
 /// **MAY call `exit` if `fast_exit` is set.**
 pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) Compilation.Error!void {
     const user_macros = macros: {
-        var macro_writer: std.io.Writer.Allocating = .init(d.comp.gpa);
-        defer macro_writer.deinit();
+        var macro_buf: std.ArrayListUnmanaged(u8) = .empty;
+        defer macro_buf.deinit(d.comp.gpa);
 
         var stdout_buf: [256]u8 = undefined;
         var stdout = std.fs.File.stdout().writer(&stdout_buf);
-        if (parseArgs(d, &stdout.interface, &macro_writer, args) catch |er| switch (er) {
+        if (parseArgs(d, &stdout.interface, &macro_buf, args) catch |er| switch (er) {
             error.WriteFailed => return d.fatal("failed to write to stdout: {s}", .{errorDescription(er)}),
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => return error.FatalError,
         }) return;
-        if (macro_writer.getWritten().len > std.math.maxInt(u32)) {
+        if (macro_buf.items.len > std.math.maxInt(u32)) {
             return d.fatal("user provided macro source exceeded max size", .{});
         }
-        const contents = try macro_writer.toOwnedSlice();
+        const contents = try macro_buf.toOwnedSlice(d.comp.gpa);
         errdefer d.comp.gpa.free(contents);
 
         break :macros try d.comp.addSourceFromOwnedBuffer(contents, "<command line>", .user);
@@ -961,11 +961,11 @@ fn processSource(
             std.fs.File.stdout();
         defer if (d.output_name != null) file.close();
 
-        var buf: [4096]u8 = undefined;
-        var writer = file.writer(&buf);
+        var file_buf: [4096]u8 = undefined;
+        var file_writer = file.writer(&file_buf);
 
-        pp.prettyPrintTokens(&writer.interface, dump_mode) catch
-            return d.fatal("unable to write result: {s}", .{errorDescription(writer.err.?)});
+        pp.prettyPrintTokens(&file_writer.interface, dump_mode) catch
+            return d.fatal("unable to write result: {s}", .{errorDescription(file_writer.err.?)});
 
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
@@ -975,8 +975,8 @@ fn processSource(
     defer tree.deinit();
 
     if (d.verbose_ast) {
-        var buf: [4096]u8 = undefined;
-        var stdout = std.fs.File.stdout().writer(&buf);
+        var stdout_buf: [4096]u8 = undefined;
+        var stdout = std.fs.File.stdout().writer(&stdout_buf);
         tree.dump(d.detectConfig(stdout.file), &stdout.interface) catch {};
     }
 
@@ -1041,8 +1041,8 @@ fn processSource(
         defer ir.deinit(d.comp.gpa);
 
         if (d.verbose_ir) {
-            var buf: [4096]u8 = undefined;
-            var stdout = std.fs.File.stdout().writer(&buf);
+            var stdout_buf: [4096]u8 = undefined;
+            var stdout = std.fs.File.stdout().writer(&stdout_buf);
             ir.dump(d.comp.gpa, d.detectConfig(stdout.file), &stdout.interface) catch {};
         }
 
@@ -1067,10 +1067,10 @@ fn processSource(
             return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
         defer out_file.close();
 
-        var buf: [4096]u8 = undefined;
-        var writer = out_file.writer(&buf);
-        obj.finish(&writer.interface) catch
-            return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, errorDescription(writer.err.?) });
+        var file_buf: [4096]u8 = undefined;
+        var file_writer = out_file.writer(&file_buf);
+        obj.finish(&file_writer.interface) catch
+            return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, errorDescription(file_writer.err.?) });
     }
 
     if (d.only_compile or d.only_preprocess_and_compile) {
@@ -1107,8 +1107,8 @@ pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) Compil
     try tc.buildLinkerArgs(&argv);
 
     if (d.verbose_linker_args) {
-        var buf: [4096]u8 = undefined;
-        var stdout = std.fs.File.stdout().writer(&buf);
+        var stdout_buf: [4096]u8 = undefined;
+        var stdout = std.fs.File.stdout().writer(&stdout_buf);
         dumpLinkerArgs(&stdout.interface, argv.items) catch {
             return d.fatal("unable to dump linker args: {s}", .{errorDescription(stdout.err.?)});
         };

@@ -630,7 +630,7 @@ fn generateSystemDefines(comp: *Compilation, w: *std.io.Writer) !void {
 pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) !Source {
     try comp.type_store.initNamedTypes(comp);
 
-    var allocating: std.io.Writer.Allocating = .init(comp.gpa);
+    var allocating: std.io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 14);
     defer allocating.deinit();
 
     comp.writeBuiltinMacros(system_defines_mode, &allocating.writer) catch |err| switch (err) {
@@ -826,7 +826,7 @@ fn generateFastOrLeastType(
 
     const full = std.fmt.bufPrint(&buf, "{s}{s}{d}{s}", .{
         base_name, kind_str, bits, suffix,
-    }) catch return error.OutOfMemory;
+    }) catch unreachable;
 
     try comp.generateTypeMacro(w, full, ty);
 
@@ -929,7 +929,7 @@ fn generateExactWidthType(comp: *Compilation, w: *std.io.Writer, original_qt: Qu
     const suffix = "_TYPE__";
     const full = std.fmt.bufPrint(&buffer, "{s}{d}{s}", .{
         if (unsigned) "__UINT" else "__INT", width, suffix,
-    }) catch return error.OutOfMemory;
+    }) catch unreachable;
 
     try comp.generateTypeMacro(w, full, qt);
 
@@ -983,7 +983,7 @@ fn generateExactWidthIntMax(comp: *Compilation, w: *std.io.Writer, original_qt: 
     var name_buffer: [6]u8 = undefined;
     const name = std.fmt.bufPrint(&name_buffer, "{s}{d}", .{
         if (unsigned) "UINT" else "INT", bit_count,
-    }) catch return error.OutOfMemory;
+    }) catch unreachable;
 
     return comp.generateIntMax(w, name, qt);
 }
@@ -1268,13 +1268,13 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
 }
 
 pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8, kind: Source.Kind) !Source {
-    var buf: [4096]u8 = undefined;
-    var reader = file.reader(&buf);
+    var file_buf: [4096]u8 = undefined;
+    var file_reader = file.reader(&file_buf);
 
     var allocating: std.io.Writer.Allocating = .init(comp.gpa);
-    _ = allocating.writer.sendFileAll(&reader, .limited(std.math.maxInt(u32))) catch |e| switch (e) {
+    _ = allocating.writer.sendFileAll(&file_reader, .limited(std.math.maxInt(u32))) catch |e| switch (e) {
         error.WriteFailed => return error.OutOfMemory,
-        error.ReadFailed => return reader.err.?,
+        error.ReadFailed => return file_reader.err.?,
     };
 
     const contents = try allocating.toOwnedSlice();
@@ -1473,11 +1473,11 @@ fn getFileContents(comp: *Compilation, path: []const u8, limit: std.io.Limit) ![
     var allocating: std.io.Writer.Allocating = .init(comp.gpa);
     defer allocating.deinit();
 
-    var buf: [4096]u8 = undefined;
-    var reader = file.reader(&buf);
-    _ = allocating.writer.sendFileAll(&reader, limit) catch |err| switch (err) {
+    var file_buf: [4096]u8 = undefined;
+    var file_reader = file.reader(&file_buf);
+    _ = allocating.writer.sendFileAll(&file_reader, limit) catch |err| switch (err) {
         error.WriteFailed => return error.OutOfMemory,
-        error.ReadFailed => return reader.err.?,
+        error.ReadFailed => return file_reader.err.?,
     };
 
     return allocating.toOwnedSlice();

@@ -121,8 +121,8 @@ pub fn main() !void {
     {
         var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
         defer cases_dir.close();
-        var buf: [1024]u8 = undefined;
-        var writer: std.io.Writer = .fixed(&buf);
+        var name_buf: [1024]u8 = undefined;
+        var name_writer: std.io.Writer = .fixed(&name_buf);
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
@@ -133,9 +133,9 @@ pub fn main() !void {
             }
 
             if (std.ascii.indexOfIgnoreCase(entry.name, "_test.c") != null) {
-                _ = writer.consumeAll();
-                try writer.print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
-                try cases.append(try gpa.dupe(u8, writer.buffered()));
+                _ = name_writer.consumeAll();
+                try name_writer.print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
+                try cases.append(try gpa.dupe(u8, name_writer.buffered()));
             }
         }
     }
@@ -287,7 +287,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
         try macro_writer.writeAll("#define MSVC\n");
     }
 
-    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_writer.buffered());
+    const user_macros = try comp.addSourceFromBuffer(macro_writer.buffered(), "<command line>");
     const builtin_macros = try comp.generateBuiltinMacros(.include_system_defines);
 
     var pp = try aro.Preprocessor.initDefault(&comp);
@@ -320,11 +320,11 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
         return;
     }
 
-    var buf: [128]u8 = undefined;
-    var writer: std.io.Writer = .fixed(&buf);
-    try writer.print("{s}|{s}", .{ test_case.target, test_name });
+    var expected_buf: [128]u8 = undefined;
+    var expected_writer: std.io.Writer = .fixed(&expected_buf);
+    try expected_writer.print("{s}|{s}", .{ test_case.target, test_name });
 
-    const expected = compErr.get(writer.buffered()) orelse ExpectedFailure{};
+    const expected = compErr.get(expected_writer.buffered()) orelse ExpectedFailure{};
 
     if (diagnostics.total == 0 and expected.any()) {
         std.debug.print("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});

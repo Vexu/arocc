@@ -1487,7 +1487,7 @@ fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result
 
     if (maybe_message) |message| {
         assert(message.node.get(&p.tree) == .string_literal_expr);
-        if (allocating.writer.end > 0) {
+        if (allocating.getWritten().len > 0) {
             try w.writeByte(' ');
         }
         const bytes = p.comp.interner.get(message.val.ref()).bytes;

@@ -162,9 +162,7 @@ pub const Ascii = struct {
         if (std.ascii.isPrint(ctx.val)) {
             try w.writeByte(ctx.val);
         } else {
-            var buf: [3]u8 = undefined;
-            const str = std.fmt.bufPrint(&buf, "x{x}", .{ctx.val}) catch unreachable;
-            try w.writeAll(str);
+            try w.print("x{x}", .{ctx.val});
         }
         return i + template.len;
     }

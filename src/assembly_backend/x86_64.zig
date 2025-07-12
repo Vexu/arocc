@@ -73,7 +73,7 @@ pub fn todo(c: *AsmCodeGen, msg: []const u8, tok: Tree.TokenIndex) Error {
     var buf = std.ArrayList(u8).init(sf.get());
     defer buf.deinit();
 
-    try buf.writer().print("TODO: {s}", .{msg});
+    try buf.print("TODO: {s}", .{msg});
     try c.comp.diagnostics.add(.{
         .text = buf.items,
         .kind = .@"error",

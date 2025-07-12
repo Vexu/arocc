@@ -810,13 +810,13 @@ fn fatalNotFound(pp: *Preprocessor, tok: TokenWithExpansionLocs, filename: []con
     defer pp.diagnostics.state.fatal_errors = old;
 
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
-    defer allocating.deinit();
+    var buf = std.ArrayList(u8).init(sf.get());
+    defer buf.deinit();
 
-    Diagnostics.formatArgs(&allocating.writer, "'{s}' not found", .{filename}) catch return error.OutOfMemory;
+    try buf.print("'{s}' not found", .{filename});
     try pp.diagnostics.addWithLocation(pp.comp, .{
         .kind = .@"fatal error",
-        .text = allocating.getWritten(),
+        .text = buf.items,
         .location = tok.loc.expand(pp.comp),
     }, tok.expansionSlice(), true);
     unreachable; // should've returned FatalError
@@ -827,8 +827,8 @@ fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: 
     const source = pp.comp.getSource(raw.source);
     const line_col = source.lineCol(.{ .id = raw.source, .line = raw.line, .byte_offset = raw.start });
 
-    var buf: [4096]u8 = undefined;
-    var stderr = std.fs.File.stderr().writer(&buf);
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr = std.fs.File.stderr().writer(&stderr_buf);
     const w = &stderr.interface;
 
     w.print("{s}:{d}:{d}: ", .{ source.path, line_col.line_no, line_col.col }) catch return;
@@ -836,7 +836,7 @@ fn verboseLog(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: 
     w.writeByte('\n') catch return;
     w.writeAll(line_col.line) catch return;
     w.writeByte('\n') catch return;
-    w.flush() catch {};
+    w.flush() catch return;
 }
 
 /// Consume next token, error if it is not an identifier.
@@ -1191,24 +1191,21 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
             .macro_file => {
                 const start = pp.comp.generated_buf.items.len;
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                const w = pp.comp.generated_buf.writer(pp.gpa);
-                try w.print("\"{f}\"\n", .{fmtEscapes(source.path)});
+                try pp.comp.generated_buf.print(pp.gpa, "\"{f}\"\n", .{fmtEscapes(source.path)});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
             },
             .macro_line => {
                 const start = pp.comp.generated_buf.items.len;
                 const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                const w = pp.comp.generated_buf.writer(pp.gpa);
-                try w.print("{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
+                try pp.comp.generated_buf.print(pp.gpa, "{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
             .macro_counter => {
                 defer pp.counter += 1;
                 const start = pp.comp.generated_buf.items.len;
-                const w = pp.comp.generated_buf.writer(pp.gpa);
-                try w.print("{d}\n", .{pp.counter});
+                try pp.comp.generated_buf.print(pp.gpa, "{d}\n", .{pp.counter});
 
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
@@ -1255,8 +1252,6 @@ const DateTimeStampKind = enum {
 fn writeDateTimeStamp(pp: *Preprocessor, kind: DateTimeStampKind, timestamp: u64) !void {
     std.debug.assert(std.time.epoch.Month.jan.numeric() == 1);
 
-    const w = pp.comp.generated_buf.writer(pp.gpa);
-
     const epoch_seconds = std.time.epoch.EpochSeconds{ .secs = timestamp };
     const epoch_day = epoch_seconds.getEpochDay();
     const day_seconds = epoch_seconds.getDaySeconds();
@@ -1270,21 +1265,21 @@ fn writeDateTimeStamp(pp: *Preprocessor, kind: DateTimeStampKind, timestamp: u64
 
     switch (kind) {
         .date => {
-            try w.print("\"{s} {d: >2} {d}\"", .{
+            try pp.comp.generated_buf.print(pp.gpa, "\"{s} {d: >2} {d}\"", .{
                 month_name,
                 month_day.day_index + 1,
                 year_day.year,
             });
         },
         .time => {
-            try w.print("\"{d:0>2}:{d:0>2}:{d:0>2}\"", .{
+            try pp.comp.generated_buf.print(pp.gpa, "\"{d:0>2}:{d:0>2}:{d:0>2}\"", .{
                 day_seconds.getHoursIntoDay(),
                 day_seconds.getMinutesIntoHour(),
                 day_seconds.getSecondsIntoMinute(),
             });
         },
         .timestamp => {
-            try w.print("\"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"", .{
+            try pp.comp.generated_buf.print(pp.gpa, "\"{s} {s} {d: >2} {d:0>2}:{d:0>2}:{d:0>2} {d}\"", .{
                 day_name,
                 month_name,
                 month_day.day_index + 1,
@@ -1759,8 +1754,8 @@ fn expandFuncMacro(
                     break :blk false;
                 } else try pp.handleBuiltinMacro(raw.id, arg, macro_tok.loc);
                 const start = pp.comp.generated_buf.items.len;
-                const w = pp.comp.generated_buf.writer(pp.gpa);
-                try w.print("{}\n", .{@intFromBool(result)});
+
+                try pp.comp.generated_buf.print(pp.gpa, "{}\n", .{@intFromBool(result)});
                 try buf.append(try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
             },
             .macro_param_has_c_attribute => {
@@ -2995,7 +2990,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     };
     pp.token_buf.items.len = 0;
 
-    var limit: std.io.Limit = .unlimited;
+    var limit: ?std.io.Limit = null;
     var prefix: ?Range = null;
     var suffix: ?Range = null;
     var if_empty: ?Range = null;
@@ -3052,7 +3047,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         const end: u32 = @intCast(pp.token_buf.items.len);
 
         if (std.mem.eql(u8, param, "limit")) {
-            if (limit != .unlimited) {
+            if (limit != null) {
                 try pp.err(tokFromRaw(param_first), .duplicate_embed_param, .{"limit"});
                 continue;
             }
@@ -3094,7 +3089,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
         }
     }
 
-    const embed_bytes = (try pp.comp.findEmbed(filename, first.source, include_type, limit)) orelse
+    const embed_bytes = (try pp.comp.findEmbed(filename, first.source, include_type, limit orelse .unlimited)) orelse
         return pp.fatalNotFound(filename_tok, filename);
     defer pp.comp.gpa.free(embed_bytes);
 
@@ -3111,18 +3106,16 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     // TODO: We currently only support systems with CHAR_BIT == 8
     // If the target's CHAR_BIT is not 8, we need to write out correctly-sized embed_bytes
     // and correctly account for the target's endianness
-    const writer = pp.comp.generated_buf.writer(pp.gpa);
-
     {
         const byte = embed_bytes[0];
         const start = pp.comp.generated_buf.items.len;
-        try writer.print("{d}", .{byte});
+        try pp.comp.generated_buf.print(pp.gpa, "{d}", .{byte});
         pp.addTokenAssumeCapacity(try pp.makeGeneratedToken(start, .embed_byte, filename_tok));
     }
 
     for (embed_bytes[1..]) |byte| {
         const start = pp.comp.generated_buf.items.len;
-        try writer.print(",{d}", .{byte});
+        try pp.comp.generated_buf.print(pp.gpa, ",{d}", .{byte});
         pp.addTokenAssumeCapacity(.{ .id = .comma, .loc = .{ .id = .generated, .byte_offset = @intCast(start) } });
         pp.addTokenAssumeCapacity(try pp.makeGeneratedToken(start + 1, .embed_byte, filename_tok));
     }
@@ -3737,16 +3730,15 @@ test "Include guards" {
             var buf = std.ArrayList(u8).init(gpa);
             defer buf.deinit();
 
-            var writer = buf.writer();
             switch (tok_id) {
-                .keyword_include, .keyword_include_next => try writer.print(template, .{ tok_id.lexeme().?, " \"bar.h\"" }),
-                .keyword_define, .keyword_undef => try writer.print(template, .{ tok_id.lexeme().?, " BAR" }),
+                .keyword_include, .keyword_include_next => try buf.print(template, .{ tok_id.lexeme().?, " \"bar.h\"" }),
+                .keyword_define, .keyword_undef => try buf.print(template, .{ tok_id.lexeme().?, " BAR" }),
                 .keyword_ifndef,
                 .keyword_ifdef,
                 .keyword_elifdef,
                 .keyword_elifndef,
-                => try writer.print(template, .{ tok_id.lexeme().?, " BAR\n#endif" }),
-                else => try writer.print(template, .{ tok_id.lexeme().?, "" }),
+                => try buf.print(template, .{ tok_id.lexeme().?, " BAR\n#endif" }),
+                else => try buf.print(template, .{ tok_id.lexeme().?, "" }),
             }
             const source = try comp.addSourceFromBuffer(buf.items, "test.h");
             _ = try pp.preprocess(source);
