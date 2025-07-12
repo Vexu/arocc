@@ -3748,7 +3748,7 @@ test "Include guards" {
                 => try writer.print(template, .{ tok_id.lexeme().?, " BAR\n#endif" }),
                 else => try writer.print(template, .{ tok_id.lexeme().?, "" }),
             }
-            const source = try comp.addSourceFromBuffer(buf.items, "test.h", );
+            const source = try comp.addSourceFromBuffer(buf.items, "test.h");
             _ = try pp.preprocess(source);
 
             try std.testing.expectEqual(expected_guards, pp.include_guards.count());

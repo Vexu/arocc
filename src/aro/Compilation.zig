@@ -1276,7 +1276,7 @@ pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8
         error.WriteFailed => return error.OutOfMemory,
         error.ReadFailed => return reader.err.?,
     };
-    
+
     const contents = try allocating.toOwnedSlice();
     errdefer comp.gpa.free(contents);
     return comp.addSourceFromOwnedBuffer(contents, path, kind);
@@ -1717,8 +1717,8 @@ test "addSourceFromBuffer" {
             var comp = Compilation.init(allocator, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
-            _ = try comp.addSourceFromBuffer("spliced\\\nbuffer\n", "path", );
-            _ = try comp.addSourceFromBuffer("non-spliced buffer\n", "path", );
+            _ = try comp.addSourceFromBuffer("spliced\\\nbuffer\n", "path");
+            _ = try comp.addSourceFromBuffer("non-spliced buffer\n", "path");
         }
     };
     try Test.addSourceFromBuffer("ab\\\nc", "abc", 0, &.{2});

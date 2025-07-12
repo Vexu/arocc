@@ -2334,7 +2334,7 @@ test "Tokenizer fuzz test" {
             var comp = Compilation.init(std.testing.allocator, arena.allocator(), undefined, std.fs.cwd());
             defer comp.deinit();
 
-            const source = try comp.addSourceFromBuffer(input_bytes, "fuzz.c", );
+            const source = try comp.addSourceFromBuffer(input_bytes, "fuzz.c");
 
             var tokenizer: Tokenizer = .{
                 .buf = source.buf,
@@ -2360,7 +2360,10 @@ fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, la
     if (langopts) |provided| {
         comp.langopts = provided;
     }
-    const source = try comp.addSourceFromBuffer(contents, "path", );
+    const source = try comp.addSourceFromBuffer(
+        contents,
+        "path",
+    );
     var tokenizer = Tokenizer{
         .buf = source.buf,
         .source = source.id,
