@@ -2906,7 +2906,7 @@ pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     return tree.comp.locSlice(loc);
 }
 
-pub fn dump(tree: *const Tree, config: std.io.tty.Config, w: *std.io.Writer) !void {
+pub fn dump(tree: *const Tree, config: std.io.tty.Config, w: *std.io.Writer) std.io.tty.Config.SetColorError!void {
     for (tree.root_decls.items) |i| {
         try tree.dumpNode(i, 0, config, w);
         try w.writeByte('\n');

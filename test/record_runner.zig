@@ -122,7 +122,6 @@ pub fn main() !void {
         var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
         defer cases_dir.close();
         var name_buf: [1024]u8 = undefined;
-        var name_writer: std.io.Writer = .fixed(&name_buf);
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
@@ -133,7 +132,7 @@ pub fn main() !void {
             }
 
             if (std.ascii.indexOfIgnoreCase(entry.name, "_test.c") != null) {
-                _ = name_writer.consumeAll();
+                var name_writer: std.io.Writer = .fixed(&name_buf);
                 try name_writer.print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
                 try cases.append(try gpa.dupe(u8, name_writer.buffered()));
             }
@@ -271,7 +270,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     var case_node = stats.root_node.start(name_writer.buffered(), 0);
     defer case_node.end();
 
-    const file = comp.addSourceFromBuffer(path, test_case.source) catch |err| {
+    const file = comp.addSourceFromBuffer(test_case.source, path) catch |err| {
         stats.recordResult(.fail);
         std.debug.print("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
         return;
