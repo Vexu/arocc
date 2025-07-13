@@ -27,6 +27,7 @@ pub const Error = error{
     /// A fatal error has ocurred and compilation has stopped.
     FatalError,
 } || Allocator.Error;
+pub const AddSourceError = Error || error{StreamTooLong};
 
 pub const bit_int_max_bits = std.math.maxInt(u16);
 const path_buf_stack_limit = 1024;
@@ -627,10 +628,12 @@ fn generateSystemDefines(comp: *Compilation, w: *std.io.Writer) !void {
 }
 
 /// Generate builtin macros that will be available to each source file.
-pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) (Compilation.Error || error{StreamTooLong})!Source {
+pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) AddSourceError!Source {
     try comp.type_store.initNamedTypes(comp);
 
-    var allocating: std.io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 14);
+    // TODO fails testAllocationFailures?
+    // var allocating: std.io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 14);
+    var allocating: std.io.Writer.Allocating = .init(comp.gpa);
     defer allocating.deinit();
 
     comp.writeBuiltinMacros(system_defines_mode, &allocating.writer) catch |err| switch (err) {
@@ -1197,10 +1200,16 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
     const splice_locs = try splice_list.toOwnedSlice();
     errdefer comp.gpa.free(splice_locs);
 
-    if (i != contents.len) contents = try comp.gpa.realloc(contents, i);
+    if (i != contents.len){
+        var list: std.ArrayListUnmanaged(u8) = .{
+            .items = contents[0..i],
+            .capacity = contents.len,
+        };
+        contents = try list.toOwnedSlice(comp.gpa);
+    }
     errdefer @compileError("errdefers in callers would possibly free the realloced slice using the original len");
 
-    const source = Source{
+    const source: Source = .{
         .id = source_id,
         .path = duped_path,
         .buf = contents,
@@ -1239,7 +1248,7 @@ fn addNewlineEscapeError(comp: *Compilation, path: []const u8, buf: []const u8, 
 /// Caller retains ownership of `path` and `buf`.
 /// Dupes the source buffer; if it is acceptable to modify the source buffer and possibly resize
 /// the allocation, please use `addSourceFromOwnedBuffer`
-pub fn addSourceFromBuffer(comp: *Compilation, buf: []const u8, path: []const u8) !Source {
+pub fn addSourceFromBuffer(comp: *Compilation, buf: []const u8, path: []const u8) AddSourceError!Source {
     if (comp.sources.get(path)) |some| return some;
     if (buf.len > std.math.maxInt(u32)) return error.StreamTooLong;
 
