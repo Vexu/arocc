@@ -808,7 +808,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         const contents = try macro_buf.toOwnedSlice(d.comp.gpa);
         errdefer d.comp.gpa.free(contents);
 
-        break :macros try d.comp.addSourceFromOwnedBuffer(contents, "<command line>", .user);
+        break :macros try d.comp.addSourceFromOwnedBuffer("<command line>", contents, .user);
     };
 
     const linking = !(d.only_preprocess or d.only_syntax or d.only_compile or d.only_preprocess_and_compile);

@@ -10112,12 +10112,12 @@ test "Node locations" {
     var comp = Compilation.init(std.testing.allocator, arena, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
-    const file = try comp.addSourceFromBuffer(
+    const file = try comp.addSourceFromBuffer("file.c",
         \\int foo = 5;
         \\int bar = 10;
         \\int main(void) {}
         \\
-    , "file.c");
+    );
 
     const builtin_macros = try comp.generateBuiltinMacros(.no_system_defines);
 

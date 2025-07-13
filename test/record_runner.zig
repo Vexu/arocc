@@ -270,7 +270,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     var case_node = stats.root_node.start(name_writer.buffered(), 0);
     defer case_node.end();
 
-    const file = comp.addSourceFromBuffer(test_case.source, path) catch |err| {
+    const file = comp.addSourceFromBuffer(path, test_case.source) catch |err| {
         stats.recordResult(.fail);
         std.debug.print("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
         return;
@@ -286,7 +286,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
         try macro_writer.writeAll("#define MSVC\n");
     }
 
-    const user_macros = try comp.addSourceFromBuffer(macro_writer.buffered(), "<command line>");
+    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_writer.buffered());
     const builtin_macros = try comp.generateBuiltinMacros(.include_system_defines);
 
     var pp = try aro.Preprocessor.initDefault(&comp);

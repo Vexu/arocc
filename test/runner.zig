@@ -80,7 +80,7 @@ fn testOne(gpa: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void
     defer macro_buf.deinit();
 
     _, _, const system_defines, _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
-    const user_macros = try comp.addSourceFromBuffer(macro_buf.items, "<command line>");
+    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
     const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 
@@ -250,7 +250,7 @@ pub fn main() !void {
         defer macro_buf.deinit(comp.gpa);
 
         const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, &macro_buf);
-        const user_macros = try comp.addSourceFromBuffer(macro_buf.items, "<command line>");
+        const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
         const builtin_macros = try comp.generateBuiltinMacros(system_defines);
 

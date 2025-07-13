@@ -644,7 +644,7 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
 
     const contents = try allocating.toOwnedSlice();
     errdefer comp.gpa.free(contents);
-    return comp.addSourceFromOwnedBuffer(contents, "<builtin>", .user);
+    return comp.addSourceFromOwnedBuffer("<builtin>", contents, .user);
 }
 
 fn writeBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode, w: *std.io.Writer) !void {
@@ -1082,7 +1082,7 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
 /// or line-ending changes happen.
 /// caller retains ownership of `path`
 /// To add a file's contents given its path, see addSourceFromPath
-pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8, kind: Source.Kind) !Source {
+pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8, kind: Source.Kind) !Source {
     assert(buf.len <= std.math.maxInt(u32));
     try comp.sources.ensureUnusedCapacity(comp.gpa, 1);
 
@@ -1200,7 +1200,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, buf: []u8, path: []const u8,
     const splice_locs = try splice_list.toOwnedSlice();
     errdefer comp.gpa.free(splice_locs);
 
-    if (i != contents.len){
+    if (i != contents.len) {
         var list: std.ArrayListUnmanaged(u8) = .{
             .items = contents[0..i],
             .capacity = contents.len,
@@ -1248,14 +1248,14 @@ fn addNewlineEscapeError(comp: *Compilation, path: []const u8, buf: []const u8, 
 /// Caller retains ownership of `path` and `buf`.
 /// Dupes the source buffer; if it is acceptable to modify the source buffer and possibly resize
 /// the allocation, please use `addSourceFromOwnedBuffer`
-pub fn addSourceFromBuffer(comp: *Compilation, buf: []const u8, path: []const u8) AddSourceError!Source {
+pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8) AddSourceError!Source {
     if (comp.sources.get(path)) |some| return some;
     if (buf.len > std.math.maxInt(u32)) return error.StreamTooLong;
 
     const contents = try comp.gpa.dupe(u8, buf);
     errdefer comp.gpa.free(contents);
 
-    return comp.addSourceFromOwnedBuffer(contents, path, .user);
+    return comp.addSourceFromOwnedBuffer(path, contents, .user);
 }
 
 /// Caller retains ownership of `path`.
@@ -1288,7 +1288,7 @@ pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8
 
     const contents = try allocating.toOwnedSlice();
     errdefer comp.gpa.free(contents);
-    return comp.addSourceFromOwnedBuffer(contents, path, kind);
+    return comp.addSourceFromOwnedBuffer(path, contents, kind);
 }
 
 pub fn hasInclude(
@@ -1712,7 +1712,7 @@ test "addSourceFromBuffer" {
             var comp = Compilation.init(std.testing.allocator, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
-            const source = try comp.addSourceFromBuffer(str, "path");
+            const source = try comp.addSourceFromBuffer("path", str);
 
             try std.testing.expectEqualStrings(expected, source.buf);
             try std.testing.expectEqual(warning_count, @as(u32, @intCast(diagnostics.warnings)));
@@ -1726,8 +1726,8 @@ test "addSourceFromBuffer" {
             var comp = Compilation.init(allocator, arena.allocator(), &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
-            _ = try comp.addSourceFromBuffer("spliced\\\nbuffer\n", "path");
-            _ = try comp.addSourceFromBuffer("non-spliced buffer\n", "path");
+            _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
+            _ = try comp.addSourceFromBuffer("path", "non-spliced buffer\n");
         }
     };
     try Test.addSourceFromBuffer("ab\\\nc", "abc", 0, &.{2});
@@ -1800,7 +1800,7 @@ test "ignore BOM at beginning of file" {
             var comp = Compilation.init(std.testing.allocator, arena, &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
-            const source = try comp.addSourceFromBuffer(buf, "file.c");
+            const source = try comp.addSourceFromBuffer("file.c", buf);
             const expected_output = if (mem.startsWith(u8, buf, BOM)) buf[BOM.len..] else buf;
             try std.testing.expectEqualStrings(expected_output, source.buf);
         }

@@ -3599,7 +3599,7 @@ test "Preserve pragma tokens sometimes" {
             pp.preserve_whitespace = true;
             assert(pp.linemarkers == .none);
 
-            const test_runner_macros = try comp.addSourceFromBuffer(source_text, "<test_runner>");
+            const test_runner_macros = try comp.addSourceFromBuffer("<test_runner>", source_text);
             const eof = try pp.preprocess(test_runner_macros);
             try pp.addToken(eof);
 
@@ -3725,7 +3725,7 @@ test "Include guards" {
 
             const path = try std.fs.path.join(arena, &.{ ".", "bar.h" });
 
-            _ = try comp.addSourceFromBuffer("int bar = 5;\n", path);
+            _ = try comp.addSourceFromBuffer(path, "int bar = 5;\n");
 
             var buf = std.ArrayList(u8).init(gpa);
             defer buf.deinit();
@@ -3740,7 +3740,7 @@ test "Include guards" {
                 => try buf.print(template, .{ tok_id.lexeme().?, " BAR\n#endif" }),
                 else => try buf.print(template, .{ tok_id.lexeme().?, "" }),
             }
-            const source = try comp.addSourceFromBuffer(buf.items, "test.h");
+            const source = try comp.addSourceFromBuffer("test.h", buf.items);
             _ = try pp.preprocess(source);
 
             try std.testing.expectEqual(expected_guards, pp.include_guards.count());
