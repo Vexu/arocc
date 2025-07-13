@@ -694,6 +694,12 @@ pub const invalid_cast_type: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const cast_to_same_type: Diagnostic = .{
+    .fmt = "C99 forbids casting nonscalar type {qt} to the same type",
+    .kind = .off,
+    .extension = true,
+};
+
 pub const invalid_cast_operand_type: Diagnostic = .{
     .fmt = "operand of type {qt} where arithmetic or pointer type is required",
     .kind = .@"error",

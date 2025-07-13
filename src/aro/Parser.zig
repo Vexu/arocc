@@ -6904,6 +6904,9 @@ pub const Result = struct {
                 try p.err(l_paren, .invalid_union_cast, .{res.qt});
                 return error.ParsingFailed;
             }
+        } else if (dest_qt.eql(res.qt, p.comp)) {
+            try p.err(l_paren, .cast_to_same_type, .{dest_qt});
+            cast_kind = .no_op;
         } else {
             try p.err(l_paren, .invalid_cast_type, .{dest_qt});
             return error.ParsingFailed;
