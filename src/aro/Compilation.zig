@@ -27,7 +27,7 @@ pub const Error = error{
     /// A fatal error has ocurred and compilation has stopped.
     FatalError,
 } || Allocator.Error;
-pub const AddSourceError = Error || error{StreamTooLong};
+pub const AddSourceError = Error || error{FileTooBig};
 
 pub const bit_int_max_bits = std.math.maxInt(u16);
 const path_buf_stack_limit = 1024;
@@ -640,7 +640,7 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         error.WriteFailed, error.OutOfMemory => return error.OutOfMemory,
     };
 
-    if (allocating.getWritten().len > std.math.maxInt(u32)) return error.StreamTooLong;
+    if (allocating.getWritten().len > std.math.maxInt(u32)) return error.FileTooBig;
 
     const contents = try allocating.toOwnedSlice();
     errdefer comp.gpa.free(contents);
@@ -1250,7 +1250,7 @@ fn addNewlineEscapeError(comp: *Compilation, path: []const u8, buf: []const u8, 
 /// the allocation, please use `addSourceFromOwnedBuffer`
 pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8) AddSourceError!Source {
     if (comp.sources.get(path)) |some| return some;
-    if (buf.len > std.math.maxInt(u32)) return error.StreamTooLong;
+    if (buf.len > std.math.maxInt(u32)) return error.FileTooBig;
 
     const contents = try comp.gpa.dupe(u8, buf);
     errdefer comp.gpa.free(contents);
@@ -1279,6 +1279,7 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
 pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8, kind: Source.Kind) !Source {
     var file_buf: [4096]u8 = undefined;
     var file_reader = file.reader(&file_buf);
+    if (try file_reader.getSize() > std.math.maxInt(u32)) return error.FileTooBig;
 
     var allocating: std.io.Writer.Allocating = .init(comp.gpa);
     _ = allocating.writer.sendFileAll(&file_reader, .limited(std.math.maxInt(u32))) catch |e| switch (e) {
@@ -1484,6 +1485,8 @@ fn getFileContents(comp: *Compilation, path: []const u8, limit: std.io.Limit) ![
 
     var file_buf: [4096]u8 = undefined;
     var file_reader = file.reader(&file_buf);
+    if (try file_reader.getSize() > limit.minInt(std.math.maxInt(u32))) return error.FileTooBig;
+
     _ = allocating.writer.sendFileAll(&file_reader, limit) catch |err| switch (err) {
         error.WriteFailed => return error.OutOfMemory,
         error.ReadFailed => return file_reader.err.?,

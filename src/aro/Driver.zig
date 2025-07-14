@@ -833,7 +833,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     };
 
     const builtin_macros = d.comp.generateBuiltinMacros(d.system_defines) catch |er| switch (er) {
-        error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
+        error.FileTooBig => return d.fatal("builtin macro source exceeded max size", .{}),
         else => |e| return e,
     };
     if (fast_exit and d.inputs.items.len == 1) {
