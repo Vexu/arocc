@@ -759,7 +759,7 @@ fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) C
     if (pp.diagnostics.effectiveKind(diagnostic) == .off) return;
 
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
@@ -788,7 +788,7 @@ fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) C
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
@@ -2990,7 +2990,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
     };
     pp.token_buf.items.len = 0;
 
-    var limit: ?std.io.Limit = null;
+    var limit: ?std.Io.Limit = null;
     var prefix: ?Range = null;
     var suffix: ?Range = null;
     var if_empty: ?Range = null;
@@ -3346,7 +3346,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
 
 fn printLinemarker(
     pp: *Preprocessor,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     line_no: u32,
     source: Source,
     start_resume: enum(u8) { start, @"resume", none },
@@ -3389,7 +3389,7 @@ pub const DumpMode = enum {
 /// Pretty-print the macro define or undef at location `loc`.
 /// We re-tokenize the directive because we are printing a macro that may have the same name as one in
 /// `pp.defines` but a different definition (due to being #undef'ed and then redefined)
-fn prettyPrintMacro(pp: *Preprocessor, w: *std.io.Writer, loc: Source.Location, parts: enum { name_only, name_and_body }) !void {
+fn prettyPrintMacro(pp: *Preprocessor, w: *std.Io.Writer, loc: Source.Location, parts: enum { name_only, name_and_body }) !void {
     const source = pp.comp.getSource(loc.id);
     var tokenizer: Tokenizer = .{
         .buf = source.buf,
@@ -3427,7 +3427,7 @@ fn prettyPrintMacro(pp: *Preprocessor, w: *std.io.Writer, loc: Source.Location, 
     }
 }
 
-fn prettyPrintMacrosOnly(pp: *Preprocessor, w: *std.io.Writer) !void {
+fn prettyPrintMacrosOnly(pp: *Preprocessor, w: *std.Io.Writer) !void {
     for (pp.defines.values()) |macro| {
         if (macro.is_builtin) continue;
 
@@ -3438,7 +3438,7 @@ fn prettyPrintMacrosOnly(pp: *Preprocessor, w: *std.io.Writer) !void {
 }
 
 /// Pretty print tokens and try to preserve whitespace.
-pub fn prettyPrintTokens(pp: *Preprocessor, w: *std.io.Writer, macro_dump_mode: DumpMode) !void {
+pub fn prettyPrintTokens(pp: *Preprocessor, w: *std.Io.Writer, macro_dump_mode: DumpMode) !void {
     if (macro_dump_mode == .macros_only) {
         return pp.prettyPrintMacrosOnly(w);
     }
@@ -3564,7 +3564,7 @@ fn fmtEscapes(bytes: []const u8) FmtEscapes {
 }
 const FmtEscapes = struct {
     bytes: []const u8,
-    pub fn format(ctx: FmtEscapes, w: *std.io.Writer) !void {
+    pub fn format(ctx: FmtEscapes, w: *std.Io.Writer) !void {
         for (ctx.bytes) |byte| switch (byte) {
             '\n' => try w.writeAll("\\n"),
             '\r' => try w.writeAll("\\r"),
@@ -3603,7 +3603,7 @@ test "Preserve pragma tokens sometimes" {
             const eof = try pp.preprocess(test_runner_macros);
             try pp.addToken(eof);
 
-            var allocating: std.io.Writer.Allocating = .init(gpa);
+            var allocating: std.Io.Writer.Allocating = .init(gpa);
             defer allocating.deinit();
 
             try pp.prettyPrintTokens(&allocating.writer, .result_only);

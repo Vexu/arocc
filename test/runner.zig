@@ -35,7 +35,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.
         defer driver.deinit();
 
         var discard_buf: [256]u8 = undefined;
-        var discarding: std.io.Writer.Discarding = .init(&discard_buf);
+        var discarding: std.Io.Writer.Discarding = .init(&discard_buf);
         _ = try driver.parseArgs(&discarding.writer, macro_buf, test_args.items);
         only_preprocess = driver.only_preprocess;
         system_defines = driver.system_defines;
@@ -100,7 +100,7 @@ fn testOne(gpa: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void
 
     var tree = try aro.Parser.parse(&pp);
     defer tree.deinit();
-    tree.dump(false, std.io.null_writer) catch {};
+    tree.dump(false, std.Io.null_writer) catch {};
 }
 
 fn testAllAllocationFailures(cases: [][]const u8, test_dir: []const u8) !void {
@@ -172,7 +172,7 @@ pub fn main() !void {
         .estimated_total_items = cases.items.len,
     });
 
-    var diag_buf: std.io.Writer.Allocating = .init(gpa);
+    var diag_buf: std.Io.Writer.Allocating = .init(gpa);
     defer diag_buf.deinit();
 
     var diagnostics: aro.Diagnostics = .{
@@ -322,7 +322,7 @@ pub fn main() !void {
             };
             defer gpa.free(expected_output);
 
-            var output: std.io.Writer.Allocating = .init(gpa);
+            var output: std.Io.Writer.Allocating = .init(gpa);
             defer output.deinit();
 
             try pp.prettyPrintTokens(&output.writer, dump_mode);
@@ -370,7 +370,7 @@ pub fn main() !void {
         const maybe_ast = std.fs.cwd().readFileAlloc(gpa, ast_path, std.math.maxInt(u32)) catch null;
         if (maybe_ast) |expected_ast| {
             defer gpa.free(expected_ast);
-            var actual_ast: std.io.Writer.Allocating = .init(gpa);
+            var actual_ast: std.Io.Writer.Allocating = .init(gpa);
             defer actual_ast.deinit();
 
             try tree.dump(.no_color, &actual_ast.writer);
@@ -381,7 +381,7 @@ pub fn main() !void {
             };
         } else {
             var discard_buf: [256]u8 = undefined;
-            var discarding: std.io.Writer.Discarding = .init(&discard_buf);
+            var discarding: std.Io.Writer.Discarding = .init(&discard_buf);
             tree.dump(.no_color, &discarding.writer) catch {};
         }
 
@@ -628,7 +628,7 @@ const StmtTypeDumper = struct {
         const maybe_ret = node.get(tree);
         if (maybe_ret == .return_stmt and maybe_ret.return_stmt.operand == .implicit) return;
 
-        var allocating: std.io.Writer.Allocating = .init(self.types.allocator);
+        var allocating: std.Io.Writer.Allocating = .init(self.types.allocator);
         defer allocating.deinit();
 
         node.qt(tree).dump(tree.comp, &allocating.writer) catch {};

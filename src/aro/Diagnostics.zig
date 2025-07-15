@@ -238,8 +238,8 @@ const Diagnostics = @This();
 
 output: union(enum) {
     to_writer: struct {
-        writer: *std.io.Writer,
-        color: std.io.tty.Config,
+        writer: *std.Io.Writer,
+        color: std.Io.tty.Config,
     },
     to_list: struct {
         messages: std.ArrayListUnmanaged(Message) = .empty,
@@ -422,7 +422,7 @@ pub fn addWithLocation(
     if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
-pub fn formatArgs(w: *std.io.Writer, fmt: []const u8, args: anytype) std.io.Writer.Error!void {
+pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writer.Error!void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
         const arg = @field(args, arg_info.name);
@@ -438,7 +438,7 @@ pub fn formatArgs(w: *std.io.Writer, fmt: []const u8, args: anytype) std.io.Writ
     try w.writeAll(fmt[i..]);
 }
 
-pub fn formatString(w: *std.io.Writer, fmt: []const u8, str: []const u8) std.io.Writer.Error!usize {
+pub fn formatString(w: *std.Io.Writer, fmt: []const u8, str: []const u8) std.Io.Writer.Error!usize {
     const template = "{s}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -446,7 +446,7 @@ pub fn formatString(w: *std.io.Writer, fmt: []const u8, str: []const u8) std.io.
     return i + template.len;
 }
 
-pub fn formatInt(w: *std.io.Writer, fmt: []const u8, int: anytype) std.io.Writer.Error!usize {
+pub fn formatInt(w: *std.Io.Writer, fmt: []const u8, int: anytype) std.Io.Writer.Error!usize {
     const template = "{d}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -486,7 +486,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
     }
 }
 
-fn writeToWriter(msg: Message, w: *std.io.Writer, config: std.io.tty.Config) !void {
+fn writeToWriter(msg: Message, w: *std.Io.Writer, config: std.Io.tty.Config) !void {
     try config.setColor(w, .bold);
     if (msg.location) |loc| {
         try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });

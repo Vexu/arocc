@@ -10,12 +10,16 @@ const aro_version = std.SemanticVersion{
 
 fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: []const u8, aro_module: *std.Build.Module) !void {
     const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
-    const fuzz_lib = b.addStaticLibrary(.{
+    const fuzz_lib = b.addLibrary(.{
         .name = "fuzz-lib",
-        .root_source_file = b.path("test/fuzz/fuzz_lib.zig"),
-        .optimize = .Debug,
-        .target = target,
-        .single_threaded = true,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/fuzz/fuzz_lib.zig"),
+            .optimize = .Debug,
+            .target = target,
+            .single_threaded = true,
+        }),
+        .use_llvm = true,
+        .use_lld = true,
     });
     fuzz_lib.want_lto = true;
     fuzz_lib.bundle_compiler_rt = true;
@@ -175,10 +179,12 @@ pub fn build(b: *Build) !void {
 
     const exe = b.addExecutable(.{
         .name = "arocc",
-        .root_source_file = b.path("src/main.zig"),
-        .optimize = mode,
-        .target = target,
-        .single_threaded = true,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .optimize = mode,
+            .target = target,
+            .single_threaded = true,
+        }),
         .use_llvm = use_llvm,
         .use_lld = use_llvm,
     });
@@ -220,7 +226,10 @@ pub fn build(b: *Build) !void {
 
     const unit_tests_step = step: {
         var unit_tests = b.addTest(.{
-            .root_source_file = b.path("src/aro.zig"),
+            .root_module = b.createModule(.{
+                .target = target,
+                .root_source_file = b.path("src/aro.zig"),
+            }),
             .filters = test_filter,
         });
         for (aro_module.import_table.keys(), aro_module.import_table.values()) |name, module| {
@@ -236,9 +245,11 @@ pub fn build(b: *Build) !void {
     const integration_tests_step = step: {
         const integration_tests = b.addExecutable(.{
             .name = "test-runner",
-            .root_source_file = b.path("test/runner.zig"),
-            .optimize = mode,
-            .target = target,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("test/runner.zig"),
+                .optimize = mode,
+                .target = target,
+            }),
             .use_llvm = use_llvm,
             .use_lld = use_llvm,
         });
@@ -259,9 +270,11 @@ pub fn build(b: *Build) !void {
     const record_tests_step = step: {
         const record_tests = b.addExecutable(.{
             .name = "record-runner",
-            .root_source_file = b.path("test/record_runner.zig"),
-            .optimize = mode,
-            .target = target,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("test/record_runner.zig"),
+                .optimize = mode,
+                .target = target,
+            }),
             .use_llvm = use_llvm,
             .use_lld = use_llvm,
         });

@@ -2906,7 +2906,7 @@ pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     return tree.comp.locSlice(loc);
 }
 
-pub fn dump(tree: *const Tree, config: std.io.tty.Config, w: *std.io.Writer) std.io.tty.Config.SetColorError!void {
+pub fn dump(tree: *const Tree, config: std.Io.tty.Config, w: *std.Io.Writer) std.Io.tty.Config.SetColorError!void {
     for (tree.root_decls.items) |i| {
         try tree.dumpNode(i, 0, config, w);
         try w.writeByte('\n');
@@ -2914,7 +2914,7 @@ pub fn dump(tree: *const Tree, config: std.io.tty.Config, w: *std.io.Writer) std
     try w.flush();
 }
 
-fn dumpFieldAttributes(tree: *const Tree, attributes: []const Attribute, level: u32, w: *std.io.Writer) !void {
+fn dumpFieldAttributes(tree: *const Tree, attributes: []const Attribute, level: u32, w: *std.Io.Writer) !void {
     for (attributes) |attr| {
         try w.splatByteAll(' ', level);
         try w.print("field attr: {s}", .{@tagName(attr.tag)});
@@ -2922,7 +2922,7 @@ fn dumpFieldAttributes(tree: *const Tree, attributes: []const Attribute, level: 
     }
 }
 
-fn dumpAttribute(tree: *const Tree, attr: Attribute, w: *std.io.Writer) !void {
+fn dumpAttribute(tree: *const Tree, attr: Attribute, w: *std.Io.Writer) !void {
     switch (attr.tag) {
         inline else => |tag| {
             const args = @field(attr.args, @tagName(tag));
@@ -2958,17 +2958,17 @@ fn dumpNode(
     tree: *const Tree,
     node_index: Node.Index,
     level: u32,
-    config: std.io.tty.Config,
-    w: *std.io.Writer,
+    config: std.Io.tty.Config,
+    w: *std.Io.Writer,
 ) !void {
     const delta = 2;
     const half = delta / 2;
-    const TYPE = std.io.tty.Color.bright_magenta;
-    const TAG = std.io.tty.Color.bright_cyan;
-    const IMPLICIT = std.io.tty.Color.bright_blue;
-    const NAME = std.io.tty.Color.bright_red;
-    const LITERAL = std.io.tty.Color.bright_green;
-    const ATTRIBUTE = std.io.tty.Color.bright_yellow;
+    const TYPE = std.Io.tty.Color.bright_magenta;
+    const TAG = std.Io.tty.Color.bright_cyan;
+    const IMPLICIT = std.Io.tty.Color.bright_blue;
+    const NAME = std.Io.tty.Color.bright_red;
+    const LITERAL = std.Io.tty.Color.bright_green;
+    const ATTRIBUTE = std.Io.tty.Color.bright_yellow;
 
     const node = node_index.get(tree);
     try w.splatByteAll(' ', level);

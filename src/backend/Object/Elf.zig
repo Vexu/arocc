@@ -170,7 +170,7 @@ pub fn addRelocation(elf: *Elf, name: []const u8, section_kind: Object.Section, 
 /// relocations
 /// strtab
 /// section headers
-pub fn finish(elf: *Elf, w: *std.io.Writer) !void {
+pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
     var num_sections: std.elf.Half = additional_sections;
     var relocations_len: std.elf.Elf64_Off = 0;
     var sections_len: std.elf.Elf64_Off = 0;

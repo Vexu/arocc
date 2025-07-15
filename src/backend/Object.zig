@@ -65,7 +65,7 @@ pub fn addRelocation(obj: *Object, name: []const u8, section: Section, address: 
     }
 }
 
-pub fn finish(obj: *Object, w: *std.io.Writer) !void {
+pub fn finish(obj: *Object, w: *std.Io.Writer) !void {
     switch (obj.format) {
         .elf => return @as(*Elf, @alignCast(@fieldParentPtr("obj", obj))).finish(w),
         else => unreachable,

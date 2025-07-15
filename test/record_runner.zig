@@ -132,7 +132,7 @@ pub fn main() !void {
             }
 
             if (std.ascii.indexOfIgnoreCase(entry.name, "_test.c") != null) {
-                var name_writer: std.io.Writer = .fixed(&name_buf);
+                var name_writer: std.Io.Writer = .fixed(&name_buf);
                 try name_writer.print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
                 try cases.append(try gpa.dupe(u8, name_writer.buffered()));
             }
@@ -258,7 +258,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     }
 
     var name_buf: [1024]u8 = undefined;
-    var name_writer: std.io.Writer = .fixed(&name_buf);
+    var name_writer: std.Io.Writer = .fixed(&name_buf);
 
     const test_name = std.mem.sliceTo(std.fs.path.basename(path), '_');
     try name_writer.print("{s} | {s} | {s}", .{
@@ -279,7 +279,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     comp.langopts.setEmulatedCompiler(aro.target_util.systemCompiler(comp.target));
 
     var macro_buf: [1024]u8 = undefined;
-    var macro_writer: std.io.Writer = .fixed(&macro_buf);
+    var macro_writer: std.Io.Writer = .fixed(&macro_buf);
     try macro_writer.print("#define {s}\n", .{test_case.c_define});
     if (comp.langopts.emulate == .msvc) {
         comp.langopts.setMSExtensions(true);
@@ -305,7 +305,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     defer tree.deinit();
     {
         var discard_buf: [256]u8 = undefined;
-        var discarding: std.io.Writer.Discarding = .init(&discard_buf);
+        var discarding: std.Io.Writer.Discarding = .init(&discard_buf);
         tree.dump(.no_color, &discarding.writer) catch {};
     }
 
@@ -320,7 +320,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     }
 
     var expected_buf: [128]u8 = undefined;
-    var expected_writer: std.io.Writer = .fixed(&expected_buf);
+    var expected_writer: std.Io.Writer = .fixed(&expected_buf);
     try expected_writer.print("{s}|{s}", .{ test_case.target, test_name });
 
     const expected = compErr.get(expected_writer.buffered()) orelse ExpectedFailure{};
@@ -382,11 +382,11 @@ fn getTarget(zig_target_string: []const u8) !std.Target {
     const model = iter.next().?;
     const os = iter.next().?;
     const abi = iter.next().?;
-    var fb = std.io.fixedBufferStream(&buf);
-    try std.fmt.format(fb.writer(), "{s}-{s}-{s}", .{ arch, os, abi });
+    var w = std.Io.Writer.fixed(&buf);
+    try w.print("{s}-{s}-{s}", .{ arch, os, abi });
 
     const query = try std.Target.Query.parse(.{
-        .arch_os_abi = fb.getWritten(),
+        .arch_os_abi = w.buffered(),
         .cpu_features = model,
     });
     return std.zig.system.resolveTargetQuery(query);

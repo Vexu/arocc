@@ -16,8 +16,8 @@ const Error = aro.Compilation.Error;
 
 tree: *const Tree,
 comp: *Compilation,
-text: *std.io.Writer,
-data: *std.io.Writer,
+text: *std.Io.Writer,
+data: *std.Io.Writer,
 
 const StorageUnit = enum(u8) {
     byte = 8,
@@ -35,11 +35,11 @@ const StorageUnit = enum(u8) {
     }
 };
 
-fn serializeInt(value: u64, storage_unit: StorageUnit, w: *std.io.Writer) !void {
+fn serializeInt(value: u64, storage_unit: StorageUnit, w: *std.Io.Writer) !void {
     try w.print("  .{s}  0x{x}\n", .{ @tagName(storage_unit), storage_unit.trunc(value) });
 }
 
-fn serializeFloat(comptime T: type, value: T, w: *std.io.Writer) !void {
+fn serializeFloat(comptime T: type, value: T, w: *std.Io.Writer) !void {
     switch (T) {
         f128 => {
             const bytes = std.mem.asBytes(&value);
@@ -134,10 +134,10 @@ fn emitValue(c: *AsmCodeGen, qt: QualType, node: Node.Index) !void {
 }
 
 pub fn genAsm(tree: *const Tree) Error!Assembly {
-    var data: std.io.Writer.Allocating = .init(tree.comp.gpa);
+    var data: std.Io.Writer.Allocating = .init(tree.comp.gpa);
     defer data.deinit();
 
-    var text: std.io.Writer.Allocating = .init(tree.comp.gpa);
+    var text: std.Io.Writer.Allocating = .init(tree.comp.gpa);
     defer text.deinit();
 
     var codegen: AsmCodeGen = .{

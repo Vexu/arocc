@@ -213,7 +213,7 @@ fn checkIdentifierCodepointWarnings(p: *Parser, codepoint: u21, loc: Source.Loca
 
     const prev_total = p.diagnostics.total;
     var sf = std.heap.stackFallback(1024, p.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     if (!char_info.isC99IdChar(codepoint)) {
@@ -426,7 +426,7 @@ pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype)
     if (p.diagnostics.effectiveKind(diagnostic) == .off) return;
 
     var sf = std.heap.stackFallback(1024, p.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     p.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
@@ -448,7 +448,7 @@ pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype)
     }, p.pp.expansionSlice(tok_i), true);
 }
 
-fn formatArgs(p: *Parser, w: *std.io.Writer, fmt: []const u8, args: anytype) !void {
+fn formatArgs(p: *Parser, w: *std.Io.Writer, fmt: []const u8, args: anytype) !void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
         const arg = @field(args, arg_info.name);
@@ -477,7 +477,7 @@ fn formatArgs(p: *Parser, w: *std.io.Writer, fmt: []const u8, args: anytype) !vo
     try w.writeAll(fmt[i..]);
 }
 
-fn formatTokenId(w: *std.io.Writer, fmt: []const u8, tok_id: Tree.Token.Id) !usize {
+fn formatTokenId(w: *std.Io.Writer, fmt: []const u8, tok_id: Tree.Token.Id) !usize {
     const template = "{tok_id}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -485,7 +485,7 @@ fn formatTokenId(w: *std.io.Writer, fmt: []const u8, tok_id: Tree.Token.Id) !usi
     return i + template.len;
 }
 
-fn formatQualType(p: *Parser, w: *std.io.Writer, fmt: []const u8, qt: QualType) !usize {
+fn formatQualType(p: *Parser, w: *std.Io.Writer, fmt: []const u8, qt: QualType) !usize {
     const template = "{qt}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -506,7 +506,7 @@ fn formatQualType(p: *Parser, w: *std.io.Writer, fmt: []const u8, qt: QualType) 
     return i + template.len;
 }
 
-fn formatResult(p: *Parser, w: *std.io.Writer, fmt: []const u8, res: Result) !usize {
+fn formatResult(p: *Parser, w: *std.Io.Writer, fmt: []const u8, res: Result) !usize {
     const template = "{value}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -533,7 +533,7 @@ const Normalized = struct {
         return .{ .str = str };
     }
 
-    pub fn format(ctx: Normalized, w: *std.io.Writer, fmt_str: []const u8) !usize {
+    pub fn format(ctx: Normalized, w: *std.Io.Writer, fmt_str: []const u8) !usize {
         const template = "{normalized}";
         const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
@@ -569,7 +569,7 @@ const Codepoint = struct {
         return .{ .codepoint = codepoint };
     }
 
-    pub fn format(ctx: Codepoint, w: *std.io.Writer, fmt_str: []const u8) !usize {
+    pub fn format(ctx: Codepoint, w: *std.Io.Writer, fmt_str: []const u8) !usize {
         const template = "{codepoint}";
         const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
@@ -585,7 +585,7 @@ const Escaped = struct {
         return .{ .str = str };
     }
 
-    pub fn format(ctx: Escaped, w: *std.io.Writer, fmt_str: []const u8) !usize {
+    pub fn format(ctx: Escaped, w: *std.Io.Writer, fmt_str: []const u8) !usize {
         const template = "{s}";
         const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
@@ -1468,7 +1468,7 @@ fn decl(p: *Parser) Error!bool {
     return true;
 }
 
-fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result, allocating: *std.io.Writer.Allocating) !?[]const u8 {
+fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) !?[]const u8 {
     const w = &allocating.writer;
 
     const cond = cond_node.get(&p.tree);
@@ -1540,7 +1540,7 @@ fn staticAssert(p: *Parser) Error!bool {
     } else {
         if (!res.val.toBool(p.comp)) {
             var sf = std.heap.stackFallback(1024, p.gpa);
-            var allocating: std.io.Writer.Allocating = .init(sf.get());
+            var allocating: std.Io.Writer.Allocating = .init(sf.get());
             defer allocating.deinit();
 
             if (p.staticAssertMessage(res_node, str, &allocating) catch return error.OutOfMemory) |message| {
@@ -9237,7 +9237,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                 qt = some.qt;
             } else if (p.func.qt) |func_qt| {
                 var sf = std.heap.stackFallback(1024, p.gpa);
-                var allocating: std.io.Writer.Allocating = .init(sf.get());
+                var allocating: std.Io.Writer.Allocating = .init(sf.get());
                 defer allocating.deinit();
 
                 func_qt.printNamed(p.tokSlice(p.func.name), p.comp, &allocating.writer) catch return error.OutOfMemory;
@@ -9508,7 +9508,7 @@ fn charLiteral(p: *Parser) Error!?Result {
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
 
     var is_multichar = false;
-    if (slice.len == 1 and std.ascii.isASCII(slice[0])) {
+    if (slice.len == 1 and std.ascii.isAscii(slice[0])) {
         // fast path: single unescaped ASCII char
         val = slice[0];
     } else {

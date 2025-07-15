@@ -154,7 +154,7 @@ pub const Ascii = struct {
         return .{ .val = @intCast(val) };
     }
 
-    pub fn format(ctx: Ascii, w: *std.io.Writer, fmt_str: []const u8) !usize {
+    pub fn format(ctx: Ascii, w: *std.Io.Writer, fmt_str: []const u8) !usize {
         const template = "{c}";
         const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
@@ -319,7 +319,7 @@ pub const Parser = struct {
         if (p.comp.diagnostics.effectiveKind(diagnostic) == .off) return;
 
         var sf = std.heap.stackFallback(1024, p.comp.gpa);
-        var allocating: std.io.Writer.Allocating = .init(sf.get());
+        var allocating: std.Io.Writer.Allocating = .init(sf.get());
         defer allocating.deinit();
 
         formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
@@ -335,7 +335,7 @@ pub const Parser = struct {
         }, p.expansion_locs, true);
     }
 
-    fn formatArgs(w: *std.io.Writer, fmt: []const u8, args: anytype) !void {
+    fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) !void {
         var i: usize = 0;
         inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
             const arg = @field(args, arg_info.name);

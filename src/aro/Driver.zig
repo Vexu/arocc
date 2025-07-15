@@ -252,10 +252,10 @@ pub const usage =
 /// Process command line arguments, returns true if something was written to std_out.
 pub fn parseArgs(
     d: *Driver,
-    stdout: *std.io.Writer,
+    stdout: *std.Io.Writer,
     macro_buf: *std.ArrayListUnmanaged(u8),
     args: []const []const u8,
-) (Compilation.Error || std.io.Writer.Error)!bool {
+) (Compilation.Error || std.Io.Writer.Error)!bool {
     var i: usize = 1;
     var comment_arg: []const u8 = "";
     var hosted: ?bool = null;
@@ -699,7 +699,7 @@ fn addSource(d: *Driver, path: []const u8) !Source {
 
 pub fn err(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
@@ -708,7 +708,7 @@ pub fn err(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
 
 pub fn warn(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
@@ -724,7 +724,7 @@ pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
@@ -747,7 +747,7 @@ pub fn printDiagnosticsStats(d: *Driver) void {
     }
 }
 
-pub fn detectConfig(d: *Driver, file: std.fs.File) std.io.tty.Config {
+pub fn detectConfig(d: *Driver, file: std.fs.File) std.Io.tty.Config {
     if (d.color == true) return .escape_codes;
     if (d.color == false) return .no_color;
 
@@ -1085,7 +1085,7 @@ fn processSource(
     }
 }
 
-fn dumpLinkerArgs(w: *std.io.Writer, items: []const []const u8) !void {
+fn dumpLinkerArgs(w: *std.Io.Writer, items: []const []const u8) !void {
     for (items, 0..) |item, i| {
         if (i > 0) try w.writeByte(' ');
         try w.print("\"{f}\"", .{std.zig.fmtString(item)});

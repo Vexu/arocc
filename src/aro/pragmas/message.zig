@@ -45,7 +45,7 @@ fn preprocessorHandler(_: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pra
     const diagnostic: Pragma.Diagnostic = .pragma_message;
 
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, diagnostic.fmt, .{str}) catch return error.OutOfMemory;

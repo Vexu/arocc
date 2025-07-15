@@ -195,7 +195,7 @@ pub const Diagnostic = struct {
 
 pub fn err(pp: *Preprocessor, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype) Compilation.Error!void {
     var sf = std.heap.stackFallback(1024, pp.gpa);
-    var allocating: std.io.Writer.Allocating = .init(sf.get());
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;

@@ -1164,7 +1164,7 @@ pub const QualType = packed struct(u32) {
         }
     }
 
-    pub fn print(qt: QualType, comp: *const Compilation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn print(qt: QualType, comp: *const Compilation, w: *std.Io.Writer) std.Io.Writer.Error!void {
         if (qt.isC23Auto()) {
             try w.writeAll("auto");
             return;
@@ -1173,7 +1173,7 @@ pub const QualType = packed struct(u32) {
         try qt.printEpilogue(comp, false, w);
     }
 
-    pub fn printNamed(qt: QualType, name: []const u8, comp: *const Compilation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn printNamed(qt: QualType, name: []const u8, comp: *const Compilation, w: *std.Io.Writer) std.Io.Writer.Error!void {
         if (qt.isC23Auto()) {
             try w.print("auto {s}", .{name});
             return;
@@ -1184,12 +1184,12 @@ pub const QualType = packed struct(u32) {
         try qt.printEpilogue(comp, false, w);
     }
 
-    pub fn printDesugared(qt: QualType, comp: *const Compilation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn printDesugared(qt: QualType, comp: *const Compilation, w: *std.Io.Writer) std.Io.Writer.Error!void {
         _ = try qt.printPrologue(comp, true, w);
         try qt.printEpilogue(comp, true, w);
     }
 
-    fn printPrologue(qt: QualType, comp: *const Compilation, desugar: bool, w: *std.io.Writer) std.io.Writer.Error!bool {
+    fn printPrologue(qt: QualType, comp: *const Compilation, desugar: bool, w: *std.Io.Writer) std.Io.Writer.Error!bool {
         loop: switch (qt.type(comp)) {
             .pointer => |pointer| {
                 const simple = try pointer.child.printPrologue(comp, desugar, w);
@@ -1305,7 +1305,7 @@ pub const QualType = packed struct(u32) {
         return true;
     }
 
-    fn printEpilogue(qt: QualType, comp: *const Compilation, desugar: bool, w: *std.io.Writer) std.io.Writer.Error!void {
+    fn printEpilogue(qt: QualType, comp: *const Compilation, desugar: bool, w: *std.Io.Writer) std.Io.Writer.Error!void {
         loop: switch (qt.type(comp)) {
             .pointer => |pointer| {
                 switch (pointer.child.base(comp).type) {
@@ -1362,7 +1362,7 @@ pub const QualType = packed struct(u32) {
         }
     }
 
-    pub fn dump(qt: QualType, comp: *const Compilation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn dump(qt: QualType, comp: *const Compilation, w: *std.Io.Writer) std.Io.Writer.Error!void {
         if (qt.@"const") try w.writeAll("const ");
         if (qt.@"volatile") try w.writeAll("volatile ");
         if (qt.restrict) try w.writeAll("restrict ");
