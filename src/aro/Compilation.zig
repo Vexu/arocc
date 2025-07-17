@@ -631,9 +631,7 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
 pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) AddSourceError!Source {
     try comp.type_store.initNamedTypes(comp);
 
-    // TODO fails testAllocationFailures?
-    // var allocating: std.io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 14);
-    var allocating: std.io.Writer.Allocating = .init(comp.gpa);
+    var allocating: std.io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 13);
     defer allocating.deinit();
 
     comp.writeBuiltinMacros(system_defines_mode, &allocating.writer) catch |err| switch (err) {
