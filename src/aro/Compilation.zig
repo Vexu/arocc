@@ -235,6 +235,22 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
             , .{ name, name });
         }
     }.defineStd;
+    const defineFeatures = struct {
+        fn defineFeatures(_w: *std.Io.Writer, target: std.Target, prefix: []const u8, suffix: []const u8) !void {
+            for (target.cpu.arch.allFeaturesList()) |feature| {
+                if (!target.cpu.features.isEnabled(feature.index)) continue;
+
+                // TODO not all features are defined as macros
+                try _w.writeAll("#define ");
+                try _w.writeAll(prefix);
+                for (feature.name) |c| {
+                    try _w.writeByte(std.ascii.toUpper(c));
+                }
+                try _w.writeAll(suffix);
+                try _w.writeAll("__ 1\n");
+            }
+        }
+    }.defineFeatures;
     const ptr_width = comp.target.ptrBitWidth();
     const is_gnu = comp.langopts.standard.isGNU();
 
@@ -363,6 +379,7 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
                     \\
                 );
             }
+            try defineFeatures(w, comp.target, "__", "__");
         },
         .x86 => {
             try defineStd(w, "i386", is_gnu);
@@ -375,6 +392,7 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
                     break :blk @as(u32, 600);
                 }});
             }
+            try defineFeatures(w, comp.target, "__", "__");
         },
         .mips,
         .mipsel,
@@ -429,6 +447,7 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
             if (comp.target.cpu.arch.isThumb()) {
                 try define(w, "__thumb__");
             }
+            try defineFeatures(w, comp.target, "__ARM_FEATURE_", "");
         },
         .aarch64, .aarch64_be => {
             try define(w, "__aarch64__");
@@ -446,10 +465,30 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
             if (comp.target.os.tag == .windows and comp.target.abi == .msvc) {
                 try w.writeAll("#define _M_ARM64 100\n");
             }
+            try defineFeatures(w, comp.target, "__ARM_FEATURE_", "");
         },
         .msp430 => {
             try define(w, "MSP430");
             try define(w, "__MSP430__");
+        },
+        .arc => {
+            try define(w, "__arc__");
+        },
+        .wasm32, .wasm64 => {
+            try define(w, "__wasm");
+            try define(w, "__wasm__");
+            if (comp.target.cpu.arch == .wasm32) {
+                try define(w, "__wasm32");
+                try define(w, "__wasm32__");
+            } else {
+                try define(w, "__wasm64");
+                try define(w, "__wasm64__");
+            }
+
+            for (comp.target.cpu.arch.allFeaturesList()) |feature| {
+                if (!comp.target.cpu.features.isEnabled(feature.index)) continue;
+                try w.print("#define __wasm_{s}__ 1\n", .{feature.name});
+            }
         },
         else => {},
     }
