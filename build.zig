@@ -191,6 +191,10 @@ pub fn build(b: *Build) !void {
     exe.root_module.addImport("aro", aro_module);
     exe.root_module.addImport("assembly_backend", assembly_backend);
 
+    if (target.result.os.tag == .windows) {
+        exe.root_module.linkSystemLibrary("advapi32", .{});
+    }
+
     // tracy integration
     if (tracy) |tracy_path| {
         const client_cpp = std.fs.path.join(
