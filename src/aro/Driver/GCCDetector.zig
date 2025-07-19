@@ -408,7 +408,7 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     var candidate_biarch_lib_dirs_buffer: [16][]const u8 = undefined;
     var candidate_biarch_lib_dirs = std.ArrayListUnmanaged([]const u8).initBuffer(&candidate_biarch_lib_dirs_buffer);
 
-    var candidate_biarch_triple_aliases_buffer: [16][]const u8 = undefined;
+    var candidate_biarch_triple_aliases_buffer: [20][]const u8 = undefined;
     var candidate_biarch_triple_aliases = std.ArrayListUnmanaged([]const u8).initBuffer(&candidate_biarch_triple_aliases_buffer);
 
     try collectLibDirsAndTriples(

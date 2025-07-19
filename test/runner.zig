@@ -140,11 +140,11 @@ pub fn main() !void {
 
     const test_dir = args[1];
 
-    var buf = std.ArrayList(u8).init(gpa);
+    var buf: std.ArrayListUnmanaged(u8) = .empty;
     var cases = std.ArrayList([]const u8).init(gpa);
     defer {
         cases.deinit();
-        buf.deinit();
+        buf.deinit(gpa);
     }
 
     // collect all cases
@@ -471,7 +471,11 @@ pub fn main() !void {
 
             defer buf.items.len = 0;
             // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-            std.debug.assert((try std.zig.string_literal.parseWrite(buf.writer(), pp.tokSlice(macro.tokens[0]))) == .success);
+            {
+                var allocating: std.Io.Writer.Allocating = .fromArrayList(pp.gpa, &buf);
+                defer buf = allocating.toArrayList();
+                std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(macro.tokens[0]))) == .success);
+            }
             const expected_output = buf.items;
 
             const obj_name = "test_object.o";
@@ -540,7 +544,7 @@ pub fn main() !void {
 }
 
 // returns true if passed
-fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8), errors: []const u8) !?bool {
+fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayListUnmanaged(u8), errors: []const u8) !?bool {
     const macro = pp.defines.get("EXPECTED_ERRORS") orelse return null;
 
     const expected_count = pp.diagnostics.total;
@@ -562,8 +566,12 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayList(u8), errors: [
 
         const start = buf.items.len;
         // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-        std.debug.assert((try std.zig.string_literal.parseWrite(buf.writer(), pp.tokSlice(str))) == .success);
-        try buf.append('\n');
+        {
+            var allocating: std.Io.Writer.Allocating = .fromArrayList(pp.gpa, buf);
+            defer buf.* = allocating.toArrayList();
+            std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(macro.tokens[0]))) == .success);
+        }
+        try buf.append(pp.gpa, '\n');
         const expected_error = buf.items[start..];
 
         const index = std.mem.indexOf(u8, errors, expected_error);

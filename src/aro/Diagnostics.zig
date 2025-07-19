@@ -23,6 +23,51 @@ pub const Message = struct {
         @"error",
         @"fatal error",
     };
+
+    pub fn write(msg: Message, w: *std.Io.Writer, config: std.Io.tty.Config) !void {
+        try config.setColor(w, .bold);
+        if (msg.location) |loc| {
+            try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
+        }
+        switch (msg.effective_kind) {
+            .@"fatal error", .@"error" => try config.setColor(w, .bright_red),
+            .note => try config.setColor(w, .bright_cyan),
+            .warning => try config.setColor(w, .bright_magenta),
+            .off => unreachable,
+        }
+        try w.print("{s}: ", .{@tagName(msg.effective_kind)});
+
+        try config.setColor(w, .white);
+        try w.writeAll(msg.text);
+        if (msg.opt) |some| {
+            if (msg.effective_kind == .@"error" and msg.kind != .@"error") {
+                try w.print(" [-Werror,-W{s}]", .{@tagName(some)});
+            } else if (msg.effective_kind != .note) {
+                try w.print(" [-W{s}]", .{@tagName(some)});
+            }
+        } else if (msg.extension) {
+            if (msg.effective_kind == .@"error") {
+                try w.writeAll(" [-Werror,-Wpedantic]");
+            } else if (msg.effective_kind != msg.kind) {
+                try w.writeAll(" [-Wpedantic]");
+            }
+        }
+
+        if (msg.location) |loc| {
+            const trailer = if (loc.end_with_splice) "\\ " else "";
+            try config.setColor(w, .reset);
+            try w.print("\n{s}{s}\n", .{ loc.line, trailer });
+            try w.splatByteAll(' ', loc.width);
+            try config.setColor(w, .bold);
+            try config.setColor(w, .bright_green);
+            try w.writeAll("^\n");
+            try config.setColor(w, .reset);
+        } else {
+            try w.writeAll("\n");
+            try config.setColor(w, .reset);
+        }
+        try w.flush();
+    }
 };
 
 pub const Option = enum {
@@ -468,7 +513,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
     switch (d.output) {
         .ignore => {},
         .to_writer => |writer| {
-            writeToWriter(msg, writer.writer, writer.color) catch {
+            msg.write(writer.writer, writer.color) catch {
                 return error.FatalError;
             };
         },
@@ -484,49 +529,4 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
             });
         },
     }
-}
-
-fn writeToWriter(msg: Message, w: *std.Io.Writer, config: std.Io.tty.Config) !void {
-    try config.setColor(w, .bold);
-    if (msg.location) |loc| {
-        try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
-    }
-    switch (msg.effective_kind) {
-        .@"fatal error", .@"error" => try config.setColor(w, .bright_red),
-        .note => try config.setColor(w, .bright_cyan),
-        .warning => try config.setColor(w, .bright_magenta),
-        .off => unreachable,
-    }
-    try w.print("{s}: ", .{@tagName(msg.effective_kind)});
-
-    try config.setColor(w, .white);
-    try w.writeAll(msg.text);
-    if (msg.opt) |some| {
-        if (msg.effective_kind == .@"error" and msg.kind != .@"error") {
-            try w.print(" [-Werror,-W{s}]", .{@tagName(some)});
-        } else if (msg.effective_kind != .note) {
-            try w.print(" [-W{s}]", .{@tagName(some)});
-        }
-    } else if (msg.extension) {
-        if (msg.effective_kind == .@"error") {
-            try w.writeAll(" [-Werror,-Wpedantic]");
-        } else if (msg.effective_kind != msg.kind) {
-            try w.writeAll(" [-Wpedantic]");
-        }
-    }
-
-    if (msg.location) |loc| {
-        const trailer = if (loc.end_with_splice) "\\ " else "";
-        try config.setColor(w, .reset);
-        try w.print("\n{s}{s}\n", .{ loc.line, trailer });
-        try w.splatByteAll(' ', loc.width);
-        try config.setColor(w, .bold);
-        try config.setColor(w, .bright_green);
-        try w.writeAll("^\n");
-        try config.setColor(w, .reset);
-    } else {
-        try w.writeAll("\n");
-        try config.setColor(w, .reset);
-    }
-    try w.flush();
 }
