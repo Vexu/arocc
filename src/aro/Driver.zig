@@ -629,6 +629,19 @@ pub fn parseArgs(
                 } else {
                     try d.err("invalid unwind library name  '{s}'", .{unwindlib});
                 }
+            } else if (mem.startsWith(u8, arg, "-x")) {
+                var lang = arg["-x".len..];
+                if (lang.len == 0) {
+                    i += 1;
+                    if (i >= args.len) {
+                        try d.err("expected argument after -x", .{});
+                        continue;
+                    }
+                    lang = args[i];
+                }
+                if (!mem.eql(u8, lang, "none") and !mem.eql(u8, lang, "c")) {
+                    try d.err("language not recognized: '{s}'", .{lang});
+                }
             } else {
                 try d.warn("unknown argument '{s}'", .{arg});
             }
