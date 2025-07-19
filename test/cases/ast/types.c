@@ -17,9 +17,9 @@ implicit typedef: 'long double'
  name: __float80
 
 variable: 'attributed(int)'
- attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex.null, .requested = 4 }
- attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex.null, .requested = 4 }
- attr: aligned alignment: aro.Attribute.Alignment{ .node = aro.Tree.Node.OptIndex(6), .requested = 16 }
+ attr: aligned alignment: .{ .node = .null, .requested = 4 }
+ attr: aligned alignment: .{ .node = .null, .requested = 4 }
+ attr: aligned alignment: .{ .node = @enumFromInt(6), .requested = 16 }
  name: a
 
 variable: 'const volatile int'

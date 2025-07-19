@@ -252,10 +252,10 @@ pub const usage =
 /// Process command line arguments, returns true if something was written to std_out.
 pub fn parseArgs(
     d: *Driver,
-    std_out: anytype,
-    macro_buf: anytype,
+    stdout: *std.Io.Writer,
+    macro_buf: *std.ArrayListUnmanaged(u8),
     args: []const []const u8,
-) Compilation.Error!bool {
+) (Compilation.Error || std.Io.Writer.Error)!bool {
     var i: usize = 1;
     var comment_arg: []const u8 = "";
     var hosted: ?bool = null;
@@ -267,14 +267,12 @@ pub fn parseArgs(
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
             if (mem.eql(u8, arg, "--help")) {
-                std_out.print(usage, .{args[0]}) catch |er| {
-                    return d.fatal("unable to print usage: {s}", .{errorDescription(er)});
-                };
+                try stdout.print(usage, .{args[0]});
+                try stdout.flush();
                 return true;
             } else if (mem.eql(u8, arg, "--version")) {
-                std_out.writeAll(@import("backend").version_str ++ "\n") catch |er| {
-                    return d.fatal("unable to print version: {s}", .{errorDescription(er)});
-                };
+                try stdout.writeAll(@import("backend").version_str ++ "\n");
+                try stdout.flush();
                 return true;
             } else if (mem.startsWith(u8, arg, "-D")) {
                 var macro = arg["-D".len..];
@@ -291,7 +289,7 @@ pub fn parseArgs(
                     value = macro[some + 1 ..];
                     macro = macro[0..some];
                 }
-                try macro_buf.print("#define {s} {s}\n", .{ macro, value });
+                try macro_buf.print(d.comp.gpa, "#define {s} {s}\n", .{ macro, value });
             } else if (mem.startsWith(u8, arg, "-U")) {
                 var macro = arg["-U".len..];
                 if (macro.len == 0) {
@@ -302,7 +300,7 @@ pub fn parseArgs(
                     }
                     macro = args[i];
                 }
-                try macro_buf.print("#undef {s}\n", .{macro});
+                try macro_buf.print(d.comp.gpa, "#undef {s}\n", .{macro});
             } else if (mem.eql(u8, arg, "-O")) {
                 d.comp.code_gen_options.optimization_level = .@"0";
             } else if (mem.startsWith(u8, arg, "-O")) {
@@ -694,30 +692,27 @@ fn option(arg: []const u8, name: []const u8) ?[]const u8 {
 
 fn addSource(d: *Driver, path: []const u8) !Source {
     if (mem.eql(u8, "-", path)) {
-        const stdin = std.io.getStdIn().reader();
-        const input = try stdin.readAllAlloc(d.comp.gpa, std.math.maxInt(u32));
-        defer d.comp.gpa.free(input);
-        return d.comp.addSourceFromBuffer("<stdin>", input);
+        return d.comp.addSourceFromFile(.stdin(), "<stdin>", .user);
     }
     return d.comp.addSourceFromPath(path);
 }
 
 pub fn err(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), fmt, args);
-    try d.diagnostics.add(.{ .kind = .@"error", .text = buf.items, .location = null });
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
+    try d.diagnostics.add(.{ .kind = .@"error", .text = allocating.getWritten(), .location = null });
 }
 
 pub fn warn(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), fmt, args);
-    try d.diagnostics.add(.{ .kind = .warning, .text = buf.items, .location = null });
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
+    try d.diagnostics.add(.{ .kind = .warning, .text = allocating.getWritten(), .location = null });
 }
 
 pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) Compilation.Error!void {
@@ -729,11 +724,11 @@ pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
     var sf = std.heap.stackFallback(1024, d.comp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try Diagnostics.formatArgs(buf.writer(), fmt, args);
-    try d.diagnostics.add(.{ .kind = .@"fatal error", .text = buf.items, .location = null });
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
+    try d.diagnostics.add(.{ .kind = .@"fatal error", .text = allocating.getWritten(), .location = null });
     unreachable;
 }
 
@@ -752,7 +747,7 @@ pub fn printDiagnosticsStats(d: *Driver) void {
     }
 }
 
-pub fn detectConfig(d: *Driver, file: std.fs.File) std.io.tty.Config {
+pub fn detectConfig(d: *Driver, file: std.fs.File) std.Io.tty.Config {
     if (d.color == true) return .escape_codes;
     if (d.color == false) return .no_color;
 
@@ -796,11 +791,25 @@ pub fn errorDescription(e: anyerror) []const u8 {
 /// The entry point of the Aro compiler.
 /// **MAY call `exit` if `fast_exit` is set.**
 pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) Compilation.Error!void {
-    var macro_buf = std.ArrayList(u8).init(d.comp.gpa);
-    defer macro_buf.deinit();
+    const user_macros = macros: {
+        var macro_buf: std.ArrayListUnmanaged(u8) = .empty;
+        defer macro_buf.deinit(d.comp.gpa);
 
-    const std_out = std.io.getStdOut().writer();
-    if (try parseArgs(d, std_out, macro_buf.writer(), args)) return;
+        var stdout_buf: [256]u8 = undefined;
+        var stdout = std.fs.File.stdout().writer(&stdout_buf);
+        if (parseArgs(d, &stdout.interface, &macro_buf, args) catch |er| switch (er) {
+            error.WriteFailed => return d.fatal("failed to write to stdout: {s}", .{errorDescription(er)}),
+            error.OutOfMemory => return error.OutOfMemory,
+            error.FatalError => return error.FatalError,
+        }) return;
+        if (macro_buf.items.len > std.math.maxInt(u32)) {
+            return d.fatal("user provided macro source exceeded max size", .{});
+        }
+        const contents = try macro_buf.toOwnedSlice(d.comp.gpa);
+        errdefer d.comp.gpa.free(contents);
+
+        break :macros try d.comp.addSourceFromOwnedBuffer("<command line>", contents, .user);
+    };
 
     const linking = !(d.only_preprocess or d.only_syntax or d.only_compile or d.only_preprocess_and_compile);
 
@@ -823,12 +832,8 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         error.AroIncludeNotFound => return d.fatal("unable to find Aro builtin headers", .{}),
     };
 
-    const user_macros = d.comp.addSourceFromBuffer("<command line>", macro_buf.items) catch |er| switch (er) {
-        error.StreamTooLong => return d.fatal("user provided macro source exceeded max size", .{}),
-        else => |e| return e,
-    };
     const builtin_macros = d.comp.generateBuiltinMacros(d.system_defines) catch |er| switch (er) {
-        error.StreamTooLong => return d.fatal("builtin macro source exceeded max size", .{}),
+        error.FileTooBig => return d.fatal("builtin macro source exceeded max size", .{}),
         else => |e| return e,
     };
     if (fast_exit and d.inputs.items.len == 1) {
@@ -953,16 +958,15 @@ fn processSource(
             d.comp.cwd.createFile(some, .{}) catch |er|
                 return d.fatal("unable to create output file '{s}': {s}", .{ some, errorDescription(er) })
         else
-            std.io.getStdOut();
+            std.fs.File.stdout();
         defer if (d.output_name != null) file.close();
 
-        var buf_w = std.io.bufferedWriter(file.writer());
+        var file_buf: [4096]u8 = undefined;
+        var file_writer = file.writer(&file_buf);
 
-        pp.prettyPrintTokens(buf_w.writer(), dump_mode) catch |er|
-            return d.fatal("unable to write result: {s}", .{errorDescription(er)});
+        pp.prettyPrintTokens(&file_writer.interface, dump_mode) catch
+            return d.fatal("unable to write result: {s}", .{errorDescription(file_writer.err.?)});
 
-        buf_w.flush() catch |er|
-            return d.fatal("unable to write result: {s}", .{errorDescription(er)});
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
     }
@@ -971,10 +975,9 @@ fn processSource(
     defer tree.deinit();
 
     if (d.verbose_ast) {
-        const stdout = std.io.getStdOut();
-        var buf_writer = std.io.bufferedWriter(stdout.writer());
-        tree.dump(d.detectConfig(stdout), buf_writer.writer()) catch {};
-        buf_writer.flush() catch {};
+        var stdout_buf: [4096]u8 = undefined;
+        var stdout = std.fs.File.stdout().writer(&stdout_buf);
+        tree.dump(d.detectConfig(stdout.file), &stdout.interface) catch {};
     }
 
     d.printDiagnosticsStats();
@@ -1038,10 +1041,9 @@ fn processSource(
         defer ir.deinit(d.comp.gpa);
 
         if (d.verbose_ir) {
-            const stdout = std.io.getStdOut();
-            var buf_writer = std.io.bufferedWriter(stdout.writer());
-            ir.dump(d.comp.gpa, d.detectConfig(stdout), buf_writer.writer()) catch {};
-            buf_writer.flush() catch {};
+            var stdout_buf: [4096]u8 = undefined;
+            var stdout = std.fs.File.stdout().writer(&stdout_buf);
+            ir.dump(d.comp.gpa, d.detectConfig(stdout.file), &stdout.interface) catch {};
         }
 
         var render_errors: Ir.Renderer.ErrorList = .{};
@@ -1065,8 +1067,10 @@ fn processSource(
             return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
         defer out_file.close();
 
-        obj.finish(out_file) catch |er|
-            return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, errorDescription(er) });
+        var file_buf: [4096]u8 = undefined;
+        var file_writer = out_file.writer(&file_buf);
+        obj.finish(&file_writer.interface) catch
+            return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, errorDescription(file_writer.err.?) });
     }
 
     if (d.only_compile or d.only_preprocess_and_compile) {
@@ -1081,13 +1085,13 @@ fn processSource(
     }
 }
 
-fn dumpLinkerArgs(items: []const []const u8) !void {
-    const stdout = std.io.getStdOut().writer();
+fn dumpLinkerArgs(w: *std.Io.Writer, items: []const []const u8) !void {
     for (items, 0..) |item, i| {
-        if (i > 0) try stdout.writeByte(' ');
-        try stdout.print("\"{}\"", .{std.zig.fmtEscapes(item)});
+        if (i > 0) try w.writeByte(' ');
+        try w.print("\"{f}\"", .{std.zig.fmtString(item)});
     }
-    try stdout.writeByte('\n');
+    try w.writeByte('\n');
+    try w.flush();
 }
 
 /// The entry point of the Aro compiler.
@@ -1103,8 +1107,10 @@ pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) Compil
     try tc.buildLinkerArgs(&argv);
 
     if (d.verbose_linker_args) {
-        dumpLinkerArgs(argv.items) catch |er| {
-            return d.fatal("unable to dump linker args: {s}", .{errorDescription(er)});
+        var stdout_buf: [4096]u8 = undefined;
+        var stdout = std.fs.File.stdout().writer(&stdout_buf);
+        dumpLinkerArgs(&stdout.interface, argv.items) catch {
+            return d.fatal("unable to dump linker args: {s}", .{errorDescription(stdout.err.?)});
         };
     }
     var child = std.process.Child.init(argv.items, d.comp.gpa);

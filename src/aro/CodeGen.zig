@@ -59,7 +59,7 @@ fn fail(c: *CodeGen, comptime fmt: []const u8, args: anytype) error{ FatalError,
     var buf = std.ArrayList(u8).init(sf.get());
     defer buf.deinit();
 
-    try buf.writer().print(fmt, args);
+    try buf.print(fmt, args);
     try c.comp.diagnostics.add(.{ .text = buf.items, .kind = .@"fatal error", .location = null });
     return error.FatalError;
 }

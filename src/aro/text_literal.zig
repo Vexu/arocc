@@ -154,7 +154,7 @@ pub const Ascii = struct {
         return .{ .val = @intCast(val) };
     }
 
-    pub fn format(ctx: Ascii, w: anytype, fmt_str: []const u8) !usize {
+    pub fn format(ctx: Ascii, w: *std.Io.Writer, fmt_str: []const u8) !usize {
         const template = "{c}";
         const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
@@ -162,9 +162,7 @@ pub const Ascii = struct {
         if (std.ascii.isPrint(ctx.val)) {
             try w.writeByte(ctx.val);
         } else {
-            var buf: [3]u8 = undefined;
-            const str = std.fmt.bufPrint(&buf, "x{x}", .{std.fmt.fmtSliceHexLower(&.{ctx.val})}) catch unreachable;
-            try w.writeAll(str);
+            try w.print("x{x:0>2}", .{ctx.val});
         }
         return i + template.len;
     }
@@ -315,29 +313,29 @@ pub const Parser = struct {
         try p.warn(diagnostic, args);
     }
 
-    pub fn warn(p: *Parser, diagnostic: Diagnostic, args: anytype) !void {
+    pub fn warn(p: *Parser, diagnostic: Diagnostic, args: anytype) Compilation.Error!void {
         defer p.offset = 0;
         if (p.errored) return;
         if (p.comp.diagnostics.effectiveKind(diagnostic) == .off) return;
 
         var sf = std.heap.stackFallback(1024, p.comp.gpa);
-        var buf = std.ArrayList(u8).init(sf.get());
-        defer buf.deinit();
+        var allocating: std.Io.Writer.Allocating = .init(sf.get());
+        defer allocating.deinit();
 
-        try formatArgs(buf.writer(), diagnostic.fmt, args);
+        formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
 
         var offset_location = p.loc;
         offset_location.byte_offset += p.offset;
         try p.comp.diagnostics.addWithLocation(p.comp, .{
             .kind = diagnostic.kind,
-            .text = buf.items,
+            .text = allocating.getWritten(),
             .opt = diagnostic.opt,
             .extension = diagnostic.extension,
             .location = offset_location.expand(p.comp),
         }, p.expansion_locs, true);
     }
 
-    fn formatArgs(w: anytype, fmt: []const u8, args: anytype) !void {
+    fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) !void {
         var i: usize = 0;
         inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
             const arg = @field(args, arg_info.name);

@@ -213,8 +213,8 @@ fn checkIdentifierCodepointWarnings(p: *Parser, codepoint: u21, loc: Source.Loca
 
     const prev_total = p.diagnostics.total;
     var sf = std.heap.stackFallback(1024, p.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
     if (!char_info.isC99IdChar(codepoint)) {
         const diagnostic: Diagnostic = .c99_compat;
@@ -228,11 +228,11 @@ fn checkIdentifierCodepointWarnings(p: *Parser, codepoint: u21, loc: Source.Loca
     }
     if (char_info.isInvisible(codepoint)) {
         const diagnostic: Diagnostic = .unicode_zero_width;
-        try p.formatArgs(buf.writer(), diagnostic.fmt, .{Codepoint.init(codepoint)});
+        p.formatArgs(&allocating.writer, diagnostic.fmt, .{Codepoint.init(codepoint)}) catch return error.OutOfMemory;
 
         try p.diagnostics.add(.{
             .kind = diagnostic.kind,
-            .text = buf.items,
+            .text = allocating.getWritten(),
             .extension = diagnostic.extension,
             .opt = diagnostic.opt,
             .location = loc.expand(p.comp),
@@ -240,11 +240,11 @@ fn checkIdentifierCodepointWarnings(p: *Parser, codepoint: u21, loc: Source.Loca
     }
     if (char_info.homoglyph(codepoint)) |resembles| {
         const diagnostic: Diagnostic = .unicode_homoglyph;
-        try p.formatArgs(buf.writer(), diagnostic.fmt, .{ Codepoint.init(codepoint), resembles });
+        p.formatArgs(&allocating.writer, diagnostic.fmt, .{ Codepoint.init(codepoint), resembles }) catch return error.OutOfMemory;
 
         try p.diagnostics.add(.{
             .kind = diagnostic.kind,
-            .text = buf.items,
+            .text = allocating.getWritten(),
             .extension = diagnostic.extension,
             .opt = diagnostic.opt,
             .location = loc.expand(p.comp),
@@ -426,10 +426,10 @@ pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype)
     if (p.diagnostics.effectiveKind(diagnostic) == .off) return;
 
     var sf = std.heap.stackFallback(1024, p.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    defer allocating.deinit();
 
-    try p.formatArgs(buf.writer(), diagnostic.fmt, args);
+    p.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
 
     const tok = p.pp.tokens.get(tok_i);
     var loc = tok.loc;
@@ -441,14 +441,14 @@ pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype)
     }
     try p.diagnostics.addWithLocation(p.comp, .{
         .kind = diagnostic.kind,
-        .text = buf.items,
+        .text = allocating.getWritten(),
         .opt = diagnostic.opt,
         .extension = diagnostic.extension,
         .location = loc.expand(p.comp),
     }, p.pp.expansionSlice(tok_i), true);
 }
 
-fn formatArgs(p: *Parser, w: anytype, fmt: []const u8, args: anytype) !void {
+fn formatArgs(p: *Parser, w: *std.Io.Writer, fmt: []const u8, args: anytype) !void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
         const arg = @field(args, arg_info.name);
@@ -477,7 +477,7 @@ fn formatArgs(p: *Parser, w: anytype, fmt: []const u8, args: anytype) !void {
     try w.writeAll(fmt[i..]);
 }
 
-fn formatTokenId(w: anytype, fmt: []const u8, tok_id: Tree.Token.Id) !usize {
+fn formatTokenId(w: *std.Io.Writer, fmt: []const u8, tok_id: Tree.Token.Id) !usize {
     const template = "{tok_id}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -485,7 +485,7 @@ fn formatTokenId(w: anytype, fmt: []const u8, tok_id: Tree.Token.Id) !usize {
     return i + template.len;
 }
 
-fn formatQualType(p: *Parser, w: anytype, fmt: []const u8, qt: QualType) !usize {
+fn formatQualType(p: *Parser, w: *std.Io.Writer, fmt: []const u8, qt: QualType) !usize {
     const template = "{qt}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -506,7 +506,7 @@ fn formatQualType(p: *Parser, w: anytype, fmt: []const u8, qt: QualType) !usize 
     return i + template.len;
 }
 
-fn formatResult(p: *Parser, w: anytype, fmt: []const u8, res: Result) !usize {
+fn formatResult(p: *Parser, w: *std.Io.Writer, fmt: []const u8, res: Result) !usize {
     const template = "{value}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -533,7 +533,7 @@ const Normalized = struct {
         return .{ .str = str };
     }
 
-    pub fn format(ctx: Normalized, w: anytype, fmt_str: []const u8) !usize {
+    pub fn format(ctx: Normalized, w: *std.Io.Writer, fmt_str: []const u8) !usize {
         const template = "{normalized}";
         const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
@@ -546,16 +546,16 @@ const Normalized = struct {
                 try w.writeByte(@intCast(codepoint));
             } else if (codepoint < 0xFFFF) {
                 try w.writeAll("\\u");
-                try std.fmt.formatInt(codepoint, 16, .upper, .{
+                try w.printInt(codepoint, 16, .upper, .{
                     .fill = '0',
                     .width = 4,
-                }, w);
+                });
             } else {
                 try w.writeAll("\\U");
-                try std.fmt.formatInt(codepoint, 16, .upper, .{
+                try w.printInt(codepoint, 16, .upper, .{
                     .fill = '0',
                     .width = 8,
-                }, w);
+                });
             }
         }
         return i + template.len;
@@ -569,7 +569,7 @@ const Codepoint = struct {
         return .{ .codepoint = codepoint };
     }
 
-    pub fn format(ctx: Codepoint, w: anytype, fmt_str: []const u8) !usize {
+    pub fn format(ctx: Codepoint, w: *std.Io.Writer, fmt_str: []const u8) !usize {
         const template = "{codepoint}";
         const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
@@ -585,11 +585,11 @@ const Escaped = struct {
         return .{ .str = str };
     }
 
-    pub fn format(ctx: Escaped, w: anytype, fmt_str: []const u8) !usize {
+    pub fn format(ctx: Escaped, w: *std.Io.Writer, fmt_str: []const u8) !usize {
         const template = "{s}";
         const i = std.mem.indexOf(u8, fmt_str, template).?;
         try w.writeAll(fmt_str[0..i]);
-        try w.print("{}", .{std.zig.fmtEscapes(ctx.str)});
+        try std.zig.stringEscape(ctx.str, w);
         return i + template.len;
     }
 };
@@ -627,11 +627,11 @@ pub fn errValueChanged(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, re
 fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
     if (ty.getAttribute(p.comp, .@"error")) |@"error"| {
         const msg_str = p.comp.interner.get(@"error".msg.ref()).bytes;
-        try p.err(usage_tok, .error_attribute, .{ p.tokSlice(@"error".__name_tok), std.zig.fmtEscapes(msg_str) });
+        try p.err(usage_tok, .error_attribute, .{ p.tokSlice(@"error".__name_tok), std.zig.fmtString(msg_str) });
     }
     if (ty.getAttribute(p.comp, .warning)) |warning| {
         const msg_str = p.comp.interner.get(warning.msg.ref()).bytes;
-        try p.err(usage_tok, .warning_attribute, .{ p.tokSlice(warning.__name_tok), std.zig.fmtEscapes(msg_str) });
+        try p.err(usage_tok, .warning_attribute, .{ p.tokSlice(warning.__name_tok), std.zig.fmtString(msg_str) });
     }
     if (ty.getAttribute(p.comp, .unavailable)) |unavailable| {
         try p.errDeprecated(usage_tok, .unavailable, unavailable.msg);
@@ -1468,33 +1468,32 @@ fn decl(p: *Parser) Error!bool {
     return true;
 }
 
-fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result) !?[]const u8 {
-    const strings_top = p.strings.items.len;
+fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) !?[]const u8 {
+    const w = &allocating.writer;
 
     const cond = cond_node.get(&p.tree);
     if (cond == .builtin_types_compatible_p) {
-        try p.strings.appendSlice("'__builtin_types_compatible_p(");
+        try w.writeAll("'__builtin_types_compatible_p(");
 
         const lhs_ty = cond.builtin_types_compatible_p.lhs;
-        try lhs_ty.print(p.comp, p.strings.writer());
-        try p.strings.appendSlice(", ");
+        try lhs_ty.print(p.comp, w);
+        try w.writeAll(", ");
 
         const rhs_ty = cond.builtin_types_compatible_p.rhs;
-        try rhs_ty.print(p.comp, p.strings.writer());
+        try rhs_ty.print(p.comp, w);
 
-        try p.strings.appendSlice(")'");
+        try w.writeAll(")'");
     } else if (maybe_message == null) return null;
 
     if (maybe_message) |message| {
         assert(message.node.get(&p.tree) == .string_literal_expr);
-        if (p.strings.items.len > 0) {
-            try p.strings.append(' ');
+        if (allocating.getWritten().len > 0) {
+            try w.writeByte(' ');
         }
         const bytes = p.comp.interner.get(message.val.ref()).bytes;
-        try p.strings.ensureUnusedCapacity(bytes.len);
-        try Value.printString(bytes, message.qt, p.comp, p.strings.writer());
+        try Value.printString(bytes, message.qt, p.comp, w);
     }
-    return p.strings.items[strings_top..];
+    return allocating.getWritten();
 }
 
 /// staticAssert
@@ -1540,10 +1539,11 @@ fn staticAssert(p: *Parser) Error!bool {
         }
     } else {
         if (!res.val.toBool(p.comp)) {
-            const strings_top = p.strings.items.len;
-            defer p.strings.items.len = strings_top;
+            var sf = std.heap.stackFallback(1024, p.gpa);
+            var allocating: std.Io.Writer.Allocating = .init(sf.get());
+            defer allocating.deinit();
 
-            if (try p.staticAssertMessage(res_node, str)) |message| {
+            if (p.staticAssertMessage(res_node, str, &allocating) catch return error.OutOfMemory) |message| {
                 try p.err(static_assert, .static_assert_failure_message, .{message});
             } else {
                 try p.err(static_assert, .static_assert_failure, .{});
@@ -9208,15 +9208,11 @@ fn primaryExpr(p: *Parser) Error!?Result {
 
                 try p.strings.appendSlice(p.tokSlice(p.func.name));
                 try p.strings.append(0);
-                const predef = try p.makePredefinedIdentifier(strings_top);
+                const predef = try p.makePredefinedIdentifier(p.strings.items[strings_top..]);
                 ty = predef.qt;
                 p.func.ident = predef;
             } else {
-                const strings_top = p.strings.items.len;
-                defer p.strings.items.len = strings_top;
-
-                try p.strings.append(0);
-                const predef = try p.makePredefinedIdentifier(strings_top);
+                const predef = try p.makePredefinedIdentifier("\x00");
                 ty = predef.qt;
                 p.func.ident = predef;
                 try p.decl_buf.append(predef.node);
@@ -9240,20 +9236,18 @@ fn primaryExpr(p: *Parser) Error!?Result {
             if (p.func.pretty_ident) |some| {
                 qt = some.qt;
             } else if (p.func.qt) |func_qt| {
-                const strings_top = p.strings.items.len;
-                defer p.strings.items.len = strings_top;
+                var sf = std.heap.stackFallback(1024, p.gpa);
+                var allocating: std.Io.Writer.Allocating = .init(sf.get());
+                defer allocating.deinit();
 
-                try func_qt.printNamed(p.tokSlice(p.func.name), p.comp, p.strings.writer());
-                try p.strings.append(0);
-                const predef = try p.makePredefinedIdentifier(strings_top);
+                func_qt.printNamed(p.tokSlice(p.func.name), p.comp, &allocating.writer) catch return error.OutOfMemory;
+                allocating.writer.writeByte(0) catch return error.OutOfMemory;
+
+                const predef = try p.makePredefinedIdentifier(allocating.getWritten());
                 qt = predef.qt;
                 p.func.pretty_ident = predef;
             } else {
-                const strings_top = p.strings.items.len;
-                defer p.strings.items.len = strings_top;
-
-                try p.strings.appendSlice("top level\x00");
-                const predef = try p.makePredefinedIdentifier(strings_top);
+                const predef = try p.makePredefinedIdentifier("top level\x00");
                 qt = predef.qt;
                 p.func.pretty_ident = predef;
                 try p.decl_buf.append(predef.node);
@@ -9332,13 +9326,12 @@ fn primaryExpr(p: *Parser) Error!?Result {
     }
 }
 
-fn makePredefinedIdentifier(p: *Parser, strings_top: usize) !Result {
+fn makePredefinedIdentifier(p: *Parser, slice: []const u8) !Result {
     const array_qt = try p.comp.type_store.put(p.gpa, .{ .array = .{
         .elem = .{ .@"const" = true, ._index = .int_char },
-        .len = .{ .fixed = p.strings.items.len - strings_top },
+        .len = .{ .fixed = slice.len },
     } });
 
-    const slice = p.strings.items[strings_top..];
     const val = try Value.intern(p.comp, .{ .bytes = slice });
 
     const str_lit = try p.addNode(.{ .string_literal_expr = .{ .qt = array_qt, .literal_tok = p.tok_i, .kind = .ascii } });
@@ -9515,7 +9508,7 @@ fn charLiteral(p: *Parser) Error!?Result {
     const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
 
     var is_multichar = false;
-    if (slice.len == 1 and std.ascii.isASCII(slice[0])) {
+    if (slice.len == 1 and std.ascii.isAscii(slice[0])) {
         // fast path: single unescaped ASCII char
         val = slice[0];
     } else {

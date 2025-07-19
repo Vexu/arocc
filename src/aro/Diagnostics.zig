@@ -23,6 +23,51 @@ pub const Message = struct {
         @"error",
         @"fatal error",
     };
+
+    pub fn write(msg: Message, w: *std.Io.Writer, config: std.Io.tty.Config) !void {
+        try config.setColor(w, .bold);
+        if (msg.location) |loc| {
+            try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
+        }
+        switch (msg.effective_kind) {
+            .@"fatal error", .@"error" => try config.setColor(w, .bright_red),
+            .note => try config.setColor(w, .bright_cyan),
+            .warning => try config.setColor(w, .bright_magenta),
+            .off => unreachable,
+        }
+        try w.print("{s}: ", .{@tagName(msg.effective_kind)});
+
+        try config.setColor(w, .white);
+        try w.writeAll(msg.text);
+        if (msg.opt) |some| {
+            if (msg.effective_kind == .@"error" and msg.kind != .@"error") {
+                try w.print(" [-Werror,-W{s}]", .{@tagName(some)});
+            } else if (msg.effective_kind != .note) {
+                try w.print(" [-W{s}]", .{@tagName(some)});
+            }
+        } else if (msg.extension) {
+            if (msg.effective_kind == .@"error") {
+                try w.writeAll(" [-Werror,-Wpedantic]");
+            } else if (msg.effective_kind != msg.kind) {
+                try w.writeAll(" [-Wpedantic]");
+            }
+        }
+
+        if (msg.location) |loc| {
+            const trailer = if (loc.end_with_splice) "\\ " else "";
+            try config.setColor(w, .reset);
+            try w.print("\n{s}{s}\n", .{ loc.line, trailer });
+            try w.splatByteAll(' ', loc.width);
+            try config.setColor(w, .bold);
+            try config.setColor(w, .bright_green);
+            try w.writeAll("^\n");
+            try config.setColor(w, .reset);
+        } else {
+            try w.writeAll("\n");
+            try config.setColor(w, .reset);
+        }
+        try w.flush();
+    }
 };
 
 pub const Option = enum {
@@ -237,15 +282,14 @@ pub const State = struct {
 const Diagnostics = @This();
 
 output: union(enum) {
-    to_file: struct {
-        file: std.fs.File,
-        config: std.io.tty.Config,
+    to_writer: struct {
+        writer: *std.Io.Writer,
+        color: std.Io.tty.Config,
     },
     to_list: struct {
         messages: std.ArrayListUnmanaged(Message) = .empty,
         arena: std.heap.ArenaAllocator,
     },
-    to_buffer: std.ArrayList(u8),
     ignore,
 },
 state: State = .{},
@@ -263,12 +307,11 @@ hide_notes: bool = false,
 pub fn deinit(d: *Diagnostics) void {
     switch (d.output) {
         .ignore => {},
-        .to_file => {},
+        .to_writer => {},
         .to_list => |*list| {
             list.messages.deinit(list.arena.child_allocator);
             list.arena.deinit();
         },
-        .to_buffer => |*buf| buf.deinit(),
     }
 }
 
@@ -281,7 +324,7 @@ pub fn warningExists(name: []const u8) bool {
     return std.meta.stringToEnum(Option, name) != null;
 }
 
-pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) !void {
+pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) Compilation.Error!void {
     if (std.mem.eql(u8, name, "pedantic")) {
         d.state.extensions = to;
         return;
@@ -424,7 +467,7 @@ pub fn addWithLocation(
     if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
-pub fn formatArgs(w: anytype, fmt: []const u8, args: anytype) !void {
+pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writer.Error!void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
         const arg = @field(args, arg_info.name);
@@ -440,7 +483,7 @@ pub fn formatArgs(w: anytype, fmt: []const u8, args: anytype) !void {
     try w.writeAll(fmt[i..]);
 }
 
-pub fn formatString(w: anytype, fmt: []const u8, str: []const u8) !usize {
+pub fn formatString(w: *std.Io.Writer, fmt: []const u8, str: []const u8) std.Io.Writer.Error!usize {
     const template = "{s}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
@@ -448,11 +491,11 @@ pub fn formatString(w: anytype, fmt: []const u8, str: []const u8) !usize {
     return i + template.len;
 }
 
-pub fn formatInt(w: anytype, fmt: []const u8, int: anytype) !usize {
+pub fn formatInt(w: *std.Io.Writer, fmt: []const u8, int: anytype) std.Io.Writer.Error!usize {
     const template = "{d}";
     const i = std.mem.indexOf(u8, fmt, template).?;
     try w.writeAll(fmt[0..i]);
-    try std.fmt.formatInt(int, 10, .lower, .{}, w);
+    try w.printInt(int, 10, .lower, .{});
     return i + template.len;
 }
 
@@ -469,8 +512,8 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
 
     switch (d.output) {
         .ignore => {},
-        .to_file => |to_file| {
-            writeToWriter(msg, to_file.file.writer(), to_file.config) catch {
+        .to_writer => |writer| {
+            msg.write(writer.writer, writer.color) catch {
                 return error.FatalError;
             };
         },
@@ -485,52 +528,5 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
                 .location = msg.location,
             });
         },
-        .to_buffer => |*buf| {
-            writeToWriter(msg, buf.writer(), .no_color) catch return error.OutOfMemory;
-        },
-    }
-}
-
-fn writeToWriter(msg: Message, w: anytype, config: std.io.tty.Config) !void {
-    try config.setColor(w, .bold);
-    if (msg.location) |loc| {
-        try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
-    }
-    switch (msg.effective_kind) {
-        .@"fatal error", .@"error" => try config.setColor(w, .bright_red),
-        .note => try config.setColor(w, .bright_cyan),
-        .warning => try config.setColor(w, .bright_magenta),
-        .off => unreachable,
-    }
-    try w.print("{s}: ", .{@tagName(msg.effective_kind)});
-
-    try config.setColor(w, .white);
-    try w.writeAll(msg.text);
-    if (msg.opt) |some| {
-        if (msg.effective_kind == .@"error" and msg.kind != .@"error") {
-            try w.print(" [-Werror,-W{s}]", .{@tagName(some)});
-        } else if (msg.effective_kind != .note) {
-            try w.print(" [-W{s}]", .{@tagName(some)});
-        }
-    } else if (msg.extension) {
-        if (msg.effective_kind == .@"error") {
-            try w.writeAll(" [-Werror,-Wpedantic]");
-        } else if (msg.effective_kind != msg.kind) {
-            try w.writeAll(" [-Wpedantic]");
-        }
-    }
-
-    if (msg.location) |loc| {
-        const trailer = if (loc.end_with_splice) "\\ " else "";
-        try config.setColor(w, .reset);
-        try w.print("\n{s}{s}\n", .{ loc.line, trailer });
-        try w.writeByteNTimes(' ', loc.width);
-        try config.setColor(w, .bold);
-        try config.setColor(w, .bright_green);
-        try w.writeAll("^\n");
-        try config.setColor(w, .reset);
-    } else {
-        try w.writeAll("\n");
-        try config.setColor(w, .reset);
     }
 }

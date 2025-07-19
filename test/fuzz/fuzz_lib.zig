@@ -27,22 +27,24 @@ fn compileSlice(buf: []const u8) !void {
     const aro_dir = try std.fs.selfExePathAlloc(allocator);
     defer allocator.free(aro_dir);
 
+    var diagnostics: aro.Diagnostics = .{ .output = .ignore };
+
     // FBA is a valid "arena" because leaks are OK and FBA doesn't tend to reuse memory anyway.
-    var comp = Compilation.init(allocator, allocator, std.fs.cwd());
+    var comp = Compilation.init(allocator, allocator, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
     try comp.addSystemIncludeDir(aro_dir);
 
     const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
-    const builtin = try comp.generateBuiltinMacrosFromPath(.include_system_defines, user_source.path);
+    const builtin = try comp.generateBuiltinMacros(.include_system_defines);
 
     try processSource(&comp, builtin, user_source);
     _ = comp.sources.swapRemove(user_source.path);
 }
 
 fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void {
-    var pp = Preprocessor.init(comp);
+    var pp = Preprocessor.init(comp, .default);
     defer pp.deinit();
     try pp.addBuiltinMacros();
 
@@ -53,5 +55,7 @@ fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void
     var tree = try Parser.parse(&pp);
     defer tree.deinit();
 
-    try tree.dump(.no_color, std.io.null_writer);
+    var discard_buf: [256]u8 = undefined;
+    var discarding: std.Io.Writer.Discarding = .init(&discard_buf);
+    try tree.dump(.no_color, &discarding.writer);
 }
