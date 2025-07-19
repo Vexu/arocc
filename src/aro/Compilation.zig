@@ -1483,7 +1483,7 @@ fn getFileContents(comp: *Compilation, path: []const u8, limit: std.Io.Limit) ![
 
     var file_buf: [4096]u8 = undefined;
     var file_reader = file.reader(&file_buf);
-    if (limit.minInt(try file_reader.getSize()) > std.math.maxInt(u32)) return error.FileTooBig;
+    if (limit.minInt64(try file_reader.getSize()) > std.math.maxInt(u32)) return error.FileTooBig;
 
     _ = allocating.writer.sendFileAll(&file_reader, limit) catch |err| switch (err) {
         error.WriteFailed => return error.OutOfMemory,
