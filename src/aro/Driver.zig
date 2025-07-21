@@ -654,6 +654,20 @@ pub fn parseArgs(
                 if (!mem.eql(u8, lang, "none") and !mem.eql(u8, lang, "c")) {
                     try d.err("language not recognized: '{s}'", .{lang});
                 }
+            } else if (mem.startsWith(u8, arg, "-flto")) {
+                const rest = arg["-flto".len..];
+                if (rest.len == 0 or
+                    mem.eql(u8, rest, "=auto") or
+                    mem.eql(u8, rest, "=full") or
+                    mem.eql(u8, rest, "=jobserver") or
+                    mem.eql(u8, rest, "=thin"))
+                {
+                    try d.warn("lto not supported", .{});
+                } else {
+                    return d.fatal("invalid lto mode: '{s}'", .{arg});
+                }
+            } else if (mem.eql(u8, arg, "-fno-lto")) {
+                // nothing to do
             } else {
                 try d.warn("unknown argument '{s}'", .{arg});
             }
