@@ -268,6 +268,7 @@ pub fn parseArgs(
     var ms_extensions: ?bool = null;
     var strip = true;
     var debug: ?backend.CodeGenOptions.DebugFormat = null;
+    var emulate: ?LangOpts.Compiler = null;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
@@ -520,12 +521,7 @@ pub fn parseArgs(
                     try d.err("invalid compiler '{s}'", .{arg});
                     continue;
                 };
-                d.comp.langopts.setEmulatedCompiler(compiler);
-                switch (d.comp.langopts.emulate) {
-                    .clang => try d.diagnostics.set("clang", .off),
-                    .gcc => try d.diagnostics.set("gnu", .off),
-                    .msvc => try d.diagnostics.set("microsoft", .off),
-                }
+                emulate = compiler;
             } else if (option(arg, "-ffp-eval-method=")) |fp_method_str| {
                 const fp_eval_method = std.meta.stringToEnum(LangOpts.FPEvalMethod, fp_method_str) orelse .indeterminate;
                 if (fp_eval_method == .indeterminate) {
@@ -591,8 +587,10 @@ pub fn parseArgs(
                     continue;
                 }
                 d.raw_target_triple = args[i];
+                emulate = null;
             } else if (option(arg, "--target=")) |triple| {
                 d.raw_target_triple = triple;
+                emulate = null;
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
@@ -725,11 +723,12 @@ pub fn parseArgs(
                 opts.arch_os_abi, @errorName(e),
             }),
         };
-        const target = std.zig.system.resolveTargetQuery(query) catch |e| {
+        d.comp.target = std.zig.system.resolveTargetQuery(query) catch |e| {
             return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
         };
-        d.comp.target = target;
-        d.comp.langopts.setEmulatedCompiler(target_util.systemCompiler(target));
+    }
+    if (emulate != null or d.raw_target_triple != null) {
+        d.comp.langopts.setEmulatedCompiler(emulate orelse target_util.systemCompiler(d.comp.target));
         switch (d.comp.langopts.emulate) {
             .clang => try d.diagnostics.set("clang", .off),
             .gcc => try d.diagnostics.set("gnu", .off),

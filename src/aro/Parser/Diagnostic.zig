@@ -1484,9 +1484,10 @@ pub const duplicate_member: Diagnostic = .{
 };
 
 pub const binary_integer_literal: Diagnostic = .{
-    .fmt = "binary integer literals are a GNU extension",
+    .fmt = "binary integer literals are a C23 extension",
+    .opt = .@"c23-extensions",
     .kind = .off,
-    .opt = .@"gnu-binary-literal",
+    .suppress_version = .c23,
     .extension = true,
 };
 
