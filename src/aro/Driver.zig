@@ -73,7 +73,6 @@ mabicalls: ?bool = null,
 dynamic_nopic: ?bool = null,
 ropi: bool = false,
 rwpi: bool = false,
-cmodel: std.builtin.CodeModel = .default,
 debug_dump_letters: packed struct(u3) {
     d: bool = false,
     m: bool = false,
@@ -334,7 +333,7 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fapple-kext")) {
                 d.apple_kext = true;
             } else if (option(arg, "-mcmodel=")) |cmodel| {
-                d.cmodel = std.meta.stringToEnum(std.builtin.CodeModel, cmodel) orelse
+                d.comp.cmodel = std.meta.stringToEnum(std.builtin.CodeModel, cmodel) orelse
                     return d.fatal("unsupported machine code model: '{s}'", .{arg});
             } else if (mem.eql(u8, arg, "-mkernel")) {
                 d.mkernel = true;
@@ -1288,7 +1287,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
         } else {
             pic, pie = .{ false, false };
             if (target_util.isPS(target)) {
-                if (d.cmodel != .kernel) {
+                if (d.comp.cmodel != .kernel) {
                     pic = true;
                     try d.warn(
                         "option '{s}' was ignored by the {s} toolchain, using '-fPIC'",
