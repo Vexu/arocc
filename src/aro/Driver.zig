@@ -266,6 +266,8 @@ pub fn parseArgs(
     var pic_arg: []const u8 = "";
     var declspec_attrs: ?bool = null;
     var ms_extensions: ?bool = null;
+    var strip = true;
+    var debug: ?backend.CodeGenOptions.DebugFormat = null;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
@@ -369,9 +371,31 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fno-dollars-in-identifiers")) {
                 d.comp.langopts.dollars_in_identifiers = false;
             } else if (mem.eql(u8, arg, "-g")) {
-                d.comp.code_gen_options.debug = true;
+                strip = false;
             } else if (mem.eql(u8, arg, "-g0")) {
-                d.comp.code_gen_options.debug = false;
+                strip = true;
+            } else if (mem.eql(u8, arg, "-gcodeview")) {
+                debug = .code_view;
+            } else if (mem.eql(u8, arg, "-gdwarf32")) {
+                debug = .{ .dwarf = .@"32" };
+            } else if (mem.eql(u8, arg, "-gdwarf64")) {
+                debug = .{ .dwarf = .@"64" };
+            } else if (mem.eql(u8, arg, "-gdwarf") or
+                mem.eql(u8, arg, "-gdwarf-2") or
+                mem.eql(u8, arg, "-gdwarf-3") or
+                mem.eql(u8, arg, "-gdwarf-4") or
+                mem.eql(u8, arg, "-gdwarf-5"))
+            {
+                d.comp.code_gen_options.dwarf_version = switch (arg[arg.len - 1]) {
+                    '2' => .@"2",
+                    '3' => .@"3",
+                    '4' => .@"4",
+                    '5' => .@"5",
+                    else => .@"0",
+                };
+                if (debug == null or debug.? != .dwarf) {
+                    debug = .{ .dwarf = .@"32" };
+                }
             } else if (mem.eql(u8, arg, "-fdigraphs")) {
                 d.comp.langopts.digraphs = true;
             } else if (mem.eql(u8, arg, "-fno-digraphs")) {
@@ -732,6 +756,19 @@ pub fn parseArgs(
     const pic_level, const is_pie = try d.getPICMode(pic_arg);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
+    d.comp.code_gen_options.debug = debug: {
+        if (strip) break :debug .strip;
+        if (debug) |explicit| break :debug explicit;
+        break :debug switch (d.comp.target.ofmt) {
+            .elf, .goff, .macho, .wasm, .xcoff => .{ .dwarf = .@"32" },
+            .coff => .code_view,
+            .c => switch (d.comp.target.os.tag) {
+                .windows, .uefi => .code_view,
+                else => .{ .dwarf = .@"32" },
+            },
+            .spirv, .hex, .raw, .plan9 => .strip,
+        };
+    };
     if (declspec_attrs) |some| d.comp.langopts.declspec_attrs = some;
     if (ms_extensions) |some| d.comp.langopts.setMSExtensions(some);
     return false;
