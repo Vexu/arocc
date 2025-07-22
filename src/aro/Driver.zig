@@ -63,7 +63,6 @@ verbose_ast: bool = false,
 verbose_pp: bool = false,
 verbose_ir: bool = false,
 verbose_linker_args: bool = false,
-color: ?bool = null,
 nobuiltininc: bool = false,
 nostdinc: bool = false,
 nostdlibinc: bool = false,
@@ -360,9 +359,13 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fno-char8_t")) {
                 d.comp.langopts.has_char8_t_override = false;
             } else if (mem.eql(u8, arg, "-fcolor-diagnostics")) {
-                d.color = true;
+                d.diagnostics.color = true;
             } else if (mem.eql(u8, arg, "-fno-color-diagnostics")) {
-                d.color = false;
+                d.diagnostics.color = false;
+            } else if (mem.eql(u8, arg, "-fcaret-diagnostics")) {
+                d.diagnostics.details = true;
+            } else if (mem.eql(u8, arg, "-fno-caret-diagnostics")) {
+                d.diagnostics.details = false;
             } else if (mem.eql(u8, arg, "-fcommon")) {
                 d.comp.code_gen_options.common = true;
             } else if (mem.eql(u8, arg, "-fno-common")) {
@@ -823,6 +826,7 @@ pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalEr
 }
 
 pub fn printDiagnosticsStats(d: *Driver) void {
+    if (!d.diagnostics.details) return;
     const warnings = d.diagnostics.warnings;
     const errors = d.diagnostics.errors;
 
@@ -838,14 +842,14 @@ pub fn printDiagnosticsStats(d: *Driver) void {
 }
 
 pub fn detectConfig(d: *Driver, file: std.fs.File) std.Io.tty.Config {
-    if (d.color == true) return .escape_codes;
-    if (d.color == false) return .no_color;
+    if (d.diagnostics.color == false) return .no_color;
+    const force_color = d.diagnostics.color == true;
 
     if (file.supportsAnsiEscapeCodes()) return .escape_codes;
     if (@import("builtin").os.tag == .windows and file.isTty()) {
         var info: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-        if (std.os.windows.kernel32.GetConsoleScreenBufferInfo(file.handle, &info) != std.os.windows.TRUE) {
-            return .no_color;
+        if (std.os.windows.kernel32.GetConsoleScreenBufferInfo(file.handle, &info) == std.os.windows.FALSE) {
+            return if (force_color) .escape_codes else .no_color;
         }
         return .{ .windows_api = .{
             .handle = file.handle,
@@ -853,7 +857,7 @@ pub fn detectConfig(d: *Driver, file: std.fs.File) std.Io.tty.Config {
         } };
     }
 
-    return .no_color;
+    return if (force_color) .escape_codes else .no_color;
 }
 
 pub fn errorDescription(e: anyerror) []const u8 {
