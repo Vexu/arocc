@@ -11,6 +11,7 @@ const CodeGenOptions = backend.CodeGenOptions;
 const Builtins = @import("Builtins.zig");
 const Builtin = Builtins.Builtin;
 const Diagnostics = @import("Diagnostics.zig");
+const DepFile = @import("DepFile.zig");
 const LangOpts = @import("LangOpts.zig");
 const Pragma = @import("Pragma.zig");
 const record_layout = @import("record_layout.zig");
@@ -1796,14 +1797,16 @@ pub fn findEmbed(
     /// angle bracket vs quotes
     include_type: IncludeType,
     limit: std.Io.Limit,
+    opt_dep_file: ?*DepFile,
 ) !?[]const u8 {
     if (std.fs.path.isAbsolute(filename)) {
-        return if (comp.getFileContents(filename, limit)) |some|
-            some
-        else |err| switch (err) {
+        if (comp.getFileContents(filename, limit)) |some| {
+            if (opt_dep_file) |dep_file| try dep_file.addDependencyDupe(comp.gpa, comp.arena, filename);
+            return some;
+        } else |err| switch (err) {
             error.OutOfMemory => |e| return e,
-            else => null,
-        };
+            else => return null,
+        }
     }
 
     var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
@@ -1818,6 +1821,7 @@ pub fn findEmbed(
                 std.mem.replaceScalar(u8, path, '\\', '/');
             }
             if (comp.getFileContents(path, limit)) |some| {
+                if (opt_dep_file) |dep_file| try dep_file.addDependencyDupe(comp.gpa, comp.arena, filename);
                 return some;
             } else |err| switch (err) {
                 error.OutOfMemory => return error.OutOfMemory,
@@ -1833,6 +1837,7 @@ pub fn findEmbed(
             std.mem.replaceScalar(u8, path, '\\', '/');
         }
         if (comp.getFileContents(path, limit)) |some| {
+            if (opt_dep_file) |dep_file| try dep_file.addDependencyDupe(comp.gpa, comp.arena, filename);
             return some;
         } else |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,

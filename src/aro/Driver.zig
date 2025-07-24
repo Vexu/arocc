@@ -10,6 +10,7 @@ const Object = backend.Object;
 
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
+const DepFile = @import("DepFile.zig");
 const GCCVersion = @import("Driver/GCCVersion.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
@@ -86,6 +87,12 @@ debug_dump_letters: packed struct(u3) {
         return .result_only;
     }
 } = .{},
+dependencies: struct {
+    m: bool = false,
+    md: bool = false,
+    format: DepFile.Format = .make,
+    file: ?[]const u8 = null,
+} = .{},
 
 /// Full path to the aro executable
 aro_name: []const u8 = "",
@@ -135,13 +142,26 @@ pub const usage =
     \\  --help      Print this message
     \\  --version   Print aro version
     \\
-    \\Compile options:
-    \\  -c, --compile           Only run preprocess, compile, and assemble steps
+    \\Preprocessor options:
+    \\  -C                      Do not discard comments
+    \\  -CC                     Do not discard comments, including in macro expansions
     \\  -dM                     Output #define directives for all the macros defined during the execution of the preprocessor
     \\  -dD                     Like -dM except that it outputs both the #define directives and the result of preprocessing
     \\  -dN                     Like -dD, but emit only the macro names, not their expansions.
     \\  -D <macro>=<value>      Define <macro> to <value> (defaults to 1)
     \\  -E                      Only run the preprocessor
+    \\  -fdollars-in-identifiers
+    \\                          Allow '$' in identifiers
+    \\  -fno-dollars-in-identifiers
+    \\                          Disallow '$' in identifiers
+    \\  -M                      Output dependency file instead of preprocessing result
+    \\  -MD                     Like -M except -E is not implied
+    \\  -MF <file>              Write dependency file to <file>
+    \\  -MV                     Use NMake/Jom format for dependency file
+    \\  -P, --no-line-commands  Disable linemarker output in -E mode
+    \\
+    \\Compile options:
+    \\  -c, --compile           Only run preprocess, compile, and assemble steps
     \\  -fapple-kext            Use Apple's kernel extensions ABI
     \\  -fchar8_t               Enable char8_t (enabled by default in C23 and later)
     \\  -fno-char8_t            Disable char8_t (disabled by default for pre-C23)
@@ -160,10 +180,6 @@ pub const usage =
     \\  -fhosted                Compilation in a hosted environment
     \\  -fms-extensions         Enable support for Microsoft extensions
     \\  -fno-ms-extensions      Disable support for Microsoft extensions
-    \\  -fdollars-in-identifiers
-    \\                          Allow '$' in identifiers
-    \\  -fno-dollars-in-identifiers
-    \\                          Disallow '$' in identifiers
     \\  -g                      Generate debug information
     \\  -fmacro-backtrace-limit=<limit>
     \\                          Set limit on how many macro expansion traces are shown in errors (default 6)
@@ -207,7 +223,6 @@ pub const usage =
     \\                          Do not search the standard system directories or compiler builtin directories for include files.
     \\  -nostdlibinc            Do not search the standard system directories for include files, but do search compiler builtin include directories
     \\  -o <file>               Write output to <file>
-    \\  -P, --no-line-commands  Disable linemarker output in -E mode
     \\  -pedantic               Warn on language extensions
     \\  -pedantic-errors        Error on language extensions
     \\  --rtlib=<arg>           Compiler runtime library to use (libgcc or compiler-rt)
@@ -270,7 +285,7 @@ pub fn parseArgs(
     var emulate: ?LangOpts.Compiler = null;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
-        if (mem.startsWith(u8, arg, "-") and arg.len > 1) {
+        if (arg.len > 1 and arg[0] == '-') {
             if (mem.eql(u8, arg, "--help")) {
                 try stdout.print(usage, .{args[0]});
                 try stdout.flush();
@@ -354,6 +369,26 @@ pub fn parseArgs(
                 d.raw_cpu = args[i];
             } else if (option(arg, "--mcpu=")) |cpu| {
                 d.raw_cpu = cpu;
+            } else if (mem.eql(u8, arg, "-M") or mem.eql(u8, arg, "--dependencies")) {
+                d.dependencies.m = true;
+                // -M implies -w and -E
+                d.diagnostics.state.ignore_warnings = true;
+                d.only_preprocess = true;
+            } else if (mem.eql(u8, arg, "-MD") or mem.eql(u8, arg, "--write-dependencies")) {
+                d.dependencies.md = true;
+            } else if (mem.startsWith(u8, arg, "-MF")) {
+                var path = arg["-MF".len..];
+                if (path.len == 0) {
+                    i += 1;
+                    if (i >= args.len) {
+                        try d.err("expected argument after -MF", .{});
+                        continue;
+                    }
+                    path = args[i];
+                }
+                d.dependencies.file = path;
+            } else if (mem.eql(u8, arg, "-MV")) {
+                d.dependencies.format = .nmake;
             } else if (mem.eql(u8, arg, "-fchar8_t")) {
                 d.comp.langopts.has_char8_t_override = true;
             } else if (mem.eql(u8, arg, "-fno-char8_t")) {
@@ -454,9 +489,9 @@ pub fn parseArgs(
                 ms_extensions = true;
             } else if (mem.eql(u8, arg, "-fno-ms-extensions")) {
                 ms_extensions = false;
-            } else if (mem.startsWith(u8, arg, "-fsyntax-only")) {
+            } else if (mem.eql(u8, arg, "-fsyntax-only")) {
                 d.only_syntax = true;
-            } else if (mem.startsWith(u8, arg, "-fno-syntax-only")) {
+            } else if (mem.eql(u8, arg, "-fno-syntax-only")) {
                 d.only_syntax = false;
             } else if (mem.eql(u8, arg, "-fgnuc-version=")) {
                 gnuc_version = "0";
@@ -948,6 +983,47 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     if (fast_exit) std.process.exit(0);
 }
 
+/// Initializes a DepFile if requested by driver options.
+pub fn initDepFile(d: *Driver, source: Source, buf: *[std.fs.max_name_bytes]u8) Compilation.Error!?DepFile {
+    if (!d.dependencies.m and !d.dependencies.md) return null;
+    var dep_file: DepFile = .{
+        .target = undefined,
+        .format = d.dependencies.format,
+    };
+
+    if (d.dependencies.md and d.output_name != null) {
+        dep_file.target = d.output_name.?;
+    } else {
+        const args = .{
+            std.fs.path.stem(source.path),
+            d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
+        };
+        dep_file.target = std.fmt.bufPrint(buf, "{s}{s}", args) catch
+            return d.fatal("dependency file name too long for filesystem '{s}{s}'", args);
+    }
+
+    try dep_file.addDependency(d.comp.gpa, source.path);
+    errdefer comptime unreachable;
+
+    return dep_file;
+}
+
+/// Returns name requested for the dependency file or null for stdout.
+pub fn getDepFileName(d: *Driver, source: Source, buf: *[std.fs.max_name_bytes]u8) Compilation.Error!?[]const u8 {
+    if (d.dependencies.file) |file| {
+        if (std.mem.eql(u8, file, "-")) return null;
+        return file;
+    }
+    if (!d.dependencies.md) {
+        if (d.output_name) |name| return name;
+        return null;
+    }
+
+    const base_name = std.fs.path.stem(d.output_name orelse source.path);
+    return std.fmt.bufPrint(buf, "{s}.d", .{base_name}) catch
+        return d.fatal("dependency file name too long for filesystem: {s}.d", .{base_name});
+}
+
 fn getRandomFilename(d: *Driver, buf: *[std.fs.max_name_bytes]u8, extension: []const u8) ![]const u8 {
     const random_bytes_count = 12;
     const sub_path_len = comptime std.fs.base64_encoder.calcSize(random_bytes_count);
@@ -1022,6 +1098,12 @@ fn processSource(
     var pp = try Preprocessor.initDefault(d.comp);
     defer pp.deinit();
 
+    var name_buf: [std.fs.max_name_bytes]u8 = undefined;
+    var opt_dep_file = try d.initDepFile(source, &name_buf);
+    defer if (opt_dep_file) |*dep_file| dep_file.deinit(pp.gpa);
+
+    if (opt_dep_file) |*dep_file| pp.dep_file = dep_file;
+
     if (d.comp.langopts.ms_extensions) {
         d.comp.ms_cwd_source_id = source.id;
     }
@@ -1040,10 +1122,31 @@ fn processSource(
 
     try pp.preprocessSources(&.{ source, builtin, user_macros });
 
+    var writer_buf: [4096]u8 = undefined;
+    if (opt_dep_file) |dep_file| {
+        const dep_file_name = try d.getDepFileName(source, writer_buf[0..std.fs.max_name_bytes]);
+
+        const file = if (dep_file_name) |path|
+            d.comp.cwd.createFile(path, .{}) catch |er|
+                return d.fatal("unable to create dependency file '{s}': {s}", .{ path, errorDescription(er) })
+        else
+            std.fs.File.stdout();
+        defer if (dep_file_name != null) file.close();
+
+        var file_writer = file.writer(&writer_buf);
+        dep_file.write(&file_writer.interface) catch
+            return d.fatal("unable to write dependency file: {s}", .{errorDescription(file_writer.err.?)});
+    }
+
     if (d.only_preprocess) {
         d.printDiagnosticsStats();
 
         if (d.diagnostics.errors != prev_total) {
+            if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
+            return;
+        }
+
+        if (d.dependencies.m and !d.dependencies.md) {
             if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
             return;
         }
@@ -1055,9 +1158,7 @@ fn processSource(
             std.fs.File.stdout();
         defer if (d.output_name != null) file.close();
 
-        var file_buf: [4096]u8 = undefined;
-        var file_writer = file.writer(&file_buf);
-
+        var file_writer = file.writer(&writer_buf);
         pp.prettyPrintTokens(&file_writer.interface, dump_mode) catch
             return d.fatal("unable to write result: {s}", .{errorDescription(file_writer.err.?)});
 
@@ -1069,8 +1170,7 @@ fn processSource(
     defer tree.deinit();
 
     if (d.verbose_ast) {
-        var stdout_buf: [4096]u8 = undefined;
-        var stdout = std.fs.File.stdout().writer(&stdout_buf);
+        var stdout = std.fs.File.stdout().writer(&writer_buf);
         tree.dump(d.detectConfig(stdout.file), &stdout.interface) catch {};
     }
 
@@ -1093,7 +1193,6 @@ fn processSource(
         );
     }
 
-    var name_buf: [std.fs.max_name_bytes]u8 = undefined;
     const out_file_name = try d.getOutFileName(source, &name_buf);
 
     if (d.use_assembly_backend) {
@@ -1135,8 +1234,7 @@ fn processSource(
         defer ir.deinit(d.comp.gpa);
 
         if (d.verbose_ir) {
-            var stdout_buf: [4096]u8 = undefined;
-            var stdout = std.fs.File.stdout().writer(&stdout_buf);
+            var stdout = std.fs.File.stdout().writer(&writer_buf);
             ir.dump(d.comp.gpa, d.detectConfig(stdout.file), &stdout.interface) catch {};
         }
 
@@ -1161,8 +1259,7 @@ fn processSource(
             return d.fatal("unable to create output file '{s}': {s}", .{ out_file_name, errorDescription(er) });
         defer out_file.close();
 
-        var file_buf: [4096]u8 = undefined;
-        var file_writer = out_file.writer(&file_buf);
+        var file_writer = out_file.writer(&writer_buf);
         obj.finish(&file_writer.interface) catch
             return d.fatal("could not output to object file '{s}': {s}", .{ out_file_name, errorDescription(file_writer.err.?) });
     }
