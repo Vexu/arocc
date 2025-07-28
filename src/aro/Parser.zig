@@ -8723,7 +8723,9 @@ fn fieldAccess(
     };
 
     if (record_ty.layout == null) {
-        std.debug.assert(is_ptr);
+        // Invalid use of incomplete type, error reported elsewhere.
+        if (!is_ptr) return error.ParsingFailed;
+
         try p.err(field_name_tok - 2, .deref_incomplete_ty_ptr, .{expr_base_qt});
         return error.ParsingFailed;
     }

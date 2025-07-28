@@ -47,6 +47,10 @@ void f1(struct Foo *a) { } /* should produce `warning: declaration of 'struct Fo
 
 struct Foo f;
 
+void member_access_incomplete_struct(struct Foo f) {
+    f.a;
+}
+
 #define TESTS_SKIPPED 1
 
 #define EXPECTED_ERRORS "incomplete types.c:4:5: error: dereferencing pointer to incomplete type 'struct S'" \
@@ -65,4 +69,5 @@ struct Foo f;
     "incomplete types.c:46:16: note: forward declaration of 'struct Foo'" \
     "incomplete types.c:48:12: error: tentative definition has type 'struct Foo' that is never completed" \
     "incomplete types.c:48:8: note: forward declaration of 'struct Foo'" \
+    "incomplete types.c:50:49: error: parameter has incomplete type 'struct Foo'" \
 
