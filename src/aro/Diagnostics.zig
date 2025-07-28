@@ -24,7 +24,7 @@ pub const Message = struct {
         @"fatal error",
     };
 
-    pub fn write(msg: Message, w: *std.Io.Writer, config: std.Io.tty.Config) !void {
+    pub fn write(msg: Message, w: *std.Io.Writer, config: std.Io.tty.Config, details: bool) std.Io.tty.Config.SetColorError!void {
         try config.setColor(w, .bold);
         if (msg.location) |loc| {
             try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
@@ -53,7 +53,11 @@ pub const Message = struct {
             }
         }
 
-        if (msg.location) |loc| {
+        if (!details or msg.location == null) {
+            try w.writeAll("\n");
+            try config.setColor(w, .reset);
+        } else {
+            const loc = msg.location.?;
             const trailer = if (loc.end_with_splice) "\\ " else "";
             try config.setColor(w, .reset);
             try w.print("\n{s}{s}\n", .{ loc.line, trailer });
@@ -61,9 +65,6 @@ pub const Message = struct {
             try config.setColor(w, .bold);
             try config.setColor(w, .bright_green);
             try w.writeAll("^\n");
-            try config.setColor(w, .reset);
-        } else {
-            try w.writeAll("\n");
             try config.setColor(w, .reset);
         }
         try w.flush();
@@ -292,6 +293,11 @@ output: union(enum) {
     },
     ignore,
 },
+/// Force usage of color in output.
+color: ?bool = null,
+/// Include line of code in output.
+details: bool = true,
+
 state: State = .{},
 /// Amount of error or fatal error messages that have been sent to `output`.
 errors: u32 = 0,
@@ -513,7 +519,10 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
     switch (d.output) {
         .ignore => {},
         .to_writer => |writer| {
-            msg.write(writer.writer, writer.color) catch {
+            var config = writer.color;
+            if (d.color == false) config = .no_color;
+            if (d.color == true and config == .no_color) config = .escape_codes;
+            msg.write(writer.writer, config, d.details) catch {
                 return error.FatalError;
             };
         },
