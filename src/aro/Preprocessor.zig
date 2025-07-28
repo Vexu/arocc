@@ -1620,18 +1620,13 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                 else => unreachable,
             };
             const filename = include_str[1 .. include_str.len - 1];
-            const res = res: {
-                if (builtin == .macro_param_has_include or pp.include_depth == 0) {
-                    if (builtin == .macro_param_has_include_next) {
-                        try pp.err(src_loc, .include_next_outside_header, .{});
-                    }
-                    break :res try pp.comp.hasInclude(filename, src_loc.id, include_type, .first);
+            if (builtin == .macro_param_has_include or pp.include_depth == 0) {
+                if (builtin == .macro_param_has_include_next) {
+                    try pp.err(src_loc, .include_next_outside_header, .{});
                 }
-                break :res try pp.comp.hasInclude(filename, src_loc.id, include_type, .next);
-            };
-
-            if (res) if (pp.dep_file) |dep_file| try dep_file.addDependencyDupe(pp.gpa, pp.comp.arena, filename);
-            return res;
+                return pp.comp.hasInclude(filename, src_loc.id, include_type, .first, pp.dep_file);
+            }
+            return pp.comp.hasInclude(filename, src_loc.id, include_type, .next, pp.dep_file);
         },
         else => unreachable,
     }
