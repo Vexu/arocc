@@ -7086,10 +7086,10 @@ pub const Result = struct {
             }
         } else {
             if (c == .assign) {
-                const base_ty = dest_unqual.base(p.comp).qt;
-                switch (dest_unqual.base(p.comp).type) {
-                    .array => return p.err(tok, .array_not_assignable, .{base_ty}),
-                    .func => return p.err(tok, .non_object_not_assignable, .{base_ty}),
+                const base_type = dest_unqual.base(p.comp);
+                switch (base_type.type) {
+                    .array => return p.err(tok, .array_not_assignable, .{base_type.qt}),
+                    .func => return p.err(tok, .non_object_not_assignable, .{base_type.qt}),
                     else => {},
                 }
             } else if (c == .test_coerce) {
