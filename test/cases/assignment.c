@@ -57,7 +57,7 @@ void foo(void) {
     foo = 0;
 }
 
-int const* baz(void);
+int const* func(void);
 void various_assignments_to_consts(
     const int a,
     const int *b
@@ -81,11 +81,11 @@ void various_assignments_to_consts(
     const int arr[2][2] = { 0, 1, 2, 3};
     arr[0][0] = 1;
 
-    struct Outer { struct Dummy a };
-    const struct Outer a = {1};
-    a.a.a = 2;
+    struct Outer { struct Dummy a; };
+    const struct Outer nested_struct = {1};
+    nested_struct.a.a = 2;
 
-    baz()[0] = 1;
+    func()[0] = 1;
 }
 
 void bar(void) {
@@ -161,14 +161,9 @@ void constant_sign_conversion(void) {
     "assignment.c:78:24: note: variable 'd' declared const here" \
     "assignment.c:82:15: error: cannot assign to variable 'arr' with const-qualified type 'const int [2][2]'" \
     "assignment.c:81:15: note: variable 'arr' declared const here" \
-    "assignment.c:84:35: warning: expected ';' at end of declaration list" \
-    "assignment.c:85:24: error: redefinition of 'a'" \
-    "assignment.c:62:15: note: previous definition is here" \
-    "assignment.c:86:11: error: cannot assign to variable 'a' with const-qualified type 'const struct Outer'" \
-    "assignment.c:85:24: note: variable 'a' declared const here" \
-    "assignment.c:88:14: error: cannot assign to variable 'baz' with const-qualified type 'const int *(void)'" \
-    "assignment.c:98:6: error: redefinition of 'baz' with a different type" \
-    "assignment.c:60:12: note: previous definition is here" \
+    "assignment.c:86:23: error: cannot assign to variable 'nested_struct' with const-qualified type 'const struct Outer'" \
+    "assignment.c:85:24: note: variable 'nested_struct' declared const here" \
+    "assignment.c:88:15: error: cannot assign to variable 'func' with const-qualified type 'const int *(void)'" \
     "assignment.c:99:12: error: variable has incomplete type 'enum E'" \
     "assignment.c:106:7: error: cannot assign to variable 'a' with const-qualified type 'A' (aka 'const int')" \
     "assignment.c:105:7: note: variable 'a' declared const here" \

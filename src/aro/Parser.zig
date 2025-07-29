@@ -7087,12 +7087,11 @@ pub const Result = struct {
         } else {
             if (c == .assign) {
                 const base_ty = dest_unqual.base(p.comp).qt;
-                if (base_ty.type(p.comp) == .array) {
-                    try p.err(tok, .array_not_assignable, .{base_ty});
-                } else if (base_ty.type(p.comp) == .func) {
-                    try p.err(tok, .non_object_not_assignable, .{base_ty});
+                switch (dest_unqual.base(p.comp).type) {
+                    .array => return p.err(tok, .array_not_assignable, .{base_ty}),
+                    .func => return p.err(tok, .non_object_not_assignable, .{base_ty}),
+                    else => {},
                 }
-                return;
             } else if (c == .test_coerce) {
                 return error.CoercionFailed;
             }
@@ -7214,15 +7213,12 @@ fn unwrapNestedOperation(p: *Parser, node_idx: Node.Index) ?Node.DeclRef {
 }
 
 fn issueDeclaredConstHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name: []const u8) Compilation.Error!void {
-    const tags = [_]std.meta.Tag(Node){
-        .variable,
-        .param,
+    const location = switch (decl_ref.decl.get(&p.tree)) {
+        .variable => |variable| variable.name_tok,
+        .param => |param| param.name_tok,
+        else => return,
     };
-    inline for (tags) |tag| {
-        if (p.getNode(decl_ref.decl, tag)) |ref| {
-            try p.err(ref.name_tok, .declared_const_here, .{var_name});
-        }
-    }
+    try p.err(location, .declared_const_here, .{var_name});
 }
 
 fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIndex) Compilation.Error!void {
