@@ -7085,8 +7085,13 @@ pub const Result = struct {
                 return; // ok
             }
         } else {
-            if (c == .assign and (dest_unqual.is(p.comp, .array) or dest_unqual.is(p.comp, .func))) {
-                try p.err(tok, .not_assignable, .{});
+            if (c == .assign) {
+                const base_ty = dest_unqual.base(p.comp).qt;
+                if (base_ty.type(p.comp) == .array) {
+                    try p.err(tok, .array_not_assignable, .{base_ty});
+                } else if (base_ty.type(p.comp) == .func) {
+                    try p.err(tok, .non_object_not_assignable, .{base_ty});
+                }
                 return;
             } else if (c == .test_coerce) {
                 return error.CoercionFailed;
@@ -7186,6 +7191,50 @@ fn nonAssignExpr(assign_node: std.meta.Tag(Node)) std.meta.Tag(Node) {
     };
 }
 
+fn unwrapNestedOperation(p: *Parser, node_idx: Node.Index) ?Node.DeclRef {
+    return loop: switch (node_idx.get(&p.tree)) {
+        inline .array_access_expr,
+        .member_access_ptr_expr,
+        .member_access_expr,
+        => |memb_or_arr_access| continue :loop memb_or_arr_access.base.get(&p.tree),
+        inline .cast,
+        .paren_expr,
+        .pre_inc_expr,
+        .post_inc_expr,
+        .pre_dec_expr,
+        .post_dec_expr,
+        => |cast_or_unary| continue :loop cast_or_unary.operand.get(&p.tree),
+        .sub_expr,
+        .add_expr,
+        => |bin| continue :loop bin.lhs.get(&p.tree),
+        .call_expr => |call| continue :loop call.callee.get(&p.tree),
+        .decl_ref_expr => |decl_ref| decl_ref,
+        else => null,
+    };
+}
+
+fn issueDeclaredConstHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name: []const u8) Compilation.Error!void {
+    const tags = [_]std.meta.Tag(Node){
+        .variable,
+        .param,
+    };
+    inline for (tags) |tag| {
+        if (p.getNode(decl_ref.decl, tag)) |ref| {
+            try p.err(ref.name_tok, .declared_const_here, .{var_name});
+        }
+    }
+}
+
+fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIndex) Compilation.Error!void {
+    if (p.unwrapNestedOperation(node_idx)) |unwrapped| {
+        const name = p.tokSlice(unwrapped.name_tok);
+        try p.err(tok, .const_var_assignment, .{ name, unwrapped.qt });
+        try p.issueDeclaredConstHereNote(unwrapped, name);
+    } else {
+        try p.err(tok, .not_assignable, .{});
+    }
+}
+
 /// assignExpr
 ///  : condExpr
 ///  | unExpr ('=' | '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '&=' | '^=' | '|=') assignExpr
@@ -7209,7 +7258,7 @@ fn assignExpr(p: *Parser) Error!?Result {
 
     var is_const: bool = undefined;
     if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
-        try p.err(tok, .not_assignable, .{});
+        try p.issueConstAssignmetDiagnostics(lhs.node, tok);
         lhs.qt = .invalid;
     }
 
